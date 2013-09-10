@@ -1,0 +1,55 @@
+#ifndef MWM_str_util
+#define MWM_str_util
+
+#include<string>
+#include<exception>
+#include<sstream>
+#include<stdio.h>
+#include<string.h>
+
+namespace boda
+{
+
+  std::string strprintf( char const * const format, ... ) __attribute__( (format(__printf__, 1, 2) ) );
+
+  inline bool endswith( std::string const & s, std::string const & suf )
+  {
+    if( s.size() < suf.size() )
+    {
+      return false;
+    }
+    size_t const off( s.size() - suf.size() );
+    for( size_t i = 0; i < suf.size(); i++ )
+    {
+      if( suf[i] != s[i+off] )
+      {
+	return false;
+      }
+    }
+    return true;
+  }
+
+  inline void strip_suffs( std::string & s, std::string const & suff )
+  {
+    while( endswith(s,suff) ) { s = s.substr( 0, s.size() - suff.size() ); }
+  }
+
+  template< typename T >
+  inline std::string str(T const i)	// convert T i to string
+  {
+    std::stringstream s;
+    s << i;
+    return s.str();
+  }
+
+  class str_exception : public std::exception
+  {
+  public:
+    char const * const msg;
+    str_exception( char const * const msg_ ) : msg(strdup(msg_)) { }
+    str_exception( std::string const & msg_ ) : msg(strdup(msg_.c_str())) { }
+    virtual char const * what() const throw() { return msg; }
+  };
+}
+
+#endif // MWM_str_util

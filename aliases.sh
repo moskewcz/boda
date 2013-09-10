@@ -1,0 +1,1 @@
+BODA_DIR=`pwd`
