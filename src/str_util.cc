@@ -3,7 +3,7 @@
 #include<assert.h>
 #include<malloc.h>
 
-namespace nyu
+namespace boda
 {
 
   std::string strprintf( char const * const format, ... )
@@ -20,4 +20,11 @@ namespace nyu
     return ret;
   }
 
+  void printstr( std::string const & str )
+  {
+    printf( "%s", str.c_str() );
+  }
+
+
 }
+

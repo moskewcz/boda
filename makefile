@@ -2,8 +2,7 @@ TARGET=../lib/boda
 VPATH=../src ../src/gen
 OBJS=str_util.o boda.o pugixml.o results_io.o boda_base.o
 CPP=g++
-CPPFLAGS=-Wall -O3 -g -std=c++0x
-LFLAGS=
+CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic
 
 ifeq ($(shell test -L makefile ; echo $$? ),1)
 all : 
@@ -28,7 +27,7 @@ $(info py_prebuild_hook:  $(shell python ../pysrc/prebuild.py ))
 
 all : $(TARGET) 
 $(TARGET): $(OBJS)
-	$(CPP) $(FLAGS) -o $(TARGET) $(OBJS)
+	$(CPP) $(CPPFLAGS) -o $(TARGET) $(OBJS)
 
 .PHONY : clean
 clean:
