@@ -18,26 +18,18 @@ namespace boda
   using filesystem::filesystem_error;
   using namespace pugi;
 
-  double lc_str_d( string const & s ) 
+  double lc_str_d( char const * const s )
   { 
-    try {
-      return lexical_cast< double >( s ); 
-    }
-    catch( bad_lexical_cast & e ) {
-      cout << "can't convert '" << s << "' to double." << endl;
-      assert(0);
-    }
+    try { return lexical_cast< double >( s ); }
+    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to double.", s ) ); }
   }
-  uint32_t lc_str_u32( string const & s ) 
+  uint32_t lc_str_u32( char const * const s )
   { 
-    try {
-      return lexical_cast< uint32_t >( s ); 
-    }
-    catch( bad_lexical_cast & e ) {
-      cout << "can't convert '" << s << "' to uint32_t." << endl;
-      assert(0);
-    }
+    try { return lexical_cast< uint32_t >( s ); }
+    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to uint32_t.", s ) ); }
   }
+  double lc_str_d( string const & s ) { return lc_str_d( s.c_str() ); } 
+  uint32_t lc_str_u32( string const & s ) { return lc_str_u32( s.c_str() ); } 
 
   typedef vector< string > vect_string;
   typedef map< string, uint32_t > str_uint32_t_map_t;
@@ -73,8 +65,16 @@ namespace boda
     }
   }
 
+  struct scored_det_t : public u32_box_t
+  {
+    double score;
+  };
+  typedef vector< scored_det_t > vect_scored_det_t;
+  typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
+
   void read_results_file( string const & fn )
   {
+    p_vect_scored_det_t scored_dets( new vect_scored_det_t );
     p_ifstream in = ifs_open( fn );  
     string line;
     while( !ifs_getline( fn, in, line ) )
@@ -85,34 +85,80 @@ namespace boda
       assert( parts.size() == 6 );
       string const id = parts[0];
 
-      double const score = lc_str_d( parts[1] );
-      uint32_t const left = lc_str_u32( parts[2] ) - 1;
-      uint32_t const top = lc_str_u32( parts[3] ) - 1;
-      uint32_t const right = lc_str_u32( parts[4] ) - 1;
-      uint32_t const bottom = lc_str_u32( parts[5] ) - 1;
-      assert( bottom > top );
-      assert( right > left );
-      printf( "score=%s\n", str(score).c_str() );
+      scored_det_t scored_det;
 
+      scored_det.score = lc_str_d( parts[1] );
+      scored_det.p[0].d[0] = lc_str_u32( parts[2] );
+      scored_det.p[0].d[1] = lc_str_u32( parts[3] );
+      scored_det.p[1].d[0] = lc_str_u32( parts[4] );
+      scored_det.p[1].d[1] = lc_str_u32( parts[5] );
+      scored_det.one_to_zero_coord_adj();
+      assert_st( scored_det.is_strictly_normalized() );
     }
   }
+
+  xml_node xml_must_decend( char const * const fn, xml_node const & node, char const * const child_name )
+  {
+    xml_node ret = node.child(child_name);
+    if( !ret ) { 
+      rt_err( strprintf( "error: parsing xml file: '%s': expected to find child named '%s' from %s",
+			 fn, child_name, (node==node.root()) ? "document root" : 
+			 ("node with name '" + string(node.name()) + "'").c_str() ) ); }
+    return ret;
+  }
+
+  struct gt_det_t : public u32_box_t
+  {
+    uint32_t truncated;
+    uint32_t difficult;    
+  };
+  typedef vector< gt_det_t > vect_gt_det_t;
+  typedef map< string, vect_gt_det_t > name_vect_dt_det_map_t;
+
+  struct img_info_t
+  {
+    u32_pt_t size;
+    uint32_t depth;
+    name_vect_dt_det_map_t gt_dets;
+  };
+  typedef shared_ptr< img_info_t > p_img_info_t;
+
 
   void read_pascal_annotations_for_id( string const & fn, string const & id )
   {
     path const pfn = fn;
     path const ann_dir = pfn.parent_path() / ".." / ".." / "Annotations";
     ensure_is_dir( ann_dir );
-    path const ann_file = ann_dir / (id + ".xml");
-    ensure_is_regular_file( ann_file );
-    
+    path const ann_path = ann_dir / (id + ".xml");
+    ensure_is_regular_file( ann_path );
+    char const * const ann_fn = ann_path.c_str();
     xml_document doc;
-    xml_parse_result result = doc.load_file( ann_file.c_str() );
-
+    xml_parse_result result = doc.load_file( ann_fn );
     if( !result ) { 
-      rt_err( strprintf( "loading xml file '%s' failed: %s", ann_file.c_str(), result.description() ) );
+      rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
     }
-    //std::cout << "Load result: " << result.description() << ", mesh name: " << doc.child("annotation").child("object").child_value("name") << std::endl;
+    p_img_info_t img_info( new img_info_t );
+    
+    xml_node ann = xml_must_decend( ann_fn, doc, "annotation" );
+    xml_node ann_size = xml_must_decend( ann_fn, ann, "size" );
+    img_info->size.d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "width" ).child_value() );
+    img_info->size.d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "height" ).child_value() );
+    img_info->depth = lc_str_u32( xml_must_decend( ann_fn, ann_size, "depth" ).child_value() );
 
+    for( xml_node ann_obj = ann.child("object"); ann_obj; ann_obj = ann_obj.next_sibling("object") ) {
+      gt_det_t gt_det;
+      gt_det.truncated = lc_str_u32( xml_must_decend( ann_fn, ann_obj, "truncated" ).child_value() );
+      gt_det.difficult = lc_str_u32( xml_must_decend( ann_fn, ann_obj, "difficult" ).child_value() );
+      xml_node ann_obj_bb = xml_must_decend( ann_fn, ann_obj, "bndbox" );
+      gt_det.p[0].d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "xmin" ).child_value() );
+      gt_det.p[0].d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "ymin" ).child_value() );
+      gt_det.p[1].d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "xmax" ).child_value() );
+      gt_det.p[1].d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "ymax" ).child_value() );
+      gt_det.one_to_zero_coord_adj();
+      assert_st( gt_det.is_strictly_normalized() );
+      string const ann_obj_name( xml_must_decend( ann_fn, ann_obj, "name" ).child_value() );
+      img_info->gt_dets[ann_obj_name].push_back(gt_det);
+    }
   }
 
   void read_image_list_file( string const & fn )

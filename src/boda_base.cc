@@ -61,14 +61,15 @@ namespace boda
     return bt;
   }
 
-  string stacktrace_str( p_vect_rp_void bt )
+  string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames )
   {
     string ret;
     assert( !bt->empty() );
-    ret += strprintf( "----STACK TRACE (FRAMES=%s)%s----\n", str(bt->size()).c_str(), 
+    ret += strprintf( "----STACK TRACE (FRAMES=%s-%s)%s----\n", 
+		      str(bt->size()).c_str(), str(strip_frames).c_str(), 
 		      (bt->size() < max_frames)?"":" <WARNING: frames may be truncated (oldest lost)>" );
     unique_ptr< char * > bt_syms( backtrace_symbols( &bt->at(0), bt->size() ) );
-    for( uint32_t i = 0; i < bt->size(); ++i )
+    for( uint32_t i = strip_frames; i < bt->size(); ++i )
     {
       // it's a little unclear what should be assert()s here versus possible/ignorable/handlable cases
       // note: we can't use assert_st() here
@@ -101,7 +102,7 @@ namespace boda
 
   rt_exception::rt_exception( std::string const & err_msg_, p_vect_rp_void bt_ ) : err_msg(err_msg_), bt(bt_) {}
   char const * rt_exception::what( void ) const throw() { return err_msg.c_str(); }
-  string rt_exception::what_and_stacktrace( void ) const { return err_msg + "\n" + stacktrace_str( bt ); }
+  string rt_exception::what_and_stacktrace( void ) const { return err_msg + "\n" + stacktrace_str( bt, 2 ); }
   int rt_exception::get_ret_code( void ) const { return 1; }
   void rt_err( std::string const & err_msg ) { throw rt_exception( "error: " + err_msg, get_backtrace() ); }
 }

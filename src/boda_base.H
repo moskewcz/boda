@@ -12,7 +12,7 @@
   ((expr)								\
    ? __ASSERT_VOID_CAST (0)						\
    : __assert_fail ((std::string(" failed:\n") + __STRING(expr)+\
-		     "\n "+stacktrace_str( get_backtrace() )).c_str(),	\
+		     "\n "+stacktrace_str( get_backtrace(), 0 )).c_str(),	\
 		    __FILE__, __LINE__, __ASSERT_FUNCTION))
 namespace boost 
 {
@@ -30,7 +30,7 @@ namespace boda
   typedef std::vector< void * > vect_rp_void;
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
   p_vect_rp_void get_backtrace( void );
-  std::string stacktrace_str( p_vect_rp_void bt );
+  std::string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   void ensure_is_dir( const boost::filesystem3::path & p );
   void ensure_is_regular_file( const boost::filesystem3::path & p );
 
@@ -49,7 +49,7 @@ namespace boda
   // given string as error message. as a perf. compromise, while the
   // top frames of the stack are always captured, they are not
   // processed into a full trace at throw time.
-  void rt_err( std::string const & err_msg );
+  void rt_err( std::string const & err_msg ) __attribute__((noreturn));
 }
 
 #endif // BODA_BASE_H
