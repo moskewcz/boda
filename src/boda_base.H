@@ -1,9 +1,26 @@
+#ifndef BODA_BASE_H
+#define BODA_BASE_H
+
 #include<cassert>
 #include<boost/shared_ptr.hpp>
 #include<fstream>
 #include<string>
 #include<vector>
+#include<exception>
 
+# define assert_st(expr)							\
+  ((expr)								\
+   ? __ASSERT_VOID_CAST (0)						\
+   : __assert_fail ((std::string(" failed:\n") + __STRING(expr)+\
+		     "\n "+stacktrace_str( get_backtrace() )).c_str(),	\
+		    __FILE__, __LINE__, __ASSERT_FUNCTION))
+namespace boost 
+{
+  namespace filesystem3
+  {
+    struct path;
+  }
+}
 namespace boda
 {
   using boost::shared_ptr;
@@ -11,6 +28,29 @@ namespace boda
   p_ifstream ifs_open( std::string const & fn );
 
   typedef std::vector< void * > vect_rp_void;
-  std::string stacktrace_str( void );
+  typedef shared_ptr< vect_rp_void > p_vect_rp_void;
+  p_vect_rp_void get_backtrace( void );
+  std::string stacktrace_str( p_vect_rp_void bt );
+  void ensure_is_dir( const boost::filesystem3::path & p );
+  void ensure_is_regular_file( const boost::filesystem3::path & p );
 
+  struct rt_exception : public std::exception
+  {
+    std::string err_msg;
+    p_vect_rp_void bt;
+    std::string what_str;
+    rt_exception( std::string const & err_msg_, p_vect_rp_void bt_ );
+    virtual ~rt_exception() throw () {}
+    virtual char const * what( void ) const throw();
+    std::string what_and_stacktrace( void ) const;
+    int get_ret_code( void ) const;
+  };
+  // raise runtime error. captures stack and raises exception with
+  // given string as error message. as a perf. compromise, while the
+  // top frames of the stack are always captured, they are not
+  // processed into a full trace at throw time.
+  void rt_err( std::string const & err_msg );
 }
+
+#endif // BODA_BASE_H
+

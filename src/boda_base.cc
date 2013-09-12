@@ -3,100 +3,105 @@
 #include<memory>
 #include<execinfo.h>
 #include<cxxabi.h>
+#include<boost/filesystem.hpp>
 
 namespace boda 
 {
-
   using namespace std;
+  using namespace boost;  
+  using filesystem::path;
+  using filesystem::filesystem_error;
 
+  void ensure_is_dir( path const & p )
+  {
+    try  { 
+      bool const ret = is_directory( p ); 
+      if( !ret ) { rt_err( strprintf("expected path '%s' to be a directory, but it is not.", p.c_str() ) ); } }
+    catch( filesystem_error const & e ) {
+      rt_err( strprintf( "filesystem error while trying to check if '%s' is a directory: %s", 
+			 p.c_str(), e.what() ) ); }
+  }
+  void ensure_is_regular_file( path const & p )
+  {
+    try  { 
+      bool const ret = is_regular_file( p ); 
+      if( !ret ) { rt_err( strprintf("expected path '%s' to be a regular file, but it is not.", p.c_str()));}}
+    catch( filesystem_error const & e ) {
+      rt_err( strprintf( "filesystem error while trying to check if '%s' is a regular file: %s", 
+			 p.c_str(), e.what() ) ); }
+  }
 
 // opens a ifstream that will raise expections for all errors (not
 // including eof). note: this function itself will raise if the open()
 // fails.
   p_ifstream ifs_open( std::string const & fn )
   {
+    ensure_is_regular_file( fn );
     p_ifstream ret( new ifstream );
     ret->open( fn.c_str() );
-    if( ret->fail() )
-    {
-      printstr( stacktrace_str() );
-      assert( 0 );
-    }
-    ret->exceptions( ifstream::failbit | ifstream::badbit );
+    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for reading", fn.c_str() ) ); }
+    assert( ret->good() );
     return ret;
   }
 
-  uint32_t const max_frames = 256;
+  uint32_t const max_frames = 64;
 
-
-  string stacktrace_str( void )
+  p_vect_rp_void get_backtrace( void )
   {
-    string ret;
-
     // we could easily double bt until the trace fits, but for now
     // we'll assume something has gone wrong if the trace is >
-    // max_frames and allow truncation.
-    vect_rp_void bt;
-    bt.resize( max_frames );
-    int const bt_ret = backtrace( &bt[0], bt.size() );
+    // max_frames and allow truncation. this also (hopefully) limits
+    // the cost of backtrace().
+    p_vect_rp_void bt( new vect_rp_void );
+    bt->resize( max_frames );
+    int const bt_ret = backtrace( &bt->at(0), bt->size() );
     assert( bt_ret >= 0 );
-    assert( uint32_t(bt_ret) <= bt.size() );
-    ret += strprintf( "begin stack trace with num_frames=%s%s:\n", str(bt_ret).c_str(), 
-		      (uint32_t(bt_ret) < bt.size())?"":" <WARNING: frames truncated, oldest lost>" );
-    bt.resize( bt_ret );
+    assert( uint32_t(bt_ret) <= bt->size() );
+    bt->resize( bt_ret );
+    return bt;
+  }
 
-    unique_ptr< char * > bt_syms( backtrace_symbols( &bt[0], bt.size() ) );
-
-    for( uint32_t i = 0; i < bt.size(); ++i )
+  string stacktrace_str( p_vect_rp_void bt )
+  {
+    string ret;
+    assert( !bt->empty() );
+    ret += strprintf( "----STACK TRACE (FRAMES=%s)%s----\n", str(bt->size()).c_str(), 
+		      (bt->size() < max_frames)?"":" <WARNING: frames may be truncated (oldest lost)>" );
+    unique_ptr< char * > bt_syms( backtrace_symbols( &bt->at(0), bt->size() ) );
+    for( uint32_t i = 0; i < bt->size(); ++i )
     {
-
-/// BEGIN-PASTA
-      // we assume i is a legal index for bt_syms. we can't check this.
-      char *begin_name = 0, *begin_offset = 0, *end_offset = 0;
-      // find parentheses and +address offset surrounding the mangled name:
-      // ./module(function+0x15c) [0x8048a6d]
-      for (char *p = bt_syms.get()[i]; *p; ++p)
-      {
-	if (*p == '(')
-	  begin_name = p;
-	else if (*p == '+')
-	  begin_offset = p;
-	else if (*p == ')' && begin_offset) {
-	  end_offset = p;
-	  break;
-	}
+      // it's a little unclear what should be assert()s here versus possible/ignorable/handlable cases
+      // note: we can't use assert_st() here
+      string sym( bt_syms.get()[i] );
+      size_t const op_pos = sym.find('(');
+      assert( op_pos != string::npos ); // can't find '(' to start symbol name
+      assert( (op_pos+1) < sym.size() ); // '(' should not be last char. 
+      sym[op_pos] = 0; // terminate object/file name part
+      size_t const plus_pos = sym.find('+',op_pos);
+      if( plus_pos != string::npos ) { // if there was an '+' (i.e. an offset part)
+	assert( (plus_pos+1) < sym.size() ); // '+' should not be last char. 
+	sym[plus_pos] = 0; // terminate sym_name part
       }
+      size_t const cp_pos = sym.find(')',(plus_pos!=string::npos)?plus_pos:op_pos);
+      assert( cp_pos != string::npos ); // can't find ')' to end symbol(+ maybe offset) part      
+      assert( (cp_pos+1) < sym.size() ); // ')' should not be last char. 
+      sym[cp_pos] = 0; // terminate sym_name (+ maybe offset) part
 
-      if (begin_name && begin_offset && end_offset
-	  && begin_name < begin_offset)
-      {
-	*begin_name++ = '\0';
-	*begin_offset++ = '\0';
-	*end_offset = '\0';
-
-	// mangled name is now in [begin_name, begin_offset) and caller
-	// offset in [begin_offset, end_offset). now apply
-	// __cxa_demangle():
-/// END-PASTA
-	int dm_ret = 0;
-	unique_ptr< char > dm_fn( abi::__cxa_demangle(begin_name, 0, 0, &dm_ret ) );
-
-	if( dm_ret == 0 ) 
-	{
-	  ret += strprintf( "%s : %s+%s\n", bt_syms.get()[i], dm_fn.get(), begin_offset ); 
-	}
-	else 
-	{
-	  ret += strprintf( "%s : %s()+%s (DM_FAIL=%s)\n", bt_syms.get()[i], begin_name, begin_offset, str(dm_ret).c_str() );
-	}
-      }
-      else
-      {
-	// couldn't parse the line? print the whole line.
-	ret += strprintf("%s\n", bt_syms.get()[i]);
-      }
+      char * sym_name = &sym[ op_pos + 1 ];
+      int dm_ret = 0;
+      unique_ptr< char > dm_fn( abi::__cxa_demangle(sym_name, 0, 0, &dm_ret ) );
+      if( dm_ret == 0 ) { sym_name = dm_fn.get(); }
+      ret += strprintf( "  %s(%s%s%s)%s\n", sym.c_str(), sym_name, 
+			(plus_pos==string::npos)?"":"+",
+			(plus_pos==string::npos)?"":(sym.c_str()+plus_pos+1),
+			sym.c_str()+cp_pos+1 ); 
     }
     return ret;
   }
 
+  rt_exception::rt_exception( std::string const & err_msg_, p_vect_rp_void bt_ ) : err_msg(err_msg_), bt(bt_) {}
+  char const * rt_exception::what( void ) const throw() { return err_msg.c_str(); }
+  string rt_exception::what_and_stacktrace( void ) const { return err_msg + "\n" + stacktrace_str( bt ); }
+  int rt_exception::get_ret_code( void ) const { return 1; }
+  void rt_err( std::string const & err_msg ) { throw rt_exception( "error: " + err_msg, get_backtrace() ); }
 }
