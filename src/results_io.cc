@@ -70,42 +70,8 @@ namespace boda
     double score;
   };
   typedef vector< scored_det_t > vect_scored_det_t;
+  typedef map< string, vect_scored_det_t > name_vect_scored_det_map_t;
   typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
-
-  void read_results_file( string const & fn )
-  {
-    p_vect_scored_det_t scored_dets( new vect_scored_det_t );
-    p_ifstream in = ifs_open( fn );  
-    string line;
-    while( !ifs_getline( fn, in, line ) )
-    {
-      vect_string parts;
-      split( parts, line, is_space(), token_compress_on );
-      if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
-      assert( parts.size() == 6 );
-      string const id = parts[0];
-
-      scored_det_t scored_det;
-
-      scored_det.score = lc_str_d( parts[1] );
-      scored_det.p[0].d[0] = lc_str_u32( parts[2] );
-      scored_det.p[0].d[1] = lc_str_u32( parts[3] );
-      scored_det.p[1].d[0] = lc_str_u32( parts[4] );
-      scored_det.p[1].d[1] = lc_str_u32( parts[5] );
-      scored_det.one_to_zero_coord_adj();
-      assert_st( scored_det.is_strictly_normalized() );
-    }
-  }
-
-  xml_node xml_must_decend( char const * const fn, xml_node const & node, char const * const child_name )
-  {
-    xml_node ret = node.child(child_name);
-    if( !ret ) { 
-      rt_err( strprintf( "error: parsing xml file: '%s': expected to find child named '%s' from %s",
-			 fn, child_name, (node==node.root()) ? "document root" : 
-			 ("node with name '" + string(node.name()) + "'").c_str() ) ); }
-    return ret;
-  }
 
   struct gt_det_t : public u32_box_t
   {
@@ -120,14 +86,24 @@ namespace boda
     u32_pt_t size;
     uint32_t depth;
     name_vect_dt_det_map_t gt_dets;
+    name_vect_scored_det_map_t scored_dets;
   };
   typedef shared_ptr< img_info_t > p_img_info_t;
+  typedef map< string, p_img_info_t > id_to_img_info_map_t;
 
-
-  void read_pascal_annotations_for_id( string const & fn, string const & id )
+  xml_node xml_must_decend( char const * const fn, xml_node const & node, char const * const child_name )
   {
-    path const pfn = fn;
-    path const ann_dir = pfn.parent_path() / ".." / ".." / "Annotations";
+    xml_node ret = node.child(child_name);
+    if( !ret ) { 
+      rt_err( strprintf( "error: parsing xml file: '%s': expected to find child named '%s' from %s",
+			 fn, child_name, (node==node.root()) ? "document root" : 
+			 ("node with name '" + string(node.name()) + "'").c_str() ) ); }
+    return ret;
+  }
+  
+  p_img_info_t read_pascal_annotations_for_id( path const & pascal_base_path, string const & id )
+  {
+    path const ann_dir = pascal_base_path / "Annotations";
     ensure_is_dir( ann_dir );
     path const ann_path = ann_dir / (id + ".xml");
     ensure_is_regular_file( ann_path );
@@ -159,10 +135,55 @@ namespace boda
       string const ann_obj_name( xml_must_decend( ann_fn, ann_obj, "name" ).child_value() );
       img_info->gt_dets[ann_obj_name].push_back(gt_det);
     }
+    return img_info;
   }
 
-  void read_image_list_file( string const & fn )
+  struct img_db_t 
   {
+    path pascal_base_path;
+    id_to_img_info_map_t id_to_img_info_map;
+    img_db_t( void ) : pascal_base_path( "/home/moskewcz/bench/VOCdevkit/VOC2007" ) { }
+    void load_ann_for_id( string const & img_id )
+    {
+      p_img_info_t & img_info = id_to_img_info_map[img_id];
+      if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
+      img_info = read_pascal_annotations_for_id( pascal_base_path, img_id ); 
+    }
+    void add_scored_det( string const & class_name, string const & img_id, scored_det_t const & scored_det )
+    {
+      id_to_img_info_map_t::iterator img_info = id_to_img_info_map.find(img_id);
+      if( img_info == id_to_img_info_map.end() ) { rt_err("tried to add detection for unloaded id '"+img_id+"'"); }
+      img_info->second->scored_dets[class_name].push_back( scored_det );
+    }
+  };
+  typedef shared_ptr< img_db_t > p_img_db_t;
+
+  void read_results_file( p_img_db_t img_db, string const & fn, string const &class_name )
+  {
+    p_ifstream in = ifs_open( fn );  
+    string line;
+    while( !ifs_getline( fn, in, line ) )
+    {
+      vect_string parts;
+      split( parts, line, is_space(), token_compress_on );
+      if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
+      assert( parts.size() == 6 );
+      string const img_id = parts[0];
+      scored_det_t scored_det;
+      scored_det.score = lc_str_d( parts[1] );
+      scored_det.p[0].d[0] = lc_str_u32( parts[2] );
+      scored_det.p[0].d[1] = lc_str_u32( parts[3] );
+      scored_det.p[1].d[0] = lc_str_u32( parts[4] );
+      scored_det.p[1].d[1] = lc_str_u32( parts[5] );
+      scored_det.one_to_zero_coord_adj();
+      assert_st( scored_det.is_strictly_normalized() );
+      img_db->add_scored_det( class_name, img_id, scored_det );
+    }
+  }
+
+  p_img_db_t read_image_list_file( string const & fn )
+  {
+    p_img_db_t img_db( new img_db_t );
     p_ifstream in = ifs_open( fn );  
     string line;
     while( !ifs_getline( fn, in, line ) )
@@ -179,10 +200,15 @@ namespace boda
 	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
 			   fn.c_str(), pn.c_str() ) );
       }
-      //printf( "id=%s pn=%s\n", id.c_str(), pn.c_str() );
-      // load annotations for this image
-      read_pascal_annotations_for_id( fn, id );
-
+      img_db->load_ann_for_id( id );
     }
+    return img_db;
   }
+
+  void score_results_file( string const & il_fn, string const & res_fn, string const &class_name )
+  {
+    p_img_db_t img_db = read_image_list_file( il_fn );
+    read_results_file( img_db, res_fn, class_name );
+  }
+
 }

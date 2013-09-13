@@ -4,18 +4,22 @@
 
 namespace boda
 {
+  // working example cline:
+  // time ../lib/boda score ~/bench/VOCdevkit/VOC2007/ImageSets/Main/bicycle_test.txt ~/research/ffld/build/ffld_VOC2007_bicycle_test_out.txt bicycle
+
   int boda_main( int argc, char **argv )
   {
-    if( argc < 3 )
+    if( argc < 5 )
     {
-      printf("usage: boda mode arg\n");
+      printf("usage: boda score list_fn res_fn class_name\n");
       return 1;
     }
     std::string const mode = argv[1];
-    std::string const fn = argv[2];
+    std::string const list_fn = argv[2];
+    std::string const res_fn = argv[3];
+    std::string const class_name = argv[4];
     if(0) { }
-    else if( mode == "res" ) { read_results_file( fn ); }
-    else if( mode == "il" ) { read_image_list_file( fn ); }
+    else if( mode == "score" ) { score_results_file( list_fn, res_fn, class_name ); }
     else { rt_err( "unknown mode '" + mode + "'" ); }
     return 0;
   }
