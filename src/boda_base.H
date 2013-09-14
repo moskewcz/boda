@@ -7,6 +7,7 @@
 #include<string>
 #include<vector>
 #include<exception>
+#include<boost/integer_traits.hpp>
 
 # define assert_st(expr)							\
   ((expr)								\
@@ -23,6 +24,9 @@ namespace boost
 }
 namespace boda
 {
+  struct zi_uint32_t { uint32_t v; zi_uint32_t( void ) : v(0) { } };
+
+  uint32_t const uint32_t_const_max = boost::integer_traits< uint32_t >::const_max;
   using boost::shared_ptr;
   typedef shared_ptr< std::ifstream > p_ifstream;
   p_ifstream ifs_open( std::string const & fn );
