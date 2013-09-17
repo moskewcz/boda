@@ -261,22 +261,45 @@ namespace boda
     return 1;
   }
 
+  struct prc_elem_t
+  {
+    uint32_t num_pos;
+    uint32_t num_test;
+    double get_precision( void ) const { return double(num_pos)/num_test; }
+    double get_recall( uint32_t const tot_num_class ) const { return double(num_pos)/tot_num_class; }
+    prc_elem_t( uint32_t const num_pos_, uint32_t const num_test_ ) : num_pos(num_pos_), num_test(num_test_) { }
+  };
+  typedef vector< prc_elem_t > vect_prc_elem_t;
+
+
   void img_db_t::score_results_for_class( string const & class_name, vect_scored_det_t & name_scored_dets )
   {
     sort( name_scored_dets.begin(), name_scored_dets.end(), scored_det_t_comp_by_inv_score_t() );
     uint32_t tot_num_class = class_infos[class_name].v;
+    vect_prc_elem_t prc_elems;
     uint32_t num_pos = 0;
     uint32_t num_test = 0;
+    double map = 0;
     for( vect_scored_det_t::const_iterator i = name_scored_dets.begin(); i != name_scored_dets.end(); ++i )
     {
-      ++num_test; 
-      num_pos += try_match( class_name, *i );
-      //printf( "num_pos=%s num_test=%s tot_num_class=%s score=%s\n", str(num_pos).c_str(), str(num_test).c_str(), 
-      //str(tot_num_class).c_str(), str(i->score).c_str() );
+      bool const is_pos = try_match( class_name, *i );
+      ++num_test; num_pos += is_pos;
+      if( is_pos ) // recall increased
+      {
+	prc_elem_t const prc_elem( num_pos, num_test );
+	if( !prc_elems.empty() )
+	{
+	  map += prc_elems.back().get_precision() * 
+	    ( prc_elem.get_recall( tot_num_class ) - prc_elems.back().get_recall( tot_num_class ) );
+	}
+	printf( "num_pos=%s num_test=%s tot_num_class=%s score=%s p=%s r=%s map=%s\n", 
+		str(num_pos).c_str(), str(num_test).c_str(), str(tot_num_class).c_str(), str(i->score).c_str(),
+		str(prc_elem.get_precision()).c_str(), 
+		str(prc_elem.get_recall(tot_num_class)).c_str(), 
+		str(map).c_str() );
+	prc_elems.push_back( prc_elem  );
+      }
     }
-    printf( "num_pos=%s num_test=%s tot_num_class=%s\n", str(num_pos).c_str(), str(num_test).c_str(), 
-	    str(tot_num_class).c_str() );
-    
   }
 
   void img_db_t::score_results( void )
