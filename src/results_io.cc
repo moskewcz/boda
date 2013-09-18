@@ -9,6 +9,7 @@
 #include<boost/lexical_cast.hpp>
 #include<boost/filesystem.hpp>
 #include"pugixml.hpp"
+#include"pyif.H"
 
 namespace boda 
 {
@@ -308,6 +309,7 @@ namespace boda
     {
       score_results_for_class( i->first, i->second );
     }
+    prc_plot();
   }
 
 

@@ -54,6 +54,9 @@ namespace boda
   // top frames of the stack are always captured, they are not
   // processed into a full trace at throw time.
   void rt_err( std::string const & err_msg ) __attribute__((noreturn));
+  // like above, but assumes PyErr_Occured(). currently just calls
+  // PyErr_Print() then calls rt_err(...)
+  void rt_py_err( std::string const & err_msg ) __attribute__((noreturn));
 }
 
 #endif // BODA_BASE_H

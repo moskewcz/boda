@@ -3,8 +3,7 @@
 #error "boda_tu_base.h should only be include once at the start of each translation unit"
 #else
 #define BODA_TU_BASE_H
+#include"Python.h"
 #include"boda_base.H"
-
-// luckily, for now, we have no 'must go first' headers/gunk/defines
 
 #endif // BODA_TU_BASE_H

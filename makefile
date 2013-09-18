@@ -1,9 +1,9 @@
 TARGET=../lib/boda
 VPATH=../src ../src/gen
-OBJS=str_util.o boda.o pugixml.o results_io.o boda_base.o geom_prim.o
+OBJS=str_util.o boda.o pugixml.o results_io.o boda_base.o geom_prim.o pyif.o
 CPP=g++
-CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic 
-LDFLAGS=-lboost_system -lboost_filesystem 
+CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -I/usr/include/python2.7
+LDFLAGS=-lboost_system -lboost_filesystem -lpython2.7
 
 ifeq ($(shell test -L makefile ; echo $$? ),1)
 all : 

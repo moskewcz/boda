@@ -1,3 +1,6 @@
+#ifndef RESULTS_IO_H
+#define RESULTS_IO_H
+
 #include"boda_base.H"
 
 namespace boda
@@ -10,3 +13,4 @@ namespace boda
 
   void score_results_file( std::string const & il_fn, std::string const & res_fn, std::string const &class_name );
 }
+#endif // RESULTS_IO_H

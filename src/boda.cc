@@ -1,6 +1,7 @@
 #include"boda_tu_base.H"
 #include"str_util.H"
 #include"results_io.H"
+#include"pyif.H"
 
 namespace boda
 {
@@ -9,6 +10,9 @@ namespace boda
 
   int boda_main( int argc, char **argv )
   {
+    Py_SetProgramName(argv[0]);
+    Py_Initialize();
+    py_path_setup();
     if( argc < 5 )
     {
       printf("usage: boda score list_fn res_fn class_name\n");
@@ -21,6 +25,7 @@ namespace boda
     if(0) { }
     else if( mode == "score" ) { score_results_file( list_fn, res_fn, class_name ); }
     else { rt_err( "unknown mode '" + mode + "'" ); }
+    Py_Finalize();
     return 0;
   }
   int boda_main_wrap( int argc, char **argv )
