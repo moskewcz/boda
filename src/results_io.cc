@@ -72,6 +72,8 @@ namespace boda
     uint32_t img_ix;
     scored_det_t( void ) : score(0), img_ix(0) { }
   };
+  std::ostream & operator<<(std::ostream & os, const scored_det_t & v) {
+    return os << ((u32_box_t &)v) << "@" << v.img_ix << "=" << v.score; }
   typedef vector< scored_det_t > vect_scored_det_t;
   typedef map< string, vect_scored_det_t > name_vect_scored_det_map_t;
   typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
@@ -87,7 +89,12 @@ namespace boda
     double match_score;
     gt_det_t( void ) : truncated(0), difficult(0), matched(0), match_score(0) { }
   };
-  typedef vector< gt_det_t > vect_gt_det_t;
+  std::ostream & operator<<(std::ostream & os, const gt_det_t & v) {
+    return os << ((u32_box_t &)v) << ":T" << v.truncated << "D" << v.difficult; }
+  struct vect_gt_det_t : public vector< gt_det_t >
+  {
+    zi_uint32_t num_non_difficult;
+  };
   typedef map< string, vect_gt_det_t > name_vect_gt_det_map_t;
 
   struct img_info_t
@@ -141,15 +148,24 @@ namespace boda
       gt_det.p[0].d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "ymin" ).child_value() );
       gt_det.p[1].d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "xmax" ).child_value() );
       gt_det.p[1].d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "ymax" ).child_value() );
-      gt_det.one_to_zero_coord_adj();
+      gt_det.from_pascal_coord_adjust();
       assert_st( gt_det.is_strictly_normalized() );
       string const ann_obj_name( xml_must_decend( ann_fn, ann_obj, "name" ).child_value() );
-      img_info->gt_dets[ann_obj_name].push_back(gt_det);
+      vect_gt_det_t & gt_dets = img_info->gt_dets[ann_obj_name];
+      gt_dets.push_back(gt_det);
+      if( !gt_det.difficult ) { ++gt_dets.num_non_difficult.v; } 
     }
     return img_info;
   }
 
   typedef map< string, zi_uint32_t > class_infos_t;
+
+  struct match_res_t
+  {
+    bool is_pos;
+    bool is_diff;
+    match_res_t( bool const is_pos_, bool const is_diff_ ) : is_pos(is_pos_), is_diff(is_diff_) { }
+  };
 
   struct img_db_t 
   {
@@ -169,7 +185,7 @@ namespace boda
       img_infos.push_back( img_info );
       for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )
       {
-	class_infos[i->first].v += i->second.size();
+	class_infos[i->first].v += i->second.num_non_difficult.v;
       }
     }
     uint32_t get_ix_for_img_id( string const & img_id )
@@ -182,7 +198,7 @@ namespace boda
     {
       scored_dets[class_name].push_back( scored_det );
     }
-    bool try_match( string const & class_name, scored_det_t const & sd );
+    match_res_t try_match( string const & class_name, scored_det_t const & sd );
     void score_results_for_class( string const & class_name, vect_scored_det_t & name_scored_dets );
     void score_results( void );
   };
@@ -206,7 +222,7 @@ namespace boda
       scored_det.p[0].d[1] = lc_str_u32( parts[3] );
       scored_det.p[1].d[0] = lc_str_u32( parts[4] );
       scored_det.p[1].d[1] = lc_str_u32( parts[5] );
-      scored_det.one_to_zero_coord_adj();
+      scored_det.from_pascal_coord_adjust();
       assert_st( scored_det.is_strictly_normalized() );
       img_db->add_scored_det( class_name, scored_det );
     }
@@ -243,34 +259,63 @@ namespace boda
     read_results_file( img_db, res_fn, class_name );
   }
 
-  bool img_db_t::try_match( string const & class_name, scored_det_t const & sd )
+  // returns (matched, match_was_difficult). note that difficult is
+  // only seems meaningfull when matched=true, although it is
+  // sometimes valid when matched=false (i.e. if the match is false
+  // due to being a duplicate, the difficult bit indicates if the
+  // higher-scoring-matched gt detection was marked difficult).
+  match_res_t img_db_t::try_match( string const & class_name, scored_det_t const & sd )
   {
     assert_st( sd.img_ix < img_infos.size() );
     p_img_info_t img_info = img_infos[sd.img_ix];
     vect_gt_det_t & gt_dets = img_info->gt_dets[class_name]; // note: may be created here (i.e. may be empty)
-    uint64_t max_overlap = 0;
+    uint64_t const sd_area = sd.get_area();
+    u32_pt_t best_score(0,1); // as a fraction [0]/[1] --> num / dem
     vect_gt_det_t::iterator best = gt_dets.end();
     for( vect_gt_det_t::iterator i = gt_dets.begin(); i != gt_dets.end(); ++i )
     {
+      uint64_t const gt_area = i->get_area();
       uint64_t const gt_overlap = i->get_overlap_with( sd );
-      if( gt_overlap > max_overlap ) { max_overlap = gt_overlap; best = i; }
+      uint64_t const gt_sd_union = sd_area + gt_area - gt_overlap;
+      // must overlap by 50% in terms of ( intersection area / union area ) (pascal VOC criterion) 
+      bool has_min_overlap = ( gt_overlap * 2 ) >= gt_sd_union;
+      if( sd.img_ix == 1979 )
+      {
+	printf( "sd=%s gt=%s sd_area=%s gt_area=%s gt_overlap=%s gt_score=%s max_score=%s hmo=%s\n", str(sd).c_str(), str(*i).c_str(),str(sd_area).c_str(), str(gt_area).c_str(), str(gt_overlap).c_str(), str(double(gt_overlap)/gt_sd_union).c_str(), str(double(best_score.d[0])/best_score.d[1]).c_str(), str(has_min_overlap).c_str() );
+      }
+      if( !has_min_overlap ) { continue; }
+
+      if( (uint64_t(gt_overlap)*best_score.d[1]) > (uint64_t(best_score.d[0])*gt_sd_union) ) {
+	best_score.d[0] = gt_overlap; best_score.d[1] = gt_sd_union; best = i; }
     }
-    if( !max_overlap ) { return 0; } // no overlap with any gt_det
-    if( best->matched ) { assert_st( best->match_score >= sd.score ); return 0; }
+    if( !best_score.d[0] ) { return match_res_t(0,0); }// no good overlap with any gt_det. note: difficult is unknown here
+    if( best->matched ) { assert_st( best->match_score >= sd.score ); return match_res_t(0,best->difficult); }
     best->matched = 1; 
     best->match_score = sd.score;
-    return 1;
+    return match_res_t(1,best->difficult);
   }
-
+  
   struct prc_elem_t
   {
     uint32_t num_pos;
     uint32_t num_test;
+    double score;
     double get_precision( void ) const { return double(num_pos)/num_test; }
     double get_recall( uint32_t const tot_num_class ) const { return double(num_pos)/tot_num_class; }
-    prc_elem_t( uint32_t const num_pos_, uint32_t const num_test_ ) : num_pos(num_pos_), num_test(num_test_) { }
+    prc_elem_t( uint32_t const num_pos_, uint32_t const num_test_, double const & score_ ) : 
+      num_pos(num_pos_), num_test(num_test_), score(score_) { }
   };
   typedef vector< prc_elem_t > vect_prc_elem_t;
+
+  void print_prc_line( prc_elem_t const & prc_elem, uint32_t const tot_num_class, double const & map )
+  {
+    printf( "num_pos=%s num_test=%s score=%s p=%s r=%s map=%s\n", 
+	    str(prc_elem.num_pos).c_str(), str(prc_elem.num_test).c_str(), 
+	    str(prc_elem.score).c_str(),
+	    str(prc_elem.get_precision()).c_str(), 
+	    str(prc_elem.get_recall(tot_num_class)).c_str(), 
+	    str(map).c_str() );
+  }
 
 
   void img_db_t::score_results_for_class( string const & class_name, vect_scored_det_t & name_scored_dets )
@@ -281,26 +326,32 @@ namespace boda
     uint32_t num_pos = 0;
     uint32_t num_test = 0;
     double map = 0;
+    uint32_t print_skip = 1;// + (tot_num_class / 20); // print about 20 steps in recall
+    uint32_t next_print = 1;
     for( vect_scored_det_t::const_iterator i = name_scored_dets.begin(); i != name_scored_dets.end(); ++i )
     {
-      bool const is_pos = try_match( class_name, *i );
-      ++num_test; num_pos += is_pos;
-      if( is_pos ) // recall increased
+      match_res_t const match_res = try_match( class_name, *i );
+      if( match_res.is_pos && !match_res.is_diff )
       {
-	prc_elem_t const prc_elem( num_pos, num_test );
-	if( !prc_elems.empty() )
-	{
-	  map += prc_elems.back().get_precision() * 
-	    ( prc_elem.get_recall( tot_num_class ) - prc_elems.back().get_recall( tot_num_class ) );
+	++num_test; ++num_pos; // positive, recall increased (precision must == 1 or also be increased)
+	prc_elem_t const prc_elem( num_pos, num_test, i->score );
+	map += prc_elem.get_precision();
+	if( num_pos == next_print ) { 
+	  next_print += print_skip; 
+	  print_prc_line( prc_elem, tot_num_class, map / tot_num_class ); 
 	}
-	printf( "num_pos=%s num_test=%s tot_num_class=%s score=%s p=%s r=%s map=%s\n", 
-		str(num_pos).c_str(), str(num_test).c_str(), str(tot_num_class).c_str(), str(i->score).c_str(),
-		str(prc_elem.get_precision()).c_str(), 
-		str(prc_elem.get_recall(tot_num_class)).c_str(), 
-		str(map).c_str() );
-	prc_elems.push_back( prc_elem  );
+	prc_elems.push_back( prc_elem );
       }
+      else if( !match_res.is_pos ) { ++num_test; } // negative, precision decreased
     }
+    map /= tot_num_class;
+    if( next_print != (num_pos+print_skip) ) { print_prc_line( prc_elems.back(), tot_num_class, map ); }
+    printf( "--- tot_num=%s num_pos=%s num_test=%s num_neg=%s final_map=%s\n", 
+	    str(tot_num_class).c_str(), 
+	    str(num_pos).c_str(), str(num_test).c_str(), 
+	    str(num_test - num_pos).c_str(),
+	    str(map).c_str() );
+
   }
 
   void img_db_t::score_results( void )
