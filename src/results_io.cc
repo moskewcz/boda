@@ -99,11 +99,12 @@ namespace boda
 
   struct img_info_t
   {
+    string id;
     uint32_t ix;
     u32_pt_t size;
     uint32_t depth;
     name_vect_gt_det_map_t gt_dets;
-    img_info_t( void ) : ix( uint32_t_const_max ), depth(0) { }
+    img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ), depth(0) { }
   };
   typedef shared_ptr< img_info_t > p_img_info_t;
   typedef map< string, p_img_info_t > id_to_img_info_map_t;
@@ -131,7 +132,7 @@ namespace boda
     if( !result ) { 
       rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
     }
-    p_img_info_t img_info( new img_info_t );
+    p_img_info_t img_info( new img_info_t( id ) );
     
     xml_node ann = xml_must_decend( ann_fn, doc, "annotation" );
     xml_node ann_size = xml_must_decend( ann_fn, ann, "size" );
@@ -279,7 +280,7 @@ namespace boda
       uint64_t const gt_sd_union = sd_area + gt_area - gt_overlap;
       // must overlap by 50% in terms of ( intersection area / union area ) (pascal VOC criterion) 
       bool has_min_overlap = ( gt_overlap * 2 ) >= gt_sd_union;
-      if( sd.img_ix == 1979 )
+      if( img_info->id == "xx001329" )
       {
 	printf( "sd=%s gt=%s sd_area=%s gt_area=%s gt_overlap=%s gt_score=%s max_score=%s hmo=%s\n", str(sd).c_str(), str(*i).c_str(),str(sd_area).c_str(), str(gt_area).c_str(), str(gt_overlap).c_str(), str(double(gt_overlap)/gt_sd_union).c_str(), str(double(best_score.d[0])/best_score.d[1]).c_str(), str(has_min_overlap).c_str() );
       }
@@ -309,12 +310,12 @@ namespace boda
 
   void print_prc_line( prc_elem_t const & prc_elem, uint32_t const tot_num_class, double const & map )
   {
-    printf( "num_pos=%s num_test=%s score=%s p=%s r=%s map=%s\n", 
+    printf( "num_pos=%s num_test=%s score=%.6lf\n",// p=%s r=%s map=%s\n", 
 	    str(prc_elem.num_pos).c_str(), str(prc_elem.num_test).c_str(), 
-	    str(prc_elem.score).c_str(),
-	    str(prc_elem.get_precision()).c_str(), 
-	    str(prc_elem.get_recall(tot_num_class)).c_str(), 
-	    str(map).c_str() );
+	    prc_elem.score );
+//	    str(prc_elem.get_precision()).c_str(), 
+//	    str(prc_elem.get_recall(tot_num_class)).c_str(), 
+//	    str(map).c_str() );
   }
 
 
@@ -328,21 +329,28 @@ namespace boda
     double map = 0;
     uint32_t print_skip = 1;// + (tot_num_class / 20); // print about 20 steps in recall
     uint32_t next_print = 1;
-    for( vect_scored_det_t::const_iterator i = name_scored_dets.begin(); i != name_scored_dets.end(); ++i )
+    for( vect_scored_det_t::const_iterator i = name_scored_dets.begin(); i != name_scored_dets.end(); )
     {
-      match_res_t const match_res = try_match( class_name, *i );
-      if( match_res.is_pos && !match_res.is_diff )
+      uint32_t const orig_num_pos = num_pos;
+      double const cur_score = i->score;
+      while( 1 ) // handle all dets with equal score as a unit
       {
-	++num_test; ++num_pos; // positive, recall increased (precision must == 1 or also be increased)
-	prc_elem_t const prc_elem( num_pos, num_test, i->score );
-	map += prc_elem.get_precision();
-	if( num_pos == next_print ) { 
-	  next_print += print_skip; 
+	match_res_t const match_res = try_match( class_name, *i );
+	if( match_res.is_pos && !match_res.is_diff ) { 
+	  ++num_test; ++num_pos; // positive, recall increased (precision must == 1 or also be increased)
+	} else if( !match_res.is_pos ) { ++num_test; } // negative, precision decreased
+	++i; if( (i == name_scored_dets.end()) || (cur_score != i->score) ) { break; }
+      }
+      if( orig_num_pos != num_pos ) // recall increased
+      {
+	prc_elem_t const prc_elem( num_pos, num_test, cur_score );
+	map += prc_elem.get_precision() * (num_pos - orig_num_pos);
+	if( num_pos >= next_print ) { 
+	  next_print = num_pos + print_skip; 
 	  print_prc_line( prc_elem, tot_num_class, map / tot_num_class ); 
 	}
 	prc_elems.push_back( prc_elem );
       }
-      else if( !match_res.is_pos ) { ++num_test; } // negative, precision decreased
     }
     map /= tot_num_class;
     if( next_print != (num_pos+print_skip) ) { print_prc_line( prc_elems.back(), tot_num_class, map ); }
