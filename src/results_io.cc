@@ -1,4 +1,5 @@
 #include"boda_tu_base.H"
+#include"results_io.H"
 #include"str_util.H"
 #include"geom_prim.H"
 #include<cassert>
@@ -296,26 +297,14 @@ namespace boda
     return match_res_t(1,best->difficult);
   }
   
-  struct prc_elem_t
-  {
-    uint32_t num_pos;
-    uint32_t num_test;
-    double score;
-    double get_precision( void ) const { return double(num_pos)/num_test; }
-    double get_recall( uint32_t const tot_num_class ) const { return double(num_pos)/tot_num_class; }
-    prc_elem_t( uint32_t const num_pos_, uint32_t const num_test_, double const & score_ ) : 
-      num_pos(num_pos_), num_test(num_test_), score(score_) { }
-  };
-  typedef vector< prc_elem_t > vect_prc_elem_t;
-
   void print_prc_line( prc_elem_t const & prc_elem, uint32_t const tot_num_class, double const & map )
   {
-    printf( "num_pos=%s num_test=%s score=%.6lf\n",// p=%s r=%s map=%s\n", 
+    printf( "num_pos=%s num_test=%s score=%.6lf p=%s r=%s map=%s\n", 
 	    str(prc_elem.num_pos).c_str(), str(prc_elem.num_test).c_str(), 
-	    prc_elem.score );
-//	    str(prc_elem.get_precision()).c_str(), 
-//	    str(prc_elem.get_recall(tot_num_class)).c_str(), 
-//	    str(map).c_str() );
+	    prc_elem.score,
+	    str(prc_elem.get_precision()).c_str(), 
+	    str(prc_elem.get_recall(tot_num_class)).c_str(), 
+	    str(map).c_str() );
   }
 
 
@@ -327,7 +316,7 @@ namespace boda
     uint32_t num_pos = 0;
     uint32_t num_test = 0;
     double map = 0;
-    uint32_t print_skip = 1;// + (tot_num_class / 20); // print about 20 steps in recall
+    uint32_t print_skip = 1 + (tot_num_class / 20); // print about 20 steps in recall
     uint32_t next_print = 1;
     for( vect_scored_det_t::const_iterator i = name_scored_dets.begin(); i != name_scored_dets.end(); )
     {
@@ -359,6 +348,7 @@ namespace boda
 	    str(num_pos).c_str(), str(num_test).c_str(), 
 	    str(num_test - num_pos).c_str(),
 	    str(map).c_str() );
+    prc_plot( class_name, tot_num_class, prc_elems );
 
   }
 
@@ -368,7 +358,6 @@ namespace boda
     {
       score_results_for_class( i->first, i->second );
     }
-    prc_plot();
   }
 
 

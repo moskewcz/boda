@@ -1,4 +1,5 @@
 #include"boda_tu_base.H"
+#include<numpy/arrayobject.h>
 #include"str_util.H"
 #include"results_io.H"
 #include"pyif.H"
@@ -13,6 +14,7 @@ namespace boda
     Py_SetProgramName(argv[0]);
     Py_Initialize();
     py_path_setup();
+    if( _import_array() < 0 ) { rt_err( "failed to import numpy" ); }
     if( argc < 5 )
     {
       printf("usage: boda score list_fn res_fn class_name\n");

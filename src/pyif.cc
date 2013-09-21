@@ -1,5 +1,6 @@
-#include<Python.h>
 #include"boda_tu_base.H"
+#define NO_IMPORT_ARRAY
+#include<numpy/arrayobject.h>
 #include"pyif.H"
 
 namespace boda 
@@ -46,7 +47,6 @@ namespace boda
   ppyo import_module( string const & module_name )
   {
     ppyo pName( PyString_FromString(module_name.c_str()) );
-    assert_st( pName.get() );
     ppyo pModule( PyImport_Import(pName.get()) );
     return pModule;
   }
@@ -64,11 +64,32 @@ namespace boda
     return ret;
   }
 
-  void prc_plot( void )
+  void tuple_set( ppyo const & t, uint32_t const ix, ppyo const & v )
+  {
+    Py_INCREF( v.get() );
+    int const ret = PyTuple_SetItem( t.get(), ix, v.get() );
+    if( ret ) { rt_err( "tuple setitem failed" ); }
+  }
+  
+
+  void prc_plot( std::string const & class_name, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems )
   {
     ppyo module = import_module( "bplot" );
     ppyo func( get_callable( module, "plot_stuff" ) );
-    ppyo args( PyTuple_New(0) );
+    npy_intp dims[2] = {3,prc_elems.size()};
+    ppyo args( PyTuple_New(2) );
+    ppyo npa( PyArray_SimpleNew( 2, dims, NPY_DOUBLE) );
+    // fill in npa
+    uint32_t ix = 0;
+    for ( vect_prc_elem_t::const_iterator i = prc_elems.begin(); i != prc_elems.end(); ++i)
+    {
+      *((double *)PyArray_GETPTR2( npa.get(), 0, ix )) = i->get_recall( tot_num_class );
+      *((double *)PyArray_GETPTR2( npa.get(), 1, ix )) = i->get_precision();
+      *((double *)PyArray_GETPTR2( npa.get(), 2, ix )) = i->score;
+      ++ix;
+    }
+    tuple_set( args, 0, ppyo(PyString_FromString(class_name.c_str())) );
+    tuple_set( args, 1, npa );
     ppyo ret = call_obj( func, args );
     printf("Result of call: %ld\n", PyInt_AsLong(ret.get()));
   }
