@@ -3,8 +3,6 @@
 #error "boda_tu_base.h should only be include once at the start of each translation unit"
 #else
 #define BODA_TU_BASE_H
-#include"Python.h"
-#define PY_ARRAY_UNIQUE_SYMBOL boda_numpy_unique_symbol_yo
 #include"boda_base.H"
 
 #endif // BODA_TU_BASE_H

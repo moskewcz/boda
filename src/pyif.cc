@@ -1,11 +1,23 @@
+// for now, only pyif.cc #include's Python.h and the numpy.
+// this may certainly be too limiting in the long run and isn't neccessary by any means. 
+// for python, we would move the python include from here to boda_tu_base.H if we want to use the Python/C-API globally.
+// for numpy, if we wish to include numpy in other TUs (.cc files / objects), we need to do some magic: all other files must #define the same PY_ARRAY_UNIQUE_SYMBOL, and all but this one (that calls _import_array(), must #define NO_IMPORT_ARRAY
+#include<Python.h>
 #include"boda_tu_base.H"
-#define NO_IMPORT_ARRAY
+#define PY_ARRAY_UNIQUE_SYMBOL boda_numpy_unique_symbol_yo
 #include<numpy/arrayobject.h>
 #include"pyif.H"
 
 namespace boda 
 {
   using namespace std;
+
+  void rt_py_err( std::string const & err_msg ) {
+    PyErr_Print(); 
+    // we don't just call rt_err() here so we can keep the stack skip
+    // depths of rt_py_err() and rt_err() the same
+    throw rt_exception( "error: " + err_msg, get_backtrace() ); 
+  }
 
   // simple smart pointer for PyObject *
   struct ppyo
@@ -34,14 +46,22 @@ namespace boda
     PyObject * get( void ) const { return p; }
   };
 
-  void py_path_setup( void )
+  void py_init( char const * const prog_name )
   {
+    Py_SetProgramName((char *)prog_name);
+    Py_Initialize();
     ppyo main_mod( PyImport_AddModule( "__main__" ), 1 );
     ppyo main_dict( PyModule_GetDict( main_mod.get() ), 1 );
     ppyo ret( PyRun_String("import sys,os.path;"
 			   " sys.path.append(os.path.join(os.path.split("
 			   "os.readlink('/proc/self/exe'))[0],'..','pysrc'))",
 			   Py_file_input, main_dict.get(), main_dict.get() ) );
+    if( _import_array() < 0 ) { rt_err( "failed to import numpy" ); }
+  }
+
+  void py_finalize( void )
+  {
+    Py_Finalize();
   }
 
   ppyo import_module( string const & module_name )

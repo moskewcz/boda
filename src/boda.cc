@@ -1,8 +1,8 @@
 #include"boda_tu_base.H"
-#include<numpy/arrayobject.h>
 #include"str_util.H"
 #include"results_io.H"
 #include"pyif.H"
+#include"octif.H"
 
 namespace boda
 {
@@ -11,23 +11,35 @@ namespace boda
 
   int boda_main( int argc, char **argv )
   {
-    Py_SetProgramName(argv[0]);
-    Py_Initialize();
-    py_path_setup();
-    if( _import_array() < 0 ) { rt_err( "failed to import numpy" ); }
-    if( argc < 5 )
+    py_init( argv[0] );
+    //oct_init();
+    if( argc < 2 )
     {
-      printf("usage: boda score list_fn res_fn class_name\n");
+      printf("usage: boda mode\n");
+      printf("modes: score oct_init\n");
       return 1;
     }
     std::string const mode = argv[1];
-    std::string const list_fn = argv[2];
-    std::string const res_fn = argv[3];
-    std::string const class_name = argv[4];
     if(0) { }
-    else if( mode == "score" ) { score_results_file( list_fn, res_fn, class_name ); }
+    else if( mode == "score" ) 
+    {
+      if( argc != 5 ) { printf("usage: boda score list_fn res_fn class_name\n"); }
+      else {
+	std::string const list_fn = argv[2];
+	std::string const res_fn = argv[3];
+	std::string const class_name = argv[4];
+	score_results_file( list_fn, res_fn, class_name ); 
+      }
+    }
+    else if( mode == "oct_init" ) 
+    {
+      if( argc != 2 ) { printf("usage: boda oct_init\n"); }
+      else {
+	oct_init(); 
+      }
+    }
     else { rt_err( "unknown mode '" + mode + "'" ); }
-    Py_Finalize();
+    py_finalize();
     return 0;
   }
   int boda_main_wrap( int argc, char **argv )

@@ -105,13 +105,5 @@ namespace boda
   string rt_exception::what_and_stacktrace( void ) const { return err_msg + "\n" + stacktrace_str( bt, 2 ); }
   int rt_exception::get_ret_code( void ) const { return 1; }
   void rt_err( std::string const & err_msg ) { throw rt_exception( "error: " + err_msg, get_backtrace() ); }
-  void rt_py_err( std::string const & err_msg ) {
-    PyErr_Print(); 
-    // we don't just call rt_err() here so we can keep the stack skip
-    // depths of rt_py_err() and rt_err() the same
-    throw rt_exception( "error: " + err_msg, get_backtrace() ); 
-  }
-
-
 
 }
