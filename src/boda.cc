@@ -16,11 +16,19 @@ namespace boda
     if( argc < 2 )
     {
       printf("usage: boda mode\n");
-      printf("modes: score oct_init\n");
+      printf("modes: load_pil score oct_init\n");
       return 1;
     }
     std::string const mode = argv[1];
     if(0) { }
+    else if( mode == "load_pil" ) 
+    {
+      if( argc != 3 ) { printf("load pascal image list file\nusage: boda load_pascal_img_list list_fn\n"); }
+      else {
+	std::string const list_fn = argv[2];
+	read_image_list_file( list_fn, 1 );
+      }
+    }
     else if( mode == "score" ) 
     {
       if( argc != 5 ) { printf("usage: boda score list_fn res_fn class_name\n"); }

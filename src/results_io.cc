@@ -11,6 +11,7 @@
 #include<boost/filesystem.hpp>
 #include"pugixml.hpp"
 #include"pyif.H"
+#include"img_io.H"
 
 namespace boda 
 {
@@ -37,11 +38,12 @@ namespace boda
   typedef map< string, uint32_t > str_uint32_t_map_t;
   string id_from_image_fn( string const & image )
   {
-    const size_t lastDot = image.find_last_of('.');	
-    string id = image.substr(0, lastDot);
-    const size_t lastSlash = id.find_last_of("/\\");
-    if (lastSlash != string::npos)
-      id = id.substr(lastSlash + 1);
+    size_t const last_dot = image.find_last_of('.');	
+    string id = image.substr(0, last_dot);
+    size_t const last_slash = id.find_last_of("/\\");
+    if (last_slash != string::npos) {
+      id = id.substr(last_slash + 1);
+    }
     return id;
   }
 
@@ -105,6 +107,8 @@ namespace boda
     u32_pt_t size;
     uint32_t depth;
     name_vect_gt_det_map_t gt_dets;
+
+    p_img_t img;
     img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ), depth(0) { }
   };
   typedef shared_ptr< img_info_t > p_img_info_t;
@@ -120,7 +124,17 @@ namespace boda
 			 ("node with name '" + string(node.name()) + "'").c_str() ) ); }
     return ret;
   }
-  
+
+  p_img_t read_pascal_image_for_id( path const & pascal_base_path, string const & id )
+  {
+    path const img_dir = pascal_base_path / "JPEGImages";
+    ensure_is_dir( img_dir );
+    path const img_path = img_dir / (id + ".jpg");
+    p_img_t img( new img_t );
+    img->load_fn( img_path.c_str() );
+    return img;
+  }
+
   p_img_info_t read_pascal_annotations_for_id( path const & pascal_base_path, string const & id )
   {
     path const ann_dir = pascal_base_path / "Annotations";
@@ -178,11 +192,12 @@ namespace boda
     class_infos_t class_infos;
 
     img_db_t( void ) : pascal_base_path( "/home/moskewcz/bench/VOCdevkit/VOC2007" ) { }
-    void load_ann_for_id( string const & img_id )
+    void load_ann_for_id( string const & img_id, bool load_img )
     {
       p_img_info_t & img_info = id_to_img_info_map[img_id];
       if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
       img_info = read_pascal_annotations_for_id( pascal_base_path, img_id ); 
+      if( load_img ) { img_info->img = read_pascal_image_for_id( pascal_base_path, img_id ); }
       img_info->ix = img_infos.size();
       img_infos.push_back( img_info );
       for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )
@@ -231,7 +246,7 @@ namespace boda
     img_db->score_results();
   }
 
-  p_img_db_t read_image_list_file( string const & fn )
+  p_img_db_t read_image_list_file( string const & fn, bool load_imgs )
   {
     p_img_db_t img_db( new img_db_t );
     p_ifstream in = ifs_open( fn );  
@@ -250,14 +265,14 @@ namespace boda
 	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
 			   fn.c_str(), pn.c_str() ) );
       }
-      img_db->load_ann_for_id( id );
+      img_db->load_ann_for_id( id, load_imgs );
     }
     return img_db;
   }
 
   void score_results_file( string const & il_fn, string const & res_fn, string const &class_name )
   {
-    p_img_db_t img_db = read_image_list_file( il_fn );
+    p_img_db_t img_db = read_image_list_file( il_fn, false );
     read_results_file( img_db, res_fn, class_name );
   }
 

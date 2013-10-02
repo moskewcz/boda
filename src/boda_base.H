@@ -35,8 +35,13 @@ namespace boda
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
   p_vect_rp_void get_backtrace( void );
   std::string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
+  void ensure_is_dir( std::string const & fn );
   void ensure_is_dir( const boost::filesystem3::path & p );
+  void ensure_is_regular_file( std::string const & fn );
   void ensure_is_regular_file( const boost::filesystem3::path & p );
+
+  typedef shared_ptr< uint8_t > p_uint8_t;  
+  p_uint8_t ma_p_uint8_t( uint32_t const sz, uint32_t const a ); // ma_p == make aligned shared_ptr
 
   struct rt_exception : public std::exception
   {

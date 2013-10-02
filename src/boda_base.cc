@@ -12,6 +12,17 @@ namespace boda
   using filesystem::path;
   using filesystem::filesystem_error;
 
+  // ma_p == make aligned shared_ptr
+  p_uint8_t ma_p_uint8_t( uint32_t const sz, uint32_t const a ) 
+  {
+    void * p = 0;
+    int const ret = posix_memalign( &p, a, sz );
+    if( ret ) { rt_err( strprintf( "posix_memalign( p, %s, %s ) failed, ret=%s", 
+				   str(a).c_str(), str(sz).c_str(), str(ret).c_str() ) ); }
+    return p_uint8_t( (uint8_t *)p, free );
+  };
+
+  void ensure_is_dir( string const & fn ) { ensure_is_dir( path(fn) ); }
   void ensure_is_dir( path const & p )
   {
     try  { 
@@ -21,6 +32,7 @@ namespace boda
       rt_err( strprintf( "filesystem error while trying to check if '%s' is a directory: %s", 
 			 p.c_str(), e.what() ) ); }
   }
+  void ensure_is_regular_file( string const & fn ) { ensure_is_regular_file( path(fn) ); }
   void ensure_is_regular_file( path const & p )
   {
     try  { 

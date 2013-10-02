@@ -21,5 +21,10 @@ namespace boda
   typedef std::vector< prc_elem_t > vect_prc_elem_t;
 
   void score_results_file( std::string const & il_fn, std::string const & res_fn, std::string const &class_name );
+
+  class img_db_t;
+  typedef shared_ptr< img_db_t > p_img_db_t;
+  p_img_db_t read_image_list_file( std::string const & fn, bool load_imgs );
+
 }
 #endif // RESULTS_IO_H
