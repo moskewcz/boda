@@ -13,6 +13,14 @@
 namespace boda 
 {
   using namespace::std;
+
+  void print_field( octave_scalar_map const & osm, string const & fn )
+  {
+    octave_value fv = osm.contents(fn.c_str());
+    assert_st( !error_state && fv.is_defined() );
+    cout << fn << "="; fv.print(cout);
+  }
+
   void oct_init( void )
   {
     //string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/VOC2007/car_final.mat";
@@ -40,9 +48,9 @@ namespace boda
 	cout << mod_osm.keys()[i] << " ";
       }
       cout << endl;
-      octave_value thresh = mod_osm.contents("thresh");
-      assert_st( !error_state && thresh.is_defined() );
-      cout << "thresh="; thresh.print(cout); cout << endl;
+      print_field( mod_osm, "thresh" );
+      print_field( mod_osm, "sbin" );
+      print_field( mod_osm, "interval" );
 #if 1
       mxArray mxa( mod );
       Model mod2( &mxa );
