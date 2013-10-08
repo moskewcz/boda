@@ -7,6 +7,7 @@
 #define PY_ARRAY_UNIQUE_SYMBOL boda_numpy_unique_symbol_yo
 #include<numpy/arrayobject.h>
 #include"pyif.H"
+#include"img_io.H"
 
 namespace boda 
 {
@@ -45,6 +46,7 @@ namespace boda
     }
     PyObject * get( void ) const { return p; }
   };
+  typedef vector< ppyo > vect_ppyo;
 
   void py_init( char const * const prog_name )
   {
@@ -91,15 +93,25 @@ namespace boda
     if( ret ) { rt_err( "tuple setitem failed" ); }
   }
   
+  ppyo bplot_call( char const * const fn, vect_ppyo const & args )
+  {
+    ppyo module = import_module( "bplot" );
+    ppyo func( get_callable( module, fn ) );
+    ppyo py_args( PyTuple_New(args.size()) );
+    for( uint32_t arg_ix = 0; arg_ix < args.size(); ++arg_ix ) {
+      tuple_set( py_args, arg_ix, args[arg_ix] );
+    }
+    return call_obj( func, py_args );
+  }
+  ppyo bplot_call( char const * const fn, ppyo arg ) { 
+    vect_ppyo args; args.push_back( arg ); return bplot_call( fn, args ); }
+  ppyo bplot_call( char const * const fn, ppyo arg1, ppyo arg2 ) {
+    vect_ppyo args; args.push_back( arg1 ); args.push_back( arg2 ); return bplot_call( fn, args ); }
 
   void prc_plot( std::string const & class_name, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems )
   {
-    ppyo module = import_module( "bplot" );
-    ppyo func( get_callable( module, "plot_stuff" ) );
     npy_intp dims[2] = {3,prc_elems.size()};
-    ppyo args( PyTuple_New(2) );
     ppyo npa( PyArray_SimpleNew( 2, dims, NPY_DOUBLE) );
-    // fill in npa
     uint32_t ix = 0;
     for ( vect_prc_elem_t::const_iterator i = prc_elems.begin(); i != prc_elems.end(); ++i)
     {
@@ -108,10 +120,28 @@ namespace boda
       *((double *)PyArray_GETPTR2( npa.get(), 2, ix )) = i->score;
       ++ix;
     }
-    tuple_set( args, 0, ppyo(PyString_FromString(class_name.c_str())) );
-    tuple_set( args, 1, npa );
-    ppyo ret = call_obj( func, args );
+    ppyo ret = bplot_call( "plot_stuff", ppyo(PyString_FromString(class_name.c_str())), npa );
     printf("Result of call: %ld\n", PyInt_AsLong(ret.get()));
+  }
+
+  void py_img_show( p_img_t img, string const & save_as_filename )
+  {
+    npy_intp dims[3] = {img->h,img->w,img->depth};
+#if 0 // for reference, if we wanted to copy into a newly allocated numpy array
+    ppyo npa( PyArray_SimpleNew( 3, dims, NPY_UINT8) );
+    for( uint32_t y = 0; y < img->h; ++y ) {
+      for( uint32_t x = 0; x < img->w; ++x ) {
+	for( uint32_t c = 0; c < img->depth; ++c ) {
+	  *((uint8_t *)PyArray_GETPTR3( npa.get(), y, x, c )) = img->pels.get()[y*img->row_pitch + x*img->depth + c];
+	}
+      }
+    }
+#else
+    npy_intp strides[3] = {img->row_pitch,img->depth,1}; 
+    // FIXME: untracked reference to img->pels() taken here, so img must outlive npa. fixable? hold npa in img?
+    ppyo npa( PyArray_New( &PyArray_Type, 3, dims, NPY_UINT8, strides, img->pels.get(), 0, 0, 0 ) );
+#endif
+    bplot_call( "img_show", npa, ppyo(PyString_FromString(save_as_filename.c_str())) );
   }
 
 }

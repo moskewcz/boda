@@ -198,6 +198,17 @@ namespace boda
       if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
       img_info = read_pascal_annotations_for_id( pascal_base_path, img_id ); 
       if( load_img ) { img_info->img = read_pascal_image_for_id( pascal_base_path, img_id ); }
+      if( load_img ) 
+      { 
+	p_img_t cur = img_info->img;
+	for( uint32_t s = 0; s < 16; ++s )
+	{
+	  py_img_show( cur, "out/" + img_id + "_scale_" + str(s) + ".png" );
+	  if( (cur->w < 2) || (cur->h < 2) ) { break; }
+	  cur = cur->downsample( 1 << 15 );
+	}
+      }
+
       img_info->ix = img_infos.size();
       img_infos.push_back( img_info );
       for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )

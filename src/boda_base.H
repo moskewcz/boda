@@ -27,6 +27,15 @@ namespace boda
   struct zi_uint32_t { uint32_t v; zi_uint32_t( void ) : v(0) { } };
 
   uint32_t const uint32_t_const_max = boost::integer_traits< uint32_t >::const_max;
+  int32_t const int32_t_const_max = boost::integer_traits< int32_t >::const_max;
+  int32_t const int32_t_const_min = boost::integer_traits< int32_t >::const_min;
+  uint16_t const uint16_t_const_max = boost::integer_traits< uint16_t >::const_max;
+  int16_t const int16_t_const_max = boost::integer_traits< int16_t >::const_max;
+  int16_t const int16_t_const_min = boost::integer_traits< int16_t >::const_min;
+  uint8_t const uint8_t_const_max = boost::integer_traits< uint8_t >::const_max;
+  int8_t const int8_t_const_max = boost::integer_traits< int8_t >::const_max;
+  int8_t const int8_t_const_min = boost::integer_traits< int8_t >::const_min;
+
   using boost::shared_ptr;
   typedef shared_ptr< std::ifstream > p_ifstream;
   p_ifstream ifs_open( std::string const & fn );
