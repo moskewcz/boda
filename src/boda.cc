@@ -46,6 +46,13 @@ namespace boda
 	oct_init(); 
       }
     }
+    else if( mode == "oct_dfc" ) 
+    {
+      if( argc != 2 ) { printf("usage: boda oct_dfc\n"); }
+      else {
+	oct_dfc(); 
+      }
+    }
     else { rt_err( "unknown mode '" + mode + "'" ); }
     py_finalize();
     return 0;

@@ -55,4 +55,22 @@ namespace boda
     Model mod2( &mxa );
 #endif
   }
+
+
+  void oct_dfc( void )
+  {
+    string_vector argv (2);
+    argv(0) = "embedded";
+    argv(1) = "-q";
+    octave_main (2, argv.c_str_vec (), 1);
+    int parse_ret = 0;
+    eval_string("cd /home/moskewcz/svn_work/dpm_fast_cascade/voc-release5", 0, parse_ret);
+    assert_st( !error_state );
+    eval_string("pkg load image", 0, parse_ret);
+    assert_st( !error_state );
+    feval("startup" );
+    assert_st( !error_state );
+    feval("cascade_demo_cars" );
+    assert_st( !error_state );
+  }
 }

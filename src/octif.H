@@ -4,8 +4,7 @@
 namespace boda 
 {
   void oct_init( void );
-
-
+  void oct_dfc( void );
 }
 
 #endif // _OCTIF_H_
