@@ -17,7 +17,6 @@ namespace boda
   struct u32_box_t
   {
     u32_pt_t p[2];
-    void from_pascal_coord_adjust( void );
     bool is_strictly_normalized( void ) const { return (p[0].d[0]<p[1].d[0]) && (p[0].d[1]<p[1].d[1]); }
     uint64_t get_overlap_with( u32_box_t const & o ) const
     {
@@ -29,8 +28,13 @@ namespace boda
       if( lb1 >= ub1 ) { return 0; }
       return uint64_t(ub0-lb0)*(ub1-lb1);
     }
-    uint64_t get_area( void ) const { return uint64_t(p[1].d[0]-p[0].d[0])*(p[1].d[1]-p[0].d[1]); }
+    uint64_t get_area( void ) const { return uint64_t(p[1].d[0]-p[0].d[0])*(p[1].d[1]-p[0].d[1]); } 
+
+    void from_pascal_coord_adjust( void );
+    void to_pascal_coord_adjust( void );
+    std::string pascal_str( void ) const;
   };
+
   std::ostream & operator<<(std::ostream & os, const u32_box_t & v);
 
 

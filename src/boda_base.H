@@ -37,8 +37,11 @@ namespace boda
   int8_t const int8_t_const_min = boost::integer_traits< int8_t >::const_min;
 
   using boost::shared_ptr;
+
   typedef shared_ptr< std::ifstream > p_ifstream;
   p_ifstream ifs_open( std::string const & fn );
+  typedef shared_ptr< std::ofstream > p_ofstream;
+  p_ofstream ofs_open( std::string const & fn );
 
   typedef std::vector< void * > vect_rp_void;
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;

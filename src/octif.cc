@@ -7,11 +7,13 @@
 //#include<octave/mxarray.h>
 //#include<octave/mexproto.h>
 #include<fstream>
+#include<boost/filesystem.hpp>
 
 #include"model.h"
 #include"geom_prim.H"
 #include"str_util.H"
 #include"img_io.H"
+#include"results_io.H"
 
 namespace boda 
 {
@@ -26,12 +28,15 @@ namespace boda
 
   void oct_init( void )
   {
-    //string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/VOC2007/car_final.mat";
-    string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/car_final_cascade.mat";
     string_vector argv (2);
     argv(0) = "embedded";
     argv(1) = "-q";
     octave_main (2, argv.c_str_vec (), 1);
+  }
+  void oct_test( void )
+  {
+    //string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/VOC2007/car_final.mat";
+    string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/car_final_cascade.mat";
     octave_value_list in;
     in(0) = octave_value( mat_fn );
     octave_value_list out = feval ("load", in, 1);
@@ -60,15 +65,15 @@ namespace boda
   }
 
 
-  void oct_dfc( string const & class_name, string const & impath )
+  void oct_dfc( p_vect_scored_det_t scored_dets, 
+		string const & class_name, string const & impath, uint32_t const img_ix )
   {
+    boost::filesystem::initial_path(); // capture initial path if not already done (see boost docs)
+    printf( "oct_dfc() class_name=%s impath=%s img_ix=%s\n", 
+	    str(class_name).c_str(), str(impath).c_str(), str(img_ix).c_str() );
     p_img_t img( new img_t );
     img->load_fn( impath.c_str() );
 
-    string_vector argv (2);
-    argv(0) = "embedded";
-    argv(1) = "-q";
-    octave_main (2, argv.c_str_vec (), 1);
     int parse_ret = 0;
     eval_string("cd /home/moskewcz/svn_work/dpm_fast_cascade/voc-release5", 0, parse_ret);
     assert_st( !error_state );
@@ -113,17 +118,18 @@ namespace boda
     assert_st( !error_state );
     for( octave_idx_type i = 0; i < det_boxes.dim1(); ++i ) {
       assert( det_boxes.dim2() >= 5 ); // should have at least 4 columns to form detection bbox + 1 for score
-      u32_box_t det;
+      scored_det_t det;
+      det.img_ix = img_ix;
       for( uint32_t p = 0; p < 2; ++p ) { // upper/lower
 	for( uint32_t d = 0; d < 2; ++d ) { // x/y
 	  det.p[p].d[d] = det_boxes(i,(p*2)+d);
 	}
       }
-      double const score = det_boxes(i,det_boxes.dim2()-1);
+      det.score = det_boxes(i,det_boxes.dim2()-1);
       det.from_pascal_coord_adjust();
-      printf( "det=%s score=%s\n", str(det).c_str(), str(score).c_str() );
+      printf( "det=%s\n", str(det).c_str() );
+      if(scored_dets) { scored_dets->push_back( det ); }
     }
-
-
+    boost::filesystem::current_path( boost::filesystem::initial_path() );
   }
 }

@@ -12,6 +12,7 @@
 #include"pugixml.hpp"
 #include"pyif.H"
 #include"img_io.H"
+#include"octif.H"
 
 namespace boda 
 {
@@ -69,17 +70,9 @@ namespace boda
     }
   }
 
-  struct scored_det_t : public u32_box_t
-  {
-    double score;
-    uint32_t img_ix;
-    scored_det_t( void ) : score(0), img_ix(0) { }
-  };
   std::ostream & operator<<(std::ostream & os, const scored_det_t & v) {
     return os << ((u32_box_t &)v) << "@" << v.img_ix << "=" << v.score; }
-  typedef vector< scored_det_t > vect_scored_det_t;
-  typedef map< string, vect_scored_det_t > name_vect_scored_det_map_t;
-  typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
+
   struct scored_det_t_comp_by_inv_score_t { 
     bool operator () ( scored_det_t const & a, scored_det_t const & b ) const { return a.score > b.score; } };
   
@@ -103,6 +96,7 @@ namespace boda
   struct img_info_t
   {
     string id;
+    string full_fn;
     uint32_t ix;
     u32_pt_t size;
     uint32_t depth;
@@ -125,14 +119,13 @@ namespace boda
     return ret;
   }
 
-  p_img_t read_pascal_image_for_id( path const & pascal_base_path, string const & id )
+  void read_pascal_image_for_id( p_img_info_t img_info, path const & pascal_base_path, string const & id )
   {
     path const img_dir = pascal_base_path / "JPEGImages";
     ensure_is_dir( img_dir );
-    path const img_path = img_dir / (id + ".jpg");
-    p_img_t img( new img_t );
-    img->load_fn( img_path.c_str() );
-    return img;
+    img_info->full_fn = string( (img_dir / (id + ".jpg")).c_str() );
+    img_info->img.reset( new img_t );
+    img_info->img->load_fn( img_info->full_fn.c_str() );
   }
 
   void read_pascal_annotations_for_id( p_img_info_t img_info, path const & pascal_base_path, string const & id )
@@ -189,13 +182,13 @@ namespace boda
     class_infos_t class_infos;
 
     img_db_t( void ) : pascal_base_path( "/home/moskewcz/bench/VOCdevkit/VOC2007" ) { }
-    void load_ann_for_id( string const & img_id, bool load_img )
+    void load_pascal_data_for_id( string const & img_id, bool load_img )
     {
       p_img_info_t & img_info = id_to_img_info_map[img_id];
       if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
       img_info.reset( new img_info_t( img_id ) );
       read_pascal_annotations_for_id( img_info, pascal_base_path, img_id ); 
-      if( load_img ) { img_info->img = read_pascal_image_for_id( pascal_base_path, img_id ); }
+      if( load_img ) { read_pascal_image_for_id( img_info, pascal_base_path, img_id ); }
 
       img_info->ix = img_infos.size();
       img_infos.push_back( img_info );
@@ -204,18 +197,19 @@ namespace boda
 	class_infos[i->first].v += i->second.num_non_difficult.v;
       }
     }
+    string get_id_for_img_ix( uint32_t const img_ix )
+    {
+      assert( img_ix < img_infos.size() );
+      return img_infos[img_ix]->id;
+    }
     uint32_t get_ix_for_img_id( string const & img_id )
     {
       id_to_img_info_map_t::iterator img_info = id_to_img_info_map.find(img_id);
       if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
       return img_info->second->ix;
     }
-    void add_scored_det( string const & class_name, scored_det_t const & scored_det )
-    {
-      scored_dets[class_name].push_back( scored_det );
-    }
     match_res_t try_match( string const & class_name, scored_det_t const & sd );
-    void score_results_for_class( string const & class_name, vect_scored_det_t & name_scored_dets );
+    void score_results_for_class( string const & class_name, p_vect_scored_det_t name_scored_dets );
     void score_results( void );
   };
   typedef shared_ptr< img_db_t > p_img_db_t;
@@ -224,6 +218,7 @@ namespace boda
   {
     p_ifstream in = ifs_open( fn );  
     string line;
+    p_vect_scored_det_t scored_dets( new vect_scored_det_t );
     while( !ifs_getline( fn, in, line ) )
     {
       vect_string parts;
@@ -240,39 +235,64 @@ namespace boda
       scored_det.p[1].d[1] = lc_str_u32( parts[5] );
       scored_det.from_pascal_coord_adjust();
       assert_st( scored_det.is_strictly_normalized() );
-      img_db->add_scored_det( class_name, scored_det );
+      scored_dets->push_back( scored_det );
     }
-    img_db->score_results();
+    img_db->scored_dets[class_name] = scored_dets;
   }
 
-  p_img_db_t read_image_list_file( string const & fn, bool load_imgs )
+  void write_results_file( p_img_db_t img_db, string const & fn, string const &class_name )
+  {
+    p_ofstream out = ofs_open( fn );  
+    p_vect_scored_det_t scored_dets = img_db->scored_dets[class_name];
+    for (vect_scored_det_t::const_iterator i = scored_dets->begin(); i != scored_dets->end(); ++i)
+    {
+      string const img_id = img_db->get_id_for_img_ix(i->img_ix);
+      (*out) << strprintf( "%s %s %s\n", str(img_id).c_str(), str(i->score).c_str(), i->pascal_str().c_str() );
+    }
+  }
+
+  p_img_db_t read_pascal_image_list_file( string const & pil_fn, bool load_imgs )
   {
     p_img_db_t img_db( new img_db_t );
-    p_ifstream in = ifs_open( fn );  
+    p_ifstream in = ifs_open( pil_fn );  
     string line;
-    while( !ifs_getline( fn, in, line ) )
+    while( !ifs_getline( pil_fn, in, line ) )
     {
       vect_string parts;
       split( parts, line, is_space(), token_compress_on );
       if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
       if( parts.size() != 2 ) { 
 	rt_err( strprintf( "invalid line in image list file '%s': num of parts != 2 after space "
-			   "splitting. line was:\n%s", fn.c_str(), line.c_str() ) ); }
+			   "splitting. line was:\n%s", pil_fn.c_str(), line.c_str() ) ); }
       string const id = parts[0];
       string const pn = parts[1];
       if( (pn != "1") && (pn != "-1") && (pn != "0") ) {
 	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
-			   fn.c_str(), pn.c_str() ) );
+			   pil_fn.c_str(), pn.c_str() ) );
       }
-      img_db->load_ann_for_id( id, load_imgs );
+      img_db->load_pascal_data_for_id( id, load_imgs );
     }
     return img_db;
   }
 
-  void score_results_file( string const & il_fn, string const & res_fn, string const &class_name )
+  void score_results_file( string const & pil_fn, string const & res_fn, string const &class_name )
   {
-    p_img_db_t img_db = read_image_list_file( il_fn, false );
+    p_img_db_t img_db = read_pascal_image_list_file( pil_fn, false );
     read_results_file( img_db, res_fn, class_name );
+    img_db->score_results();
+  }
+
+  void run_dfc( string const & pil_fn, string const & res_fn, string const &class_name )
+  {
+    p_img_db_t img_db = read_pascal_image_list_file( pil_fn, true );
+    p_vect_scored_det_t scored_dets( new vect_scored_det_t );
+    for( uint32_t i = 0; i < img_db->img_infos.size(); ++i )
+    {
+      p_img_info_t img_info = img_db->img_infos[i];
+      oct_dfc( scored_dets, class_name, img_info->full_fn, img_info->ix );
+    }
+    img_db->scored_dets[class_name] = scored_dets;
+    write_results_file( img_db, res_fn, class_name );
   }
 
   // returns (matched, match_was_difficult). note that difficult is
@@ -295,10 +315,12 @@ namespace boda
       uint64_t const gt_sd_union = sd_area + gt_area - gt_overlap;
       // must overlap by 50% in terms of ( intersection area / union area ) (pascal VOC criterion) 
       bool has_min_overlap = ( gt_overlap * 2 ) >= gt_sd_union;
+#if 0
       if( img_info->id == "xx001329" )
       {
 	printf( "sd=%s gt=%s sd_area=%s gt_area=%s gt_overlap=%s gt_score=%s max_score=%s hmo=%s\n", str(sd).c_str(), str(*i).c_str(),str(sd_area).c_str(), str(gt_area).c_str(), str(gt_overlap).c_str(), str(double(gt_overlap)/gt_sd_union).c_str(), str(double(best_score.d[0])/best_score.d[1]).c_str(), str(has_min_overlap).c_str() );
       }
+#endif
       if( !has_min_overlap ) { continue; }
 
       if( (uint64_t(gt_overlap)*best_score.d[1]) > (uint64_t(best_score.d[0])*gt_sd_union) ) {
@@ -322,9 +344,9 @@ namespace boda
   }
 
 
-  void img_db_t::score_results_for_class( string const & class_name, vect_scored_det_t & name_scored_dets )
+  void img_db_t::score_results_for_class( string const & class_name, p_vect_scored_det_t name_scored_dets )
   {
-    sort( name_scored_dets.begin(), name_scored_dets.end(), scored_det_t_comp_by_inv_score_t() );
+    sort( name_scored_dets->begin(), name_scored_dets->end(), scored_det_t_comp_by_inv_score_t() );
     uint32_t tot_num_class = class_infos[class_name].v;
     vect_prc_elem_t prc_elems;
     uint32_t num_pos = 0;
@@ -332,7 +354,7 @@ namespace boda
     double map = 0;
     uint32_t print_skip = 1 + (tot_num_class / 20); // print about 20 steps in recall
     uint32_t next_print = 1;
-    for( vect_scored_det_t::const_iterator i = name_scored_dets.begin(); i != name_scored_dets.end(); )
+    for( vect_scored_det_t::const_iterator i = name_scored_dets->begin(); i != name_scored_dets->end(); )
     {
       uint32_t const orig_num_pos = num_pos;
       double const cur_score = i->score;
@@ -342,7 +364,7 @@ namespace boda
 	if( match_res.is_pos && !match_res.is_diff ) { 
 	  ++num_test; ++num_pos; // positive, recall increased (precision must == 1 or also be increased)
 	} else if( !match_res.is_pos ) { ++num_test; } // negative, precision decreased
-	++i; if( (i == name_scored_dets.end()) || (cur_score != i->score) ) { break; }
+	++i; if( (i == name_scored_dets->end()) || (cur_score != i->score) ) { break; }
       }
       if( orig_num_pos != num_pos ) // recall increased
       {

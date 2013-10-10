@@ -2,12 +2,26 @@
 #define RESULTS_IO_H
 
 #include"boda_base.H"
+#include"geom_prim.H"
+#include<map>
 
 namespace boda
 {
+
+  struct scored_det_t : public u32_box_t
+  {
+    double score;
+    uint32_t img_ix;
+    scored_det_t( void ) : score(0), img_ix(0) { }
+  };
+  std::ostream & operator<<(std::ostream & os, const scored_det_t & v);
+  typedef std::vector< scored_det_t > vect_scored_det_t;
+  typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
+  typedef std::map< std::string, p_vect_scored_det_t > name_vect_scored_det_map_t;
+
   // currently internal use only, but maybe can/should be exported
   //void read_results_file( p_img_db_t img_db, std::string const & fn, std::string const &class_name );
-  //p_img_db_t read_image_list_file( std::string const & fn );
+
   struct prc_elem_t
   {
     uint32_t num_pos;
@@ -20,11 +34,12 @@ namespace boda
   };
   typedef std::vector< prc_elem_t > vect_prc_elem_t;
 
-  void score_results_file( std::string const & il_fn, std::string const & res_fn, std::string const &class_name );
+  void score_results_file( std::string const & pil_fn, std::string const & res_fn, std::string const &class_name );
+  void run_dfc( std::string const & pil_fn, std::string const & res_fn, std::string const &class_name );
 
   class img_db_t;
   typedef shared_ptr< img_db_t > p_img_db_t;
-  p_img_db_t read_image_list_file( std::string const & fn, bool load_imgs );
+  p_img_db_t read_pascal_image_list_file( std::string const & pil_fn, bool load_imgs );
 
 }
 #endif // RESULTS_IO_H

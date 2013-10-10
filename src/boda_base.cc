@@ -43,13 +43,20 @@ namespace boda
 			 p.c_str(), e.what() ) ); }
   }
 
-// opens a ifstream that will raise expections for all errors (not
-// including eof). note: this function itself will raise if the open()
-// fails.
+  // opens a ifstream. note: this function itself will raise if the open() fails.
   p_ifstream ifs_open( std::string const & fn )
   {
     ensure_is_regular_file( fn );
     p_ifstream ret( new ifstream );
+    ret->open( fn.c_str() );
+    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for reading", fn.c_str() ) ); }
+    assert( ret->good() );
+    return ret;
+  }
+  // opens a ofstream. note: this function itself will raise if the open() fails.
+  p_ofstream ofs_open( std::string const & fn )
+  {
+    p_ofstream ret( new ofstream );
     ret->open( fn.c_str() );
     if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for reading", fn.c_str() ) ); }
     assert( ret->good() );
