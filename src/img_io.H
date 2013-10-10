@@ -23,9 +23,11 @@ namespace boda
     void set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ );
     void load_fn( std::string const & fn );
     void load_fn_jpeg( std::string const & fn );
+    void load_fn_png( std::string const & fn );
     p_img_t downsample( uint16_t scale ); // scale is 0.16 fixed point, value must be in [.5,1]
   };
 
+  void downsample_test( std::string const & fn );
 
 }
 

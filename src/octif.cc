@@ -11,6 +11,7 @@
 #include"model.h"
 #include"geom_prim.H"
 #include"str_util.H"
+#include"img_io.H"
 
 namespace boda 
 {
@@ -61,6 +62,9 @@ namespace boda
 
   void oct_dfc( string const & class_name, string const & impath )
   {
+    p_img_t img( new img_t );
+    img->load_fn( impath.c_str() );
+
     string_vector argv (2);
     argv(0) = "embedded";
     argv(1) = "-q";

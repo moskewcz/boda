@@ -49,6 +49,7 @@ namespace boda
   void ensure_is_regular_file( std::string const & fn );
   void ensure_is_regular_file( const boost::filesystem3::path & p );
 
+  typedef std::vector< uint8_t > vect_uint8_t;  
   typedef shared_ptr< uint8_t > p_uint8_t;  
   p_uint8_t ma_p_uint8_t( uint32_t const sz, uint32_t const a ); // ma_p == make aligned shared_ptr
 

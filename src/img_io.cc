@@ -1,7 +1,9 @@
 #include"boda_tu_base.H"
 #include"img_io.H"
+#include"pyif.H"
 #include"str_util.H"
 #include<turbojpeg.h>
+#include"lodepng.h"
 #include<boost/iostreams/device/mapped_file.hpp>
 
 namespace boda 
@@ -14,8 +16,9 @@ namespace boda
     ensure_is_regular_file( fn );
     if(0){}
     else if( endswith(fn,".jpg") ) { load_fn_jpeg( fn ); }
+    else if( endswith(fn,".png") ) { load_fn_png( fn ); }
     else { rt_err( "img_t::load_fn( '%s' ): could not auto-detect file-type from extention. known extention/types are:"
-		   " '.jpg':jpeg"); }
+		   " '.jpg':jpeg '.png':png"); }
   }
   
   void check_tj_ret( int const & tj_ret, string const & err_tag ) { 
@@ -54,6 +57,22 @@ namespace boda
     check_tj_ret( tj_ret, "tjDestroy" );
   }
 
+  void img_t::load_fn_png( std::string const & fn )
+  {
+    mapped_file mfile( fn );
+    if( !mfile.is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
+    uint32_t const lp_depth = 4;
+    assert( depth == lp_depth );
+    vect_uint8_t lp_pels; // will contain packed RGBA (no padding)
+    unsigned lp_w = 0, lp_h = 0;
+    unsigned ret = lodepng::decode( lp_pels, lp_w, lp_h, (uint8_t *)mfile.data(), mfile.size() );
+    if( ret ) { rt_err( strprintf( "lodepng decoder error %s: %s", str(ret).c_str(), lodepng_error_text(ret) ) ); }
+    assert_st( (lp_w > 0) && ( lp_h > 0 ) );
+    set_sz_and_alloc_pels( lp_w, lp_h );
+    // copy packed data into our (maybe padded) rows
+    for( uint32_t i = 0; i < h; ++i ) { memcpy( pels.get() + i*row_pitch, (&lp_pels[0]) + i*w*lp_depth, w*lp_depth ); }
+  }
+
   // for all downsample functions, scale is 0.16 fixed point, value must be in [.5,1)
   p_img_t downsample_w_transpose( img_t const * const src, uint16_t scale )
   {
@@ -79,6 +98,19 @@ namespace boda
   {
     p_img_t tmp_img = downsample_w_transpose( this, scale );
     return downsample_w_transpose( tmp_img.get(), scale );
+  }
+
+  void downsample_test( string const & fn )
+  {
+    p_img_t img( new img_t );
+    img->load_fn( fn.c_str() );
+    p_img_t cur = img;
+    for( uint32_t s = 0; s < 16; ++s )
+    {
+      //py_img_show( cur, "out/scale_" + str(s) + ".png" );
+      if( (cur->w < 2) || (cur->h < 2) ) { break; }
+      cur = cur->downsample( 1 << 15 );
+    }
   }
 
 };

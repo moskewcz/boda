@@ -135,7 +135,7 @@ namespace boda
     return img;
   }
 
-  p_img_info_t read_pascal_annotations_for_id( path const & pascal_base_path, string const & id )
+  void read_pascal_annotations_for_id( p_img_info_t img_info, path const & pascal_base_path, string const & id )
   {
     path const ann_dir = pascal_base_path / "Annotations";
     ensure_is_dir( ann_dir );
@@ -146,9 +146,7 @@ namespace boda
     xml_parse_result result = doc.load_file( ann_fn );
     if( !result ) { 
       rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
-    }
-    p_img_info_t img_info( new img_info_t( id ) );
-    
+    }    
     xml_node ann = xml_must_decend( ann_fn, doc, "annotation" );
     xml_node ann_size = xml_must_decend( ann_fn, ann, "size" );
     img_info->size.d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "width" ).child_value() );
@@ -171,7 +169,6 @@ namespace boda
       gt_dets.push_back(gt_det);
       if( !gt_det.difficult ) { ++gt_dets.num_non_difficult.v; } 
     }
-    return img_info;
   }
 
   typedef map< string, zi_uint32_t > class_infos_t;
@@ -196,18 +193,9 @@ namespace boda
     {
       p_img_info_t & img_info = id_to_img_info_map[img_id];
       if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
-      img_info = read_pascal_annotations_for_id( pascal_base_path, img_id ); 
+      img_info.reset( new img_info_t( img_id ) );
+      read_pascal_annotations_for_id( img_info, pascal_base_path, img_id ); 
       if( load_img ) { img_info->img = read_pascal_image_for_id( pascal_base_path, img_id ); }
-      if( load_img ) 
-      { 
-	p_img_t cur = img_info->img;
-	for( uint32_t s = 0; s < 16; ++s )
-	{
-	  py_img_show( cur, "out/" + img_id + "_scale_" + str(s) + ".png" );
-	  if( (cur->w < 2) || (cur->h < 2) ) { break; }
-	  cur = cur->downsample( 1 << 15 );
-	}
-      }
 
       img_info->ix = img_infos.size();
       img_infos.push_back( img_info );

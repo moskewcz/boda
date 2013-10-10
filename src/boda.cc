@@ -8,6 +8,7 @@ namespace boda
 {
   // working example cline:
   // time ../lib/boda score ~/bench/VOCdevkit/VOC2007/ImageSets/Main/bicycle_test.txt ~/research/ffld/build/ffld_VOC2007_bicycle_test_out.txt bicycle
+  void downsample_test( std::string const & fn );
 
   int boda_main( int argc, char **argv )
   {
@@ -16,7 +17,7 @@ namespace boda
     if( argc < 2 )
     {
       printf("usage: boda mode\n");
-      printf("modes: load_pil score oct_init\n");
+      printf("modes: load_pil score oct_init oct_dfc ds_test\n");
       return 1;
     }
     std::string const mode = argv[1];
@@ -53,6 +54,14 @@ namespace boda
 	std::string const class_name = argv[2];
 	std::string const impath = argv[3];
 	oct_dfc( class_name, impath ); 
+      }
+    }
+    else if( mode == "ds_test" ) 
+    {
+      if( argc != 3 ) { printf("usage: boda ds_test img_fn\n"); }
+      else {
+	std::string const img_fn = argv[2];
+	downsample_test( img_fn );
       }
     }
     else { rt_err( "unknown mode '" + mode + "'" ); }
