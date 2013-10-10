@@ -48,9 +48,11 @@ namespace boda
     }
     else if( mode == "oct_dfc" ) 
     {
-      if( argc != 2 ) { printf("usage: boda oct_dfc\n"); }
+      if( argc != 4 ) { printf("usage: boda oct_dfc class_name impath\n"); }
       else {
-	oct_dfc(); 
+	std::string const class_name = argv[2];
+	std::string const impath = argv[3];
+	oct_dfc( class_name, impath ); 
       }
     }
     else { rt_err( "unknown mode '" + mode + "'" ); }
