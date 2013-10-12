@@ -1,6 +1,6 @@
 TARGET=../lib/boda
 VPATH=../src ../src/gen
-OBJS=str_util.o boda.o pugixml.o results_io.o boda_base.o geom_prim.o pyif.o octif.o model.o img_io.o lodepng.o
+OBJS=str_util.o boda.o pugixml.o results_io.o boda_base.o geom_prim.o pyif.o octif.o model.o img_io.o lodepng.o lexp.o
 CPP=g++
 CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -I/usr/include/python2.7 -I/usr/include/octave-3.6.4 -I/usr/include/octave-3.6.4/octave -fopenmp
 LDFLAGS=-lboost_system -lboost_filesystem -lboost_iostreams -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg

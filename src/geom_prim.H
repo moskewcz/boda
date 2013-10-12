@@ -12,7 +12,7 @@ namespace boda
     u32_pt_t( uint32_t const d0, uint32_t const d1 ) : d{d0,d1} { } 
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
   };
-  std::ostream & operator<<(std::ostream & os, const u32_pt_t & v);
+  std::ostream & operator<<(std::ostream & os, u32_pt_t const & v);
 
   struct u32_box_t
   {
@@ -35,7 +35,7 @@ namespace boda
     std::string pascal_str( void ) const;
   };
 
-  std::ostream & operator<<(std::ostream & os, const u32_box_t & v);
+  std::ostream & operator<<(std::ostream & os, u32_box_t const & v);
 
 
 };

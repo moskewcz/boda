@@ -3,6 +3,7 @@
 #include"results_io.H"
 #include"pyif.H"
 #include"octif.H"
+#include"lexp.H"
 
 namespace boda
 {
@@ -21,7 +22,16 @@ namespace boda
       return 1;
     }
     std::string const mode = argv[1];
-    if(0) { }
+    if(0) { } 
+    else if( mode == "lexp" ) 
+    {
+      if( argc != 3 ) { printf("test lexp parsing\nusage: boda lexp LEXP_STR\n"); }
+      else {
+	std::string const lexp_str = argv[2];
+	p_lexp_t lexp = parse_lexp( lexp_str );
+	printf( "*lexp=%s\n", str(*lexp).c_str() );
+      }
+    }
     else if( mode == "load_pil" ) 
     {
       if( argc != 3 ) { printf("load pascal image list file\nusage: boda load_pascal_img_list list_fn\n"); }
