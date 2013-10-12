@@ -11,18 +11,46 @@ namespace boda {
     memcpy( base.get(), &s[0], sz() ); // copy string data
   }
 
+  // for testing/debugging, re-create the exact 'basic' format input
+  // string from the tree of name/value lists. note: we sort-of assume
+  // the tree was built from a single string here (and thus that .src
+  // is always valid and in 'basic' format), but generilizations are
+  // possilbe: src_has_trailing_comma would need to be a variable, not
+  // a function (set by the creator properly), and leaves would either
+  // need to provide a 'basic raw' version of thier value (i.e. by
+  // escaping needed chars from thier cooked value), or the following
+  // would need to create a default 'raw' version itself (again by
+  // escaping as needed). note that there isn't really a cannonical
+  // way to escape a value, but probably only escaping as needed would
+  // be best.
   std::ostream & operator<<(std::ostream & os, sstr_t const & v) {
     return os.write( (char const *)v.base.get()+v.b, v.sz() );
   }
   std::ostream & operator<<(std::ostream & os, lexp_nv_t const & v) {
     return os << v.n << "=" << (*v.v);
   }
+  // if we want to re-create the input string exactly
+  // *without* just printing src, and this node is a non-empty list,
+  // we need to know if there was an optional trailing
+  // comma. wonderful!
+  bool lexp_t::src_has_trailing_comma( void ) const
+  {
+    assert( src.sz() > 1 );
+    if( !kids.size() ) { return 0; }
+    assert( src.sz() > 2 );
+    assert( src.base.get()[src.e-1] == ')' );
+    return src.base.get()[src.e-2] == ',';
+  }
   std::ostream & operator<<(std::ostream & os, lexp_t const & v) {
-    if( v.leaf_val.exists() ) { return os << v.leaf_val; } // leaf case
+    if( v.leaf_val.exists() ) { return os << v.src; } // leaf case. note: we print the 'raw' value here.
     else { // otherwise, list case
       os << "(";
-      for (vect_lexp_nv_t::const_iterator i = v.kids.begin(); i != v.kids.end(); ++i) { os << (*i) << ','; }
-      return os << ")";
+      for (vect_lexp_nv_t::const_iterator i = v.kids.begin(); i != v.kids.end(); ++i) 
+      { 
+	if( i != v.kids.begin() ) { os << ','; }
+	os << (*i);
+      }
+      return os << (v.src_has_trailing_comma() ? ",)" : ")" );
     }
   }
 

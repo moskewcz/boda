@@ -40,7 +40,8 @@ namespace boda {
   typedef std::vector< lexp_nv_t > vect_lexp_nv_t;
   struct lexp_t
   {
-    sstr_t src; // 'raw' source string may not exist? hope not. may be in cli format? hope not.
+    sstr_t src; // 'raw' source string. TODO: may be in cli format?
+    bool src_has_trailing_comma( void ) const;
     sstr_t leaf_val; // if this exists, this is a leaf, and kids is empty and unused. 'cooked' value (escapes applied)
     vect_lexp_nv_t kids; // if !leaf_val.exists(), this is a list node. note: kids may be empty.
     lexp_t( sstr_t const & src_ ) : src(src_) { }
