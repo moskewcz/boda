@@ -26,16 +26,18 @@ namespace boda {
     }
   };
   std::ostream & operator<<(std::ostream & os, sstr_t const & v);
-
   struct lexp_t;
+  struct lexp_stats_t; // for testing/internal use only
   typedef shared_ptr< lexp_t > p_lexp_t;
 // name/value pair
   struct lexp_nv_t
   {
     sstr_t n;
     p_lexp_t v;
+    void get_stats( lexp_stats_t & lex_stats );
   };
   std::ostream & operator<<(std::ostream & os, lexp_nv_t const & v);
+
 
   typedef std::vector< lexp_nv_t > vect_lexp_nv_t;
   struct lexp_t
@@ -45,10 +47,12 @@ namespace boda {
     sstr_t leaf_val; // if this exists, this is a leaf, and kids is empty and unused. 'cooked' value (escapes applied)
     vect_lexp_nv_t kids; // if !leaf_val.exists(), this is a list node. note: kids may be empty.
     lexp_t( sstr_t const & src_ ) : src(src_) { }
+    void get_stats( lexp_stats_t & lex_stats );
   };
   std::ostream & operator<<(std::ostream & os, lexp_t const & v);
 
   p_lexp_t parse_lexp( std::string const & s );
+  void test_lexp( void );
 
 }
 

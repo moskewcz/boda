@@ -23,6 +23,11 @@ namespace boda
     }
     std::string const mode = argv[1];
     if(0) { } 
+    else if( mode == "test_lexp" ) 
+    {
+      if( argc != 2 ) { printf("automated tests for lexp\nusage: boda test_lexp\n"); }
+      else { test_lexp(); }
+    }
     else if( mode == "lexp" ) 
     {
       if( argc != 3 ) { printf("test lexp parsing\nusage: boda lexp LEXP_STR\n"); }

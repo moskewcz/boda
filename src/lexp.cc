@@ -3,12 +3,31 @@
 #include"str_util.H"
 
 namespace boda {
+  using std::string;
 
-  void sstr_t::set_from_string( std::string const &s )
+  // error format strings
+  string const le_unparsed_data( "unparsed data remaining (expected end of input)" );
+  string const le_end_after_list_item( "unexpected end of input (expecting ',' to continue list or ')' to end list)" );
+  string const le_end_missing_cp( "unexpected end of input (expecting more close parens)" );
+  string const le_end_in_escape( "unexpected end of input after escape char '\\' (expected char)" );
+  string const le_end_in_name( "unexpected end of input (expecting '=' to end name)" );
+  string const le_bad_name_char( "invalid name character in name" );
+  string const le_empty_name( "invalid empty name (no chars before '=' in name)" );
+
+  void sstr_t::set_from_string( string const &s )
   {
     b = 0; e = s.size(); // set b/e
     base = p_uint8_t( (uint8_t *)malloc( s.size() ), free ); // allocate space
     memcpy( base.get(), &s[0], sz() ); // copy string data
+  }
+
+  // for testing/debugging (particularly regressing testing), create
+  // some simple statistics of a lexp.
+  void lexp_nv_t::get_stats( lexp_stats_t & lex_stats ) {
+
+  }
+  void lexp_t::get_stats( lexp_stats_t & lex_stats ) {
+
   }
 
   // for testing/debugging, re-create the exact 'basic' format input
@@ -68,7 +87,8 @@ namespace boda {
     void parse_leaf( p_lexp_t ret );
     void parse_list( p_lexp_t ret );
 
-    void err( std::string const & msg );
+    string err_str( string const & msg );
+    void err( string const & msg );
     // token/char iface
     uint32_t cur_off( void ) const { return m_cur_off; }
     uint32_t cur_c( void ) const { return m_cur_c; }
@@ -81,27 +101,27 @@ namespace boda {
     void set_cur_c( void ) { m_cur_c = ( at_end() ? 0 : s.base.get()[cur_off()] ); }
   };
 
-  void lex_parse_t::err( std::string const & msg )
+  void lex_parse_t::err( string const & msg ) { rt_err( err_str( msg ) ); }
+  string lex_parse_t::err_str( string const & msg )
   {
     uint32_t const max_ccs = 35; // max context chars
     uint32_t const cb = ( cur_off() >= (s.b + max_ccs) ) ? (cur_off() - max_ccs) : s.b;
     uint32_t const ce = ( (cur_off() + max_ccs) <= s.e ) ? (cur_off() + max_ccs) : s.e;
     uint32_t const eo = (cur_off() - cb);
     
-    rt_err( strprintf( "at offset %s=%s: %s in context:\n%s%s%s\n%s^",
+    return strprintf( "at offset %s=%s: %s in context:\n%s%s%s\n%s^",
 		       str(cur_off()).c_str(),
 		       cur_c() ? strprintf("'%c'",cur_c()).c_str() : "END", // offending char or END for end of input
 		       msg.c_str(), // error message
 		       ( cb == s.b ) ? "'" : "...'", // mark if start with truncated with ...
-		       std::string( s.base.get()+cb, s.base.get()+ce ).c_str(), // context around error
+		       string( s.base.get()+cb, s.base.get()+ce ).c_str(), // context around error
 		       ( ce == s.e ) ? "'" : "'...", // mark if end was truncated with ...
-		       std::string(eo+( ( cb == s.b ) ? 1 : 4 ),' ').c_str() // spaces to offset '^' to error char
-		       )
-	    );
+		       string(eo+( ( cb == s.b ) ? 1 : 4 ),' ').c_str() // spaces to offset '^' to error char
+		      );
   }
 
   void lex_parse_t::err_if_data_left( void ) {
-    if( cur_c() != 0 ) { err( "unparsed data remaining (expected end of input)" ); }
+    if( cur_c() != 0 ) { err( le_unparsed_data ); }
   }
 
   p_lexp_t lex_parse_t::parse_lexp( void )
@@ -127,7 +147,7 @@ namespace boda {
       kid.n = parse_name_eq();
       kid.v = parse_lexp();
       ret->kids.push_back( kid );
-      if( cur_c() == 0 ) { err( "unexpected end of input (expecting ',' to continue list or ')' to end list)" ); }
+      if( cur_c() == 0 ) { err( le_end_after_list_item ); }
       else if( (cur_c() == ',') ) { next_c(); }
       else { assert_st( cur_c() == ')' ); } // must hold due to parse_lexp() postcondition. note: will exit loop now.
     }
@@ -144,11 +164,11 @@ namespace boda {
   void lex_parse_t::parse_leaf( p_lexp_t ret )
   {
     bool had_escape = 0; // if no escapes, ret->leaf_val can share data with ret->src, ...
-    std::string cooked; // ... bue if there are escapes, we need to make a local copy for the leaf value.
+    string cooked; // ... bue if there are escapes, we need to make a local copy for the leaf value.
     uint32_t paren_depth = 0;
     while( 1 ) {
       if( cur_c() == 0 ) { // end of input always ends scope
-	if( paren_depth ) { err( "unexpected end of input (expecting more close parens)" ); }
+	if( paren_depth ) { err( le_end_missing_cp ); }
 	break; // end scope
       }
       else if( cur_c() == ')' ) { // sometimes ends scope
@@ -162,10 +182,10 @@ namespace boda {
       else if( cur_c() == '\\' ) { // escape char
 	if( !had_escape ) { // first escape. copy part of leaf consumed so far to cooked.
 	  had_escape = 1; 
-	  cooked = std::string( ret->src.base.get()+ret->src.b, ret->src.base.get()+cur_off() ); 
+	  cooked = string( ret->src.base.get()+ret->src.b, ret->src.base.get()+cur_off() ); 
 	} 
 	next_c(); // consume '\\'
-	if( cur_c() == 0 ) { err( "unexpected end of input after escape char '\\' (expected char)" ); }
+	if( cur_c() == 0 ) { err( le_end_in_escape ); }
       } 
       else if( cur_c() == ',' ) { if( !paren_depth ) { break; } } // un-()ed ',' ends leaf
       if( had_escape ) { cooked.push_back( cur_c() ); }
@@ -185,12 +205,12 @@ namespace boda {
     sstr_t ret( s );
     ret.b = cur_off();
     while( 1 ) {
-      if( (cur_c() == 0) ) { err( "unexpected end of input (expecting '=' to end name)" ); }
+      if( (cur_c() == 0) ) { err( le_end_in_name ); }
       else if( (cur_c() == '(') || (cur_c() == ')' ) || (cur_c() == '\\' ) || (cur_c() == ',' ) ) {
-	err( "invalid name character in name" );
+	err( le_bad_name_char );
       }
       else if( cur_c() == '=' ) { // '=' always ends a name
-	if( ret.b == cur_off() ) { err( "invalid empty name (no chars before '=' in name)" ); }
+	if( ret.b == cur_off() ) { err( le_empty_name ); }
 	ret.shrink_end_off( cur_off() );
 	next_c(); // consume '='
 	return ret;
@@ -199,7 +219,7 @@ namespace boda {
     }
   }
 
-  p_lexp_t parse_lexp( std::string const & s )
+  p_lexp_t parse_lexp( string const & s )
   {
     sstr_t sstr;
     sstr.set_from_string( s );
@@ -208,5 +228,70 @@ namespace boda {
     lex_parse.err_if_data_left();
     return ret;
   }
+
+  struct lexp_stats_t
+  {
+    uint32_t num_leaf;
+    uint32_t num_list;
+    uint32_t num_kids;
+    lexp_stats_t( void ) : num_leaf(0), num_list(0), num_kids(0) { }
+  };
+
+  struct lexp_test_t
+  {
+    string desc;
+    string in;
+    string const * err_fmt;
+    uint32_t const err_off;
+    lexp_stats_t exp;
+  };
+  string const si1 = "(foo=baz,biz=boo,bing=(f1=21,faz=na),hap=(baz=234,fin=12))";
+  lexp_test_t lexp_tests[] = {
+    { "si1+junk", si1 + ")sdf", &le_unparsed_data, 0 },
+#if 0
+   &le_end_after_list_item( "unexpected end of input (expecting ',' to continue list or ')' to end list)" );
+   &le_end_missing_cp( "unexpected end of input (expecting more close parens)" );
+   &le_end_in_escape( "unexpected end of input after escape char '\\' (expected char)" );
+   &le_end_in_name( "unexpected end of input (expecting '=' to end name)" );
+   &le_bad_name_char( "invalid name character in name" );
+   &le_empty_name( "invalid empty name (no chars before '=' in name)" );
+#endif
+  };
+
+  void test_fail_no_err( string const & msg )
+  {
+    printf( "test failed: no error. expected error was:\n  %s\n", str(msg).c_str() );
+  }
+
+  void test_lexp_run( lexp_test_t const & lt )
+  {
+    p_lexp_t test_ret;
+    try {
+      test_ret = parse_lexp( lt.in );
+    } catch( rt_exception const & rte ) {
+      
+    }
+    if( test_ret ) {
+      if( lt.err_fmt ) { test_fail_no_err( *lt.err_fmt ); }
+      else {
+	lexp_stats_t lexp_stats;
+	test_ret->get_stats( lexp_stats );
+	
+      }
+    }
+
+  }
+
+  void test_lexp( void )
+  {
+    for( uint32_t i = 0; i < ( sizeof( lexp_tests ) / sizeof( lexp_test_t ) ); ++i ) {
+      printf( "i=%s lexp_tests[i].desc=%s\n", str(i).c_str(), str(lexp_tests[i].desc).c_str() );
+      test_lexp_run( lexp_tests[i] );
+    }
+
+  }
+
+
+
 
 }
