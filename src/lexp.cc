@@ -21,13 +21,34 @@ namespace boda {
     memcpy( base.get(), &s[0], sz() ); // copy string data
   }
 
+
   // for testing/debugging (particularly regressing testing), create
   // some simple statistics of a lexp.
-  void lexp_nv_t::get_stats( lexp_stats_t & lex_stats ) {
+  struct lexp_stats_t
+  {
+    uint32_t num_leaf;
+    uint32_t num_list;
+    uint32_t num_kids;
+    void set_to_zeros( void ) { num_leaf=0; num_list=0; num_kids=0; } // no ctor so we can use {} init; --std=c++-sigh 
+    bool is_eq( lexp_stats_t const & o ) { return num_leaf==o.num_leaf && num_list==o.num_list && num_kids==o.num_kids; }
+  };
+  std::ostream & operator << ( std::ostream & os, lexp_stats_t const & v)  {
+    return os << strprintf( "num_leaf=%s num_list=%s num_kids=%s", str(v.num_leaf).c_str(), str(v.num_list).c_str(), str(v.num_kids).c_str() );
+  }
 
+
+  void lexp_nv_t::get_stats( lexp_stats_t & lex_stats ) {
+    ++lex_stats.num_kids;
+    v->get_stats( lex_stats );
   }
   void lexp_t::get_stats( lexp_stats_t & lex_stats ) {
-
+    if( leaf_val.exists() ) { ++lex_stats.num_leaf; assert_st( kids.empty() ); }
+    else { 
+      ++lex_stats.num_list;
+      for( vect_lexp_nv_t::iterator i = kids.begin(); i != kids.end(); ++i ) {
+	i->get_stats( lex_stats );
+      }
+    }
   }
 
   // for testing/debugging, re-create the exact 'basic' format input
@@ -87,7 +108,7 @@ namespace boda {
     void parse_leaf( p_lexp_t ret );
     void parse_list( p_lexp_t ret );
 
-    string err_str( string const & msg );
+    string err_str( string const & msg, uint32_t const off );
     void err( string const & msg );
     // token/char iface
     uint32_t cur_off( void ) const { return m_cur_off; }
@@ -99,18 +120,20 @@ namespace boda {
     char m_cur_c; 
     bool at_end( void ) const { return cur_off() == s.end_off(); }
     void set_cur_c( void ) { m_cur_c = ( at_end() ? 0 : s.base.get()[cur_off()] ); }
+
+    friend struct lexp_test_run_t;
   };
 
-  void lex_parse_t::err( string const & msg ) { rt_err( err_str( msg ) ); }
-  string lex_parse_t::err_str( string const & msg )
+  void lex_parse_t::err( string const & msg ) { rt_err( err_str( msg, cur_off() ) ); }
+  string lex_parse_t::err_str( string const & msg, uint32_t const off )
   {
     uint32_t const max_ccs = 35; // max context chars
-    uint32_t const cb = ( cur_off() >= (s.b + max_ccs) ) ? (cur_off() - max_ccs) : s.b;
-    uint32_t const ce = ( (cur_off() + max_ccs) <= s.e ) ? (cur_off() + max_ccs) : s.e;
-    uint32_t const eo = (cur_off() - cb);
+    uint32_t const cb = ( off >= (s.b + max_ccs) ) ? (off - max_ccs) : s.b;
+    uint32_t const ce = ( (off + max_ccs) <= s.e ) ? (off + max_ccs) : s.e;
+    uint32_t const eo = (off - cb);
     
     return strprintf( "at offset %s=%s: %s in context:\n%s%s%s\n%s^",
-		       str(cur_off()).c_str(),
+		       str(off).c_str(),
 		       cur_c() ? strprintf("'%c'",cur_c()).c_str() : "END", // offending char or END for end of input
 		       msg.c_str(), // error message
 		       ( cb == s.b ) ? "'" : "...'", // mark if start with truncated with ...
@@ -229,69 +252,118 @@ namespace boda {
     return ret;
   }
 
-  struct lexp_stats_t
-  {
-    uint32_t num_leaf;
-    uint32_t num_list;
-    uint32_t num_kids;
-    lexp_stats_t( void ) : num_leaf(0), num_list(0), num_kids(0) { }
-  };
-
   struct lexp_test_t
   {
     string desc;
     string in;
     string const * err_fmt;
     uint32_t const err_off;
-    lexp_stats_t exp;
+    lexp_stats_t lexp_stats;
   };
-  string const si1 = "(foo=baz,biz=boo,bing=(f1=21,faz=na),hap=(baz=234,fin=12))";
+
+  string const si = "(foo=baz,biz=boo,bing=(f1=21,faz=na),hap=(baz=234,fin=12))";
   lexp_test_t lexp_tests[] = {
-    { "si1+junk", si1 + ")sdf", &le_unparsed_data, 0 },
-#if 0
-   &le_end_after_list_item( "unexpected end of input (expecting ',' to continue list or ')' to end list)" );
-   &le_end_missing_cp( "unexpected end of input (expecting more close parens)" );
-   &le_end_in_escape( "unexpected end of input after escape char '\\' (expected char)" );
-   &le_end_in_name( "unexpected end of input (expecting '=' to end name)" );
-   &le_bad_name_char( "invalid name character in name" );
-   &le_empty_name( "invalid empty name (no chars before '=' in name)" );
-#endif
+    { "si+junk", si + ")sdf", &le_unparsed_data, 58 },
+    { "extra close paren (looks like junk at end)", "baz)foo,bar,bing)", &le_unparsed_data, 3 },
+    { "end after list item (with val after=)", "(foo=bar,baz=(foo=da", &le_end_after_list_item, 20 },
+    { "end after list item (no val after=)", "(foo=bar,baz=(foo=", &le_end_after_list_item, 18 },
+    { "end missing cp", "foo(", &le_end_missing_cp, 4 },
+    { "end missing cp (nested)", "bar=foo(", &le_end_missing_cp, 8 },
+    { "end in escape 1", "\\", &le_end_in_escape, 1 },
+    { "end in escape 2", "(foo=fv\\", &le_end_in_escape, 8 },
+    { "end in escape 3", "(foo=bar,var=\\", &le_end_in_escape, 14 },
+    { "end in name 1", "(foo", &le_end_in_name, 4 },
+    { "end in name 2", "(foo=bar,baz", &le_end_in_name, 12},
+    { "invalid name char \\", "(fo\\", &le_bad_name_char, 3},
+    { "invalid name char ,", "(fo,", &le_bad_name_char, 3},
+    { "invalid name char (", "(fo(", &le_bad_name_char, 3},
+    { "invalid name char )", "(fo)", &le_bad_name_char, 3},
+    { "invalid empty name 1", "(=", &le_empty_name, 1},
+    { "invalid empty name 2", "(foo=bar,var=(=))", &le_empty_name, 14},
+
+    { "si", si, 0, 0, {6,3,8} },
+    { "nested commas", "baz(foo,bar,bing)", 0, 0, {1,0,0} },
+    { "odd-but-okay leaf value (maybe user error)", "bar=foo()", 0, 0, {1,0,0} },
+    { "odd-but-okay leaf value with escaped lp (maybe user error)", "bar=foo\\(", 0, 0, {1,0,0} },
+    { "odd-but-okay nested leaf value", "(foo=bar(=))", 0,0, {1,1,1} },
+    { "odd-but-okay nested leaf value with escaped lp (maybe user error)", "(biz=bar=foo\\()", 0, 0, {1,1,1} },
   };
 
-  void test_fail_no_err( string const & msg )
+  struct lexp_test_run_t
   {
-    printf( "test failed: no error. expected error was:\n  %s\n", str(msg).c_str() );
-  }
+    uint32_t tix;
+    uint32_t num_fail;
 
-  void test_lexp_run( lexp_test_t const & lt )
-  {
-    p_lexp_t test_ret;
-    try {
-      test_ret = parse_lexp( lt.in );
-    } catch( rt_exception const & rte ) {
-      
+    void test_print( void ) {
+      printf( "tix=%s lexp_tests[tix].desc=%s\n", str(tix).c_str(), str(lexp_tests[tix].desc).c_str() );
     }
-    if( test_ret ) {
-      if( lt.err_fmt ) { test_fail_no_err( *lt.err_fmt ); }
-      else {
-	lexp_stats_t lexp_stats;
-	test_ret->get_stats( lexp_stats );
+    void test_fail( void ) {
+      ++num_fail;
+      test_print();
+    }
+    void test_fail_no_err( string const & msg )  {
+      test_fail();
+      printf( "test failed: missing expected error:\n  %s\n", str(msg).c_str() );
+    }
+    void test_fail_err( string const & msg )  {
+      test_fail();
+      printf( "test failed: expected no error, but error was:\n  %s\n", str(msg).c_str() );
+    }
+    void test_fail_wrong_res( string const & msg )  {
+      test_fail();
+      printf( "test failed: wrong result:\n  %s\n", str(msg).c_str() );
+    }
+    void test_fail_wrong_err( string const & msg )  {
+      test_fail();
+      printf( "test failed: wrong error, got:\n%s\n", str(msg).c_str() );
+    }
+
+    void test_lexp_run( void )
+    {
+      // note: global parse_lexp() function is inlined here for customization / error generation
+      lexp_test_t const & lt = lexp_tests[tix];
+      sstr_t sstr;
+      sstr.set_from_string( lt.in );
+      lex_parse_t lex_parse( sstr );
+      p_lexp_t test_ret;
+      try {
+	p_lexp_t ret = lex_parse.parse_lexp();
+	lex_parse.err_if_data_left();
+	test_ret = ret;
+      } catch( rt_exception const & rte ) {
+	assert_st( !test_ret );
+	if( !lt.err_fmt ) { test_fail_err( rte.err_msg ); } // expected no error, but got one
+	else { 	// check if error is correct one
+	  string const exp_err_msg = "error: " + lex_parse.err_str( *lt.err_fmt, lt.err_off );
+	  if( rte.err_msg != exp_err_msg ) { test_fail_wrong_err( 
+	      strprintf( "  %s\nexpected:\n  %s\n", str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) ); }
+	}
+      }
+      if( test_ret ) {
+	if( lt.err_fmt ) { test_fail_no_err( *lt.err_fmt ); }
+	else { 
+	  // no error expected, no error occured. check that the string reps and stats agree
+	  lexp_stats_t lexp_stats;
+	  lexp_stats.set_to_zeros();
+	  test_ret->get_stats( lexp_stats );
+	  if( !lexp_stats.is_eq( lt.lexp_stats ) ) {
+	    test_fail_wrong_res( strprintf( "lexp_stats=%s != lt.lexp_stats=%s", 
+					    str(lexp_stats).c_str(), str(lt.lexp_stats).c_str() ) );
+	  }
+	  string const lexp_to_str( str( *test_ret ) );
+	  if( lexp_to_str != lt.in ) { test_fail_wrong_res( strprintf( "lexp_to_str=%s != lt.in=%s\n", 
+								       str(lexp_to_str).c_str(), str(lt.in).c_str() ) );
+	  }
 	
+	}
       }
     }
-
-  }
-
-  void test_lexp( void )
-  {
-    for( uint32_t i = 0; i < ( sizeof( lexp_tests ) / sizeof( lexp_test_t ) ); ++i ) {
-      printf( "i=%s lexp_tests[i].desc=%s\n", str(i).c_str(), str(lexp_tests[i].desc).c_str() );
-      test_lexp_run( lexp_tests[i] );
+    void test( void ) {
+      num_fail = 0;
+      for( tix = 0; tix < ( sizeof( lexp_tests ) / sizeof( lexp_test_t ) ); ++tix ) { test_lexp_run(); }
+      if( num_fail ) { printf( "test_lexp num_fail=%s\n", str(num_fail).c_str() ); }
     }
-
-  }
-
-
-
+  };
+  void test_lexp( void ) { lexp_test_run_t().test(); }
 
 }
