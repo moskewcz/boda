@@ -1,0 +1,13 @@
+nesi.o
+lexp.o 
+img_io.o 
+model.o 
+results_io.o  
+pyif.o 
+octif.o 
+boda.o  
+str_util.o 
+geom_prim.o
+boda_base.o 
+pugixml.o
+lodepng.o 

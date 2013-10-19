@@ -254,6 +254,7 @@ namespace boda {
 
   struct lexp_test_t
   {
+    string name;
     string desc;
     string in;
     string const * err_fmt;
@@ -263,30 +264,30 @@ namespace boda {
 
   string const si = "(foo=baz,biz=boo,bing=(f1=21,faz=na),hap=(baz=234,fin=12))";
   lexp_test_t lexp_tests[] = {
-    { "si+junk", si + ")sdf", &le_unparsed_data, 58 },
-    { "extra close paren (looks like junk at end)", "baz)foo,bar,bing)", &le_unparsed_data, 3 },
-    { "end after list item (with val after=)", "(foo=bar,baz=(foo=da", &le_end_after_list_item, 20 },
-    { "end after list item (no val after=)", "(foo=bar,baz=(foo=", &le_end_after_list_item, 18 },
-    { "end missing cp", "foo(", &le_end_missing_cp, 4 },
-    { "end missing cp (nested)", "bar=foo(", &le_end_missing_cp, 8 },
-    { "end in escape 1", "\\", &le_end_in_escape, 1 },
-    { "end in escape 2", "(foo=fv\\", &le_end_in_escape, 8 },
-    { "end in escape 3", "(foo=bar,var=\\", &le_end_in_escape, 14 },
-    { "end in name 1", "(foo", &le_end_in_name, 4 },
-    { "end in name 2", "(foo=bar,baz", &le_end_in_name, 12},
-    { "invalid name char \\", "(fo\\", &le_bad_name_char, 3},
-    { "invalid name char ,", "(fo,", &le_bad_name_char, 3},
-    { "invalid name char (", "(fo(", &le_bad_name_char, 3},
-    { "invalid name char )", "(fo)", &le_bad_name_char, 3},
-    { "invalid empty name 1", "(=", &le_empty_name, 1},
-    { "invalid empty name 2", "(foo=bar,var=(=))", &le_empty_name, 14},
+    { "junk_end", "", si + ")sdf", &le_unparsed_data, 58 },
+    { "ext_cp_end", "extra close paren (looks like junk at end)", "baz)foo,bar,bing)", &le_unparsed_data, 3 },
+    { "end_li_val", "end after list item (with val after=)", "(foo=bar,baz=(foo=da", &le_end_after_list_item, 20 },
+    { "end_li", "end after list item (no val after=)", "(foo=bar,baz=(foo=", &le_end_after_list_item, 18 },
+    { "end_no_cp", "end missing cp", "foo(", &le_end_missing_cp, 4 },
+    { "end_no_cp_nest", " missing cp (nested)", "bar=foo(", &le_end_missing_cp, 8 },
+    { "end_in_escape_1", "", "\\", &le_end_in_escape, 1 },
+    { "end_in_escape_2", "", "(foo=fv\\", &le_end_in_escape, 8 },
+    { "end_in_escape_3", "", "(foo=bar,var=\\", &le_end_in_escape, 14 },
+    { "end_in_name_1", "", "(foo", &le_end_in_name, 4 },
+    { "end_in_name_2", "", "(foo=bar,baz", &le_end_in_name, 12},
+    { "invalid_name_char_bs", "", "(fo\\", &le_bad_name_char, 3},
+    { "invalid_name_char_comma", "", "(fo,", &le_bad_name_char, 3},
+    { "invalid_name_char_op", "", "(fo(", &le_bad_name_char, 3},
+    { "invalid_name_char_cp", "", "(fo)", &le_bad_name_char, 3},
+    { "invalid_empty_name_1", "", "(=", &le_empty_name, 1},
+    { "invalid_empty_name_2", "", "(foo=bar,var=(=))", &le_empty_name, 14},
 
-    { "si", si, 0, 0, {6,3,8} },
-    { "nested commas", "baz(foo,bar,bing)", 0, 0, {1,0,0} },
-    { "odd-but-okay leaf value (maybe user error)", "bar=foo()", 0, 0, {1,0,0} },
-    { "odd-but-okay leaf value with escaped lp (maybe user error)", "bar=foo\\(", 0, 0, {1,0,0} },
-    { "odd-but-okay nested leaf value", "(foo=bar(=))", 0,0, {1,1,1} },
-    { "odd-but-okay nested leaf value with escaped lp (maybe user error)", "(biz=bar=foo\\()", 0, 0, {1,1,1} },
+    { "si", "an nice 'lil input", si, 0, 0, {6,3,8} },
+    { "value_with_nested_commas", "", "baz(foo,bar,bing)", 0, 0, {1,0,0} },
+    { "odd_leaf_1", "odd-but-okay leaf value (maybe user error, maybe should be illegal)", "bar=foo()", 0, 0, {1,0,0} },
+    { "odd_leaf_2_esc_lp", "", "bar=foo\\(", 0, 0, {1,0,0} },
+    { "odd_leaf_3_nested", "", "(foo=bar(=))", 0,0, {1,1,1} },
+    { "off_leaf_4_nested_esc_lp", "", "(biz=bar=foo\\()", 0, 0, {1,1,1} },
   };
 
   struct lexp_test_run_t

@@ -275,6 +275,25 @@ namespace boda
     return img_db;
   }
 
+
+  struct has_main_t // NESI(help="base type of modules that can be run")
+  {
+    virtual void main( void ) = 0;
+  };
+
+  struct score_results_file_t : public has_main_t // NESI(help="for a given class name, score a pascal-VOC results file with respect to a given pascal-VOC image list file",base_type="has_main_t", type_id="score")
+  {
+    string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
+    string res_fn; //NESI(help="name of pascal-VOC format detection results file",req=1)
+    string class_name; //NESI(help="name of object class",req=1)
+    virtual void main( void )
+    {
+      p_img_db_t img_db = read_pascal_image_list_file( pil_fn, false );
+      read_results_file( img_db, res_fn, class_name );
+      img_db->score_results();
+    }
+  };
+
   void score_results_file( string const & pil_fn, string const & res_fn, string const &class_name )
   {
     p_img_db_t img_db = read_pascal_image_list_file( pil_fn, false );
@@ -395,6 +414,6 @@ namespace boda
       score_results_for_class( i->first, i->second );
     }
   }
-
+#include"gen/results_io.cc.nesi_gen.cc"
 
 }

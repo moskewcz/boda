@@ -1,10 +1,10 @@
 TARGET=../lib/boda
-VPATH=../src ../src/gen
-OBJS=str_util.o boda.o pugixml.o results_io.o boda_base.o geom_prim.o pyif.o octif.o model.o img_io.o lodepng.o lexp.o
 CPP=g++
 CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -I/usr/include/python2.7 -I/usr/include/octave-3.6.4 -I/usr/include/octave-3.6.4/octave -fopenmp
 LDFLAGS=-lboost_system -lboost_filesystem -lboost_iostreams -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg
-
+# generally, there is no need to alter the makefile below this line
+VPATH=../src ../src/gen
+OBJS=$(shell cat ../src/obj_list | grep -v ^\#) $(shell cat ../src/gen/gen_objs | grep -v ^\#)
 ifeq ($(shell test -L makefile ; echo $$? ),1)
 all : 
 	@echo "makefile should be a symbolic link to avoid accidentally building in the root directory ... attempting to create ./obj,./lib,./run, symlink makefile in ./obj, and recurse make into ./obj"
@@ -12,7 +12,6 @@ all :
 	-ln -sf ../makefile obj/makefile
 	cd obj && $(MAKE)
 else
-
 .SUFFIXES:
 %.o : %.cc
 	$(CPP) $(CPPFLAGS) -MMD -c $<
@@ -23,17 +22,15 @@ else
 %.d : %.cpp
 	@touch $@
 DEPENDENCIES = $(OBJS:.o=.d)
-
-$(info py_prebuild_hook:  $(shell python ../pysrc/prebuild.py ))
-
+# FIXME: unfortunately, make will continue even if there is an error executing prebuild.py (which is bad), and
+# somtimes likes to run prebuild.py multiple times (which not great, but okay). the solutions i know of seem
+# worse than the problem, though.
+$(info py_prebuild_hook:  $(shell python ../pysrc/prebuild.py )) 
 all : $(TARGET) 
 $(TARGET): $(OBJS)
 	$(CPP) $(CPPFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
-
 .PHONY : clean
 clean:
 	-rm -f $(TARGET) $(OBJS) $(DEPENDENCIES)
-
 include $(DEPENDENCIES)
-
 endif

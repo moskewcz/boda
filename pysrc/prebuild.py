@@ -1,4 +1,3 @@
-from get_svn_rev import get_svn_rev
+from nesi_gen import nesi_gen
 
-get_svn_rev()
-print "foo"
+nesi_gen()
