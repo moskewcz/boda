@@ -9,29 +9,38 @@ def check_dir_writable( dir_name ):
 
 # basic info for all types
 class tinfo_t( object ):
-    def __init__( self, tid, tname ):
+    def __init__( self, src_fn, tid, tname ):
+        self.src_fn = src_fn
         self.tname = tname
         self.tid = tid
     def get_tinfo( self ):
-        return '{ %s, "%s" },\n' % (self.tid, self.tname)
-    
+        return 'tinfo_t tinfo_%s = { "%s" };\n' % (self.tname, self.tname)
+
+def iter_wrapped_types( tname ):
+    for prefix in ["p_","vect_"]:
+        if tname.startswith( prefix ):
+            iter_wrapped_types( tname[len(prefix):] )
+    yield tname
 
 class cinfo_t( object ):
-    def __init__( self, sname, src_fn, help, base_type=None, type_id=None ):
-        self.sname = sname
+    def __init__( self, cname, src_fn, help, base_type=None, type_id=None, is_abstract=None ):
+        self.cname = cname
         self.src_fn = src_fn
         self.help = help
         self.base_type = base_type
         self.type_id = type_id
+        self.is_abstract = is_abstract
         self.vars = {}
+        self.vars_list = []
         self.derived = [] # cinfos's of directly derived types
+
 
     def gen_get_field( self ):
         get_field_template =  """
-  // gen_field for %(sname)s
-  void * nesi__%(sname)s__get_field( void * const o, uint32_t const ix )
+  // gen_field for %(cname)s
+  void * nesi__%(cname)s__get_field( void * const o, uint32_t const ix )
   {
-    %(skip_to)s%(sname)s * const to = (%(sname)s *)( o );
+    %(skip_to)s%(cname)s * const to = (%(cname)s *)( o );
     switch( ix ) {
 %(field_cases)s   
     }
@@ -42,11 +51,39 @@ class cinfo_t( object ):
         skip_to = ""
         if not self.vars: skip_to = "// "
         field_cases = ""
-        for ix,var in enumerate( self.vars.itervalues() ):
+        for ix,var in enumerate( self.vars_list ):
             field_cases += "      case %s: return &to->%s;\n" % (ix,var.vname)
-        return get_field_template % { "skip_to":skip_to, "sname":self.sname, "field_cases":field_cases }
-    
+        return get_field_template % { "skip_to":skip_to, "cname":self.cname, "field_cases":field_cases }
 
+    def gen_vinfos_predecls( self ):
+        return ( ''.join( [ ( 'extern tinfo_t tinfo_%s; ' % ( vi.tname ) ) 
+                            for vi in self.vars_list ]) + '\n')
+
+    def gen_vinfos( self ):
+        return ( ('vinfo_t vinfos_%s[] = {' % self.cname) + ''.join( 
+                [ ( '{ "%s", "%s", &tinfo_%s },\n' % ( vi.help, vi.vname, vi.tname ) ) 
+                  for vi in self.vars_list ]) + '};\n' )
+
+    def gen_cinfo( self ):
+        concrete_new_template = """
+  void * newt_%(cname)s( void ) { return new %(cname)s; }
+  void * vect_push_back_%(cname)s( void * v ) { 
+    vector< %(cname)s > * vv = ( vector< %(cname)s > * )( v );
+    vv->push_back( %(cname)s() ); return &vv->back(); 
+  }
+"""
+        abstract_new_template = """
+  void * newt_%(cname)s( void ) { rt_err("can't create abstract class %(cname)s"); }
+  void * vect_push_back_%(cname)s( void * v ) { rt_err("can't create abstract class %(cname)s"); }
+"""
+        new_template = concrete_new_template
+        if self.is_abstract: new_template = abstract_new_template
+        gen_template = new_template + """
+  cinfo_t cinfo_%(cname)s = { "%(help)s", nesi__%(cname)s__get_field, %(num_vars)s, vinfos_%(cname)s};
+  tinfo_t tinfo_%(cname)s = { "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, newt_%(cname)s, vect_push_back_%(cname)s };
+
+"""
+        return gen_template % {'cname':self.cname, 'help':self.help, 'num_vars':len(self.vars) }
 
 class vinfo_t( object ):
     def __init__( self, tname, vname, help, req=0, default=None ):
@@ -90,28 +127,33 @@ class nesi_gen( object ):
                 bt = self.cinfos.get(cinfo.base_type,None)
                 if bt is None:
                     raise RuntimeError( "NESI type %r listed %r as its base_type, but that is not a NESI type" %
-                                        (cinfo.sname,cinfo.base_type) )
+                                        (cinfo.cname,cinfo.base_type) )
                 cinfo.derived.append( bt )
 
-        # populate tinfos (TODO: incomplete/wrong)
+        # populate tinfos and cinfos for NESI structs
+        #for cinfo in self.cinfos.itervalues():
+        #    self.tinfos.setdefault( cinfo.cname, tinfo_t( cinfo.src_fn, len(self.tinfos), cinfo.cname ) )
+            
+        # populate tinfos for any remaining types (vector, pointer, and base types)
         for cinfo in self.cinfos.itervalues():
-            for var in cinfo.vars.itervalues():
-                self.tinfos.setdefault( var.tname, tinfo_t( len(self.tinfos), var.tname ) )
+            for var in cinfo.vars_list:
+                self.tinfos.setdefault( var.tname, tinfo_t( None, len(self.tinfos), var.tname ) )
 
         # create tinfos
-        tinfos_text = ["tinfo_t tinfos[] = {\n"]
+        tinfos_text = []
         for tinfo in self.tinfos.itervalues():
             tinfos_text.append( tinfo.get_tinfo() )
-        tinfos_text.append( "};\n" )
-        tinfos_text.append( "uint32_t const num_tinfos = %s;\n" % len(self.tinfos) )
 
         self.update_file_if_different( 'tinfos.cc', "".join(tinfos_text) )
                 
         # create per-file generated code files
         per_file_gen = {}
         for cinfo in self.cinfos.itervalues():
-            gf = per_file_gen.setdefault( cinfo.src_fn, [] )
+            gf = per_file_gen.setdefault( cinfo.src_fn, ['#include "../nesi_decls.H"'] )
             gf.append( cinfo.gen_get_field() )
+            gf.append( cinfo.gen_vinfos_predecls() )
+            gf.append( cinfo.gen_vinfos() )
+            gf.append( cinfo.gen_cinfo() )
         
         for gfn,gfn_texts in per_file_gen.iteritems():
             self.update_file_if_different( gfn+'.nesi_gen.cc', "".join( gfn_texts ) )
@@ -148,9 +190,9 @@ class nesi_gen( object ):
                 nesi_kwargs = nd_ret.groups()[0]
                 sd_ret = struct_decl.match(line)
                 if sd_ret:
-                    sname = sd_ret.groups()[0]
+                    cname = sd_ret.groups()[0]
                     # note: sets self.cur_sdecl
-                    self.print_err_eval( "self.proc_sdecl(%r, %r,%s)" % (fn,sname,nesi_kwargs) ) 
+                    self.print_err_eval( "self.proc_sdecl(%r, %r,%s)" % (fn,cname,nesi_kwargs) ) 
                     continue
                 vd_ret = var_decl.match(line)
                 if vd_ret:
@@ -165,18 +207,20 @@ class nesi_gen( object ):
     # mentioned across all sdecls. the factory will instantiate the
     # class with a type_id the matches the input's top-level type
     # field.
-    def proc_sdecl( self, src_fn, sname, help, base_type=None, type_id=None ):
-        if sname in self.cinfos:
-            raise RuntimeError( "duplicate NESI struct declaration for %r" % sname )
-        self.cur_sdecl = cinfo_t( sname, src_fn, help, base_type, type_id )
-        self.cinfos[sname] = self.cur_sdecl
+    def proc_sdecl( self, src_fn, cname, help, base_type=None, type_id=None, is_abstract=None ):
+        if cname in self.cinfos:
+            raise RuntimeError( "duplicate NESI struct declaration for %r" % cname )
+        self.cur_sdecl = cinfo_t( cname, src_fn, help, base_type, type_id, is_abstract )
+        self.cinfos[cname] = self.cur_sdecl
         
     def proc_vdecl( self, tname, vname, help, req=0, default=None ):
         if self.cur_sdecl is None:
             raise RuntimeError( "NESI var declaration for var %r %r before any NESI struct declaration" % (tname,vname) )
         if vname in self.cur_sdecl.vars:
-            raise RuntimeError( "duplicate NESI var declaration for %r in struct %r " % (vname,self.cur_sdecl.sname) )
-        self.cur_sdecl.vars[vname] = vinfo_t( tname, vname, help, req, default )
+            raise RuntimeError( "duplicate NESI var declaration for %r in struct %r " % (vname,self.cur_sdecl.cname) )
+        vi = vinfo_t( tname, vname, help, req, default )
+        self.cur_sdecl.vars[vname] = vi
+        self.cur_sdecl.vars_list.append( vi )
             
     def update_file_if_different( self, gen_fn, new_file_str ):
         assert( not os.path.split( gen_fn )[0] ) # gen_fn should have no path components (i.e. just a filename)
