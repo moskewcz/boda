@@ -14,11 +14,20 @@ namespace boda {
   string const le_bad_name_char( "invalid name character in name" );
   string const le_empty_name( "invalid empty name (no chars before '=' in name)" );
 
-  void sstr_t::set_from_string( string const &s )
-  {
+  bool sstr_t::operator < ( sstr_t const & o ) const { 
+    if( sz() != o.sz() ) { return sz() < o.sz(); }
+    return memcmp( base.get()+b, o.base.get()+o.b, sz() ) < 0; // no embedded nulls, so memcmp is okay to use
+  }
+
+  void sstr_t::set_from_string( string const &s ) {
     b = 0; e = s.size(); // set b/e
     base = p_uint8_t( (uint8_t *)malloc( s.size() ), free ); // allocate space
     memcpy( base.get(), &s[0], sz() ); // copy string data
+  }
+  void no_free( void * ) {}
+  void sstr_t::borrow_from_string( string const &s ) {
+    b = 0; e = s.size(); // set b/e
+    base = p_uint8_t( (uint8_t *)&s[0], no_free ); // borrow data
   }
 
 

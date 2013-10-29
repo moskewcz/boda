@@ -7,20 +7,50 @@ def check_dir_writable( dir_name ):
     if not os.path.isdir( dir_name ) or not os.access( dir_name, os.W_OK ) :
         raise RuntimeError( "dir %r is not a writable directory." % (dir_name,) )
 
-# basic info for all types
+# basic info for pointer, vector, and basic/leaf types
 class tinfo_t( object ):
-    def __init__( self, src_fn, tid, tname ):
-        self.src_fn = src_fn
+    def __init__( self, tname, src_fn ):
         self.tname = tname
-        self.tid = tid
+        self.src_fn = src_fn
+        self.wrap_prefix = None
+        self.wrap_type = None
+        for prefix in ["p_","vect_"]:
+            if tname.startswith( prefix ):
+                self.wrap_prefix = prefix
+                self.wrap_type = tname[len(prefix):]
     def get_tinfo( self ):
-        return 'tinfo_t tinfo_%s = { "%s" };\n' % (self.tname, self.tname)
+        gen_dict = { 'tname':self.tname, 'wrap_type':self.wrap_type }
+        if self.wrap_prefix is None:
+            return  ( 'tinfo_t tinfo_%(tname)s = { "%(tname)s", 0, nesi_%(tname)s_init, %(tname)s_make_p, ' +
+                      '%(tname)s_vect_push_back };\n' ) % gen_dict
+        elif self.wrap_prefix == 'p_':
+            return ( 'tinfo_t tinfo_%(tname)s = { "%(tname)s", &tinfo_%(wrap_type)s, p_init, p_make_p, ' + 
+                     'p_vect_push_back };\n' ) % gen_dict
+        elif self.wrap_prefix == 'vect_':
+            return ( 'tinfo_t tinfo_%(tname)s = { "%(tname)s", &tinfo_%(wrap_type)s, vect_init, vect_make_p, ' + 
+                     'vect_vect_push_back };\n' ) % gen_dict
+        else:
+            raise RuntimeError( "bad wrap_prefix" + str(self.wrap_prefix) )
 
 def iter_wrapped_types( tname ):
     for prefix in ["p_","vect_"]:
         if tname.startswith( prefix ):
-            iter_wrapped_types( tname[len(prefix):] )
+            for wt in iter_wrapped_types( tname[len(prefix):] ):
+                yield wt
     yield tname
+
+class vinfo_t( object ):
+    def __init__( self, tname, vname, help, req=0, default=None ):
+        self.tname = tname
+        self.vname = vname
+        self.help = help
+        self.req = req
+        self.default = default
+    def gen_vinfo( self ):
+        default_val = "0"
+        if self.default is not None:
+            default_val = '"%s"' % (self.default)
+        return '{ "%s", %s, %s, "%s", &tinfo_%s },\n' % ( self.help, default_val, self.req, self.vname, self.tname )
 
 class cinfo_t( object ):
     def __init__( self, cname, src_fn, help, base_type=None, type_id=None, is_abstract=None ):
@@ -33,7 +63,6 @@ class cinfo_t( object ):
         self.vars = {}
         self.vars_list = []
         self.derived = [] # cinfos's of directly derived types
-
 
     def gen_get_field( self ):
         get_field_template =  """
@@ -60,38 +89,35 @@ class cinfo_t( object ):
                             for vi in self.vars_list ]) + '\n')
 
     def gen_vinfos( self ):
-        return ( ('vinfo_t vinfos_%s[] = {' % self.cname) + ''.join( 
-                [ ( '{ "%s", "%s", &tinfo_%s },\n' % ( vi.help, vi.vname, vi.tname ) ) 
-                  for vi in self.vars_list ]) + '};\n' )
-
+        ret = 'vinfo_t vinfos_%s[] = {' % self.cname
+        for vi in self.vars_list:
+            ret += vi.gen_vinfo()
+        ret += '};\n'
+        return ret
     def gen_cinfo( self ):
         concrete_new_template = """
-  void * newt_%(cname)s( void ) { return new %(cname)s; }
+  void * make_p_%(cname)s( void * v ) { 
+    shared_ptr< %(cname)s > *pv = (shared_ptr< %(cname)s > *)v;
+    pv->reset( new %(cname)s ); 
+    return pv->get(); 
+  }
   void * vect_push_back_%(cname)s( void * v ) { 
     vector< %(cname)s > * vv = ( vector< %(cname)s > * )( v );
     vv->push_back( %(cname)s() ); return &vv->back(); 
   }
 """
         abstract_new_template = """
-  void * newt_%(cname)s( void ) { rt_err("can't create abstract class %(cname)s"); }
+  void * make_p_%(cname)s( void * v ) { rt_err("can't create abstract class %(cname)s"); }
   void * vect_push_back_%(cname)s( void * v ) { rt_err("can't create abstract class %(cname)s"); }
 """
         new_template = concrete_new_template
         if self.is_abstract: new_template = abstract_new_template
         gen_template = new_template + """
   cinfo_t cinfo_%(cname)s = { "%(help)s", nesi__%(cname)s__get_field, %(num_vars)s, vinfos_%(cname)s};
-  tinfo_t tinfo_%(cname)s = { "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, newt_%(cname)s, vect_push_back_%(cname)s };
+  tinfo_t tinfo_%(cname)s = { "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, make_p_%(cname)s, vect_push_back_%(cname)s };
 
 """
         return gen_template % {'cname':self.cname, 'help':self.help, 'num_vars':len(self.vars) }
-
-class vinfo_t( object ):
-    def __init__( self, tname, vname, help, req=0, default=None ):
-        self.tname = tname
-        self.vname = vname
-        self.help = help
-        self.req = req
-        self.default = default
 
 
 class nesi_gen( object ):
@@ -107,7 +133,8 @@ class nesi_gen( object ):
 
         # codegen data
         self.cinfos = {}
-        self.tinfos = {}
+        self.tinfos_seen = set()
+        self.tinfos = []
 
         try:
             os.mkdir( self.gen_dir )
@@ -137,23 +164,33 @@ class nesi_gen( object ):
         # populate tinfos for any remaining types (vector, pointer, and base types)
         for cinfo in self.cinfos.itervalues():
             for var in cinfo.vars_list:
-                self.tinfos.setdefault( var.tname, tinfo_t( None, len(self.tinfos), var.tname ) )
+                wts = list( iter_wrapped_types( var.tname ) )
+                assert len(wts)
+                lt = wts[0]
+                src_fn = None
+                if lt in self.cinfos:
+                    src_fn = self.cinfos[lt].src_fn
+                    wts[0:1] = []
+                else:
+                    src_fn = "nesi.cc"
+                for wt in wts:
+                    if wt in self.tinfos_seen:
+                        continue
+                    self.tinfos_seen.add( wt )
+                    self.tinfos.append( tinfo_t( wt, src_fn ) )
 
-        # create tinfos
-        tinfos_text = []
-        for tinfo in self.tinfos.itervalues():
-            tinfos_text.append( tinfo.get_tinfo() )
-
-        self.update_file_if_different( 'tinfos.cc', "".join(tinfos_text) )
-                
         # create per-file generated code files
         per_file_gen = {}
         for cinfo in self.cinfos.itervalues():
-            gf = per_file_gen.setdefault( cinfo.src_fn, ['#include "../nesi_decls.H"'] )
+            gf = per_file_gen.setdefault( cinfo.src_fn, ['#include "../nesi_decls.H"\n'] )
             gf.append( cinfo.gen_get_field() )
             gf.append( cinfo.gen_vinfos_predecls() )
             gf.append( cinfo.gen_vinfos() )
             gf.append( cinfo.gen_cinfo() )
+
+        for tinfo in self.tinfos:
+            gf = per_file_gen.setdefault( tinfo.src_fn, ['#include "../nesi_decls.H"\n'] )
+            gf.append( tinfo.get_tinfo() )
         
         for gfn,gfn_texts in per_file_gen.iteritems():
             self.update_file_if_different( gfn+'.nesi_gen.cc', "".join( gfn_texts ) )

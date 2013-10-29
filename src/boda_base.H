@@ -6,6 +6,7 @@
 #include<fstream>
 #include<string>
 #include<vector>
+#include<map>
 #include<exception>
 #include<boost/integer_traits.hpp>
 

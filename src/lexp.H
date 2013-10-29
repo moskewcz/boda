@@ -13,6 +13,7 @@ namespace boda {
     uint32_t e;
     sstr_t( void ) : b(0), e(0) { }
     void set_from_string( std::string const &s );
+    void borrow_from_string( std::string const &s );
     std::string str( void ) const { 
       assert(base); return std::string( base.get()+b, base.get()+e ); } // get copy as std::string
     uint32_t sz( void ) const { assert(base); assert( e >= b ); return e - b; }
@@ -24,6 +25,7 @@ namespace boda {
       assert( new_e <= e ); // must yield new_sz <= sz
       e = new_e;
     }
+    bool operator < ( sstr_t const & o ) const;
   };
   std::ostream & operator<<(std::ostream & os, sstr_t const & v);
   struct lexp_t;
@@ -38,6 +40,7 @@ namespace boda {
   };
   std::ostream & operator<<(std::ostream & os, lexp_nv_t const & v);
 
+  typedef std::map< sstr_t, p_lexp_t > lexp_name_val_map_t;
 
   typedef std::vector< lexp_nv_t > vect_lexp_nv_t;
   struct lexp_t

@@ -284,6 +284,7 @@ namespace boda
   
   typedef shared_ptr< vector< shared_ptr< vector< string > > > > p_vect_p_vect_string;
   typedef vector< shared_ptr< vector< shared_ptr< string > > > > vect_p_vect_p_string;
+  typedef vector< shared_ptr< string > > vect_p_string;
 
   struct score_results_file_t;
   typedef vector< shared_ptr< vector< shared_ptr< score_results_file_t > > > > vect_p_vect_p_score_results_file_t;
@@ -293,6 +294,7 @@ namespace boda
     string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
     string res_fn; //NESI(help="name of pascal-VOC format detection results file",req=1)
     string class_name; //NESI(help="name of object class",req=1)
+    vect_p_string vps; //NESI(help="wrapped type test 0")
     p_vect_p_vect_string pvpvs; //NESI(help="wrapped type test 1")
     vect_p_vect_p_string vpvps; //NESI(help="wrapped type test 2")
     vect_p_vect_p_score_results_file_t vpvp_srt; //NESI(help="wrapped type test 3")
