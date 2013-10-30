@@ -3,6 +3,7 @@
 
 #include"boda_base.H"
 #include"geom_prim.H"
+#include"has_main.H"
 #include<map>
 
 namespace boda

@@ -53,13 +53,14 @@ class vinfo_t( object ):
         return '{ "%s", %s, %s, "%s", &tinfo_%s },\n' % ( self.help, default_val, self.req, self.vname, self.tname )
 
 class cinfo_t( object ):
-    def __init__( self, cname, src_fn, help, base_type=None, type_id=None, is_abstract=None ):
+    def __init__( self, cname, src_fn, help, bases=[], type_id=None, is_abstract=None, tid_vn=None ):
         self.cname = cname
         self.src_fn = src_fn
         self.help = help
-        self.base_type = base_type
+        self.bases = bases
         self.type_id = type_id
         self.is_abstract = is_abstract
+        self.tid_vn = tid_vn
         self.vars = {}
         self.vars_list = []
         self.derived = [] # cinfos's of directly derived types
@@ -92,9 +93,29 @@ class cinfo_t( object ):
         ret = 'vinfo_t vinfos_%s[] = {' % self.cname
         for vi in self.vars_list:
             ret += vi.gen_vinfo()
-        ret += '};\n'
+        ret += '{} };\n'
+        return ret
+    def gen_cinfos_list( self, base_or_derived ):
+        cis = getattr(self,base_or_derived)
+        ret =  "".join( "extern cinfo_t cinfo_" + ci.cname + '; ' for ci in cis )
+        ret += 'cinfo_t * cinfos_%s_%s[] = {' % (base_or_derived, self.cname)
+        ret += "".join( "&cinfo_%s," % (ci.cname) for ci in cis )
+        ret += '0 };\n'
         return ret
     def gen_cinfo( self ):
+        tid_vix = "uint32_t_const_max"
+        if not self.tid_vn is None:
+            for (ix,vi) in enumerate(self.vars.itervalues()):
+                if vi.vname == self.tid_vn:
+                    tid_vix = ix
+                    break
+            else:
+                raise RuntimeError("in nesi struct %r: %r specified as tid_nv, but no nesi var with that name found." %
+                                   (self.cname,self.tid_vn) )
+        tid_str = "0"
+        if not self.type_id is None:
+            tid_str = '"'+self.type_id+'"'
+            
         concrete_new_template = """
   void * make_p_%(cname)s( void * v ) { 
     shared_ptr< %(cname)s > *pv = (shared_ptr< %(cname)s > *)v;
@@ -112,12 +133,17 @@ class cinfo_t( object ):
 """
         new_template = concrete_new_template
         if self.is_abstract: new_template = abstract_new_template
-        gen_template = new_template + """
-  cinfo_t cinfo_%(cname)s = { "%(help)s", nesi__%(cname)s__get_field, %(num_vars)s, vinfos_%(cname)s};
-  tinfo_t tinfo_%(cname)s = { "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, make_p_%(cname)s, vect_push_back_%(cname)s };
+        gen_template = ""
+        gen_template += self.gen_cinfos_list( "bases" )
+        gen_template += self.gen_cinfos_list( "derived" )
+        gen_template += new_template + """
+  cinfo_t cinfo_%(cname)s = { "%(cname)s", "%(help)s", nesi__%(cname)s__get_field, 
+    vinfos_%(cname)s, make_p_%(cname)s, %(tid_vix)s, %(tid_str)s, cinfos_derived_%(cname)s, cinfos_bases_%(cname)s };
+  tinfo_t tinfo_%(cname)s = { "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, nesi_struct_make_p, vect_push_back_%(cname)s };
 
 """
-        return gen_template % {'cname':self.cname, 'help':self.help, 'num_vars':len(self.vars) }
+        return gen_template % {'cname':self.cname, 'help':self.help, 'num_vars':len(self.vars),
+                               'tid_vix':tid_vix, 'tid_str':tid_str }
 
 
 class nesi_gen( object ):
@@ -148,14 +174,17 @@ class nesi_gen( object ):
                 self.proc_fn( fn )
             dirs[:] = []
             
-        # fill in derived types lists
+        # convert cinfo.bases from names to objects and fill in bases and derived types lists
         for cinfo in self.cinfos.itervalues():
-            if cinfo.base_type is not None:
-                bt = self.cinfos.get(cinfo.base_type,None)
+            base_names = cinfo.bases
+            cinfo.bases = []
+            for btn in base_names:
+                bt = self.cinfos.get(btn,None)
                 if bt is None:
                     raise RuntimeError( "NESI type %r listed %r as its base_type, but that is not a NESI type" %
-                                        (cinfo.cname,cinfo.base_type) )
-                cinfo.derived.append( bt )
+                                        (cinfo.cname,btn) )
+                cinfo.bases.append( bt )
+                bt.derived.append( cinfo )
 
         # populate tinfos and cinfos for NESI structs
         #for cinfo in self.cinfos.itervalues():
@@ -244,10 +273,10 @@ class nesi_gen( object ):
     # mentioned across all sdecls. the factory will instantiate the
     # class with a type_id the matches the input's top-level type
     # field.
-    def proc_sdecl( self, src_fn, cname, help, base_type=None, type_id=None, is_abstract=None ):
+    def proc_sdecl( self, src_fn, cname, **kwargs ):
         if cname in self.cinfos:
             raise RuntimeError( "duplicate NESI struct declaration for %r" % cname )
-        self.cur_sdecl = cinfo_t( cname, src_fn, help, base_type, type_id, is_abstract )
+        self.cur_sdecl = cinfo_t( cname, src_fn, **kwargs )
         self.cinfos[cname] = self.cur_sdecl
         
     def proc_vdecl( self, tname, vname, help, req=0, default=None ):

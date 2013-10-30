@@ -275,12 +275,6 @@ namespace boda
     return img_db;
   }
 
-
-  struct has_main_t // NESI(help="base type of modules that can be run",is_abstract=1)
-  {
-    virtual void main( void ) = 0;
-  };
-
   
   typedef shared_ptr< vector< shared_ptr< vector< string > > > > p_vect_p_vect_string;
   typedef vector< shared_ptr< vector< shared_ptr< string > > > > vect_p_vect_p_string;
@@ -289,7 +283,7 @@ namespace boda
   struct score_results_file_t;
   typedef vector< shared_ptr< vector< shared_ptr< score_results_file_t > > > > vect_p_vect_p_score_results_file_t;
 
-  struct score_results_file_t : public has_main_t // NESI(help="for a given class name, score a pascal-VOC results file with respect to a given pascal-VOC image list file",base_type="has_main_t", type_id="score")
+  struct score_results_file_t : public has_main_t // NESI(help="for a given class name, score a pascal-VOC results file with respect to a given pascal-VOC image list file",bases=["has_main_t"], type_id="score")
   {
     string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
     string res_fn; //NESI(help="name of pascal-VOC format detection results file",req=1)

@@ -4,9 +4,12 @@
 #include"pyif.H"
 #include"octif.H"
 #include"lexp.H"
+#include"has_main.H"
 
 namespace boda
 {
+#include"nesi_decls.H"
+  extern tinfo_t tinfo_has_main_t;
   // working example cline:
   // time ../lib/boda score ~/bench/VOCdevkit/VOC2007/ImageSets/Main/bicycle_test.txt ~/research/ffld/build/ffld_VOC2007_bicycle_test_out.txt bicycle
   void downsample_test( std::string const & fn );
@@ -23,6 +26,16 @@ namespace boda
     }
     std::string const mode = argv[1];
     if(0) { } 
+    else if( mode == "test_nesi" ) 
+    {
+      if( argc != 3 ) { printf("automated tests for nesi\nusage: boda test_nesi arg\n"); }
+      else { 
+	std::string const lexp_str = argv[2];
+	p_lexp_t lexp = parse_lexp( lexp_str );
+	p_has_main_t has_main;
+	nesi_struct_make_p( tinfo_has_main_t.init_arg, &has_main, lexp.get() );
+      }
+    }
     else if( mode == "test_lexp" ) 
     {
       if( argc != 2 ) { printf("automated tests for lexp\nusage: boda test_lexp\n"); }

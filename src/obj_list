@@ -1,3 +1,4 @@
+has_main.o
 nesi.o
 lexp.o 
 img_io.o 
