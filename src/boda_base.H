@@ -38,19 +38,22 @@ namespace boda
   int8_t const int8_t_const_min = boost::integer_traits< int8_t >::const_min;
 
   using boost::shared_ptr;
+  using boost::dynamic_pointer_cast;
+  using std::string;
 
+  typedef shared_ptr< void > p_void;
   typedef shared_ptr< std::ifstream > p_ifstream;
-  p_ifstream ifs_open( std::string const & fn );
+  p_ifstream ifs_open( string const & fn );
   typedef shared_ptr< std::ofstream > p_ofstream;
-  p_ofstream ofs_open( std::string const & fn );
+  p_ofstream ofs_open( string const & fn );
 
   typedef std::vector< void * > vect_rp_void;
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
   p_vect_rp_void get_backtrace( void );
-  std::string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
-  void ensure_is_dir( std::string const & fn );
+  string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
+  void ensure_is_dir( string const & fn );
   void ensure_is_dir( const boost::filesystem3::path & p );
-  void ensure_is_regular_file( std::string const & fn );
+  void ensure_is_regular_file( string const & fn );
   void ensure_is_regular_file( const boost::filesystem3::path & p );
 
   typedef std::vector< uint8_t > vect_uint8_t;  
@@ -59,23 +62,30 @@ namespace boda
 
   struct rt_exception : public std::exception
   {
-    std::string err_msg;
+    string err_msg;
     p_vect_rp_void bt;
-    std::string what_str;
-    rt_exception( std::string const & err_msg_, p_vect_rp_void bt_ );
+    string what_str;
+    rt_exception( string const & err_msg_, p_vect_rp_void bt_ );
     virtual ~rt_exception() throw () {}
     virtual char const * what( void ) const throw();
-    std::string what_and_stacktrace( void ) const;
+    string what_and_stacktrace( void ) const;
     int get_ret_code( void ) const;
   };
   // raise runtime error. captures stack and raises exception with
   // given string as error message. as a perf. compromise, while the
   // top frames of the stack are always captured, they are not
   // processed into a full trace at throw time.
-  void rt_err( std::string const & err_msg ) __attribute__((noreturn));
+  void rt_err( string const & err_msg ) __attribute__((noreturn));
   // like above, but assumes PyErr_Occured(). currently just calls
   // PyErr_Print() then calls rt_err(...)
-  void rt_py_err( std::string const & err_msg ) __attribute__((noreturn));
+  void rt_py_err( string const & err_msg ) __attribute__((noreturn));
+
+  // for any class to have nesi support, it must inherit ": public
+  // virtual nesi", and *declare* get_cinfo() (which will be generated
+  // in the corresponding .nesi_gen.cc file for the class declaration)
+  struct cinfo_t;
+  struct nesi { virtual cinfo_t const * get_cinfo( void ) const = 0; };
+  typedef shared_ptr< nesi > p_nesi;
 }
 
 #endif // BODA_BASE_H

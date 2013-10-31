@@ -3,10 +3,9 @@
 #include<cstdint>
 
 namespace boda {
-  
+
 #include"nesi_decls.H"
 
-  void nesi_init( void );
 }
 
 #endif /* _NESI_H_ */

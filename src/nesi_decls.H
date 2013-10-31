@@ -9,8 +9,15 @@
 // lack namespace blocks or other includes. while this method seems
 // okay for now it may want or need to be changed at some point.
 
-typedef void * make_p_t( void * init_arg, void * o, void * d ); // po is (p_t *), calls po->reset( new t )
-typedef void * make_p_base_t( void * o ); // po is (p_t *), calls po->reset( new t )
+struct nesi;
+
+typedef void * cast_nesi_to_cname_t( nesi * p );
+typedef nesi * cast_cname_to_nesi_t( void * p );
+
+typedef void * make_p_t( void const * init_arg, void * o, void * d ); // po is (p_t *), calls po->reset( new t )
+typedef void make_p_nesi_t( void * p ); // p is (p_nesi *), calls p->reset( new t )
+// v is (p_nesi *), dv is (p_cname *), does pd=dyn_sp_cas(p); assert(pd); return pd.get;
+typedef void * set_p_cname_from_p_nesi_t( void * v, void * dv ); 
 typedef void init_t( void * init_arg, void * o, void * d ); // o is (t *), calls o->init( init_arg, ... )
 typedef void * vect_push_back_t( void * v ); // v is (vect_t *), calls v->push_back( t() ), return & v->back()
 
@@ -50,11 +57,14 @@ struct cinfo_t
   char const * help;
   get_field_t * get_field;  
   vinfo_t const * vars;
-  make_p_base_t * make_p_base; // always allocates an actual object of this type (not a derived type)
+  make_p_nesi_t * make_p_nesi; // note: always allocates an actual object of this type (not a derived type)
+  set_p_cname_from_p_nesi_t * set_p_cname_from_p_nesi;
   uint32_t tid_vix;
   char const * const tid_str;
   cinfo_t const * const * derived;
   cinfo_t const * const * bases;
+  cast_cname_to_nesi_t * cast_cname_to_nesi;
+  cast_nesi_to_cname_t * cast_nesi_to_cname;
   bool exists( void ) const { return help; }
 };
 

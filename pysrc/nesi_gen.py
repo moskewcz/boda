@@ -117,10 +117,9 @@ class cinfo_t( object ):
             tid_str = '"'+self.type_id+'"'
             
         concrete_new_template = """
-  void * make_p_%(cname)s( void * v ) { 
-    shared_ptr< %(cname)s > *pv = (shared_ptr< %(cname)s > *)v;
-    pv->reset( new %(cname)s ); 
-    return pv->get(); 
+  void make_p_nesi_%(cname)s( void * v ) { 
+    p_nesi * p = (p_nesi *)v;
+    p->reset( new %(cname)s ); 
   }
   void * vect_push_back_%(cname)s( void * v ) { 
     vector< %(cname)s > * vv = ( vector< %(cname)s > * )( v );
@@ -128,7 +127,7 @@ class cinfo_t( object ):
   }
 """
         abstract_new_template = """
-  void * make_p_%(cname)s( void * v ) { rt_err("can't create abstract class %(cname)s"); }
+  void make_p_nesi_%(cname)s( void * v ) { rt_err("can't create abstract class %(cname)s"); }
   void * vect_push_back_%(cname)s( void * v ) { rt_err("can't create abstract class %(cname)s"); }
 """
         new_template = concrete_new_template
@@ -137,9 +136,19 @@ class cinfo_t( object ):
         gen_template += self.gen_cinfos_list( "bases" )
         gen_template += self.gen_cinfos_list( "derived" )
         gen_template += new_template + """
-  cinfo_t cinfo_%(cname)s = { "%(cname)s", "%(help)s", nesi__%(cname)s__get_field, 
-    vinfos_%(cname)s, make_p_%(cname)s, %(tid_vix)s, %(tid_str)s, cinfos_derived_%(cname)s, cinfos_bases_%(cname)s };
+  void * set_p_%(cname)s_from_p_nesi( void * v, void *dv ) {
+    shared_ptr< %(cname)s > * dp = (shared_ptr< %(cname)s > *)dv;
+    *dp = dynamic_pointer_cast< %(cname)s >( *((p_nesi *)v) );
+    assert( *dp ); return dp->get();
+  }
+  void * cast_nesi_to_%(cname)s( nesi *p ) { return dynamic_cast<%(cname)s *>(p); } // nesi->cname->void (for later void->cname)
+  nesi * cast_%(cname)s_to_nesi( void *p ) { return (%(cname)s *)p; } // void->cname->nesi
+  cinfo_t cinfo_%(cname)s = { "%(cname)s", "%(help)s", nesi__%(cname)s__get_field, vinfos_%(cname)s, 
+       make_p_nesi_%(cname)s, set_p_%(cname)s_from_p_nesi, 
+       %(tid_vix)s, %(tid_str)s, cinfos_derived_%(cname)s, cinfos_bases_%(cname)s,
+       cast_%(cname)s_to_nesi, cast_nesi_to_%(cname)s };
   tinfo_t tinfo_%(cname)s = { "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, nesi_struct_make_p, vect_push_back_%(cname)s };
+  cinfo_t const * %(cname)s::get_cinfo( void ) const { return &cinfo_%(cname)s; }
 
 """
         return gen_template % {'cname':self.cname, 'help':self.help, 'num_vars':len(self.vars),

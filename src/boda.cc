@@ -33,7 +33,8 @@ namespace boda
 	std::string const lexp_str = argv[2];
 	p_lexp_t lexp = parse_lexp( lexp_str );
 	p_has_main_t has_main;
-	nesi_struct_make_p( tinfo_has_main_t.init_arg, &has_main, lexp.get() );
+	void * pv = nesi_struct_make_p( tinfo_has_main_t.init_arg, &has_main, lexp.get() );
+	nesi_struct_init( tinfo_has_main_t.init_arg, pv, lexp.get() );
       }
     }
     else if( mode == "test_lexp" ) 
