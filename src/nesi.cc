@@ -5,6 +5,8 @@
 using boost::shared_ptr;
 using std::vector;
 
+#include<boost/lexical_cast.hpp>
+
 
 #include<string>
 using std::string;
@@ -26,6 +28,7 @@ namespace boda
   // generic init for shared_ptr types
   void p_init( void * init_arg, void * o, void * d )
   {
+    if( !d ) { return; } // no_value_init --> null pointer
     tinfo_t * const pt = (tinfo_t *)( init_arg );
     void * v = pt->make_p( init_arg, o, d );
     pt->init( pt->init_arg, v, d );
@@ -33,6 +36,7 @@ namespace boda
 
   void vect_init( void * init_arg, void * o, void * d )
   {
+    if( !d ) { return; } // no_value_init --> empty vector
     tinfo_t * const pt = (tinfo_t *)( init_arg );
     lexp_t * l = (lexp_t *)d;
     if( l->leaf_val.exists() ) {
@@ -65,9 +69,7 @@ namespace boda
     if( nvmi != nvm.end() ) { di = nvmi->second; }
     if( !di && vi->default_val ) { di = parse_lexp( vi->default_val ); }
     if( !di && vi->req ) { rt_err( strprintf( "missing required value for var '%s'", vi->vname ) ); } 
-    // FIXME: distinguish types that are 'okay' without init (nesi struct, pointer, vector), 
-    // and those that are not (all others / basic types, maybe with expections (i.e. string) ).
-    if( di ) { pt->init( pt->init_arg, rpv, di.get() ); }
+    pt->init( pt->init_arg, rpv, di.get() ); // note: di.get() may be null, yielding type-specific no-value init 
   }
 
   // assumes o is a (`ci->cname` *). adjusts ci and o such that:
@@ -93,10 +95,11 @@ namespace boda
 
   void nesi_struct_init( void * init_arg, void * o, void * d )
   {
-    lexp_t * l = (lexp_t *)d;
     lexp_name_val_map_t nvm;
-    populate_nvm_from_lexp( l, nvm );
-
+    if( d ) { // no-value init has same semantics as empty list init
+      lexp_t * l = (lexp_t *)d;
+      populate_nvm_from_lexp( l, nvm );
+    }
     cinfo_t const * ci = (cinfo_t const *)( init_arg );
     make_most_derived( ci, o );
     nesi_struct_init_rec( ci, o, nvm );
@@ -174,17 +177,23 @@ namespace boda
     return ppv->get();
   }
 
+  // base type methods
 
-  void nesi_string_init( void * init_arg, void * o, void * d )
-  {
-    string * v = (string *)o;
+  // shared base type functions
+  template< typename T >
+  void nesi_lexcast_init( void * init_arg, void * o, void * d )
+  { 
+    T * v = (T *)o;
+    if( !d ) { *v = 0; return; } // no_value_init = 0
+    char const * tstr = (char const *)init_arg;
     lexp_t * l = (lexp_t *)d;
     if( !l->leaf_val.exists() ) {
-      rt_err( "invalid attempt to use name/value list as string value. list was:" + str(*l) );
+      rt_err( "invalid attempt to use name/value list as "+string(tstr)+" value. list was:" + str(*l) );
     }
-    *v = l->leaf_val.str();
+    string const s = l->leaf_val.str();  
+    try { *v = boost::lexical_cast< T >( s ); }
+    catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", s.c_str(), tstr ) ); }
   }
-
   template< typename T >
   void * has_def_ctor_vect_push_back_t( void * v )
   {
@@ -199,8 +208,32 @@ namespace boda
     return p->get();
   }
 
+  // string
+  void nesi_string_init( void * init_arg, void * o, void * d )
+  {
+    if( !d ) { return; } // no_value_init --> empty string
+    string * v = (string *)o;
+    lexp_t * l = (lexp_t *)d;
+    if( !l->leaf_val.exists() ) {
+      rt_err( "invalid attempt to use name/value list as string value. list was:" + str(*l) );
+    }
+    *v = l->leaf_val.str();
+  }
   make_p_t * string_make_p = &has_def_ctor_make_p< string >;
   vect_push_back_t * string_vect_push_back = &has_def_ctor_vect_push_back_t< string >;
+  void *string_init_arg = (void *)"string";
+
+  // uint64_t  
+  init_t * nesi_uint64_t_init = &nesi_lexcast_init< uint64_t >;
+  make_p_t * uint64_t_make_p = &has_def_ctor_make_p< uint64_t >;
+  vect_push_back_t * uint64_t_vect_push_back = &has_def_ctor_vect_push_back_t< uint64_t >;
+  void *uint64_t_init_arg = (void *)"64-bit unsigned integer";
+
+  // double  
+  init_t * nesi_double_init = &nesi_lexcast_init< double >;
+  make_p_t * double_make_p = &has_def_ctor_make_p< double >;
+  vect_push_back_t * double_vect_push_back = &has_def_ctor_vect_push_back_t< double >;
+  void *double_init_arg = (void *)"double precision floating point number";
 
 #include"gen/nesi.cc.nesi_gen.cc"
 

@@ -21,7 +21,7 @@ class tinfo_t( object ):
     def get_tinfo( self ):
         gen_dict = { 'tname':self.tname, 'wrap_type':self.wrap_type }
         if self.wrap_prefix is None:
-            return  ( 'tinfo_t tinfo_%(tname)s = { "%(tname)s", 0, nesi_%(tname)s_init, %(tname)s_make_p, ' +
+            return  ( 'tinfo_t tinfo_%(tname)s = { "%(tname)s", %(tname)s_init_arg, nesi_%(tname)s_init, %(tname)s_make_p, ' +
                       '%(tname)s_vect_push_back };\n' ) % gen_dict
         elif self.wrap_prefix == 'p_':
             return ( 'tinfo_t tinfo_%(tname)s = { "%(tname)s", &tinfo_%(wrap_type)s, p_init, p_make_p, ' + 

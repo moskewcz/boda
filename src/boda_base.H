@@ -40,6 +40,8 @@ namespace boda
   using boost::shared_ptr;
   using boost::dynamic_pointer_cast;
   using std::string;
+  using std::vector;
+  using std::map;
 
   typedef shared_ptr< void > p_void;
   typedef shared_ptr< std::ifstream > p_ifstream;

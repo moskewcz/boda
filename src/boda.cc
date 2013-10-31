@@ -35,6 +35,7 @@ namespace boda
 	p_has_main_t has_main;
 	void * pv = nesi_struct_make_p( tinfo_has_main_t.init_arg, &has_main, lexp.get() );
 	nesi_struct_init( tinfo_has_main_t.init_arg, pv, lexp.get() );
+	has_main->main();
       }
     }
     else if( mode == "test_lexp" ) 
