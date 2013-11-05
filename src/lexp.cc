@@ -13,6 +13,7 @@ namespace boda {
   string const le_end_in_name( "unexpected end of input (expecting '=' to end name)" );
   string const le_bad_name_char( "invalid name character in name" );
   string const le_empty_name( "invalid empty name (no chars before '=' in name)" );
+  string const le_bad_char_after_list_item( "expected ',' or ')' after list item" );
 
   bool sstr_t::operator < ( sstr_t const & o ) const { 
     if( sz() != o.sz() ) { return sz() < o.sz(); }
@@ -163,7 +164,8 @@ namespace boda {
     if( cur_c() == '(' ) { parse_list( ret ); }
     else { parse_leaf( ret ); }
     ret->src.shrink_end_off( cur_off() );
-    assert_st( (cur_c() == 0) || (cur_c() == ',') || (cur_c() == ')') ); // end-of-lexp postcondition
+    // for bad input, this assert is too strong, and downstream errors will catch whatever the issue is
+    //assert_st( (cur_c() == 0) || (cur_c() == ',') || (cur_c() == ')') ); // end-of-lexp postcondition
     return ret;
   };
 
@@ -180,10 +182,13 @@ namespace boda {
       kid.v = parse_lexp();
       ret->kids.push_back( kid );
       if( cur_c() == 0 ) { err( le_end_after_list_item ); }
-      else if( (cur_c() == ',') ) { next_c(); }
-      else { assert_st( cur_c() == ')' ); } // must hold due to parse_lexp() postcondition. note: will exit loop now.
+      else if( cur_c() == ',' ) { next_c(); }
+      else if( cur_c() == ')' ) { } // note: will exit loop now.
+      else { // error, end-of-lexp postcondition didn't hold (but was not checked there so we can emit the error here)
+	err( le_bad_char_after_list_item ); // note: this can (only?) happen if the kid.v lexp was a list. 
+      } 
     }
-    assert_st( cur_c() == ')' ); // end of list precondition
+    assert_st( cur_c() == ')' ); // end of list postcondition
     next_c(); // consume ')'
   }
 
@@ -275,6 +280,7 @@ namespace boda {
   lexp_test_t lexp_tests[] = {
     { "junk_end", "", si + ")sdf", &le_unparsed_data, 58 },
     { "ext_cp_end", "extra close paren (looks like junk at end)", "baz)foo,bar,bing)", &le_unparsed_data, 3 },
+    { "end_li_bad_char", "bad char (not ',' or ')' after list item", "(foo=()d)", &le_bad_char_after_list_item, 7 },
     { "end_li_val", "end after list item (with val after=)", "(foo=bar,baz=(foo=da", &le_end_after_list_item, 20 },
     { "end_li", "end after list item (no val after=)", "(foo=bar,baz=(foo=", &le_end_after_list_item, 18 },
     { "end_no_cp", "end missing cp", "foo(", &le_end_missing_cp, 4 },

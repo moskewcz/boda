@@ -35,8 +35,9 @@ namespace boda
     while( endswith(s,suff) ) { s = s.substr( 0, s.size() - suff.size() ); }
   }
 
+
   template< typename T >
-  inline std::string str(T const i)	// convert T i to string
+  inline std::string str(T const & i)	// convert T i to string
   {
     std::stringstream s;
     s << i;

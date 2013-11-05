@@ -25,19 +25,23 @@ namespace boda
   typedef shared_ptr< vect_char > p_vect_char;
   typedef vector< p_void > vect_p_void;
 
-  // generic init for shared_ptr types
-  void p_init( void * init_arg, void * o, void * d )
+  void p_init( tinfo_t const * tinfo, void * o, void * d )
   {
     if( !d ) { return; } // no_value_init --> null pointer
-    tinfo_t * const pt = (tinfo_t *)( init_arg );
-    void * v = pt->make_p( init_arg, o, d );
-    pt->init( pt->init_arg, v, d );
+    tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
+    void * v = pt->make_p( pt, o, d );
+    pt->init( pt, v, d );
+  }
+  bool p_nesi_dump( void * const pending_, tinfo_t const * tinfo, void * o, void * os ) {
+    if( !bool( *((p_void *)( o )) ) ) { return 1;}
+    tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
+    return pt->nesi_dump( pending_, pt, ((p_void *)o)->get(), os );
   }
 
-  void vect_init( void * init_arg, void * o, void * d )
+  void vect_init( tinfo_t const * tinfo, void * o, void * d )
   {
     if( !d ) { return; } // no_value_init --> empty vector
-    tinfo_t * const pt = (tinfo_t *)( init_arg );
+    tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
     lexp_t * l = (lexp_t *)d;
     if( l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use string as name/value list for vector init. string was:" + str(*l) );
@@ -45,9 +49,41 @@ namespace boda
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
       void * rpv = pt->vect_push_back( o );
       // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
-      pt->init( pt->init_arg, rpv, i->v.get() ); 
+      pt->init( pt, rpv, i->v.get() ); 
     }
   }
+  bool vect_nesi_dump( void * const pending_, tinfo_t const * tinfo, void * o, void * os_ ) {
+    bool at_default = 1;
+    vect_char & vc = *(vect_char *)( o );
+    std::ostream & os = *(std::ostream *)os_;
+    string * pending = (string *)pending_;
+    uint32_t orig_pending_sz = pending->size();
+    *pending += "(_=";
+    tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
+    // FIXME: deal with at_default items (force print? not possible for pointers? need new iface? implicit default str?)
+    uint32_t sz = vc.size() / pt->sz_bytes;
+    assert_st( sz * pt->sz_bytes == vc.size() );
+    char * cur = &((vect_char *)o)->front();
+    for( uint32_t i = 0; i < sz; ++i, cur += pt->sz_bytes )
+    {
+      if( at_default ) {
+	at_default = 0; // non-empty vector is always not at default
+	os << (*pending); pending->clear(); // print pending
+      } else {
+	os << ",_=";
+      }
+      printf( "pt->tname=%s\n", str(pt->tname).c_str() );
+      bool const li_at_default = pt->nesi_dump( pending, pt, cur, &os );
+      if( li_at_default ) { // for lists, we want to print all items, even if they are at default.
+	//os << pt->
+      } 
+      
+    }
+    if( !at_default ) { os << ")"; } 
+    else{ pending->resize( orig_pending_sz ); }
+    return at_default;
+  }
+
   void populate_nvm_from_lexp( lexp_t * const l, lexp_name_val_map_t & nvm )
   {
     if( l->leaf_val.exists() ) {
@@ -69,14 +105,14 @@ namespace boda
     if( nvmi != nvm.end() ) { di = nvmi->second; }
     if( !di && vi->default_val ) { di = parse_lexp( vi->default_val ); }
     if( !di && vi->req ) { rt_err( strprintf( "missing required value for var '%s'", vi->vname ) ); } 
-    pt->init( pt->init_arg, rpv, di.get() ); // note: di.get() may be null, yielding type-specific no-value init 
+    pt->init( pt, rpv, di.get() ); // note: di.get() may be null, yielding type-specific no-value init 
   }
 
   // assumes o is a (`ci->cname` *). adjusts ci and o such that:
   // o is a (`ci->cname` *) and that o is the most derived legal pointer to the object.
   void make_most_derived( cinfo_t const * & ci, void * & o )
   {
-    nesi * const no = ci->cast_cname_to_nesi( o );
+    nesi * const no = ci->cast_cname_to_nesi( o ); // note: drop const
     ci = no->get_cinfo();
     o = ci->cast_nesi_to_cname(no);
     assert_st( o ); // dynamic cast should never fail since get_cinfo() told us o was of the req'd type
@@ -93,18 +129,64 @@ namespace boda
     }    
   }
 
-  void nesi_struct_init( void * init_arg, void * o, void * d )
+  void nesi_struct_init( tinfo_t const * tinfo, void * o, void * d )
   {
     lexp_name_val_map_t nvm;
     if( d ) { // no-value init has same semantics as empty list init
       lexp_t * l = (lexp_t *)d;
       populate_nvm_from_lexp( l, nvm );
     }
-    cinfo_t const * ci = (cinfo_t const *)( init_arg );
+    cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
     make_most_derived( ci, o );
     nesi_struct_init_rec( ci, o, nvm );
   }
 
+  void nesi_struct_nesi_dump_rec( bool * const at_default, string * const pending, 
+				  std::ostream & os, cinfo_t const * ci, void * o )
+  {
+    for( cinfo_t const * const * bci = ci->bases; *bci; ++bci ) { // handle bases
+      nesi_struct_nesi_dump_rec( at_default, pending, os, 
+				 *bci, (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ) );
+    }
+    for( uint32_t i = 0; ci->vars[i].exists(); ++i ) {
+      vinfo_t const * vi = &ci->vars[i];
+      printf("vname=%s\n",vi->vname);
+      uint32_t orig_pending_sz = pending->size();
+      *pending += string(vi->vname) + "=";
+      bool const var_at_default = vi->tinfo->nesi_dump( pending, vi->tinfo, ci->get_field( o, i ), &os );
+      if( !var_at_default ) { // printed field
+	*at_default = 0;
+	assert_st( pending->empty() );
+	*pending = ",";
+      } else { // didn't print field
+	pending->resize( orig_pending_sz );
+      }
+    }
+  }
+
+  bool nesi_struct_nesi_dump( void * const pending_, tinfo_t const * tinfo, void * o, void * os_ ) {
+    cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
+    make_most_derived( ci, o ); 
+    std::ostream & os = *(std::ostream *)os_;
+    string * pending = (string *)pending_;
+    uint32_t orig_pending_sz = pending->size();
+    *pending += "(";
+    bool at_default = 1;
+    nesi_struct_nesi_dump_rec( &at_default, pending, os , ci, o );    
+    if( !at_default ) { os << ")"; } 
+    // note: pending will be (orig_pending + '(') or ',' here
+    // depending on at_default, and maybe we could/should assert that.
+    pending->resize( orig_pending_sz );
+    return at_default;
+  }
+
+  std::ostream & operator<<(std::ostream & os, nesi const & v)
+  {
+    string pending; // top level print, so pending is empty to start
+    cinfo_t const * ci = v.get_cinfo();
+    nesi_struct_nesi_dump( &pending, ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &os );
+    return os;
+  }
 
   cinfo_t const * get_derived_by_tid( cinfo_t const * const pc, char const * tid_str )
   {
@@ -138,13 +220,13 @@ namespace boda
     ci->make_p_nesi( pn );
   }
 
-  void * nesi_struct_make_p( void const * init_arg, void * o, void * d )
+  void * nesi_struct_make_p( tinfo_t const * tinfo, void * o, void * d )
   {
     lexp_t * l = (lexp_t *)d;
     lexp_name_val_map_t nvm;
     populate_nvm_from_lexp( l, nvm );
 
-    cinfo_t const * const ci = (cinfo_t *)( init_arg );
+    cinfo_t const * const ci = (cinfo_t *)( tinfo->init_arg );
     p_nesi pn;
     nesi_struct_make_p_rec( &pn, ci, nvm );
     return ci->set_p_cname_from_p_nesi( &pn, o );
@@ -160,7 +242,7 @@ namespace boda
     vv->push_back( vect_char() );
     return &vv->back();
   }
-  void * vect_make_p( void const * init_arg, void * o, void * d ) { 
+  void * vect_make_p( tinfo_t const * tinfo, void * o, void * d ) { 
     p_vect_char * const pvc = (p_vect_char *)( o );
     pvc->reset( new vect_char );
     return pvc->get();
@@ -171,7 +253,7 @@ namespace boda
     vpv->push_back( p_void() );
     return &vpv->back();
   }
-  void * p_make_p( void const * init_arg, void * o, void * d ) {
+  void * p_make_p( tinfo_t const * tinfo, void * o, void * d ) {
     p_p_void * const ppv = (p_p_void *)( o );
     ppv->reset( new p_void );
     return ppv->get();
@@ -181,11 +263,11 @@ namespace boda
 
   // shared base type functions
   template< typename T >
-  void nesi_lexcast_init( void * init_arg, void * o, void * d )
+  void nesi_lexcast_init( tinfo_t const * tinfo, void * o, void * d )
   { 
     T * v = (T *)o;
     if( !d ) { *v = 0; return; } // no_value_init = 0
-    char const * tstr = (char const *)init_arg;
+    char const * tstr = (char const *)tinfo->init_arg;
     lexp_t * l = (lexp_t *)d;
     if( !l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use name/value list as "+string(tstr)+" value. list was:" + str(*l) );
@@ -193,6 +275,15 @@ namespace boda
     string const s = l->leaf_val.str();  
     try { *v = boost::lexical_cast< T >( s ); }
     catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", s.c_str(), tstr ) ); }
+  }
+  // note: always prints/clear pending
+  template< typename T >
+  bool with_op_left_shift_nesi_dump( void * const pending_, tinfo_t const * tinfo, void * o, void * os ) {
+    T * v = (T *)o;
+    string * pending = (string *)pending_;
+    (*((std::ostream *)os)) << (*pending) << (*v);
+    pending->clear();
+    return 0;
   }
   template< typename T >
   void * has_def_ctor_vect_push_back_t( void * v )
@@ -202,14 +293,14 @@ namespace boda
     return &vv->back();
   }
   template< typename T >
-  void * has_def_ctor_make_p( void const * init_arg, void * o, void * d ) {
+  void * has_def_ctor_make_p( tinfo_t const * tinfo, void * o, void * d ) {
     shared_ptr< T > * const p = (shared_ptr< T > *)( o );
     p->reset( new T );
     return p->get();
   }
 
   // string
-  void nesi_string_init( void * init_arg, void * o, void * d )
+  void nesi_string_init( tinfo_t const * tinfo, void * o, void * d )
   {
     if( !d ) { return; } // no_value_init --> empty string
     string * v = (string *)o;
@@ -221,19 +312,22 @@ namespace boda
   }
   make_p_t * string_make_p = &has_def_ctor_make_p< string >;
   vect_push_back_t * string_vect_push_back = &has_def_ctor_vect_push_back_t< string >;
+  nesi_dump_t * string_nesi_dump = &with_op_left_shift_nesi_dump< string >;
   void *string_init_arg = (void *)"string";
 
   // uint64_t  
   init_t * nesi_uint64_t_init = &nesi_lexcast_init< uint64_t >;
   make_p_t * uint64_t_make_p = &has_def_ctor_make_p< uint64_t >;
   vect_push_back_t * uint64_t_vect_push_back = &has_def_ctor_vect_push_back_t< uint64_t >;
-  void *uint64_t_init_arg = (void *)"64-bit unsigned integer";
+  nesi_dump_t * uint64_t_nesi_dump = &with_op_left_shift_nesi_dump< uint64_t >;
+  void *uint64_t_init_arg = (void *)"uint64_t (64-bit unsigned integer)";
 
   // double  
   init_t * nesi_double_init = &nesi_lexcast_init< double >;
   make_p_t * double_make_p = &has_def_ctor_make_p< double >;
   vect_push_back_t * double_vect_push_back = &has_def_ctor_vect_push_back_t< double >;
-  void *double_init_arg = (void *)"double precision floating point number";
+  nesi_dump_t * double_nesi_dump = &with_op_left_shift_nesi_dump< double >;
+  void *double_init_arg = (void *)"double (double precision floating point number)";
 
 #include"gen/nesi.cc.nesi_gen.cc"
 
