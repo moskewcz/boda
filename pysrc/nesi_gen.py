@@ -13,28 +13,31 @@ class tinfo_t( object ):
         self.tname = tname
         self.src_fn = src_fn
         self.wrap_prefix = None
-        self.wrap_type = None
+        self.wrap_type = None 
+        self.no_init_okay = 0
         for prefix in ["p_","vect_"]:
             if tname.startswith( prefix ):
                 self.wrap_prefix = prefix
                 self.wrap_type = tname[len(prefix):]
+                self.no_init_okay = 1
     def get_tinfo( self ):
-        # note: only pointer types are allowed to be optional (and
-        # thus have no_init_okay=1), all others must have a default or
-        # be required (and thus have no_init_okay=0).
-        gen_dict = { 'tname':self.tname, 'wrap_type':self.wrap_type }
+        # note: only pointer, vector, and struct types are allowed to
+        # be optional (and thus have no_init_okay=1), all others (leaf
+        # types) must have a default or be required (and thus have
+        # no_init_okay=0).
+        gen_dict = { 'tname':self.tname, 'wrap_type':self.wrap_type, 'no_init_okay':self.no_init_okay }
         if self.wrap_prefix is None:
             return  ( 'tinfo_t tinfo_%(tname)s = { sizeof(%(tname)s), "%(tname)s", %(tname)s_init_arg, nesi_%(tname)s_init, %(tname)s_make_p, ' +
-                      '%(tname)s_vect_push_back, %(tname)s_nesi_dump, 0 };\n' ) % gen_dict
+                      '%(tname)s_vect_push_back, %(tname)s_nesi_dump, %(no_init_okay)s };\n' ) % gen_dict
         elif self.wrap_prefix == 'p_':
             return ( 'typedef shared_ptr< %(wrap_type)s > %(tname)s;\n' + 
                      'tinfo_t tinfo_%(tname)s = { sizeof(%(tname)s), "%(tname)s", &tinfo_%(wrap_type)s, p_init, '
                      'p_make_p, ' + 
-                     'p_vect_push_back, p_nesi_dump, 1 };\n' ) % gen_dict
+                     'p_vect_push_back, p_nesi_dump, %(no_init_okay)s };\n' ) % gen_dict
         elif self.wrap_prefix == 'vect_':
             return ( 'typedef vector< %(wrap_type)s > %(tname)s;\n' + 
                      'tinfo_t tinfo_%(tname)s = { sizeof(%(tname)s), "%(tname)s", &tinfo_%(wrap_type)s, vect_init, vect_make_p, ' + 
-                     'vect_vect_push_back, vect_nesi_dump, 0 };\n' ) % gen_dict
+                     'vect_vect_push_back, vect_nesi_dump, %(no_init_okay)s };\n' ) % gen_dict
         else:
             raise RuntimeError( "bad wrap_prefix" + str(self.wrap_prefix) )
 
@@ -46,7 +49,7 @@ def iter_wrapped_types( tname ):
     yield tname
 
 class vinfo_t( object ):
-    def __init__( self, tname, vname, help, req=0, default=None ):
+    def __init__( self, tname, vname, help="No Help Given", req=0, default=None ):
         self.tname = tname
         self.vname = vname
         self.help = help
@@ -154,7 +157,7 @@ class cinfo_t( object ):
        make_p_nesi_%(cname)s, set_p_%(cname)s_from_p_nesi, 
        %(tid_vix)s, %(tid_str)s, cinfos_derived_%(cname)s, cinfos_bases_%(cname)s,
        cast_%(cname)s_to_nesi, cast_nesi_to_%(cname)s };
-  tinfo_t tinfo_%(cname)s = { sizeof(%(cname)s), "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, nesi_struct_make_p, vect_push_back_%(cname)s, nesi_struct_nesi_dump, 0 };
+  tinfo_t tinfo_%(cname)s = { sizeof(%(cname)s), "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, nesi_struct_make_p, vect_push_back_%(cname)s, nesi_struct_nesi_dump, 1 };
   cinfo_t const * %(cname)s::get_cinfo( void ) const { return &cinfo_%(cname)s; }
 
 """
@@ -175,7 +178,7 @@ class nesi_gen( object ):
 
         # codegen data
         self.cinfos = {}
-        self.tinfos_seen = set()
+        self.tinfos_seen = {}
         self.tinfos = []
 
         try:
@@ -211,7 +214,7 @@ class nesi_gen( object ):
             for var in cinfo.vars_list:
                 wts = list( iter_wrapped_types( var.tname ) )
                 assert len(wts)
-                lt = wts[0]
+                lt = wts[0] # leaf / least-derived type
                 src_fn = None
                 if lt in self.cinfos:
                     src_fn = self.cinfos[lt].src_fn
@@ -221,8 +224,24 @@ class nesi_gen( object ):
                 for wt in wts:
                     if wt in self.tinfos_seen:
                         continue
-                    self.tinfos_seen.add( wt )
-                    self.tinfos.append( tinfo_t( wt, src_fn ) )
+                    ti = tinfo_t( wt, src_fn )
+                    self.tinfos_seen[ wt ] = ti
+                    self.tinfos.append( ti )
+                
+                # check no_init_okay restrictions
+                no_init_okay = None
+                if var.tname in self.cinfos:
+                    no_init_okay = 1
+                elif var.tname in self.tinfos_seen:
+                    no_init_okay = self.tinfos_seen[var.tname].no_init_okay
+                assert not (no_init_okay is None) # type must must be struct or other
+                
+                if not no_init_okay: # i.e. not a pointer type
+                    if (var.req) and (var.default is not None):
+                        raise RuntimeError( "field %s of struct %s is marked as required, but has a default value. this is confusing. either make the field not required or remove its default value." % (var.vname, cinfo.cname) )
+                    if (not var.req) and (var.default is None):
+                        raise RuntimeError( "field %s of struct %s is optional (not required and has no default), but is not a pointer, vector, or struct type. only pointer, vector, or struct types may be optional; specify a default, make the field required, or change the type. for example, you could prefix the type name with p_ to make it a pointer (and in that case be sure to check it is not-NULL before use)." % (var.vname, cinfo.cname) )
+                        
 
         # create per-file generated code files
         per_file_gen = {}
@@ -279,7 +298,7 @@ class nesi_gen( object ):
                 vd_ret = var_decl.match(line)
                 if vd_ret:
                     tname, vname = vd_ret.groups()
-                    self.print_err_eval( "self.proc_vdecl(%r,%r,%s)" % (tname,vname,nesi_kwargs) ) 
+                    self.print_err_eval( "self.proc_vdecl(tname=%r,vname=%r,%s)" % (tname,vname,nesi_kwargs) ) 
                     continue
                 raise RuntimeError( "line looks like NESI decl, but doesn't match as struct or var decl:" + line )
 
@@ -295,13 +314,13 @@ class nesi_gen( object ):
         self.cur_sdecl = cinfo_t( cname, src_fn, **kwargs )
         self.cinfos[cname] = self.cur_sdecl
         
-    def proc_vdecl( self, tname, vname, help, req=0, default=None ):
+    def proc_vdecl( self, **kwargs ):
         if self.cur_sdecl is None:
             raise RuntimeError( "NESI var declaration for var %r %r before any NESI struct declaration" % (tname,vname) )
-        if vname in self.cur_sdecl.vars:
+        vi = vinfo_t( **kwargs )
+        if vi.vname in self.cur_sdecl.vars:
             raise RuntimeError( "duplicate NESI var declaration for %r in struct %r " % (vname,self.cur_sdecl.cname) )
-        vi = vinfo_t( tname, vname, help, req, default )
-        self.cur_sdecl.vars[vname] = vi
+        self.cur_sdecl.vars[vi.vname] = vi
         self.cur_sdecl.vars_list.append( vi )
             
     def update_file_if_different( self, gen_fn, new_file_str ):

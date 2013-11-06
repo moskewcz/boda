@@ -21,7 +21,7 @@ typedef void make_p_nesi_t( void * p ); // p is (p_nesi *), calls p->reset( new 
 typedef void * set_p_cname_from_p_nesi_t( void * v, void * dv ); 
 typedef void init_t( tinfo_t const * tinfo, void * o, void * d ); // o is (t *), calls o->init( init_arg, ... )
 typedef void * vect_push_back_t( void * v ); // v is (vect_t *), calls v->push_back( t() ), return & v->back()
-typedef bool nesi_dump_t( void * const pending_, tinfo_t const * tinfo, void * o, void * os );
+typedef bool nesi_dump_t( tinfo_t const * tinfo, void * o, void * os );
 
 init_t nesi_struct_init;
 init_t vect_init;

@@ -290,10 +290,10 @@ namespace boda
     string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
     string res_fn; //NESI(help="name of pascal-VOC format detection results file",req=1)
     string class_name; //NESI(help="name of object class",req=1)
-    vect_p_string vps; //NESI(help="wrapped type test 0")
+    vect_p_string vps; //NESI(help="wrapped type test 0",default="()")
     p_vect_p_vect_string pvpvs; //NESI(help="wrapped type test 1")
-    vect_p_vect_p_string vpvps; //NESI(help="wrapped type test 2")
-    vect_p_vect_p_score_results_file_t vpvp_srt; //NESI(help="wrapped type test 3")
+    vect_p_vect_p_string vpvps; //NESI(help="wrapped type test 2",req=1)
+    vect_p_vect_p_score_results_file_t vpvp_srt; //NESI(help="wrapped type test 3",req=1)
     virtual void main( void )
     {
       p_img_db_t img_db = read_pascal_image_list_file( pil_fn, false );
