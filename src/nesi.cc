@@ -46,6 +46,7 @@ namespace boda
     if( l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use string as name/value list for vector init. string was:" + str(*l) );
     }
+    ++l->use_cnt;
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
       void * rpv = pt->vect_push_back( o );
       // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
@@ -129,8 +130,9 @@ namespace boda
   void nesi_struct_init( tinfo_t const * tinfo, void * o, void * d )
   {
     lexp_name_val_map_t nvm;
-    if( d ) { // no_value_init has same semantics as empty list init
-      lexp_t * l = (lexp_t *)d;
+    lexp_t * l = (lexp_t *)d;
+    if( l ) { // no_value_init has same semantics as empty list init
+      ++l->use_cnt;
       populate_nvm_from_lexp( l, nvm );
     }
     cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
@@ -202,7 +204,7 @@ namespace boda
       vinfo_t const * const vi = &ci->vars[ci->tid_vix];
       assert( !strcmp(vi->tinfo->tname,"string") ); // tid var must be of type string
       assert( vi->req ); // tid var must be required
-      init_var_from_nvm( nvm, vi, &tid_str );
+      init_var_from_nvm( nvm, vi, &tid_str ); // FIXME? increments use_cnt of lexp leaf used for tid_str ...
       cinfo_t const * const dci = get_derived_by_tid( ci, tid_str.c_str() );
       if( !dci ) {
 	rt_err( strprintf( "type id str of '%s' did not match any derived class of %s\n", 
@@ -266,6 +268,7 @@ namespace boda
     if( !l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use name/value list as "+string(tstr)+" value. list was:" + str(*l) );
     }
+    ++l->use_cnt;
     string const s = l->leaf_val.str();  
     try { *v = boost::lexical_cast< T >( s ); }
     catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", s.c_str(), tstr ) ); }
@@ -304,6 +307,7 @@ namespace boda
     if( !l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use name/value list as string value. list was:" + str(*l) );
     }
+    ++l->use_cnt;
     *v = l->leaf_val.str();
   }
   make_p_t * string_make_p = &has_def_ctor_make_p< string >;

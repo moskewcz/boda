@@ -43,6 +43,8 @@ namespace boda
   using std::vector;
   using std::map;
 
+  typedef vector< string > vect_string;
+
   typedef shared_ptr< void > p_void;
   typedef shared_ptr< std::ifstream > p_ifstream;
   p_ifstream ifs_open( string const & fn );

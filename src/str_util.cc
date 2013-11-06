@@ -5,8 +5,18 @@
 
 namespace boda
 {
+  using std::string;
 
-  std::string strprintf( char const * const format, ... )
+  string join( vect_string const & vs, string const & sep ) {
+    string ret;
+    for( vect_string::const_iterator i = vs.begin(); i != vs.end(); ++i ) {
+      if( i != vs.begin() ) { ret += sep; }
+      ret += *i;
+    }
+    return ret;
+  }
+
+  string strprintf( char const * const format, ... )
   {
     va_list ap;
     char *s = 0;
@@ -15,12 +25,12 @@ namespace boda
     assert( va_ret > 0 );
     va_end( ap );
     assert( s );
-    std::string ret( s );
+    string ret( s );
     free(s);
     return ret;
   }
 
-  void printstr( std::string const & str )
+  void printstr( string const & str )
   {
     printf( "%s", str.c_str() );
   }

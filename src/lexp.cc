@@ -61,6 +61,16 @@ namespace boda {
     }
   }
 
+  void lexp_check_unused( lexp_t * l, vect_string & path )
+  {
+    if( !l->use_cnt ) { rt_err( strprintf( "unused input: %s:%s", join(path,"->").c_str(), str(*l).c_str() ) ); } 
+    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
+      path.push_back( i->n.str() );
+      lexp_check_unused( i->v.get(), path );
+      path.pop_back();
+    }
+  }
+
   // for testing/debugging, re-create the exact 'basic' format input
   // string from the tree of name/value lists. note: we sort-of assume
   // the tree was built from a single string here (and thus that .src

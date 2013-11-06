@@ -49,13 +49,15 @@ namespace boda {
     bool src_has_trailing_comma( void ) const;
     sstr_t leaf_val; // if this exists, this is a leaf, and kids is empty and unused. 'cooked' value (escapes applied)
     vect_lexp_nv_t kids; // if !leaf_val.exists(), this is a list node. note: kids may be empty.
-    lexp_t( sstr_t const & src_ ) : src(src_) { }
+    uint32_t use_cnt; // scratch integer for client validation usage. after use, nodes with use_cn=0 generate errors.
+    lexp_t( sstr_t const & src_ ) : src(src_), use_cnt(0) { }
     void get_stats( lexp_stats_t & lex_stats );
   };
   std::ostream & operator<<(std::ostream & os, lexp_t const & v);
 
   p_lexp_t parse_lexp( std::string const & s );
   void test_lexp( void );
+  void lexp_check_unused( lexp_t * l, vect_string & path );
 
 }
 

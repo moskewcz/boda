@@ -2,6 +2,7 @@
 #define MWM_str_util
 
 #include<string>
+#include<vector>
 #include<exception>
 #include<sstream>
 #include<stdio.h>
@@ -9,6 +10,8 @@
 
 namespace boda
 {
+
+  typedef std::vector< std::string > vect_string;
 
   std::string strprintf( char const * const format, ... ) __attribute__( (format(__printf__, 1, 2) ) );
   void printstr( std::string const & str );
@@ -30,6 +33,8 @@ namespace boda
     return true;
   }
 
+  std::string join( vect_string const & vs, std::string const & sep );
+  
   inline void strip_suffs( std::string & s, std::string const & suff )
   {
     while( endswith(s,suff) ) { s = s.substr( 0, s.size() - suff.size() ); }

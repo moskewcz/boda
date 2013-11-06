@@ -20,7 +20,7 @@ namespace boda
   {
     uint64_t u64; //NESI(help="a u64 with a default",default="345")
     double dpf; //NESI(req=1)
-    double dpf_nr; //NESI(req=1)
+    double dpf_nr; //NESI(default="233.5")
     vect_double vdpf; //NESI()
     p_double pdpf; //NESI()
     vect_uint64_t vu64; //NESI()

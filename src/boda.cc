@@ -37,6 +37,10 @@ namespace boda
 	p_has_main_t has_main;
 	void * pv = nesi_struct_make_p( &tinfo_has_main_t, &has_main, lexp.get() );
 	nesi_struct_init( &tinfo_has_main_t, pv, lexp.get() );
+	// check for unused fields in l
+	vect_string path;
+	lexp_check_unused( lexp.get(), path );
+
 	printf( "*has_main=%s\n", str(*has_main).c_str() );
 	has_main->main();
       }
