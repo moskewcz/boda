@@ -6,12 +6,15 @@
 #include"octif.H"
 #include"lexp.H"
 #include"has_main.H"
-
+#include<ostream>
 
 namespace boda
 {
 #include"nesi_decls.H"
+  void nesi_struct_hier_help( cinfo_t const * const ci, std::ostream & os, string & prefix );
+
   extern tinfo_t tinfo_has_main_t;
+  extern cinfo_t cinfo_has_main_t;
   // working example cline:
   // time ../lib/boda score ~/bench/VOCdevkit/VOC2007/ImageSets/Main/bicycle_test.txt ~/research/ffld/build/ffld_VOC2007_bicycle_test_out.txt bicycle
   void downsample_test( std::string const & fn );
@@ -23,7 +26,8 @@ namespace boda
     if( argc < 2 )
     {
       printf("usage: boda mode\n");
-      printf("modes: load_pil score oct_test oct_dfc ds_test\n");
+      string prefix;
+      nesi_struct_hier_help( &cinfo_has_main_t, std::cout, prefix );
       return 1;
     }
     std::string const mode = argv[1];

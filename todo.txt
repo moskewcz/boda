@@ -1,1 +1,5 @@
 -- nesi help()
+
+-- features not scheduled for impl yet:
+? XML IO for lexp/nesi
+? binary IO for lexp/nesi (for files/network)

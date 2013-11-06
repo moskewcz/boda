@@ -6,7 +6,7 @@
 namespace boda
 {
   using std::string;
-  struct has_main_t : virtual public nesi // NESI(help="base type of modules that can be run",is_abstract=1,tid_vn="mode")
+  struct has_main_t : virtual public nesi // NESI(help="modes that can be run",is_abstract=1,tid_vn="mode")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string mode; //NESI(help="name of mode to run",req=1)

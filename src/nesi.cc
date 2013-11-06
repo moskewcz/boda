@@ -140,6 +140,28 @@ namespace boda
     nesi_struct_init_rec( ci, o, nvm );
   }
 
+
+  void nesi_struct_hier_help( cinfo_t const * const ci, std::ostream & os, string & prefix )
+  {
+    if( !ci->tid_str ) { 
+      if( !prefix.empty() ) { return; } // type can't be created, and we're not at the top: do nothing
+      os << ci->help << std::endl;
+    } else {
+      os << prefix << ci->tid_str << "\t : " << ci->help << std::endl;
+    }
+    uint32_t const orig_prefix_sz = prefix.size();
+    if( ci->tid_vix != uint32_t_const_max )  {
+      prefix += "|"+string(ci->vars[ci->tid_vix].vname)+"=";
+    } else {
+      
+    }
+
+    for( cinfo_t const * const * dci = ci->derived; *dci; ++dci ) { 
+      nesi_struct_hier_help( *dci, os, prefix );
+    }
+    prefix.resize( orig_prefix_sz );
+  }
+
   void nesi_struct_nesi_dump_rec( bool * const at_default, string * const os, 
 				  cinfo_t const * ci, void * o )
   {
