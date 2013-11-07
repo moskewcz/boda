@@ -2,4 +2,5 @@
 
 -- features not scheduled for impl yet:
 ? XML IO for lexp/nesi
-? binary IO for lexp/nesi (for files/network)
+? binary IO for lexp/nesi (for files/network) -- just use ascii for now?
+? equality comparison?

@@ -16,7 +16,7 @@ namespace boda
     p_string s; // NESI(help="foo")
   };
   typedef vector< one_p_string_t > vect_one_p_string_t;
-  struct various_stuff_t : public virtual nesi, public has_main_t // NESI(help="test of various base types in nesi", bases=["has_main_t"], type_id="vst")
+  struct various_stuff_t : public virtual nesi, public has_main_t // NESI(help="test of various base types in nesi", bases=["has_main_t"], type_id="vst", hide=1 )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint64_t u64; //NESI(help="a u64 with a default",default="345")

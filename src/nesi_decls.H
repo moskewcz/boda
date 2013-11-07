@@ -75,6 +75,7 @@ struct cinfo_t
   cinfo_t const * const * bases;
   cast_cname_to_nesi_t * cast_cname_to_nesi;
   cast_nesi_to_cname_t * cast_nesi_to_cname;
+  bool hide; // if true, hide class in nesi_struct_help
   bool exists( void ) const { return help; }
 };
 

@@ -284,7 +284,7 @@ namespace boda
   typedef shared_ptr< score_results_file_t > p_score_results_file_t;
   typedef vector< shared_ptr< vector< p_score_results_file_t > > > vect_p_vect_p_score_results_file_t;
 
-  struct score_results_file_t : virtual public nesi, public has_main_t // NESI(help="for a given class name, score a pascal-VOC results file with respect to a given pascal-VOC image list file",bases=["has_main_t"], type_id="score")
+  struct score_results_file_t : virtual public nesi, public has_main_t // NESI(help="score a pascal-VOC-format results file",bases=["has_main_t"], type_id="score")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)

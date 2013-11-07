@@ -1,6 +1,6 @@
 import os,sys,re
 from get_svn_rev import get_svn_rev_c_str
-
+from operator import attrgetter
 join = os.path.join
 
 def check_dir_writable( dir_name ):
@@ -62,7 +62,7 @@ class vinfo_t( object ):
         return '{ "%s", %s, %s, "%s", &tinfo_%s },\n' % ( self.help, default_val, self.req, self.vname, self.tname )
 
 class cinfo_t( object ):
-    def __init__( self, cname, src_fn, help, bases=[], type_id=None, is_abstract=None, tid_vn=None ):
+    def __init__( self, cname, src_fn, help, bases=[], type_id=None, is_abstract=None, tid_vn=None, hide=0 ):
         self.cname = cname
         self.src_fn = src_fn
         self.help = help
@@ -70,6 +70,7 @@ class cinfo_t( object ):
         self.type_id = type_id
         self.is_abstract = is_abstract
         self.tid_vn = tid_vn
+        self.hide = hide
         self.vars = {}
         self.vars_list = []
         self.derived = [] # cinfos's of directly derived types
@@ -156,13 +157,13 @@ class cinfo_t( object ):
   cinfo_t cinfo_%(cname)s = { &tinfo_%(cname)s, "%(cname)s", "%(help)s", nesi__%(cname)s__get_field, vinfos_%(cname)s, 
        make_p_nesi_%(cname)s, set_p_%(cname)s_from_p_nesi, 
        %(tid_vix)s, %(tid_str)s, cinfos_derived_%(cname)s, cinfos_bases_%(cname)s,
-       cast_%(cname)s_to_nesi, cast_nesi_to_%(cname)s };
+       cast_%(cname)s_to_nesi, cast_nesi_to_%(cname)s, %(hide)s };
   tinfo_t tinfo_%(cname)s = { sizeof(%(cname)s), "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, nesi_struct_make_p, vect_push_back_%(cname)s, nesi_struct_nesi_dump, 1 };
   cinfo_t const * %(cname)s::get_cinfo( void ) const { return &cinfo_%(cname)s; }
 
 """
         return gen_template % {'cname':self.cname, 'help':self.help, 'num_vars':len(self.vars),
-                               'tid_vix':tid_vix, 'tid_str':tid_str }
+                               'tid_vix':tid_vix, 'tid_str':tid_str, 'hide':self.hide }
 
 
 class nesi_gen( object ):
@@ -204,6 +205,10 @@ class nesi_gen( object ):
                                         (cinfo.cname,btn) )
                 cinfo.bases.append( bt )
                 bt.derived.append( cinfo )
+
+        # sort derived by cname
+        for cinfo in self.cinfos.itervalues():
+            cinfo.derived.sort(key=attrgetter('cname'))
 
         # populate tinfos and cinfos for NESI structs
         #for cinfo in self.cinfos.itervalues():

@@ -25,7 +25,7 @@ namespace boda
     oct_init();
     if( argc < 2 )
     {
-      printf("usage: boda mode\n");
+      printf("usage: boda '(mode=mode_name,arg1=arg1_val,...)'\n");
       string prefix;
       nesi_struct_hier_help( &cinfo_has_main_t, std::cout, prefix );
       return 1;
