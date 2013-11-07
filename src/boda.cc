@@ -12,6 +12,7 @@ namespace boda
 {
 #include"nesi_decls.H"
   void nesi_struct_hier_help( cinfo_t const * const ci, std::ostream & os, string & prefix );
+  void dump_nesi_struct_vars_help(std::ostream & top_ostream, nesi const & v);
 
   extern tinfo_t tinfo_has_main_t;
   extern cinfo_t cinfo_has_main_t;
@@ -46,7 +47,10 @@ namespace boda
 	lexp_check_unused( lexp.get(), path );
 
 	printf( "*has_main=%s\n", str(*has_main).c_str() );
+	dump_nesi_struct_vars_help( std::cout, *has_main );
+
 	has_main->main();
+
       }
     }
     else if( mode == "test_lexp" ) 

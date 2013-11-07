@@ -164,6 +164,32 @@ namespace boda
     prefix.resize( orig_prefix_sz );
   }
 
+  void nesi_struct_vars_help_rec( string * const os, cinfo_t const * ci, void * o )
+  {
+    for( cinfo_t const * const * bci = ci->bases; *bci; ++bci ) { // handle bases
+      nesi_struct_vars_help_rec( os, *bci, (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ) );
+    }
+    for( uint32_t i = 0; ci->vars[i].exists(); ++i ) {
+      vinfo_t const * vi = &ci->vars[i];
+      *os += strprintf( "%s: type=%s  --  %s\n", vi->vname, vi->tinfo->tname, vi->help );
+    }
+  }
+
+  void nesi_struct_vars_help( tinfo_t const * tinfo, void * o, void * os_ ) {
+    cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
+    make_most_derived( ci, o );
+    string * os = (string *)os_;
+    nesi_struct_vars_help_rec( os, ci, o );
+  }
+
+  void dump_nesi_struct_vars_help(std::ostream & top_ostream, nesi const & v)
+  {
+    cinfo_t const * ci = v.get_cinfo(); 
+    string os; // build result in a string buffer
+    nesi_struct_vars_help( ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &os );
+    top_ostream << os;
+  }
+
   void nesi_struct_nesi_dump_rec( bool * const at_default, string * const os, 
 				  cinfo_t const * ci, void * o )
   {
