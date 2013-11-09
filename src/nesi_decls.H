@@ -22,6 +22,8 @@ typedef void * set_p_cname_from_p_nesi_t( void * v, void * dv );
 typedef void init_t( tinfo_t const * tinfo, void * o, void * d ); // o is (t *), calls o->init( init_arg, ... )
 typedef void * vect_push_back_t( void * v ); // v is (vect_t *), calls v->push_back( t() ), return & v->back()
 typedef bool nesi_dump_t( tinfo_t const * tinfo, void * o, void * os );
+typedef void nesi_help_t( tinfo_t const * tinfo, void * o, void * os, 
+			  bool const show_all, void * help_args, uint32_t help_ix );
 
 init_t nesi_struct_init;
 init_t vect_init;
@@ -38,6 +40,11 @@ nesi_dump_t nesi_struct_nesi_dump;
 nesi_dump_t vect_nesi_dump;
 nesi_dump_t p_nesi_dump;
 
+nesi_help_t nesi_struct_nesi_help;
+nesi_help_t p_nesi_help;
+nesi_help_t vect_nesi_help;
+nesi_help_t leaf_type_nesi_help;
+
 struct tinfo_t
 {
   uint32_t sz_bytes;
@@ -48,6 +55,7 @@ struct tinfo_t
   vect_push_back_t * vect_push_back; 
   nesi_dump_t * nesi_dump;
   bool no_init_okay;
+  nesi_help_t * nesi_help;
 };
 
 struct vinfo_t
@@ -57,6 +65,7 @@ struct vinfo_t
   bool req;
   char const * vname;
   tinfo_t * tinfo;
+  bool hide;
   bool exists( void ) const { return help; }
 };
 typedef void * get_field_t( void * const o, uint32_t const ix );

@@ -37,6 +37,12 @@ namespace boda
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
     return pt->nesi_dump( pt, ((p_void *)o)->get(), os );
   }
+  void p_nesi_help( tinfo_t const * tinfo, void * o, void * os, 
+		    bool const show_all, void * help_args, uint32_t help_ix ) {
+    tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg ); 
+    void * fo = o ? ((p_void *)o)->get() : 0; // note: fo is NULL is o is NULL, or if o points to NULL
+    return pt->nesi_help( pt, fo, os, show_all, help_args, help_ix ); // as per above, fo may be null
+  }
 
   void vect_init( tinfo_t const * tinfo, void * o, void * d )
   {
@@ -62,7 +68,7 @@ namespace boda
     // FIXME: deal with at_default items (force print? not possible for pointers? need new iface? implicit default str?)
     uint32_t sz = vc.size() / pt->sz_bytes;
     assert_st( sz * pt->sz_bytes == vc.size() );
-    char * cur = &((vect_char *)o)->front();
+    char * cur = &vc.front();
     for( uint32_t i = 0; i < sz; ++i, cur += pt->sz_bytes )
     {
       if( at_default ) {
@@ -79,6 +85,16 @@ namespace boda
     }
     *os += ")";
     return at_default;
+  }
+  void vect_nesi_help( tinfo_t const * tinfo, void * o, void * os, 
+		    bool const show_all, void * help_args, uint32_t help_ix ) {
+    tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
+    void * fo = 0;
+    if( o ) { // note: use first elem, or NULL if vect is empty or NULL itself
+      vect_char & vc = *(vect_char *)( o );
+      if( vc.size() ) { fo = (&vc.front()); }
+    } 
+    return pt->nesi_help( pt, fo, os, show_all, help_args, help_ix ); // note: as per above, fo may be null
   }
 
   void populate_nvm_from_lexp( lexp_t * const l, lexp_name_val_map_t & nvm )
@@ -108,8 +124,9 @@ namespace boda
 
   // assumes o is a (`ci->cname` *). adjusts ci and o such that:
   // o is a (`ci->cname` *) and that o is the most derived legal pointer to the object.
-  void make_most_derived( cinfo_t const * & ci, void * & o )
+  void make_most_derived( cinfo_t const * & ci, void * & o, bool const null_okay = 0 )
   {
+    if( !o ) { if( null_okay ) { return; } assert_st(0); }
     nesi * const no = ci->cast_cname_to_nesi( o ); // note: drop const
     ci = no->get_cinfo();
     o = ci->cast_nesi_to_cname(no);
@@ -141,54 +158,85 @@ namespace boda
   }
 
 
-  void nesi_struct_hier_help( cinfo_t const * const ci, std::ostream & os, string & prefix )
+  void nesi_struct_hier_help( cinfo_t const * const ci, string * os, string & prefix, bool const show_all )
   {
-    if( ci->hide ) { return; } // skip if class is hidden. note: will ignore any derived classes as well.
-    uint32_t const orig_prefix_sz = prefix.size();
-    if( !ci->tid_str ) { 
-      if( !prefix.empty() ) { return; } // type can't be created, and we're not at the top: do nothing
-      os << ci->help << std::endl;
-    } else {
-      prefix += ci->tid_str;
-      os << prefix << "   ----   " << ci->help << std::endl;
-    }
+    if( (!show_all) && ci->hide ) { return; } // skip if class is hidden. note: will ignore any derived classes as well.
+    *os += prefix;
+    //if( !prefix.empty() ) { return; } // type can't be created, and we're not at the top: do nothing
+    if( ci->tid_str ) { *os += string(ci->tid_str) + ":  "; }
+    *os += string(ci->help);
     if( ci->tid_vix != uint32_t_const_max )  {
-      if( !prefix.empty() ) { prefix += ","; }
-      prefix += string(ci->vars[ci->tid_vix].vname)+"=";
-    } else {
-      
-    }
+      *os += ". subtypes when "+string(ci->vars[ci->tid_vix].vname)+"=mode_name:";
+    } else { *os += ". subtypes:"; }
+    *os += string("\n");
+    uint32_t const orig_prefix_sz = prefix.size();
+    prefix += "|   ";
     for( cinfo_t const * const * dci = ci->derived; *dci; ++dci ) { 
-      nesi_struct_hier_help( *dci, os, prefix );
+      nesi_struct_hier_help( *dci, os, prefix, show_all );
     }
     prefix.resize( orig_prefix_sz );
   }
 
-  void nesi_struct_vars_help_rec( string * const os, cinfo_t const * ci, void * o )
+  void nesi_struct_vars_help_rec( string * const os, cinfo_t const * ci, bool const show_all )
   {
     for( cinfo_t const * const * bci = ci->bases; *bci; ++bci ) { // handle bases
-      nesi_struct_vars_help_rec( os, *bci, (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ) );
+      nesi_struct_vars_help_rec( os, *bci, show_all );
     }
     for( uint32_t i = 0; ci->vars[i].exists(); ++i ) {
       vinfo_t const * vi = &ci->vars[i];
-      *os += strprintf( "%s: type=%s  --  %s\n", vi->vname, vi->tinfo->tname, vi->help );
+      char const * hidden = "";
+      if( vi->hide ) { if( !show_all ) { continue; } hidden = "(hidden)"; } // skip if hidden
+      string req_opt_def = "(optional)";
+      if( vi->req ) { req_opt_def = "(required)"; assert_st( !vi->default_val ); }
+      else if( vi->default_val ) { req_opt_def = strprintf("(default='%s')",vi->default_val ); }
+      *os += strprintf( "  %s: %s%s type=%s  --  %s\n", vi->vname, 
+			hidden, req_opt_def.c_str(), vi->tinfo->tname, vi->help );
     }
   }
 
-  void nesi_struct_vars_help( tinfo_t const * tinfo, void * o, void * os_ ) {
-    cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
-    make_most_derived( ci, o );
-    string * os = (string *)os_;
-    nesi_struct_vars_help_rec( os, ci, o );
+  vinfo_t const * nesi_struct_find_var( cinfo_t const * ci, void * o, string const & vname, void * & ret_field ) {
+    for( cinfo_t const * const * bci = ci->bases; *bci; ++bci ) { // handle bases
+      void * bo = o; // may be null
+      if( o ) { bo = (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ); }
+      vinfo_t const * ret = nesi_struct_find_var( *bci, bo, vname, ret_field );
+      if( ret ) { return ret; }
+    }
+    for( uint32_t i = 0; ci->vars[i].exists(); ++i ) {
+      vinfo_t const * vi = &ci->vars[i];
+      if( vi->vname == vname ) { 
+	if( o ) { ret_field = ci->get_field( o, i ); }
+	return vi; 
+      }
+    }    
+    return 0;
   }
 
-  void dump_nesi_struct_vars_help(std::ostream & top_ostream, nesi const & v)
-  {
-    cinfo_t const * ci = v.get_cinfo(); 
-    string os; // build result in a string buffer
-    nesi_struct_vars_help( ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &os );
-    top_ostream << os;
-  }
+
+  void nesi_struct_nesi_help( tinfo_t const * tinfo, void * o, void * os_, 
+			      bool const show_all, void * help_args_, uint32_t help_ix ) {
+    cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
+    make_most_derived( ci, o, 1 ); // null ok here
+    string * os = (string *)os_; 
+    vect_string * help_args = (vect_string *)help_args_; 
+    assert_st( help_args );
+    if( help_ix < help_args->size() ) { // use a help-arg to decend
+      void * fo = 0;
+      vinfo_t const * vi = nesi_struct_find_var( ci, o, help_args->at(help_ix), fo ); // may or may not set fo
+      if( !vi ) { rt_err( strprintf("struct '%s' has no field '%s', so help cannot be provided for it.",
+				    ci->cname, help_args->at(help_ix).c_str() ) ); }
+      *os += strprintf( "DECENDING TO DEATILED HELP FOR field '%s' of type=%s of struct '%s'\n",
+			vi->vname, vi->tinfo->tname, ci->cname );
+      assert_st( vi->tinfo->nesi_help );
+      vi->tinfo->nesi_help( vi->tinfo, fo, os, show_all, help_args, help_ix + 1 );
+    } else { // leaf case, emit help for this struct
+      assert_st( help_ix == help_args->size() );
+      string prefix;
+      *os += strprintf( "\nTYPE INFO:\n" );
+      nesi_struct_hier_help( ci, os, prefix, show_all );
+      *os += strprintf( "\nFIELDS:\n" );
+      nesi_struct_vars_help_rec( os, ci, show_all );
+    }
+  } 
 
   void nesi_struct_nesi_dump_rec( bool * const at_default, string * const os, 
 				  cinfo_t const * ci, void * o )
@@ -345,6 +393,19 @@ namespace boda
     shared_ptr< T > * const p = (shared_ptr< T > *)( o );
     p->reset( new T );
     return p->get();
+  }
+  void leaf_type_nesi_help( tinfo_t const * tinfo, void * o, void * os_, 
+			    bool const show_all, void * help_args_, uint32_t help_ix ) {
+    string * os = (string *)os_; 
+    vect_string * help_args = (vect_string *)help_args_; 
+    assert_st( help_args );
+    if( help_ix < help_args->size() ) { // use a help-arg to decend
+      rt_err( strprintf("leaf type '%s' has no fields at all, certainly not '%s', so help cannot be provided for it.",
+			tinfo->tname, help_args->at(help_ix).c_str() ) );
+    } else { // leaf case, emit help for this leaf type
+      assert_st( help_ix == help_args->size() );
+      *os += strprintf( "LEAF TYPE INFO: %s\n", (char const *)tinfo->init_arg );
+    }
   }
 
   // string

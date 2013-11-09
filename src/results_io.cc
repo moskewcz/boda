@@ -293,7 +293,7 @@ namespace boda
     vect_p_string vps; //NESI(help="wrapped type test 0",default="()")
     p_vect_p_vect_string pvpvs; //NESI(help="wrapped type test 1")
     vect_p_vect_p_string vpvps; //NESI(help="wrapped type test 2",default="()")
-    vect_p_vect_p_score_results_file_t vpvp_srt; //NESI(help="wrapped type test 3")
+    vect_p_vect_p_score_results_file_t vpvp_srt; //NESI(help="wrapped type test 3",hide=1)
     virtual void main( void )
     {
       p_img_db_t img_db = read_pascal_image_list_file( pil_fn, false );

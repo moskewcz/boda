@@ -28,16 +28,16 @@ class tinfo_t( object ):
         gen_dict = { 'tname':self.tname, 'wrap_type':self.wrap_type, 'no_init_okay':self.no_init_okay }
         if self.wrap_prefix is None:
             return  ( 'tinfo_t tinfo_%(tname)s = { sizeof(%(tname)s), "%(tname)s", %(tname)s_init_arg, nesi_%(tname)s_init, %(tname)s_make_p, ' +
-                      '%(tname)s_vect_push_back, %(tname)s_nesi_dump, %(no_init_okay)s };\n' ) % gen_dict
+                      '%(tname)s_vect_push_back, %(tname)s_nesi_dump, %(no_init_okay)s, leaf_type_nesi_help };\n' ) % gen_dict
         elif self.wrap_prefix == 'p_':
             return ( 'typedef shared_ptr< %(wrap_type)s > %(tname)s;\n' + 
                      'tinfo_t tinfo_%(tname)s = { sizeof(%(tname)s), "%(tname)s", &tinfo_%(wrap_type)s, p_init, '
                      'p_make_p, ' + 
-                     'p_vect_push_back, p_nesi_dump, %(no_init_okay)s };\n' ) % gen_dict
+                     'p_vect_push_back, p_nesi_dump, %(no_init_okay)s, p_nesi_help };\n' ) % gen_dict
         elif self.wrap_prefix == 'vect_':
             return ( 'typedef vector< %(wrap_type)s > %(tname)s;\n' + 
                      'tinfo_t tinfo_%(tname)s = { sizeof(%(tname)s), "%(tname)s", &tinfo_%(wrap_type)s, vect_init, vect_make_p, ' + 
-                     'vect_vect_push_back, vect_nesi_dump, %(no_init_okay)s };\n' ) % gen_dict
+                     'vect_vect_push_back, vect_nesi_dump, %(no_init_okay)s, vect_nesi_help };\n' ) % gen_dict
         else:
             raise RuntimeError( "bad wrap_prefix" + str(self.wrap_prefix) )
 
@@ -49,17 +49,19 @@ def iter_wrapped_types( tname ):
     yield tname
 
 class vinfo_t( object ):
-    def __init__( self, tname, vname, help="No Help Given", req=0, default=None ):
+    def __init__( self, tname, vname, help="No Help Given", req=0, default=None, hide=0 ):
         self.tname = tname
         self.vname = vname
         self.help = help
         self.req = req
         self.default = default
+        self.hide = hide
     def gen_vinfo( self ):
         default_val = "0"
         if self.default is not None:
             default_val = '"%s"' % (self.default)
-        return '{ "%s", %s, %s, "%s", &tinfo_%s },\n' % ( self.help, default_val, self.req, self.vname, self.tname )
+        return '{ "%s", %s, %s, "%s", &tinfo_%s, %s },\n' % ( 
+            self.help, default_val, self.req, self.vname, self.tname, self.hide )
 
 class cinfo_t( object ):
     def __init__( self, cname, src_fn, help, bases=[], type_id=None, is_abstract=None, tid_vn=None, hide=0 ):
@@ -158,7 +160,7 @@ class cinfo_t( object ):
        make_p_nesi_%(cname)s, set_p_%(cname)s_from_p_nesi, 
        %(tid_vix)s, %(tid_str)s, cinfos_derived_%(cname)s, cinfos_bases_%(cname)s,
        cast_%(cname)s_to_nesi, cast_nesi_to_%(cname)s, %(hide)s };
-  tinfo_t tinfo_%(cname)s = { sizeof(%(cname)s), "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, nesi_struct_make_p, vect_push_back_%(cname)s, nesi_struct_nesi_dump, 1 };
+  tinfo_t tinfo_%(cname)s = { sizeof(%(cname)s), "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, nesi_struct_make_p, vect_push_back_%(cname)s, nesi_struct_nesi_dump, 1, nesi_struct_nesi_help };
   cinfo_t const * %(cname)s::get_cinfo( void ) const { return &cinfo_%(cname)s; }
 
 """
