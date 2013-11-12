@@ -17,6 +17,29 @@ using std::string;
 namespace boda 
 {
 
+  struct ndb_frame_t {
+    char const * key;
+    uint32_t os_ix;
+    uint32_t xml_ix;
+  };
+  typedef vector< ndb_frame_t > vect_ndb_frame_t;
+
+  struct nesi_dump_buf_t {
+    string os;   // lexp-format output (always created)
+    bool xml;
+    string xos;  // xml-format output (optional)
+    vect_ndb_frame_t frames;
+
+    void begin_list( void ) { os += "("; }
+    void add_sep_to_list( void ) { os += ","; }
+    void end_list( void ) { os += ")"; }
+    
+    nesi_dump_buf_t( void ) : xml(0) { }
+    void set_key( char const * key_ ) { } // key of next key/value pair
+    void write_key_value_if_not_default( ) { }
+  };
+  
+
   typedef shared_ptr< void > p_void;
   typedef vector< char > vect_char;
 
@@ -32,10 +55,10 @@ namespace boda
     void * v = pt->make_p( pt, o, d );
     pt->init( pt, v, d );
   }
-  bool p_nesi_dump( tinfo_t const * tinfo, void * o, void * os ) {
+  bool p_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
     if( !bool( *((p_void *)( o )) ) ) { return 1;}
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
-    return pt->nesi_dump( pt, ((p_void *)o)->get(), os );
+    return pt->nesi_dump( pt, ((p_void *)o)->get(), ndb );
   }
   void p_nesi_help( tinfo_t const * tinfo, void * o, void * os, 
 		    bool const show_all, void * help_args, uint32_t help_ix ) {
@@ -59,11 +82,10 @@ namespace boda
       pt->init( pt, rpv, i->v.get() ); 
     }
   }
-  bool vect_nesi_dump( tinfo_t const * tinfo, void * o, void * os_ ) {
+  bool vect_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
     bool at_default = 1;
     vect_char & vc = *(vect_char *)( o );
-    string * os = (string *)os_;
-    *os += "(";
+    ndb->begin_list();
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
     // FIXME: deal with at_default items (force print? not possible for pointers? need new iface? implicit default str?)
     uint32_t sz = vc.size() / pt->sz_bytes;
@@ -74,16 +96,16 @@ namespace boda
       if( at_default ) {
 	at_default = 0; // non-empty vector is always not at default
       } else {
-	*os += ",";
+	ndb->add_sep_to_list();
       }
-      *os += "_=";
+      ndb->os += "_=";
       //printf( "pt->tname=%s\n", str(pt->tname).c_str() );
-      bool const li_at_default = pt->nesi_dump( pt, cur, os );
+      bool const li_at_default = pt->nesi_dump( pt, cur, ndb );
       if( li_at_default ) { // for lists, we want to print all items, even if they are at default.
 	//os << pt->
       }       
     }
-    *os += ")";
+    ndb->end_list();
     return at_default;
   }
   void vect_nesi_help( tinfo_t const * tinfo, void * o, void * os, 
@@ -238,47 +260,46 @@ namespace boda
     }
   } 
 
-  void nesi_struct_nesi_dump_rec( bool * const at_default, string * const os, 
+  void nesi_struct_nesi_dump_rec( bool * const at_default, nesi_dump_buf_t * ndb,
 				  cinfo_t const * ci, void * o )
   {
     for( cinfo_t const * const * bci = ci->bases; *bci; ++bci ) { // handle bases
-      nesi_struct_nesi_dump_rec( at_default, os, 
+      nesi_struct_nesi_dump_rec( at_default, ndb, 
 				 *bci, (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ) );
     }
     for( uint32_t i = 0; ci->vars[i].exists(); ++i ) {
       vinfo_t const * vi = &ci->vars[i];
       //printf("vname=%s\n",vi->vname);
-      uint32_t orig_os_sz = os->size();
-      if( !*at_default ) { *os +=  ","; } // if we're printed a field already, add a comma
-      *os += string(vi->vname) + "=";
-      uint32_t const os_val_b = os->size();
-      bool const var_at_default = vi->tinfo->nesi_dump( vi->tinfo, ci->get_field( o, i ), os );
+      uint32_t orig_os_sz = ndb->os.size();
+      if( !*at_default ) { ndb->add_sep_to_list(); } // if we're printed a field already, add a comma
+      ndb->os += string(vi->vname) + "=";
+      uint32_t const os_val_b = ndb->os.size();
+      bool const var_at_default = vi->tinfo->nesi_dump( vi->tinfo, ci->get_field( o, i ), ndb );
       if( (!var_at_default) && // printed field, and ( no default or not equal to default ). keep new part of os.
-	  ( (!vi->default_val) || strncmp(vi->default_val, &(*os)[os_val_b], os->size()-os_val_b ) ) ) {
+	  ( (!vi->default_val) || strncmp(vi->default_val, &(ndb->os)[os_val_b], ndb->os.size()-os_val_b ) ) ) {
 	*at_default = 0;
       } else { // otherwise, remove anything we added to os for this field
-	os->resize( orig_os_sz );
+	ndb->os.resize( orig_os_sz );
       }
     }
   }
 
-  bool nesi_struct_nesi_dump( tinfo_t const * tinfo, void * o, void * os_ ) {
+  bool nesi_struct_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
     cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
     make_most_derived( ci, o ); 
-    string * os = (string *)os_;
-    *os += "(";
+    ndb->begin_list();
     bool at_default = 1;
-    nesi_struct_nesi_dump_rec( &at_default, os, ci, o );    
-    *os += ")";
+    nesi_struct_nesi_dump_rec( &at_default, ndb, ci, o );    
+    ndb->end_list();
     return at_default;
   }
 
   std::ostream & operator<<(std::ostream & top_ostream, nesi const & v)
   {
-    string os; // build result in a string buffer
+    nesi_dump_buf_t ndb;
     cinfo_t const * ci = v.get_cinfo();
-    nesi_struct_nesi_dump( ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &os );
-    return top_ostream << os;
+    nesi_struct_nesi_dump( ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &ndb );
+    return top_ostream << ndb.os;
   }
 
   cinfo_t const * get_derived_by_tid( cinfo_t const * const pc, char const * tid_str )
@@ -373,12 +394,11 @@ namespace boda
   }
   // note: always prints/clear pending
   template< typename T >
-  bool with_op_left_shift_nesi_dump( tinfo_t const * tinfo, void * o, void * os_ ) {
+  bool with_op_left_shift_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
     T * v = (T *)o;
-    string * os = (string *)os_;
     std::ostringstream oss;
     oss << *v;
-    *os += oss.str();
+    ndb->os += oss.str();
     return 0;
   }
   template< typename T >

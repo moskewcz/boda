@@ -11,6 +11,7 @@
 
 struct nesi;
 struct tinfo_t;
+struct nesi_dump_buf_t;
 
 typedef void * cast_nesi_to_cname_t( nesi * p );
 typedef nesi * cast_cname_to_nesi_t( void * p );
@@ -21,7 +22,7 @@ typedef void make_p_nesi_t( void * p ); // p is (p_nesi *), calls p->reset( new 
 typedef void * set_p_cname_from_p_nesi_t( void * v, void * dv ); 
 typedef void init_t( tinfo_t const * tinfo, void * o, void * d ); // o is (t *), calls o->init( init_arg, ... )
 typedef void * vect_push_back_t( void * v ); // v is (vect_t *), calls v->push_back( t() ), return & v->back()
-typedef bool nesi_dump_t( tinfo_t const * tinfo, void * o, void * os );
+typedef bool nesi_dump_t( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb );
 typedef void nesi_help_t( tinfo_t const * tinfo, void * o, void * os, 
 			  bool const show_all, void * help_args, uint32_t help_ix );
 

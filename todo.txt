@@ -1,6 +1,7 @@
--- nesi help()
+** current tasks
+-- XML IO for lexp/nesi
+-- port existing UI modules to NESI
 
--- features not scheduled for impl yet:
-? XML IO for lexp/nesi
+** features not scheduled for impl yet:
 ? binary IO for lexp/nesi (for files/network) -- just use ascii for now?
 ? equality comparison?
