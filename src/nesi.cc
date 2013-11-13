@@ -16,27 +16,52 @@ using std::string;
 
 namespace boda 
 {
-
-  struct ndb_frame_t {
-    char const * key;
-    uint32_t os_ix;
-    uint32_t xml_ix;
+  struct xml_attr_t {
+    string n;
+    string v;
+    void print( std::ostream & os );
   };
-  typedef vector< ndb_frame_t > vect_ndb_frame_t;
+  typedef vector< xml_attr_t > vect_xml_attr_t;
+  void xml_attr_t::print( std::ostream & os ) {
+    os << n << "=\"" << v << "\""; // FIXME: escape v, grab from pugixml?
+  }
+
+  struct xml_elem_t;
+  typedef shared_ptr< xml_elem_t > p_xml_elem_t;  
+  typedef vector< p_xml_elem_t > vect_p_xml_elem_t;
+  struct xml_elem_t {
+    string name;
+    vect_xml_attr_t attrs;
+    vect_p_xml_elem_t kids;
+    void print( std::ostream & os, string & prefix );
+  };
+  
+  void xml_elem_t::print( std::ostream & os, string & prefix ) {
+    os << prefix << "<" << name;
+    for( vect_xml_attr_t::iterator i = attrs.begin(); i != attrs.end(); ++i ) {
+      os << " "; i->print( os );
+    }
+    if( kids.empty() ) { os << " />\n"; }
+    else {
+      os << ">\n";
+      prefix += "\t";
+      for( vect_p_xml_elem_t::iterator i = kids.begin(); i != kids.end(); ++i ) {
+	
+      }
+    }
+
+  }
 
   struct nesi_dump_buf_t {
     string os;   // lexp-format output (always created)
-    bool xml;
-    string xos;  // xml-format output (optional)
-    vect_ndb_frame_t frames;
+    bool xml; // if true, produce xml
+    p_xml_elem_t xn; // xml rep of dumped nesi object
 
     void begin_list( void ) { os += "("; }
     void add_sep_to_list( void ) { os += ","; }
     void end_list( void ) { os += ")"; }
     
     nesi_dump_buf_t( void ) : xml(0) { }
-    void set_key( char const * key_ ) { } // key of next key/value pair
-    void write_key_value_if_not_default( ) { }
   };
   
 
@@ -87,7 +112,6 @@ namespace boda
     vect_char & vc = *(vect_char *)( o );
     ndb->begin_list();
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
-    // FIXME: deal with at_default items (force print? not possible for pointers? need new iface? implicit default str?)
     uint32_t sz = vc.size() / pt->sz_bytes;
     assert_st( sz * pt->sz_bytes == vc.size() );
     char * cur = &vc.front();
@@ -101,8 +125,8 @@ namespace boda
       ndb->os += "_=";
       //printf( "pt->tname=%s\n", str(pt->tname).c_str() );
       bool const li_at_default = pt->nesi_dump( pt, cur, ndb );
-      if( li_at_default ) { // for lists, we want to print all items, even if they are at default.
-	//os << pt->
+      if( li_at_default ) { 
+	// pass; for lists, we want to print all items, even if they are at default.
       }       
     }
     ndb->end_list();
@@ -278,6 +302,7 @@ namespace boda
       if( (!var_at_default) && // printed field, and ( no default or not equal to default ). keep new part of os.
 	  ( (!vi->default_val) || strncmp(vi->default_val, &(ndb->os)[os_val_b], ndb->os.size()-os_val_b ) ) ) {
 	*at_default = 0;
+	
       } else { // otherwise, remove anything we added to os for this field
 	ndb->os.resize( orig_os_sz );
       }
@@ -297,9 +322,13 @@ namespace boda
   std::ostream & operator<<(std::ostream & top_ostream, nesi const & v)
   {
     nesi_dump_buf_t ndb;
+    ndb.xn.reset( new xml_elem_t );
     cinfo_t const * ci = v.get_cinfo();
     nesi_struct_nesi_dump( ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &ndb );
-    return top_ostream << ndb.os;
+    top_ostream << ndb.os << std::endl << "XML:";
+    string prefix;
+    ndb.xn->print( top_ostream, prefix );
+    return top_ostream;
   }
 
   cinfo_t const * get_derived_by_tid( cinfo_t const * const pc, char const * tid_str )
