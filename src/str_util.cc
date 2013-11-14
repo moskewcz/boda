@@ -35,6 +35,20 @@ namespace boda
     printf( "%s", str.c_str() );
   }
 
-
+  string xml_escape( string const & str )
+  {
+    string ret;
+    for (string::const_iterator i = str.begin(); i != str.end(); ++i) {
+      switch (*i)
+      {
+      case '&': ret += "&amp;"; break;
+      case '<': ret += "&lt;"; break;
+      case '>': ret += "&gt;"; break;
+      case '"': ret += "&quot;"; break;
+      default: ret.push_back( *i );
+      }
+    }
+    return ret;
+  }
 }
 

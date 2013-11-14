@@ -16,6 +16,8 @@ namespace boda
   std::string strprintf( char const * const format, ... ) __attribute__( (format(__printf__, 1, 2) ) );
   void printstr( std::string const & str );
 
+  std::string xml_escape( std::string const & str );
+
   inline bool endswith( std::string const & s, std::string const & suf )
   {
     if( s.size() < suf.size() )

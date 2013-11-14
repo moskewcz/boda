@@ -1,6 +1,8 @@
 ** current tasks
--- XML IO for lexp/nesi
+-- XML reading lexp
 -- port existing UI modules to NESI
+-- NESI testing
+-- timers
 
 ** features not scheduled for impl yet:
 ? binary IO for lexp/nesi (for files/network) -- just use ascii for now?

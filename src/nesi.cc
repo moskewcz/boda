@@ -19,11 +19,12 @@ namespace boda
   struct xml_attr_t {
     string n;
     string v;
+    xml_attr_t( string const & n_, string const & v_ ) : n(n_), v(v_) { }
     void print( std::ostream & os );
   };
   typedef vector< xml_attr_t > vect_xml_attr_t;
   void xml_attr_t::print( std::ostream & os ) {
-    os << n << "=\"" << v << "\""; // FIXME: escape v, grab from pugixml?
+    os << n << "=\"" << xml_escape(v) << "\"";
   }
 
   struct xml_elem_t;
@@ -32,8 +33,10 @@ namespace boda
   struct xml_elem_t {
     string name;
     vect_xml_attr_t attrs;
-    vect_p_xml_elem_t kids;
+    vect_p_xml_elem_t elems;
+    bool empty( void ) const { return attrs.empty() && elems.empty(); }
     void print( std::ostream & os, string & prefix );
+    xml_elem_t( string const & name_ ) : name(name_) { }
   };
   
   void xml_elem_t::print( std::ostream & os, string & prefix ) {
@@ -41,27 +44,66 @@ namespace boda
     for( vect_xml_attr_t::iterator i = attrs.begin(); i != attrs.end(); ++i ) {
       os << " "; i->print( os );
     }
-    if( kids.empty() ) { os << " />\n"; }
+    if( elems.empty() ) { os << " />\n"; }
     else {
       os << ">\n";
+      uint32_t const prefix_sz_orig = prefix.size();
       prefix += "\t";
-      for( vect_p_xml_elem_t::iterator i = kids.begin(); i != kids.end(); ++i ) {
-	
+      for( vect_p_xml_elem_t::iterator i = elems.begin(); i != elems.end(); ++i ) {
+	(*i)->print( os, prefix );
       }
+      prefix.resize( prefix_sz_orig );
+      os << prefix << "</" << name<< ">\n"; 
     }
-
   }
 
+  struct nesi_frame_t { 
+    bool at_default;
+    p_xml_elem_t parent_xn;
+    uint32_t os_sz_orig;
+    uint32_t os_sz_val_begin;
+    nesi_frame_t( void ) : at_default(1), os_sz_orig(uint32_t_const_max), os_sz_val_begin(uint32_t_const_max) { }
+    void clear( void ) { parent_xn.reset(); os_sz_orig = uint32_t_const_max; os_sz_val_begin = uint32_t_const_max; }
+    bool is_clear( void ) const { 
+      return (!parent_xn) && (os_sz_orig == uint32_t_const_max) && (os_sz_val_begin == uint32_t_const_max); 
+    }
+  };
+
   struct nesi_dump_buf_t {
-    string os;   // lexp-format output (always created)
-    bool xml; // if true, produce xml
-    p_xml_elem_t xn; // xml rep of dumped nesi object
+    // outputs
+    string os;   // lexp-format output (always created). appended to by each dump
+    p_xml_elem_t xn; // xml rep of dumped nesi object. filled in by each dump if not null
+    bool is_non_leaf; // set by each dump call if the value was a struct or list.
 
     void begin_list( void ) { os += "("; }
-    void add_sep_to_list( void ) { os += ","; }
-    void end_list( void ) { os += ")"; }
-    
-    nesi_dump_buf_t( void ) : xml(0) { }
+    void end_list( void ) { os += ")"; is_non_leaf = 1;}
+    void new_list_val( nesi_frame_t & nf, string const & name ) {
+      assert( nf.is_clear() );
+      nf.os_sz_orig = os.size();
+      if( !nf.at_default ) { os += ","; } // if we're printed a field already, add a comma
+      os += name + "=";
+      nf.os_sz_val_begin = os.size();
+      if( xn ) { nf.parent_xn = xn; xn.reset( new xml_elem_t( name ) ); }
+    }
+    void commit_list_val( nesi_frame_t & nf ) {
+      nf.at_default = 0;
+      if( xn ) { 
+	if( !is_non_leaf ) {
+	  assert_st( xn->empty() );
+	  nf.parent_xn->attrs.push_back( xml_attr_t( xn->name, string( os, nf.os_sz_val_begin ) ) );
+	} else {
+	  nf.parent_xn->elems.push_back( xn ); 
+	}
+	xn = nf.parent_xn; 
+      }
+      nf.clear();
+    }
+    void abort_list_val( nesi_frame_t & nf ) {
+      os.resize( nf.os_sz_orig );	
+      if( xn ) { xn = nf.parent_xn; }
+      nf.clear();
+    }
+    nesi_dump_buf_t( void ) { }
   };
   
 
@@ -108,7 +150,7 @@ namespace boda
     }
   }
   bool vect_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
-    bool at_default = 1;
+    nesi_frame_t nf;
     vect_char & vc = *(vect_char *)( o );
     ndb->begin_list();
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
@@ -117,20 +159,14 @@ namespace boda
     char * cur = &vc.front();
     for( uint32_t i = 0; i < sz; ++i, cur += pt->sz_bytes )
     {
-      if( at_default ) {
-	at_default = 0; // non-empty vector is always not at default
-      } else {
-	ndb->add_sep_to_list();
-      }
-      ndb->os += "_=";
       //printf( "pt->tname=%s\n", str(pt->tname).c_str() );
-      bool const li_at_default = pt->nesi_dump( pt, cur, ndb );
-      if( li_at_default ) { 
-	// pass; for lists, we want to print all items, even if they are at default.
-      }       
+      ndb->new_list_val( nf, "li_"+str(i) );
+      // note: ret value of dump ignored; for lists, we want to print all items, even if they are at default.
+      pt->nesi_dump( pt, cur, ndb ); 
+      ndb->commit_list_val( nf );
     }
     ndb->end_list();
-    return at_default;
+    return nf.at_default;
   }
   void vect_nesi_help( tinfo_t const * tinfo, void * o, void * os, 
 		    bool const show_all, void * help_args, uint32_t help_ix ) {
@@ -284,27 +320,21 @@ namespace boda
     }
   } 
 
-  void nesi_struct_nesi_dump_rec( bool * const at_default, nesi_dump_buf_t * ndb,
-				  cinfo_t const * ci, void * o )
+  void nesi_struct_nesi_dump_rec( nesi_frame_t & nf, nesi_dump_buf_t * ndb, cinfo_t const * ci, void * o )
   {
     for( cinfo_t const * const * bci = ci->bases; *bci; ++bci ) { // handle bases
-      nesi_struct_nesi_dump_rec( at_default, ndb, 
-				 *bci, (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ) );
+      nesi_struct_nesi_dump_rec( nf, ndb, *bci, (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ) );
     }
     for( uint32_t i = 0; ci->vars[i].exists(); ++i ) {
       vinfo_t const * vi = &ci->vars[i];
       //printf("vname=%s\n",vi->vname);
-      uint32_t orig_os_sz = ndb->os.size();
-      if( !*at_default ) { ndb->add_sep_to_list(); } // if we're printed a field already, add a comma
-      ndb->os += string(vi->vname) + "=";
-      uint32_t const os_val_b = ndb->os.size();
+      ndb->new_list_val( nf, vi->vname );
       bool const var_at_default = vi->tinfo->nesi_dump( vi->tinfo, ci->get_field( o, i ), ndb );
       if( (!var_at_default) && // printed field, and ( no default or not equal to default ). keep new part of os.
-	  ( (!vi->default_val) || strncmp(vi->default_val, &(ndb->os)[os_val_b], ndb->os.size()-os_val_b ) ) ) {
-	*at_default = 0;
-	
+	  ( (!vi->default_val) || strncmp(vi->default_val, &(ndb->os)[nf.os_sz_val_begin], ndb->os.size()-nf.os_sz_val_begin ) ) ) {
+	ndb->commit_list_val( nf );
       } else { // otherwise, remove anything we added to os for this field
-	ndb->os.resize( orig_os_sz );
+	ndb->abort_list_val( nf );
       }
     }
   }
@@ -313,16 +343,16 @@ namespace boda
     cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
     make_most_derived( ci, o ); 
     ndb->begin_list();
-    bool at_default = 1;
-    nesi_struct_nesi_dump_rec( &at_default, ndb, ci, o );    
+    nesi_frame_t nf;
+    nesi_struct_nesi_dump_rec( nf, ndb, ci, o );    
     ndb->end_list();
-    return at_default;
+    return nf.at_default;
   }
 
   std::ostream & operator<<(std::ostream & top_ostream, nesi const & v)
   {
     nesi_dump_buf_t ndb;
-    ndb.xn.reset( new xml_elem_t );
+    ndb.xn.reset( new xml_elem_t( "root" ) );
     cinfo_t const * ci = v.get_cinfo();
     nesi_struct_nesi_dump( ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &ndb );
     top_ostream << ndb.os << std::endl << "XML:";
@@ -428,6 +458,7 @@ namespace boda
     std::ostringstream oss;
     oss << *v;
     ndb->os += oss.str();
+    ndb->is_non_leaf = 0;
     return 0;
   }
   template< typename T >
