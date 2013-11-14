@@ -56,12 +56,13 @@ namespace boda
 	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, show_all, &help_args, 0 ); printstr( out );
       }
     }
-    else if( mode == "test_nesi" ) 
+    else if( mode == "test_nesi" || mode == "test_nesi_xml" ) 
     {
+      bool const xml = ( mode == "test_nesi_xml" );
       if( argc != 3 ) { printf("automated tests for nesi\nusage: boda test_nesi arg\n"); }
       else { 
-	std::string const lexp_str = argv[2];
-	p_lexp_t lexp = parse_lexp( lexp_str );
+	std::string const arg_str = argv[2];
+	p_lexp_t lexp = xml ? parse_lexp_xml_file( arg_str ) : parse_lexp( arg_str );
 	p_has_main_t has_main;
 	void * pv = nesi_struct_make_p( &tinfo_has_main_t, &has_main, lexp.get() );
 	nesi_struct_init( &tinfo_has_main_t, pv, lexp.get() );

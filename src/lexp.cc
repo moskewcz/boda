@@ -1,9 +1,11 @@
 #include"boda_tu_base.H"
 #include"lexp.H"
 #include"str_util.H"
+#include"pugixml.hpp"
 
 namespace boda {
   using std::string;
+  using namespace pugi;
 
   // error format strings
   string const le_unparsed_data( "unparsed data remaining (expected end of input)" );
@@ -95,15 +97,41 @@ namespace boda {
   // comma. wonderful!
   bool lexp_t::src_has_trailing_comma( void ) const
   {
+    if( !src.exists() ) { return 0; } // if created from, say, XML. assume no training comma
     assert( src.sz() > 1 );
     if( !kids.size() ) { return 0; }
     assert( src.sz() > 2 );
     assert( src.base.get()[src.e-1] == ')' );
     return src.base.get()[src.e-2] == ',';
   }
+
+  // because we are pretty lenient in requiring escapes, it's a little
+  // tricky to 'minimally' escape leaf values. there certinaly isn't a
+  // cannonical escaped form, but this will 'often' yield similar
+  // escapes to what the user might have originally used. in
+  // particular, when no escapes are needed, none will be used.
+  string lexp_escape( string const & s )
+  {
+    string ret;
+    uint32_t paren_depth = 0;
+    for (string::const_iterator i = s.begin(); i != s.end(); ++i) {
+      switch (*i)
+      {
+      case '(': ++paren_depth; break;
+      case ')': if(!paren_depth) { ret.push_back('\\'); } else { --paren_depth; } break;
+      case ',': if(!paren_depth) { ret.push_back('\\'); } break;
+      case '\\': ret.push_back('\\'); break;
+      }
+      ret.push_back( *i );
+    }
+    return ret;
+  }
+
   std::ostream & operator<<(std::ostream & os, lexp_t const & v) {
-    if( v.leaf_val.exists() ) { return os << v.src; } // leaf case. note: we print the 'raw' value here.
-    else { // otherwise, list case
+    // leaf case. note: we print the original 'raw' value here if availible
+    if( v.leaf_val.exists() ) { 
+      if( v.src.exists() ) { return os << v.src; } else { return os << lexp_escape( v.leaf_val.str() ); } 
+    } else { // otherwise, list case
       os << "(";
       for (vect_lexp_nv_t::const_iterator i = v.kids.begin(); i != v.kids.end(); ++i) 
       { 
@@ -273,6 +301,51 @@ namespace boda {
     lex_parse_t lex_parse( sstr );
     p_lexp_t ret = lex_parse.parse_lexp();
     lex_parse.err_if_data_left();
+    return ret;
+  }
+
+  p_lexp_t parse_lexp_leaf_str( string const & s )
+  {
+    p_lexp_t ret( new lexp_t( sstr_t() ) );
+    ret->leaf_val.set_from_string( s );
+    return ret;
+  }
+  // note: there is plenty of room to optimization memory/speed here
+  // if we share data with the pugixml nodes. this should be possible
+  // using sstr_t::borrow_from_pchar(). this function is TODO, but
+  // similar to borrow from string, but, we need some trickery to keep
+  // the xml doc in memory ... a custom deleter that holds a
+  // shared_ptr to the xml doc should do it.
+  p_lexp_t parse_lexp_list_xml( xml_node const & xn )
+  {
+    p_lexp_t ret( new lexp_t( sstr_t() ) );
+    lexp_nv_t kid;
+    for( xml_attribute attr: xn.attributes() ) { // attributes become leaf values
+      kid.n.set_from_string( attr.name() );
+      kid.v = parse_lexp_leaf_str( attr.value() );
+      ret->kids.push_back( kid );
+    }
+    for( xml_node xn_i: xn.children() ) { // child elements become list values
+      kid.n.set_from_string( xn_i.name() );
+      kid.v = parse_lexp_list_xml( xn_i );
+      ret->kids.push_back( kid );
+    }
+    return ret;
+  }
+
+  p_lexp_t parse_lexp_xml_file( string const & s )
+  {
+    ensure_is_regular_file( s );
+    xml_document doc;
+    xml_parse_result result = doc.load_file( s.c_str() );
+    if( !result ) { 
+      rt_err( strprintf( "loading xml file '%s' failed: %s", s.c_str(), result.description() ) );
+    }    
+    xml_node root = doc.first_child();
+    assert_st( !root.empty() ); // doc should have a child (the root)
+    assert_st( root.next_sibling().empty() ); // doc should have exactly one root elem
+    p_lexp_t ret = parse_lexp_list_xml( root );
+    printf( "*ret=%s\n", str(*ret).c_str() );
     return ret;
   }
 

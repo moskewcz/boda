@@ -56,6 +56,7 @@ namespace boda {
   std::ostream & operator<<(std::ostream & os, lexp_t const & v);
 
   p_lexp_t parse_lexp( std::string const & s );
+  p_lexp_t parse_lexp_xml_file( std::string const & s );
   void test_lexp( void );
   void lexp_check_unused( lexp_t * l, vect_string & path );
 
