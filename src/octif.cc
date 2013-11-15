@@ -14,6 +14,7 @@
 #include"str_util.H"
 #include"img_io.H"
 #include"results_io.H"
+#include"octif.H"
 
 namespace boda 
 {
@@ -64,15 +65,19 @@ namespace boda
 #endif
   }
 
+  struct oct_test_t : virtual public nesi, public has_main_t // NESI(help="run simple octave interface test",bases=["has_main_t"], type_id="oct_test")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    virtual void main( void ) { oct_test(); }
+  };
 
   void oct_dfc( p_vect_scored_det_t scored_dets, 
-		string const & class_name, string const & impath, uint32_t const img_ix )
-  {
+		string const & class_name, string const & image_fn, uint32_t const img_ix ) {
     boost::filesystem::initial_path(); // capture initial path if not already done (see boost docs)
-    printf( "oct_dfc() class_name=%s impath=%s img_ix=%s\n", 
-	    str(class_name).c_str(), str(impath).c_str(), str(img_ix).c_str() );
+    printf( "oct_dfc() class_name=%s image_fn=%s img_ix=%s\n", 
+	    str(class_name).c_str(), str(image_fn).c_str(), str(img_ix).c_str() );
     p_img_t img( new img_t );
-    img->load_fn( impath.c_str() );
+    img->load_fn( image_fn.c_str() );
 
     int parse_ret = 0;
     eval_string("cd /home/moskewcz/svn_work/dpm_fast_cascade/voc-release5", 0, parse_ret);
@@ -81,7 +86,6 @@ namespace boda
     assert_st( !error_state );
     feval("startup" );
     assert_st( !error_state );
-
 
     string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/VOC2007/"+class_name+"_final.mat";
     octave_value_list in;
@@ -107,7 +111,7 @@ namespace boda
     print_field( mod_osm, "interval" );
     assert_st( !error_state );
    
-    in(0) = octave_value( impath );
+    in(0) = octave_value( image_fn );
     in(1) = mod;
     octave_value_list boda_if_ret = feval("boda_if", in, 2 );
     assert_st( !error_state );
@@ -132,4 +136,20 @@ namespace boda
     }
     boost::filesystem::current_path( boost::filesystem::initial_path() );
   }
+
+  struct oct_dfc_t : virtual public nesi, public has_main_t // NESI(help="run dpm fast cascade over a single image file",bases=["has_main_t"], type_id="oct_dfc")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string image_fn; //NESI(help="input: image filename",req=1)
+    string class_name; //NESI(help="name of object class",req=1)
+    uint32_t img_ix; //NESI(default=0,help="internal use only: img_ix to put in results placed in results vector")
+    p_vect_scored_det_t scored_dets; // output, may be null to omit
+
+    virtual void main( void ) {
+      oct_dfc( scored_dets, class_name, image_fn, img_ix );
+    }
+  };
+
+#include"gen/octif.cc.nesi_gen.cc"
+
 }

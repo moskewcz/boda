@@ -5,6 +5,7 @@
 #include<turbojpeg.h>
 #include"lodepng.h"
 #include<boost/iostreams/device/mapped_file.hpp>
+#include"has_main.H"
 
 namespace boda 
 {
@@ -112,5 +113,14 @@ namespace boda
       cur = cur->downsample( 1 << 15 );
     }
   }
+
+  struct ds_test_t : virtual public nesi, public has_main_t // NESI(help="run image downsampling test on a single image file",bases=["has_main_t"], type_id="ds_test")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string image_fn; //NESI(help="input: image filename",req=1)
+    virtual void main( void ) { downsample_test( image_fn ); }
+  };
+  
+#include"gen/img_io.cc.nesi_gen.cc"
 
 };

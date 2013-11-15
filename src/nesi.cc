@@ -520,6 +520,20 @@ namespace boda
   nesi_dump_t * double_nesi_dump = &with_op_left_shift_nesi_dump< double >;
   void *double_init_arg = (void *)"double (double precision floating point number)";
 
+  // uint32_t  
+  init_t * nesi_uint32_t_init = &nesi_lexcast_init< uint32_t >;
+  make_p_t * uint32_t_make_p = &has_def_ctor_make_p< uint32_t >;
+  vect_push_back_t * uint32_t_vect_push_back = &has_def_ctor_vect_push_back_t< uint32_t >;
+  nesi_dump_t * uint32_t_nesi_dump = &with_op_left_shift_nesi_dump< uint32_t >;
+  void *uint32_t_init_arg = (void *)"uint32_t (32-bit unsigned integer)";
+
+  // uint8_t
+  init_t * nesi_uint8_t_init = &nesi_lexcast_init< uint8_t >;
+  make_p_t * uint8_t_make_p = &has_def_ctor_make_p< uint8_t >;
+  vect_push_back_t * uint8_t_vect_push_back = &has_def_ctor_vect_push_back_t< uint8_t >;
+  nesi_dump_t * uint8_t_nesi_dump = &with_op_left_shift_nesi_dump< uint8_t >;
+  void *uint8_t_init_arg = (void *)"uint8_t (8-bit unsigned integer)";
+
 #include"gen/nesi.cc.nesi_gen.cc"
 
 }

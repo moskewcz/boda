@@ -1,6 +1,4 @@
 ** current tasks
--- XML reading lexp
--- port existing UI modules to NESI
 -- NESI testing
 -- timers
 

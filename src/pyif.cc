@@ -8,6 +8,7 @@
 #include<numpy/arrayobject.h>
 #include"pyif.H"
 #include"img_io.H"
+#include"results_io.H"
 
 namespace boda 
 {

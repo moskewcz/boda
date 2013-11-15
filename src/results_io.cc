@@ -251,6 +251,14 @@ namespace boda
     }
   }
 
+  struct read_pascal_image_list_file_t : virtual public nesi, public has_main_t // NESI(help="read a pascal-VOC-format image list file",bases=["has_main_t"], type_id="load_pil")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
+    uint8_t load_imgs; //NESI(default=0,help="if true, load images referenced by the file")
+    virtual void main( void ) { read_pascal_image_list_file( pil_fn, false ); }
+  };
+
   p_img_db_t read_pascal_image_list_file( string const & pil_fn, bool load_imgs )
   {
     p_img_db_t img_db( new img_db_t );
@@ -276,61 +284,38 @@ namespace boda
   }
 
   
-  typedef shared_ptr< vector< shared_ptr< vector< string > > > > p_vect_p_vect_string;
-  typedef vector< shared_ptr< vector< shared_ptr< string > > > > vect_p_vect_p_string;
-  typedef vector< shared_ptr< string > > vect_p_string;
-
-  struct score_results_file_t;
-  typedef shared_ptr< score_results_file_t > p_score_results_file_t;
-  typedef vector< shared_ptr< vector< p_score_results_file_t > > > vect_p_vect_p_score_results_file_t;
 
   struct score_results_file_t : virtual public nesi, public has_main_t // NESI(help="score a pascal-VOC-format results file",bases=["has_main_t"], type_id="score")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
-    string res_fn; //NESI(help="name of pascal-VOC format detection results file",req=1)
+    string pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
+    string res_fn; //NESI(help="input: name of pascal-VOC format detection results file to read",req=1)
     string class_name; //NESI(help="name of object class",req=1)
-    vect_p_string vps; //NESI(help="wrapped type test 0",default="()")
-    p_vect_p_vect_string pvpvs; //NESI(help="wrapped type test 1")
-    vect_p_vect_p_string vpvps; //NESI(help="wrapped type test 2",default="()")
-    vect_p_vect_p_score_results_file_t vpvp_srt; //NESI(help="wrapped type test 3",hide=1)
-    virtual void main( void )
-    {
+    virtual void main( void ) {
       p_img_db_t img_db = read_pascal_image_list_file( pil_fn, false );
       read_results_file( img_db, res_fn, class_name );
       img_db->score_results();
     }
   };
 
-  void foo( void )
+  struct run_dfc_t : virtual public nesi, public has_main_t // NESI(help="run dpm fast cascade over pascal-VOC-format image file list",bases=["has_main_t"], type_id="run_dfc")
   {
-    p_void pv;
-    p_nesi pn;
-    p_score_results_file_t p( new score_results_file_t );
-    pv = p;
-    pn = p;
-    p = dynamic_pointer_cast< score_results_file_t >( pn );
-  }
-
-  void score_results_file( string const & pil_fn, string const & res_fn, string const &class_name )
-  {
-    p_img_db_t img_db = read_pascal_image_list_file( pil_fn, false );
-    read_results_file( img_db, res_fn, class_name );
-    img_db->score_results();
-  }
-
-  void run_dfc( string const & pil_fn, string const & res_fn, string const &class_name )
-  {
-    p_img_db_t img_db = read_pascal_image_list_file( pil_fn, true );
-    p_vect_scored_det_t scored_dets( new vect_scored_det_t );
-    for( uint32_t i = 0; i < img_db->img_infos.size(); ++i )
-    {
-      p_img_info_t img_info = img_db->img_infos[i];
-      oct_dfc( scored_dets, class_name, img_info->full_fn, img_info->ix );
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
+    string res_fn; //NESI(help="output: name of pascal-VOC format detection results file to write",req=1)
+    string class_name; //NESI(help="name of object class",req=1)
+    virtual void main( void ) {
+      p_img_db_t img_db = read_pascal_image_list_file( pil_fn, true );
+      p_vect_scored_det_t scored_dets( new vect_scored_det_t );
+      for( uint32_t i = 0; i < img_db->img_infos.size(); ++i )
+      {
+	p_img_info_t img_info = img_db->img_infos[i];
+	oct_dfc( scored_dets, class_name, img_info->full_fn, img_info->ix );
+      }
+      img_db->scored_dets[class_name] = scored_dets;
+      write_results_file( img_db, res_fn, class_name );
     }
-    img_db->scored_dets[class_name] = scored_dets;
-    write_results_file( img_db, res_fn, class_name );
-  }
+  };
 
   // returns (matched, match_was_difficult). note that difficult is
   // only seems meaningfull when matched=true, although it is
