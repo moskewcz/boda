@@ -1,3 +1,4 @@
+timers.o
 test_nesi.o
 has_main.o
 nesi.o

@@ -5,6 +5,7 @@
 #include"octif.H"
 #include"lexp.H"
 #include"has_main.H"
+#include"timers.H"
 #include<ostream>
 
 namespace boda
@@ -82,6 +83,7 @@ namespace boda
       }
     }
     else { rt_err( "unknown mode '" + mode + "'" ); }
+    global_timer_log_finalize();
     py_finalize();
     return 0;
   }

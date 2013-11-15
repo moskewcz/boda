@@ -6,6 +6,7 @@
 #include"lodepng.h"
 #include<boost/iostreams/device/mapped_file.hpp>
 #include"has_main.H"
+#include"timers.H"
 
 namespace boda 
 {
@@ -103,12 +104,16 @@ namespace boda
 
   void downsample_test( string const & fn )
   {
+    timer_t ds_timer("ds_test");
     p_img_t img( new img_t );
     img->load_fn( fn.c_str() );
     p_img_t cur = img;
     for( uint32_t s = 0; s < 16; ++s )
     {
-      //py_img_show( cur, "out/scale_" + str(s) + ".png" );
+      {
+	timer_t t("py_img_show");
+	py_img_show( cur, "out/scale_" + str(s) + ".png" );
+      }
       if( (cur->w < 2) || (cur->h < 2) ) { break; }
       cur = cur->downsample( 1 << 15 );
     }
