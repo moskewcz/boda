@@ -16,6 +16,20 @@ namespace boda
     return ret;
   }
 
+  // size of return value is always 1 + (count of sep in s)
+  vect_string split( std::string const & s, char const sep ) {
+    vect_string ret;
+    string::const_iterator b = s.begin();
+    for( string::const_iterator i = s.begin(); i != s.end(); ++i) {
+      if( (*i) == sep ) {
+	ret.push_back( string( b, i ) );
+	b = i+1;
+      }
+    }
+    ret.push_back( string( b, s.end() ) );
+    return ret;
+  }
+
   string strprintf( char const * const format, ... )
   {
     va_list ap;

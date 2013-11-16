@@ -34,8 +34,24 @@ namespace boda
     }
     return true;
   }
+  inline bool startswith( std::string const & s, std::string const & pref )
+  {
+    if( s.size() < pref.size() )
+    {
+      return false;
+    }
+    for( size_t i = 0; i < pref.size(); i++ )
+    {
+      if( pref[i] != s[i] )
+      {
+	return false;
+      }
+    }
+    return true;
+  }
 
   std::string join( vect_string const & vs, std::string const & sep );
+  vect_string split( std::string const & s, char const sep );
   
   inline void strip_suffs( std::string & s, std::string const & suff )
   {

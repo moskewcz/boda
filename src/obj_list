@@ -1,3 +1,4 @@
+xml_util.o
 timers.o
 test_nesi.o
 has_main.o

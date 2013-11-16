@@ -9,7 +9,7 @@
 #include<boost/algorithm/string.hpp>
 #include<boost/lexical_cast.hpp>
 #include<boost/filesystem.hpp>
-#include"pugixml.hpp"
+#include"xml_util.H"
 #include"pyif.H"
 #include"img_io.H"
 #include"octif.H"
@@ -108,16 +108,6 @@ namespace boda
   typedef shared_ptr< img_info_t > p_img_info_t;
   typedef map< string, p_img_info_t > id_to_img_info_map_t;
   typedef vector< p_img_info_t > vect_p_img_info_t;
-
-  xml_node xml_must_decend( char const * const fn, xml_node const & node, char const * const child_name )
-  {
-    xml_node ret = node.child(child_name);
-    if( !ret ) { 
-      rt_err( strprintf( "error: parsing xml file: '%s': expected to find child named '%s' from %s",
-			 fn, child_name, (node==node.root()) ? "document root" : 
-			 ("node with name '" + string(node.name()) + "'").c_str() ) ); }
-    return ret;
-  }
 
   void read_pascal_image_for_id( p_img_info_t img_info, path const & pascal_base_path, string const & id )
   {

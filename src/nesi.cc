@@ -248,8 +248,8 @@ namespace boda
     if( ci->tid_str ) { *os += string(ci->tid_str) + ":  "; }
     *os += string(ci->help);
     if( ci->tid_vix != uint32_t_const_max )  {
-      *os += ". subtypes when "+string(ci->vars[ci->tid_vix].vname)+"=mode_name:";
-    } else { *os += ". subtypes:"; }
+      *os += " when "+string(ci->vars[ci->tid_vix].vname)+"=mode_name:";
+    } else { if( *(ci->derived) ) { *os += "; has subtypes:"; } }
     *os += string("\n");
     uint32_t const orig_prefix_sz = prefix.size();
     prefix += "|   ";
@@ -352,13 +352,19 @@ namespace boda
   std::ostream & operator<<(std::ostream & top_ostream, nesi const & v)
   {
     nesi_dump_buf_t ndb;
-    ndb.xn.reset( new xml_elem_t( "root" ) );
     cinfo_t const * ci = v.get_cinfo();
     nesi_struct_nesi_dump( ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &ndb );
-    top_ostream << ndb.os << std::endl << "XML:";
+    return top_ostream << ndb.os;
+  }
+
+  void nesi_dump_xml(std::ostream & top_ostream, nesi const & v, char const * const root_elem_name )
+  {
+    nesi_dump_buf_t ndb;
+    ndb.xn.reset( new xml_elem_t( root_elem_name ) );
+    cinfo_t const * ci = v.get_cinfo();
+    nesi_struct_nesi_dump( ci->tinfo, ci->cast_nesi_to_cname((nesi *)&v), &ndb );
     string prefix;
     ndb.xn->print( top_ostream, prefix );
-    return top_ostream;
   }
 
   cinfo_t const * get_derived_by_tid( cinfo_t const * const pc, char const * tid_str )

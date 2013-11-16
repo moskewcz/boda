@@ -1,7 +1,7 @@
 #include"boda_tu_base.H"
 #include"lexp.H"
 #include"str_util.H"
-#include"pugixml.hpp"
+#include"xml_util.H"
 
 namespace boda {
   using std::string;
@@ -333,19 +333,42 @@ namespace boda {
     return ret;
   }
 
+  p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v ) {
+    p_lexp_t ret( new lexp_t( sstr_t() ) );
+    ret->add_key_val( k, v );
+    return ret;
+  }
+
+  void lexp_t::add_key_val( std::string const & k, std::string const & v ) {
+    lexp_nv_t kid;
+    kid.n.set_from_string( k );
+    try { kid.v = parse_lexp( v ); }
+    catch( rt_exception & rte ) {
+      rte.err_msg = "parsing value '" + k + "': " + rte.err_msg;
+      throw;
+    }
+    kids.push_back( kid );
+  }
+
   p_lexp_t parse_lexp_xml_file( string const & s )
   {
-    ensure_is_regular_file( s );
+    vect_string s_parts = split(s,':');
+    assert_st( !s_parts.empty() );
+    string const & xml_fn = s_parts[0];
+    ensure_is_regular_file( xml_fn );
     xml_document doc;
-    xml_parse_result result = doc.load_file( s.c_str() );
+    xml_parse_result result = doc.load_file( xml_fn.c_str() );
     if( !result ) { 
-      rt_err( strprintf( "loading xml file '%s' failed: %s", s.c_str(), result.description() ) );
+      rt_err( strprintf( "loading xml file '%s' failed: %s", xml_fn.c_str(), result.description() ) );
     }    
-    xml_node root = doc.first_child();
-    assert_st( !root.empty() ); // doc should have a child (the root)
-    assert_st( root.next_sibling().empty() ); // doc should have exactly one root elem
-    p_lexp_t ret = parse_lexp_list_xml( root );
-    printf( "*ret=%s\n", str(*ret).c_str() );
+    xml_node xn = doc.first_child();
+    assert_st( !xn.empty() ); // doc should have a child (the root)
+    assert_st( xn.next_sibling().empty() ); // doc should have exactly one root elem
+    for (vect_string::const_iterator i = s_parts.begin() + 1; i != s_parts.end(); ++i) { // decend path if given
+      xn = xml_must_decend( xml_fn.c_str(), xn, (*i).c_str() );
+    }
+    p_lexp_t ret = parse_lexp_list_xml( xn );
+    //printf( "*ret=%s\n", str(*ret).c_str() );
     return ret;
   }
 

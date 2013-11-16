@@ -20,8 +20,21 @@ namespace boda
   // working example cline:
   // time ../lib/boda score ~/bench/VOCdevkit/VOC2007/ImageSets/Main/bicycle_test.txt ~/research/ffld/build/ffld_VOC2007_bicycle_test_out.txt bicycle
 
-  char const * const boda_help_usage = "boda help '(mode=mode_name[,sub_mode=sub_mode_name])' [field] [sub_field] [sub_sub_field] [...] ";
-  char const * const boda_help_all_note = "(note: use help_all instead of help to show hidden things)";
+  char const * const boda_help_usage = "boda help mode [field] [sub_field] [sub_sub_field] [...] ";
+  char const * const boda_help_all_note = "(notes: use help_all instead of help to show hidden things. use help_all_ex to use a full lexp as the mode if you need on help on deeply polymophic structs)";
+  char const * const boda_xml_usage = "boda xml_command_file.xml[:element][:subelement][:...]";
+
+  void create_and_run_has_main_t( p_lexp_t lexp ) {
+    p_has_main_t has_main;
+    void * pv = nesi_struct_make_p( &tinfo_has_main_t, &has_main, lexp.get() );
+    nesi_struct_init( &tinfo_has_main_t, pv, lexp.get() );
+    // check for unused fields in l
+    vect_string path;
+    lexp_check_unused( lexp.get(), path );
+    //printf( "*has_main=%s\n", str(*has_main).c_str() );
+    //nesi_dump_xml( std::cout, *has_main, "root" );
+    has_main->main();
+  }
 
   int boda_main( int argc, char **argv ) {
     assert_st( argc >= 0 );
@@ -30,22 +43,26 @@ namespace boda
     string prefix; // empty prefix for printing usage
     string out; // output string for printing usage
     if( argc < 2 ) {
-      printf("   usage:   boda '(mode=mode_name,arg1=arg1_val,...)'\n");
+      printf("   usage:   boda mode [--mode-arg=mode_val]*\n");
+      printf("   usage:   %s\n", boda_xml_usage );
       printf("for help:   %s\n%s\n\n", boda_help_usage, boda_help_all_note );
       nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, 0 ); printstr( out );
       return 1;
     }
     std::string const mode = argv[1];
     if(0) { } 
-    else if( mode == "help" || mode == "help_all" ) {
-      bool show_all = (mode == "help_all");
+    // low-level help/testing modes that either cannot rely on NESI
+    // support or where it seem to make little sense to use it
+    else if( mode == "help" || mode == "help_all" || mode == "help_all_ex" ) {
+      bool show_all = startswith( mode, "help_all" );
+      bool help_ex =  endswith( mode, "_ex" );
       if( argc < 3 ) { printf("error: boda help/help_all takes at least 1 argument, but got %s\nfor help:   %s\n%s\n\n",
 			       str(argc-2).c_str(), boda_help_usage, boda_help_all_note);
 	nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, show_all ); printstr( out );
 	return 1;
       } else { 
-	std::string const lexp_str = argv[2];
-	p_lexp_t lexp = parse_lexp( lexp_str );
+	std::string const help_for_mode = argv[2];
+	p_lexp_t lexp = help_ex ? parse_lexp( help_for_mode ) : make_list_lexp_from_one_key_val( "mode", help_for_mode );
 	p_has_main_t has_main;
 	nesi_struct_make_p( &tinfo_has_main_t, &has_main, lexp.get() );
 	vect_string help_args;
@@ -53,24 +70,11 @@ namespace boda
 	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, show_all, &help_args, 0 ); printstr( out );
       }
     }
-    else if( mode == "test_nesi" || mode == "test_nesi_xml" ) {
-      bool const xml = ( mode == "test_nesi_xml" );
-      if( argc != 3 ) { printf("automated tests for nesi\nusage: boda test_nesi arg\n"); }
-      else { 
-	std::string const arg_str = argv[2];
-	p_lexp_t lexp = xml ? parse_lexp_xml_file( arg_str ) : parse_lexp( arg_str );
-	p_has_main_t has_main;
-	void * pv = nesi_struct_make_p( &tinfo_has_main_t, &has_main, lexp.get() );
-	nesi_struct_init( &tinfo_has_main_t, pv, lexp.get() );
-	// check for unused fields in l
-	vect_string path;
-	lexp_check_unused( lexp.get(), path );
-	printf( "*has_main=%s\n", str(*has_main).c_str() );
-	has_main->main();
-
-      }
+    else if( mode == "xml" ) {
+      if( argc != 3 ) { printf("run command from xml file\nusage: %s\n", boda_xml_usage); }
+      else { create_and_run_has_main_t( parse_lexp_xml_file( argv[2] ) ); }
     }
-    else if( mode == "test_lexp" ) {
+    else if( mode == "test_lexp" ) { // FIXME: move somewhere better?
       if( argc != 2 ) { printf("automated tests for lexp\nusage: boda test_lexp\n"); }
       else { test_lexp(); }
     }
@@ -81,8 +85,47 @@ namespace boda
 	p_lexp_t lexp = parse_lexp( lexp_str );
 	printf( "*lexp=%s\n", str(*lexp).c_str() );
       }
+    // otherwise, in the common/main case, treat first arg as mode for has_main_t, with remaining
+    // args uses as fields in cli-syntax: each arg must start with '--' (which is ignored), and
+    // names a field (with "-"->"_"). '=' can used to split key from value in single arg, otherwise
+    // the next arg is consumed as its value.
+    } else {    
+      p_lexp_t lexp = make_list_lexp_from_one_key_val( "mode", mode );
+      assert_st( lexp->kids.size() == 1 ); // should just be mode
+      if( !lexp->kids[0].v->leaf_val.exists() ) {
+	rt_err( "specified mode name '"+mode+"' parses as a list, and it must not be a list." );
+      }
+      for( int32_t ai = 2; ai != argc; ++ai ) {
+	string arg( argv[ai] );
+	if( !startswith( arg, "--" ) ) { rt_err( strprintf("expected option, but argument '%s' does not start with '--'",
+							   arg.c_str() ) ); }
+	string key;
+	string val;
+	bool key_had_eq = 0;
+	for (string::const_iterator i = arg.begin() + 2; i != arg.end(); ++i) {
+	  if( (*i) == '=' ) { 
+	    if( (i+1) == arg.end() ) { printf( "warning empty/missing value after '=' in option '%s'\n", arg.c_str() ); }
+	    val = string( i+1, string::const_iterator( arg.end() ) ); 
+	    key_had_eq = 1;
+	    break; 
+	  }
+	  key.push_back( ((*i)=='-')? '_' : (*i) );
+	}
+	if( !key_had_eq ) {
+	  if( (ai + 1) == argc ) { rt_err( strprintf("missing value for option '%s': no '=' present, and no more args",
+						     arg.c_str() ) ); }
+	  val = string( argv[ai+1] );
+	  ++ai;
+	  if( startswith( val, "--" ) ) { 
+	    printf("warning: option '%s's value '%s' starts with '--', did you forget a value?\n", 
+		   arg.c_str(), val.c_str() );
+	  }
+	  if( val.empty() ) { printf("warning: option '%s's value '' is empty.\n", arg.c_str() ); }
+	}
+	lexp->add_key_val( key, val ); 
+      }
+      create_and_run_has_main_t( lexp );
     }
-    else { rt_err( "unknown mode '" + mode + "'" ); }
     global_timer_log_finalize();
     py_finalize();
     return 0;

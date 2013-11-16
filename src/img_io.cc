@@ -110,7 +110,7 @@ namespace boda
     p_img_t cur = img;
     for( uint32_t s = 0; s < 16; ++s )
     {
-      {
+      if( 0 ) {
 	timer_t t("py_img_show");
 	py_img_show( cur, "out/scale_" + str(s) + ".png" );
       }

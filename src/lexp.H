@@ -52,11 +52,14 @@ namespace boda {
     uint32_t use_cnt; // scratch integer for client validation usage. after use, nodes with use_cn=0 generate errors.
     lexp_t( sstr_t const & src_ ) : src(src_), use_cnt(0) { }
     void get_stats( lexp_stats_t & lex_stats );
+    void add_key_val( std::string const & k, std::string const & v );
   };
   std::ostream & operator<<(std::ostream & os, lexp_t const & v);
 
   p_lexp_t parse_lexp( std::string const & s );
   p_lexp_t parse_lexp_xml_file( std::string const & s );
+  p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v );
+
   void test_lexp( void );
   void lexp_check_unused( lexp_t * l, vect_string & path );
 

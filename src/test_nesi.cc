@@ -30,7 +30,7 @@ namespace boda
     one_p_string_t ops; //NESI()
 
     virtual void main( void ) {
-      printf("tototo\n");
+      printf("vst::main()\n");
     }
   };
 
@@ -49,6 +49,15 @@ namespace boda
   struct sub_sub_vst_2_t : public virtual nesi, public various_stuff_t // NESI(help="sub type of vst", bases=["sub_vst_2_t"], type_id="sub_sub_vst_2")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+  };
+
+
+  struct nesi_test_t : public virtual nesi // NESI(help="nesi test case")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string name; //NESI(help="name of test",req=1)
+    string input; //NESI(help="input",req=1)
+
   };
 
 
