@@ -1,9 +1,10 @@
 ** current tasks
+-- testing framework
 -- NESI testing
--- timers
 
 ** features not scheduled for impl yet:
 ? binary IO for lexp/nesi (for files/network) -- just use ascii for now?
 ? equality comparison?
 ? lexp->XML output (*without* going though some NESI object)
 ? NESI->p_lexp output (*without* going though lexp-format text or XML)
+? NESI map type support
