@@ -19,3 +19,12 @@ def img_show( pels, save_as_filename ):
     else:
         plt.show()
 
+
+def show_dets( pels, dets ):
+    plt.clf()
+    plt.imshow( pels, interpolation="nearest" )
+    gca = plt.gca()
+    #print dets
+    for x1,y1,x2,y2 in dets:
+        gca.add_patch(plt.Rectangle((x1,y1),x2-x1 ,y2-y1, ec="red",fill=0))
+    plt.show()

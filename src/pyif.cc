@@ -125,7 +125,7 @@ namespace boda
     printf("Result of call: %ld\n", PyInt_AsLong(ret.get()));
   }
 
-  void py_img_show( p_img_t img, string const & save_as_filename )
+  ppyo img_to_py( p_img_t img )
   {
     npy_intp dims[3] = {img->h,img->w,img->depth};
 #if 0 // for reference, if we wanted to copy into a newly allocated numpy array
@@ -140,9 +140,25 @@ namespace boda
 #else
     npy_intp strides[3] = {img->row_pitch,img->depth,1}; 
     // FIXME: untracked reference to img->pels() taken here, so img must outlive npa. fixable? hold npa in img?
-    ppyo npa( PyArray_New( &PyArray_Type, 3, dims, NPY_UINT8, strides, img->pels.get(), 0, 0, 0 ) );
+    return ppyo( PyArray_New( &PyArray_Type, 3, dims, NPY_UINT8, strides, img->pels.get(), 0, 0, 0 ) );
 #endif
-    bplot_call( "img_show", npa, ppyo(PyString_FromString(save_as_filename.c_str())) );
+  }
+
+  void py_img_show( p_img_t img, string const & save_as_filename )
+  {
+    bplot_call( "img_show", img_to_py( img ), ppyo(PyString_FromString(save_as_filename.c_str())) );
+  }
+
+  void show_dets( p_img_t img, p_vect_scored_det_t scored_dets )
+  {
+    npy_intp dims[2] = {scored_dets->size(),4};
+    ppyo npa( PyArray_SimpleNew( 2, dims, NPY_UINT32) );
+    for( vect_scored_det_t::const_iterator i = scored_dets->begin(); i != scored_dets->end(); ++i ) {
+      for( uint32_t d = 0; d < 4; ++d ) {
+	*((uint32_t *)PyArray_GETPTR2( npa.get(), i-scored_dets->begin(), d )) = i->p[d>>1].d[d&1];
+      }
+    }
+    bplot_call( "show_dets", img_to_py(img), npa );
   }
 
 }

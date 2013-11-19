@@ -29,6 +29,7 @@ namespace boda
 
   void oct_init( void )
   {
+    boost::filesystem::initial_path(); // capture initial path if not already done (see boost docs)
     string_vector argv (2);
     argv(0) = "embedded";
     argv(1) = "-q";
@@ -70,6 +71,24 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     virtual void main( void ) { oct_test(); }
   };
+
+  void bs_matrix_to_dets( Matrix & det_boxes, uint32_t const img_ix, p_vect_scored_det_t scored_dets )
+  {
+    for( octave_idx_type i = 0; i < det_boxes.dim1(); ++i ) {
+      assert( det_boxes.dim2() >= 5 ); // should have at least 4 columns to form detection bbox + 1 for score
+      scored_det_t det;
+      det.img_ix = img_ix;
+      for( uint32_t p = 0; p < 2; ++p ) { // upper/lower
+	for( uint32_t d = 0; d < 2; ++d ) { // x/y
+	  det.p[p].d[d] = det_boxes(i,(p*2)+d);
+	}
+      }
+      det.score = det_boxes(i,det_boxes.dim2()-1);
+      det.from_pascal_coord_adjust();
+      //printf( "det=%s\n", str(det).c_str() );
+      if(scored_dets) { scored_dets->push_back( det ); }
+    }
+  }
 
   void oct_dfc( p_vect_scored_det_t scored_dets, 
 		string const & class_name, string const & image_fn, uint32_t const img_ix ) {
@@ -120,20 +139,7 @@ namespace boda
     // unclear if this will always work and/or how to error check, since there are many 'matrix' types ...
     Matrix det_boxes = boda_if_ret(0).matrix_value(); 
     assert_st( !error_state );
-    for( octave_idx_type i = 0; i < det_boxes.dim1(); ++i ) {
-      assert( det_boxes.dim2() >= 5 ); // should have at least 4 columns to form detection bbox + 1 for score
-      scored_det_t det;
-      det.img_ix = img_ix;
-      for( uint32_t p = 0; p < 2; ++p ) { // upper/lower
-	for( uint32_t d = 0; d < 2; ++d ) { // x/y
-	  det.p[p].d[d] = det_boxes(i,(p*2)+d);
-	}
-      }
-      det.score = det_boxes(i,det_boxes.dim2()-1);
-      det.from_pascal_coord_adjust();
-      printf( "det=%s\n", str(det).c_str() );
-      if(scored_dets) { scored_dets->push_back( det ); }
-    }
+    bs_matrix_to_dets( det_boxes, img_ix, scored_dets );
     boost::filesystem::current_path( boost::filesystem::initial_path() );
   }
 
@@ -149,6 +155,50 @@ namespace boda
       oct_dfc( scored_dets, class_name, image_fn, img_ix );
     }
   };
+
+  // example command lines: FIXME: fold iteration / filename generation into this class?
+  // for cn in `cat ../../test/pascal_classes.txt`; do ../../lib/boda score --pil-fn=/home/moskewcz/bench/VOCdevkit/VOC2007/ImageSets/Main/${cn}_test.txt --res-fn=${cn}_hamming.txt --class-name=${cn}; done
+  // for cn in `cat ../test/pascal_classes.txt`; do ../lib/boda mat_bs_to_pascal --mat-bs-fn=/home/moskewcz/bench/hamming/hamming_toplevel_bboxes_pascal2007/${cn}_boxes_test__hamming.mat --res-fn=${cn}_hamming.txt --class-name=${cn} --pil-fn=/home/moskewcz/bench/VOCdevkit/VOC2007/ImageSets/Main/${cn}_test.txt ; done
+
+  struct convert_matlab_res_t : virtual public nesi, public has_main_t // NESI(help="convert matlab 'ds' results to pascal format",bases=["has_main_t"], type_id="mat_bs_to_pascal")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string mat_bs_fn; //NESI(help="input: name of matlab file with ds var with results",req=1)
+    string class_name; //NESI(help="name of object class",req=1)
+    string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
+    string res_fn; //NESI(help="input: name of pascal-VOC format detection results file to write",req=1)
+    virtual void main( void ) {
+      
+      p_img_db_t img_db = read_pascal_image_list_file( pil_fn, 0 );
+
+      p_vect_scored_det_t scored_dets( new vect_scored_det_t );
+      octave_value_list in;
+      in(0) = octave_value( mat_bs_fn );
+      octave_value_list load_out = feval ("load", in, 1);
+      assert_st( !error_state && (load_out.length() > 0) );
+      octave_scalar_map osm = load_out(0).scalar_map_value();
+      assert_st( !error_state );
+      Cell ds = osm.contents("ds").cell_value();
+      assert_st( !error_state );
+
+      //printf( "ds.dim2()=%s ds.columns()=%s\n", str(ds.dim2()).c_str(), str(ds.columns()).c_str() );
+      for( octave_idx_type i = 0; i < ds.dim2(); ++i ) {
+	octave_value det_boxes_val = ds(i);
+	assert_st( !error_state && det_boxes_val.is_defined() );
+	if( det_boxes_val.is_matrix_type() ) {
+	  Matrix det_boxes = det_boxes_val.matrix_value();
+	  bs_matrix_to_dets( det_boxes, i, scored_dets );
+	}
+	//img_db_show_dets( img_db, scored_dets, i );
+	//scored_dets->clear();
+	//break;
+      }
+      img_db_set_results( img_db, class_name, scored_dets );
+
+      write_results_file( img_db, res_fn, class_name );
+    }
+  };
+
 
 #include"gen/octif.cc.nesi_gen.cc"
 

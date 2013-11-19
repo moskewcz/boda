@@ -109,11 +109,11 @@ namespace boda
   typedef map< string, p_img_info_t > id_to_img_info_map_t;
   typedef vector< p_img_info_t > vect_p_img_info_t;
 
-  void read_pascal_image_for_id( p_img_info_t img_info, path const & pascal_base_path, string const & id )
+  void read_pascal_image_for_id( p_img_info_t img_info, path const & pascal_base_path )
   {
     path const img_dir = pascal_base_path / "JPEGImages";
     ensure_is_dir( img_dir );
-    img_info->full_fn = string( (img_dir / (id + ".jpg")).c_str() );
+    img_info->full_fn = string( (img_dir / (img_info->id + ".jpg")).c_str() );
     img_info->img.reset( new img_t );
     img_info->img->load_fn( img_info->full_fn.c_str() );
   }
@@ -178,7 +178,7 @@ namespace boda
       if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
       img_info.reset( new img_info_t( img_id ) );
       read_pascal_annotations_for_id( img_info, pascal_base_path, img_id ); 
-      if( load_img ) { read_pascal_image_for_id( img_info, pascal_base_path, img_id ); }
+      if( load_img ) { read_pascal_image_for_id( img_info, pascal_base_path ); }
 
       img_info->ix = img_infos.size();
       img_infos.push_back( img_info );
@@ -203,6 +203,19 @@ namespace boda
     void score_results( void );
   };
   typedef shared_ptr< img_db_t > p_img_db_t;
+
+  void img_db_set_results( p_img_db_t img_db, string const &class_name, p_vect_scored_det_t scored_dets )
+  {
+    img_db->scored_dets[class_name] = scored_dets;
+  }
+
+  void img_db_show_dets( p_img_db_t img_db, p_vect_scored_det_t scored_dets, uint32_t img_ix )
+  {
+    assert_st( img_ix < img_db->img_infos.size() );
+    p_img_info_t img_info = img_db->img_infos[img_ix];
+    if( !img_info->img ) { read_pascal_image_for_id( img_info, img_db->pascal_base_path ); }
+    show_dets( img_info->img, scored_dets );
+  }
 
   void read_results_file( p_img_db_t img_db, string const & fn, string const &class_name )
   {
@@ -272,9 +285,7 @@ namespace boda
     }
     return img_db;
   }
-
   
-
   struct score_results_file_t : virtual public nesi, public has_main_t // NESI(help="score a pascal-VOC-format results file",bases=["has_main_t"], type_id="score")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
