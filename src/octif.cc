@@ -165,8 +165,8 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string mat_bs_fn; //NESI(help="input: name of matlab file with ds var with results",req=1)
     string class_name; //NESI(help="name of object class",req=1)
-    string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
-    string res_fn; //NESI(help="input: name of pascal-VOC format detection results file to write",req=1)
+    string pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
+    string res_fn; //NESI(help="output: name of pascal-VOC format detection results file to write",req=1)
     virtual void main( void ) {
       
       p_img_db_t img_db = read_pascal_image_list_file( pil_fn, 0 );
