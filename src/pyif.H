@@ -18,6 +18,8 @@ namespace boda
   typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
 
   void show_dets( p_img_t img, p_vect_scored_det_t scored_dets );
+  std::string const & py_boda_dir( void );
+  std::string const & py_boda_test_dir( void );
 
 }
 

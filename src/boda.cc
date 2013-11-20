@@ -24,18 +24,6 @@ namespace boda
   char const * const boda_help_all_note = "(notes: use help_all instead of help to show hidden things. use help_all_ex to use a full lexp as the mode if you need on help on deeply polymophic structs)";
   char const * const boda_xml_usage = "boda xml_command_file.xml[:element][:subelement][:...]";
 
-  void create_and_run_has_main_t( p_lexp_t lexp ) {
-    p_has_main_t has_main;
-    void * pv = nesi_struct_make_p( &tinfo_has_main_t, &has_main, lexp.get() );
-    nesi_struct_init( &tinfo_has_main_t, pv, lexp.get() );
-    // check for unused fields in l
-    vect_string path;
-    lexp_check_unused( lexp.get(), path );
-    //printf( "*has_main=%s\n", str(*has_main).c_str() );
-    //nesi_dump_xml( std::cout, *has_main, "root" );
-    has_main->main();
-  }
-
   int boda_main( int argc, char **argv ) {
     assert_st( argc >= 0 );
     py_init( argv[0] );
@@ -73,18 +61,6 @@ namespace boda
     else if( mode == "xml" ) {
       if( argc != 3 ) { printf("run command from xml file\nusage: %s\n", boda_xml_usage); }
       else { create_and_run_has_main_t( parse_lexp_xml_file( argv[2] ) ); }
-    }
-    else if( mode == "test_lexp" ) { // FIXME: move somewhere better?
-      if( argc != 2 ) { printf("automated tests for lexp\nusage: boda test_lexp\n"); }
-      else { test_lexp(); }
-    }
-    else if( mode == "lexp" ) {
-      if( argc != 3 ) { printf("test lexp parsing\nusage: boda lexp LEXP_STR\n"); }
-      else {
-	std::string const lexp_str = argv[2];
-	p_lexp_t lexp = parse_lexp( lexp_str );
-	printf( "*lexp=%s\n", str(*lexp).c_str() );
-      }
     // otherwise, in the common/main case, treat first arg as mode for has_main_t, with remaining
     // args uses as fields in cli-syntax: each arg must start with '--' (which is ignored), and
     // names a field (with "-"->"_"). '=' can used to split key from value in single arg, otherwise

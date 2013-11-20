@@ -4,6 +4,7 @@
 #include"pugixml.hpp"
 
 namespace boda {
+  pugi::xml_node xml_file_get_root( pugi::xml_document & doc, std::string const & xml_fn );
   pugi::xml_node xml_must_decend( char const * const fn, pugi::xml_node const & node, char const * const child_name );
 }
 

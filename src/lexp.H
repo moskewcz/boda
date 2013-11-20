@@ -3,6 +3,8 @@
 
 #include"boda_base.H"
 
+namespace pugi { struct xml_node; }
+
 namespace boda {
 
 // sub-string pointer type with begin/end. references portion of larger shared string. uses p_uint8_t for base storage.
@@ -58,6 +60,7 @@ namespace boda {
 
   p_lexp_t parse_lexp( std::string const & s );
   p_lexp_t parse_lexp_xml_file( std::string const & s );
+  p_lexp_t parse_lexp_list_xml( pugi::xml_node const & xn );
   p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v );
 
   void test_lexp( void );

@@ -6,6 +6,19 @@ namespace boda {
   using namespace pugi;
   using namespace std;
 
+  xml_node xml_file_get_root( xml_document & doc, string const & xml_fn ) {
+    ensure_is_regular_file( xml_fn );
+    xml_parse_result result = doc.load_file( xml_fn.c_str() );
+    if( !result ) { 
+      rt_err( strprintf( "loading xml file '%s' failed: %s", xml_fn.c_str(), result.description() ) );
+    }    
+    xml_node xn = doc.first_child();
+    assert_st( !xn.empty() ); // doc should have a child (the root)
+    assert_st( xn.next_sibling().empty() ); // doc should have exactly one root elem
+    return xn;
+  }
+
+
   xml_node xml_must_decend( char const * const fn, xml_node const & node, char const * const child_name )
   {
     xml_node ret = node.child(child_name);

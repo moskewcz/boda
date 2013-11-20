@@ -49,6 +49,11 @@ namespace boda
   };
   typedef vector< ppyo > vect_ppyo;
 
+  static string py_boda_dir_static;
+  static string py_boda_test_dir_static;
+  string const & py_boda_dir( void ) { return py_boda_dir_static; }
+  string const & py_boda_test_dir( void ) { return py_boda_test_dir_static; }
+
   void py_init( char const * const prog_name )
   {
     Py_SetProgramName((char *)prog_name);
@@ -56,11 +61,17 @@ namespace boda
     ppyo main_mod( PyImport_AddModule( "__main__" ), 1 );
     ppyo main_dict( PyModule_GetDict( main_mod.get() ), 1 );
     ppyo ret( PyRun_String("import sys,os.path;"
-			   " sys.path.append(os.path.join(os.path.split("
-			   "os.readlink('/proc/self/exe'))[0],'..','pysrc'))",
+			   "boda_dir = os.path.join(os.path.split(os.readlink('/proc/self/exe'))[0],'..');"
+			   "boda_test_dir = os.path.join(boda_dir,'test');"
+			   " sys.path.append(os.path.join(boda_dir,'pysrc'));",
 			   Py_file_input, main_dict.get(), main_dict.get() ) );
     if( _import_array() < 0 ) { rt_err( "failed to import numpy" ); }
+    ppyo boda_dir( PyMapping_GetItemString( main_dict.get(), (char *)"boda_dir" ) );
+    py_boda_dir_static = string( PyString_AsString( boda_dir.get() ) );
+    ppyo boda_test_dir( PyMapping_GetItemString( main_dict.get(), (char *)"boda_test_dir" ) );
+    py_boda_test_dir_static = string( PyString_AsString( boda_test_dir.get() ) );
   }
+
 
   void py_finalize( void )
   {

@@ -2,6 +2,7 @@
 #include"lexp.H"
 #include"str_util.H"
 #include"xml_util.H"
+#include"has_main.H"
 
 namespace boda {
   using std::string;
@@ -355,15 +356,8 @@ namespace boda {
     vect_string s_parts = split(s,':');
     assert_st( !s_parts.empty() );
     string const & xml_fn = s_parts[0];
-    ensure_is_regular_file( xml_fn );
     xml_document doc;
-    xml_parse_result result = doc.load_file( xml_fn.c_str() );
-    if( !result ) { 
-      rt_err( strprintf( "loading xml file '%s' failed: %s", xml_fn.c_str(), result.description() ) );
-    }    
-    xml_node xn = doc.first_child();
-    assert_st( !xn.empty() ); // doc should have a child (the root)
-    assert_st( xn.next_sibling().empty() ); // doc should have exactly one root elem
+    xml_node xn = xml_file_get_root( doc, xml_fn );
     for (vect_string::const_iterator i = s_parts.begin() + 1; i != s_parts.end(); ++i) { // decend path if given
       xn = xml_must_decend( xml_fn.c_str(), xn, (*i).c_str() );
     }
@@ -411,8 +405,20 @@ namespace boda {
     { "off_leaf_4_nested_esc_lp", "", "(biz=bar=foo\\()", 0, 0, {1,1,1} },
   };
 
-  struct lexp_test_run_t
+#if 0
+    else if( mode == "lexp" ) {
+      if( argc != 3 ) { printf("test lexp parsing\nusage: boda lexp LEXP_STR\n"); }
+      else {
+	std::string const lexp_str = argv[2];
+	p_lexp_t lexp = parse_lexp( lexp_str );
+	printf( "*lexp=%s\n", str(*lexp).c_str() );
+      }
+#endif
+
+  struct lexp_test_run_t : public virtual nesi, public has_main_t // NESI(help="low-level lexp tests. doesn't really need NESI to be run; use test_lexp() global func if needed", bases=["has_main_t"], type_id="test_lexp" )
   {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
     uint32_t tix;
     uint32_t num_fail;
 
@@ -480,12 +486,15 @@ namespace boda {
 	}
       }
     }
-    void test( void ) {
+    void main( void ) {
       num_fail = 0;
       for( tix = 0; tix < ( sizeof( lexp_tests ) / sizeof( lexp_test_t ) ); ++tix ) { test_lexp_run(); }
       if( num_fail ) { printf( "test_lexp num_fail=%s\n", str(num_fail).c_str() ); }
     }
   };
-  void test_lexp( void ) { lexp_test_run_t().test(); }
+  // if NESI is borked, and lexp is to blame, you could run the lexp tests with this function
+  void test_lexp( void ) { lexp_test_run_t().main(); } 
+
+#include"gen/lexp.cc.nesi_gen.cc"
 
 }

@@ -1,8 +1,15 @@
 #include"boda_tu_base.H"
 #include"has_main.H"
+#include"pyif.H"
+#include"str_util.H"
+#include"xml_util.H"
+#include"lexp.H"
 
 namespace boda 
 {
+  using pugi::xml_node;
+  using pugi::xml_document;
+
   struct various_stuff_t;
   typedef shared_ptr< various_stuff_t > p_various_stuff_t;
   typedef vector< p_various_stuff_t > vect_p_various_stuff_t;
@@ -59,6 +66,33 @@ namespace boda
     string input; //NESI(help="input",req=1)
 
   };
+
+  string tp_if_rel( string const & fn ) {
+    assert_st( !fn.empty() );
+    if( fn[0] == '/' ) { return fn; }
+    return py_boda_test_dir() + "/" + fn;
+  }
+
+  struct test_modes_t : public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_modes" )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string xml_fn; //NESI(default="modes_tests.xml",help="xml file containing list of tests. relative paths will be prefixed with the boda test dir.")
+    string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
+    uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
+    virtual void main( void ) {
+      string const full_xml_fn = tp_if_rel(xml_fn);
+      xml_document doc;
+      xml_node xn = xml_file_get_root( doc, full_xml_fn );
+      for( xml_node xn_i: xn.children() ) { // child elements become list values
+	if( 1 ) { // FIXME: should be filt.search( xn_i.name() )
+	  p_lexp_t test_lexp = parse_lexp_list_xml( xn_i );
+	  if( verbose ) { printf( "*test_lexp=%s\n", str(*test_lexp).c_str() ); }
+	  create_and_run_has_main_t( test_lexp );
+	}
+      }
+    }
+  };
+
 
 
 #include"gen/test_nesi.cc.nesi_gen.cc"

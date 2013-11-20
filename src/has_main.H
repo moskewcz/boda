@@ -14,6 +14,11 @@ namespace boda
   };
   typedef shared_ptr< has_main_t > p_has_main_t;
 
+  struct lexp_t;
+  typedef shared_ptr< lexp_t > p_lexp_t;
+  
+  void create_and_run_has_main_t( p_lexp_t lexp );
+
 }
 
 #endif /* _HAS_MAIN_H_ */

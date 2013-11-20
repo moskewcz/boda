@@ -258,7 +258,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
-    uint8_t load_imgs; //NESI(default=0,help="if true, load images referenced by the file")
+    uint32_t load_imgs; //NESI(default=0,help="if true, load images referenced by the file")
     virtual void main( void ) { read_pascal_image_list_file( pil_fn, false ); }
   };
 
