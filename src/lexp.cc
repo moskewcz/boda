@@ -49,19 +49,25 @@ namespace boda {
     return os << strprintf( "num_leaf=%s num_list=%s num_kids=%s", str(v.num_leaf).c_str(), str(v.num_list).c_str(), str(v.num_kids).c_str() );
   }
 
-
-  void lexp_nv_t::get_stats( lexp_stats_t & lex_stats ) {
-    ++lex_stats.num_kids;
-    v->get_stats( lex_stats );
-  }
   void lexp_t::get_stats( lexp_stats_t & lex_stats ) {
     if( leaf_val.exists() ) { ++lex_stats.num_leaf; assert_st( kids.empty() ); }
     else { 
       ++lex_stats.num_list;
       for( vect_lexp_nv_t::iterator i = kids.begin(); i != kids.end(); ++i ) {
-	i->get_stats( lex_stats );
+	++lex_stats.num_kids;
+	i->v->get_stats( lex_stats );
       }
     }
+  }
+  void lexp_t::deep_inc_use_cnt( void ) {
+    ++use_cnt;
+    for( vect_lexp_nv_t::iterator i = kids.begin(); i != kids.end(); ++i ) {
+      i->v->deep_inc_use_cnt();
+    }
+  }
+
+  void lexp_t::add_all_kids_from( p_lexp_t lexp ) {
+    kids.insert( kids.end(), lexp->kids.begin(), lexp->kids.end() );
   }
 
   void lexp_check_unused( lexp_t * l, vect_string & path )
@@ -74,6 +80,23 @@ namespace boda {
     }
   }
 
+  void lexp_name_val_map_t::populate_from_lexp( lexp_t * const l ) {
+    if( l->leaf_val.exists() ) {
+      rt_err( "invalid attempt to use string as name/value list. string was:" + str(*l) );
+    }
+    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
+      bool const did_ins = nvm.insert( std::make_pair( i->n, i->v ) ).second;
+      if( !did_ins ) { rt_err( "invalid duplicate name '"+i->n.str()+"' in name/value list" ); }
+    }
+  }
+  p_lexp_t lexp_name_val_map_t::find( char const * n ) {
+    sstr_t ss_vname;
+    ss_vname.borrow_from_string( n );
+    std::map< sstr_t, p_lexp_t >::const_iterator nvmi = nvm.find( ss_vname );
+    if( nvmi != nvm.end() ) { return nvmi->second; } // if found at this scope, return value ...
+    if( parent ) { return parent->find(n); } // ... otherwise, try parent scope if it exists ...
+    return p_lexp_t(); // ... otherwise return not found.
+  }
   // for testing/debugging, re-create the exact 'basic' format input
   // string from the tree of name/value lists. note: we sort-of assume
   // the tree was built from a single string here (and thus that .src

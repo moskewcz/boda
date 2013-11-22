@@ -18,7 +18,7 @@ using std::string;
 namespace boda 
 {
   void nesi_init_and_check_unused_from_lexp( tinfo_t const * ti, void * o, p_lexp_t lexp ) {
-    ti->init( ti, o, lexp.get() );
+    ti->init( 0, ti, o, lexp.get() );
     // check for unused fields in lexp
     vect_string path;
     lexp_check_unused( lexp.get(), path );
@@ -132,12 +132,12 @@ namespace boda
   typedef shared_ptr< vect_char > p_vect_char;
   typedef vector< p_void > vect_p_void;
 
-  void p_init( tinfo_t const * tinfo, void * o, void * d )
+  void p_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
   {
     if( !d ) { return; } // no_value_init --> null pointer
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
     void * v = pt->make_p( pt, o, d );
-    pt->init( pt, v, d );
+    pt->init( nia, pt, v, d );
   }
   bool p_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
     if( !bool( *((p_void *)( o )) ) ) { return 1;}
@@ -151,7 +151,7 @@ namespace boda
     return pt->nesi_help( pt, fo, os, show_all, help_args, help_ix ); // as per above, fo may be null
   }
 
-  void vect_init( tinfo_t const * tinfo, void * o, void * d )
+  void vect_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
   {
     if( !d ) { return; } // no_value_init --> empty vector
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
@@ -163,7 +163,7 @@ namespace boda
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
       void * rpv = pt->vect_push_back( o );
       // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
-      try { pt->init( pt, rpv, i->v.get() ); }
+      try { pt->init( nia, pt, rpv, i->v.get() ); }
       catch( rt_exception & rte ) {
 	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
 	throw;
@@ -189,6 +189,10 @@ namespace boda
     ndb->end_list();
     return nf.at_default;
   }
+
+  //  note: we could use a help arg here as a list index. this seems
+  //  slightly more correct and complete, but also not to useful and
+  //  confusing. hmm.
   void vect_nesi_help( tinfo_t const * tinfo, void * o, void * os, 
 		    bool const show_all, void * help_args, uint32_t help_ix ) {
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
@@ -200,29 +204,14 @@ namespace boda
     return pt->nesi_help( pt, fo, os, show_all, help_args, help_ix ); // note: as per above, fo may be null
   }
 
-  void populate_nvm_from_lexp( lexp_t * const l, lexp_name_val_map_t & nvm )
-  {
-    if( l->leaf_val.exists() ) {
-      rt_err( "invalid attempt to use string as name/value list. string was:" + str(*l) );
-    }
-    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
-      bool const did_ins = nvm.insert( std::make_pair( i->n, i->v ) ).second;
-      if( !did_ins ) { rt_err( "invalid duplicate name '"+i->n.str()+"' in name/value list" ); }
-    }
-  }
-
-  void init_var_from_nvm( lexp_name_val_map_t & nvm, vinfo_t const * const vi, void * rpv )
+  void init_var_from_nvm( nesi_init_arg_t * nia, vinfo_t const * const vi, void * rpv )
   {
     tinfo_t * const pt = vi->tinfo;
-    sstr_t ss_vname;
-    ss_vname.borrow_from_string( vi->vname );
-    lexp_name_val_map_t::const_iterator nvmi = nvm.find( ss_vname );
-    p_lexp_t di;
-    if( nvmi != nvm.end() ) { di = nvmi->second; }
+    p_lexp_t di = nia->find( vi->vname );
     if( !di && vi->default_val ) { di = parse_lexp( vi->default_val ); }
     if( !di && vi->req ) { rt_err( strprintf( "missing required value for var '%s'", vi->vname ) ); } 
     if( !di ) { assert_st( pt->no_init_okay ); } // nesi_gen.py should have checked to prevent this
-    try { pt->init( pt, rpv, di.get() ); } // note: di.get() may be null, yielding type-specific no-value init 
+    try { pt->init( nia, pt, rpv, di.get() ); } // note: di.get() may be null, yielding type-specific no-value init 
     catch( rt_exception & rte ) {
       rte.err_msg = "var '" + str(vi->vname) + "': " + rte.err_msg;
       throw;
@@ -243,27 +232,28 @@ namespace boda
   }
 
   // assumes o is a (`vc->cname` *)
-  void nesi_struct_init_rec( cinfo_t const * ci, void * o, lexp_name_val_map_t & nvm ) 
+  void nesi_struct_init_rec( nesi_init_arg_t * nia, cinfo_t const * ci, void * o ) 
   {
     for( cinfo_t const * const * bci = ci->bases; *bci; ++bci ) { // handle bases
-      nesi_struct_init_rec( *bci, (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ), nvm );
+      nesi_struct_init_rec( nia, *bci, (*bci)->cast_nesi_to_cname( ci->cast_cname_to_nesi( o ) ) );
     }
     for( uint32_t i = 0; ci->vars[i].exists(); ++i ) {
-      init_var_from_nvm( nvm, &ci->vars[i], ci->get_field( o, i ) );
+      init_var_from_nvm( nia, &ci->vars[i], ci->get_field( o, i ) );
     }    
   }
 
-  void nesi_struct_init( tinfo_t const * tinfo, void * o, void * d )
+  void nesi_struct_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
   {
     lexp_name_val_map_t nvm;
+    nvm.parent = nia;
     lexp_t * l = (lexp_t *)d;
     if( l ) { // no_value_init has same semantics as empty list init
       ++l->use_cnt;
-      populate_nvm_from_lexp( l, nvm );
+      nvm.populate_from_lexp( l );
     }
     cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
     make_most_derived( ci, o );
-    nesi_struct_init_rec( ci, o, nvm );
+    nesi_struct_init_rec( &nvm, ci, o );
   }
 
 
@@ -407,7 +397,7 @@ namespace boda
     return 0;
   }
 
-  void nesi_struct_make_p_rec( p_nesi * pn, cinfo_t const * ci, lexp_name_val_map_t & nvm )
+  void nesi_struct_make_p_rec( nesi_init_arg_t * nia, p_nesi * pn, cinfo_t const * ci )
   {
     while( ci->tid_vix != uint32_t_const_max )
     {
@@ -415,7 +405,7 @@ namespace boda
       vinfo_t const * const vi = &ci->vars[ci->tid_vix];
       assert( !strcmp(vi->tinfo->tname,"string") ); // tid var must be of type string
       assert( vi->req ); // tid var must be required
-      init_var_from_nvm( nvm, vi, &tid_str ); // FIXME? increments use_cnt of lexp leaf used for tid_str ...
+      init_var_from_nvm( nia, vi, &tid_str ); // FIXME? increments use_cnt of lexp leaf used for tid_str ...
       cinfo_t const * const dci = get_derived_by_tid( ci, tid_str.c_str() );
       if( !dci ) {
 	rt_err( strprintf( "type id str of '%s' did not match any derived class of %s\n", 
@@ -430,11 +420,11 @@ namespace boda
   {
     lexp_t * l = (lexp_t *)d;
     lexp_name_val_map_t nvm;
-    populate_nvm_from_lexp( l, nvm );
+    nvm.populate_from_lexp( l );
 
     cinfo_t const * const ci = (cinfo_t *)( tinfo->init_arg );
     p_nesi pn;
-    nesi_struct_make_p_rec( &pn, ci, nvm );
+    nesi_struct_make_p_rec( &nvm, &pn, ci );
     return ci->set_p_cname_from_p_nesi( &pn, o );
   }
 
@@ -469,7 +459,7 @@ namespace boda
 
   // shared base type functions
   template< typename T >
-  void nesi_lexcast_init( tinfo_t const * tinfo, void * o, void * d )
+  void nesi_lexcast_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
   { 
     T * v = (T *)o;
     assert( d ); // no_value_init disabled
@@ -522,7 +512,7 @@ namespace boda
   }
 
   // string
-  void nesi_string_init( tinfo_t const * tinfo, void * o, void * d )
+  void nesi_string_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
   {
     assert( d ); // no_value_init disabled
     //if( !d ) { return; } // no_value_init --> empty string

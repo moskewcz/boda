@@ -38,11 +38,16 @@ namespace boda {
   {
     sstr_t n;
     p_lexp_t v;
-    void get_stats( lexp_stats_t & lex_stats );
   };
   std::ostream & operator<<(std::ostream & os, lexp_nv_t const & v);
 
-  typedef std::map< sstr_t, p_lexp_t > lexp_name_val_map_t;
+  struct lexp_name_val_map_t {
+    lexp_name_val_map_t * parent;
+    std::map< sstr_t, p_lexp_t > nvm;
+    void populate_from_lexp( lexp_t * const l );
+    p_lexp_t find( char const * n );
+    lexp_name_val_map_t( void ) : parent(0) { }
+  };
 
   typedef std::vector< lexp_nv_t > vect_lexp_nv_t;
   struct lexp_t
@@ -55,6 +60,8 @@ namespace boda {
     lexp_t( sstr_t const & src_ ) : src(src_), use_cnt(0) { }
     void get_stats( lexp_stats_t & lex_stats );
     void add_key_val( std::string const & k, std::string const & v );
+    void add_all_kids_from( p_lexp_t lexp );
+    void deep_inc_use_cnt( void );
   };
   std::ostream & operator<<(std::ostream & os, lexp_t const & v);
 
