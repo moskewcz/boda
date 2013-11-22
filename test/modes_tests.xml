@@ -1,4 +1,6 @@
 <root>
-  <test_lexp mode="test_lexp" />
+  <li name="test_lexp"><command mode="test_lexp"/></li>
+  <li name="score_1"><command mode="score" pil_fn="~/bench/VOCdevkit/VOC2007/ImageSets/Main/bicycle_test.txt" 
+  res_fn="~/research/ffld/build/ffld_VOC2007_bicycle_test_out.txt" class_name="bicycle"/></li>
 
 </root>

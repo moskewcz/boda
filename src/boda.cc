@@ -8,6 +8,13 @@
 #include"timers.H"
 #include<ostream>
 
+
+// boda.cc is the top level of control flow. most of the code/logic here is for the top level UI:
+// help, cli-format arugment processing, top-level xml file processing. this is also where various
+// init/finalize functions are called for the python interface, octave interface, and logging-timers
+// functionality (from timers.H). finally, main() and the top-level exception handling wrappers are
+// here as well.
+// FIXME: factor NESI related help/cli/xml handling code out of here?
 namespace boda
 {
 #include"nesi_decls.H"
@@ -17,8 +24,6 @@ namespace boda
 
   extern tinfo_t tinfo_has_main_t;
   extern cinfo_t cinfo_has_main_t;
-  // working example cline:
-  // time ../lib/boda score ~/bench/VOCdevkit/VOC2007/ImageSets/Main/bicycle_test.txt ~/research/ffld/build/ffld_VOC2007_bicycle_test_out.txt bicycle
 
   char const * const boda_help_usage = "boda help mode [field] [sub_field] [sub_sub_field] [...] ";
   char const * const boda_help_all_note = "(notes: use help_all instead of help to show hidden things. use help_all_ex to use a full lexp as the mode if you need on help on deeply polymophic structs)";

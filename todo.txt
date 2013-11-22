@@ -7,4 +7,5 @@
 ? equality comparison?
 ? lexp->XML output (*without* going though some NESI object)
 ? NESI->p_lexp output (*without* going though lexp-format text or XML)
-? NESI map type support
+? NESI map (string->*) type support
+? NESI inherited values support

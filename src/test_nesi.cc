@@ -4,6 +4,7 @@
 #include"str_util.H"
 #include"xml_util.H"
 #include"lexp.H"
+#include"nesi.H"
 
 namespace boda 
 {
@@ -63,9 +64,11 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string name; //NESI(help="name of test",req=1)
-    string input; //NESI(help="input",req=1)
-
+    p_has_main_t command; //NESI(help="input",req=1)
   };
+  typedef vector< nesi_test_t > vect_nesi_test_t; 
+  typedef shared_ptr< nesi_test_t > p_nesi_test_t; 
+  typedef vector< p_nesi_test_t > vect_p_nesi_test_t;
 
   string tp_if_rel( string const & fn ) {
     assert_st( !fn.empty() );
@@ -73,27 +76,27 @@ namespace boda
     return py_boda_test_dir() + "/" + fn;
   }
 
+#include"nesi_decls.H"
+
+  extern tinfo_t tinfo_vect_p_nesi_test_t;
   struct test_modes_t : public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_modes" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string xml_fn; //NESI(default="modes_tests.xml",help="xml file containing list of tests. relative paths will be prefixed with the boda test dir.")
+    vect_p_nesi_test_t tests; //NESI(help="populated via xml_fn")
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
     virtual void main( void ) {
       string const full_xml_fn = tp_if_rel(xml_fn);
-      xml_document doc;
-      xml_node xn = xml_file_get_root( doc, full_xml_fn );
-      for( xml_node xn_i: xn.children() ) { // child elements become list values
-	if( 1 ) { // FIXME: should be filt.search( xn_i.name() )
-	  p_lexp_t test_lexp = parse_lexp_list_xml( xn_i );
-	  if( verbose ) { printf( "*test_lexp=%s\n", str(*test_lexp).c_str() ); }
-	  create_and_run_has_main_t( test_lexp );
+      nesi_init_and_check_unused_from_xml_fn( &tinfo_vect_p_nesi_test_t, &tests, full_xml_fn );
+      for (vect_p_nesi_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
+	if( 1 ) { // FIXME: should be filt.search( (*)->name ) )
+	  if( verbose ) { std::cout << (**i) << std::endl; }
+	  (*i)->command->main();
 	}
       }
     }
   };
-
-
 
 #include"gen/test_nesi.cc.nesi_gen.cc"
 }

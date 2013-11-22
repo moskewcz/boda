@@ -13,9 +13,26 @@ using std::string;
 
 #include"lexp.H"
 #include"str_util.H"
+#include"xml_util.H"
 
 namespace boda 
 {
+  void nesi_init_and_check_unused_from_lexp( tinfo_t const * ti, void * o, p_lexp_t lexp ) {
+    ti->init( ti, o, lexp.get() );
+    // check for unused fields in lexp
+    vect_string path;
+    lexp_check_unused( lexp.get(), path );
+  }
+
+  void nesi_init_and_check_unused_from_xml_fn( tinfo_t const * ti, void * o, string const & xml_fn ) {
+    pugi::xml_document doc;
+    pugi::xml_node xn = xml_file_get_root( doc, xml_fn );
+    p_lexp_t lexp = parse_lexp_list_xml( xn );
+    nesi_init_and_check_unused_from_lexp( ti, o, lexp );
+  }
+
+
+
   struct xml_attr_t {
     string n;
     string v;
@@ -146,7 +163,11 @@ namespace boda
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
       void * rpv = pt->vect_push_back( o );
       // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
-      pt->init( pt, rpv, i->v.get() ); 
+      try { pt->init( pt, rpv, i->v.get() ); }
+      catch( rt_exception & rte ) {
+	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
+	throw;
+      }
     }
   }
   bool vect_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
@@ -201,7 +222,13 @@ namespace boda
     if( !di && vi->default_val ) { di = parse_lexp( vi->default_val ); }
     if( !di && vi->req ) { rt_err( strprintf( "missing required value for var '%s'", vi->vname ) ); } 
     if( !di ) { assert_st( pt->no_init_okay ); } // nesi_gen.py should have checked to prevent this
-    pt->init( pt, rpv, di.get() ); // note: di.get() may be null, yielding type-specific no-value init 
+    try { pt->init( pt, rpv, di.get() ); } // note: di.get() may be null, yielding type-specific no-value init 
+    catch( rt_exception & rte ) {
+      rte.err_msg = "var '" + str(vi->vname) + "': " + rte.err_msg;
+      throw;
+    }
+
+
   }
 
   // assumes o is a (`ci->cname` *). adjusts ci and o such that:
