@@ -17,18 +17,20 @@ using std::string;
 
 namespace boda 
 {
-  void nesi_init_and_check_unused_from_lexp( tinfo_t const * ti, void * o, p_lexp_t lexp ) {
-    ti->init( 0, ti, o, lexp.get() );
+  void nesi_init_and_check_unused_from_lexp(  nesi_init_arg_t * nia, tinfo_t const * ti, void * o, 
+					      p_lexp_t lexp ) {
+    ti->init( nia, ti, o, lexp.get() );
     // check for unused fields in lexp
     vect_string path;
     lexp_check_unused( lexp.get(), path );
   }
 
-  void nesi_init_and_check_unused_from_xml_fn( tinfo_t const * ti, void * o, string const & xml_fn ) {
+  void nesi_init_and_check_unused_from_xml_fn(  nesi_init_arg_t * nia, tinfo_t const * ti, void * o, 
+						string const & xml_fn ) {
     pugi::xml_document doc;
     pugi::xml_node xn = xml_file_get_root( doc, xml_fn );
     p_lexp_t lexp = parse_lexp_list_xml( xn );
-    nesi_init_and_check_unused_from_lexp( ti, o, lexp );
+    nesi_init_and_check_unused_from_lexp( nia, ti, o, lexp );
   }
 
 
@@ -216,8 +218,6 @@ namespace boda
       rte.err_msg = "var '" + str(vi->vname) + "': " + rte.err_msg;
       throw;
     }
-
-
   }
 
   // assumes o is a (`ci->cname` *). adjusts ci and o such that:
@@ -528,6 +528,47 @@ namespace boda
   vect_push_back_t * string_vect_push_back = &has_def_ctor_vect_push_back_t< string >;
   nesi_dump_t * string_nesi_dump = &with_op_left_shift_nesi_dump< string >;
   void *string_init_arg = (void *)"string";
+
+  // filename_t 
+  void nesi_filename_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
+  {
+    filename_t * v = (filename_t *)o;
+    nesi_string_init( nia, tinfo, &v->in, d );
+    // expand refs. note: refs do not inc the use count of the lexp they use (as this seems sensible).
+    for( string::const_iterator i = v->in.begin(); i != v->in.end(); ++i ) {
+      if( *i == '%' ) {
+	++i; if( i == v->in.end() ) { rt_err( "end of string after '%' in filename, expected '(' or '%'." ); }
+	if( *i == '%' ) { v->exp.push_back( *i ); } // escaped '%'
+	else if( *i != '(' ) { rt_err( "'" + string(1,*i) + "' after '%' in filename, expected '(' or '%'." ); }
+	else { // saw '(', process ref
+	  string ref;
+	  while( 1 ) {
+	    ++i;
+	    if( i == v->in.end() ) { rt_err( "end of string after '%(' in filename, expected ')' to terminate ref" ); }
+	    if( *i == ')' ) { break; }
+	    ref.push_back( *i );
+	  }
+	  // expand ref recursively
+	  p_lexp_t di = nia->find( ref.c_str() );
+	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" ); }
+	  if( !di->leaf_val.exists() ) { // note: nesi_string_init would return a similar error if we skipped this check.
+	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
+	  }
+	  filename_t iv;
+	  nesi_filename_t_init( nia, tinfo, &iv, di.get() );
+	  v->exp += iv.exp;
+	}
+      } else { v->exp.push_back( *i ); } // not a '%'
+    }
+  }
+  make_p_t * filename_t_make_p = &has_def_ctor_make_p< filename_t >;
+  vect_push_back_t * filename_t_vect_push_back = &has_def_ctor_vect_push_back_t< filename_t >;
+  bool filename_t_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
+    filename_t * v = (filename_t *)o;
+    return string_nesi_dump( tinfo, &v->in, ndb ); // well, it happens the first field, but let's be clear ;)
+  }
+  void *filename_t_init_arg = (void *)"filename_t";
+
 
   // uint64_t  
   init_t * nesi_uint64_t_init = &nesi_lexcast_init< uint64_t >;

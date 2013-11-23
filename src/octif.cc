@@ -20,11 +20,11 @@ namespace boda
 {
   using namespace::std;
 
-  void print_field( octave_scalar_map const & osm, string const & fn )
+  void print_field( ostream & out, octave_scalar_map const & osm, string const & fn )
   {
     octave_value fv = osm.contents(fn.c_str());
     assert_st( !error_state && fv.is_defined() );
-    cout << fn << "="; fv.print(cout);
+    out << fn << "="; fv.print(out);
   }
 
   void oct_init( void )
@@ -35,41 +35,45 @@ namespace boda
     argv(1) = "-q";
     octave_main (2, argv.c_str_vec (), 1);
   }
-  void oct_test( void )
+  using boost::filesystem3::path;
+  void oct_test( ostream & out, string const & mat_fn )
   {
-    //string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/VOC2007/car_final.mat";
-    string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/car_final_cascade.mat";
     octave_value_list in;
     in(0) = octave_value( mat_fn );
-    octave_value_list out = feval ("load", in, 1);
-    assert_st( !error_state && (out.length() > 0) );
-    //cout << "load of ["  << in(0).string_value () << "] is "; out(0).print(cout); cout << endl;
-    //cout << "load ret="; out(0).print(cout); cout << endl;
-    octave_scalar_map osm = out(0).scalar_map_value();
+    octave_value_list load_out = feval ("load", in, 1);
+    assert_st( !error_state && (load_out.length() > 0) );
+    //out << "load of ["  << in(0).string_value () << "] is "; out(0).print(out); out << endl;
+    //out << "load ret="; out(0).print(out); out << endl;
+    octave_scalar_map osm = load_out(0).scalar_map_value();
     assert_st( !error_state );
     octave_value mod = osm.contents("csc_model");
     assert_st( !error_state && mod.is_defined() );
     octave_scalar_map mod_osm = mod.scalar_map_value();
     assert_st( !error_state );
-    cout << "keys=";
+    out << "keys=";
     for (int i = 0; i < mod_osm.keys().length(); ++i)
     {
-      cout << mod_osm.keys()[i] << " ";
+      out << mod_osm.keys()[i] << " ";
     }
-    cout << endl;
-    print_field( mod_osm, "thresh" );
-    print_field( mod_osm, "sbin" );
-    print_field( mod_osm, "interval" );
+    out << endl;
+    print_field( out, mod_osm, "thresh" );
+    print_field( out, mod_osm, "sbin" );
+    print_field( out, mod_osm, "interval" );
 #if 1
     mxArray mxa( mod );
     Model mod2( &mxa );
 #endif
   }
 
-  struct oct_test_t : virtual public nesi, public has_main_t // NESI(help="run simple octave interface test",bases=["has_main_t"], type_id="oct_test")
+  struct oct_test_t : virtual public nesi, public has_main_t // NESI(help="run simple octave interface test",bases=["has_main_t"], type_id="oct_test", hide=1 )
   {
+    filename_t mat_fn; //NESI(default="%(boda_test_dir)/oct_test/car_final_cascade.mat",help="in matrix fn")
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/oct_test_out.txt",help="output filename")
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    virtual void main( void ) { oct_test(); }
+    virtual void main( nesi_init_arg_t * nia ) { 
+      p_ofstream out = ofs_open( out_fn.exp );  
+      oct_test( *out, mat_fn.exp ); 
+    }
   };
 
   void bs_matrix_to_dets( Matrix & det_boxes, uint32_t const img_ix, p_vect_scored_det_t scored_dets )
@@ -90,7 +94,7 @@ namespace boda
     }
   }
 
-  void oct_dfc( p_vect_scored_det_t scored_dets, 
+  void oct_dfc( ostream & out, string const & dpm_fast_cascade_dir, p_vect_scored_det_t scored_dets, 
 		string const & class_name, string const & image_fn, uint32_t const img_ix ) {
     boost::filesystem::initial_path(); // capture initial path if not already done (see boost docs)
     printf( "oct_dfc() class_name=%s image_fn=%s img_ix=%s\n", 
@@ -99,35 +103,36 @@ namespace boda
     img->load_fn( image_fn.c_str() );
 
     int parse_ret = 0;
-    eval_string("cd /home/moskewcz/svn_work/dpm_fast_cascade/voc-release5", 0, parse_ret);
+    path dfc_vr = path(dpm_fast_cascade_dir) / "voc-release5";
+    eval_string("cd "+dfc_vr.string(), 0, parse_ret);
     assert_st( !error_state );
     eval_string("pkg load image", 0, parse_ret);
     assert_st( !error_state );
     feval("startup" );
     assert_st( !error_state );
 
-    string const mat_fn = "/home/moskewcz/svn_work/dpm_fast_cascade/voc-release5/VOC2007/"+class_name+"_final.mat";
+    string const mat_fn = (dfc_vr / (class_name+"_final.mat")).string();
     octave_value_list in;
     in(0) = octave_value( mat_fn );
-    octave_value_list out = feval ("load", in, 1);
-    assert_st( !error_state && (out.length() > 0) );
-    //cout << "load of ["  << in(0).string_value () << "] is "; out(0).print(cout); cout << endl;
-    //cout << "load ret="; out(0).print(cout); cout << endl;
-    octave_scalar_map osm = out(0).scalar_map_value();
+    octave_value_list load_out = feval ("load", in, 1);
+    assert_st( !error_state && (load_out.length() > 0) );
+    //out << "load of ["  << in(0).string_value () << "] is "; load_out(0).print(out); out << endl;
+    //out << "load ret="; load_out(0).print(out); out << endl;
+    octave_scalar_map osm = load_out(0).scalar_map_value();
     assert_st( !error_state );
     octave_value mod = osm.contents("model");
     assert_st( !error_state && mod.is_defined() );
     octave_scalar_map mod_osm = mod.scalar_map_value();
     assert_st( !error_state );
-    cout << "keys=";
+    out << "keys=";
     for (int i = 0; i < mod_osm.keys().length(); ++i)
     {
-      cout << mod_osm.keys()[i] << " ";
+      out << mod_osm.keys()[i] << " ";
     }
-    cout << endl;
-    print_field( mod_osm, "thresh" );
-    print_field( mod_osm, "sbin" );
-    print_field( mod_osm, "interval" );
+    out << endl;
+    print_field( out, mod_osm, "thresh" );
+    print_field( out, mod_osm, "sbin" );
+    print_field( out, mod_osm, "interval" );
     assert_st( !error_state );
    
     in(0) = octave_value( image_fn );
@@ -149,16 +154,17 @@ namespace boda
     string image_fn; //NESI(help="input: image filename",req=1)
     string class_name; //NESI(help="name of object class",req=1)
     uint32_t img_ix; //NESI(default=0,help="internal use only: img_ix to put in results placed in results vector")
+    string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
     p_vect_scored_det_t scored_dets; // output, may be null to omit
 
-    virtual void main( void ) {
-      oct_dfc( scored_dets, class_name, image_fn, img_ix );
+    virtual void main( nesi_init_arg_t * nia ) {
+      oct_dfc( cout, dpm_fast_cascade_dir, scored_dets, class_name, image_fn, img_ix );
     }
   };
 
   // example command lines: FIXME: fold iteration / filename generation into this class?
-  // for cn in `cat ../../test/pascal_classes.txt`; do ../../lib/boda score --pil-fn=/home/moskewcz/bench/VOCdevkit/VOC2007/ImageSets/Main/${cn}_test.txt --res-fn=${cn}_hamming.txt --class-name=${cn}; done
-  // for cn in `cat ../test/pascal_classes.txt`; do ../lib/boda mat_bs_to_pascal --mat-bs-fn=/home/moskewcz/bench/hamming/hamming_toplevel_bboxes_pascal2007/${cn}_boxes_test__hamming.mat --res-fn=${cn}_hamming.txt --class-name=${cn} --pil-fn=/home/moskewcz/bench/VOCdevkit/VOC2007/ImageSets/Main/${cn}_test.txt ; done
+  // for cn in `cat ../../test/pascal_classes.txt`; do ../../lib/boda score --pil-fn=%(pascal_data_dir)/ImageSets/Main/${cn}_test.txt --res-fn=${cn}_hamming.txt --class-name=${cn}; done
+  // for cn in `cat ../test/pascal_classes.txt`; do ../lib/boda mat_bs_to_pascal --mat-bs-fn=/home/moskewcz/bench/hamming/hamming_toplevel_bboxes_pascal2007/${cn}_boxes_test__hamming.mat --res-fn=${cn}_hamming.txt --class-name=${cn} --pil-fn=%(pascal_data_dir)/ImageSets/Main/${cn}_test.txt ; done
 
   struct convert_matlab_res_t : virtual public nesi, public has_main_t // NESI(help="convert matlab 'ds' results to pascal format",bases=["has_main_t"], type_id="mat_bs_to_pascal")
   {
@@ -167,9 +173,11 @@ namespace boda
     string class_name; //NESI(help="name of object class",req=1)
     string pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
     string res_fn; //NESI(help="output: name of pascal-VOC format detection results file to write",req=1)
-    virtual void main( void ) {
+    p_img_db_t img_db; //NESI(default="()", help="image database")
+
+    virtual void main( nesi_init_arg_t * nia ) {
       
-      p_img_db_t img_db = read_pascal_image_list_file( pil_fn, 0 );
+      read_pascal_image_list_file( img_db, pil_fn, 0 );
 
       p_vect_scored_det_t scored_dets( new vect_scored_det_t );
       octave_value_list in;

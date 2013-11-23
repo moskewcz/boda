@@ -15,7 +15,9 @@ namespace boda {
     uint32_t e;
     sstr_t( void ) : b(0), e(0) { }
     void set_from_string( std::string const &s );
+    void set_from_cstr( char const * s );
     void borrow_from_string( std::string const &s );
+    void borrow_from_cstr( char const * s );
     std::string str( void ) const { 
       assert(base); return std::string( base.get()+b, base.get()+e ); } // get copy as std::string
     uint32_t sz( void ) const { assert(base); assert( e >= b ); return e - b; }
@@ -45,6 +47,7 @@ namespace boda {
     lexp_name_val_map_t * parent;
     std::map< sstr_t, p_lexp_t > nvm;
     void populate_from_lexp( lexp_t * const l );
+    bool insert_leaf( char const * n, char const * v );
     p_lexp_t find( char const * n );
     lexp_name_val_map_t( void ) : parent(0) { }
   };
@@ -60,13 +63,17 @@ namespace boda {
     lexp_t( sstr_t const & src_ ) : src(src_), use_cnt(0) { }
     void get_stats( lexp_stats_t & lex_stats );
     void add_key_val( std::string const & k, std::string const & v );
+#if 0 // unused   
     void add_all_kids_from( p_lexp_t lexp );
     void deep_inc_use_cnt( void );
+    void expand_include_xml( void ); 
+#endif
+
   };
   std::ostream & operator<<(std::ostream & os, lexp_t const & v);
 
   p_lexp_t parse_lexp( std::string const & s );
-  p_lexp_t parse_lexp_xml_file( std::string const & s );
+  p_lexp_t parse_lexp_xml_file( std::string const & fn );
   p_lexp_t parse_lexp_list_xml( pugi::xml_node const & xn );
   p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v );
 

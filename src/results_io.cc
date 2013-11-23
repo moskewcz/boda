@@ -109,18 +109,16 @@ namespace boda
   typedef map< string, p_img_info_t > id_to_img_info_map_t;
   typedef vector< p_img_info_t > vect_p_img_info_t;
 
-  void read_pascal_image_for_id( p_img_info_t img_info, path const & pascal_base_path )
+  void read_pascal_image_for_id( p_img_info_t img_info, path const & img_dir )
   {
-    path const img_dir = pascal_base_path / "JPEGImages";
     ensure_is_dir( img_dir );
     img_info->full_fn = string( (img_dir / (img_info->id + ".jpg")).c_str() );
     img_info->img.reset( new img_t );
     img_info->img->load_fn( img_info->full_fn.c_str() );
   }
 
-  void read_pascal_annotations_for_id( p_img_info_t img_info, path const & pascal_base_path, string const & id )
+  void read_pascal_annotations_for_id( p_img_info_t img_info, path const & ann_dir, string const & id )
   {
-    path const ann_dir = pascal_base_path / "Annotations";
     ensure_is_dir( ann_dir );
     path const ann_path = ann_dir / (id + ".xml");
     ensure_is_regular_file( ann_path );
@@ -163,22 +161,23 @@ namespace boda
     match_res_t( bool const is_pos_, bool const is_diff_ ) : is_pos(is_pos_), is_diff(is_diff_) { }
   };
 
-  struct img_db_t 
+  struct img_db_t : virtual public nesi // NESI(help="store images and detections")
   {
-    path pascal_base_path;
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t pascal_ann_dir; // NESI(default="%(pascal_data_dir)/Annotations",help="pascal annotations directory")
+    filename_t pascal_img_dir; // NESI(default="%(pascal_data_dir)/JPEGImages",help="pascal images directory")
     id_to_img_info_map_t id_to_img_info_map;
     vect_p_img_info_t img_infos;
     name_vect_scored_det_map_t scored_dets;
     class_infos_t class_infos;
 
-    img_db_t( void ) : pascal_base_path( "/home/moskewcz/bench/VOCdevkit/VOC2007" ) { }
     void load_pascal_data_for_id( string const & img_id, bool load_img )
     {
       p_img_info_t & img_info = id_to_img_info_map[img_id];
       if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
       img_info.reset( new img_info_t( img_id ) );
-      read_pascal_annotations_for_id( img_info, pascal_base_path, img_id ); 
-      if( load_img ) { read_pascal_image_for_id( img_info, pascal_base_path ); }
+      read_pascal_annotations_for_id( img_info, pascal_ann_dir.exp, img_id ); 
+      if( load_img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
 
       img_info->ix = img_infos.size();
       img_infos.push_back( img_info );
@@ -213,7 +212,7 @@ namespace boda
   {
     assert_st( img_ix < img_db->img_infos.size() );
     p_img_info_t img_info = img_db->img_infos[img_ix];
-    if( !img_info->img ) { read_pascal_image_for_id( img_info, img_db->pascal_base_path ); }
+    if( !img_info->img ) { read_pascal_image_for_id( img_info, img_db->pascal_img_dir.exp ); }
     show_dets( img_info->img, scored_dets );
   }
 
@@ -257,14 +256,14 @@ namespace boda
   struct read_pascal_image_list_file_t : virtual public nesi, public has_main_t // NESI(help="read a pascal-VOC-format image list file",bases=["has_main_t"], type_id="load_pil")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
+    filename_t pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
     uint32_t load_imgs; //NESI(default=0,help="if true, load images referenced by the file")
-    virtual void main( void ) { read_pascal_image_list_file( pil_fn, false ); }
+    p_img_db_t img_db; //NESI(default="()", help="image database")
+    virtual void main( nesi_init_arg_t * nia ) { read_pascal_image_list_file( img_db, pil_fn.exp, false ); }
   };
 
-  p_img_db_t read_pascal_image_list_file( string const & pil_fn, bool load_imgs )
+  void read_pascal_image_list_file( p_img_db_t img_db, string const & pil_fn, bool load_imgs )
   {
-    p_img_db_t img_db( new img_db_t );
     p_ifstream in = ifs_open( pil_fn );  
     string line;
     while( !ifs_getline( pil_fn, in, line ) )
@@ -283,18 +282,18 @@ namespace boda
       }
       img_db->load_pascal_data_for_id( id, load_imgs );
     }
-    return img_db;
   }
   
   struct score_results_file_t : virtual public nesi, public has_main_t // NESI(help="score a pascal-VOC-format results file",bases=["has_main_t"], type_id="score")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
-    string res_fn; //NESI(help="input: name of pascal-VOC format detection results file to read",req=1)
+    filename_t pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
+    filename_t res_fn; //NESI(help="input: name of pascal-VOC format detection results file to read",req=1)
     string class_name; //NESI(help="name of object class",req=1)
-    virtual void main( void ) {
-      p_img_db_t img_db = read_pascal_image_list_file( pil_fn, false );
-      read_results_file( img_db, res_fn, class_name );
+    p_img_db_t img_db; //NESI(default="()", help="image database")
+    virtual void main( nesi_init_arg_t * nia ) {
+      read_pascal_image_list_file( img_db, pil_fn.exp, false );
+      read_results_file( img_db, res_fn.exp, class_name );
       img_db->score_results();
     }
   };
@@ -305,13 +304,16 @@ namespace boda
     string pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
     string res_fn; //NESI(help="output: name of pascal-VOC format detection results file to write",req=1)
     string class_name; //NESI(help="name of object class",req=1)
-    virtual void main( void ) {
-      p_img_db_t img_db = read_pascal_image_list_file( pil_fn, true );
+    p_img_db_t img_db; //NESI(default="()", help="image database")
+    string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
+
+    virtual void main( nesi_init_arg_t * nia ) {
+      read_pascal_image_list_file( img_db, pil_fn, true );
       p_vect_scored_det_t scored_dets( new vect_scored_det_t );
       for( uint32_t i = 0; i < img_db->img_infos.size(); ++i )
       {
 	p_img_info_t img_info = img_db->img_infos[i];
-	oct_dfc( scored_dets, class_name, img_info->full_fn, img_info->ix );
+	oct_dfc( cout, dpm_fast_cascade_dir, scored_dets, class_name, img_info->full_fn, img_info->ix );
       }
       img_db->scored_dets[class_name] = scored_dets;
       write_results_file( img_db, res_fn, class_name );

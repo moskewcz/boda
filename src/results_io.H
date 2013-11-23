@@ -40,7 +40,7 @@ namespace boda
 
   class img_db_t;
   typedef shared_ptr< img_db_t > p_img_db_t;
-  p_img_db_t read_pascal_image_list_file( std::string const & pil_fn, bool load_imgs );
+  void read_pascal_image_list_file( p_img_db_t img_db, std::string const & pil_fn, bool load_imgs );
   void img_db_set_results( p_img_db_t img_db, string const &class_name, p_vect_scored_det_t scored_dets );
   void write_results_file( p_img_db_t img_db, string const & fn, string const &class_name );
   void img_db_show_dets( p_img_db_t img_db, p_vect_scored_det_t scored_dets, uint32_t img_ix );

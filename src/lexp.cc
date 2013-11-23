@@ -28,12 +28,27 @@ namespace boda {
     base = p_uint8_t( (uint8_t *)malloc( s.size() ), free ); // allocate space
     memcpy( base.get(), &s[0], sz() ); // copy string data
   }
+  void sstr_t::set_from_cstr( char const * s ) {
+    b = 0; e = strlen(s); // set b/e
+    base = p_uint8_t( (uint8_t *)malloc( e ), free ); // allocate space
+    memcpy( base.get(), s, sz() ); // copy string data
+  }
   void no_free( void * ) {}
   void sstr_t::borrow_from_string( string const &s ) {
     b = 0; e = s.size(); // set b/e
     base = p_uint8_t( (uint8_t *)&s[0], no_free ); // borrow data
   }
+  void sstr_t::borrow_from_cstr( char const * s ) {
+    b = 0; e = strlen(s); // set b/e
+    base = p_uint8_t( (uint8_t *)s, no_free ); // borrow data
+  }
 
+  p_lexp_t parse_lexp_leaf_str( char const * const s )
+  {
+    p_lexp_t ret( new lexp_t( sstr_t() ) );
+    ret->leaf_val.set_from_cstr( s );
+    return ret;
+  }
 
   // for testing/debugging (particularly regressing testing), create
   // some simple statistics of a lexp.
@@ -59,16 +74,21 @@ namespace boda {
       }
     }
   }
+
+#if 0 // unused
   void lexp_t::deep_inc_use_cnt( void ) {
     ++use_cnt;
     for( vect_lexp_nv_t::iterator i = kids.begin(); i != kids.end(); ++i ) {
       i->v->deep_inc_use_cnt();
     }
   }
-
   void lexp_t::add_all_kids_from( p_lexp_t lexp ) {
     kids.insert( kids.end(), lexp->kids.begin(), lexp->kids.end() );
   }
+  void lexp_t::expand_include_xml( void ) { 
+    // TODO: add support if desired
+  }
+#endif
 
   void lexp_check_unused( lexp_t * l, vect_string & path )
   {
@@ -78,6 +98,12 @@ namespace boda {
       lexp_check_unused( i->v.get(), path );
       path.pop_back();
     }
+  }
+
+  bool lexp_name_val_map_t::insert_leaf( char const * n, char const * v ) {
+    sstr_t ss_n;
+    ss_n.set_from_cstr( n );
+    return nvm.insert( std::make_pair( ss_n, parse_lexp_leaf_str( v ) ) ).second;
   }
 
   void lexp_name_val_map_t::populate_from_lexp( lexp_t * const l ) {
@@ -328,12 +354,6 @@ namespace boda {
     return ret;
   }
 
-  p_lexp_t parse_lexp_leaf_str( string const & s )
-  {
-    p_lexp_t ret( new lexp_t( sstr_t() ) );
-    ret->leaf_val.set_from_string( s );
-    return ret;
-  }
   // note: there is plenty of room to optimization memory/speed here
   // if we share data with the pugixml nodes. this should be possible
   // using sstr_t::borrow_from_pchar(). this function is TODO, but
@@ -374,14 +394,14 @@ namespace boda {
     kids.push_back( kid );
   }
 
-  p_lexp_t parse_lexp_xml_file( string const & s )
+  p_lexp_t parse_lexp_xml_file( string const & fn )
   {
-    vect_string s_parts = split(s,':');
-    assert_st( !s_parts.empty() );
-    string const & xml_fn = s_parts[0];
+    vect_string fn_parts = split(fn,':');
+    assert_st( !fn_parts.empty() );
+    string const & xml_fn = fn_parts[0];
     xml_document doc;
     xml_node xn = xml_file_get_root( doc, xml_fn );
-    for (vect_string::const_iterator i = s_parts.begin() + 1; i != s_parts.end(); ++i) { // decend path if given
+    for (vect_string::const_iterator i = fn_parts.begin() + 1; i != fn_parts.end(); ++i) { // decend path if given
       xn = xml_must_decend( xml_fn.c_str(), xn, (*i).c_str() );
     }
     p_lexp_t ret = parse_lexp_list_xml( xn );
@@ -438,7 +458,7 @@ namespace boda {
       }
 #endif
 
-  struct lexp_test_run_t : public virtual nesi, public has_main_t // NESI(help="low-level lexp tests. doesn't really need NESI to be run; use test_lexp() global func if needed", bases=["has_main_t"], type_id="test_lexp" )
+  struct lexp_test_run_t : public virtual nesi, public has_main_t // NESI(help="NESI wrapper for low-level lexp tests; use test_lexp() global func to run w/o NESI", bases=["has_main_t"], type_id="test_lexp", hide=1 )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
@@ -509,14 +529,14 @@ namespace boda {
 	}
       }
     }
-    void main( void ) {
+    void main( nesi_init_arg_t * nia ) {
       num_fail = 0;
       for( tix = 0; tix < ( sizeof( lexp_tests ) / sizeof( lexp_test_t ) ); ++tix ) { test_lexp_run(); }
       if( num_fail ) { printf( "test_lexp num_fail=%s\n", str(num_fail).c_str() ); }
     }
   };
   // if NESI is borked, and lexp is to blame, you could run the lexp tests with this function
-  void test_lexp( void ) { lexp_test_run_t().main(); } 
+  void test_lexp( void ) { lexp_test_run_t().main( 0 ); } 
 
 #include"gen/lexp.cc.nesi_gen.cc"
 

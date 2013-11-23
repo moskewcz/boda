@@ -58,7 +58,7 @@ namespace boda
   {
     p_ofstream ret( new ofstream );
     ret->open( fn.c_str() );
-    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for reading", fn.c_str() ) ); }
+    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for writing", fn.c_str() ) ); }
     assert( ret->good() );
     return ret;
   }

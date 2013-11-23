@@ -37,11 +37,16 @@ namespace boda
   int8_t const int8_t_const_max = boost::integer_traits< int8_t >::const_max;
   int8_t const int8_t_const_min = boost::integer_traits< int8_t >::const_min;
 
+
   using boost::shared_ptr;
   using boost::dynamic_pointer_cast;
   using std::string;
   using std::vector;
   using std::map;
+
+  // NESI types
+  struct filename_t { string in; string exp; };
+  // typedef uint32_t nesi_bool // TODO
 
   typedef vector< string > vect_string;
 

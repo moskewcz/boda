@@ -1,0 +1,22 @@
+<!-- this is an *example* boda_cfg.xml file for user moskewcz on
+     machine orihime. to use this file, after building boda, i symlink
+     it next to the boda exe named as boda_cfg.xml:
+
+     moskewcz@orihime:~/svn_work/boda/lib$ ln -s ../mwm_boda_cfg.xml boda_cfg.xml
+     
+     if you are a developer, you can similarly commit your own copy of
+     the config file to the root boda dir and symlink it in your
+     working copies. 
+
+     or, you can just copy this file as a template and edit it:
+
+     moskewcz@orihime:~/svn_work/boda/lib$ cp ../mwm_boda_cfg.xml boda_cfg.xml
+     moskewcz@orihime:~/svn_work/boda/lib$ emacs boda_cfg.xml
+-->
+
+<root verbose="1" 
+      pascal_data_dir="/home/moskewcz/bench/VOCdevkit/VOC2007"
+      dpm_fast_cascade_dir="/home/moskewcz/svn_work/dpm_fast_cascade"
+      ffld_dir="/home/moskewcz/research/ffld"
+/>
+

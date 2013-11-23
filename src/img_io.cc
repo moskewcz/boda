@@ -123,7 +123,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string image_fn; //NESI(help="input: image filename",req=1)
-    virtual void main( void ) { downsample_test( image_fn ); }
+    virtual void main( nesi_init_arg_t * nia ) { downsample_test( image_fn ); }
   };
   
 #include"gen/img_io.cc.nesi_gen.cc"

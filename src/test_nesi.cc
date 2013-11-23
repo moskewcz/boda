@@ -37,7 +37,7 @@ namespace boda
     vect_one_p_string_t vops; //NESI()
     one_p_string_t ops; //NESI()
 
-    virtual void main( void ) {
+    virtual void main( nesi_init_arg_t * nia ) {
       printf("vst::main()\n");
     }
   };
@@ -63,7 +63,7 @@ namespace boda
   struct nesi_test_t : public virtual nesi // NESI(help="nesi test case")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string name; //NESI(help="name of test",req=1)
+    string test_name; //NESI(help="name of test",req=1)
     p_has_main_t command; //NESI(help="input",req=1)
   };
   typedef vector< nesi_test_t > vect_nesi_test_t; 
@@ -86,13 +86,19 @@ namespace boda
     vect_p_nesi_test_t tests; //NESI(help="populated via xml_fn")
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
-    virtual void main( void ) {
+
+    virtual void main( nesi_init_arg_t * nia ) {
+      p_lexp_t boda_test_cfg = parse_lexp_xml_file( tp_if_rel( "boda_test_cfg.xml" ) );
+      lexp_name_val_map_t nvm;
+      nvm.parent = nia;
+      nvm.populate_from_lexp( boda_test_cfg.get() );
+
       string const full_xml_fn = tp_if_rel(xml_fn);
-      nesi_init_and_check_unused_from_xml_fn( &tinfo_vect_p_nesi_test_t, &tests, full_xml_fn );
+      nesi_init_and_check_unused_from_xml_fn( &nvm, &tinfo_vect_p_nesi_test_t, &tests, full_xml_fn );
       for (vect_p_nesi_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
 	if( 1 ) { // FIXME: should be filt.search( (*)->name ) )
 	  if( verbose ) { std::cout << (**i) << std::endl; }
-	  (*i)->command->main();
+	  (*i)->command->main( &nvm );
 	}
       }
     }
