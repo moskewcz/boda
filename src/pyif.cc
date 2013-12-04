@@ -9,10 +9,13 @@
 #include"pyif.H"
 #include"img_io.H"
 #include"results_io.H"
+#include<boost/filesystem.hpp>
 
 namespace boda 
 {
   using namespace std;
+  using boost::filesystem::path;
+  using boost::filesystem::canonical;
 
   void rt_py_err( std::string const & err_msg ) {
     PyErr_Print(); 
@@ -67,9 +70,9 @@ namespace boda
 			   Py_file_input, main_dict.get(), main_dict.get() ) );
     if( _import_array() < 0 ) { rt_err( "failed to import numpy" ); }
     ppyo boda_dir( PyMapping_GetItemString( main_dict.get(), (char *)"boda_dir" ) );
-    py_boda_dir_static = string( PyString_AsString( boda_dir.get() ) );
+    py_boda_dir_static = canonical(path(string( PyString_AsString( boda_dir.get() ) ))).string();
     ppyo boda_test_dir( PyMapping_GetItemString( main_dict.get(), (char *)"boda_test_dir" ) );
-    py_boda_test_dir_static = string( PyString_AsString( boda_test_dir.get() ) );
+    py_boda_test_dir_static = canonical(path(string( PyString_AsString( boda_test_dir.get() ) ))).string();
   }
 
 

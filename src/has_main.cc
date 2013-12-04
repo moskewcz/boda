@@ -11,6 +11,7 @@ namespace boda
   extern tinfo_t tinfo_p_has_main_t;
 
   using boost::filesystem::path;
+  using boost::filesystem::canonical;
 
   void has_main_t::base_setup( void ) {
     ensure_is_dir( boda_output_dir.exp, 1 );

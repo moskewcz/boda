@@ -7,6 +7,7 @@
 #include<string>
 #include<vector>
 #include<map>
+#include<set>
 #include<exception>
 #include<boost/integer_traits.hpp>
 
@@ -43,6 +44,7 @@ namespace boda
   using std::string;
   using std::vector;
   using std::map;
+  using std::set;
 
   // NESI types
   struct filename_t { string in; string exp; };
@@ -53,6 +55,7 @@ namespace boda
   // typedef uint32_t nesi_bool // TODO
 
   typedef vector< string > vect_string;
+  typedef set< string > set_string;
 
   typedef shared_ptr< void > p_void;
   typedef shared_ptr< std::istream > p_istream;
