@@ -5,11 +5,20 @@
 #include"xml_util.H"
 #include"lexp.H"
 #include"nesi.H"
+#include"timers.H"
+#include<boost/regex.hpp>
+#include<boost/filesystem.hpp>
 
 namespace boda 
 {
   using pugi::xml_node;
   using pugi::xml_document;
+
+  using boost::regex;
+  using boost::regex_search;
+
+  using boost::filesystem::path;
+  using boost::filesystem::filesystem_error;
 
   struct various_stuff_t;
   typedef shared_ptr< various_stuff_t > p_various_stuff_t;
@@ -87,7 +96,10 @@ namespace boda
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
 
+    string boda_test_dir; //NESI(help="boda base test dir (generally set via boda_cfg.xml)",req=1)
+
     virtual void main( nesi_init_arg_t * nia ) {
+      regex filt_regex( filt );
       p_lexp_t boda_test_cfg = parse_lexp_xml_file( tp_if_rel( "boda_test_cfg.xml" ) );
       lexp_name_val_map_t nvm;
       nvm.parent = nia;
@@ -96,8 +108,12 @@ namespace boda
       string const full_xml_fn = tp_if_rel(xml_fn);
       nesi_init_and_check_unused_from_xml_fn( &nvm, &tinfo_vect_p_nesi_test_t, &tests, full_xml_fn );
       for (vect_p_nesi_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
-	if( 1 ) { // FIXME: should be filt.search( (*)->name ) )
+	if( regex_search( (*i)->test_name, filt_regex ) ) {
 	  if( verbose ) { std::cout << (**i) << std::endl; }
+	  // we assume (by convention) that the test will place any output in this directory:
+	  path const output_dir = path(boda_test_dir) / (*i)->test_name;
+	  timer_t t("mode_test");
+	  (*i)->command->base_setup();
 	  (*i)->command->main( &nvm );
 	}
       }

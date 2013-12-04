@@ -117,7 +117,7 @@ class cinfo_t( object ):
     def gen_cinfo( self ):
         tid_vix = "uint32_t_const_max"
         if not self.tid_vn is None:
-            for (ix,vi) in enumerate(self.vars.itervalues()):
+            for (ix,vi) in enumerate(self.vars_list):
                 if vi.vname == self.tid_vn:
                     tid_vix = ix
                     break

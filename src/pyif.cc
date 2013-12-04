@@ -120,7 +120,7 @@ namespace boda
   ppyo bplot_call( char const * const fn, ppyo arg1, ppyo arg2 ) {
     vect_ppyo args; args.push_back( arg1 ); args.push_back( arg2 ); return bplot_call( fn, args ); }
 
-  void prc_plot( std::string const & class_name, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems )
+  void prc_plot( std::string const & plt_fn, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems )
   {
     npy_intp dims[2] = {3,prc_elems.size()};
     ppyo npa( PyArray_SimpleNew( 2, dims, NPY_DOUBLE) );
@@ -132,8 +132,8 @@ namespace boda
       *((double *)PyArray_GETPTR2( npa.get(), 2, ix )) = i->score;
       ++ix;
     }
-    ppyo ret = bplot_call( "plot_stuff", ppyo(PyString_FromString(class_name.c_str())), npa );
-    printf("Result of call: %ld\n", PyInt_AsLong(ret.get()));
+    ppyo ret = bplot_call( "plot_stuff", ppyo(PyString_FromString(plt_fn.c_str())), npa );
+    //printf("Result of call: %ld\n", PyInt_AsLong(ret.get()));
   }
 
   ppyo img_to_py( p_img_t img )

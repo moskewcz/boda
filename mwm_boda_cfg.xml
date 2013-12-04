@@ -15,8 +15,12 @@
 -->
 
 <root verbose="1" 
+      boda_output_dir="."
       pascal_data_dir="/home/moskewcz/bench/VOCdevkit/VOC2007"
       dpm_fast_cascade_dir="/home/moskewcz/svn_work/dpm_fast_cascade"
       ffld_dir="/home/moskewcz/research/ffld"
 />
-
+<!-- note: if not set here, boda will automatically set:
+     boda_dir="PATH_TO_BODA_EXE/.."
+     boda_test_dir="PATH_TO_BODA_EXE/../test"
+-->

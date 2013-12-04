@@ -22,15 +22,27 @@ namespace boda
     return p_uint8_t( (uint8_t *)p, free );
   };
 
-  void ensure_is_dir( string const & fn ) { ensure_is_dir( path(fn) ); }
-  void ensure_is_dir( path const & p )
+  bool ensure_is_dir( string const & fn, bool const create ) { return ensure_is_dir( path(fn), create ); }
+  bool ensure_is_dir( path const & p, bool const create )
   {
     try  { 
-      bool const ret = is_directory( p ); 
-      if( !ret ) { rt_err( strprintf("expected path '%s' to be a directory, but it is not.", p.c_str() ) ); } }
-    catch( filesystem_error const & e ) {
+      bool const is_dir_ret = is_directory( p );
+      if( (!create) && (!is_dir_ret) ) { 
+	rt_err( strprintf("expected path '%s' to be a directory, but it is not.", p.c_str() ) ); 
+      } 
+      if( is_dir_ret ) { return 0; }
+    } catch( filesystem_error const & e ) {
       rt_err( strprintf( "filesystem error while trying to check if '%s' is a directory: %s", 
-			 p.c_str(), e.what() ) ); }
+			 p.c_str(), e.what() ) ); 
+    }
+    try  { // if we get here, p is not a directory, so try to create it
+      bool const cd_ret = boost::filesystem::create_directory( p );
+      assert_st( cd_ret == 1 ); // should not already be dir, so we should either create or raise an expection
+      return 1;
+    } catch( filesystem_error const & e ) {
+      rt_err( strprintf( "error while trying to create '%s' directory: %s", 
+			 p.c_str(), e.what() ) ); 
+    }
   }
   void ensure_is_regular_file( string const & fn ) { ensure_is_regular_file( path(fn) ); }
   void ensure_is_regular_file( path const & p )

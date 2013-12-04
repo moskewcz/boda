@@ -100,6 +100,13 @@ namespace boda {
     }
   }
 
+  void lexp_name_val_map_t::dump( void ) {
+    printf("nvm contents:\n");
+    for( map<sstr_t,p_lexp_t>::const_iterator i = nvm.begin(); i != nvm.end(); ++i ) {
+      printf( "%s=%s\n", str(i->first).c_str(), str((*i->second)).c_str() );
+    }
+  }
+
   bool lexp_name_val_map_t::insert_leaf( char const * n, char const * v ) {
     sstr_t ss_n;
     ss_n.set_from_cstr( n );

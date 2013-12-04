@@ -29,7 +29,6 @@ namespace boda
 
   void oct_init( void )
   {
-    boost::filesystem::initial_path(); // capture initial path if not already done (see boost docs)
     string_vector argv (2);
     argv(0) = "embedded";
     argv(1) = "-q";
@@ -96,7 +95,7 @@ namespace boda
 
   void oct_dfc( ostream & out, string const & dpm_fast_cascade_dir, p_vect_scored_det_t scored_dets, 
 		string const & class_name, string const & image_fn, uint32_t const img_ix ) {
-    boost::filesystem::initial_path(); // capture initial path if not already done (see boost docs)
+    boost::filesystem::path init_path = boost::filesystem::current_path();
     printf( "oct_dfc() class_name=%s image_fn=%s img_ix=%s\n", 
 	    str(class_name).c_str(), str(image_fn).c_str(), str(img_ix).c_str() );
     p_img_t img( new img_t );
@@ -145,7 +144,7 @@ namespace boda
     Matrix det_boxes = boda_if_ret(0).matrix_value(); 
     assert_st( !error_state );
     bs_matrix_to_dets( det_boxes, img_ix, scored_dets );
-    boost::filesystem::current_path( boost::filesystem::initial_path() );
+    boost::filesystem::current_path( init_path );
   }
 
   struct oct_dfc_t : virtual public nesi, public has_main_t // NESI(help="run dpm fast cascade over a single image file",bases=["has_main_t"], type_id="oct_dfc")

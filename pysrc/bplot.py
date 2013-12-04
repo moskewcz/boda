@@ -3,11 +3,10 @@ import os.path
 
 ospj = os.path.join
 
-def plot_stuff( class_name, prc_elems ):
-    print "plot",class_name
+def plot_stuff( plt_fn, prc_elems ):
     plt.clf()
     plt.scatter(prc_elems[0], prc_elems[1] )
-    plt.savefig(class_name+"_mAP"+".png")
+    plt.savefig( plt_fn )
     return 0
 
 

@@ -46,13 +46,19 @@ namespace boda
 
   // NESI types
   struct filename_t { string in; string exp; };
+  typedef vector< filename_t > vect_filename_t; 
+  typedef shared_ptr< filename_t > p_filename_t; 
+  typedef vector< p_filename_t > vect_p_filename_t;
+
   // typedef uint32_t nesi_bool // TODO
 
   typedef vector< string > vect_string;
 
   typedef shared_ptr< void > p_void;
+  typedef shared_ptr< std::istream > p_istream;
   typedef shared_ptr< std::ifstream > p_ifstream;
   p_ifstream ifs_open( string const & fn );
+  typedef shared_ptr< std::ostream > p_ostream;
   typedef shared_ptr< std::ofstream > p_ofstream;
   p_ofstream ofs_open( string const & fn );
 
@@ -60,8 +66,8 @@ namespace boda
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
   p_vect_rp_void get_backtrace( void );
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
-  void ensure_is_dir( string const & fn );
-  void ensure_is_dir( const boost::filesystem3::path & p );
+  bool ensure_is_dir( string const & fn, bool const create = 0 );
+  bool ensure_is_dir( const boost::filesystem3::path & p, bool const create = 0 );
   void ensure_is_regular_file( string const & fn );
   void ensure_is_regular_file( const boost::filesystem3::path & p );
 

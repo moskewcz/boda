@@ -1,7 +1,7 @@
 TARGET=../lib/boda
 CPP=g++
-CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -I/usr/include/python2.7 -I/usr/include/octave-3.6.4 -I/usr/include/octave-3.6.4/octave -fopenmp
-LDFLAGS=-lboost_system -lboost_filesystem -lboost_iostreams -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg
+CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -I/usr/include/python2.7 -I/usr/include/octave-3.6.4 -I/usr/include/octave-3.6.4/octave -fopenmp -Werror
+LDFLAGS=-lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg
 # generally, there is no need to alter the makefile below this line
 VPATH=../src ../src/gen
 OBJS=$(shell cat ../src/obj_list | grep -v ^\#) $(shell cat ../src/gen/gen_objs | grep -v ^\#)

@@ -198,8 +198,9 @@ namespace boda
       return img_info->second->ix;
     }
     match_res_t try_match( string const & class_name, scored_det_t const & sd );
-    void score_results_for_class( string const & class_name, p_vect_scored_det_t name_scored_dets );
-    void score_results( void );
+    void score_results_for_class( string const & class_name, p_vect_scored_det_t name_scored_dets, 
+				  string const & prc_txt_fn, string const & prc_png_fn );
+    void score_results( filename_t const & prc_fn, filename_t const & plot_base_fn );
   };
   typedef shared_ptr< img_db_t > p_img_db_t;
 
@@ -289,12 +290,14 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
     filename_t res_fn; //NESI(help="input: name of pascal-VOC format detection results file to read",req=1)
+    filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
+    filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
     string class_name; //NESI(help="name of object class",req=1)
     p_img_db_t img_db; //NESI(default="()", help="image database")
     virtual void main( nesi_init_arg_t * nia ) {
       read_pascal_image_list_file( img_db, pil_fn.exp, false );
       read_results_file( img_db, res_fn.exp, class_name );
-      img_db->score_results();
+      img_db->score_results( prc_txt_fn, prc_png_fn );
     }
   };
 
@@ -358,19 +361,21 @@ namespace boda
     return match_res_t(1,best->difficult);
   }
   
-  void print_prc_line( prc_elem_t const & prc_elem, uint32_t const tot_num_class, double const & map )
+  void print_prc_line( p_ostream out, prc_elem_t const & prc_elem, uint32_t const tot_num_class, double const & map )
   {
-    printf( "num_pos=%s num_test=%s score=%.6lf p=%s r=%s map=%s\n", 
-	    str(prc_elem.num_pos).c_str(), str(prc_elem.num_test).c_str(), 
-	    prc_elem.score,
-	    str(prc_elem.get_precision()).c_str(), 
-	    str(prc_elem.get_recall(tot_num_class)).c_str(), 
-	    str(map).c_str() );
+    (*out) << strprintf( "num_pos=%s num_test=%s score=%.6lf p=%s r=%s map=%s\n", 
+			 str(prc_elem.num_pos).c_str(), str(prc_elem.num_test).c_str(), 
+			 prc_elem.score,
+			 str(prc_elem.get_precision()).c_str(), 
+			 str(prc_elem.get_recall(tot_num_class)).c_str(), 
+			 str(map).c_str() );
   }
 
 
-  void img_db_t::score_results_for_class( string const & class_name, p_vect_scored_det_t name_scored_dets )
+  void img_db_t::score_results_for_class( string const & class_name, p_vect_scored_det_t name_scored_dets,
+					  string const & prc_txt_fn, string const & prc_png_fn )
   {
+    p_ostream prc_out = ofs_open( prc_txt_fn + class_name + ".txt" );
     sort( name_scored_dets->begin(), name_scored_dets->end(), scored_det_t_comp_by_inv_score_t() );
     uint32_t tot_num_class = class_infos[class_name].v;
     vect_prc_elem_t prc_elems;
@@ -397,27 +402,28 @@ namespace boda
 	map += prc_elem.get_precision() * (num_pos - orig_num_pos);
 	if( num_pos >= next_print ) { 
 	  next_print = num_pos + print_skip; 
-	  print_prc_line( prc_elem, tot_num_class, map / tot_num_class ); 
+	  print_prc_line( prc_out, prc_elem, tot_num_class, map / tot_num_class ); 
 	}
 	prc_elems.push_back( prc_elem );
       }
     }
     map /= tot_num_class;
-    if( next_print != (num_pos+print_skip) ) { print_prc_line( prc_elems.back(), tot_num_class, map ); }
-    printf( "--- tot_num=%s num_pos=%s num_test=%s num_neg=%s final_map=%s\n", 
-	    str(tot_num_class).c_str(), 
-	    str(num_pos).c_str(), str(num_test).c_str(), 
-	    str(num_test - num_pos).c_str(),
-	    str(map).c_str() );
-    prc_plot( class_name, tot_num_class, prc_elems );
+    if( next_print != (num_pos+print_skip) ) { print_prc_line( prc_out, prc_elems.back(), tot_num_class, map ); }
+    (*prc_out ) << strprintf( "--- tot_num=%s num_pos=%s num_test=%s num_neg=%s final_map=%s\n", 
+			      str(tot_num_class).c_str(), 
+			      str(num_pos).c_str(), str(num_test).c_str(), 
+			      str(num_test - num_pos).c_str(),
+			      str(map).c_str() );
+    string const plt_fn = prc_png_fn+class_name+".png";
+    prc_plot( plt_fn, tot_num_class, prc_elems );
 
   }
 
-  void img_db_t::score_results( void )
+  void img_db_t::score_results( filename_t const & prc_fn, filename_t const & plot_base_fn )
   {
     for( name_vect_scored_det_map_t::iterator i = scored_dets.begin(); i != scored_dets.end(); ++i )
     {
-      score_results_for_class( i->first, i->second );
+      score_results_for_class( i->first, i->second, prc_fn.exp, plot_base_fn.exp );
     }
   }
 #include"gen/results_io.cc.nesi_gen.cc"

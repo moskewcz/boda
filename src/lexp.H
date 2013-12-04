@@ -46,6 +46,7 @@ namespace boda {
   struct lexp_name_val_map_t {
     lexp_name_val_map_t * parent;
     std::map< sstr_t, p_lexp_t > nvm;
+    void dump( void );
     void populate_from_lexp( lexp_t * const l );
     bool insert_leaf( char const * n, char const * v );
     p_lexp_t find( char const * n );
