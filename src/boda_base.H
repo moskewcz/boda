@@ -17,11 +17,12 @@
    : __assert_fail ((std::string(" failed:\n") + __STRING(expr)+\
 		     "\n "+stacktrace_str( get_backtrace(), 0 )).c_str(),	\
 		    __FILE__, __LINE__, __ASSERT_FUNCTION))
-namespace boost 
-{
-  namespace filesystem3
-  {
+namespace boost {
+  namespace filesystem3 {
     struct path;
+  }
+  namespace iostreams {
+    struct mapped_file;
   }
 }
 namespace boda
@@ -41,6 +42,7 @@ namespace boda
 
   using boost::shared_ptr;
   using boost::dynamic_pointer_cast;
+  using boost::iostreams::mapped_file;
   using std::string;
   using std::vector;
   using std::map;
@@ -57,6 +59,8 @@ namespace boda
   typedef vector< string > vect_string;
   typedef set< string > set_string;
 
+  typedef map< string, zi_uint32_t > map_str_ziu32_t;
+
   typedef shared_ptr< void > p_void;
   typedef shared_ptr< std::istream > p_istream;
   typedef shared_ptr< std::ifstream > p_ifstream;
@@ -64,6 +68,8 @@ namespace boda
   typedef shared_ptr< std::ostream > p_ostream;
   typedef shared_ptr< std::ofstream > p_ofstream;
   p_ofstream ofs_open( string const & fn );
+  typedef shared_ptr< boost::iostreams::mapped_file > p_mapped_file;
+  p_mapped_file map_file( std::string const & fn );
 
   typedef std::vector< void * > vect_rp_void;
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;

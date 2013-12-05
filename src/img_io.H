@@ -24,6 +24,7 @@ namespace boda
     void load_fn( std::string const & fn );
     void load_fn_jpeg( std::string const & fn );
     void load_fn_png( std::string const & fn );
+    uint32_t sz_raw_bytes( void ) const { return row_pitch*h; }
     p_img_t downsample( uint16_t scale ); // scale is 0.16 fixed point, value must be in [.5,1]
   };
 

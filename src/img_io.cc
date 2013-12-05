@@ -10,9 +10,6 @@
 
 namespace boda 
 {
-  using::boost::iostreams::mapped_file;
-  using std::string;
-
   void img_t::load_fn( std::string const & fn )
   {
     ensure_is_regular_file( fn );
@@ -41,18 +38,17 @@ namespace boda
 
   void img_t::load_fn_jpeg( std::string const & fn )
   {
-    mapped_file mfile( fn );
-    if( !mfile.is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
+    p_mapped_file mfile = map_file( fn );
     int tj_ret = 0, jss = 0, jw = 0, jh = 0;
     tjhandle tj_dec = tjInitDecompress();
     check_tj_ret( !tj_dec, "tjInitDecompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
     uint32_t const tj_pixel_format = TJPF_RGBA;
-    tj_ret = tjDecompressHeader2( tj_dec, (uint8_t *)mfile.data(), mfile.size(), &jw, &jh, &jss);
+    tj_ret = tjDecompressHeader2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), &jw, &jh, &jss);
     check_tj_ret( tj_ret, "tjDecompressHeader2" );
     assert_st( (jw > 0) && ( jh > 0 ) ); // what to do with jss? seems unneeded.
     assert_st( tjPixelSize[ tj_pixel_format ] == depth );
     set_sz_and_alloc_pels( jw, jh );
-    tj_ret = tjDecompress2( tj_dec, (uint8_t *)mfile.data(), mfile.size(), pels.get(), w, row_pitch, h, 
+    tj_ret = tjDecompress2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), pels.get(), w, row_pitch, h, 
 			    tj_pixel_format, 0 );
     check_tj_ret( tj_ret, "tjDecompress2" );
     tj_ret = tjDestroy( tj_dec ); 
@@ -61,13 +57,13 @@ namespace boda
 
   void img_t::load_fn_png( std::string const & fn )
   {
-    mapped_file mfile( fn );
-    if( !mfile.is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
+    p_mapped_file mfile = map_file( fn );
+    if( !mfile->is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
     uint32_t const lp_depth = 4;
     assert( depth == lp_depth );
     vect_uint8_t lp_pels; // will contain packed RGBA (no padding)
     unsigned lp_w = 0, lp_h = 0;
-    unsigned ret = lodepng::decode( lp_pels, lp_w, lp_h, (uint8_t *)mfile.data(), mfile.size() );
+    unsigned ret = lodepng::decode( lp_pels, lp_w, lp_h, (uint8_t *)mfile->data(), mfile->size() );
     if( ret ) { rt_err( strprintf( "lodepng decoder error %s: %s", str(ret).c_str(), lodepng_error_text(ret) ) ); }
     assert_st( (lp_w > 0) && ( lp_h > 0 ) );
     set_sz_and_alloc_pels( lp_w, lp_h );

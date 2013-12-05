@@ -4,6 +4,7 @@
 #include<execinfo.h>
 #include<cxxabi.h>
 #include<boost/filesystem.hpp>
+#include<boost/iostreams/device/mapped_file.hpp>
 
 namespace boda 
 {
@@ -75,6 +76,11 @@ namespace boda
     return ret;
   }
 
+  p_mapped_file map_file( std::string const & fn ) {
+    p_mapped_file ret( new mapped_file( fn ) );
+    if( !ret->is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
+    return ret;
+  }
   uint32_t const max_frames = 64;
 
   p_vect_rp_void get_backtrace( void )

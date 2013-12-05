@@ -8,6 +8,9 @@
 #include"timers.H"
 #include<boost/regex.hpp>
 #include<boost/filesystem.hpp>
+#include<boost/iostreams/device/mapped_file.hpp>
+#include"dtl/dtl.hpp"
+#include"img_io.H"
 
 namespace boda 
 {
@@ -18,7 +21,11 @@ namespace boda
   using boost::regex_search;
 
   using boost::filesystem::path;
+  using boost::filesystem::exists;
+  using boost::filesystem::is_directory;
+  using boost::filesystem::is_regular_file;
   using boost::filesystem::filesystem_error;
+  using boost::filesystem::recursive_directory_iterator;
 
   struct various_stuff_t;
   typedef shared_ptr< various_stuff_t > p_various_stuff_t;
@@ -93,6 +100,118 @@ namespace boda
     assert_st( sys_ret == 0 );
   }
 
+  // get size() of a path by iterating
+  uint32_t num_elems( path const & p ) {
+    uint32_t p_sz = 0; for( path::iterator pi = p.begin(); pi != p.end(); ++pi ) { ++p_sz; }
+    return p_sz;
+  }
+
+  // return a new path that is p with the p_sz first elements removed. p must have at least p_sz elements.
+  path strip_prefix( uint32_t const p_sz, path const & p ) {
+    path rp; 
+    path::iterator pi = p.begin();
+    for( uint32_t pix = 0; pix != p_sz; ++pix ) { assert_st( pi != p.end() ); ++pi; } 
+    for( ; pi != p.end(); ++pi ) { rp /= *pi; }
+    return rp;
+  }    
+
+  void tag_dir_files( map_str_ziu32_t & tags, path const & p, uint32_t tag ) {
+    assert_st( tag < 32 ); // 32 tags supported
+    uint32_t const p_sz = num_elems(p);
+    for( recursive_directory_iterator i(p); i != recursive_directory_iterator(); ++i ) {
+      tags[strip_prefix( p_sz, i->path() ).string()].v |= (1<<tag);
+    }
+  }
+
+
+  // this has gotta be in the c++ std lib or boost somewhere ...
+  template< typename T >
+  struct range {
+    typedef T * iterator;
+    typedef T const * const_iterator;
+    T *b;
+    T *e;
+    T *begin( void ) { return b; }
+    T *end( void ) { return e; }
+    uint32_t size( void ) const { return e-b; }
+    T &operator[]( size_t const & i ) { return b[i]; }
+    range( T * const & b_, T * const & e_ ) : b(b_), e(e_) { }
+    bool operator == ( range const & o ) const { if( size()!=o.size() ) { return 0; } return std::equal( b, e, o.b ); }
+  };
+  typedef range< uint8_t > range_uint8_t;
+  typedef range< char > range_char;
+  typedef vector< range_char > vect_range_char;
+  std::ostream & operator<<(std::ostream & os, range_char const & v) { os.write( v.b, v.size()); os.flush(); return os; }
+  
+
+  // split s at each newline. output will have (# newlines in s) + 1 elements. removes newlines.
+  void getlines( vect_range_char & lines, range_char & s ) {
+    char * cur_b = s.begin();
+    for( char * c = s.begin(); c != s.end(); ++c ) {
+      if( *c == '\n' ) { lines.push_back( range_char( cur_b, c ) ); cur_b = c+1; } // omit newline
+    }
+    lines.push_back( range_char( cur_b, s.end() ) ); // note: final elem may be empty and never has a newline
+  }
+
+
+  // returns 1 if files differ
+  bool diff_file( path const & good, path const & test, string const & fn ) {
+    string const good_fn = (good / fn).string();
+    string const test_fn = (test / fn).string();
+    assert_st( exists( good_fn ) && exists( test_fn ) );
+    if( is_directory( good_fn ) != is_directory( test_fn ) ) {
+      printf( "DIFF: directory / non-directory mismatch for file '%s'.", fn.c_str() );
+      return 1;
+    }
+    if( is_directory( good_fn ) ) { return 0; } // both are directories, so that's all fine and well.
+    // we can only handle regular files and directories, so check for that:
+    assert_st( is_regular_file( good_fn ) && is_regular_file( test_fn ) ); 
+
+    p_mapped_file good_map = map_file( good_fn );
+    p_mapped_file test_map = map_file( test_fn );
+    range_char good_range( good_map->data(), good_map->data() + good_map->size() );
+    range_char test_range( test_map->data(), test_map->data() + test_map->size() );
+    if( endswith(fn, ".txt" ) ) { // do line-by-line diff
+      vect_range_char good_lines; getlines( good_lines, good_range );
+      vect_range_char test_lines; getlines( test_lines, test_range );
+      dtl::Diff< range_char, vect_range_char > d( good_lines, test_lines );
+      d.compose();
+      if( d.getEditDistance() ) {
+	printf( "DIFF: text file '%s' edit distance:%s\n", fn.c_str(), str(d.getEditDistance()).c_str() );
+	//d.printSES();
+	d.composeUnifiedHunks(); 
+	d.printUnifiedFormat();
+	return 1;
+      }
+      else { return 0; }
+    } else if( endswith( fn, ".png" ) || endswith( fn, ".jpg" ) ) { // image diff
+      if( !( good_range == test_range ) ) { // if not binary identical
+	img_t good_img;
+	img_t test_img;
+	good_img.load_fn( good_fn );
+	test_img.load_fn( test_fn );
+
+	dtl::Diff< uint8_t, range_uint8_t > d( 
+	  range_uint8_t( good_img.pels.get(), good_img.pels.get()+good_img.sz_raw_bytes() ),
+	  range_uint8_t( test_img.pels.get(), test_img.pels.get()+test_img.sz_raw_bytes() ) );
+	d.compose();
+	printf( "DIFF: image file '%s' edit distance (padded raw color bytes, inexact):%s\n", 
+		fn.c_str(), str(d.getEditDistance()).c_str() );
+	return 1;
+      }
+      else { return 0; }
+    } else { // bytewise binary diff
+      dtl::Diff< char, range_char > d( good_range, test_range );
+      d.compose();
+      if( d.getEditDistance() ) {
+	printf( "DIFF: binary file '%s' edit distance:%s\n", fn.c_str(), str(d.getEditDistance()).c_str() );
+	return 1;
+      }
+      else { return 0; }
+    }
+    
+  }
+
   extern tinfo_t tinfo_vect_p_nesi_test_t;
   struct test_modes_t : public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_modes" )
   {
@@ -151,7 +270,7 @@ namespace boda
 	  path const test_good_arc = path(boda_test_dir) / "mt_good" / ( (*i)->test_name + ".tbz2");
 	  bool update_archive = 0;
 	  if( !exists( test_good_arc ) ) {
-	    printf("no existing good results archive for test %s.\n",(*i)->test_name.c_str());
+	    printf("NEW_TEST: no existing good results archive for test %s, will generate\n",(*i)->test_name.c_str());
 	    update_archive = 1;
 	  } else { // achive exists, unpack it
 	    assert_st( is_regular_file( test_good_arc ) );
@@ -166,13 +285,32 @@ namespace boda
 	    run_system_cmd( strprintf("tar -C %s -xjf %s",
 				      test_good_dir.string().c_str(),test_good_arc.c_str()), 0 );
 	    // compare good and test directories
-	    bool output_good = 0;
-
-	    if( (!output_good) && update_failing ) { 
-	      printf("AUTOUPDATE: test %s failed, will update.\n",(*i)->test_name.c_str());
-	      update_archive = 1; 
+	    bool output_good = 1;
+	    map_str_ziu32_t tags;
+	    tag_dir_files( tags, test_good_dir, 0 );
+	    tag_dir_files( tags, test_out_dir, 1 );
+	    for( map_str_ziu32_t::const_iterator i = tags.begin(); i != tags.end(); ++i ) {
+	      uint32_t const & tv = i->second.v;
+	      if( tv == 1 ) { printf( "DIFF: file '%s' only in known-good output dir.\n", str(i->first).c_str()); 
+		output_good = 0; continue; 
+	      }
+	      if( tv == 2 ) { printf( "DIFF: file '%s' only in under-test output dir.\n", str(i->first).c_str()); 
+		output_good = 0; continue; 
+	      }
+	      assert_st( tv == 3 ); // file in both known-good an under-test output dirs
+	      if( diff_file( test_good_dir, test_out_dir, i->first ) ) { 
+		printf( "DIFF: file '%s' differs between known-good(-) and under-test(+):\n", str(i->first).c_str()); 
+		output_good = 0; continue; 
+	      }
 	    }
-
+	    if( !output_good ) {
+	      if( update_failing ) { 
+		printf("AUTOUPDATE: test %s failed, will update.\n",(*i)->test_name.c_str());
+		update_archive = 1; 
+	      } else {
+		printf("FAIL: test %s failed.\n",(*i)->test_name.c_str());
+	      }
+	    }
 	  }
 	  
 	  if( update_archive ) {
