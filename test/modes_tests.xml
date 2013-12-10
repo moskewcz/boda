@@ -1,9 +1,18 @@
 <root>
+  <li test_name="vst_1">
+    <command mode="vst" 
+	     u64="23" dpf="3.4" pdpf="3.2" >
+      <vdpf li_0="1.5" li_1="2.3"/>
+      <vu64 li_0="0" li_1="2" li_2="0"/> 
+    </command>
+  </li>
   <li test_name="test_lexp"><command mode="test_lexp"/></li>
   <li test_name="oct_test"><command mode="oct_test" /></li>
-  <li test_name="score_1"><command mode="score" 
-  
-  pil_fn="%(pascal_data_dir)/ImageSets/Main/bicycle_test.txt" 
-  res_fn="%(ffld_dir)/build/ffld_VOC2007_bicycle_test_out.txt" class_name="bicycle"/></li>
+  <li test_name="score_1">
+    <command mode="score" 
+	     pil_fn="%(pascal_data_dir)/ImageSets/Main/bicycle_test.txt" 
+	     res_fn="%(ffld_dir)/build/ffld_VOC2007_bicycle_test_out.txt" 
+	     class_name="bicycle"
+	     /></li>
 
 </root>

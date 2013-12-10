@@ -30,6 +30,7 @@ namespace boda
     pugi::xml_document doc;
     pugi::xml_node xn = xml_file_get_root( doc, xml_fn );
     p_lexp_t lexp = parse_lexp_list_xml( xn );
+    //printf( "*lexp=%s\n", str(*lexp).c_str() );
     nesi_init_and_check_unused_from_lexp( nia, ti, o, lexp );
   }
 

@@ -49,12 +49,11 @@ namespace boda
     vect_double vdpf; //NESI()
     p_double pdpf; //NESI()
     vect_uint64_t vu64; //NESI()
-    vect_p_various_stuff_t vvs; //NESI()
     vect_one_p_string_t vops; //NESI()
     one_p_string_t ops; //NESI()
 
     virtual void main( nesi_init_arg_t * nia ) {
-      printf("vst::main()\n");
+      //printf("vst::main()\n");
     }
   };
 
@@ -139,15 +138,15 @@ namespace boda
     bool operator == ( range const & o ) const { if( size()!=o.size() ) { return 0; } return std::equal( b, e, o.b ); }
   };
   typedef range< uint8_t > range_uint8_t;
-  typedef range< char > range_char;
+  typedef range< char const > range_char;
   typedef vector< range_char > vect_range_char;
   std::ostream & operator<<(std::ostream & os, range_char const & v) { os.write( v.b, v.size()); os.flush(); return os; }
   
 
   // split s at each newline. output will have (# newlines in s) + 1 elements. removes newlines.
   void getlines( vect_range_char & lines, range_char & s ) {
-    char * cur_b = s.begin();
-    for( char * c = s.begin(); c != s.end(); ++c ) {
+    char const * cur_b = s.begin();
+    for( char const * c = s.begin(); c != s.end(); ++c ) {
       if( *c == '\n' ) { lines.push_back( range_char( cur_b, c ) ); cur_b = c+1; } // omit newline
     }
     lines.push_back( range_char( cur_b, s.end() ) ); // note: final elem may be empty and never has a newline
@@ -167,8 +166,8 @@ namespace boda
     // we can only handle regular files and directories, so check for that:
     assert_st( is_regular_file( good_fn ) && is_regular_file( test_fn ) ); 
 
-    p_mapped_file good_map = map_file( good_fn );
-    p_mapped_file test_map = map_file( test_fn );
+    p_mapped_file_source good_map = map_file_ro( good_fn );
+    p_mapped_file_source test_map = map_file_ro( test_fn );
     range_char good_range( good_map->data(), good_map->data() + good_map->size() );
     range_char test_range( test_map->data(), test_map->data() + test_map->size() );
     if( endswith(fn, ".txt" ) ) { // do line-by-line diff

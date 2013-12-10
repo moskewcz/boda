@@ -14,7 +14,7 @@ namespace boda
   using filesystem::filesystem_error;
 
   // ma_p == make aligned shared_ptr
-  p_uint8_t ma_p_uint8_t( uint32_t const sz, uint32_t const a ) 
+  p_uint8_t ma_p_uint8_t( size_t const sz, uint32_t const a ) 
   {
     void * p = 0;
     int const ret = posix_memalign( &p, a, sz );
@@ -76,9 +76,15 @@ namespace boda
     return ret;
   }
 
-  p_mapped_file map_file( std::string const & fn ) {
-    p_mapped_file ret( new mapped_file( fn ) );
-    if( !ret->is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
+  p_mapped_file_source map_file_ro( std::string const & fn ) {
+    //ensure_is_regular_file( fn ); // too strong? a good idea?
+    p_mapped_file_source ret;
+    try { ret.reset( new mapped_file_source( fn ) ); }
+    catch( std::exception & err ) { 
+      // note: fn.c_str(),err.what() is not too useful? it does give 'permission denied' sometimes, but other times is it just 'std::exception'.
+      rt_err( strprintf("failed to open/map file '%s' for reading",fn.c_str()) ); 
+    }
+    assert_st( ret->is_open() ); // possible?
     return ret;
   }
   uint32_t const max_frames = 64;

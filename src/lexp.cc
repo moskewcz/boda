@@ -455,26 +455,32 @@ namespace boda {
     { "off_leaf_4_nested_esc_lp", "", "(biz=bar=foo\\()", 0, 0, {1,1,1} },
   };
 
-#if 0
-    else if( mode == "lexp" ) {
-      if( argc != 3 ) { printf("test lexp parsing\nusage: boda lexp LEXP_STR\n"); }
-      else {
-	std::string const lexp_str = argv[2];
-	p_lexp_t lexp = parse_lexp( lexp_str );
-	printf( "*lexp=%s\n", str(*lexp).c_str() );
-      }
+#if 0 // FIXME: currently unused
+  // test interface
+  struct boda_test_t {
+    virtual void run( void );
+    virtual void post( void );
+    virtual char * exp_error( void ); // null if no error expected. valid only after run.
+  };
+  typedef vector< boda_test_t > vect_boda_test_t; 
+  typedef shared_ptr< boda_test_t > p_boda_test_t; 
+  typedef vector< p_boda_test_t > vect_p_boda_test_t;
+  // test set interface
+  struct test_set_t {
+    uint32_t num_tests( void );
+
+  };
+  struct REBASE_lexp_test_t : public boda_test_t {
+
+  };
 #endif
 
-  struct lexp_test_run_t : public virtual nesi, public has_main_t // NESI(help="NESI wrapper for low-level lexp tests; use test_lexp() global func to run w/o NESI", bases=["has_main_t"], type_id="test_lexp", hide=1 )
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-
+  // FIXME: move to somewhere better?
+  struct test_run_t {
     uint32_t tix;
     uint32_t num_fail;
 
-    void test_print( void ) {
-      printf( "tix=%s lexp_tests[tix].desc=%s\n", str(tix).c_str(), str(lexp_tests[tix].desc).c_str() );
-    }
+    virtual void test_print( void ) = 0;
     void test_fail( void ) {
       ++num_fail;
       test_print();
@@ -494,6 +500,104 @@ namespace boda {
     void test_fail_wrong_err( string const & msg )  {
       test_fail();
       printf( "test failed: wrong error, got:\n%s\n", str(msg).c_str() );
+    }
+  };
+
+  // all c++ programmers must use pointer-to-member at least once per decade:
+  struct boda_base_test_run_t;
+  typedef void (boda_base_test_run_t::*test_func_t)( void );
+
+  // FIXME: move to somewhere better?
+  char const * regfile_fn = "/etc/passwd"; // usually a regular (non-symlinked) file?
+  char const * bb_test_fns[] = { regfile_fn, "/etc/shadow", "/dev", "/dev/null", "/dev/null/baz", "/bin/sh", "fsdlkfsjdflksjd234234" };
+  uint32_t const num_bb_test_fns = sizeof( bb_test_fns ) / sizeof( char const * );
+
+  struct boda_base_test_run_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="NESI wrapper for low-level boda tests; use test_boda_base() global func to run w/o NESI", bases=["has_main_t"], type_id="test_boda_base", hide=1 )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    char const * cur_tn;
+    char const * cur_fn;
+    void test_print( void ) {
+      assert_st( cur_tn );
+      printf( "tix=%s %s\n", str(tix).c_str(), cur_tn );
+    }
+
+    void test_run( char const * tn, test_func_t tf, char const * exp_err )
+    {
+      cur_tn = tn; // for test_print()
+      bool had_err = 1;
+      try {
+	(this->*tf)();
+	had_err = 0;
+      } catch( rt_exception const & rte ) {
+	if( !exp_err ) { test_fail_err( rte.err_msg ); } // expected no error, but got one
+	else { 	// check if error is correct one
+	  if( rte.err_msg != string(exp_err) ) { test_fail_wrong_err( 
+	      strprintf( "  %s\nexpected:\n  %s\n", str(rte.err_msg).c_str(), exp_err ) ); 
+	  }
+	}
+      }
+      if( (!had_err) && exp_err ) { test_fail_no_err( exp_err ); }
+      // note: !had_err && !exp_err case (i.e. checking correct output) is handled inside test function.
+      ++tix;
+    }
+    void test_run_fns( char const * tn_base, test_func_t tf, char const * err_fmt, char const * fn_mask ) {
+      assert_st( strlen( fn_mask ) == num_bb_test_fns );
+      for( uint32_t fn_ix = 0; fn_ix < num_bb_test_fns; ++fn_ix ) { 
+	char const tt = fn_mask[fn_ix];
+	if( tt == '-' ) { continue; } // skip fn
+	cur_fn = bb_test_fns[fn_ix];
+	string exp_err;
+	if( tt != '0' ) { exp_err = strprintf( err_fmt, cur_fn ); }
+	test_run( (string(tn_base)+str(fn_ix)).c_str(), tf, (tt=='0')?0:exp_err.c_str() );
+      }
+      cur_fn = 0;
+    }
+    
+    void ma_p_t1( void ) { p_uint8_t p = ma_p_uint8_t( 100, 3 ); assert_st( p ); }
+    void ma_p_t2( void ) { p_uint8_t p = ma_p_uint8_t( 100, 1024 ); assert_st( p ); }
+    void eid_t1( void ) { ensure_is_dir( "/dev/null", 0 ); }
+    //void eid_t2( void ) { ensure_is_dir( "<something that gives fs error?>", 0 ); }
+    void eid_t3( void ) { ensure_is_dir( "/dev/null", 1 ); }
+    void eid_t4( void ) { ensure_is_dir( "/dev/null/baz", 1 ); } // note: error isn't nice/correct. hmm.
+    void eid_t5( void ) { ensure_is_dir( "/dev", 0 ); }
+    void eirf_t( void ) { ensure_is_regular_file( cur_fn ); }
+    void ifso_t( void ) { ifs_open( cur_fn ); } 
+    void ofso_t( void ) { ofs_open( cur_fn ); } 
+    void mapfnro_t( void ) { map_file_ro( cur_fn ); } 
+
+    void main( nesi_init_arg_t * nia ) {
+      num_fail = 0;
+      cur_tn = 0;
+      tix = 0;
+      char const * expected_regfile_fmt = "error: expected path '%s' to be a regular file, but it is not.";
+
+      test_run( "ma_p_t1", &boda_base_test_run_t::ma_p_t1, "error: posix_memalign( p, 3, 100 ) failed, ret=22" );
+      test_run( "ma_p_t2", &boda_base_test_run_t::ma_p_t2, 0 );
+      test_run( "eid_t1", &boda_base_test_run_t::eid_t1, "error: expected path '/dev/null' to be a directory, but it is not.");
+      test_run( "eid_t3", &boda_base_test_run_t::eid_t3, "error: error while trying to create '/dev/null' directory: boost::filesystem::create_directory: File exists: \"/dev/null\"" );
+      test_run( "eid_t4", &boda_base_test_run_t::eid_t4, "error: error while trying to create '/dev/null/baz' directory: boost::filesystem::create_directory: Not a directory: \"/dev/null/baz\"" ); // note: error not the best ...
+      test_run( "eid_t5", &boda_base_test_run_t::eid_t5, 0 );
+      test_run_fns( "eirf_t", &boda_base_test_run_t::eirf_t, expected_regfile_fmt, "0011101" );
+      test_run_fns( "ifso_t", &boda_base_test_run_t::ifso_t, expected_regfile_fmt, "0-11101" );
+      test_run_fns( "ifso_t", &boda_base_test_run_t::ifso_t, "error: can't open file '%s' for reading", "-1-----" );
+      //test_run_fns( "ofso_t", &boda_base_test_run_t::ofso_t, expected_regfile_fmt, "0-11101" );
+      test_run_fns( "ofso_t", &boda_base_test_run_t::ofso_t, "error: can't open file '%s' for writing", "111011-" );
+      test_run_fns( "mapfnro_t", &boda_base_test_run_t::mapfnro_t, 
+		    "error: failed to open/map file '%s' for reading", "0111101");
+
+      if( num_fail ) { printf( "test_boda_base num_fail=%s\n", str(num_fail).c_str() ); }
+    }
+  };
+
+
+  struct lexp_test_run_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="NESI wrapper for low-level lexp tests; use test_lexp() global func to run w/o NESI", bases=["has_main_t"], type_id="test_lexp", hide=1 )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    void test_print( void ) {
+      printf( "tix=%s lexp_tests[tix].desc=%s\n", str(tix).c_str(), str(lexp_tests[tix].desc).c_str() );
     }
 
     void test_lexp_run( void )
@@ -531,8 +635,7 @@ namespace boda {
 	  string const lexp_to_str( str( *test_ret ) );
 	  if( lexp_to_str != lt.in ) { test_fail_wrong_res( strprintf( "lexp_to_str=%s != lt.in=%s\n", 
 								       str(lexp_to_str).c_str(), str(lt.in).c_str() ) );
-	  }
-	
+	  }	
 	}
       }
     }

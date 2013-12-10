@@ -1,0 +1,47 @@
+src/boda.cc:77:	rt_err( "specified mode name '"+mode+"' parses as a list, and it must not be a list." );
+src/boda.cc:81:	if( !startswith( arg, "--" ) ) { rt_err( strprintf("expected option, but argument '%s' does not start with '--'",
+src/boda.cc:96:	  if( (ai + 1) == argc ) { rt_err( strprintf("missing value for option '%s': no '=' present, and no more args",
+src/geom_prim.cc:10:      if( !p[0].d[d] ) { rt_err( "during from_pascal_coord_adjust(), box had 0 coord, expected >= 1" ); }
+src/img_io.cc:19:    else { rt_err( "img_t::load_fn( '%s' ): could not auto-detect file-type from extention. known extention/types are:"
+src/img_io.cc:24:    if( tj_ret ) { rt_err( err_tag + " failed:" + string(tjGetErrorStr()) ); } }
+src/img_io.cc:31:      rt_err( strprintf("can't create zero-area image. requests WxH was %sx%s",str(w).c_str(), str(h).c_str())); }
+src/img_io.cc:61:    if( !mfile->is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
+src/img_io.cc:67:    if( ret ) { rt_err( strprintf( "lodepng decoder error %s: %s", str(ret).c_str(), lodepng_error_text(ret) ) ); }
+src/lexp.cc:95:    if( !l->use_cnt ) { rt_err( strprintf( "unused input: %s:%s", join(path,"->").c_str(), str(*l).c_str() ) ); } 
+src/lexp.cc:118:      rt_err( "invalid attempt to use string as name/value list. string was:" + str(*l) );
+src/lexp.cc:122:      if( !did_ins ) { rt_err( "invalid duplicate name '"+i->n.str()+"' in name/value list" ); }
+src/lexp.cc:232:  void lex_parse_t::err( string const & msg ) { rt_err( err_str( msg, cur_off() ) ); }
+src/nesi.cc:163:      rt_err( "invalid attempt to use string as name/value list for vector init. string was:" + str(*l) );
+src/nesi.cc:215:    if( !di && vi->req ) { rt_err( strprintf( "missing required value for var '%s'", vi->vname ) ); } 
+src/nesi.cc:325:      if( !vi ) { rt_err( strprintf("struct '%s' has no field '%s', so help cannot be provided for it.",
+src/nesi.cc:412:	rt_err( strprintf( "type id str of '%s' did not match any derived class of %s\n", 
+src/nesi.cc:471:      rt_err( "invalid attempt to use name/value list as "+string(tstr)+" value. list was:" + str(*l) );
+src/nesi.cc:476:    catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", s.c_str(), tstr ) ); }
+src/nesi.cc:507:      rt_err( strprintf("leaf type '%s' has no fields at all, certainly not '%s', so help cannot be provided for it.",
+src/nesi.cc:523:      rt_err( "invalid attempt to use name/value list as string value. list was:" + str(*l) );
+src/nesi.cc:541:	++i; if( i == v->in.end() ) { rt_err( "end of string after '%' in filename, expected '(' or '%'." ); }
+src/nesi.cc:543:	else if( *i != '(' ) { rt_err( "'" + string(1,*i) + "' after '%' in filename, expected '(' or '%'." ); }
+src/nesi.cc:548:	    if( i == v->in.end() ) { rt_err( "end of string after '%(' in filename, expected ')' to terminate ref" ); }
+src/nesi.cc:554:	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" ); }
+src/nesi.cc:556:	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
+src/pyif.cc:22:    // we don't just call rt_err() here so we can keep the stack skip
+src/pyif.cc:23:    // depths of rt_py_err() and rt_err() the same
+src/pyif.cc:71:    if( _import_array() < 0 ) { rt_err( "failed to import numpy" ); }
+src/pyif.cc:94:    if( !PyCallable_Check(pFunc.get()) ) { rt_err( "attr '"+attr+"' not callable" ); }
+src/pyif.cc:108:    if( ret ) { rt_err( "tuple setitem failed" ); }
+src/results_io.cc:28:    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to double.", s ) ); }
+src/results_io.cc:33:    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to uint32_t.", s ) ); }
+src/results_io.cc:52:  // note: calls rt_err() if a complete line cannot be read.
+src/results_io.cc:64:      if( !line.empty() ) { rt_err( "reading "+fn+": incomplete (no newline) line at EOF:'" + line + "'" ); } 
+src/results_io.cc:68:      if( !in->good() ) { rt_err( "reading "+fn+ " unknown failure" ); }
+src/results_io.cc:129:      rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
+src/results_io.cc:177:      if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
+src/results_io.cc:197:      if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
+src/results_io.cc:276:	rt_err( strprintf( "invalid line in image list file '%s': num of parts != 2 after space "
+src/results_io.cc:281:	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
+src/test_nesi.cc:245:	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + (*i)->test_name ); }
+src/test_nesi.cc:264:	    rt_err( strprintf( "test '%s' did not create its expected output directory '%s'.", 
+src/timers.cc:25:	if( cur_clock != CLOCK_MONOTONIC ) { rt_err("neither CLOCK_MONOTONIC_RAW nor CLOCK_MONOTONIC supported"); }
+src/timers.cc:27:      } else {	rt_err( "clock_gettime() unexpectedly failed with errno = " + str(errno) ); }
+src/xml_util.cc:13:      rt_err( strprintf( "loading xml file '%s' failed: %s", xml_fn.c_str(), result.description() ) );
+src/xml_util.cc:26:      rt_err( strprintf( "error: parsing xml file: '%s': expected to find child named '%s' from %s",

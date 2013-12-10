@@ -23,6 +23,8 @@ namespace boost {
   }
   namespace iostreams {
     struct mapped_file;
+    struct mapped_file_source;
+    struct mapped_file_sink;
   }
 }
 namespace boda
@@ -43,6 +45,8 @@ namespace boda
   using boost::shared_ptr;
   using boost::dynamic_pointer_cast;
   using boost::iostreams::mapped_file;
+  using boost::iostreams::mapped_file_source;
+  using boost::iostreams::mapped_file_sink;
   using std::string;
   using std::vector;
   using std::map;
@@ -69,7 +73,9 @@ namespace boda
   typedef shared_ptr< std::ofstream > p_ofstream;
   p_ofstream ofs_open( string const & fn );
   typedef shared_ptr< boost::iostreams::mapped_file > p_mapped_file;
-  p_mapped_file map_file( std::string const & fn );
+  typedef shared_ptr< boost::iostreams::mapped_file_source > p_mapped_file_source;
+  typedef shared_ptr< boost::iostreams::mapped_file_sink > p_mapped_file_sink;
+  p_mapped_file_source map_file_ro( std::string const & fn );
 
   typedef std::vector< void * > vect_rp_void;
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
@@ -82,7 +88,7 @@ namespace boda
 
   typedef std::vector< uint8_t > vect_uint8_t;  
   typedef shared_ptr< uint8_t > p_uint8_t;  
-  p_uint8_t ma_p_uint8_t( uint32_t const sz, uint32_t const a ); // ma_p == make aligned shared_ptr
+  p_uint8_t ma_p_uint8_t( size_t const sz, uint32_t const a ); // ma_p == make aligned shared_ptr
 
   struct rt_exception : public std::exception
   {

@@ -38,7 +38,7 @@ namespace boda
 
   void img_t::load_fn_jpeg( std::string const & fn )
   {
-    p_mapped_file mfile = map_file( fn );
+    p_mapped_file_source mfile = map_file_ro( fn );
     int tj_ret = 0, jss = 0, jw = 0, jh = 0;
     tjhandle tj_dec = tjInitDecompress();
     check_tj_ret( !tj_dec, "tjInitDecompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
@@ -57,7 +57,7 @@ namespace boda
 
   void img_t::load_fn_png( std::string const & fn )
   {
-    p_mapped_file mfile = map_file( fn );
+    p_mapped_file_source mfile = map_file_ro( fn );
     if( !mfile->is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
     uint32_t const lp_depth = 4;
     assert( depth == lp_depth );
