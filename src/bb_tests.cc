@@ -1,6 +1,6 @@
 #include"boda_tu_base.H"
 #include"test_base.H"
-//#include"lexp.H"
+#include"lexp.H"
 #include"str_util.H"
 #include"has_main.H"
 #include<boost/filesystem.hpp>
@@ -107,8 +107,19 @@ namespace boda {
     void load_img_tst( void ) { img_t img; img.load_fn( cur_fn ); }
     void za_img_tst( void ) { img_t img; img.set_sz_and_alloc_pels( 2, 0 ); }
     void xml_gr_tst( void ) { xml_document doc; xml_node xn = xml_file_get_root( doc, cur_fn ); 
-      xml_must_decend( cur_fn, xn, "bar" );
+      xml_must_decend( cur_fn, xn, "bar" ); }
+    void lexp_unused_t1( void ) { p_lexp_t l = parse_lexp( "(foo=bar)" ); ++l->use_cnt; ++l->kids.front().v->use_cnt;
+      vect_string path; lexp_check_unused( l.get(), path ); }
+    void lexp_unused_t2( void ) { p_lexp_t l = parse_lexp( "(foo=bar)" ); ++l->use_cnt; 
+      vect_string path; lexp_check_unused( l.get(), path ); }
+    void lexp_nvm_base( string const & s ) { 
+      p_lexp_t l = parse_lexp( s ); 
+      lexp_name_val_map_t nvm;
+      nvm.populate_from_lexp( l.get() );
     }
+    void lexp_t3( void ) { lexp_nvm_base( "foo" ); }
+    void lexp_t4( void ) { lexp_nvm_base( "(foo=bar)" ); }
+    void lexp_t5( void ) { lexp_nvm_base( "(foo=bar,foo=biz)" ); }
 
 #ifdef TND
 #error "TND already defined. oops."
@@ -149,6 +160,11 @@ namespace boda {
       test_run( TND(za_img_tst), "error: can't create zero-area image. requests WxH was 2x0" );
       test_run_fns( bb_xml_fns, TND(xml_gr_tst), "0-1", "error: loading xml file '%s' failed: Error parsing start element tag" );
       test_run_fns( bb_xml_fns, TND(xml_gr_tst), "-1-", "error: error: parsing xml file: '%s': expected to find child named 'bar' from node with name 'root'" );
+      test_run( TND(lexp_unused_t1), 0 );
+      test_run( TND(lexp_unused_t2), "error: unused input: foo:bar" );
+      test_run( TND(lexp_t3), "error: invalid attempt to use string as name/value list. string was:foo" );
+      test_run( TND(lexp_t4), 0 );
+      test_run( TND(lexp_t5), "error: invalid duplicate name 'foo' in name/value list" );
 
       if( num_fail ) { printf( "test_boda_base num_fail=%s\n", str(num_fail).c_str() ); }
     }

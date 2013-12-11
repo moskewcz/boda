@@ -1,7 +1,3 @@
-src/lexp.cc:95:    if( !l->use_cnt ) { rt_err( strprintf( "unused input: %s:%s", join(path,"->").c_str(), str(*l).c_str() ) ); } 
-src/lexp.cc:118:      rt_err( "invalid attempt to use string as name/value list. string was:" + str(*l) );
-src/lexp.cc:122:      if( !did_ins ) { rt_err( "invalid duplicate name '"+i->n.str()+"' in name/value list" ); }
-src/lexp.cc:232:  void lex_parse_t::err( string const & msg ) { rt_err( err_str( msg, cur_off() ) ); }
 src/nesi.cc:163:      rt_err( "invalid attempt to use string as name/value list for vector init. string was:" + str(*l) );
 src/nesi.cc:215:    if( !di && vi->req ) { rt_err( strprintf( "missing required value for var '%s'", vi->vname ) ); } 
 src/nesi.cc:325:      if( !vi ) { rt_err( strprintf("struct '%s' has no field '%s', so help cannot be provided for it.",
@@ -15,14 +11,8 @@ src/nesi.cc:543:	else if( *i != '(' ) { rt_err( "'" + string(1,*i) + "' after '%
 src/nesi.cc:548:	    if( i == v->in.end() ) { rt_err( "end of string after '%(' in filename, expected ')' to terminate ref" ); }
 src/nesi.cc:554:	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" ); }
 src/nesi.cc:556:	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
-src/pyif.cc:22:    // we don't just call rt_err() here so we can keep the stack skip
-src/pyif.cc:23:    // depths of rt_py_err() and rt_err() the same
-src/pyif.cc:71:    if( _import_array() < 0 ) { rt_err( "failed to import numpy" ); }
-src/pyif.cc:94:    if( !PyCallable_Check(pFunc.get()) ) { rt_err( "attr '"+attr+"' not callable" ); }
-src/pyif.cc:108:    if( ret ) { rt_err( "tuple setitem failed" ); }
 src/results_io.cc:28:    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to double.", s ) ); }
 src/results_io.cc:33:    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to uint32_t.", s ) ); }
-src/results_io.cc:52:  // note: calls rt_err() if a complete line cannot be read.
 src/results_io.cc:64:      if( !line.empty() ) { rt_err( "reading "+fn+": incomplete (no newline) line at EOF:'" + line + "'" ); } 
 src/results_io.cc:68:      if( !in->good() ) { rt_err( "reading "+fn+ " unknown failure" ); }
 src/results_io.cc:129:      rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
