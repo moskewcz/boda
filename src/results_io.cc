@@ -111,7 +111,7 @@ namespace boda
 
   void read_pascal_image_for_id( p_img_info_t img_info, path const & img_dir )
   {
-    ensure_is_dir( img_dir );
+    ensure_is_dir( img_dir.string() );
     img_info->full_fn = string( (img_dir / (img_info->id + ".jpg")).c_str() );
     img_info->img.reset( new img_t );
     img_info->img->load_fn( img_info->full_fn.c_str() );
@@ -119,9 +119,9 @@ namespace boda
 
   void read_pascal_annotations_for_id( p_img_info_t img_info, path const & ann_dir, string const & id )
   {
-    ensure_is_dir( ann_dir );
+    ensure_is_dir( ann_dir.string() );
     path const ann_path = ann_dir / (id + ".xml");
-    ensure_is_regular_file( ann_path );
+    ensure_is_regular_file( ann_path.string() );
     char const * const ann_fn = ann_path.c_str();
     xml_document doc;
     xml_parse_result result = doc.load_file( ann_fn );

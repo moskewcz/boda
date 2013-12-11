@@ -1,12 +1,3 @@
-src/boda.cc:77:	rt_err( "specified mode name '"+mode+"' parses as a list, and it must not be a list." );
-src/boda.cc:81:	if( !startswith( arg, "--" ) ) { rt_err( strprintf("expected option, but argument '%s' does not start with '--'",
-src/boda.cc:96:	  if( (ai + 1) == argc ) { rt_err( strprintf("missing value for option '%s': no '=' present, and no more args",
-src/geom_prim.cc:10:      if( !p[0].d[d] ) { rt_err( "during from_pascal_coord_adjust(), box had 0 coord, expected >= 1" ); }
-src/img_io.cc:19:    else { rt_err( "img_t::load_fn( '%s' ): could not auto-detect file-type from extention. known extention/types are:"
-src/img_io.cc:24:    if( tj_ret ) { rt_err( err_tag + " failed:" + string(tjGetErrorStr()) ); } }
-src/img_io.cc:31:      rt_err( strprintf("can't create zero-area image. requests WxH was %sx%s",str(w).c_str(), str(h).c_str())); }
-src/img_io.cc:61:    if( !mfile->is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
-src/img_io.cc:67:    if( ret ) { rt_err( strprintf( "lodepng decoder error %s: %s", str(ret).c_str(), lodepng_error_text(ret) ) ); }
 src/lexp.cc:95:    if( !l->use_cnt ) { rt_err( strprintf( "unused input: %s:%s", join(path,"->").c_str(), str(*l).c_str() ) ); } 
 src/lexp.cc:118:      rt_err( "invalid attempt to use string as name/value list. string was:" + str(*l) );
 src/lexp.cc:122:      if( !did_ins ) { rt_err( "invalid duplicate name '"+i->n.str()+"' in name/value list" ); }
@@ -39,9 +30,3 @@ src/results_io.cc:177:      if( img_info ) { rt_err( "tried to load annotations 
 src/results_io.cc:197:      if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
 src/results_io.cc:276:	rt_err( strprintf( "invalid line in image list file '%s': num of parts != 2 after space "
 src/results_io.cc:281:	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
-src/test_nesi.cc:245:	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + (*i)->test_name ); }
-src/test_nesi.cc:264:	    rt_err( strprintf( "test '%s' did not create its expected output directory '%s'.", 
-src/timers.cc:25:	if( cur_clock != CLOCK_MONOTONIC ) { rt_err("neither CLOCK_MONOTONIC_RAW nor CLOCK_MONOTONIC supported"); }
-src/timers.cc:27:      } else {	rt_err( "clock_gettime() unexpectedly failed with errno = " + str(errno) ); }
-src/xml_util.cc:13:      rt_err( strprintf( "loading xml file '%s' failed: %s", xml_fn.c_str(), result.description() ) );
-src/xml_util.cc:26:      rt_err( strprintf( "error: parsing xml file: '%s': expected to find child named '%s' from %s",

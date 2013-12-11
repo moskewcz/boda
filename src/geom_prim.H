@@ -11,6 +11,7 @@ namespace boda
     u32_pt_t( void ) : d{0,0} { } // no c++11? --> remove : d{0,0}, use { d[0]=0;d[1]=0; }
     u32_pt_t( uint32_t const d0, uint32_t const d1 ) : d{d0,d1} { } 
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
+    bool operator == ( u32_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
   };
   std::ostream & operator<<(std::ostream & os, u32_pt_t const & v);
 
@@ -33,6 +34,7 @@ namespace boda
     void from_pascal_coord_adjust( void );
     void to_pascal_coord_adjust( void );
     std::string pascal_str( void ) const;
+    bool operator == ( u32_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
   };
 
   std::ostream & operator<<(std::ostream & os, u32_box_t const & v);

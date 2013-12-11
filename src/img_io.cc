@@ -16,12 +16,13 @@ namespace boda
     if(0){}
     else if( endswith(fn,".jpg") ) { load_fn_jpeg( fn ); }
     else if( endswith(fn,".png") ) { load_fn_png( fn ); }
-    else { rt_err( "img_t::load_fn( '%s' ): could not auto-detect file-type from extention. known extention/types are:"
+    else { rt_err( "failed to load image '"+fn+"': could not auto-detect file-type from extention."
+		   " known extention/types are:"
 		   " '.jpg':jpeg '.png':png"); }
   }
   
-  void check_tj_ret( int const & tj_ret, string const & err_tag ) { 
-    if( tj_ret ) { rt_err( err_tag + " failed:" + string(tjGetErrorStr()) ); } }
+  void check_tj_ret( int const & tj_ret, string const & fn, string const & err_tag ) { 
+    if( tj_ret ) { rt_err( "failed to load image '"+fn+"': "  + err_tag + " failed:" + string(tjGetErrorStr()) ); } }
 
   // note: sets row_align to a default value if it is zero
   void img_t::set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ )
@@ -41,30 +42,30 @@ namespace boda
     p_mapped_file_source mfile = map_file_ro( fn );
     int tj_ret = 0, jss = 0, jw = 0, jh = 0;
     tjhandle tj_dec = tjInitDecompress();
-    check_tj_ret( !tj_dec, "tjInitDecompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
+    check_tj_ret( !tj_dec, fn, "tjInitDecompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
     uint32_t const tj_pixel_format = TJPF_RGBA;
     tj_ret = tjDecompressHeader2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), &jw, &jh, &jss);
-    check_tj_ret( tj_ret, "tjDecompressHeader2" );
+    check_tj_ret( tj_ret, fn, "tjDecompressHeader2" );
     assert_st( (jw > 0) && ( jh > 0 ) ); // what to do with jss? seems unneeded.
     assert_st( tjPixelSize[ tj_pixel_format ] == depth );
     set_sz_and_alloc_pels( jw, jh );
     tj_ret = tjDecompress2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), pels.get(), w, row_pitch, h, 
 			    tj_pixel_format, 0 );
-    check_tj_ret( tj_ret, "tjDecompress2" );
+    check_tj_ret( tj_ret, fn, "tjDecompress2" );
     tj_ret = tjDestroy( tj_dec ); 
-    check_tj_ret( tj_ret, "tjDestroy" );
+    check_tj_ret( tj_ret, fn, "tjDestroy" );
   }
 
   void img_t::load_fn_png( std::string const & fn )
   {
     p_mapped_file_source mfile = map_file_ro( fn );
-    if( !mfile->is_open() ) { rt_err( "failed to open/map file '"+fn+"' for reading" ); }
     uint32_t const lp_depth = 4;
     assert( depth == lp_depth );
     vect_uint8_t lp_pels; // will contain packed RGBA (no padding)
     unsigned lp_w = 0, lp_h = 0;
     unsigned ret = lodepng::decode( lp_pels, lp_w, lp_h, (uint8_t *)mfile->data(), mfile->size() );
-    if( ret ) { rt_err( strprintf( "lodepng decoder error %s: %s", str(ret).c_str(), lodepng_error_text(ret) ) ); }
+    if( ret ) { rt_err( strprintf( "failed to load image '%s': lodepng decoder error %s: %s", 
+				   fn.c_str(), str(ret).c_str(), lodepng_error_text(ret) ) ); }
     assert_st( (lp_w > 0) && ( lp_h > 0 ) );
     set_sz_and_alloc_pels( lp_w, lp_h );
     // copy packed data into our (maybe padded) rows

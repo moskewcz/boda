@@ -23,9 +23,8 @@ namespace boda
     return p_uint8_t( (uint8_t *)p, free );
   };
 
-  bool ensure_is_dir( string const & fn, bool const create ) { return ensure_is_dir( path(fn), create ); }
-  bool ensure_is_dir( path const & p, bool const create )
-  {
+  bool ensure_is_dir( string const & fn, bool const create ) { 
+    path const p(fn);
     try  { 
       bool const is_dir_ret = is_directory( p );
       if( (!create) && (!is_dir_ret) ) { 
@@ -45,9 +44,8 @@ namespace boda
 			 p.c_str(), e.what() ) ); 
     }
   }
-  void ensure_is_regular_file( string const & fn ) { ensure_is_regular_file( path(fn) ); }
-  void ensure_is_regular_file( path const & p )
-  {
+  void ensure_is_regular_file( string const & fn ) { 
+    path const p( fn );
     try  { 
       bool const ret = is_regular_file( p ); 
       if( !ret ) { rt_err( strprintf("expected path '%s' to be a regular file, but it is not.", p.c_str()));}}

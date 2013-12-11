@@ -82,9 +82,7 @@ namespace boda
   p_vect_rp_void get_backtrace( void );
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   bool ensure_is_dir( string const & fn, bool const create = 0 );
-  bool ensure_is_dir( const boost::filesystem3::path & p, bool const create = 0 );
   void ensure_is_regular_file( string const & fn );
-  void ensure_is_regular_file( const boost::filesystem3::path & p );
 
   typedef std::vector< uint8_t > vect_uint8_t;  
   typedef shared_ptr< uint8_t > p_uint8_t;  

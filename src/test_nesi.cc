@@ -228,7 +228,7 @@ namespace boda
       seen_test_names.insert( "good" ); // reserved sub-dir to hold known good results
 
       path good_dir = path(boda_output_dir.exp) / "good";
-      ensure_is_dir( good_dir, 1 );
+      ensure_is_dir( good_dir.string(), 1 );
 
       regex filt_regex( filt );
       lexp_name_val_map_t nvm;
@@ -279,7 +279,7 @@ namespace boda
 	      uint32_t const num_rem = remove_all( test_good_dir );
 	      assert_st( num_rem );
 	    }
-	    bool const did_create = ensure_is_dir( test_good_dir, 1 ); // create good dir, must not exists
+	    bool const did_create = ensure_is_dir( test_good_dir.string(), 1 ); // create good dir, must not exists
 	    assert_st( did_create );
 	    run_system_cmd( strprintf("tar -C %s -xjf %s",
 				      test_good_dir.string().c_str(),test_good_arc.c_str()), 0 );

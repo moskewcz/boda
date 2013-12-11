@@ -29,19 +29,9 @@ namespace boda
   char const * const boda_help_all_note = "(notes: use help_all instead of help to show hidden things. use help_all_ex to use a full lexp as the mode if you need on help on deeply polymophic structs)";
   char const * const boda_xml_usage = "boda xml_command_file.xml[:element][:subelement][:...]";
 
-  int boda_main( int argc, char **argv ) {
-    assert_st( argc >= 0 );
-    py_init( argv[0] );
-    oct_init();
+  int boda_main_arg_proc( int argc, char **argv ) {
     string prefix; // empty prefix for printing usage
     string out; // output string for printing usage
-    if( argc < 2 ) {
-      printf("   usage:   boda mode [--mode-arg=mode_val]*\n");
-      printf("   usage:   %s\n", boda_xml_usage );
-      printf("for help:   %s\n%s\n\n", boda_help_usage, boda_help_all_note );
-      nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, 0 ); printstr( out );
-      return 1;
-    }
     std::string const mode = argv[1];
     if(0) { } 
     // low-level help/testing modes that either cannot rely on NESI
@@ -107,9 +97,25 @@ namespace boda
       }
       create_and_run_has_main_t( lexp );
     }
+    return 0;
+  }
+  int boda_main( int argc, char **argv ) {
+    assert_st( argc >= 0 );
+    py_init( argv[0] );
+    oct_init();
+    string prefix; // empty prefix for printing usage
+    string out; // output string for printing usage
+    if( argc < 2 ) {
+      printf("   usage:   boda mode [--mode-arg=mode_val]*\n");
+      printf("   usage:   %s\n", boda_xml_usage );
+      printf("for help:   %s\n%s\n\n", boda_help_usage, boda_help_all_note );
+      nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, 0 ); printstr( out );
+      return 1;
+    }
+    int const ret = boda_main_arg_proc( argc, argv ); // split out for unit testing
     global_timer_log_finalize();
     py_finalize();
-    return 0;
+    return ret;
   }
   int boda_main_wrap( int argc, char **argv )
   {

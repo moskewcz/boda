@@ -38,4 +38,35 @@ namespace boda
     return os << "(" << v.p[0] << ")(" << v.p[1] << ")";
   }
 
+  void u32_box_t1( void ) {
+    u32_box_t b;
+    b.p[1] = u32_pt_t( 3, 4 );
+    b.from_pascal_coord_adjust();
+  }
+  void u32_box_t2( void ) {
+    // this is low-level enough that we're not worried about failure reporting. we just run and expect no errors/asserts.
+    u32_box_t b;
+    assert_st( b.p[0].is_zeros() );
+    b.p[1] = u32_pt_t( 0, 4 );
+    assert_st( !b.p[1].is_zeros() && !b.is_strictly_normalized() );
+    b.p[1] = u32_pt_t( 3, 0 );
+    assert_st( !b.p[1].is_zeros() && !b.is_strictly_normalized() );
+    b.p[1] = u32_pt_t( 3, 4 );
+    assert_st( !b.p[1].is_zeros() && b.is_strictly_normalized() );
+    assert_st( b.get_area() == 12 );
+    assert_st( b.get_overlap_with(b) == 12 );
+    u32_box_t b2 = b;
+    b2.p[0] = u32_pt_t( 1, 2 );
+    assert_st( b2.get_overlap_with(b) == 4 );
+    b2.p[1] = u32_pt_t( 4, 5 );
+    assert_st( b2.get_overlap_with(b) == 4 );
+    assert_st( !( b2 == b ) );
+    u32_box_t b3 = b2;
+    b3.from_pascal_coord_adjust();
+    b3.to_pascal_coord_adjust();
+    assert_st( b3 == b2 );
+
+  }
+
+
 }
