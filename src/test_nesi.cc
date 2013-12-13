@@ -149,12 +149,6 @@ namespace boda
   typedef shared_ptr< cmd_test_t > p_cmd_test_t; 
   typedef vector< p_cmd_test_t > vect_p_cmd_test_t;
 
-  string tp_if_rel( string const & fn ) {
-    assert_st( !fn.empty() );
-    if( fn[0] == '/' ) { return fn; }
-    return py_boda_test_dir() + "/" + fn;
-  }
-
 #include"nesi_decls.H"
 
   void run_system_cmd( string const &cmd, bool const verbose ) {
@@ -280,7 +274,7 @@ namespace boda
   struct test_modes_t : public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_modes" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string xml_fn; //NESI(default="modes_tests.xml",help="xml file containing list of tests. relative paths will be prefixed with the boda test dir.")
+    filename_t xml_fn; //NESI(default="%(boda_test_dir)/test_modes.xml",help="xml file containing list of tests.")
     vect_p_cmd_test_t tests; //NESI(help="populated via xml_fn")
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
@@ -299,12 +293,11 @@ namespace boda
       lexp_name_val_map_t nvm;
       nvm.parent = nia;
       nvm.insert_leaf( "boda_output_dir", "%(test_name)" );
-      //p_lexp_t boda_test_cfg = parse_lexp_xml_file( tp_if_rel( "boda_test_cfg.xml" ) ); // unneeded complexity?
+      //p_lexp_t boda_test_cfg = parse_lexp_xml_file( filename_t( "%(boda_test_dir)/boda_test_cfg.xml" ) ); // unneeded complexity? NOTE: broken. make path to xml file into NESI var if needed, as with xml_fn?
       //nvm.populate_from_lexp( boda_test_cfg.get() );
 
-      string const full_xml_fn = tp_if_rel(xml_fn);
       // note: cmd tests should not fail nesi init (otherwise they should be nesi init tests).
-      nesi_init_and_check_unused_from_xml_fn( &nvm, &tinfo_vect_p_cmd_test_t, &tests, full_xml_fn );
+      nesi_init_and_check_unused_from_xml_fn( &nvm, &tinfo_vect_p_cmd_test_t, &tests, xml_fn.exp );
       for (vect_p_cmd_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
 	bool const seen_test_name = !seen_test_names.insert( (*i)->test_name ).second;
 	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + (*i)->test_name ); }

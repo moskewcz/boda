@@ -17,6 +17,7 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia ) = 0;
   };
   typedef shared_ptr< has_main_t > p_has_main_t;
+  typedef vector< p_has_main_t > vect_p_has_main_t;
 
   struct lexp_t;
   typedef shared_ptr< lexp_t > p_lexp_t;

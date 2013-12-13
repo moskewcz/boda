@@ -1,3 +1,4 @@
+test_all.o
 bb_tests.o
 xml_util.o
 timers.o
