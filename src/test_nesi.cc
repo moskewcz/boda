@@ -11,6 +11,7 @@
 #include<boost/iostreams/device/mapped_file.hpp>
 #include"dtl/dtl.hpp"
 #include"img_io.H"
+#include"test_base.H"
 
 namespace boda 
 {
@@ -75,15 +76,78 @@ namespace boda
   };
 
 
-  struct nesi_test_t : public virtual nesi // NESI(help="nesi test case")
+  struct nesi_test_t
+  {
+    string name;
+    string desc;
+    string in;
+    char const * err_fmt;
+  };
+
+  string ntb( "(mode=vst,boda_output_dir=." ); // note unmatched open paren ...
+  nesi_test_t nesi_tests[] = {
+    { "vect_init_t1", "", ntb+",dpf=3.4,vdpf=(li_0=23.4))", 0},
+    { "vect_init_t1", "", ntb+",dpf=3.4,vdpf=23.4)", "var 'vdpf': error: invalid attempt to use string as name/value list for vector init. string was:23.4"},
+  };
+
+  extern tinfo_t tinfo_p_has_main_t;
+
+  struct nesi_test_run_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="NESI initialization tests (error handling and correct usages).", bases=["has_main_t"], type_id="test_nesi", hide=1 )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    void test_print( void ) {
+      printf( "tix=%s nesi_tests[tix].desc=%s\n", str(tix).c_str(), str(nesi_tests[tix].desc).c_str() );
+    }
+
+    void nesi_test_run( void )
+    {
+      // note: global parse_lexp() function is inlined here for customization / error generation
+      nesi_test_t const & lt = nesi_tests[tix];
+      p_lexp_t lexp = parse_lexp( lt.in ); // nesi tests should be valid lexps (otherwise they should be a lexp test)
+      bool no_error = 0;
+      p_has_main_t has_main;
+      try {
+	nesi_init_and_check_unused_from_lexp( 0, &tinfo_p_has_main_t, &has_main, lexp ); 
+	no_error = 1;
+      } catch( rt_exception const & rte ) {
+	assert_st( !no_error );
+	if( !lt.err_fmt ) { test_fail_err( rte.err_msg ); } // expected no error, but got one
+	else { 	// check if error is correct one
+	  string const exp_err_msg = string(lt.err_fmt); 
+	  if( rte.err_msg != exp_err_msg ) { test_fail_wrong_err( 
+	      strprintf( "  %s\nexpected:\n  %s\n", str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) ); }
+	}
+      }
+      if( no_error ) {
+	assert_st( has_main );
+	if( lt.err_fmt ) { test_fail_no_err( string(lt.err_fmt) ); }
+	else { 
+	  // no error expected, no error occured. check that the string 
+	  string const nesi_to_str( str( *has_main ) );
+	  if( nesi_to_str != lt.in ) { test_fail_wrong_res( strprintf( "nesi_to_str=%s != lt.in=%s\n", 
+								       str(nesi_to_str).c_str(), str(lt.in).c_str() ) );
+	  }	
+	}
+      }
+    }
+    void main( nesi_init_arg_t * nia ) {
+      num_fail = 0;
+      for( tix = 0; tix < ( sizeof( nesi_tests ) / sizeof( nesi_test_t ) ); ++tix ) { nesi_test_run(); }
+      if( num_fail ) { printf( "nesi_test num_fail=%s\n", str(num_fail).c_str() ); }
+    }
+  };
+
+
+  struct cmd_test_t : public virtual nesi // NESI(help="nesi test case")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string test_name; //NESI(help="name of test",req=1)
     p_has_main_t command; //NESI(help="input",req=1)
   };
-  typedef vector< nesi_test_t > vect_nesi_test_t; 
-  typedef shared_ptr< nesi_test_t > p_nesi_test_t; 
-  typedef vector< p_nesi_test_t > vect_p_nesi_test_t;
+  typedef vector< cmd_test_t > vect_cmd_test_t; 
+  typedef shared_ptr< cmd_test_t > p_cmd_test_t; 
+  typedef vector< p_cmd_test_t > vect_p_cmd_test_t;
 
   string tp_if_rel( string const & fn ) {
     assert_st( !fn.empty() );
@@ -211,12 +275,13 @@ namespace boda
     
   }
 
-  extern tinfo_t tinfo_vect_p_nesi_test_t;
+
+  extern tinfo_t tinfo_vect_p_cmd_test_t;
   struct test_modes_t : public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_modes" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string xml_fn; //NESI(default="modes_tests.xml",help="xml file containing list of tests. relative paths will be prefixed with the boda test dir.")
-    vect_p_nesi_test_t tests; //NESI(help="populated via xml_fn")
+    vect_p_cmd_test_t tests; //NESI(help="populated via xml_fn")
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
     uint32_t update_failing; //NESI(default=0,help="if true, update archives for all run tests that fail.")
@@ -238,8 +303,9 @@ namespace boda
       //nvm.populate_from_lexp( boda_test_cfg.get() );
 
       string const full_xml_fn = tp_if_rel(xml_fn);
-      nesi_init_and_check_unused_from_xml_fn( &nvm, &tinfo_vect_p_nesi_test_t, &tests, full_xml_fn );
-      for (vect_p_nesi_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
+      // note: cmd tests should not fail nesi init (otherwise they should be nesi init tests).
+      nesi_init_and_check_unused_from_xml_fn( &nvm, &tinfo_vect_p_cmd_test_t, &tests, full_xml_fn );
+      for (vect_p_cmd_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
 	bool const seen_test_name = !seen_test_names.insert( (*i)->test_name ).second;
 	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + (*i)->test_name ); }
 	if( regex_search( (*i)->test_name, filt_regex ) ) {
