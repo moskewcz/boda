@@ -52,7 +52,8 @@ namespace boda
     vect_uint64_t vu64; //NESI()
     vect_one_p_string_t vops; //NESI()
     one_p_string_t ops; //NESI()
-
+    vect_string vstr; //NESI()
+    filename_t fn; //NESI(default="yo.mom")
     virtual void main( nesi_init_arg_t * nia ) {
       //printf("vst::main()\n");
     }
@@ -84,10 +85,26 @@ namespace boda
     char const * err_fmt;
   };
 
-  string ntb( "(mode=vst,boda_output_dir=." ); // note unmatched open paren ...
+  string const ntb( "(mode=vst,boda_output_dir=." ); // note unmatched open paren ...
+  string const ntb_fn = ntb + ",dpf=3.4,fn=";
   nesi_test_t nesi_tests[] = {
+    { "bad_mode", "", "(mode=foozledefoo)", "error: type id str of 'foozledefoo' did not match any derived class of has_main_t\n"},
     { "vect_init_t1", "", ntb+",dpf=3.4,vdpf=(li_0=23.4))", 0},
-    { "vect_init_t1", "", ntb+",dpf=3.4,vdpf=23.4)", "var 'vdpf': error: invalid attempt to use string as name/value list for vector init. string was:23.4"},
+    { "vect_init_t2", "", ntb+",dpf=3.4,vdpf=23.4)", "var 'vdpf': error: invalid attempt to use string as name/value list for vector init. string was:23.4"},
+    { "no_req_val_t3", "", ntb+")", "error: missing required value for var 'dpf'"},
+    { "bad_list_as_val_t1", "", ntb+",dpf=(li_0=3.4,li_1=34.0))", "var 'dpf': error: invalid attempt to use name/value list as double (double precision floating point number) value. list was:(li_0=3.4,li_1=34.0)"},
+    { "bad_val_t1", "", ntb+",dpf=2jj2)", "var 'dpf': error: can't convert '2jj2' to double (double precision floating point number)."},
+    { "bad_val_t2", "", ntb+",dpf=23.1,vstr=(li_0=sdf,li_1=(li_0=biz)))", "var 'vstr': list elem 1: error: invalid attempt to use name/value list as string value. list was:(li_0=biz)"},
+    { "fn_t1", "", ntb_fn+"foo.txt)", 0},
+    { "fn_t2", "", ntb_fn+"%(boda_output_dir)/foo.txt)", 0},
+    { "fn_t3", "", ntb_fn+"%(boda_test_dir)/foo.txt)", "var 'fn': error: unable to expand ref 'boda_test_dir' in filename, ref not found"}, // note: boda_test_dir is generally valid, but should indeed be unavailable when run in this context
+    { "fn_t4", "ref_not_found", ntb_fn+"%(higgy_ma_jiggy)/foo.txt)", "var 'fn': error: unable to expand ref 'higgy_ma_jiggy' in filename, ref not found"},
+    { "fn_t5", "escaped_percent", ntb_fn+"20%%_cooler.txt)", 0},
+    { "fn_t6", "bad_percent", ntb_fn+"20%_cooler.txt)", "var 'fn': error: '_' after '%' in filename, expected '(' or '%'."},
+    { "fn_t7", "percent_at_end", ntb_fn+"20%)", "var 'fn': error: end of string after '%' in filename, expected '(' or '%'."},
+    { "fn_t8", "percent_op_at_end", ntb_fn+"20%\\()", "var 'fn': error: end of string after '%(' in filename, expected ')' to terminate ref"}, // yeah, good luck getting this error in the wild.
+    { "fn_t9", "", ntb_fn+"%(av)/foo.txt,av=(li_0=foo))", "var 'fn': error: invalid attempt to use name/value list as filename ref 'av' value. list was:(li_0=foo)" },
+    
   };
 
   extern tinfo_t tinfo_p_has_main_t;
@@ -112,13 +129,20 @@ namespace boda
 	no_error = 1;
       } catch( rt_exception const & rte ) {
 	assert_st( !no_error );
-	if( !lt.err_fmt ) { test_fail_err( rte.err_msg ); } // expected no error, but got one
+	if( !lt.err_fmt ) { // expected no error, but got one
+	  test_fail_err( rte.err_msg ); 
+	  // (*ofs_open("/tmp/eib.txt")) << rte.err_msg; // poor-man's auto-update
+	} 
 	else { 	// check if error is correct one
 	  string const exp_err_msg = string(lt.err_fmt); 
-	  if( rte.err_msg != exp_err_msg ) { test_fail_wrong_err( 
-	      strprintf( "  %s\nexpected:\n  %s\n", str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) ); }
+	  if( rte.err_msg != exp_err_msg ) { 
+	    test_fail_wrong_err( strprintf( "  %s\nexpected:\n  %s\n", 
+					    str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) );
+	    // (*ofs_open("/tmp/eib.txt")) << rte.err_msg; // poor-man's auto-update
+	  }
 	}
       }
+      // (insert-file "/tmp/eib.txt")
       if( no_error ) {
 	assert_st( has_main );
 	if( lt.err_fmt ) { test_fail_no_err( string(lt.err_fmt) ); }

@@ -10,13 +10,13 @@
 #include"test_base.H"
 
 namespace boda {
-  using std::string;
+  using std::ostream;
   using namespace pugi;
 
   // all c++ programmers must use pointer-to-member at least once per decade:
   struct boda_base_test_run_t;
   typedef void (boda_base_test_run_t::*test_func_t)( void );
-  void boda_main_arg_proc( int argc, char **argv ); // from boda.cc
+  void boda_main_arg_proc( ostream &os, int argc, char **argv ); // from boda.cc
   // from geom_prim.cc
   void u32_box_t1( void ); 
   void u32_box_t2( void );
@@ -97,11 +97,25 @@ namespace boda {
     void ifso_tst( void ) { ifs_open( cur_fn ); } 
     void ofso_tst( void ) { ofs_open( cur_fn ); } 
     void mapfnro_tst( void ) { map_file_ro( cur_fn ); } 
-    void boda_main_t1( void ) { char const * argv[] = { "boda", "(foo=biz)" }; boda_main_arg_proc( 2, (char**)argv ); }
-    void boda_main_t2( void ) { char const * argv[] = { "boda", "foo", "--foo" }; boda_main_arg_proc( 3, (char**)argv ); }
-    void boda_main_t3( void ) { char const * argv[] = { "boda", "foo", "bar" }; boda_main_arg_proc( 3, (char**)argv ); }
-    void boda_main_t4( void ) { char const * argv[] = { "boda", "foo", "--bar=biz" }; boda_main_arg_proc( 3, (char**)argv ); }
-    void boda_main_t5( void ) { char const * argv[] = { "boda", "foo", "--bar", "biz" }; boda_main_arg_proc( 4, (char**)argv ); }
+    void boda_main_wrap( vect_string args ) {
+      vector< char const * > argv;
+      for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
+	argv.push_back( i->c_str() );
+      }
+      p_ostream dnos = ofs_open( "/dev/null" );
+      boda_main_arg_proc( *dnos, argv.size(), (char**)&argv.front() );
+    }
+    void boda_main_t1( void ) { boda_main_wrap( { "boda", "(foo=biz)" } ); }
+    void boda_main_t2( void ) { boda_main_wrap( { "boda", "foo", "--foo" } ); }
+    void boda_main_t3( void ) { boda_main_wrap( { "boda", "foo", "bar" } ); } 
+    void boda_main_t4( void ) { boda_main_wrap( { "boda", "foo", "--bar=biz" } ); }
+    void boda_main_t5( void ) { boda_main_wrap( { "boda", "foo", "--bar", "biz" } ); }
+    void boda_main_t6( void ) { boda_main_wrap( { "boda", "help" } ); } 
+    void boda_main_t7( void ) { boda_main_wrap( { "boda", "help_all" } ); } 
+    void boda_main_t8( void ) { boda_main_wrap( { "boda", "help_all_ex" } ); } 
+    void boda_main_t9( void ) { boda_main_wrap( { "boda", "help", "vst", "boozle" } ); } 
+    void boda_main_t10( void ) { boda_main_wrap( { "boda", "help", "vst", "dpf" } ); } 
+    void boda_main_t11( void ) { boda_main_wrap( { "boda", "help", "vst", "dpf", "baz" } ); } 
     void u32_box_t1_( void ) { u32_box_t1(); }
     void u32_box_t2_( void ) { u32_box_t2(); }
     void load_img_tst( void ) { img_t img; img.load_fn( cur_fn ); }
@@ -151,6 +165,12 @@ namespace boda {
       char const * bad_mode_foo_err = "error: type id str of 'foo' did not match any derived class of has_main_t\n";
       test_run( TND(boda_main_t4), bad_mode_foo_err ); // AKA success (no prior errors)
       test_run( TND(boda_main_t5), bad_mode_foo_err ); // AKA success (no prior errors)
+      test_run( TND(boda_main_t6), 0 ); 
+      test_run( TND(boda_main_t7), 0 ); 
+      test_run( TND(boda_main_t8), 0 ); 
+      test_run( TND(boda_main_t9), "error: struct 'various_stuff_t' has no field 'boozle', so help cannot be provided for it." ); 
+      test_run( TND(boda_main_t10), 0 ); 
+      test_run( TND(boda_main_t11), "error: leaf type 'double' has no fields at all, certainly not 'baz', so help cannot be provided for it." ); 
       test_run( TND(u32_box_t1_), "error: during from_pascal_coord_adjust(), box had 0 coord, expected >= 1" );
       test_run( TND(u32_box_t2_), 0 );
       test_run_ifns( TND(load_img_tst), "00---", 0 );

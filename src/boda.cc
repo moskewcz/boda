@@ -25,11 +25,13 @@ namespace boda
   extern tinfo_t tinfo_has_main_t;
   extern cinfo_t cinfo_has_main_t;
 
+  using std::ostream;
+
   char const * const boda_help_usage = "boda help mode [field] [sub_field] [sub_sub_field] [...] ";
   char const * const boda_help_all_note = "(notes: use help_all instead of help to show hidden things. use help_all_ex to use a full lexp as the mode if you need on help on deeply polymophic structs)";
   char const * const boda_xml_usage = "boda xml_command_file.xml[:element][:subelement][:...]";
 
-  int boda_main_arg_proc( int argc, char **argv ) {
+  int boda_main_arg_proc( ostream & os, int argc, char **argv ) {
     string prefix; // empty prefix for printing usage
     string out; // output string for printing usage
     std::string const mode = argv[1];
@@ -39,9 +41,10 @@ namespace boda
     else if( mode == "help" || mode == "help_all" || mode == "help_all_ex" ) {
       bool show_all = startswith( mode, "help_all" );
       bool help_ex =  endswith( mode, "_ex" );
-      if( argc < 3 ) { printf("error: boda help/help_all takes at least 1 argument, but got %s\nfor help:   %s\n%s\n\n",
-			       str(argc-2).c_str(), boda_help_usage, boda_help_all_note);
-	nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, show_all ); printstr( out );
+      if( argc < 3 ) { os << strprintf("error: boda help/help_all takes at least 1 argument, but got %s\nfor help:"
+				       "   %s\n%s\n\n",
+				       str(argc-2).c_str(), boda_help_usage, boda_help_all_note);
+	nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, show_all ); os << out;
 	return 1;
       } else { 
 	std::string const help_for_mode = argv[2];
@@ -50,11 +53,11 @@ namespace boda
 	nesi_struct_make_p( &tinfo_has_main_t, &has_main, lexp.get() );
 	vect_string help_args;
 	for( uint32_t i = 3; i < (uint32_t)argc; ++i ) { help_args.push_back( string( argv[i] ) ); }
-	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, show_all, &help_args, 0 ); printstr( out );
+	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, show_all, &help_args, 0 ); os << out;
       }
     }
     else if( mode == "xml" ) {
-      if( argc != 3 ) { printf("run command from xml file\nusage: %s\n", boda_xml_usage); }
+      if( argc != 3 ) { os << strprintf("run command from xml file\nusage: %s\n", boda_xml_usage); }
       else { create_and_run_has_main_t( parse_lexp_xml_file( argv[2] ) ); }
     // otherwise, in the common/main case, treat first arg as mode for has_main_t, with remaining
     // args uses as fields in cli-syntax: each arg must start with '--' (which is ignored), and
@@ -75,7 +78,8 @@ namespace boda
 	bool key_had_eq = 0;
 	for (string::const_iterator i = arg.begin() + 2; i != arg.end(); ++i) {
 	  if( (*i) == '=' ) { 
-	    if( (i+1) == arg.end() ) { printf( "warning empty/missing value after '=' in option '%s'\n", arg.c_str() ); }
+	    if( (i+1) == arg.end() ) { os << strprintf( "warning empty/missing value after '=' in option '%s'\n", 
+							arg.c_str() ); }
 	    val = string( i+1, string::const_iterator( arg.end() ) ); 
 	    key_had_eq = 1;
 	    break; 
@@ -88,10 +92,10 @@ namespace boda
 	  val = string( argv[ai+1] );
 	  ++ai;
 	  if( startswith( val, "--" ) ) { 
-	    printf("warning: option '%s's value '%s' starts with '--', did you forget a value?\n", 
-		   arg.c_str(), val.c_str() );
+	    os << strprintf("warning: option '%s's value '%s' starts with '--', did you forget a value?\n", 
+			    arg.c_str(), val.c_str() );
 	  }
-	  if( val.empty() ) { printf("warning: option '%s's value '' is empty.\n", arg.c_str() ); }
+	  if( val.empty() ) { os << strprintf("warning: option '%s's value '' is empty.\n", arg.c_str() ); }
 	}
 	lexp->add_key_val( key, val ); 
       }
@@ -112,7 +116,7 @@ namespace boda
       nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, 0 ); printstr( out );
       return 1;
     }
-    int const ret = boda_main_arg_proc( argc, argv ); // split out for unit testing
+    int const ret = boda_main_arg_proc( std::cout, argc, argv ); // split out for unit testing
     global_timer_log_finalize();
     py_finalize();
     return ret;
