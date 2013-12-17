@@ -435,7 +435,7 @@ namespace boda
 	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + (*i)->test_name ); }
 	if( regex_search( (*i)->test_name, filt_regex ) ) {
 	  if( verbose ) { std::cout << (**i) << std::endl; }
-	  timer_t t("mode_test");
+	  timer_t t("test_mode_cmd");
 	  // note: no test may be named 'good'
 	  path gen_test_out_dir = path(boda_output_dir.exp) / (*i)->test_name;
 	  maybe_remove_dir( gen_test_out_dir );

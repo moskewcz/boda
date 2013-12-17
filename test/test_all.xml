@@ -2,5 +2,6 @@
   <li mode="test_boda_base"/>
   <li mode="test_lexp"/>
   <li mode="test_nesi"/>
+  <li mode="test_oct"/>
   <li mode="test_modes"/>
 </root>

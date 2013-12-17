@@ -4,7 +4,7 @@
 namespace boda 
 {
   void oct_init( void );
-  void oct_test( void );
+  void test_oct( void );
 
   struct scored_det_t;
   typedef std::vector< scored_det_t > vect_scored_det_t;

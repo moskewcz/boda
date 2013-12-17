@@ -35,7 +35,7 @@ namespace boda
     octave_main (2, argv.c_str_vec (), 1);
   }
   using boost::filesystem3::path;
-  void oct_test( ostream & out, string const & mat_fn )
+  void test_oct( ostream & out, string const & mat_fn )
   {
     octave_value_list in;
     in(0) = octave_value( mat_fn );
@@ -64,14 +64,14 @@ namespace boda
 #endif
   }
 
-  struct oct_test_t : virtual public nesi, public has_main_t // NESI(help="run simple octave interface test",bases=["has_main_t"], type_id="oct_test", hide=1 )
+  struct test_oct_t : virtual public nesi, public has_main_t // NESI(help="run simple octave interface test",bases=["has_main_t"], type_id="test_oct", hide=1 )
   {
     filename_t mat_fn; //NESI(default="%(boda_test_dir)/oct_test/car_final_cascade.mat",help="in matrix fn")
-    filename_t out_fn; //NESI(default="%(boda_output_dir)/oct_test_out.txt",help="output filename")
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/oct_test/out.txt",help="output filename")
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     virtual void main( nesi_init_arg_t * nia ) { 
       p_ofstream out = ofs_open( out_fn.exp );  
-      oct_test( *out, mat_fn.exp ); 
+      test_oct( *out, mat_fn.exp ); 
     }
   };
 

@@ -29,7 +29,7 @@ namespace boda
 
   char const * const boda_help_usage = "boda help mode [field] [sub_field] [sub_sub_field] [...] ";
   char const * const boda_help_all_note = "(notes: use help_all instead of help to show hidden things. use help_all_ex to use a full lexp as the mode if you need on help on deeply polymophic structs)";
-  char const * const boda_xml_usage = "boda xml_command_file.xml[:element][:subelement][:...]";
+  char const * const boda_xml_usage = "boda xml command_file.xml[:element][:subelement][:...]";
 
   int boda_main_arg_proc( ostream & os, int argc, char **argv ) {
     string prefix; // empty prefix for printing usage
