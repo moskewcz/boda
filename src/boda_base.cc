@@ -64,6 +64,29 @@ namespace boda
     assert( ret->good() );
     return ret;
   }
+
+  // clears line and reads one line from in. returns true if at EOF. 
+  // note: calls rt_err() if a complete line cannot be read.
+  bool ifs_getline( std::string const &fn, p_ifstream in, string & line )
+  {
+    line.clear();
+    // the file should initially be good (including if we just
+    // opened it).  note the eof is not set until trying to read
+    // past the end. after each line is read, we check for eof, and
+    // if we're not at eof, we check that the stream is still good
+    // for more reading.
+    assert_st( in->good() ); 
+    getline(*in, line);
+    if( in->eof() ) { 
+      if( !line.empty() ) { rt_err( "reading "+fn+": incomplete (no newline) line at EOF:'" + line + "'" ); } 
+      return 1;
+    }
+    else {
+      if( !in->good() ) { rt_err( "reading "+fn+ " unknown failure" ); }
+      return 0;
+    }
+  }
+
   // opens a ofstream. note: this function itself will raise if the open() fails.
   p_ofstream ofs_open( std::string const & fn )
   {

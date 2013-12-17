@@ -71,6 +71,7 @@ namespace boda
   p_ifstream ifs_open( string const & fn );
   typedef shared_ptr< std::ostream > p_ostream;
   typedef shared_ptr< std::ofstream > p_ofstream;
+  bool ifs_getline( std::string const &fn, p_ifstream in, std::string & line );
   p_ofstream ofs_open( string const & fn );
   typedef shared_ptr< boost::iostreams::mapped_file > p_mapped_file;
   typedef shared_ptr< boost::iostreams::mapped_file_source > p_mapped_file_source;

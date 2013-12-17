@@ -1,11 +1,26 @@
+#include"boda_tu_base.H"
 #include"str_util.H"
 #include<stdarg.h>
 #include<assert.h>
 #include<malloc.h>
+#include<boost/lexical_cast.hpp>
 
 namespace boda
 {
   using std::string;
+
+  double lc_str_d( char const * const s )
+  { 
+    try { return boost::lexical_cast< double >( s ); }
+    catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to double.", s ) ); }
+  }
+  uint32_t lc_str_u32( char const * const s )
+  { 
+    try { return boost::lexical_cast< uint32_t >( s ); }
+    catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to uint32_t.", s ) ); }
+  }
+  double lc_str_d( string const & s ) { return lc_str_d( s.c_str() ); } 
+  uint32_t lc_str_u32( string const & s ) { return lc_str_u32( s.c_str() ); } 
 
   string join( vect_string const & vs, string const & sep ) {
     string ret;

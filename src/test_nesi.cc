@@ -307,6 +307,7 @@ namespace boda
     string boda_test_dir; //NESI(help="boda base test dir (generally set via boda_cfg.xml)",req=1)
 
     virtual void main( nesi_init_arg_t * nia ) {
+      printf( "test modes: verbose=%s\n", str(verbose).c_str() );
       set_string seen_test_names;
       seen_test_names.insert( "good" ); // reserved sub-dir to hold known good results
 

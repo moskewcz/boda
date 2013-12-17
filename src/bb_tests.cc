@@ -27,6 +27,8 @@ namespace boda {
 			     "%(boda_test_dir)/unk_img_type.idk" };
   vect_string bb_xml_fns = { "%(boda_test_dir)/valid.xml", "%(boda_test_dir)/valid2.xml", 
 			     "%(boda_test_dir)/invalid.xml" };
+  vect_string bb_lc_strs = { "12.0", "234", "-1234", "sdfsd", "12s", "123e45", "0.0123e-12" };
+			     
 
   struct boda_base_test_run_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="NESI wrapper for low-level boda tests; use test_boda_base() global func to run w/o NESI", bases=["has_main_t"], type_id="test_boda_base", hide=1 )
   {
@@ -68,6 +70,7 @@ namespace boda {
 
     void test_run_fns( vect_string const & fns, char const * tn_base, test_func_t tf, 
 		       char const * fn_mask, char const * err_fmt ) {
+      assert_st( strlen(fn_mask) == fns.size() );
       for( uint32_t fn_ix = 0; fn_ix < fns.size(); ++fn_ix ) { 
 	char const tt = fn_mask[fn_ix];
 	if( tt == '-' ) { continue; } // skip fn
@@ -85,7 +88,9 @@ namespace boda {
     void test_run_ifns( char const * tn_base, test_func_t tf, char const * fn_mask, char const * err_fmt ) {
       test_run_fns( bb_img_fns, tn_base, tf, fn_mask, err_fmt );
     }
-    
+
+    void lc_str_d_tst( void ) { lc_str_d( cur_fn ); }
+    void lc_str_u32_tst( void ) { lc_str_u32( cur_fn ); }
     void ma_p_t1( void ) { p_uint8_t p = ma_p_uint8_t( 100, 3 ); assert_st( p ); }
     void ma_p_t2( void ) { p_uint8_t p = ma_p_uint8_t( 100, 1024 ); assert_st( p ); }
     void eid_t1( void ) { ensure_is_dir( "/dev/null", 0 ); }
@@ -173,7 +178,7 @@ namespace boda {
       test_run( TND(boda_main_t11), "error: leaf type 'double' has no fields at all, certainly not 'baz', so help cannot be provided for it." ); 
       test_run( TND(u32_box_t1_), "error: during from_pascal_coord_adjust(), box had 0 coord, expected >= 1" );
       test_run( TND(u32_box_t2_), 0 );
-      test_run_ifns( TND(load_img_tst), "00---", 0 );
+      test_run_ifns( TND(load_img_tst), "00---", "%s" );
       test_run_ifns( TND(load_img_tst), "--1--", "error: failed to load image '%s': lodepng decoder error 27: PNG file is smaller than a PNG header" );
       test_run_ifns( TND(load_img_tst), "---1-", "error: failed to load image '%s': tjDecompressHeader2 failed:Not a JPEG file: starts with 0x64 0x73" );
       test_run_ifns( TND(load_img_tst), "----1", "error: failed to load image '%s': could not auto-detect file-type from extention. known extention/types are: '.jpg':jpeg '.png':png" );
@@ -185,6 +190,8 @@ namespace boda {
       test_run( TND(lexp_t3), "error: invalid attempt to use string as name/value list. string was:foo" );
       test_run( TND(lexp_t4), 0 );
       test_run( TND(lexp_t5), "error: invalid duplicate name 'foo' in name/value list" );
+      test_run_fns( bb_lc_strs, TND(lc_str_u32_tst), "1001111", "error: can't convert '%s' to uint32_t." );
+      test_run_fns( bb_lc_strs, TND(lc_str_d_tst), "0001100", "error: can't convert '%s' to double." );
 
       if( num_fail ) { printf( "test_boda_base num_fail=%s\n", str(num_fail).c_str() ); }
     }

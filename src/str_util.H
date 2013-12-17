@@ -11,6 +11,11 @@
 namespace boda
 {
 
+  double lc_str_d( char const * const s );
+  uint32_t lc_str_u32( char const * const s );
+  double lc_str_d( std::string const & s );
+  uint32_t lc_str_u32( std::string const & s );
+
   typedef std::vector< std::string > vect_string;
 
   std::string strprintf( char const * const format, ... ) __attribute__( (format(__printf__, 1, 2) ) );

@@ -1,10 +1,5 @@
-src/results_io.cc:28:    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to double.", s ) ); }
-src/results_io.cc:33:    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to uint32_t.", s ) ); }
-src/results_io.cc:64:      if( !line.empty() ) { rt_err( "reading "+fn+": incomplete (no newline) line at EOF:'" + line + "'" ); } 
-src/results_io.cc:68:      if( !in->good() ) { rt_err( "reading "+fn+ " unknown failure" ); }
-src/results_io.cc:129:      rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
-src/results_io.cc:177:      if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
-src/results_io.cc:197:      if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
-src/results_io.cc:276:	rt_err( strprintf( "invalid line in image list file '%s': num of parts != 2 after space "
-src/results_io.cc:281:	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
-
+src/results_io.cc:93:      rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
+src/results_io.cc:141:      if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
+src/results_io.cc:161:      if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
+src/results_io.cc:240:	rt_err( strprintf( "invalid line in image list file '%s': num of parts != 2 after space "
+src/results_io.cc:245:	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",

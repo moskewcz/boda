@@ -7,7 +7,6 @@
 #include<map>
 #include<vector>
 #include<boost/algorithm/string.hpp>
-#include<boost/lexical_cast.hpp>
 #include<boost/filesystem.hpp>
 #include"xml_util.H"
 #include"pyif.H"
@@ -22,19 +21,6 @@ namespace boda
   using filesystem::filesystem_error;
   using namespace pugi;
 
-  double lc_str_d( char const * const s )
-  { 
-    try { return lexical_cast< double >( s ); }
-    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to double.", s ) ); }
-  }
-  uint32_t lc_str_u32( char const * const s )
-  { 
-    try { return lexical_cast< uint32_t >( s ); }
-    catch( bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to uint32_t.", s ) ); }
-  }
-  double lc_str_d( string const & s ) { return lc_str_d( s.c_str() ); } 
-  uint32_t lc_str_u32( string const & s ) { return lc_str_u32( s.c_str() ); } 
-
   typedef vector< string > vect_string;
   typedef map< string, uint32_t > str_uint32_t_map_t;
   string id_from_image_fn( string const & image )
@@ -46,28 +32,6 @@ namespace boda
       id = id.substr(last_slash + 1);
     }
     return id;
-  }
-
-  // clears line and reads one line from in. returns true if at EOF. 
-  // note: calls rt_err() if a complete line cannot be read.
-  bool ifs_getline( std::string const &fn, p_ifstream in, string & line )
-  {
-    line.clear();
-    // the file should initially be good (including if we just
-    // opened it).  note the eof is not set until trying to read
-    // past the end. after each line is read, we check for eof, and
-    // if we're not at eof, we check that the stream is still good
-    // for more reading.
-    assert_st( in->good() ); 
-    getline(*in, line);
-    if( in->eof() ) { 
-      if( !line.empty() ) { rt_err( "reading "+fn+": incomplete (no newline) line at EOF:'" + line + "'" ); } 
-      return 1;
-    }
-    else {
-      if( !in->good() ) { rt_err( "reading "+fn+ " unknown failure" ); }
-      return 0;
-    }
   }
 
   std::ostream & operator<<(std::ostream & os, const scored_det_t & v) {
