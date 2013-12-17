@@ -8,10 +8,26 @@
   </li>
   <li test_name="test_lexp"><command mode="test_lexp"/></li>
   <li test_name="oct_test"><command mode="oct_test" /></li>
+  <li test_name="load_pil_1"> <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.txt" /> </li>
+  <li test_name="load_pil_2" err="error: invalid type string in image list file '/home/moskewcz/svn_work/boda/test/pascal/bicycle_10.inv_1.txt': saw '', expected '1', '-1', or '0'." >
+    <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.inv_1.txt"/>
+  </li>
+  <li test_name="load_pil_3" err="error: invalid line in image list file '/home/moskewcz/svn_work/boda/test/pascal/bicycle_10.inv_2.txt': num of parts != 2 after space splitting. line was:&#10;000006" >
+    <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.inv_2.txt"/>
+  </li>
+  <li test_name="load_pil_4" err="error: tried to load annotations multiple times for id '000001'" >
+    <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.inv_3.txt"/>
+  </li>
   <li test_name="score_1">
     <command mode="score" 
 	     pil_fn="%(pascal_data_dir)/ImageSets/Main/bicycle_test.txt" 
 	     res_fn="%(ffld_dir)/build/ffld_VOC2007_bicycle_test_out.txt" 
+	     class_name="bicycle"
+	     /></li>
+  <li test_name="score_2" err="error: tried to get ix for unloaded img_id '006237'">
+    <command mode="score" 
+	     pil_fn="%(boda_test_dir)/pascal/bicycle_10.txt"
+	     res_fn="%(boda_test_dir)/pascal/bicycle_out_10.txt"
 	     class_name="bicycle"
 	     /></li>
 

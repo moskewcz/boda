@@ -1,5 +1,0 @@
-src/results_io.cc:93:      rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
-src/results_io.cc:141:      if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
-src/results_io.cc:161:      if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
-src/results_io.cc:240:	rt_err( strprintf( "invalid line in image list file '%s': num of parts != 2 after space "
-src/results_io.cc:245:	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",

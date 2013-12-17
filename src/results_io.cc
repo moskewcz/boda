@@ -88,11 +88,8 @@ namespace boda
     ensure_is_regular_file( ann_path.string() );
     char const * const ann_fn = ann_path.c_str();
     xml_document doc;
-    xml_parse_result result = doc.load_file( ann_fn );
-    if( !result ) { 
-      rt_err( strprintf( "loading xml file '%s' failed: %s", ann_fn, result.description() ) );
-    }    
-    xml_node ann = xml_must_decend( ann_fn, doc, "annotation" );
+    xml_node ann = xml_file_get_root( doc, ann_fn );
+    // assert_st( ann.name() == string("annotation") ); // true, but we don't really care?
     xml_node ann_size = xml_must_decend( ann_fn, ann, "size" );
     img_info->size.d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "width" ).child_value() );
     img_info->size.d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "height" ).child_value() );

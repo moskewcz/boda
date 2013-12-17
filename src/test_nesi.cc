@@ -167,6 +167,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string test_name; //NESI(help="name of test",req=1)
+    p_string err; //NESI(help="expected error (if any)")
     p_has_main_t command; //NESI(help="input",req=1)
   };
   typedef vector< cmd_test_t > vect_cmd_test_t; 
@@ -293,9 +294,16 @@ namespace boda
     
   }
 
+  void maybe_remove_dir( path const & dir ) {
+    if( exists( dir ) ) {
+      assert_st( is_directory( dir ) );
+      uint32_t const num_rem = remove_all( dir );
+      assert( num_rem );
+    }
+  }
 
   extern tinfo_t tinfo_vect_p_cmd_test_t;
-  struct test_modes_t : public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_modes" )
+  struct test_modes_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_modes" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t xml_fn; //NESI(default="%(boda_test_dir)/test_modes.xml",help="xml file containing list of tests.")
@@ -306,13 +314,111 @@ namespace boda
     
     string boda_test_dir; //NESI(help="boda base test dir (generally set via boda_cfg.xml)",req=1)
 
+    void test_print( void ) {
+      printf( "tix=%s %s\n", str(tix).c_str(), str(*tests[tix]).c_str() );
+    }
+
+    // returns 1 if command ran with no error and no error was expected (and thus diff should be run)
+    bool run_command( p_cmd_test_t cmd, nesi_init_arg_t * nia ) {
+      bool do_diff = 0;
+      bool write_err = 1;
+      bool no_error = 0;
+      try {
+	cmd->command->base_setup(); // note: sets command->boda_output_dir *and* creates it
+	cmd->command->main( nia );	
+	no_error = 1;
+      } catch( rt_exception const & rte ) {
+	assert_st( !no_error );
+	if( !cmd->err ) { // expected no error, but got one
+	  test_fail_err( rte.err_msg ); 
+	  if( write_err ) { (*ofs_open("/tmp/eib.txt")) << rte.err_msg; } // poor-man's auto-update 
+	} 
+	else { 	// check if error is correct one
+	  string const exp_err_msg = *cmd->err;
+	  if( rte.err_msg != exp_err_msg ) { 
+	    test_fail_wrong_err( strprintf( "  %s\nexpected:\n  %s\n", 
+					    str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) );
+	    if( write_err ) { (*ofs_open("/tmp/eib.txt")) << rte.err_msg; } // poor-man's auto-update
+	  }
+	}
+      }
+      // (insert-file "/tmp/eib.txt")
+      if( no_error ) {
+	if( cmd->err ) { test_fail_no_err( *cmd->err ); }
+	else { do_diff = 1; }
+      }
+      return do_diff;
+    }
+
+    void diff_command( p_cmd_test_t cmd, path const & gen_test_out_dir ) {
+      path good_dir = path(boda_output_dir.exp) / "good";
+      ensure_is_dir( good_dir.string(), 1 );
+      // note: test_out_dir should equivalent to gen_test_out_dir (but not ==). we check that:
+      path const test_out_dir( cmd->command->boda_output_dir.exp );
+      assert_st( equivalent( test_out_dir, gen_test_out_dir ) );
+      if( !exists( test_out_dir ) ) { // test must create its output dir
+	rt_err( strprintf( "test '%s' did not create its expected output directory '%s'.", 
+			   cmd->test_name.c_str(), test_out_dir.c_str() ) );
+      }
+
+      // note: test_good_dir will be relative to the *test_modes* output_dir, which is usually '.'
+      path const test_good_dir = good_dir / cmd->test_name; 
+      path const test_good_arc = path(boda_test_dir) / "mt_good" / ( cmd->test_name + ".tbz2");
+      bool update_archive = 0;
+      if( !exists( test_good_arc ) ) {
+	printf("NEW_TEST: no existing good results archive for test %s, will generate\n",cmd->test_name.c_str());
+	update_archive = 1;
+      } else { // achive exists, unpack it
+	assert_st( is_regular_file( test_good_arc ) );
+	// first, remove test_good_dir if it exists.
+	if( exists( test_good_dir ) ) {
+	  assert_st( is_directory( test_good_dir ) );
+	  uint32_t const num_rem = remove_all( test_good_dir );
+	  assert_st( num_rem );
+	}
+	bool const did_create = ensure_is_dir( test_good_dir.string(), 1 ); // create good dir, must not exists
+	assert_st( did_create );
+	run_system_cmd( strprintf("tar -C %s -xjf %s",
+				  test_good_dir.string().c_str(),test_good_arc.c_str()), 0 );
+	// compare good and test directories
+	bool output_good = 1;
+	map_str_ziu32_t tags;
+	tag_dir_files( tags, test_good_dir, 0 );
+	tag_dir_files( tags, test_out_dir, 1 );
+	for( map_str_ziu32_t::const_iterator i = tags.begin(); i != tags.end(); ++i ) {
+	  uint32_t const & tv = i->second.v;
+	  if( tv == 1 ) { printf( "DIFF: file '%s' only in known-good output dir.\n", str(i->first).c_str()); 
+	    output_good = 0; continue; 
+	  }
+	  if( tv == 2 ) { printf( "DIFF: file '%s' only in under-test output dir.\n", str(i->first).c_str()); 
+	    output_good = 0; continue; 
+	  }
+	  assert_st( tv == 3 ); // file in both known-good an under-test output dirs
+	  if( diff_file( test_good_dir, test_out_dir, i->first ) ) { 
+	    printf( "DIFF: file '%s' differs between known-good(-) and under-test(+):\n", str(i->first).c_str()); 
+	    output_good = 0; continue; 
+	  }
+	}
+	if( !output_good ) {
+	  if( update_failing ) { 
+	    printf("AUTOUPDATE: test %s failed, will update.\n",cmd->test_name.c_str());
+	    update_archive = 1; 
+	  } else {
+	    printf("FAIL: test %s failed.\n",cmd->test_name.c_str());
+	  }
+	}
+      }	  
+      if( update_archive ) {
+	printf("UPDATING good results archive for test %s.\n",cmd->test_name.c_str());
+	run_system_cmd( strprintf("tar -C %s -cjf %s .",
+				  test_out_dir.string().c_str(),test_good_arc.c_str()), 0 );
+      }
+    }
+
     virtual void main( nesi_init_arg_t * nia ) {
       printf( "test modes: verbose=%s\n", str(verbose).c_str() );
       set_string seen_test_names;
       seen_test_names.insert( "good" ); // reserved sub-dir to hold known good results
-
-      path good_dir = path(boda_output_dir.exp) / "good";
-      ensure_is_dir( good_dir.string(), 1 );
 
       regex filt_regex( filt );
       lexp_name_val_map_t nvm;
@@ -324,6 +430,7 @@ namespace boda
       // note: cmd tests should not fail nesi init (otherwise they should be nesi init tests).
       nesi_init_and_check_unused_from_xml_fn( &nvm, &tinfo_vect_p_cmd_test_t, &tests, xml_fn.exp );
       for (vect_p_cmd_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
+	tix = i-tests.begin();
 	bool const seen_test_name = !seen_test_names.insert( (*i)->test_name ).second;
 	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + (*i)->test_name ); }
 	if( regex_search( (*i)->test_name, filt_regex ) ) {
@@ -331,76 +438,9 @@ namespace boda
 	  timer_t t("mode_test");
 	  // note: no test may be named 'good'
 	  path gen_test_out_dir = path(boda_output_dir.exp) / (*i)->test_name;
-	  // first, remove gen_test_out_dir if it exists.
-	  if( exists( gen_test_out_dir ) ) {
-	    assert_st( is_directory( gen_test_out_dir ) );
-	    uint32_t const num_rem = remove_all( gen_test_out_dir );
-	    assert( num_rem );
-	  }
-	  (*i)->command->base_setup(); // note: sets command->boda_output_dir *and* creates it
-	  (*i)->command->main( &nvm );	
-
-	  // note: test_out_dir should equivalent to gen_test_out_dir (but not ==). we check that:
-	  path const test_out_dir( (*i)->command->boda_output_dir.exp );
-	  assert_st( equivalent( test_out_dir, gen_test_out_dir ) );
-	  if( !exists( test_out_dir ) ) { // test must create its output dir
-	    rt_err( strprintf( "test '%s' did not create its expected output directory '%s'.", 
-			       (*i)->test_name.c_str(), test_out_dir.c_str() ) );
-	  }
-
- 	  // note: test_good_dir will be relative to the *test_modes* output_dir, which is usually '.'
-	  path const test_good_dir = good_dir / (*i)->test_name; 
-	  path const test_good_arc = path(boda_test_dir) / "mt_good" / ( (*i)->test_name + ".tbz2");
-	  bool update_archive = 0;
-	  if( !exists( test_good_arc ) ) {
-	    printf("NEW_TEST: no existing good results archive for test %s, will generate\n",(*i)->test_name.c_str());
-	    update_archive = 1;
-	  } else { // achive exists, unpack it
-	    assert_st( is_regular_file( test_good_arc ) );
-	    // first, remove test_good_dir if it exists.
-	    if( exists( test_good_dir ) ) {
-	      assert_st( is_directory( test_good_dir ) );
-	      uint32_t const num_rem = remove_all( test_good_dir );
-	      assert_st( num_rem );
-	    }
-	    bool const did_create = ensure_is_dir( test_good_dir.string(), 1 ); // create good dir, must not exists
-	    assert_st( did_create );
-	    run_system_cmd( strprintf("tar -C %s -xjf %s",
-				      test_good_dir.string().c_str(),test_good_arc.c_str()), 0 );
-	    // compare good and test directories
-	    bool output_good = 1;
-	    map_str_ziu32_t tags;
-	    tag_dir_files( tags, test_good_dir, 0 );
-	    tag_dir_files( tags, test_out_dir, 1 );
-	    for( map_str_ziu32_t::const_iterator i = tags.begin(); i != tags.end(); ++i ) {
-	      uint32_t const & tv = i->second.v;
-	      if( tv == 1 ) { printf( "DIFF: file '%s' only in known-good output dir.\n", str(i->first).c_str()); 
-		output_good = 0; continue; 
-	      }
-	      if( tv == 2 ) { printf( "DIFF: file '%s' only in under-test output dir.\n", str(i->first).c_str()); 
-		output_good = 0; continue; 
-	      }
-	      assert_st( tv == 3 ); // file in both known-good an under-test output dirs
-	      if( diff_file( test_good_dir, test_out_dir, i->first ) ) { 
-		printf( "DIFF: file '%s' differs between known-good(-) and under-test(+):\n", str(i->first).c_str()); 
-		output_good = 0; continue; 
-	      }
-	    }
-	    if( !output_good ) {
-	      if( update_failing ) { 
-		printf("AUTOUPDATE: test %s failed, will update.\n",(*i)->test_name.c_str());
-		update_archive = 1; 
-	      } else {
-		printf("FAIL: test %s failed.\n",(*i)->test_name.c_str());
-	      }
-	    }
-	  }
-	  
-	  if( update_archive ) {
-	    printf("UPDATING good results archive for test %s.\n",(*i)->test_name.c_str());
-	    run_system_cmd( strprintf("tar -C %s -cjf %s .",
-				      test_out_dir.string().c_str(),test_good_arc.c_str()), 0 );
-	  }
+	  maybe_remove_dir( gen_test_out_dir );
+	  bool const do_diff = run_command( *i, &nvm );
+	  if( do_diff ) { diff_command( *i, gen_test_out_dir ); }
 	}
       }
     }
