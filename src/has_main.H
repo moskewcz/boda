@@ -6,6 +6,7 @@
 namespace boda
 {
   using std::string;
+  typedef shared_ptr< string > p_string;
   struct lexp_name_val_map_t;
   typedef lexp_name_val_map_t nesi_init_arg_t;
   struct has_main_t : virtual public nesi // NESI(help="modes that can be run",is_abstract=1,tid_vn="mode")
@@ -13,6 +14,8 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string mode; //NESI(help="name of mode to run",req=1)
     filename_t boda_output_dir; //NESI(help="directory in which to place all outputs. will be created if non-existant.",req=1)
+    p_string out_fn; //NESI(help="DEBUGGING")
+
     void base_setup( void );
     virtual void main( nesi_init_arg_t * nia ) = 0;
   };

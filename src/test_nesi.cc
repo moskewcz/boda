@@ -28,6 +28,17 @@ namespace boda
   using boost::filesystem::filesystem_error;
   using boost::filesystem::recursive_directory_iterator;
 
+  struct cmd_test_t : public virtual nesi // NESI(help="nesi test case")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string test_name; //NESI(help="name of test",req=1)
+    p_string err; //NESI(help="expected error (if any)")
+    p_has_main_t command; //NESI(help="input",req=1)
+  };
+  typedef vector< cmd_test_t > vect_cmd_test_t; 
+  typedef shared_ptr< cmd_test_t > p_cmd_test_t; 
+  typedef vector< p_cmd_test_t > vect_p_cmd_test_t;
+
   struct various_stuff_t;
   typedef shared_ptr< various_stuff_t > p_various_stuff_t;
   typedef vector< p_various_stuff_t > vect_p_various_stuff_t;
@@ -54,6 +65,7 @@ namespace boda
     one_p_string_t ops; //NESI()
     vect_string vstr; //NESI()
     filename_t fn; //NESI(default="yo.mom")
+    vect_p_cmd_test_t vct; //NESI()
     virtual void main( nesi_init_arg_t * nia ) {
       //printf("vst::main()\n");
     }
@@ -163,17 +175,6 @@ namespace boda
     }
   };
 
-
-  struct cmd_test_t : public virtual nesi // NESI(help="nesi test case")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string test_name; //NESI(help="name of test",req=1)
-    p_string err; //NESI(help="expected error (if any)")
-    p_has_main_t command; //NESI(help="input",req=1)
-  };
-  typedef vector< cmd_test_t > vect_cmd_test_t; 
-  typedef shared_ptr< cmd_test_t > p_cmd_test_t; 
-  typedef vector< p_cmd_test_t > vect_p_cmd_test_t;
 
 #include"nesi_decls.H"
 
@@ -303,20 +304,20 @@ namespace boda
     }
   }
 
-  extern tinfo_t tinfo_vect_p_cmd_test_t;
+  extern tinfo_t tinfo_p_cmd_test_t;
   struct test_cmds_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_cmds" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t xml_fn; //NESI(default="%(boda_test_dir)/test_cmds.xml",help="xml file containing list of tests.")
-    vect_p_cmd_test_t tests; //NESI(help="populated via xml_fn")
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
     uint32_t update_failing; //NESI(default=0,help="if true, update archives for all run tests that fail.")
     
     filename_t boda_test_dir; //NESI(help="boda base test dir (generally set via boda_cfg.xml)",req=1)
 
+    p_cmd_test_t cur_test;
     void test_print( void ) {
-      printf( "tix=%s %s\n", str(tix).c_str(), str(*tests[tix]).c_str() );
+      printf( "tix=%s %s\n", str(tix).c_str(), str(*cur_test).c_str() );
     }
 
     // returns 1 if command ran with no error and no error was expected (and thus diff should be run)
@@ -423,24 +424,26 @@ namespace boda
       regex filt_regex( filt );
       // note: cmd tests should not fail nesi init (otherwise they should be nesi init tests).
       pugi::xml_document doc;
-      lexp_name_val_map_t xml_nvm( parse_lexp_list_xml( xml_file_get_root( doc, xml_fn.exp ) ), nia );
-      uint32_t const tests_init_sz = tests.size();
-      nesi_init_and_check_unused_from_nia( &xml_nvm, &tinfo_vect_p_cmd_test_t, &tests );
-      assert_st( tests.size() == (xml_nvm.l->kids.size() + tests_init_sz ) );
-      for (vect_p_cmd_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
-	tix = i-tests.begin();
-	bool const seen_test_name = !seen_test_names.insert( (*i)->test_name ).second;
-	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + (*i)->test_name ); }
-	if( regex_search( (*i)->test_name, filt_regex ) ) {
-	  if( verbose ) { std::cout << (**i) << std::endl; }
+      pugi::xml_node xn = xml_file_get_root( doc, xml_fn.exp );
+      tix = 0;
+      for( pugi::xml_node xn_i: xn.children() ) { 
+	lexp_name_val_map_t nvm( parse_lexp_list_xml( xn_i ), nia );
+	p_cmd_test_t cmd_test;
+	nesi_init_and_check_unused_from_nia( &nvm, &tinfo_p_cmd_test_t, &cmd_test ); 
+	cur_test = cmd_test; // needed by test_print()
+	bool const seen_test_name = !seen_test_names.insert( cmd_test->test_name ).second;
+	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + cmd_test->test_name ); }
+	if( regex_search( cmd_test->test_name, filt_regex ) ) {
+	  if( verbose ) { std::cout << (*cmd_test) << std::endl; }
 	  timer_t t("test_mode_cmd");
 	  // note: no test may be named 'good'
-	  path gen_test_out_dir = path(boda_output_dir.exp) / (*i)->test_name;
+	  path gen_test_out_dir = path(boda_output_dir.exp) / cmd_test->test_name;
 	  maybe_remove_dir( gen_test_out_dir );
 	  // FIXME: it is non-trival to construct the proper nia here ...
-	  bool const do_diff = run_command( *i, nia);
-	  if( do_diff ) { diff_command( *i, gen_test_out_dir ); }
+	  bool const do_diff = run_command( cmd_test, nia);
+	  if( do_diff ) { diff_command( cmd_test, gen_test_out_dir ); }
 	}
+	++tix;
       }
     }
   };
