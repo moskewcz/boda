@@ -30,7 +30,7 @@ namespace boda
 	p_has_main_t test_mode;
 	nesi_init_and_check_unused_from_nia( &nvm, &tinfo_p_has_main_t, &test_mode ); 
 	if( regex_search( test_mode->mode, filt_regex ) ) {
-	  timer_t t("test_all_mode");
+	  timer_t t("test_all_subtest");
 	  if( verbose ) { 
 	    printf( "--- running %s ---\n", str(test_mode->mode).c_str() );
 	  }
