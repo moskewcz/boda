@@ -5,27 +5,6 @@
 
 namespace boda 
 {
-
-#if 0 // FIXME: currently unused
-  // test interface
-  struct boda_test_t {
-    virtual void run( void );
-    virtual void post( void );
-    virtual char * exp_error( void ); // null if no error expected. valid only after run.
-  };
-  typedef vector< boda_test_t > vect_boda_test_t; 
-  typedef shared_ptr< boda_test_t > p_boda_test_t; 
-  typedef vector< p_boda_test_t > vect_p_boda_test_t;
-  // test set interface
-  struct test_set_t {
-    uint32_t num_tests( void );
-
-  };
-  struct REBASE_lexp_test_t : public boda_test_t {
-
-  };
-#endif
-
   struct test_run_t {
     uint32_t tix;
     uint32_t num_fail;
@@ -52,6 +31,5 @@ namespace boda
       printf( "test failed: wrong error, got:\n%s\n", str(msg).c_str() );
     }
   };
-
 }
 #endif /* _TEST_BASE_H_ */

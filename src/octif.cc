@@ -67,7 +67,7 @@ namespace boda
   struct test_oct_t : virtual public nesi, public has_main_t // NESI(help="run simple octave interface test",bases=["has_main_t"], type_id="test_oct", hide=1 )
   {
     filename_t mat_fn; //NESI(default="%(boda_test_dir)/oct_test/car_final_cascade.mat",help="in matrix fn")
-    filename_t out_fn; //NESI(default="%(boda_output_dir)/oct_test/out.txt",help="output filename")
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="output filename")
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     virtual void main( nesi_init_arg_t * nia ) { 
       p_ofstream out = ofs_open( out_fn.exp );  
