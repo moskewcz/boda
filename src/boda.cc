@@ -50,7 +50,8 @@ namespace boda
 	std::string const help_for_mode = argv[2];
 	p_lexp_t lexp = help_ex ? parse_lexp( help_for_mode ) : make_list_lexp_from_one_key_val( "mode", help_for_mode );
 	p_has_main_t has_main;
-	nesi_struct_make_p( &tinfo_has_main_t, &has_main, lexp.get() );
+	lexp_name_val_map_t nvm( lexp );
+	nesi_struct_make_p( &nvm, &tinfo_has_main_t, &has_main );
 	vect_string help_args;
 	for( uint32_t i = 3; i < (uint32_t)argc; ++i ) { help_args.push_back( string( argv[i] ) ); }
 	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, show_all, &help_args, 0 ); os << out;

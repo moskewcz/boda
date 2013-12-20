@@ -20,14 +20,14 @@ namespace boda
   void create_and_run_has_main_t( p_lexp_t lexp ) {
     // add top-level extra fields
     p_lexp_t boda_cfg = parse_lexp_xml_file( (path(py_boda_dir()) / "lib" / "boda_cfg.xml").string() );
-    lexp_name_val_map_t nvm;
-    nvm.populate_from_lexp( boda_cfg.get() );
+    lexp_name_val_map_t cfg_nvm( boda_cfg );
     // these won't insert if the field exists
-    nvm.insert_leaf( "boda_dir", py_boda_dir().c_str() ); 
-    nvm.insert_leaf( "boda_test_dir", py_boda_test_dir().c_str() );
+    cfg_nvm.insert_leaf( "boda_dir", py_boda_dir().c_str() ); 
+    cfg_nvm.insert_leaf( "boda_test_dir", py_boda_test_dir().c_str() );
+    lexp_name_val_map_t nvm( lexp, &cfg_nvm );
     // create and run mode. note: the unused fields check doesn't apply to 'parent' init data (i.e. nvm), only to lexp
     p_has_main_t has_main;
-    nesi_init_and_check_unused_from_lexp( &nvm, &tinfo_p_has_main_t, &has_main, lexp ); 
+    nesi_init_and_check_unused_from_nia( &nvm, &tinfo_p_has_main_t, &has_main ); 
     has_main->base_setup(); // prior to running main, run shared has_main_t setup.
     has_main->main( &nvm );
   }

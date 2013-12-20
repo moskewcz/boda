@@ -125,7 +125,8 @@ namespace boda
       bool no_error = 0;
       p_has_main_t has_main;
       try {
-	nesi_init_and_check_unused_from_lexp( 0, &tinfo_p_has_main_t, &has_main, lexp ); 
+	lexp_name_val_map_t nvm( lexp );
+	nesi_init_and_check_unused_from_nia( &nvm, &tinfo_p_has_main_t, &has_main ); 
 	no_error = 1;
       } catch( rt_exception const & rte ) {
 	assert_st( !no_error );
@@ -303,16 +304,16 @@ namespace boda
   }
 
   extern tinfo_t tinfo_vect_p_cmd_test_t;
-  struct test_modes_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_modes" )
+  struct test_cmds_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_cmds" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t xml_fn; //NESI(default="%(boda_test_dir)/test_modes.xml",help="xml file containing list of tests.")
+    filename_t xml_fn; //NESI(default="%(boda_test_dir)/test_cmds.xml",help="xml file containing list of tests.")
     vect_p_cmd_test_t tests; //NESI(help="populated via xml_fn")
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
     uint32_t update_failing; //NESI(default=0,help="if true, update archives for all run tests that fail.")
     
-    string boda_test_dir; //NESI(help="boda base test dir (generally set via boda_cfg.xml)",req=1)
+    filename_t boda_test_dir; //NESI(help="boda base test dir (generally set via boda_cfg.xml)",req=1)
 
     void test_print( void ) {
       printf( "tix=%s %s\n", str(tix).c_str(), str(*tests[tix]).c_str() );
@@ -361,9 +362,9 @@ namespace boda
 			   cmd->test_name.c_str(), test_out_dir.c_str() ) );
       }
 
-      // note: test_good_dir will be relative to the *test_modes* output_dir, which is usually '.'
+      // note: test_good_dir will be relative to the *test_cmds* output_dir, which is usually '.'
       path const test_good_dir = good_dir / cmd->test_name; 
-      path const test_good_arc = path(boda_test_dir) / "mt_good" / ( cmd->test_name + ".tbz2");
+      path const test_good_arc = path(boda_test_dir.exp) / "mt_good" / ( cmd->test_name + ".tbz2");
       bool update_archive = 0;
       if( !exists( test_good_arc ) ) {
 	printf("NEW_TEST: no existing good results archive for test %s, will generate\n",cmd->test_name.c_str());
@@ -416,19 +417,16 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      printf( "test modes: verbose=%s\n", str(verbose).c_str() );
+      nia->insert_leaf( "boda_output_dir", "%(test_name)" ); // modifies nia ... is that okay?
       set_string seen_test_names;
       seen_test_names.insert( "good" ); // reserved sub-dir to hold known good results
-
       regex filt_regex( filt );
-      lexp_name_val_map_t nvm;
-      nvm.parent = nia;
-      nvm.insert_leaf( "boda_output_dir", "%(test_name)" );
-      //p_lexp_t boda_test_cfg = parse_lexp_xml_file( filename_t( "%(boda_test_dir)/boda_test_cfg.xml" ) ); // unneeded complexity? NOTE: broken. make path to xml file into NESI var if needed, as with xml_fn?
-      //nvm.populate_from_lexp( boda_test_cfg.get() );
-
       // note: cmd tests should not fail nesi init (otherwise they should be nesi init tests).
-      nesi_init_and_check_unused_from_xml_fn( &nvm, &tinfo_vect_p_cmd_test_t, &tests, xml_fn.exp );
+      pugi::xml_document doc;
+      lexp_name_val_map_t xml_nvm( parse_lexp_list_xml( xml_file_get_root( doc, xml_fn.exp ) ), nia );
+      uint32_t const tests_init_sz = tests.size();
+      nesi_init_and_check_unused_from_nia( &xml_nvm, &tinfo_vect_p_cmd_test_t, &tests );
+      assert_st( tests.size() == (xml_nvm.l->kids.size() + tests_init_sz ) );
       for (vect_p_cmd_test_t::iterator i = tests.begin(); i != tests.end(); ++i) {
 	tix = i-tests.begin();
 	bool const seen_test_name = !seen_test_names.insert( (*i)->test_name ).second;
@@ -439,7 +437,8 @@ namespace boda
 	  // note: no test may be named 'good'
 	  path gen_test_out_dir = path(boda_output_dir.exp) / (*i)->test_name;
 	  maybe_remove_dir( gen_test_out_dir );
-	  bool const do_diff = run_command( *i, &nvm );
+	  // FIXME: it is non-trival to construct the proper nia here ...
+	  bool const do_diff = run_command( *i, nia);
 	  if( do_diff ) { diff_command( *i, gen_test_out_dir ); }
 	}
       }

@@ -133,8 +133,8 @@ namespace boda {
       vect_string path; lexp_check_unused( l.get(), path ); }
     void lexp_nvm_base( string const & s ) { 
       p_lexp_t l = parse_lexp( s ); 
-      lexp_name_val_map_t nvm;
-      nvm.populate_from_lexp( l.get() );
+      lexp_name_val_map_t nvm( l );
+      nvm.init_nvm();
     }
     void lexp_t3( void ) { lexp_nvm_base( "foo" ); }
     void lexp_t4( void ) { lexp_nvm_base( "(foo=bar)" ); }

@@ -4,6 +4,8 @@
 #include"has_main.H"
 #include"timers.H"
 #include<boost/regex.hpp>
+#include"xml_util.H"
+#include"lexp.H"
 
 namespace boda 
 {
@@ -22,7 +24,12 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     virtual void main( nesi_init_arg_t * nia ) {
       regex filt_regex( filt );
-      nesi_init_and_check_unused_from_xml_fn( nia, &tinfo_vect_p_has_main_t, &test_cmds, xml_fn.exp );
+
+      pugi::xml_document doc;
+      lexp_name_val_map_t xml_nvm( parse_lexp_list_xml( xml_file_get_root( doc, xml_fn.exp ) ), nia );
+      uint32_t const test_cmds_init_sz = test_cmds.size();
+      nesi_init_and_check_unused_from_nia( &xml_nvm, &tinfo_vect_p_has_main_t, &test_cmds );
+      assert_st( test_cmds.size() == (xml_nvm.l->kids.size() + test_cmds_init_sz ) );
       for( vect_p_has_main_t::const_iterator i = test_cmds.begin(); i != test_cmds.end(); ++i ) {
 	if( regex_search( (*i)->mode, filt_regex ) ) {
 	  timer_t t("test_all_mode");

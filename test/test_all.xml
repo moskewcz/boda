@@ -3,5 +3,5 @@
   <li mode="test_lexp"/>
   <li mode="test_nesi"/>
   <li mode="test_oct"/>
-  <li mode="test_modes"/>
+  <li mode="test_cmds"/>
 </root>

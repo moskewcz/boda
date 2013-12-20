@@ -102,33 +102,47 @@ namespace boda {
   }
 
   void lexp_name_val_map_t::dump( void ) {
-    printf("nvm contents:\n");
+    printf("nvm contents (nvm_init=%s):\n",str(nvm_init).c_str());
     for( map<sstr_t,p_lexp_t>::const_iterator i = nvm.begin(); i != nvm.end(); ++i ) {
       printf( "%s=%s\n", str(i->first).c_str(), str((*i->second)).c_str() );
     }
   }
 
   bool lexp_name_val_map_t::insert_leaf( char const * n, char const * v ) {
+    init_nvm();
     sstr_t ss_n;
     ss_n.set_from_cstr( n );
-    return nvm.insert( std::make_pair( ss_n, parse_lexp_leaf_str( v ) ) ).second;
+    bool const did_ins = nvm.insert( std::make_pair( ss_n, parse_lexp_leaf_str( v ) ) ).second;
+    if( did_ins ) { // put new value in l as well
+      lexp_nv_t kid;
+      kid.n.set_from_cstr( n );
+      kid.v = parse_lexp_leaf_str( v );
+      l->kids.push_back( kid );
+    }
+    return did_ins;
   }
 
-  void lexp_name_val_map_t::populate_from_lexp( lexp_t * const l ) {
-    if( l->leaf_val.exists() ) {
+  void lexp_name_val_map_t::init_nvm( void ) {
+    assert_st( l );
+    if( l->leaf_val.exists() ) { // should not be a leaf
       rt_err( "invalid attempt to use string as name/value list. string was:" + str(*l) );
     }
+    if( nvm_init ) { return; }
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
       bool const did_ins = nvm.insert( std::make_pair( i->n, i->v ) ).second;
       if( !did_ins ) { rt_err( "invalid duplicate name '"+i->n.str()+"' in name/value list" ); }
     }
+    nvm_init = 1;
   }
+
   p_lexp_t lexp_name_val_map_t::find( char const * n ) {
-    sstr_t ss_vname;
-    ss_vname.borrow_from_string( n );
-    std::map< sstr_t, p_lexp_t >::const_iterator nvmi = nvm.find( ss_vname );
-    if( nvmi != nvm.end() ) { return nvmi->second; } // if found at this scope, return value ...
-    if( parent ) { return parent->find(n); } // ... otherwise, try parent scope if it exists ...
+    if( nvm_init ) { // skip uninited nvms (from vectors, leafs, etc)
+      sstr_t ss_vname;
+      ss_vname.borrow_from_string( n );
+      std::map< sstr_t, p_lexp_t >::const_iterator nvmi = nvm.find( ss_vname );
+      if( nvmi != nvm.end() ) { return nvmi->second; } // if found at this scope, return value
+    }
+    if( parent ) { return parent->find(n); } // try parent scope if it exists
     return p_lexp_t(); // ... otherwise return not found.
   }
   // for testing/debugging, re-create the exact 'basic' format input

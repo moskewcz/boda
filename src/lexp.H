@@ -43,14 +43,21 @@ namespace boda {
   };
   std::ostream & operator<<(std::ostream & os, lexp_nv_t const & v);
 
+  // wrapper around a lexp_t that includes: (1) a map from key to
+  // value and (2) a parent pointer. like a lexp_t itself, it may be a
+  // leaf, if its src lexp_t is a leaf.
   struct lexp_name_val_map_t {
+    p_lexp_t l; // source lexp. may be null (rarely, only for the no-value-init case). may be a leaf value.
     lexp_name_val_map_t * parent;
+    bool nvm_init;
     std::map< sstr_t, p_lexp_t > nvm;
+    void init_nvm( void );
     void dump( void );
-    void populate_from_lexp( lexp_t * const l );
     bool insert_leaf( char const * n, char const * v );
     p_lexp_t find( char const * n );
-    lexp_name_val_map_t( void ) : parent(0) { }
+    lexp_name_val_map_t( p_lexp_t l_ ) : l(l_), parent(0), nvm_init(0) { }
+    lexp_name_val_map_t( p_lexp_t l_, lexp_name_val_map_t * parent_ ) : l(l_), parent(parent_), nvm_init(0) { }
+
   };
 
   typedef std::vector< lexp_nv_t > vect_lexp_nv_t;

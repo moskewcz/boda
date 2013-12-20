@@ -17,24 +17,12 @@ using std::string;
 
 namespace boda 
 {
-  void nesi_init_and_check_unused_from_lexp(  nesi_init_arg_t * nia, tinfo_t const * ti, void * o, 
-					      p_lexp_t lexp ) {
-    ti->init( nia, ti, o, lexp.get() );
-    // check for unused fields in lexp
+  void nesi_init_and_check_unused_from_nia(  nesi_init_arg_t * nia, tinfo_t const * ti, void * o ) {
+    assert_st( nia->l );
+    ti->init( nia, ti, o );
     vect_string path;
-    lexp_check_unused( lexp.get(), path );
+    lexp_check_unused( nia->l.get(), path );
   }
-
-  void nesi_init_and_check_unused_from_xml_fn(  nesi_init_arg_t * nia, tinfo_t const * ti, void * o, 
-						string const & xml_fn ) {
-    pugi::xml_document doc;
-    pugi::xml_node xn = xml_file_get_root( doc, xml_fn );
-    p_lexp_t lexp = parse_lexp_list_xml( xn );
-    //printf( "*lexp=%s\n", str(*lexp).c_str() );
-    nesi_init_and_check_unused_from_lexp( nia, ti, o, lexp );
-  }
-
-
 
   struct xml_attr_t {
     string n;
@@ -135,12 +123,12 @@ namespace boda
   typedef shared_ptr< vect_char > p_vect_char;
   typedef vector< p_void > vect_p_void;
 
-  void p_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
+  void p_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
   {
-    if( !d ) { return; } // no_value_init --> null pointer
+    if( !nia->l ) { return; } // no_value_init --> null pointer
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
-    void * v = pt->make_p( pt, o, d );
-    pt->init( nia, pt, v, d );
+    void * v = pt->make_p( nia, pt, o );
+    pt->init( nia, pt, v );
   }
   bool p_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
     if( !bool( *((p_void *)( o )) ) ) { return 1;}
@@ -154,11 +142,11 @@ namespace boda
     return pt->nesi_help( pt, fo, os, show_all, help_args, help_ix ); // as per above, fo may be null
   }
 
-  void vect_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
+  void vect_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
   {
-    if( !d ) { return; } // no_value_init --> empty vector
+    if( !nia->l ) { return; } // no_value_init --> empty vector
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
-    lexp_t * l = (lexp_t *)d;
+    lexp_t * l = nia->l.get();
     if( l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use string as name/value list for vector init. string was:" + str(*l) );
     }
@@ -166,7 +154,8 @@ namespace boda
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
       void * rpv = pt->vect_push_back( o );
       // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
-      try { pt->init( nia, pt, rpv, i->v.get() ); }
+      lexp_name_val_map_t nvm( i->v, nia );
+      try { pt->init( &nvm, pt, rpv ); }
       catch( rt_exception & rte ) {
 	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
 	throw;
@@ -214,7 +203,11 @@ namespace boda
     if( !di && vi->default_val ) { di = parse_lexp( vi->default_val ); }
     if( !di && vi->req ) { rt_err( strprintf( "missing required value for var '%s'", vi->vname ) ); } 
     if( !di ) { assert_st( pt->no_init_okay ); } // nesi_gen.py should have checked to prevent this
-    try { pt->init( nia, pt, rpv, di.get() ); } // note: di.get() may be null, yielding type-specific no-value init 
+    // note: if pt->no_init_okay, then di.get() may be null, yielding type-specific no-value init 
+    try { 
+      lexp_name_val_map_t nvm( di, nia ); // note dynamic scoping here
+      pt->init( &nvm, pt, rpv ); 
+    } 
     catch( rt_exception & rte ) {
       rte.err_msg = "var '" + str(vi->vname) + "': " + rte.err_msg;
       throw;
@@ -243,18 +236,13 @@ namespace boda
     }    
   }
 
-  void nesi_struct_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
+  void nesi_struct_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
   {
-    lexp_name_val_map_t nvm;
-    nvm.parent = nia;
-    lexp_t * l = (lexp_t *)d;
-    if( l ) { // no_value_init has same semantics as empty list init
-      ++l->use_cnt;
-      nvm.populate_from_lexp( l );
-    }
+    if( nia->l ) { nia->init_nvm(); ++nia->l->use_cnt; }
+    else { } // for no_value_init case we leave nia empty (with an nvm_init=0, but that doesn't matter)
     cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
     make_most_derived( ci, o );
-    nesi_struct_init_rec( &nvm, ci, o );
+    nesi_struct_init_rec( nia, ci, o );
   }
 
 
@@ -417,15 +405,13 @@ namespace boda
     ci->make_p_nesi( pn );
   }
 
-  void * nesi_struct_make_p( tinfo_t const * tinfo, void * o, void * d )
+  void * nesi_struct_make_p( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
   {
-    lexp_t * l = (lexp_t *)d;
-    lexp_name_val_map_t nvm;
-    nvm.populate_from_lexp( l );
-
+    assert_st( nia->l );
+    nia->init_nvm();
     cinfo_t const * const ci = (cinfo_t *)( tinfo->init_arg );
     p_nesi pn;
-    nesi_struct_make_p_rec( &nvm, &pn, ci );
+    nesi_struct_make_p_rec( nia, &pn, ci );
     return ci->set_p_cname_from_p_nesi( &pn, o );
   }
 
@@ -439,7 +425,7 @@ namespace boda
     vv->push_back( vect_char() );
     return &vv->back();
   }
-  void * vect_make_p( tinfo_t const * tinfo, void * o, void * d ) { 
+  void * vect_make_p( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) { 
     p_vect_char * const pvc = (p_vect_char *)( o );
     pvc->reset( new vect_char );
     return pvc->get();
@@ -450,7 +436,7 @@ namespace boda
     vpv->push_back( p_void() );
     return &vpv->back();
   }
-  void * p_make_p( tinfo_t const * tinfo, void * o, void * d ) {
+  void * p_make_p( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
     p_p_void * const ppv = (p_p_void *)( o );
     ppv->reset( new p_void );
     return ppv->get();
@@ -460,13 +446,13 @@ namespace boda
 
   // shared base type functions
   template< typename T >
-  void nesi_lexcast_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
+  void nesi_lexcast_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
   { 
     T * v = (T *)o;
-    assert( d ); // no_value_init disabled
+    assert( nia->l ); // no_value_init disabled
     //if( !d ) { *v = 0; return; } // no_value_init = 0
     char const * tstr = (char const *)tinfo->init_arg;
-    lexp_t * l = (lexp_t *)d;
+    lexp_t * l = nia->l.get();
     if( !l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use name/value list as "+string(tstr)+" value. list was:" + str(*l) );
     }
@@ -493,7 +479,7 @@ namespace boda
     return &vv->back();
   }
   template< typename T >
-  void * has_def_ctor_make_p( tinfo_t const * tinfo, void * o, void * d ) {
+  void * has_def_ctor_make_p( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
     shared_ptr< T > * const p = (shared_ptr< T > *)( o );
     p->reset( new T );
     return p->get();
@@ -513,12 +499,12 @@ namespace boda
   }
 
   // string
-  void nesi_string_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
+  void nesi_string_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
   {
-    assert( d ); // no_value_init disabled
+    assert_st( nia->l ); // no_value_init disabled
     //if( !d ) { return; } // no_value_init --> empty string
     string * v = (string *)o;
-    lexp_t * l = (lexp_t *)d;
+    lexp_t * l = nia->l.get();
     if( !l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use name/value list as string value. list was:" + str(*l) );
     }
@@ -531,10 +517,10 @@ namespace boda
   void *string_init_arg = (void *)"string";
 
   // filename_t 
-  void nesi_filename_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o, void * d )
+  void nesi_filename_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
   {
     filename_t * v = (filename_t *)o;
-    nesi_string_init( nia, tinfo, &v->in, d );
+    nesi_string_init( nia, tinfo, &v->in );
     // expand refs. note: refs do not inc the use count of the lexp they use (as this seems sensible).
     for( string::const_iterator i = v->in.begin(); i != v->in.end(); ++i ) {
       if( *i == '%' ) {
@@ -556,7 +542,8 @@ namespace boda
 	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
 	  }
 	  filename_t iv;
-	  nesi_filename_t_init( nia, tinfo, &iv, di.get() );
+	  lexp_name_val_map_t nvm( di, nia ); // note dynamic scope
+	  nesi_filename_t_init( &nvm, tinfo, &iv ); 
 	  v->exp += iv.exp;
 	}
       } else { v->exp.push_back( *i ); } // not a '%'
