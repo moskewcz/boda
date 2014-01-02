@@ -1,0 +1,22 @@
+
+---- boda in 1 slide
+
+boda -- a C++ framework for computer vision experiments
+ -- supports agile research experimentation with profiling/testing/UI  
+ -- C++/efficiency focused framework with python/octave interfaces
+ -- PoC use case (in progress): DPMs, pascal style evaluations
+ -- generalize in wanted directions: convnets
+
+---- framework details (for reference)
+
+-- framework features, things in []s are TODO (as needed)
+ -- NESI (NEsted Structure Init): C++ reflection system for key/value trees
+  -- types: structures (/w MI), pointers, vectors, [maps,]  base types ({,u}intXX_t, string, double, filename_t)
+  -- IO: XML (pugixml), text key/value paren'd lists, [ bytes, JSON, protobuf ]
+  -- UI: CLI via syntax conversion to text format, includes generated help, error handling.
+  -- polymorphism: specify type id strings --> generated factory support
+ -- timers: clock_gettime(), nestable, logged [DP, progress indicators]
+ -- testing: automated, unit, flow/regression, per-file-type diff (text, image, binary-fallback)
+ -- embedding stubs: python/numpy (python/numpy C-APIs) and octave (octave native C++ api)
+ -- image IO: JPEG (turbojpeg), PNG (lodepng) --> simple SIMD aligned image buffer --> [drawing] --> [output]
+
