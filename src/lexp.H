@@ -53,8 +53,8 @@ namespace boda {
     std::map< sstr_t, p_lexp_t > nvm;
     void init_nvm( void );
     void dump( void );
-    bool insert_leaf( char const * n, char const * v );
-    p_lexp_t find( char const * n );
+    bool insert_leaf( char const * n, char const * v, bool const inc_use_cnt );
+    p_lexp_t find( char const * n, lexp_name_val_map_t * * const found_scope ); // sets *found_scope 
     lexp_name_val_map_t( p_lexp_t l_ ) : l(l_), parent(0), nvm_init(0) { }
     lexp_name_val_map_t( p_lexp_t l_, lexp_name_val_map_t * parent_ ) : l(l_), parent(parent_), nvm_init(0) { }
 

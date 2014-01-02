@@ -108,7 +108,7 @@ namespace boda {
     }
   }
 
-  bool lexp_name_val_map_t::insert_leaf( char const * n, char const * v ) {
+  bool lexp_name_val_map_t::insert_leaf( char const * n, char const * v, bool const inc_use_cnt ) {
     init_nvm();
     sstr_t ss_n;
     ss_n.set_from_cstr( n );
@@ -117,6 +117,7 @@ namespace boda {
       lexp_nv_t kid;
       kid.n.set_from_cstr( n );
       kid.v = parse_lexp_leaf_str( v );
+      if( inc_use_cnt ) { ++kid.v->use_cnt; }
       l->kids.push_back( kid );
     }
     return did_ins;
@@ -135,15 +136,16 @@ namespace boda {
     nvm_init = 1;
   }
 
-  p_lexp_t lexp_name_val_map_t::find( char const * n ) {
+  p_lexp_t lexp_name_val_map_t::find( char const * n, lexp_name_val_map_t * * const found_scope ) {
+    assert_st( found_scope ); // who doesn't want to know the found scope? nobody. could be optional, though.
     if( nvm_init ) { // skip uninited nvms (from vectors, leafs, etc)
       sstr_t ss_vname;
       ss_vname.borrow_from_string( n );
       std::map< sstr_t, p_lexp_t >::const_iterator nvmi = nvm.find( ss_vname );
-      if( nvmi != nvm.end() ) { return nvmi->second; } // if found at this scope, return value
+      if( nvmi != nvm.end() ) {	*found_scope = this; return nvmi->second; } // if found at this scope, return value
     }
-    if( parent ) { return parent->find(n); } // try parent scope if it exists
-    return p_lexp_t(); // ... otherwise return not found.
+    if( parent ) { return parent->find( n, found_scope ); } // try parent scope if it exists
+    return p_lexp_t(); // ... otherwise return not found (and don't set found_scope).
   }
   // for testing/debugging, re-create the exact 'basic' format input
   // string from the tree of name/value lists. note: we sort-of assume

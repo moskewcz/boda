@@ -199,13 +199,15 @@ namespace boda
   void init_var_from_nvm( nesi_init_arg_t * nia, vinfo_t const * const vi, void * rpv )
   {
     tinfo_t * const pt = vi->tinfo;
-    p_lexp_t di = nia->find( vi->vname );
-    if( !di && vi->default_val ) { di = parse_lexp( vi->default_val ); }
+    nesi_init_arg_t * found_scope = 0;
+    p_lexp_t di = nia->find( vi->vname, &found_scope );
+    if( !di && vi->default_val ) { di = parse_lexp( vi->default_val ); found_scope = nia; }
     if( !di && vi->req ) { rt_err( strprintf( "missing required value for var '%s'", vi->vname ) ); } 
     if( !di ) { assert_st( pt->no_init_okay ); } // nesi_gen.py should have checked to prevent this
+    else { assert_st( found_scope ); }
     // note: if pt->no_init_okay, then di.get() may be null, yielding type-specific no-value init 
     try { 
-      lexp_name_val_map_t nvm( di, nia ); // note dynamic scoping here
+      lexp_name_val_map_t nvm( di, found_scope ); // note lexical (non-dynamic) scoping here
       pt->init( &nvm, pt, rpv ); 
     } 
     catch( rt_exception & rte ) {
@@ -536,13 +538,14 @@ namespace boda
 	    ref.push_back( *i );
 	  }
 	  // expand ref recursively
-	  p_lexp_t di = nia->find( ref.c_str() );
+	  nesi_init_arg_t * found_scope = 0;
+	  p_lexp_t di = nia->find( ref.c_str(), &found_scope );
 	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" ); }
 	  if( !di->leaf_val.exists() ) { // note: nesi_string_init would return a similar error if we skipped this check.
 	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
 	  }
 	  filename_t iv;
-	  lexp_name_val_map_t nvm( di, nia ); // note dynamic scope
+	  lexp_name_val_map_t nvm( di, found_scope ); // note lexical (non-dynamic) scoping here
 	  nesi_filename_t_init( &nvm, tinfo, &iv ); 
 	  v->exp += iv.exp;
 	}
