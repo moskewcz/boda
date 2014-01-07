@@ -12,6 +12,7 @@
 #include"pyif.H"
 #include"img_io.H"
 #include"octif.H"
+#include"timers.H"
 
 namespace boda 
 {
@@ -256,9 +257,9 @@ namespace boda
     string class_name; //NESI(help="name of object class",req=1)
     p_img_db_t img_db; //NESI(default="()", help="image database")
     virtual void main( nesi_init_arg_t * nia ) {
-      read_pascal_image_list_file( img_db, pil_fn.exp, false );
-      read_results_file( img_db, res_fn.exp, class_name );
-      img_db->score_results( prc_txt_fn, prc_png_fn );
+      { timer_t t("read_image_list"); read_pascal_image_list_file( img_db, pil_fn.exp, false ); }
+      { timer_t t("read_results_file"); read_results_file( img_db, res_fn.exp, class_name ); }
+      { timer_t t("score_results"); img_db->score_results( prc_txt_fn, prc_png_fn ); }
     }
   };
 

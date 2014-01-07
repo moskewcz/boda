@@ -15,6 +15,7 @@
 #include"img_io.H"
 #include"results_io.H"
 #include"octif.H"
+#include"timers.H"
 
 namespace boda 
 {
@@ -136,14 +137,21 @@ namespace boda
    
     in(0) = octave_value( image_fn );
     in(1) = mod;
-    octave_value_list boda_if_ret = feval("boda_if", in, 2 );
+    octave_value_list boda_if_ret;
+    {
+      timer_t t( "dfc_octave_top" );
+      boda_if_ret = feval("boda_if", in, 2 );
+    }
     assert_st( !error_state );
     assert_st( boda_if_ret.length() == 1);
     assert_st( boda_if_ret(0).is_matrix_type() );
     // unclear if this will always work and/or how to error check, since there are many 'matrix' types ...
     Matrix det_boxes = boda_if_ret(0).matrix_value(); 
     assert_st( !error_state );
-    bs_matrix_to_dets( det_boxes, img_ix, scored_dets );
+    {
+      timer_t t( "bs_matrix_to_dets" );
+      bs_matrix_to_dets( det_boxes, img_ix, scored_dets );
+    }
     boost::filesystem::current_path( init_path );
   }
 
