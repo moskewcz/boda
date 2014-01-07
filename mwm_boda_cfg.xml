@@ -14,7 +14,7 @@
      moskewcz@orihime:~/svn_work/boda/lib$ emacs boda_cfg.xml
 -->
 
-<root verbose="1" 
+<root verbose="0" 
       boda_output_dir="."
       pascal_data_dir="/home/moskewcz/bench/VOCdevkit/VOC2007"
       dpm_fast_cascade_dir="/home/moskewcz/svn_work/dpm_fast_cascade"

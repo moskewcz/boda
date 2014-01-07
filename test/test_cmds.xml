@@ -17,7 +17,7 @@
   <li test_name="load_pil_4" err="error: tried to load annotations multiple times for id '000001'" >
     <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.inv_3.txt"/>
   </li>
-  <li test_name="score_1">
+  <li test_name="score_1" slow="1" >
     <command mode="score" 
 	     pil_fn="%(pascal_data_dir)/ImageSets/Main/bicycle_test.txt" 
 	     res_fn="%(ffld_dir)/build/ffld_VOC2007_bicycle_test_out.txt" 
@@ -27,6 +27,13 @@
     <command mode="score" 
 	     pil_fn="%(boda_test_dir)/pascal/bicycle_10.txt"
 	     res_fn="%(boda_test_dir)/pascal/bicycle_out_10.txt"
+	     class_name="bicycle"
+	     /></li>
+  <li test_name="score_3">
+    <command mode="score" 
+	     pil_fn="%(boda_test_dir)/pascal/bicycle_100.txt"
+	     res_fn="%(boda_test_dir)/pascal/bicycle_out_100.txt"
+	     prc_png_fn=""
 	     class_name="bicycle"
 	     /></li>
 

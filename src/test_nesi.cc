@@ -32,8 +32,10 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string test_name; //NESI(help="name of test",req=1)
+    uint32_t slow; //NESI(default=0,help="is test slow to run (and thus disabled by default)?")
     p_string err; //NESI(help="expected error (if any)")
     p_has_main_t command; //NESI(help="input",req=1)
+
   };
   typedef vector< cmd_test_t > vect_cmd_test_t; 
   typedef shared_ptr< cmd_test_t > p_cmd_test_t; 
@@ -310,6 +312,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t xml_fn; //NESI(default="%(boda_test_dir)/test_cmds.xml",help="xml file containing list of tests.")
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
+    uint32_t run_slow; //NESI(default=0,help="run slow tests too?")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
     uint32_t update_failing; //NESI(default=0,help="if true, update archives for all run tests that fail.")
     
@@ -433,7 +436,8 @@ namespace boda
 	cur_test = cmd_test; // needed by test_print()
 	bool const seen_test_name = !seen_test_names.insert( cmd_test->test_name ).second;
 	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + cmd_test->test_name ); }
-	if( regex_search( cmd_test->test_name, filt_regex ) ) {
+	if( regex_search( cmd_test->test_name, filt_regex ) && 
+	    ( run_slow || (!cmd_test->slow) ) ) {
 	  if( verbose ) { std::cout << (*cmd_test) << std::endl; }
 	  timer_t t("test_cmds_cmd");
 	  // note: no test may be named 'good'

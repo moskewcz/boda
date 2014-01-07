@@ -18,6 +18,7 @@ namespace boda
   {
     filename_t xml_fn; //NESI(default="%(boda_test_dir)/test_all.xml",help="xml file containing list of testing modes.")
     string filt; //NESI(default=".*",help="regexp over modes of what commands to run (default runs all)")
+    uint32_t run_slow; //NESI(default=0,help="run slow tests too?")
     uint32_t verbose; //NESI(default=0,help="if true, print each test mode name before running it")
 
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support

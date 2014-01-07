@@ -162,7 +162,7 @@ namespace boda
     match_res_t try_match( string const & class_name, scored_det_t const & sd );
     void score_results_for_class( string const & class_name, p_vect_scored_det_t name_scored_dets, 
 				  string const & prc_txt_fn, string const & prc_png_fn );
-    void score_results( filename_t const & prc_fn, filename_t const & plot_base_fn );
+    void score_results( filename_t const & prc_fn, string const & plot_base_fn );
   };
   typedef shared_ptr< img_db_t > p_img_db_t;
 
@@ -259,7 +259,7 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia ) {
       { timer_t t("read_image_list"); read_pascal_image_list_file( img_db, pil_fn.exp, false ); }
       { timer_t t("read_results_file"); read_results_file( img_db, res_fn.exp, class_name ); }
-      { timer_t t("score_results"); img_db->score_results( prc_txt_fn, prc_png_fn ); }
+      { timer_t t("score_results"); img_db->score_results( prc_txt_fn, prc_png_fn.exp ); }
     }
   };
 
@@ -376,16 +376,18 @@ namespace boda
 			      str(num_pos).c_str(), str(num_test).c_str(), 
 			      str(num_test - num_pos).c_str(),
 			      str(map).c_str() );
-    string const plt_fn = prc_png_fn+class_name+".png";
-    prc_plot( plt_fn, tot_num_class, prc_elems );
+    if( !prc_png_fn.empty() ) {
+      string const plt_fn = prc_png_fn+class_name+".png";
+      prc_plot( plt_fn, tot_num_class, prc_elems );
+    }
 
   }
 
-  void img_db_t::score_results( filename_t const & prc_fn, filename_t const & plot_base_fn )
+  void img_db_t::score_results( filename_t const & prc_fn, string const & plot_base_fn )
   {
     for( name_vect_scored_det_map_t::iterator i = scored_dets.begin(); i != scored_dets.end(); ++i )
     {
-      score_results_for_class( i->first, i->second, prc_fn.exp, plot_base_fn.exp );
+      score_results_for_class( i->first, i->second, prc_fn.exp, plot_base_fn );
     }
   }
 #include"gen/results_io.cc.nesi_gen.cc"
