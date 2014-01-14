@@ -133,15 +133,28 @@ namespace boda
     name_vect_scored_det_map_t scored_dets;
     class_infos_t class_infos;
 
-    void load_pascal_data_for_id( string const & img_id, bool load_img )
+    // note: expects that only a single image list will be loaded
+    // (with check_ix_only=0), and that any subsequent lists loaded
+    // (with check_ix_only=1) will have the same images in the same
+    // order. this strictness is primarily for error checking can be
+    // relaxed as needed.
+    void load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only )
     {
       p_img_info_t & img_info = id_to_img_info_map[img_id];
+      if( check_ix_only ) {
+	if( !img_info ) { rt_err( "expected image to already be loaded but it was not" ); }
+	if( img_info->ix != in_file_ix ) { rt_err( strprintf( "already-loaded image had ix=%s, but expected %s",
+							      str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
+	return;
+      }
       if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
       img_info.reset( new img_info_t( img_id ) );
       read_pascal_annotations_for_id( img_info, pascal_ann_dir.exp, img_id ); 
       if( load_img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
 
       img_info->ix = img_infos.size();
+      if( img_info->ix != in_file_ix ) { rt_err( strprintf( "newly-loaded image had ix=%s, but expected %s",
+							    str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
       img_infos.push_back( img_info );
       for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )
       {
@@ -220,15 +233,23 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
+    vect_filename_t check_pil_fns; //NESI(help="name of pascal-VOC format image list files to check image-set agreement (same images in same order) against the primary one")
     uint32_t load_imgs; //NESI(default=0,help="if true, load images referenced by the file")
     p_img_db_t img_db; //NESI(default="()", help="image database")
-    virtual void main( nesi_init_arg_t * nia ) { read_pascal_image_list_file( img_db, pil_fn.exp, false ); }
+    virtual void main( nesi_init_arg_t * nia ) { 
+      read_pascal_image_list_file( img_db, pil_fn.exp, false, 0 ); 
+      for( vect_filename_t::const_iterator i = check_pil_fns.begin(); i != check_pil_fns.end(); ++i ) {
+	read_pascal_image_list_file( img_db, i->exp, false, 1 );
+      }
+    }
   };
 
-  void read_pascal_image_list_file( p_img_db_t img_db, string const & pil_fn, bool load_imgs )
+  void read_pascal_image_list_file( p_img_db_t img_db, string const & pil_fn, bool const load_imgs, 
+				    bool const check_ix_only )
   {
     p_ifstream in = ifs_open( pil_fn );  
     string line;
+    uint32_t in_file_ix = 0; // almost (0 based) line number, but only for non-blank lines
     while( !ifs_getline( pil_fn, in, line ) )
     {
       vect_string parts;
@@ -243,7 +264,8 @@ namespace boda
 	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
 			   pil_fn.c_str(), pn.c_str() ) );
       }
-      img_db->load_pascal_data_for_id( id, load_imgs );
+      img_db->load_pascal_data_for_id( id, load_imgs, in_file_ix, check_ix_only );
+      ++in_file_ix;
     }
   }
   
@@ -257,7 +279,7 @@ namespace boda
     string class_name; //NESI(help="name of object class",req=1)
     p_img_db_t img_db; //NESI(default="()", help="image database")
     virtual void main( nesi_init_arg_t * nia ) {
-      { timer_t t("read_image_list"); read_pascal_image_list_file( img_db, pil_fn.exp, false ); }
+      { timer_t t("read_image_list"); read_pascal_image_list_file( img_db, pil_fn.exp, false, 0 ); }
       { timer_t t("read_results_file"); read_results_file( img_db, res_fn.exp, class_name ); }
       { timer_t t("score_results"); img_db->score_results( prc_txt_fn, prc_png_fn.exp ); }
     }
@@ -273,7 +295,7 @@ namespace boda
     string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
 
     virtual void main( nesi_init_arg_t * nia ) {
-      read_pascal_image_list_file( img_db, pil_fn, true );
+      read_pascal_image_list_file( img_db, pil_fn, true, 0 );
       p_vect_scored_det_t scored_dets( new vect_scored_det_t );
       for( uint32_t i = 0; i < img_db->img_infos.size(); ++i )
       {

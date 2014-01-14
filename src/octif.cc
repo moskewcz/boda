@@ -184,7 +184,7 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) {
       
-      read_pascal_image_list_file( img_db, pil_fn, 0 );
+      read_pascal_image_list_file( img_db, pil_fn, 0, 0 );
 
       p_vect_scored_det_t scored_dets( new vect_scored_det_t );
       octave_value_list in;
