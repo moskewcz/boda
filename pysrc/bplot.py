@@ -3,9 +3,10 @@ import os.path
 
 ospj = os.path.join
 
-def plot_stuff( plt_fn, prc_elems ):
+def plot_stuff( plt_fn, prc_elems, title ):
     plt.clf()
     plt.scatter(prc_elems[0], prc_elems[1] )
+    plt.title( title )
     plt.savefig( plt_fn )
     return 0
 

@@ -122,8 +122,12 @@ namespace boda
     vect_ppyo args; args.push_back( arg ); return bplot_call( fn, args ); }
   ppyo bplot_call( char const * const fn, ppyo arg1, ppyo arg2 ) {
     vect_ppyo args; args.push_back( arg1 ); args.push_back( arg2 ); return bplot_call( fn, args ); }
+  ppyo bplot_call( char const * const fn, ppyo arg1, ppyo arg2, ppyo arg3 ) {
+    vect_ppyo args; args.push_back( arg1 ); args.push_back( arg2 ); args.push_back( arg3); 
+    return bplot_call( fn, args ); }
 
-  void prc_plot( std::string const & plt_fn, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems )
+  void prc_plot( std::string const & plt_fn, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems,
+		 std::string const & plt_title )
   {
     npy_intp dims[2] = {3,prc_elems.size()};
     ppyo npa( PyArray_SimpleNew( 2, dims, NPY_DOUBLE) );
@@ -135,7 +139,8 @@ namespace boda
       *((double *)PyArray_GETPTR2( npa.get(), 2, ix )) = i->score;
       ++ix;
     }
-    ppyo ret = bplot_call( "plot_stuff", ppyo(PyString_FromString(plt_fn.c_str())), npa );
+    ppyo ret = bplot_call( "plot_stuff", ppyo(PyString_FromString(plt_fn.c_str())), npa,
+			   ppyo(PyString_FromString(plt_title.c_str())) );
     //printf("Result of call: %ld\n", PyInt_AsLong(ret.get()));
   }
 

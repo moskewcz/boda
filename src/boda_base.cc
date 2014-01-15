@@ -87,6 +87,15 @@ namespace boda
     }
   }
 
+  p_vect_string readlines_fn( string const & fn ) {
+    p_ifstream in = ifs_open( fn );
+    p_vect_string ret( new vect_string );
+    string line;
+    while( !ifs_getline( fn, in, line ) ) { ret->push_back( line ); }
+    return ret;
+  }
+
+
   // opens a ofstream. note: this function itself will raise if the open() fails.
   p_ofstream ofs_open( std::string const & fn )
   {

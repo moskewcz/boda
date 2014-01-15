@@ -20,6 +20,7 @@ namespace boda
     string filt; //NESI(default=".*",help="regexp over modes of what commands to run (default runs all)")
     uint32_t run_slow; //NESI(default=0,help="run slow tests too?")
     uint32_t verbose; //NESI(default=0,help="if true, print each test mode name before running it")
+    uint32_t update_failing; //NESI(default=0,help="if true, update archives for all run tests that fail.")
 
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     virtual void main( nesi_init_arg_t * nia ) {

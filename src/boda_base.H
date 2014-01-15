@@ -61,6 +61,7 @@ namespace boda
   // typedef uint32_t nesi_bool // TODO
 
   typedef vector< string > vect_string;
+  typedef shared_ptr< vect_string > p_vect_string;
   typedef set< string > set_string;
 
   typedef map< string, zi_uint32_t > map_str_ziu32_t;
@@ -73,6 +74,8 @@ namespace boda
   typedef shared_ptr< std::ofstream > p_ofstream;
   bool ifs_getline( std::string const &fn, p_ifstream in, std::string & line );
   p_ofstream ofs_open( string const & fn );
+  p_vect_string readlines_fn( string const & fn );
+
   typedef shared_ptr< boost::iostreams::mapped_file > p_mapped_file;
   typedef shared_ptr< boost::iostreams::mapped_file_source > p_mapped_file_source;
   typedef shared_ptr< boost::iostreams::mapped_file_sink > p_mapped_file_sink;

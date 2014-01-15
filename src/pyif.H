@@ -8,7 +8,8 @@ namespace boda
   void py_finalize( void );
   struct prc_elem_t;
   typedef vector< prc_elem_t > vect_prc_elem_t;
-  void prc_plot( std::string const & plot_fn, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems );
+  void prc_plot( std::string const & plot_fn, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems,
+		 std::string const & plot_title );
 
   struct img_t; typedef shared_ptr< img_t > p_img_t;
   void py_img_show( p_img_t img, std::string const & save_as_filename );

@@ -106,6 +106,7 @@ namespace boda {
     for( map<sstr_t,p_lexp_t>::const_iterator i = nvm.begin(); i != nvm.end(); ++i ) {
       printf( "%s=%s\n", str(i->first).c_str(), str((*i->second)).c_str() );
     }
+    if( parent ) { printf("parent:\n"); parent->dump(); }
   }
 
   bool lexp_name_val_map_t::insert_leaf( char const * n, char const * v, bool const inc_use_cnt ) {

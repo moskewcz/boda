@@ -540,7 +540,7 @@ namespace boda
 	  // expand ref recursively
 	  nesi_init_arg_t * found_scope = 0;
 	  p_lexp_t di = nia->find( ref.c_str(), &found_scope );
-	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" ); }
+	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" );  }
 	  if( !di->leaf_val.exists() ) { // note: nesi_string_init would return a similar error if we skipped this check.
 	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
 	  }

@@ -9,7 +9,8 @@ namespace boda
     for( uint32_t d = 0; d < 2; ++d ) {
       if( !p[0].d[d] ) { rt_err( "during from_pascal_coord_adjust(), box had 0 coord, expected >= 1" ); }
       --p[0].d[d]; // adjust 1 based [] coords into 0 based [) ones.
-      assert( p[1].d[d] > p[0].d[d] ); // check for strict normalization
+      // check for strict normalization
+      if( p[1].d[d] <= p[0].d[d] ) { rt_err( "denormalized box after from_pascal_coord_adjust()" ); } 
     }
   }
 

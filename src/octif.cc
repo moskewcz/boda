@@ -169,26 +169,34 @@ namespace boda
     }
   };
 
-  // example command lines: FIXME: fold iteration / filename generation into this class?
+  // FIXME: example cmds out of date, iter moved inside:
   // for cn in `cat ../../test/pascal_classes.txt`; do ../../lib/boda score --pil-fn=%(pascal_data_dir)/ImageSets/Main/${cn}_test.txt --res-fn=${cn}_hamming.txt --class-name=${cn}; done
   // for cn in `cat ../test/pascal_classes.txt`; do ../lib/boda mat_bs_to_pascal --mat-bs-fn=/home/moskewcz/bench/hamming/hamming_toplevel_bboxes_pascal2007/${cn}_boxes_test__hamming.mat --res-fn=${cn}_hamming.txt --class-name=${cn} --pil-fn=%(pascal_data_dir)/ImageSets/Main/${cn}_test.txt ; done
 
   struct convert_matlab_res_t : virtual public nesi, public has_main_t // NESI(help="convert matlab 'ds' results to pascal format",bases=["has_main_t"], type_id="mat_bs_to_pascal")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string mat_bs_fn; //NESI(help="input: name of matlab file with ds var with results",req=1)
-    string class_name; //NESI(help="name of object class",req=1)
-    string pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
-    string res_fn; //NESI(help="output: name of pascal-VOC format detection results file to write",req=1)
+    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal_classes.txt",help="file with list of classes to process")
+    filename_t mat_bs_fn; //NESI(default="%(bench_dir)/hamming/voc-release5_simpleHog_no_sqrt_11-27-13/2007/%%s_boxes_test_simpleHog.mat", help="input: format for filenames of matlab file with ds var with results: %%s will be replaced with the class name")
+    filename_t pil_fn; //NESI(default="%(pascal_data_dir)/ImageSets/Main/%%s_test.txt",help="format for filenames of pascal image list files. %%s will be replaced with the class name.")
+    filename_t res_fn; //NESI(default="%(bench_dir)/hamming/pf_shog/%%s_test.txt",help="output: format for filenames of pascal-VOC format detection results file to write")
     p_img_db_t img_db; //NESI(default="()", help="image database")
 
     virtual void main( nesi_init_arg_t * nia ) {
-      
-      read_pascal_image_list_file( img_db, pil_fn, 0, 0 );
+      p_vect_string classes = readlines_fn( pascal_classes_fn.exp );
+      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+	convert_class( *i, i != (*classes).begin() );
+      }
+    }
 
+    void convert_class( string const & class_name, bool const check_ix_only ) {
+      string c_pil_fn = strprintf( pil_fn.exp.c_str(), class_name.c_str() );
+      read_pascal_image_list_file( img_db, c_pil_fn, 0, check_ix_only );
       p_vect_scored_det_t scored_dets( new vect_scored_det_t );
       octave_value_list in;
-      in(0) = octave_value( mat_bs_fn );
+      
+      string c_mat_bs_fn = strprintf( mat_bs_fn.exp.c_str(), class_name.c_str() );
+      in(0) = octave_value( c_mat_bs_fn );
       octave_value_list load_out = feval ("load", in, 1);
       assert_st( !error_state && (load_out.length() > 0) );
       octave_scalar_map osm = load_out(0).scalar_map_value();
@@ -209,8 +217,8 @@ namespace boda
 	//break;
       }
       img_db_set_results( img_db, class_name, scored_dets );
-
-      write_results_file( img_db, res_fn, class_name );
+      string c_res_fn = strprintf( res_fn.exp.c_str(), class_name.c_str() );
+      write_results_file( img_db, c_res_fn, class_name );
     }
   };
 

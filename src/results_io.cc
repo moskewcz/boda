@@ -368,6 +368,7 @@ namespace boda
     double map = 0;
     uint32_t print_skip = 1 + (tot_num_class / 20); // print about 20 steps in recall
     uint32_t next_print = 1;
+    (*prc_out ) << strprintf( "---BEGIN--- class_name=%s tot_num_class=%s name_scored_dets->size()=%s\n", str(class_name).c_str(), str(tot_num_class).c_str(), str(name_scored_dets->size()).c_str() );
     for( vect_scored_det_t::const_iterator i = name_scored_dets->begin(); i != name_scored_dets->end(); )
     {
       uint32_t const orig_num_pos = num_pos;
@@ -393,14 +394,16 @@ namespace boda
     }
     map /= tot_num_class;
     if( next_print != (num_pos+print_skip) ) { print_prc_line( prc_out, prc_elems.back(), tot_num_class, map ); }
-    (*prc_out ) << strprintf( "--- tot_num=%s num_pos=%s num_test=%s num_neg=%s final_map=%s\n", 
+    (*prc_out ) << strprintf( "---END--- class_name=%s tot_num=%s num_pos=%s num_test=%s num_neg=%s final_map=%s\n", 
+			      str(class_name).c_str(),
 			      str(tot_num_class).c_str(), 
 			      str(num_pos).c_str(), str(num_test).c_str(), 
 			      str(num_test - num_pos).c_str(),
 			      str(map).c_str() );
     if( !prc_png_fn.empty() ) {
       string const plt_fn = prc_png_fn+class_name+".png";
-      prc_plot( plt_fn, tot_num_class, prc_elems );
+      prc_plot( plt_fn, tot_num_class, prc_elems, 
+		strprintf( "class_name=%s map=%s\n", str(class_name).c_str(), str(map).c_str() ) );
     }
 
   }
@@ -412,6 +415,99 @@ namespace boda
       score_results_for_class( i->first, i->second, prc_fn.exp, plot_base_fn );
     }
   }
+
+  struct is_comma { bool operator()( char const & c ) const { return c == ','; } };
+
+  void read_hamming_csv_file( p_vect_scored_det_t scored_dets, string const & fn, string const &class_name )
+  {
+    p_ifstream in = ifs_open( fn );  
+    string line;
+    uint32_t img_ix = 0;
+    while( !ifs_getline( fn, in, line ) )
+    {
+      vect_string parts;
+      split( parts, line, is_comma(), token_compress_on );
+      if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
+      assert( parts.size() == 5 );
+      scored_det_t scored_det;
+      ++img_ix; // id is line # in file, 1-based
+      scored_det.img_ix = img_ix;
+      scored_det.p[0].d[0] = uint32_t( lc_str_d( parts[0] ) );
+      scored_det.p[0].d[1] = uint32_t( lc_str_d( parts[1] ) );
+      scored_det.p[1].d[0] = uint32_t( lc_str_d( parts[2] ) );
+      scored_det.p[1].d[1] = uint32_t( lc_str_d( parts[3] ) );
+      scored_det.score = lc_str_d( parts[4] );
+      try {
+	scored_det.from_pascal_coord_adjust();
+      } catch( ... ) {
+	printf( "img_ix=%s fn=%s line=%s\n", str(img_ix).c_str(), str(fn).c_str(), line.c_str() );
+      }
+      
+      assert_st( scored_det.is_strictly_normalized() );
+      scored_dets->push_back( scored_det );
+    }
+  }
+
+
+  struct hamming_analysis_t : virtual public nesi, public has_main_t // NESI(help="hamming first-level cascade boxes analysis",bases=["has_main_t"], type_id="ham_ana")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal_classes.txt",help="file with list of classes to process")
+    uint32_t load_imgs; //NESI(default=0,help="if true, load images referenced by the file")
+    p_img_db_t img_db; //NESI(default="()", help="image database")
+    filename_t pil_fn; //NESI(default="%(pascal_data_dir)/ImageSets/Main/%%s_test.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
+    filename_t ham_fn; //NESI(default="%(bench_dir)/hamming/voc-release5-hamming_top1000boxes/2007/%%s_boxes_test__hamming_imgNo%%s.csv",help="format for base filenames of hamming boxes. %%s, %%s will be replaced with the class name, img index")
+    filename_t dpm_fn; //NESI(default="%(bench_dir)/hamming/pf_shog/%%s_test.txt",help="format for filenames of pascal-VOC format DPM detection results files. %%s will be replaced with the class name")
+    filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
+    filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
+    
+    virtual void main( nesi_init_arg_t * nia ) { 
+      p_vect_string classes = readlines_fn( pascal_classes_fn.exp );
+      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+	read_pascal_image_list_file( img_db, strprintf( pil_fn.exp.c_str(), (*i).c_str() ), 
+				     false, (i != (*classes).begin()) ); 	
+      }
+      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+	p_vect_scored_det_t hamming_scored_dets( new vect_scored_det_t );
+	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
+	  read_hamming_csv_file( hamming_scored_dets, strprintf( ham_fn.exp.c_str(), (*i).c_str(), str(ix+1).c_str() ), *i );
+	}
+	img_db->scored_dets[*i] = hamming_scored_dets;
+	printf( "(*i)=%s (hamming)\n", str((*i)).c_str() );
+	//read_results_file( img_db, strprintf( dpm_fn.exp.c_str(), (*i).c_str() ), *i );
+	//printf( "(*i)=%s (DPM)\n", str((*i)).c_str() );
+      }
+      { timer_t t("score_results"); img_db->score_results( prc_txt_fn, prc_png_fn.exp ); }
+      
+      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+	string const & class_name = *i;
+	p_vect_scored_det_t scored_dets = img_db->scored_dets[class_name];
+	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
+	  p_img_info_t img_info = img_db->img_infos[ix];
+	  vect_gt_det_t & gt_dets = img_info->gt_dets[class_name]; // note: may be created here (i.e. may be empty)
+	  bool unmatched = 0;
+	  for( vect_gt_det_t::iterator i = gt_dets.begin(); i != gt_dets.end(); ++i ) {
+	    if( !i->matched ) {
+	      printf( "unmatched: class_name=%s img_info->id=%s\n", str(class_name).c_str(), str(img_info->id).c_str() );
+	      unmatched = 1;
+	    }
+	  }
+	  if( unmatched ) {
+	    p_vect_scored_det_t img_scored_dets( new vect_scored_det_t );
+	    for (vect_scored_det_t::const_iterator i = scored_dets->begin(); i != scored_dets->end(); ++i) {
+	      if( i->img_ix == ix ) { img_scored_dets->push_back( *i ); }
+	    }
+	    img_db_show_dets( img_db, img_scored_dets, ix );
+	  }
+
+	}
+      }
+    }
+  };
+
+  //p_vect_string readlines_fn( string const & fn ) {
+
+
 #include"gen/results_io.cc.nesi_gen.cc"
 
 }
