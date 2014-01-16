@@ -6,12 +6,11 @@ namespace boda
   void oct_init( void );
   void test_oct( void );
 
-  struct scored_det_t;
-  typedef std::vector< scored_det_t > vect_scored_det_t;
+  struct vect_scored_det_t;
   typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
 
   void oct_dfc( std::ostream & out, std::string const & dpm_fast_cascade_dir, p_vect_scored_det_t scored_dets, 
-		std::string const & class_name, std::string const & image_fn, uint32_t const img_ix );
+		std::string const & image_fn, uint32_t const img_ix );
 }
 
 #endif // _OCTIF_H_

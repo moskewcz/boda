@@ -90,13 +90,14 @@ namespace boda
       det.score = det_boxes(i,det_boxes.dim2()-1);
       det.from_pascal_coord_adjust();
       //printf( "det=%s\n", str(det).c_str() );
-      if(scored_dets) { scored_dets->push_back( det ); }
+      scored_dets->push_back( det );
     }
   }
 
   void oct_dfc( ostream & out, string const & dpm_fast_cascade_dir, p_vect_scored_det_t scored_dets, 
-		string const & class_name, string const & image_fn, uint32_t const img_ix ) {
+		string const & image_fn, uint32_t const img_ix ) {
     boost::filesystem::path init_path = boost::filesystem::current_path();
+    string const & class_name = scored_dets->class_name;
     printf( "oct_dfc() class_name=%s image_fn=%s img_ix=%s\n", 
 	    str(class_name).c_str(), str(image_fn).c_str(), str(img_ix).c_str() );
     p_img_t img( new img_t );
@@ -162,10 +163,11 @@ namespace boda
     string class_name; //NESI(help="name of object class",req=1)
     uint32_t img_ix; //NESI(default=0,help="internal use only: img_ix to put in results placed in results vector")
     string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
-    p_vect_scored_det_t scored_dets; // output, may be null to omit
+    p_vect_scored_det_t scored_dets; // output
 
     virtual void main( nesi_init_arg_t * nia ) {
-      oct_dfc( cout, dpm_fast_cascade_dir, scored_dets, class_name, image_fn, img_ix );
+      scored_dets.reset( new vect_scored_det_t( class_name ) );
+      oct_dfc( cout, dpm_fast_cascade_dir, scored_dets, image_fn, img_ix );
     }
   };
 
@@ -192,7 +194,7 @@ namespace boda
     void convert_class( string const & class_name, bool const check_ix_only ) {
       string c_pil_fn = strprintf( pil_fn.exp.c_str(), class_name.c_str() );
       read_pascal_image_list_file( img_db, c_pil_fn, 0, check_ix_only );
-      p_vect_scored_det_t scored_dets( new vect_scored_det_t );
+      p_vect_scored_det_t scored_dets( new vect_scored_det_t( class_name ) );
       octave_value_list in;
       
       string c_mat_bs_fn = strprintf( mat_bs_fn.exp.c_str(), class_name.c_str() );
@@ -216,9 +218,8 @@ namespace boda
 	//scored_dets->clear();
 	//break;
       }
-      img_db_set_results( img_db, class_name, scored_dets );
       string c_res_fn = strprintf( res_fn.exp.c_str(), class_name.c_str() );
-      write_results_file( img_db, c_res_fn, class_name );
+      write_results_file( img_db, c_res_fn, scored_dets );
     }
   };
 

@@ -8,6 +8,17 @@
 
 namespace boda
 {
+  // scored_dets to gt_dets mapping / evaluation data
+  struct gt_match_t 
+  {
+    bool matched;
+    double match_score;
+    gt_match_t( void ) : matched(0), match_score(0) { }
+  };
+  typedef vector< gt_match_t > vect_gt_match_t;
+  typedef map< string, vect_gt_match_t > name_vect_gt_match_map_t;
+  typedef vector< name_vect_gt_match_map_t > vect_name_vect_gt_match_map_t;
+  typedef vector< vect_gt_match_t > vect_vect_gt_match_t;
 
   struct scored_det_t : public u32_box_t
   {
@@ -16,12 +27,26 @@ namespace boda
     scored_det_t( void ) : score(0), img_ix(0) { }
   };
   std::ostream & operator<<(std::ostream & os, const scored_det_t & v);
-  typedef std::vector< scored_det_t > vect_scored_det_t;
+  struct vect_scored_det_t : public std::vector< scored_det_t >
+  {
+    vect_scored_det_t( string const & class_name_ ) : class_name( class_name_ ) { }
+    string class_name;
+    vect_vect_gt_match_t gt_matches;
+    void clear_matches( void ) { gt_matches.clear(); }
+    vect_gt_match_t & get_gtms( uint32_t const img_ix, uint32_t const img_num_gts ) {
+      if( img_ix >= gt_matches.size() ) { gt_matches.resize( img_ix + 1 ); }
+      vect_gt_match_t & ret = gt_matches[img_ix];
+      if( ret.empty() ) { ret.resize( img_num_gts ); }
+      assert_st( ret.size() == img_num_gts );
+      return ret;
+    }
+  };
   typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
-  typedef std::map< std::string, p_vect_scored_det_t > name_vect_scored_det_map_t;
-
+  typedef vector< p_vect_scored_det_t > vect_p_vect_scored_det_t;
+  typedef shared_ptr< vect_p_vect_scored_det_t > p_vect_p_vect_scored_det_t; 
+  
   // currently internal use only, but maybe can/should be exported
-  //void read_results_file( p_img_db_t img_db, std::string const & fn, std::string const &class_name );
+  //p_vect_scored_det_t read_results_file( p_img_db_t img_db, std::string const & fn );
 
   struct prc_elem_t
   {
@@ -42,8 +67,7 @@ namespace boda
   typedef shared_ptr< img_db_t > p_img_db_t;
   void read_pascal_image_list_file( p_img_db_t img_db, std::string const & pil_fn, bool const load_imgs, 
 				    bool const check_ix_only );
-  void img_db_set_results( p_img_db_t img_db, string const &class_name, p_vect_scored_det_t scored_dets );
-  void write_results_file( p_img_db_t img_db, string const & fn, string const &class_name );
+  void write_results_file( p_img_db_t img_db, string const & fn, p_vect_scored_det_t scored_dets );
   void img_db_show_dets( p_img_db_t img_db, p_vect_scored_det_t scored_dets, uint32_t img_ix );
 
 }
