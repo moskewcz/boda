@@ -456,6 +456,8 @@ namespace boda
     filename_t dpm_fn; //NESI(default="%(bench_dir)/hamming/pf_shog/%%s_test.txt",help="format for filenames of pascal-VOC format DPM detection results files. %%s will be replaced with the class name")
     filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
     filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
+
+    filename_t score_diff_summary_fn; //NESI(default="%(boda_output_dir)/diff_summ.csv",help="output: text summary of differences between two scored sets.")
     
     virtual void main( nesi_init_arg_t * nia ) { 
       p_vect_string classes = readlines_fn( pascal_classes_fn.exp );
@@ -479,6 +481,8 @@ namespace boda
       img_db->score_results( hamming_scored_dets, prc_txt_fn.exp + "ham_", prc_png_fn.exp + "ham_" );
       img_db->score_results( dpm_scored_dets, prc_txt_fn.exp + "dpm_", prc_png_fn.exp + "dpm_" );
 #if 1      
+      p_ofstream summ_out = ofs_open( score_diff_summary_fn.exp );  
+      (*summ_out) << strprintf( "class_name,num_tot,ham_only,dpm_only,num_ham,num_dpm,num_both,num_either,num_neither,\n");
       for( uint32_t cix = 0; cix != classes->size(); ++cix ) {
 	string const & class_name = classes->at(cix);;
 	p_vect_scored_det_t ham_sds = hamming_scored_dets->at(cix);
@@ -529,12 +533,8 @@ namespace boda
 	assert_st( (num_ham+dpm_only) == (num_dpm+ham_only) );
 	uint32_t const num_either = num_ham+dpm_only;
 	assert_st( num_neither + num_either == num_tot );
-	printf( "class=%s num_tot=%s ham_only=%s dpm_only=%s num_ham=%s num_dpm=%s num_both=%s num_either=%s num_neither=%s\n",
-		class_name.c_str(), 
-		str(num_tot).c_str(),
-		str(ham_only).c_str(), str(dpm_only).c_str(), 
-		str(num_ham).c_str(), str(num_dpm).c_str(), 
-		str(num_both).c_str(), str(num_either).c_str(), str(num_neither).c_str() );
+	// class num_tot ham_only dpm_only num_ham num_dpm num_both num_either num_neither
+	(*summ_out) << strprintf( "%s,%s,%s,%s,%s,%s,%s,%s,%s,\n", str(class_name).c_str(), str(num_tot).c_str(), str(ham_only).c_str(), str(dpm_only).c_str(), str(num_ham).c_str(), str(num_dpm).c_str(), str(num_both).c_str(), str(num_either).c_str(), str(num_neither).c_str() );
       }
 #endif
     }
