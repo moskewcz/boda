@@ -2,6 +2,9 @@
 -- cascade porting and related testing (oct_dfc) 
 
 ** features not scheduled for impl yet:
+? progress indicator(s)
+? ssh / networking support
+? packaging / distro support
 ? binary IO for lexp/nesi (for files/network) -- just use ascii for now?
 ? equality comparison?
 ? NESI map (string->*) type support
