@@ -420,11 +420,10 @@ namespace boda
 
   struct is_comma { bool operator()( char const & c ) const { return c == ','; } };
 
-  void read_hamming_csv_file( p_vect_scored_det_t scored_dets, string const & fn, string const &class_name )
+  void read_hamming_csv_file( p_vect_scored_det_t scored_dets, string const & fn, uint32_t const img_ix )
   {
     p_ifstream in = ifs_open( fn );  
     string line;
-    uint32_t img_ix = 0;
     while( !ifs_getline( fn, in, line ) )
     {
       vect_string parts;
@@ -432,7 +431,6 @@ namespace boda
       if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
       assert( parts.size() == 5 );
       scored_det_t scored_det;
-      ++img_ix; // id is line # in file, 1-based
       scored_det.img_ix = img_ix;
       scored_det.p[0].d[0] = uint32_t( lc_str_d( parts[0] ) );
       scored_det.p[0].d[1] = uint32_t( lc_str_d( parts[1] ) );
@@ -472,7 +470,7 @@ namespace boda
 	hamming_scored_dets->push_back( p_vect_scored_det_t( new vect_scored_det_t( *i ) ) );
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
 	  read_hamming_csv_file( hamming_scored_dets->back(), 
-				 strprintf( ham_fn.exp.c_str(), (*i).c_str(), str(ix+1).c_str() ), *i );
+				 strprintf( ham_fn.exp.c_str(), (*i).c_str(), str(ix+1).c_str() ), ix );
 	}
 	printf( "(*i)=%s (hamming)\n", str((*i)).c_str() );
 	dpm_scored_dets->push_back( read_results_file( img_db, strprintf( dpm_fn.exp.c_str(), (*i).c_str() ), *i ) );
@@ -480,23 +478,46 @@ namespace boda
       }
       img_db->score_results( hamming_scored_dets, prc_txt_fn.exp + "ham_", prc_png_fn.exp + "ham_" );
       img_db->score_results( dpm_scored_dets, prc_txt_fn.exp + "dpm_", prc_png_fn.exp + "dpm_" );
-#if 0      
+#if 1      
       for( uint32_t cix = 0; cix != classes->size(); ++cix ) {
 	string const & class_name = classes->at(cix);;
 	p_vect_scored_det_t ham_sds = hamming_scored_dets->at(cix);
 	p_vect_scored_det_t dpm_sds = dpm_scored_dets->at(cix);
+	uint32_t ham_only = 0;
+	uint32_t dpm_only = 0;
+	uint32_t num_ham = 0;
+	uint32_t num_dpm = 0;
+	uint32_t num_both = 0;
+	uint32_t num_neither = 0;
+	uint32_t num_tot = 0;
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
 	  p_img_info_t img_info = img_db->img_infos[ix];
 	  vect_gt_det_t & gt_dets = img_info->gt_dets[class_name];
-	  vect_gt_match_t & gtms = ham_sds->get_gtms( ix, gt_dets.size() ); // must already exists, but not checked
+	  vect_gt_match_t & ham_gtms = ham_sds->get_gtms( ix, gt_dets.size() ); // must already exist, but not checked
+	  vect_gt_match_t & dpm_gtms = dpm_sds->get_gtms( ix, gt_dets.size() ); // must already exist, but not checked
 	  bool unmatched = 0;
-	  for( vect_gt_match_t::iterator i = gtms.begin(); i != gtms.end(); ++i ) {
-	    if( !i->matched ) {
-	      printf( "unmatched: class_name=%s img_info->id=%s\n", str(class_name).c_str(), str(img_info->id).c_str() );
+	  for( uint32_t gtix = 0; gtix < gt_dets.size(); ++gtix ) {
+	    ++num_tot;
+	    if( ham_gtms.at(gtix).matched ) { ++num_ham; }
+	    if( dpm_gtms.at(gtix).matched ) { ++num_dpm; }
+	    if( ham_gtms.at(gtix).matched != dpm_gtms.at(gtix).matched ) {
+	      if( ham_gtms.at(gtix).matched ) { ++ham_only; }
+	      else { ++dpm_only; }
+#if 0
+	      printf( "unmatched: H=%s D=%s gtix=%s class_name=%s img_info->id=%s\n", 
+		      str(ham_gtms.at(gtix).matched).c_str(),
+		      str(dpm_gtms.at(gtix).matched).c_str(),
+		      str(gtix).c_str(),
+		      str(class_name).c_str(), str(img_info->id).c_str() );
+#endif
 	      unmatched = 1;
+	    } else {
+	      if( !ham_gtms.at(gtix).matched ) { ++num_neither; }
+	      else { ++num_both; }
 	    }
 	  }
-	  if( unmatched ) {
+	  bool const show_mismatch_img = 0;
+	  if( unmatched && show_mismatch_img ) {
 	    p_vect_scored_det_t img_scored_dets( new vect_scored_det_t( class_name ) );
 	    for (vect_scored_det_t::const_iterator i = ham_sds->begin(); i != ham_sds->end(); ++i) {
 	      if( i->img_ix == ix ) { img_scored_dets->push_back( *i ); }
@@ -504,6 +525,16 @@ namespace boda
 	    img_db_show_dets( img_db, img_scored_dets, ix );
 	  }
 	}
+	assert_st( (num_ham+dpm_only) == (num_dpm+ham_only) );
+	assert_st( (num_ham+dpm_only) == (num_dpm+ham_only) );
+	uint32_t const num_either = num_ham+dpm_only;
+	assert_st( num_neither + num_either == num_tot );
+	printf( "class=%s num_tot=%s ham_only=%s dpm_only=%s num_ham=%s num_dpm=%s num_both=%s num_either=%s num_neither=%s\n",
+		class_name.c_str(), 
+		str(num_tot).c_str(),
+		str(ham_only).c_str(), str(dpm_only).c_str(), 
+		str(num_ham).c_str(), str(num_dpm).c_str(), 
+		str(num_both).c_str(), str(num_either).c_str(), str(num_neither).c_str() );
       }
 #endif
     }
