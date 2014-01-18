@@ -27,6 +27,7 @@ namespace boda
   using boost::filesystem::is_regular_file;
   using boost::filesystem::filesystem_error;
   using boost::filesystem::recursive_directory_iterator;
+  using boost::filesystem::file_size;
 
   struct cmd_test_t : public virtual nesi // NESI(help="nesi test case")
   {
@@ -252,6 +253,16 @@ namespace boda
     if( is_directory( good_fn ) ) { return 0; } // both are directories, so that's all fine and well.
     // we can only handle regular files and directories, so check for that:
     assert_st( is_regular_file( good_fn ) && is_regular_file( test_fn ) ); 
+
+    // since map_file_ro chokes on empty files, we handle them manually ...
+    bool const good_empty = file_size( good_fn ) == 0;
+    bool const test_empty = file_size( test_fn ) == 0;
+    if( good_empty || test_empty ) {
+      if( good_empty == test_empty ) { return 0; } // both files empty
+      printf( "DIFF: EMPTY/NONEMPTY mismatch: good_empty=%s test_empty=%s\n", 
+	      str(good_empty).c_str(), str(test_empty).c_str() );
+      return 1;
+    }
 
     p_mapped_file_source good_map = map_file_ro( good_fn );
     p_mapped_file_source test_map = map_file_ro( test_fn );

@@ -112,7 +112,7 @@ namespace boda
     feval("startup" );
     assert_st( !error_state );
 
-    string const mat_fn = (dfc_vr / (class_name+"_final.mat")).string();
+    string const mat_fn = (dfc_vr / "VOC2007" / (class_name+"_final.mat")).string();
     octave_value_list in;
     in(0) = octave_value( mat_fn );
     octave_value_list load_out = feval ("load", in, 1);

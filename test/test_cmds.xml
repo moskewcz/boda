@@ -36,5 +36,24 @@
 	     prc_png_fn=""
 	     class_name="bicycle"
 	     /></li>
+  <li test_name="run_dfc_1" slow="1"> 
+    <command mode="run_dfc" 
+	     pascal_classes_fn="%(boda_test_dir)/pascal/head_1/pascal_classes.txt"
+	     pil_fn="%(boda_test_dir)/pascal/head_1/%%s.txt"
+	     /> 
+  </li>
+  <li test_name="run_dfc_10" slow="1"> 
+    <command mode="run_dfc" 
+	     pascal_classes_fn="%(boda_test_dir)/pascal/head_10/pascal_classes.txt"
+	     pil_fn="%(boda_test_dir)/pascal/head_10/%%s.txt"
+	     /> 
+  </li>
+  <li test_name="run_dfc_100" slow="1"> 
+    <command mode="run_dfc" 
+	     pascal_classes_fn="%(boda_test_dir)/pascal/head_100/pascal_classes.txt"
+	     pil_fn="%(boda_test_dir)/pascal/head_100/%%s.txt"
+	     /> 
+  </li>
+
 
 </root>
