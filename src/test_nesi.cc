@@ -268,9 +268,15 @@ namespace boda
     p_mapped_file_source test_map = map_file_ro( test_fn );
     range_char good_range( good_map->data(), good_map->data() + good_map->size() );
     range_char test_range( test_map->data(), test_map->data() + test_map->size() );
-    if( endswith(fn, ".txt" ) ) { // do line-by-line diff
+    if( endswith(fn, ".txt" ) || endswith(fn, ".oct") ) { // do line-by-line diff
       vect_range_char good_lines; getlines( good_lines, good_range );
       vect_range_char test_lines; getlines( test_lines, test_range );
+      if( endswith(fn,".oct") ) { // for octave files, remove/ignore the first line, as it has a timestamp
+	if( good_lines.size() && test_lines.size() ) { // do nothing if both files don't have at least one line
+	  good_lines.erase( good_lines.begin() ); 
+	  test_lines.erase( test_lines.begin() ); 
+	}
+      }
       dtl::Diff< range_char, vect_range_char > d( good_lines, test_lines );
       d.compose();
       if( d.getEditDistance() ) {
@@ -417,7 +423,7 @@ namespace boda
 	}
 	if( !output_good ) {
 	  if( update_failing ) { 
-	    printf("AUTOUPDATE: test %s failed, will update.\n",cmd->test_name.c_str());
+	    printf("UPDATE-FAILING: test %s failed, will update.\n",cmd->test_name.c_str());
 	    update_archive = 1; 
 	  } else {
 	    printf("FAIL: test %s failed.\n",cmd->test_name.c_str());

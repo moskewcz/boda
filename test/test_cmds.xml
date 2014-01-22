@@ -54,6 +54,11 @@
 	     pil_fn="%(boda_test_dir)/pascal/head_100/%%s.txt"
 	     /> 
   </li>
+  <li test_name="oct_featpyra_1" slow="1"> 
+    <command mode="oct_featpyra" 
+	     image_fn="%(boda_test_dir)/pascal/000001.jpg"
+	     /> 
+  </li>
 
 
 </root>

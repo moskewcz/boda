@@ -223,6 +223,60 @@ namespace boda
     }
   };
 
+  void osm_print_keys( ostream & out, octave_value & ov ) {
+    octave_scalar_map osm = ov.scalar_map_value();
+    assert_st( !error_state );
+    out << "keys=";
+    for (int i = 0; i < osm.keys().length(); ++i)
+    {
+      out << osm.keys()[i] << " ";
+    }
+    out << endl;
+  }
+
+  
+
+  void oct_featpyra( ostream & out, string const & dpm_fast_cascade_dir, 
+		     string const & image_fn, string const & pyra_out_fn ) {
+    //boost::filesystem::path init_path = boost::filesystem::current_path();
+    //out << strprintf( "oct_dfc() image_fn=%s\n", str(image_fn).c_str() );
+    p_img_t img( new img_t );
+    img->load_fn( image_fn.c_str() );
+
+    int parse_ret = 0;
+    path dfc_vr = path(dpm_fast_cascade_dir) / "voc-release5";
+    //eval_string("cd "+dfc_vr.string(), 0, parse_ret);
+    assert_st( !error_state );
+    eval_string("pkg load image;", 0, parse_ret);
+    assert_st( !error_state );
+    feval("startup" );
+    //boost::filesystem::current_path( init_path );
+    assert_st( !error_state );
+    octave_value_list in;
+    in(0) = octave_value( image_fn );
+    in(1) = octave_value( pyra_out_fn );
+    octave_value_list boda_if_ret;
+    {
+      timer_t t( "oct_featpyra_top" );
+      boda_if_ret = feval("boda_if_feat", in, 1 );
+    }
+    assert_st( !error_state );
+    assert_st( boda_if_ret.length() == 1);
+    //osm_print_keys( out, boda_if_ret(0) );
+    assert_st( !error_state );
+  }
+
+  struct oct_featpyra_t : virtual public nesi, public has_main_t // NESI(help="run dpm fast cascade over a single image file",bases=["has_main_t"], type_id="oct_featpyra")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t image_fn; //NESI(help="input: image filename",req=1)
+    filename_t pyra_out_fn; //NESI(default="%(boda_output_dir)/pyra.oct",help="output: octave text output filename for feature pyramid")
+    string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
+    virtual void main( nesi_init_arg_t * nia ) {
+      oct_featpyra( cout, dpm_fast_cascade_dir, image_fn.exp, pyra_out_fn.exp );
+    }
+  };
+
 
 #include"gen/octif.cc.nesi_gen.cc"
 
