@@ -182,6 +182,7 @@ namespace boda
 #include"nesi_decls.H"
 
   void run_system_cmd( string const &cmd, bool const verbose ) {
+    timer_t t( "run_system_cmd" );
     if( verbose ) { printstr( cmd + "\n" ); }
     int const sys_ret = system( cmd.c_str() );
     assert_st( sys_ret == 0 );
@@ -373,6 +374,7 @@ namespace boda
     }
 
     void diff_command( p_cmd_test_t cmd, path const & gen_test_out_dir ) {
+      timer_t t( "diff_command" );
       path good_dir = path(boda_output_dir.exp) / "good";
       ensure_is_dir( good_dir.string(), 1 );
       // note: test_out_dir should equivalent to gen_test_out_dir (but not ==). we check that:

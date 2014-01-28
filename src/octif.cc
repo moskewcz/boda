@@ -28,6 +28,7 @@ namespace boda
 				    };
 
   void oct_dfc_startup( string const & dpm_fast_cascade_dir ) {
+    timer_t t( "oct_dfc_startup" );
     assert_st( !error_state );
     string const mwm_vocr5_dir = strprintf( "%s/voc-release5", dpm_fast_cascade_dir.c_str() );
     set_global_value( "mwm_vocr5_dir", octave_value( mwm_vocr5_dir ) );
@@ -250,6 +251,7 @@ namespace boda
 
   void oct_featpyra( ostream & out, string const & dpm_fast_cascade_dir, 
 		     string const & image_fn, string const & pyra_out_fn ) {
+    timer_t t( "oct_featpyra" );
     //out << strprintf( "oct_featpyra() image_fn=%s\n", str(image_fn).c_str() );
     oct_dfc_startup( dpm_fast_cascade_dir );
 
@@ -260,7 +262,7 @@ namespace boda
     in(1) = octave_value( pyra_out_fn );
     octave_value_list boda_if_ret;
     {
-      timer_t t( "oct_featpyra_top" );
+      timer_t t( "oct_featpyra_boda_if_feat" );
       boda_if_ret = feval("boda_if_feat", in, 1 );
     }
     assert_st( !error_state );
