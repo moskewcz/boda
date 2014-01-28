@@ -17,9 +17,30 @@
 #include"octif.H"
 #include"timers.H"
 
+
 namespace boda 
 {
   using namespace::std;
+
+  vect_string boda_octave_setup = { "warning ('off', 'Octave:undefined-return-values');",
+				    "warning ('off', 'all');",
+				    "pkg load image;",
+				    };
+
+  void oct_dfc_startup( string const & dpm_fast_cascade_dir ) {
+    assert_st( !error_state );
+    string const mwm_vocr5_dir = strprintf( "%s/voc-release5", dpm_fast_cascade_dir.c_str() );
+    set_global_value( "mwm_vocr5_dir", octave_value( mwm_vocr5_dir ) );
+    int parse_ret = 0;
+    for( vect_string::const_iterator i = boda_octave_setup.begin(); i != boda_octave_setup.end(); ++i ) {
+      eval_string( *i, 0, parse_ret );
+      assert_st( !error_state && !parse_ret );
+    }
+    eval_string( "addpath( '" + mwm_vocr5_dir + "' );", 0, parse_ret );
+    assert_st( !error_state && !parse_ret );
+    feval( "startup" );
+    assert_st( !error_state );
+  }
 
   void print_field( ostream & out, octave_scalar_map const & osm, string const & fn )
   {
@@ -96,23 +117,16 @@ namespace boda
 
   void oct_dfc( ostream & out, string const & dpm_fast_cascade_dir, p_vect_scored_det_t scored_dets, 
 		string const & image_fn, uint32_t const img_ix ) {
-    boost::filesystem::path init_path = boost::filesystem::current_path();
+
+    oct_dfc_startup( dpm_fast_cascade_dir );
+
     string const & class_name = scored_dets->class_name;
     printf( "oct_dfc() class_name=%s image_fn=%s img_ix=%s\n", 
 	    str(class_name).c_str(), str(image_fn).c_str(), str(img_ix).c_str() );
     p_img_t img( new img_t );
     img->load_fn( image_fn.c_str() );
 
-    int parse_ret = 0;
-    path dfc_vr = path(dpm_fast_cascade_dir) / "voc-release5";
-    eval_string("cd "+dfc_vr.string(), 0, parse_ret);
-    assert_st( !error_state );
-    eval_string("pkg load image", 0, parse_ret);
-    assert_st( !error_state );
-    feval("startup" );
-    assert_st( !error_state );
-
-    string const mat_fn = (dfc_vr / "VOC2007" / (class_name+"_final.mat")).string();
+    string const mat_fn = (path(dpm_fast_cascade_dir) / "voc-release5" / "VOC2007" / (class_name+"_final.mat")).string();
     octave_value_list in;
     in(0) = octave_value( mat_fn );
     octave_value_list load_out = feval ("load", in, 1);
@@ -153,7 +167,6 @@ namespace boda
       timer_t t( "bs_matrix_to_dets" );
       bs_matrix_to_dets( det_boxes, img_ix, scored_dets );
     }
-    boost::filesystem::current_path( init_path );
   }
 
   struct oct_dfc_t : virtual public nesi, public has_main_t // NESI(help="run dpm fast cascade over a single image file",bases=["has_main_t"], type_id="oct_dfc")
@@ -234,24 +247,14 @@ namespace boda
     out << endl;
   }
 
-  
 
   void oct_featpyra( ostream & out, string const & dpm_fast_cascade_dir, 
 		     string const & image_fn, string const & pyra_out_fn ) {
-    //boost::filesystem::path init_path = boost::filesystem::current_path();
-    //out << strprintf( "oct_dfc() image_fn=%s\n", str(image_fn).c_str() );
+    //out << strprintf( "oct_featpyra() image_fn=%s\n", str(image_fn).c_str() );
+    oct_dfc_startup( dpm_fast_cascade_dir );
+
     p_img_t img( new img_t );
     img->load_fn( image_fn.c_str() );
-
-    int parse_ret = 0;
-    path dfc_vr = path(dpm_fast_cascade_dir) / "voc-release5";
-    //eval_string("cd "+dfc_vr.string(), 0, parse_ret);
-    assert_st( !error_state );
-    eval_string("pkg load image;", 0, parse_ret);
-    assert_st( !error_state );
-    feval("startup" );
-    //boost::filesystem::current_path( init_path );
-    assert_st( !error_state );
     octave_value_list in;
     in(0) = octave_value( image_fn );
     in(1) = octave_value( pyra_out_fn );
