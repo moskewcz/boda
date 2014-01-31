@@ -72,6 +72,31 @@ namespace boda
     for( uint32_t i = 0; i < h; ++i ) { memcpy( pels.get() + i*row_pitch, (&lp_pels[0]) + i*w*lp_depth, w*lp_depth ); }
   }
 
+  p_img_t downsample_w_transpose_2x( img_t const * const src )
+  {
+    p_img_t ret( new img_t );
+    ret->set_row_align( src->row_align ); // preserve alignment
+    ret->set_sz_and_alloc_pels( src->h, src->w >> 1 ); // downscale in w and transpose. 
+    // note: if src->w is odd, we will drop the last input column
+    for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+      for( uint32_t ry = 0; ry < ret->h; ++ry ) {
+	for( uint32_t c = 0; c < 3; ++c ) {
+	  uint32_t const sx = ry >> 1;
+	  ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ] = 
+	    ( uint16_t( src->pels.get()[ rx*src->row_pitch + sx*src->depth + c ] ) + 
+	      src->pels.get()[ rx*src->row_pitch + (sx+1)*src->depth + c ] ) >> 1;
+	}
+	ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + 3 ] = uint8_t_const_max; // alpha
+      }
+    }
+    return ret;
+  }
+
+  p_img_t img_t::downsample_2x( void ) {
+    p_img_t tmp_img = downsample_w_transpose_2x( this );
+    return downsample_w_transpose_2x( tmp_img.get() );
+  }
+
   // for all downsample functions, scale is 0.16 fixed point, value must be in [.5,1)
   p_img_t downsample_w_transpose( img_t const * const src, uint16_t scale )
   {
@@ -93,11 +118,15 @@ namespace boda
     return ret;
   }
 
-  p_img_t img_t::downsample( uint16_t scale )
-  {
+  p_img_t img_t::downsample( uint16_t scale ) {
+    assert_st( scale >= (1U << 15 ) );
+    if( scale == (1U << 15 ) ) { return downsample_2x(); }
     p_img_t tmp_img = downsample_w_transpose( this, scale );
     return downsample_w_transpose( tmp_img.get(), scale );
   }
+
+
+  string img_t::WxH_str( void ) { return strprintf( "%sx%s", str(w).c_str(), str(h).c_str()); }
 
   void downsample_test( string const & fn )
   {

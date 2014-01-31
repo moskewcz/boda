@@ -20,17 +20,6 @@ namespace boda
 				   str(a).c_str(), str(sz).c_str(), str(ret).c_str() ) ); }
     return p;
   }
-  p_uint8_t ma_p_uint8_t( size_t const num, uint32_t const a ) {
-    return p_uint8_t( (uint8_t *)posix_memalign_check( sizeof(uint8_t)*num, a), free );
-  };
-  p_float ma_p_float( size_t const num, uint32_t const a ) {
-    return p_float( (float *)posix_memalign_check( sizeof(float)*num, a), free );
-  };
-  p_double ma_p_double( size_t const num, uint32_t const a ) {
-    return p_double( (double *)posix_memalign_check( sizeof(double)*num, a), free );
-  };
-
-
 
   bool ensure_is_dir( string const & fn, bool const create ) { 
     path const p(fn);

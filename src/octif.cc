@@ -4,6 +4,7 @@
 #include<octave/octave.h>
 #include<octave/parse.h>
 #include<octave/oct-map.h>
+#include<octave/Cell.h>
 //#include<octave/mxarray.h>
 //#include<octave/mexproto.h>
 #include<fstream>
@@ -21,6 +22,8 @@
 namespace boda 
 {
   using namespace::std;
+
+  typedef vector< NDArray > vect_NDAarray;
 
   vect_string boda_octave_setup = { "warning ('off', 'Octave:undefined-return-values');",
 				    "warning ('off', 'all');",
@@ -41,6 +44,28 @@ namespace boda
     assert_st( !error_state && !parse_ret );
     feval( "startup" );
     assert_st( !error_state );
+  }
+
+  Matrix get_field_as_matrix( octave_scalar_map const & osm, string const & fn ) {
+    octave_value fv = osm.contents(fn.c_str());
+    assert_st( !error_state && fv.is_defined() );    
+    assert_st( fv.is_matrix_type() );
+    return fv.matrix_value();
+  }
+
+  void get_ndas_from_field( vect_NDAarray & out, octave_scalar_map const & osm, string const & fn ) {
+    octave_value fv = osm.contents(fn.c_str());
+    assert_st( !error_state && fv.is_defined() );
+    assert_st( fv.is_cell() );
+    Cell fv_cell = fv.cell_value();
+    assert( fv_cell.numel() == fv_cell.dims().elem(0) ); // should be N(x1)* 
+    for( uint32_t ix = 0; ix != uint32_t(fv_cell.dims().elem(0)); ++ix ) { 
+      octave_value fv_cell_ix = fv_cell(ix);
+      assert_st( fv_cell_ix.is_matrix_type() );
+      out.push_back( fv_cell_ix.array_value() );
+    }
+    
+
   }
 
   void print_field( ostream & out, octave_scalar_map const & osm, string const & fn )
@@ -248,15 +273,64 @@ namespace boda
     out << endl;
   }
 
+  void oct_featpyra_inner( p_img_t img, uint32_t const sbin, uint32_t const interval ) {
+    timer_t t( "oct_featpyra_inner" );
+    assert_st( sbin >= 2 ); // for sanity
+    uint32_t min_pyra_isz = 5 * sbin; // 5 seems pretty arbirtary. needs to be integer and at least 1 i think though.
+    if( img->min_dim() < min_pyra_isz ) {
+      rt_err( strprintf("input image with WxH = %s is too small to make a feature pyramid", img->WxH_str().c_str() ) );
+    }
+    for( uint32_t i = 0; i < interval; ++i ) { // we create one 'primary' scaled image per internal (octave sub-step)
+      p_img_t ids_img = img;
+      if( i ) { // don't try to scale for 0 step (where scale == 1)
+	uint32_t interval_scale = pow(2.0d, 16.0d - (double(i) / double(interval) ) ); // in 0.16 fixed point
+	assert_st( interval_scale < (1U<<16) );
+	printf( "interval_scale=%s\n", str(interval_scale).c_str() );
+	ids_img = img->downsample( uint16_t(interval_scale) ); // note: 0.16 fixed point scale must be in [.5,1)
+      }
+      for( int32_t octave = 1; octave > -15; --octave )  { // scale = 2^octave, -15 bound is a sanity limit only
+	uint32_t min_sz = (octave >= 0 ) ? (ids_img->min_dim() << octave) : (ids_img->min_dim() >> (-octave));
+	if( min_sz < min_pyra_isz ) { break; } // this octave/interval is too small.
+	double const scale = pow(2.0d, double(octave) - (double(i) / double(interval) ) );
+	printf( "scale=%s\n", str(scale).c_str() );
+	// we now handle all the factor-of-2 up and down samplings of the image in this loop
+	if( octave >= 0 ) { // we handle octaves >= 0 (normal and upsampled octaves) by adjusting the feature sbin
+	  uint32_t const feat_sbin = sbin >> octave;
+	  assert_st( feat_sbin >= 2 ); // 1 might actually be okay for HOG, unclear, but it would be ... odd.
+	  assert_st( (feat_sbin << octave) == sbin ); // sbin should be evenly disisible
+	} else { // we handle the downsampled octaves by actually 2X downsampling the image and using the input sbin
+	  ids_img = ids_img->downsample( 1 << 15 ); // note: input ids_img is released here	  
+	}
+      }
+    }
+  }
+
+  p_nda_double_t create_p_nda_double_from_oct_NDArray( NDArray const & nda ) {
+    dim_vector const & dv = nda.dims();
+    assert_st( dv.length() == 3 );
+    dims_t dims;
+    for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.push_back( dv.elem(dv.length()-1-i) ); }
+    p_nda_double_t ret( new nda_double_t );
+    ret->set_dims( dims );
+    assert_st( ret->sz == (uint32_t)nda.numel() );
+    double const * oct_data = nda.fortran_vec();
+    double * data = ret->p.get();
+    for( uint32_t i = 0; i < ret->sz; ++i ) { data[i] = oct_data[i]; }
+
+    return ret;
+  }
 
   void oct_featpyra( ostream & out, string const & dpm_fast_cascade_dir, 
 		     string const & image_fn, string const & pyra_out_fn ) {
     timer_t t( "oct_featpyra" );
     //out << strprintf( "oct_featpyra() image_fn=%s\n", str(image_fn).c_str() );
-    oct_dfc_startup( dpm_fast_cascade_dir );
 
     p_img_t img( new img_t );
     img->load_fn( image_fn.c_str() );
+    //oct_featpyra_inner( img, 8, 10 );
+    //return;
+
+    oct_dfc_startup( dpm_fast_cascade_dir );
 
     dim_vector img_dv(img->h, img->w, 3);
     NDArray img_oct( img_dv );
@@ -280,73 +354,38 @@ namespace boda
     assert_st( boda_if_ret.length() == 1);
     //osm_print_keys( out, boda_if_ret(0) );
     assert_st( !error_state );
-  }
 
+    vect_float scales;
+    vect_p_nda_double_t feats;
+
+    octave_scalar_map ret_osm = boda_if_ret(0).scalar_map_value();
+    //print_field( out, ret_osm, "scales" );
+    //print_field( out, ret_osm, "feat" );
+    Matrix oct_scales = get_field_as_matrix( ret_osm, "scales" );
+    assert( oct_scales.numel() == oct_scales.dims().elem(0) ); // should be N(x1)* 
+    for( uint32_t i = 0; i < uint32_t(oct_scales.numel()); ++i ) { scales.push_back( oct_scales(i) ); }
+    //printf( "scales=%s\n", str(scales).c_str() );
+    vect_NDAarray oct_feats;
+    get_ndas_from_field( oct_feats, ret_osm, "feat" );
+    //printf( "scales.size()=%s\n", str(scales.size()).c_str() );
+    //printf( "oct_feats.size()=%s\n", str(oct_feats.size()).c_str() );
+    assert_st( scales.size() == oct_feats.size() );
+    for( vect_NDAarray::const_iterator i = oct_feats.begin(); i != oct_feats.end(); ++i ) {
+      feats.push_back( create_p_nda_double_from_oct_NDArray( *i ) );
+    }
+#if 0
+    for( vect_p_nda_double_t::const_iterator i = feats.begin(); i != feats.end(); ++i ) {
+      printf( "(*i)->dims=%s\n", str((*i)->dims).c_str() );
+      printf( "(*i)=%s\n", str((*i)).c_str() );
+    }
+#endif
+
+  }
 
 
   
 
 #if 0
-function pyra = featpyramid(im, model, padx, pady)
-% Compute a feature pyramid.
-%   pyra = featpyramid(im, model, padx, pady)
-%
-% Return value
-%   pyra    Feature pyramid (see details below)
-%
-% Arguments
-%   im      Input image
-%   model   Model (for use in determining amount of 
-%           padding if pad{x,y} not given)
-%   padx    Amount of padding in the x direction (for each level)
-%   pady    Amount of padding in the y direction (for each level)
-%
-% Pyramid structure (basics)
-%   pyra.feat{i}    The i-th level of the feature pyramid
-%   pyra.feat{i+interval} 
-%                   Feature map computed at exactly half the 
-%                   resolution of pyra.feat{i}
-
-if nargin < 3
-  [padx, pady] = getpadding(model);
-end
-
-extra_interval = 0;
-if model.features.extra_octave
-  extra_interval = model.interval;
-end
-
-sbin = model.sbin;
-interval = model.interval;
-sc = 2^(1/interval);
-imsize = [size(im, 1) size(im, 2)];
-max_scale = 1 + floor(log(min(imsize)/(5*sbin))/log(sc));
-pyra.feat = cell(max_scale + extra_interval + interval, 1);
-pyra.scales = zeros(max_scale + extra_interval + interval, 1);
-pyra.imsize = imsize;
-
-% our resize function wants floating point values
-im = double(im);
-for i = 1:interval
-  scaled = resize(im, 1/sc^(i-1));
-  if extra_interval > 0
-    % Optional (sbin/4) x (sbin/4) features
-    pyra.feat{i} = features(scaled, sbin/4);
-    pyra.scales(i) = 4/sc^(i-1);
-  end
-  % (sbin/2) x (sbin/2) features
-  pyra.feat{i+extra_interval} = features(scaled, sbin/2);
-  pyra.scales(i+extra_interval) = 2/sc^(i-1);
-  % sbin x sbin HOG features 
-  pyra.feat{i+extra_interval+interval} = features(scaled, sbin);
-  pyra.scales(i+extra_interval+interval) = 1/sc^(i-1);
-  % Remaining pyramid octaves 
-  for j = i+interval:interval:max_scale
-    scaled = resize(scaled, 0.5);
-    pyra.feat{j+extra_interval+interval} = features(scaled, sbin);
-    pyra.scales(j+extra_interval+interval) = 0.5 * pyra.scales(j+extra_interval);
-  end
-end
 
 pyra.num_levels = length(pyra.feat);
 

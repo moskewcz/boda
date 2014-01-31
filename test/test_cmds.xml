@@ -59,6 +59,11 @@
 	     image_fn="%(boda_test_dir)/pascal/000001.jpg"
 	     /> 
   </li>
+  <li test_name="oct_featpyra_2" slow="1"> 
+    <command mode="oct_featpyra" 
+	     image_fn="%(boda_test_dir)/plasma_25.png"
+	     /> 
+  </li>
 
 
 </root>

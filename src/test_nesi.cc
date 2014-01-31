@@ -331,6 +331,7 @@ namespace boda
     filename_t xml_fn; //NESI(default="%(boda_test_dir)/test_cmds.xml",help="xml file containing list of tests.")
     string filt; //NESI(default=".*",help="regexp over test name of what tests to run (default runs all tests)")
     uint32_t run_slow; //NESI(default=0,help="run slow tests too?")
+    uint32_t no_diff; //NESI(default=0,help="disable diff?")
     uint32_t verbose; //NESI(default=0,help="if true, print each test lexp before running it")
     uint32_t update_failing; //NESI(default=0,help="if true, update archives for all run tests that fail.")
     
@@ -464,7 +465,10 @@ namespace boda
 	  maybe_remove_dir( gen_test_out_dir );
 	  // FIXME: it is non-trival to construct the proper nia here ...
 	  bool const do_diff = run_command( cmd_test, nia);
-	  if( do_diff ) { diff_command( cmd_test, gen_test_out_dir ); }
+	  if( do_diff ) { 
+	    if( no_diff ) { printf("NO_DIFF: not checking results of test %s.\n",cmd_test->test_name.c_str()); }
+	    else { diff_command( cmd_test, gen_test_out_dir ); }
+	  }
 	}
 	++tix;
       }
