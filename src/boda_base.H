@@ -99,112 +99,117 @@ namespace boda
 
   void * posix_memalign_check( size_t const sz, uint32_t const a );
   // ma_p == make aligned shared_ptr. note: alloc'd with posix_memaling() and has custom deleter that invokes free()
-  template< typename T > inline shared_ptr< T > ma_p_T( size_t const num, uint32_t const a ) {
+  template< typename T > inline shared_ptr< T > ma_p_T( uint32_t const num, uint32_t const a ) {
     return shared_ptr< T >( (T *)posix_memalign_check( sizeof(T)*num, a), free );
   };
+  template< typename T > inline shared_ptr< T > ma_p_T( uint32_t const num ) { 
+    return ma_p_T<T>( num, std::max(sizeof(T),32UL) ); }
   // type-specific (syn. sugar)
   inline p_uint8_t ma_p_uint8_t( size_t const num, uint32_t const a ) { return ma_p_T<uint8_t>(num,a); }
+  inline p_uint32_t ma_p_uint32_t( size_t const num, uint32_t const a ) { return ma_p_T<uint32_t>(num,a); }
   inline p_float ma_p_float( size_t const num, uint32_t const a ) { return ma_p_T<float>(num,a); }
   inline p_double ma_p_double( size_t const num, uint32_t const a ) { return ma_p_T<double>(num,a); }
+
+  template< typename T > struct hunk_T {
+    uint32_t sz; // in units of Ts
+    shared_ptr< T > p;
+    hunk_T( void ) : sz(0) { }
+    hunk_T( shared_ptr< T > const & p_, uint32_t const sz_ ) : sz(sz_), p(p_) { }
+    hunk_T( uint32_t const sz_ ) : sz(sz_), p( ma_p_T<T>( sz_ ) ) { } // hunk owns whole block
+    T & operator []( uint32_t const & ix ) { assert_st( ix < sz ); return p.get()[ix]; }
+    T const & operator []( uint32_t const & ix ) const { assert_st( ix < sz ); return p.get()[ix]; }
+    uint64_t serial_sz( void ) const { return sizeof(uint32_t) + (sz * sizeof(T)); }
+  };
+
+  typedef hunk_T< uint32_t > hunk_uint32_t;
 
   // row-major dimensions holder
   // cm_ variants implicitly operate on the reversed dims list to provide column-major access
   // using less than the full # of dims uses a prefix (or suffix for the cm_ variants) of the dims
-  struct dims_t : public vect_uint32_t {
-    vect_uint32_t strides; // in arbitrary units (i.e. not neccessarily bytes). can be set manually.
+  struct dims_t {
+    hunk_uint32_t dims; // in arbitrary units (i.e. not neccessarily bytes). can be set manually.
+    hunk_uint32_t strides; // in arbitrary units (i.e. not neccessarily bytes). can be set manually.
+    void resize_and_zero( uint32_t const num_dims ) { dims = hunk_uint32_t( num_dims ); strides = hunk_uint32_t(); }
     uint32_t calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
-      uint32_t const sz = size();
-      assert( sz );
-      strides.resize( sz );
-      strides[sz-1] = 1;
-      for( uint32_t d = 1; d < sz; ++d ) { strides[sz-d-1] = strides[sz-d]*(*this)[sz-d]; }
-      return strides[0]*(*this)[0]; // i.e. tot_elems, strides[-1], size of all data, used to bounds check
+      assert( dims.sz );
+      strides = hunk_uint32_t( dims.sz );
+      strides[strides.sz-1] = 1;
+      for( uint32_t d = 1; d < dims.sz; ++d ) { strides[dims.sz-d-1] = strides[dims.sz-d]*dims[dims.sz-d]; }
+      return strides[0]*dims[0]; // i.e. tot_elems, strides[-1], size of all data, used to bounds check
     }
-    uint64_t serial_sz( void ) { return (1+size()+1+strides.size())*sizeof(uint32_t); }
+    uint64_t serial_sz( void ) const { return dims.serial_sz() + strides.serial_sz(); }
 
     uint32_t cm_ix1( uint32_t const d0i ) {
-      uint32_t const sz = size(); assert( strides.size() == sz ); assert( sz > 0 ); 
-      return strides[sz-1]*d0i; }
+      assert( strides.sz == dims.sz ); assert( strides.sz > 0 ); 
+      return strides[strides.sz-1]*d0i; }
     uint32_t cm_ix2( uint32_t const d0i, uint32_t const d1i ) { 
-      uint32_t const sz = size(); assert( strides.size() == sz ); assert( sz > 1 ); 
-      return strides[sz-1]*d0i + strides[sz-2]*d1i; }
+      assert( strides.sz == dims.sz ); assert( strides.sz > 1 ); 
+      return strides[strides.sz-1]*d0i + strides[strides.sz-2]*d1i; }
     uint32_t cm_ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
-      uint32_t const sz = size(); assert( strides.size() == sz ); assert( sz > 2 ); 
-      return strides[sz-1]*d0i + strides[sz-2]*d1i + strides[sz-3]*d2i ; }
+      assert( strides.sz == dims.sz ); assert( strides.sz > 2 ); 
+      return strides[strides.sz-1]*d0i + strides[strides.sz-2]*d1i + strides[strides.sz-3]*d2i ; }
     uint32_t cm_ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
-      uint32_t const sz = size(); assert( strides.size() == sz ); assert( sz > 3 ); 
-      return strides[sz-1]*d0i + strides[sz-2]*d1i + strides[sz-3]*d2i + strides[sz-4]*d3i; }
+      assert( strides.sz == dims.sz ); assert( strides.sz > 3 ); 
+      return strides[strides.sz-1]*d0i + strides[strides.sz-2]*d1i + strides[strides.sz-3]*d2i + strides[strides.sz-4]*d3i; }
 
     uint32_t ix1( uint32_t const d0i ) {
-      uint32_t const sz = size(); assert( strides.size() == sz ); assert( sz > 0 ); 
+      assert( strides.sz == dims.sz ); assert( strides.sz > 0 ); 
       return d0i*strides[0]; }
     uint32_t ix2( uint32_t const d0i, uint32_t const d1i ) { 
-      uint32_t const sz = size(); assert( strides.size() == sz ); assert( sz > 1 ); 
+      assert( strides.sz == dims.sz ); assert( strides.sz > 1 ); 
       return d0i*strides[0] + d1i*strides[1]; }
     uint32_t ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
-      uint32_t const sz = size(); assert( strides.size() == sz ); assert( sz > 2 ); 
+      assert( strides.sz == dims.sz ); assert( strides.sz > 2 ); 
       return d0i*strides[0] + d1i*strides[1] + d2i*strides[2]; }
     uint32_t ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
-      uint32_t const sz = size(); assert( strides.size() == sz ); assert( sz > 3 ); 
+      assert( strides.sz == dims.sz ); assert( strides.sz > 3 ); 
       return d0i*strides[0] + d1i*strides[1] + d2i*strides[2] + d3i*strides[3]; }
   };
   //struct nda_double_t { vect_uint32_t dims; p_double d; };
 
-  template< typename T > struct hunk_T {
-    shared_ptr< T > p;
-    uint32_t sz; // in units of Ts
-    hunk_T( void ) : sz(0) { }
-    hunk_T( shared_ptr< T > const & p_, uint32_t const sz_ ) : p(p_), sz(sz_) { }
-    uint64_t serial_sz( void ) { return sz * sizeof(T); }
-  };
-
-  template< typename T > struct nda_T : public hunk_T< T > {
-    using hunk_T< T >::p;
-    using hunk_T< T >::sz;
+  template< typename T > struct nda_T {
+    hunk_T< T > elems; 
     dims_t dims;
-    uint32_t off; // in units of Ts
-    nda_T( void ) : off(0) { }
-    nda_T( shared_ptr< T > const & p_, uint32_t const sz_, uint32_t const off_ ) : hunk_T<T>(p_,sz_), off(off_) { }
-    nda_T( hunk_T< T > const &hunk, uint32_t const off_ ) : hunk_T<T>(hunk), off(off_) { }
+    //nda_T( shared_ptr< T > const & p_, uint32_t const sz_, uint32_t const off_ ) : elems(p_,sz_) { }
+    //nda_T( hunk_T< T > const &hunk ) : elems(hunk) { }
     void set_dims( dims_t const & dims_ ) { 
       dims = dims_; 
       uint32_t strides_sz = 0;
-      if( dims.strides.empty() ) { strides_sz = dims.calc_strides(); } 
-      else { strides_sz = (dims[0] * dims.strides[0]); }
-      if( p ) { assert( strides_sz + off == sz ); }
+      if( !dims.strides.p ) { strides_sz = dims.calc_strides(); } 
+      else { strides_sz = (dims.dims[0] * dims.strides[0]); }
+
+      if( elems.p ) { assert( strides_sz == elems.sz ); }
       else { // if hunk is null, allocate it
-	assert( !off ); // could handle, but seems odd.
-	assert( !sz ); // should not be set yet
-	sz = strides_sz;
-	p = ma_p_T< T >( sz, std::max(sizeof(T),32UL) );
+	assert( !elems.sz ); // should not be set yet
+	elems = hunk_T< T >( strides_sz );
       }
     }
-    uint64_t serial_sz( void ) { assert(off <= sz); return dims.serial_sz() + (sz-off)*sizeof(T); }
+    uint64_t serial_sz( void ) const { return dims.serial_sz() + elems.serial_sz(); }
 
     T & cm_at1( uint32_t const d0i ) { 
-      uint32_t ix = off + dims.cm_ix1( d0i ); assert( ix < sz ); return p.get()[ix]; }
+      uint32_t const ix = dims.cm_ix1( d0i ); return elems[ix]; }
     T & cm_at2( uint32_t const d0i, uint32_t const d1i ) { 
-      uint32_t ix = off + dims.cm_ix2( d0i,d1i ); assert( ix < sz ); return p.get()[ix]; }
+      uint32_t const ix = dims.cm_ix2( d0i,d1i ); return elems[ix]; }
     T & cm_at3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
-      uint32_t ix = off + dims.cm_ix3( d0i,d1i,d2i ); assert( ix < sz ); return p.get()[ix]; }
+      uint32_t const ix = dims.cm_ix3( d0i,d1i,d2i ); return elems[ix]; }
     T & cm_at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
-      uint32_t ix = off + dims.cm_ix4( d0i,d1i,d2i,d3i ); assert( ix < sz ); return p.get()[ix]; }
+      uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
 
     T & at1( uint32_t const d0i ) { 
-      uint32_t ix = off + dims.ix1( d0i ); assert( ix < sz ); return p.get()[ix]; }
+      uint32_t const ix = dims.ix1( d0i ); return elems[ix]; }
     T & at2( uint32_t const d0i, uint32_t const d1i ) { 
-      uint32_t ix = off + dims.ix2( d0i,d1i ); assert( ix < sz ); return p.get()[ix]; }
+      uint32_t const ix = dims.ix2( d0i,d1i ); return elems[ix]; }
     T & at3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
-      uint32_t ix = off + dims.ix3( d0i,d1i,d2i ); assert( ix < sz ); return p.get()[ix]; }
+      uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems[ix]; }
     T & at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
-      uint32_t ix = off + dims.ix4( d0i,d1i,d2i,d3i ); assert( ix < sz ); return p.get()[ix]; }
+      uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
   };
 
   template< typename T >
   inline std::ostream & operator << ( std::ostream & out, nda_T< T > const & nda ) { 
     for( uint32_t ix = nda.off; ix < nda.sz; ++ix ) {
       if( ix != nda.off ) { out << " "; }
-      out << nda.p.get()[ix];
+      out << nda.elems[ix];
     }
     return out;
   }

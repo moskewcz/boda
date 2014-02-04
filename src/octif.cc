@@ -308,14 +308,15 @@ namespace boda
   p_nda_double_t create_p_nda_double_from_oct_NDArray( NDArray const & nda ) {
     dim_vector const & dv = nda.dims();
     assert_st( dv.length() == 3 );
-    dims_t dims;
-    for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.push_back( dv.elem(dv.length()-1-i) ); }
+    dims_t dims; // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
+    dims.resize_and_zero( dv.length() );
+    for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims[i] = dv.elem(dv.length()-1-i); }
     p_nda_double_t ret( new nda_double_t );
     ret->set_dims( dims );
-    assert_st( ret->sz == (uint32_t)nda.numel() );
+    assert_st( ret->elems.sz == (uint32_t)nda.numel() );
     double const * oct_data = nda.fortran_vec();
-    double * data = ret->p.get();
-    for( uint32_t i = 0; i < ret->sz; ++i ) { data[i] = oct_data[i]; }
+    double * data = &ret->elems[0]; // our data layout is now an exact match to the octave one ...
+    for( uint32_t i = 0; i < ret->elems.sz; ++i ) { data[i] = oct_data[i]; } // ... so, just copy the elements flat
 
     return ret;
   }
