@@ -31,7 +31,7 @@ namespace boda {
     }
     bool operator < ( sstr_t const & o ) const;
   };
-  std::ostream & operator<<(std::ostream & os, sstr_t const & v);
+  std::ostream & operator <<(std::ostream & os, sstr_t const & v);
   struct lexp_t;
   struct lexp_stats_t; // for testing/internal use only
   typedef shared_ptr< lexp_t > p_lexp_t;
@@ -41,7 +41,7 @@ namespace boda {
     sstr_t n;
     p_lexp_t v;
   };
-  std::ostream & operator<<(std::ostream & os, lexp_nv_t const & v);
+  std::ostream & operator <<(std::ostream & os, lexp_nv_t const & v);
 
   // wrapper around a lexp_t that includes: (1) a map from key to
   // value and (2) a parent pointer. like a lexp_t itself, it may be a
@@ -78,7 +78,7 @@ namespace boda {
 #endif
 
   };
-  std::ostream & operator<<(std::ostream & os, lexp_t const & v);
+  std::ostream & operator <<(std::ostream & os, lexp_t const & v);
 
   p_lexp_t parse_lexp( std::string const & s );
   p_lexp_t parse_lexp_xml_file( std::string const & fn );

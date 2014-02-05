@@ -9,7 +9,7 @@ namespace boda {
 
   struct lexp_t; typedef shared_ptr< lexp_t > p_lexp_t; 
   void nesi_init_and_check_unused_from_nia( nesi_init_arg_t * nia, tinfo_t const * ti, void * o );
-  std::ostream & operator<<(std::ostream & os, nesi const & v);
+  std::ostream & operator <<(std::ostream & os, nesi const & v);
   void nesi_dump_xml(std::ostream & top_ostream, nesi const & v, char const * const root_elem_name );
 
 }

@@ -160,10 +160,10 @@ namespace boda {
   // escaping as needed). note that there isn't really a cannonical
   // way to escape a value, but probably only escaping as needed would
   // be best.
-  std::ostream & operator<<(std::ostream & os, sstr_t const & v) {
+  std::ostream & operator <<(std::ostream & os, sstr_t const & v) {
     return os.write( (char const *)v.base.get()+v.b, v.sz() );
   }
-  std::ostream & operator<<(std::ostream & os, lexp_nv_t const & v) {
+  std::ostream & operator <<(std::ostream & os, lexp_nv_t const & v) {
     return os << v.n << "=" << (*v.v);
   }
   // if we want to re-create the input string exactly
@@ -202,7 +202,7 @@ namespace boda {
     return ret;
   }
 
-  std::ostream & operator<<(std::ostream & os, lexp_t const & v) {
+  std::ostream & operator <<(std::ostream & os, lexp_t const & v) {
     // leaf case. note: we print the original 'raw' value here if availible
     if( v.leaf_val.exists() ) { 
       if( v.src.exists() ) { return os << v.src; } else { return os << lexp_escape( v.leaf_val.str() ); } 

@@ -13,7 +13,7 @@ namespace boda
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
     bool operator == ( u32_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
   };
-  std::ostream & operator<<(std::ostream & os, u32_pt_t const & v);
+  std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
 
   struct u32_box_t
   {
@@ -37,7 +37,7 @@ namespace boda
     bool operator == ( u32_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
   };
 
-  std::ostream & operator<<(std::ostream & os, u32_box_t const & v);
+  std::ostream & operator <<(std::ostream & os, u32_box_t const & v);
 
 
 };

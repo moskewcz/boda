@@ -357,7 +357,7 @@ namespace boda
     return nf.at_default;
   }
 
-  std::ostream & operator<<(std::ostream & top_ostream, nesi const & v)
+  std::ostream & operator <<(std::ostream & top_ostream, nesi const & v)
   {
     nesi_dump_buf_t ndb;
     cinfo_t const * ci = v.get_cinfo();

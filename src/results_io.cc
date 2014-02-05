@@ -35,7 +35,7 @@ namespace boda
     return id;
   }
 
-  std::ostream & operator<<(std::ostream & os, const scored_det_t & v) {
+  std::ostream & operator <<(std::ostream & os, const scored_det_t & v) {
     return os << ((u32_box_t &)v) << "@" << v.img_ix << "=" << v.score; }
 
   struct scored_det_t_comp_by_inv_score_t { 
@@ -48,7 +48,7 @@ namespace boda
     gt_det_t( void ) : truncated(0), difficult(0) { }
   };
 
-  std::ostream & operator<<(std::ostream & os, const gt_det_t & v) {
+  std::ostream & operator <<(std::ostream & os, const gt_det_t & v) {
     return os << ((u32_box_t &)v) << ":T" << v.truncated << "D" << v.difficult; }
   struct vect_gt_det_t : public vector< gt_det_t >
   {

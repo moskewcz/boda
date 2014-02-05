@@ -23,6 +23,7 @@ namespace boda
 {
   using namespace::std;
 
+
   typedef vector< NDArray > vect_NDAarray;
 
   vect_string boda_octave_setup = { "warning ('off', 'Octave:undefined-return-values');",
@@ -310,7 +311,7 @@ namespace boda
     assert_st( dv.length() == 3 );
     dims_t dims; // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
     dims.resize_and_zero( dv.length() );
-    for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims[i] = dv.elem(dv.length()-1-i); }
+    for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims(i) = dv.elem(dv.length()-1-i); }
     p_nda_double_t ret( new nda_double_t );
     ret->set_dims( dims );
     assert_st( ret->elems.sz == (uint32_t)nda.numel() );
@@ -319,6 +320,13 @@ namespace boda
     for( uint32_t i = 0; i < ret->elems.sz; ++i ) { data[i] = oct_data[i]; } // ... so, just copy the elements flat
 
     return ret;
+  }
+
+  void write_scales_and_feats( p_ostream out, vect_float & scales, vect_p_nda_double_t & feats ) {
+    (*out) << "BODA" << '\0';
+    (*out) << "feats_and_scales" << '\0';
+    bwrite( (*out), scales );
+    bwrite( (*out), feats );
   }
 
   void oct_featpyra( ostream & out, string const & dpm_fast_cascade_dir, 
@@ -374,6 +382,9 @@ namespace boda
     for( vect_NDAarray::const_iterator i = oct_feats.begin(); i != oct_feats.end(); ++i ) {
       feats.push_back( create_p_nda_double_from_oct_NDArray( *i ) );
     }
+    //p_ostream bo = ofs_open( pyra_out_fn + ".boda" );
+    //write_scales_and_feats( bo, scales, feats );
+
 #if 0
     for( vect_p_nda_double_t::const_iterator i = feats.begin(); i != feats.end(); ++i ) {
       printf( "(*i)->dims=%s\n", str((*i)->dims).c_str() );

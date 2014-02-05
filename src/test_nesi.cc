@@ -229,7 +229,7 @@ namespace boda
   typedef range< uint8_t > range_uint8_t;
   typedef range< char const > range_char;
   typedef vector< range_char > vect_range_char;
-  std::ostream & operator<<(std::ostream & os, range_char const & v) { os.write( v.b, v.size()); os.flush(); return os; }
+  std::ostream & operator <<(std::ostream & os, range_char const & v) { os.write( v.b, v.size()); os.flush(); return os; }
   
 
   // split s at each newline. output will have (# newlines in s) + 1 elements. removes newlines.

@@ -123,61 +123,90 @@ namespace boda
 
   typedef hunk_T< uint32_t > hunk_uint32_t;
 
+  template< typename T > inline void bwrite( std::ostream & out, T const & o ) { out.write( (char *)&o, sizeof(o) ); }
+  template< typename T > inline void bread( std::istream & in, T & o ) { in.read( (char *)&o, sizeof(o) ); }
+
+  template< typename T > inline void bwrite( std::ostream & out, shared_ptr< T > const & o ) { bwrite( out, *o ); }
+  template< typename T > inline void bread( std::istream & in, shared_ptr< T > & o ) { 
+    o.reset( new T );
+    bread( in, *o );
+  }
+
+  template< typename T > inline void bwrite( std::ostream & out, vector< T > const & o ) { 
+    uint32_t const sz = o.size();
+    bwrite( out, sz );
+    for( uint32_t i = 0; i < sz; ++i ) { bwrite( out, o[i] ); }
+  }
+  template< typename T > inline void bread( std::istream & in, vector< T > & o ) { 
+    uint32_t sz = 0;
+    bread( in, sz );
+    o.resize( sz );
+    for( uint32_t i = 0; i < sz; ++i ) { bread( in, o[i] ); }
+  }
+
+  template< typename T > inline void bwrite( std::ostream & out, hunk_T< T > const & o ) { 
+    bwrite( out, o.sz );
+    out.write( (char *)o.p.get(), o.sz*sizeof(T) );
+  }
+  template< typename T > inline void bread( std::istream & in, hunk_T< T > & o ) { 
+    bread( in, o.sz );
+    o.p = ma_p_T<T>( o.sz );
+    in.read( (char *)o.p.get(), o.sz*sizeof(T) );
+  }
+
+
   // row-major dimensions holder
   // cm_ variants implicitly operate on the reversed dims list to provide column-major access
   // using less than the full # of dims uses a prefix (or suffix for the cm_ variants) of the dims
   struct dims_t {
-    hunk_uint32_t dims; // in arbitrary units (i.e. not neccessarily bytes). can be set manually.
-    hunk_uint32_t strides; // in arbitrary units (i.e. not neccessarily bytes). can be set manually.
-    void resize_and_zero( uint32_t const num_dims ) { dims = hunk_uint32_t( num_dims ); strides = hunk_uint32_t(); }
-    uint32_t calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
-      assert( dims.sz );
-      strides = hunk_uint32_t( dims.sz );
-      strides[strides.sz-1] = 1;
-      for( uint32_t d = 1; d < dims.sz; ++d ) { strides[dims.sz-d-1] = strides[dims.sz-d]*dims[dims.sz-d]; }
-      return strides[0]*dims[0]; // i.e. tot_elems, strides[-1], size of all data, used to bounds check
+    hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
+    void resize_and_zero( uint32_t const num_dims ) { 
+      dss = hunk_uint32_t( num_dims*2 ); 
+      for( uint32_t ix = 0; ix != num_dims; ++ix ) { dims(ix) = 0; strides(ix) = 0; }
     }
-    uint64_t serial_sz( void ) const { return dims.serial_sz() + strides.serial_sz(); }
+    uint32_t sz( void ) const { return dss.sz>>1; }
+    uint32_t & dims( uint32_t const ix ) { return dss[ix+sz()]; }
+    uint32_t & strides( uint32_t const ix ) { return dss[ix]; }
+    uint32_t const & dims( uint32_t const ix ) const { return dss[ix+sz()]; }
+    uint32_t const & strides( uint32_t const ix ) const { return dss[ix]; }
+
+    uint32_t calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
+      strides(sz()-1) = 1;
+      for( uint32_t d = 1; d < sz(); ++d ) { strides(sz()-d-1) = strides(sz()-d)*dims(sz()-d); }
+      return strides(0)*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
+    }
+    uint64_t serial_sz( void ) const { return dss.serial_sz(); }
 
     uint32_t cm_ix1( uint32_t const d0i ) {
-      assert( strides.sz == dims.sz ); assert( strides.sz > 0 ); 
-      return strides[strides.sz-1]*d0i; }
+      return strides(sz()-1)*d0i; }
     uint32_t cm_ix2( uint32_t const d0i, uint32_t const d1i ) { 
-      assert( strides.sz == dims.sz ); assert( strides.sz > 1 ); 
-      return strides[strides.sz-1]*d0i + strides[strides.sz-2]*d1i; }
+      return strides(sz()-1)*d0i + strides(sz()-2)*d1i; }
     uint32_t cm_ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
-      assert( strides.sz == dims.sz ); assert( strides.sz > 2 ); 
-      return strides[strides.sz-1]*d0i + strides[strides.sz-2]*d1i + strides[strides.sz-3]*d2i ; }
+      return strides(sz()-1)*d0i + strides(sz()-2)*d1i + strides(sz()-3)*d2i ; }
     uint32_t cm_ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
-      assert( strides.sz == dims.sz ); assert( strides.sz > 3 ); 
-      return strides[strides.sz-1]*d0i + strides[strides.sz-2]*d1i + strides[strides.sz-3]*d2i + strides[strides.sz-4]*d3i; }
+      return strides(sz()-1)*d0i + strides(sz()-2)*d1i + strides(sz()-3)*d2i + strides(sz()-4)*d3i; }
 
     uint32_t ix1( uint32_t const d0i ) {
-      assert( strides.sz == dims.sz ); assert( strides.sz > 0 ); 
-      return d0i*strides[0]; }
+      return d0i*strides(0); }
     uint32_t ix2( uint32_t const d0i, uint32_t const d1i ) { 
-      assert( strides.sz == dims.sz ); assert( strides.sz > 1 ); 
-      return d0i*strides[0] + d1i*strides[1]; }
+      return d0i*strides(0) + d1i*strides(1); }
     uint32_t ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
-      assert( strides.sz == dims.sz ); assert( strides.sz > 2 ); 
-      return d0i*strides[0] + d1i*strides[1] + d2i*strides[2]; }
+      return d0i*strides(0) + d1i*strides(1) + d2i*strides(2); }
     uint32_t ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
-      assert( strides.sz == dims.sz ); assert( strides.sz > 3 ); 
-      return d0i*strides[0] + d1i*strides[1] + d2i*strides[2] + d3i*strides[3]; }
+      return d0i*strides(0) + d1i*strides(1) + d2i*strides(2) + d3i*strides(3); }
   };
-  //struct nda_double_t { vect_uint32_t dims; p_double d; };
+
+  inline void bwrite( std::ostream & out, dims_t const & o ) { bwrite( out, o.dss ); }
+  inline void bread( std::istream & in, dims_t & o ) { bread( in, o.dss ); }
 
   template< typename T > struct nda_T {
     hunk_T< T > elems; 
     dims_t dims;
-    //nda_T( shared_ptr< T > const & p_, uint32_t const sz_, uint32_t const off_ ) : elems(p_,sz_) { }
-    //nda_T( hunk_T< T > const &hunk ) : elems(hunk) { }
     void set_dims( dims_t const & dims_ ) { 
       dims = dims_; 
       uint32_t strides_sz = 0;
-      if( !dims.strides.p ) { strides_sz = dims.calc_strides(); } 
-      else { strides_sz = (dims.dims[0] * dims.strides[0]); }
-
+      if( !dims.strides(0) ) { strides_sz = dims.calc_strides(); } 
+      else { strides_sz = (dims.dims(0) * dims.strides(0)); }
       if( elems.p ) { assert( strides_sz == elems.sz ); }
       else { // if hunk is null, allocate it
 	assert( !elems.sz ); // should not be set yet
@@ -205,14 +234,10 @@ namespace boda
       uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
   };
 
-  template< typename T >
-  inline std::ostream & operator << ( std::ostream & out, nda_T< T > const & nda ) { 
-    for( uint32_t ix = nda.off; ix < nda.sz; ++ix ) {
-      if( ix != nda.off ) { out << " "; }
-      out << nda.elems[ix];
-    }
-    return out;
-  }
+  template< typename T > inline void bwrite( std::ostream & out, nda_T<T> const & o ) { 
+    bwrite(out,o.dims); bwrite(out,o.elems); }
+  template< typename T > inline void bread( std::istream & in, nda_T<T> & o ) { 
+    bread(in,o.dims); bread(in,o.elems); }
   
   typedef nda_T< float > nda_float_t;
 

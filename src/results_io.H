@@ -26,7 +26,7 @@ namespace boda
     uint32_t img_ix;
     scored_det_t( void ) : score(0), img_ix(0) { }
   };
-  std::ostream & operator<<(std::ostream & os, const scored_det_t & v);
+  std::ostream & operator <<(std::ostream & os, const scored_det_t & v);
   struct vect_scored_det_t : public std::vector< scored_det_t >
   {
     vect_scored_det_t( string const & class_name_ ) : class_name( class_name_ ) { }
