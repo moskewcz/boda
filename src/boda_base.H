@@ -119,12 +119,32 @@ namespace boda
     T & operator []( uint32_t const & ix ) { assert_st( ix < sz ); return p.get()[ix]; }
     T const & operator []( uint32_t const & ix ) const { assert_st( ix < sz ); return p.get()[ix]; }
     uint64_t serial_sz( void ) const { return sizeof(uint32_t) + (sz * sizeof(T)); }
+    bool operator == ( hunk_T<T> const & o ) const { 
+      if( sz != o.sz ) { return 0; }
+      for( uint32_t ix = 0; ix < sz; ++ix ) { if( (*this)[ix] != o[ix] ) { return 0; } }
+      return 1;
+    }
   };
 
-  typedef hunk_T< uint32_t > hunk_uint32_t;
+  template< typename T >
+  inline std::ostream & operator << ( std::ostream & out, hunk_T< T > const & o ) {
+    out << "hunk of " << typeid(T).name() << " size=" << o.sz;
+    for( uint32_t ix = 0; ix < o.sz; ++ix ) { out << " " << o[ix]; }
+    out << std::endl;
+    return out;
+  }
 
-  template< typename T > inline void bwrite( std::ostream & out, T const & o ) { out.write( (char *)&o, sizeof(o) ); }
-  template< typename T > inline void bread( std::istream & in, T & o ) { in.read( (char *)&o, sizeof(o) ); }
+
+  typedef hunk_T< uint32_t > hunk_uint32_t;
+  typedef hunk_T< float_t > hunk_float_t;
+  typedef hunk_T< double_t > hunk_double_t;
+
+  uint32_t const boda_magic= *(uint32_t *)"BODA";
+
+  template< typename T > inline void bwrite( std::ostream & out, T const & o ) { 
+    out.write( (char *)&o, sizeof(o) ); assert_st( out.good() ); }
+  template< typename T > inline void bread( std::istream & in, T & o ) { 
+    in.read( (char *)&o, sizeof(o) ); assert_st( in.good() ); }
 
   template< typename T > inline void bwrite( std::ostream & out, shared_ptr< T > const & o ) { bwrite( out, *o ); }
   template< typename T > inline void bread( std::istream & in, shared_ptr< T > & o ) { 
@@ -132,6 +152,7 @@ namespace boda
     bread( in, *o );
   }
 
+  
   template< typename T > inline void bwrite( std::ostream & out, vector< T > const & o ) { 
     uint32_t const sz = o.size();
     bwrite( out, sz );
@@ -144,14 +165,31 @@ namespace boda
     for( uint32_t i = 0; i < sz; ++i ) { bread( in, o[i] ); }
   }
 
+  inline void bwrite( std::ostream & out, string const & o ) {
+    uint32_t const sz = o.size();
+    bwrite( out, sz );
+    out.write( (char *)&o[0], o.size()*sizeof(string::value_type) );
+  }
+  inline void bread( std::istream & in, string & o ) {
+    uint32_t sz = 0;
+    bread( in, sz );
+    o.resize( sz );
+    in.read( (char *)&o[0], o.size()*sizeof(string::value_type) );
+    assert_st( in.good() );
+  }
+
+  inline void bwrite_id( std::ostream & out, string const & o ) { bwrite( out, string("id") ); bwrite( out, o ); }
+
   template< typename T > inline void bwrite( std::ostream & out, hunk_T< T > const & o ) { 
     bwrite( out, o.sz );
     out.write( (char *)o.p.get(), o.sz*sizeof(T) );
+    assert_st( out.good() );
   }
   template< typename T > inline void bread( std::istream & in, hunk_T< T > & o ) { 
     bread( in, o.sz );
     o.p = ma_p_T<T>( o.sz );
     in.read( (char *)o.p.get(), o.sz*sizeof(T) );
+    assert_st( in.good() );
   }
 
 
@@ -160,6 +198,7 @@ namespace boda
   // using less than the full # of dims uses a prefix (or suffix for the cm_ variants) of the dims
   struct dims_t {
     hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
+    bool operator == ( dims_t const & o ) const { return dss == o.dss; }
     void resize_and_zero( uint32_t const num_dims ) { 
       dss = hunk_uint32_t( num_dims*2 ); 
       for( uint32_t ix = 0; ix != num_dims; ++ix ) { dims(ix) = 0; strides(ix) = 0; }
@@ -195,6 +234,8 @@ namespace boda
     uint32_t ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2) + d3i*strides(3); }
   };
+
+  inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { return out << o.dss; }
 
   inline void bwrite( std::ostream & out, dims_t const & o ) { bwrite( out, o.dss ); }
   inline void bread( std::istream & in, dims_t & o ) { bread( in, o.dss ); }

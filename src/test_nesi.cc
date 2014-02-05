@@ -9,6 +9,8 @@
 #include<boost/regex.hpp>
 #include<boost/filesystem.hpp>
 #include<boost/iostreams/device/mapped_file.hpp>
+#include<boost/iostreams/stream.hpp>         
+
 #include"dtl/dtl.hpp"
 #include"img_io.H"
 #include"test_base.H"
@@ -28,6 +30,8 @@ namespace boda
   using boost::filesystem::filesystem_error;
   using boost::filesystem::recursive_directory_iterator;
   using boost::filesystem::file_size;
+
+  typedef boost::iostreams::stream<mapped_file_source> mfs_istream;
 
   struct cmd_test_t : public virtual nesi // NESI(help="nesi test case")
   {
@@ -241,6 +245,101 @@ namespace boda
     lines.push_back( range_char( cur_b, s.end() ) ); // note: final elem may be empty and never has a newline
   }
 
+  template< typename DT, typename T > void check_eq( DT & diff, std::istream & in, T const & o ) {
+    T o2;
+    bread( in, o2 );
+    diff( o, o2 );
+  }
+
+  using std::istream;
+  using std::cout;
+  using std::endl;
+
+  template< typename T >
+  struct eq_diff {
+    bool & has_diff;
+    bool do_print;
+    eq_diff( bool & has_diff_, bool const do_print_ = 1 ) : has_diff(has_diff_), do_print(do_print_) { }
+    void operator ()( T const & o1, T const & o2 ) {
+      if( !(o1 == o2) ) {
+	has_diff = 1;
+	if( do_print ) { cout << "DIFF " << typeid(o1).name() << " o1=" << o1 << " o2=" << o2 << endl; }
+      }
+    }
+  };
+
+  template< >
+  struct eq_diff< p_nda_double_t > {
+    bool & has_diff;
+    eq_diff( bool & has_diff_ ) : has_diff(has_diff_) { }
+    void operator ()( p_nda_double_t const & o1, p_nda_double_t const & o2 ) {
+      eq_diff< dims_t > dims_eq( has_diff );
+      dims_eq( o1->dims, o2->dims ); 
+      if( has_diff ) { return; }
+      // TODO: if different, report different number of element and/or
+      // covar. note: probably need to just do iter here. on a related
+      // note: should we try to use strides properly?
+      eq_diff< hunk_double_t > elems_eq( has_diff, 0 );
+      elems_eq( o1->elems, o2->elems ); 
+    }
+  };
+
+  template< typename T >
+  struct eq_diff< vector< T > > {
+    bool & has_diff;
+    eq_diff( bool & has_diff_ ) : has_diff(has_diff_) { }
+    void operator ()( vect_p_nda_double_t const & o1, vect_p_nda_double_t const & o2 ) {
+      if( o1.size() != o2.size() ) {
+	has_diff = 1;
+	cout << "DIFF vect size: o1=" << o1.size() << " o2=" << o2.size() << endl;
+	return;
+      }
+      eq_diff< T > eq_ix( has_diff );
+      for( uint32_t ix = 0; ix < o1.size(); ++ix ) { eq_ix( o1[ix], o2[ix] ); }
+    }
+  };
+
+
+  bool diff_boda_streams( istream & i1, istream & i2 ) {
+    uint32_t maybe_boda_magic = 0;
+    bread( i1, maybe_boda_magic );
+    assert_st( maybe_boda_magic == boda_magic );
+    maybe_boda_magic = 0;
+    bread( i2, maybe_boda_magic );
+    assert_st( maybe_boda_magic == boda_magic );
+
+
+    bool has_diff = 0;
+    eq_diff<string> eq_str( has_diff );
+    eq_diff<p_nda_double_t> eq_p_nda_double_t( has_diff );
+    eq_diff<vect_p_nda_double_t> eq_vect_p_nda_double_t( has_diff );
+
+    while( 1 ) {
+      string cmd;
+      bread( i1, cmd );
+      cout << "cmd=" << cmd << endl;
+      check_eq( eq_str, i2, cmd );
+      if( cmd == "END_BODA" ) { break; }
+      else if( cmd == "id" ) {
+	string id;
+	bread( i1, id );
+	cout << "id=" << id << endl;
+	check_eq( eq_str, i2, id );
+      }
+      else if( cmd == "p_nda_double_t" ) {
+	p_nda_double_t o;
+	bread( i1, o );
+	check_eq( eq_p_nda_double_t, i2, o );
+      }
+      else if( cmd == "vect_p_nda_double_t" ) {
+	vect_p_nda_double_t o;
+	bread( i1, o );
+	check_eq( eq_vect_p_nda_double_t, i2, o );
+      }
+    }
+    return has_diff;
+  }
+
 
   // returns 1 if files differ
   bool diff_file( path const & good, path const & test, string const & fn ) {
@@ -304,6 +403,15 @@ namespace boda
 	return 1;
       }
       else { return 0; }
+    } else if( endswith( fn, ".boda" ) ) { // BODA stream diff
+      mfs_istream good_is;
+      good_is.open( *good_map );
+      mfs_istream test_is;
+      test_is.open( *test_map );
+      if( diff_boda_streams( good_is, test_is ) ) {
+	printf( "DIFF: boda stream differs\n" );
+	return 1;
+      } else { return 0; }
     } else { // bytewise binary diff
       dtl::Diff< char, range_char > d( good_range, test_range );
       d.compose();
@@ -312,9 +420,11 @@ namespace boda
 	return 1;
       }
       else { return 0; }
-    }
-    
+    }    
   }
+
+
+
 
   void maybe_remove_dir( path const & dir ) {
     if( exists( dir ) ) {

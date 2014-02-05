@@ -308,7 +308,6 @@ namespace boda
 
   p_nda_double_t create_p_nda_double_from_oct_NDArray( NDArray const & nda ) {
     dim_vector const & dv = nda.dims();
-    assert_st( dv.length() == 3 );
     dims_t dims; // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
     dims.resize_and_zero( dv.length() );
     for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims(i) = dv.elem(dv.length()-1-i); }
@@ -318,15 +317,27 @@ namespace boda
     double const * oct_data = nda.fortran_vec();
     double * data = &ret->elems[0]; // our data layout is now an exact match to the octave one ...
     for( uint32_t i = 0; i < ret->elems.sz; ++i ) { data[i] = oct_data[i]; } // ... so, just copy the elements flat
-
     return ret;
   }
-
-  void write_scales_and_feats( p_ostream out, vect_float & scales, vect_p_nda_double_t & feats ) {
-    (*out) << "BODA" << '\0';
-    (*out) << "feats_and_scales" << '\0';
-    bwrite( (*out), scales );
-    bwrite( (*out), feats );
+  
+  void write_scales_and_feats( p_ostream out, p_nda_double_t & scales, vect_p_nda_double_t & feats ) {
+#if 0
+    scales.reset( new nda_double_t );
+    dims_t dims; 
+    dims.resize_and_zero( 2 );
+    dims.dims(1) = 20;
+    dims.dims(0) = 1;
+    scales->set_dims( dims );
+#endif
+    bwrite( *out, boda_magic );
+    bwrite_id( *out, string("scales") );
+    bwrite( *out, string("p_nda_double_t") );
+    bwrite( *out, scales );
+    bwrite_id( *out, string("feats") );
+    bwrite( *out, string("vect_p_nda_double_t") );
+    bwrite( *out, feats );
+    bwrite( *out, string("END_BODA") );
+    
   }
 
   void oct_featpyra( ostream & out, string const & dpm_fast_cascade_dir, 
@@ -364,7 +375,7 @@ namespace boda
     //osm_print_keys( out, boda_if_ret(0) );
     assert_st( !error_state );
 
-    vect_float scales;
+    p_nda_double_t scales;
     vect_p_nda_double_t feats;
 
     octave_scalar_map ret_osm = boda_if_ret(0).scalar_map_value();
@@ -372,13 +383,13 @@ namespace boda
     //print_field( out, ret_osm, "feat" );
     Matrix oct_scales = get_field_as_matrix( ret_osm, "scales" );
     assert( oct_scales.numel() == oct_scales.dims().elem(0) ); // should be N(x1)* 
-    for( uint32_t i = 0; i < uint32_t(oct_scales.numel()); ++i ) { scales.push_back( oct_scales(i) ); }
+    scales = create_p_nda_double_from_oct_NDArray( oct_scales );
     //printf( "scales=%s\n", str(scales).c_str() );
     vect_NDAarray oct_feats;
     get_ndas_from_field( oct_feats, ret_osm, "feat" );
     //printf( "scales.size()=%s\n", str(scales.size()).c_str() );
     //printf( "oct_feats.size()=%s\n", str(oct_feats.size()).c_str() );
-    assert_st( scales.size() == oct_feats.size() );
+    assert_st( scales->elems.sz == oct_feats.size() );
     for( vect_NDAarray::const_iterator i = oct_feats.begin(); i != oct_feats.end(); ++i ) {
       feats.push_back( create_p_nda_double_from_oct_NDArray( *i ) );
     }
