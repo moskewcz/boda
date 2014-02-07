@@ -543,6 +543,7 @@ namespace boda
 	    update_archive = 1; 
 	  } else {
 	    printf("FAIL: test %s failed.\n",cmd->test_name.c_str());
+	    ++num_fail;
 	  }
 	}
       }	  
@@ -554,6 +555,7 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
+      num_fail = 0;
       set_string seen_test_names;
       seen_test_names.insert( "good" ); // reserved sub-dir to hold known good results
       regex filt_regex( filt );
@@ -585,6 +587,8 @@ namespace boda
 	}
 	++tix;
       }
+      if( num_fail ) { printf( "test_cmds num_fail=%s\n", str(num_fail).c_str() ); }
+      
     }
   };
 
