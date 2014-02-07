@@ -124,7 +124,19 @@ namespace boda
       for( uint32_t ix = 0; ix < sz; ++ix ) { if( (*this)[ix] != o[ix] ) { return 0; } }
       return 1;
     }
+    uint32_t cnt_diff_elems( hunk_T<T> const & o ) const { 
+      if( sz != o.sz ) { return uint32_t_const_max; }
+      uint32_t ret = 0;
+      for( uint32_t ix = 0; ix < sz; ++ix ) { if( (*this)[ix] != o[ix] ) { ++ret; } }
+      return ret;
+    }
   };
+
+  template< typename RT, typename DT >
+  void sum_squared_diffs( RT & ret, DT const & o1, DT const & o2 ) {
+    assert_st( o1.sz == o2.sz );
+    for( uint32_t i = 0; i < o1.sz; ++i ) { ret += (o1[i]-o2[i])*(o1[i]-o2[i]); }
+  }
 
   template< typename T >
   inline std::ostream & operator << ( std::ostream & out, hunk_T< T > const & o ) {

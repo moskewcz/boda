@@ -276,11 +276,16 @@ namespace boda
       eq_diff< dims_t > dims_eq( has_diff );
       dims_eq( o1->dims, o2->dims ); 
       if( has_diff ) { return; }
-      // TODO: if different, report different number of element and/or
-      // covar. note: probably need to just do iter here. on a related
-      // note: should we try to use strides properly?
+      assert_st( o1->elems.sz == o2->elems.sz ); // dims are same implies this
       eq_diff< hunk_double_t > elems_eq( has_diff, 0 );
       elems_eq( o1->elems, o2->elems ); 
+      if( has_diff ) {
+	double ssds = 0;
+	sum_squared_diffs( ssds, o1->elems, o2->elems );
+	printf( "DIFF: nda_double_t differing elems cnt=%s sum_squared_diffs=%s\n", 
+		str( o1->elems.cnt_diff_elems( o2->elems ) ).c_str(),
+		str( ssds ).c_str() );
+      }
     }
   };
 
@@ -308,35 +313,36 @@ namespace boda
     bread( i2, maybe_boda_magic );
     assert_st( maybe_boda_magic == boda_magic );
 
-
     bool has_diff = 0;
     eq_diff<string> eq_str( has_diff );
     eq_diff<p_nda_double_t> eq_p_nda_double_t( has_diff );
     eq_diff<vect_p_nda_double_t> eq_vect_p_nda_double_t( has_diff );
 
+    string id;
+    string cmd;
     while( 1 ) {
-      string cmd;
       bread( i1, cmd );
-      cout << "cmd=" << cmd << endl;
       check_eq( eq_str, i2, cmd );
       if( cmd == "END_BODA" ) { break; }
       else if( cmd == "id" ) {
-	string id;
 	bread( i1, id );
-	cout << "id=" << id << endl;
 	check_eq( eq_str, i2, id );
+	if( has_diff ) { break; }
       }
       else if( cmd == "p_nda_double_t" ) {
 	p_nda_double_t o;
 	bread( i1, o );
 	check_eq( eq_p_nda_double_t, i2, o );
+	if( has_diff ) { break; }
       }
       else if( cmd == "vect_p_nda_double_t" ) {
 	vect_p_nda_double_t o;
 	bread( i1, o );
 	check_eq( eq_vect_p_nda_double_t, i2, o );
+	if( has_diff ) { break; }
       }
     }
+    if( has_diff ) { printf("DIFF: boda stream differs. last seen: cmd=%s id=%s\n", cmd.c_str(), id.c_str() ); }
     return has_diff;
   }
 
@@ -408,10 +414,7 @@ namespace boda
       good_is.open( *good_map );
       mfs_istream test_is;
       test_is.open( *test_map );
-      if( diff_boda_streams( good_is, test_is ) ) {
-	printf( "DIFF: boda stream differs\n" );
-	return 1;
-      } else { return 0; }
+      return diff_boda_streams( good_is, test_is );
     } else { // bytewise binary diff
       dtl::Diff< char, range_char > d( good_range, test_range );
       d.compose();
