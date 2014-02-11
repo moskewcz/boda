@@ -398,9 +398,9 @@ namespace boda
     write_scales_and_feats( bo, scales, feats );
 
 #if 0
-    for( vect_p_nda_double_t::const_iterator i = feats.begin(); i != feats.end(); ++i ) {
-      printf( "(*i)->dims=%s\n", str((*i)->dims).c_str() );
-      printf( "(*i)=%s\n", str((*i)).c_str() );
+    for( uint32_t i = 0; i < feats.size(); ++i ) {
+      printf( "scale=%s\n", str(scales->elems[i]).c_str() );
+      printf( "feats=%s\n", str(feats[i]).c_str() );
     }
 #endif
 

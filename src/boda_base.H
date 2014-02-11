@@ -228,26 +228,33 @@ namespace boda
     }
     uint64_t serial_sz( void ) const { return dss.serial_sz(); }
 
-    uint32_t cm_ix1( uint32_t const d0i ) {
+    uint32_t cm_ix1( uint32_t const d0i ) const {
       return strides(sz()-1)*d0i; }
-    uint32_t cm_ix2( uint32_t const d0i, uint32_t const d1i ) { 
+    uint32_t cm_ix2( uint32_t const d0i, uint32_t const d1i ) const { 
       return strides(sz()-1)*d0i + strides(sz()-2)*d1i; }
-    uint32_t cm_ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
+    uint32_t cm_ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) const { 
       return strides(sz()-1)*d0i + strides(sz()-2)*d1i + strides(sz()-3)*d2i ; }
-    uint32_t cm_ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
+    uint32_t cm_ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       return strides(sz()-1)*d0i + strides(sz()-2)*d1i + strides(sz()-3)*d2i + strides(sz()-4)*d3i; }
 
-    uint32_t ix1( uint32_t const d0i ) {
+    uint32_t ix1( uint32_t const d0i ) const {
       return d0i*strides(0); }
-    uint32_t ix2( uint32_t const d0i, uint32_t const d1i ) { 
+    uint32_t ix2( uint32_t const d0i, uint32_t const d1i ) const { 
       return d0i*strides(0) + d1i*strides(1); }
-    uint32_t ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
+    uint32_t ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) const { 
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2); }
-    uint32_t ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
+    uint32_t ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2) + d3i*strides(3); }
   };
 
-  inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { return out << o.dss; }
+  inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) {
+    out << "RM_DIMS=";
+    for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?"*":"") << o.dims(ix); }
+    out << " STRIDES=";
+    for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?",":"") << o.strides(ix); }
+    return out;
+  }
+
 
   inline void bwrite( std::ostream & out, dims_t const & o ) { bwrite( out, o.dss ); }
   inline void bread( std::istream & in, dims_t & o ) { bread( in, o.dss ); }
@@ -285,7 +292,41 @@ namespace boda
       uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems[ix]; }
     T & at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
       uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
+
+    T const & cm_at1( uint32_t const d0i ) const { 
+      uint32_t const ix = dims.cm_ix1( d0i ); return elems[ix]; }
+    T const & cm_at2( uint32_t const d0i, uint32_t const d1i ) const { 
+      uint32_t const ix = dims.cm_ix2( d0i,d1i ); return elems[ix]; }
+    T const& cm_at3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) const { 
+      uint32_t const ix = dims.cm_ix3( d0i,d1i,d2i ); return elems[ix]; }
+    T const& cm_at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
+      uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
+
+    T const& at1( uint32_t const d0i ) const { 
+      uint32_t const ix = dims.ix1( d0i ); return elems[ix]; }
+    T const& at2( uint32_t const d0i, uint32_t const d1i ) const { 
+      uint32_t const ix = dims.ix2( d0i,d1i ); return elems[ix]; }
+    T const& at3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) const { 
+      uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems[ix]; }
+    T const& at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
+      uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
   };
+
+  template< typename T >
+  inline std::ostream & operator << ( std::ostream & out, nda_T< T > const & o ) {
+    out << "nda " << o.dims << std::endl;
+    // print rows by iterating over dim with fastest/smallest stride (using column major indexing, of course)
+    for( uint32_t rix = 0; o.dims.cm_ix2( 0, rix ) != o.elems.sz; ++rix ) {
+      out << "row=" << rix << ":";
+      for( uint32_t cix = 0; cix != o.dims.cm_ix2( 0, 1 ); ++cix ) {
+	out << " " << o.cm_at2( cix, rix );
+      }
+      out << std::endl;
+    }
+    
+
+    return out;
+  }
 
   template< typename T > inline void bwrite( std::ostream & out, nda_T<T> const & o ) { 
     bwrite(out,o.dims); bwrite(out,o.elems); }
