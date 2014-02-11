@@ -328,6 +328,7 @@ namespace boda
     dims.dims(1) = 20;
     dims.dims(0) = 1;
     scales->set_dims( dims );
+    for( uint32_t i = 0; i < scales->elems.sz; ++i ) { scales->elems[i]  = 1.1; }
 #endif
     bwrite( *out, boda_magic );
     bwrite_id( *out, string("scales") );
@@ -393,8 +394,8 @@ namespace boda
     for( vect_NDAarray::const_iterator i = oct_feats.begin(); i != oct_feats.end(); ++i ) {
       feats.push_back( create_p_nda_double_from_oct_NDArray( *i ) );
     }
-    //p_ostream bo = ofs_open( pyra_out_fn + ".boda" );
-    //write_scales_and_feats( bo, scales, feats );
+    p_ostream bo = ofs_open( pyra_out_fn + ".boda" );
+    write_scales_and_feats( bo, scales, feats );
 
 #if 0
     for( vect_p_nda_double_t::const_iterator i = feats.begin(); i != feats.end(); ++i ) {
