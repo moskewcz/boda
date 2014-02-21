@@ -427,8 +427,7 @@ namespace boda
       timer_t t( "oct_resize" );
       p_img_t img( new img_t );
       img->load_fn( image_fn.exp.c_str() );
-      //oct_featpyra_inner( img, 8, 10 );
-      
+      //oct_featpyra_inner( img, 8, 10 ); return;
       
       uint32_t const interval = 10;
       uint32_t const imax = interval;

@@ -129,6 +129,7 @@ namespace boda
   }
 
   p_img_t downsample_2x( p_img_t img ) {
+    timer_t ds_timer("downsample_2x");
     p_img_t tmp_img = downsample_w_transpose_2x( img.get() );
     return downsample_w_transpose_2x( tmp_img.get() );
   }
@@ -210,7 +211,7 @@ namespace boda
   }
 
   p_img_t downsample( p_img_t img, double const scale ) { 
-    timer_t ds_timer("img_t::downsample");
+    timer_t ds_timer("downsample");
     assert( scale <= 1 );
     assert( scale >= .5 );
     if( scale == 1 ) { return img; }
