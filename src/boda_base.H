@@ -133,9 +133,12 @@ namespace boda
   };
 
   template< typename RT, typename DT >
-  void sum_squared_diffs( RT & ret, DT const & o1, DT const & o2 ) {
+  void sum_squared_diffs( RT & ssd, RT & sd, DT const & o1, DT const & o2 ) {
     assert_st( o1.sz == o2.sz );
-    for( uint32_t i = 0; i < o1.sz; ++i ) { ret += (o1[i]-o2[i])*(o1[i]-o2[i]); }
+    for( uint32_t i = 0; i < o1.sz; ++i ) { 
+      RT const d = RT(o1[i])-RT(o2[i]);
+      sd += d; ssd += d*d;
+    }
   }
 
   template< typename T >
@@ -211,6 +214,12 @@ namespace boda
   struct dims_t {
     hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
     bool operator == ( dims_t const & o ) const { return dss == o.dss; }
+    bool fits_in( dims_t const & o ) const { 
+      if( sz() != o.sz() ) { return 0; }
+      for( uint32_t ix = 0; ix != sz(); ++ix ) { if( dims(ix) > o.dims(ix) ) { return 0; } }
+      return 1;
+    }
+
     void resize_and_zero( uint32_t const num_dims ) { 
       dss = hunk_uint32_t( num_dims*2 ); 
       for( uint32_t ix = 0; ix != num_dims; ++ix ) { dims(ix) = 0; strides(ix) = 0; }
@@ -237,6 +246,12 @@ namespace boda
     uint32_t cm_ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       return strides(sz()-1)*d0i + strides(sz()-2)*d1i + strides(sz()-3)*d2i + strides(sz()-4)*d3i; }
 
+    uint32_t ix( vect_uint32_t const & di ) const {
+      assert_st( di.size() <= sz() );
+      uint32_t ret = 0;
+      for( uint32_t dix = 0; dix < di.size(); ++dix ) { ret += di[dix]*strides(dix); }
+      return ret;
+    }
     uint32_t ix1( uint32_t const d0i ) const {
       return d0i*strides(0); }
     uint32_t ix2( uint32_t const d0i, uint32_t const d1i ) const { 
@@ -245,6 +260,22 @@ namespace boda
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2); }
     uint32_t ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2) + d3i*strides(3); }
+  };
+
+  struct dims_iter_t {
+    dims_t const & dims;
+    vect_uint32_t di;
+    dims_iter_t( dims_t const & dims_ ) : dims(dims_) {
+      di.resize( dims.sz(), 0 );
+    }
+    bool next( void ) { // returns 0 if iteration is complete (leaving the iterator back at 0).
+      uint32_t dix_end = di.size();
+      while( dix_end ) { 
+	if( ++di[dix_end-1] == dims.dims(dix_end-1) ) { di[dix_end-1] = 0; --dix_end; } 
+	else { return 1; }
+      }
+      return 0;
+    }
   };
 
   inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) {
@@ -284,6 +315,7 @@ namespace boda
     T & cm_at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
       uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
 
+    T & at( vect_uint32_t const & di ) { uint32_t const ix = dims.ix( di ); return elems[ix]; }
     T & at1( uint32_t const d0i ) { 
       uint32_t const ix = dims.ix1( d0i ); return elems[ix]; }
     T & at2( uint32_t const d0i, uint32_t const d1i ) { 
@@ -302,6 +334,7 @@ namespace boda
     T const& cm_at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
 
+    T const& at( vect_uint32_t const & di ) const { uint32_t const ix = dims.ix( di ); return elems[ix]; }
     T const& at1( uint32_t const d0i ) const { 
       uint32_t const ix = dims.ix1( d0i ); return elems[ix]; }
     T const& at2( uint32_t const d0i, uint32_t const d1i ) const { 
@@ -344,6 +377,8 @@ namespace boda
   typedef vector< nda_double_t > vect_nda_double_t; 
   typedef shared_ptr< nda_double_t > p_nda_double_t; 
   typedef vector< p_nda_double_t > vect_p_nda_double_t;
+
+  string ssds_str( p_nda_double_t o1, p_nda_double_t o2 ); // get a string with info from sum_squared_diffs(o1,o2)
 
   struct rt_exception : public std::exception
   {

@@ -72,6 +72,22 @@ namespace boda
     for( uint32_t i = 0; i < h; ++i ) { memcpy( pels.get() + i*row_pitch, (&lp_pels[0]) + i*w*lp_depth, w*lp_depth ); }
   }
 
+  void img_t::save_fn_png( std::string const & fn )
+  {
+    uint32_t const lp_depth = 4;
+    assert( depth == lp_depth );
+    vect_uint8_t lp_pels; // will contain packed RGBA (no padding)
+    lp_pels.resize( w*h*4 );
+    // copy our (maybe padded) rows into packed data
+    for( uint32_t i = 0; i < h; ++i ) { memcpy( (&lp_pels[0]) + i*w*lp_depth, pels.get() + i*row_pitch, w*lp_depth ); }
+    vect_uint8_t png_file_data;
+    
+    unsigned ret = lodepng::encode( png_file_data, lp_pels, w, h );
+    if( ret ) { rt_err( strprintf( "failed to encode image '%s': lodepng decoder error %s: %s", 
+				   fn.c_str(), str(ret).c_str(), lodepng_error_text(ret) ) ); }
+    lodepng::save_file(png_file_data, fn);
+  }
+
   p_img_t downsample_w_transpose_2x( img_t const * const src )
   {
     p_img_t ret( new img_t );
@@ -81,10 +97,12 @@ namespace boda
     for( uint32_t rx = 0; rx < ret->w; ++rx ) {
       for( uint32_t ry = 0; ry < ret->h; ++ry ) {
 	for( uint32_t c = 0; c < 3; ++c ) {
-	  uint32_t const sx = ry >> 1;
-	  ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ] = 
-	    ( uint16_t( src->pels.get()[ rx*src->row_pitch + sx*src->depth + c ] ) + 
-	      src->pels.get()[ rx*src->row_pitch + (sx+1)*src->depth + c ] ) >> 1;
+	  uint32_t const sx = ry << 1;
+	  uint32_t const sy = rx;
+	  ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ] =
+//	    src->pels.get()[ sy*src->row_pitch + sx*src->depth + c ];
+	    ( uint16_t( src->pels.get()[ sy*src->row_pitch + sx*src->depth + c ] ) + 
+	      src->pels.get()[ sy*src->row_pitch + (sx+1)*src->depth + c ] + 1 ) >> 1; // note: we round .5 up
 	}
 	ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + 3 ] = uint8_t_const_max; // alpha
       }
@@ -92,25 +110,89 @@ namespace boda
     return ret;
   }
 
-  p_img_t img_t::downsample_2x( void ) {
-    p_img_t tmp_img = downsample_w_transpose_2x( this );
-    return downsample_w_transpose_2x( tmp_img.get() );
-  }
-
-  // for all downsample functions, scale is 0.16 fixed point, value must be in [.5,1)
-  p_img_t downsample_w_transpose( img_t const * const src, uint16_t scale )
+  p_img_t transpose( img_t const * const src )
   {
     p_img_t ret( new img_t );
     ret->set_row_align( src->row_align ); // preserve alignment
-    ret->set_sz_and_alloc_pels( src->h, (uint64_t( src->w ) * scale) >> 16 ); // downscale in w and transpose
-    
-    // FIXME: nearest sampling --> interpolate
+    ret->set_sz_and_alloc_pels( src->h, src->w );
     for( uint32_t rx = 0; rx < ret->w; ++rx ) {
       for( uint32_t ry = 0; ry < ret->h; ++ry ) {
+	for( uint32_t c = 0; c < 4; ++c ) {
+	  uint32_t const sx = ry;
+	  uint32_t const sy = rx;
+	  ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ] =
+	    src->pels.get()[ sy*src->row_pitch + sx*src->depth + c ];
+	}
+      }
+    }
+    return ret;
+  }
+
+  p_img_t downsample_2x( p_img_t img ) {
+    p_img_t tmp_img = downsample_w_transpose_2x( img.get() );
+    return downsample_w_transpose_2x( tmp_img.get() );
+  }
+
+//#define RESIZE_DEBUG
+  // for all downsample functions, scale is 0.16 fixed point, value must be in [.5,1)
+  p_img_t downsample_w_transpose( img_t const * const src, uint32_t ds_w )
+  {
+    assert( ds_w );
+    assert( ds_w <= src->w ); // scaling must be <= 1
+    if( ds_w == src->w ) { return transpose( src ); } // special case for no scaling (i.e. 1x downsample)
+    assert( (ds_w<<1) >= src->w ); // scaling must be >= .5
+    if( (ds_w<<1) == src->w ) { return downsample_w_transpose_2x( src ); } // special case for 2x downsample
+    p_img_t ret( new img_t );
+    ret->set_row_align( src->row_align ); // preserve alignment
+    ret->set_sz_and_alloc_pels( src->h, ds_w ); // downscale in w and transpose
+    uint16_t scale = (uint64_t(ds_w)<<16)/src->w; // 0.16 fixed point
+    uint32_t inv_scale = (uint64_t(1)<<46)/scale; // 2.30 fixed point, value (1,2]
+    // for clamping sx2_fp, which (due to limitied precision of scale)
+    // may exceed this value (which would cause sampling off the edge
+    // of the src image). the dropped (impossible) sample should have
+    // near-zero weight (again bounded by the precision of scale and
+    // the input and output image sizes).
+    uint64_t const max_src_x = uint64_t(src->w)<<30; 
+    //printf( "scale=%s inv_scale=%s ((double)scale/double(1<<16))=%s ((double)inv_scale/double(1<<30))=%s\n", str(scale).c_str(), str(inv_scale).c_str(), str(((double)scale/double(1<<16))).c_str(), str(((double)inv_scale/double(1<<30))).c_str() );
+    for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+      //printf( "********** rx=%s ***********\n", str(rx).c_str() );
+      for( uint32_t ry = 0; ry < ret->h; ++ry ) {
 	for( uint32_t c = 0; c < 3; ++c ) {
-	  uint32_t const sx = (uint64_t( ry ) << 16) / scale;
+	  uint64_t const sx1_fp = (uint64_t( ry ) * inv_scale); // img_sz_bits.30 fp
+	  uint32_t const sx1 = sx1_fp >> 30;
+	  uint64_t const sx2_fp = std::min( max_src_x, sx1_fp + inv_scale );
+	  uint32_t const sx2 = sx2_fp >> 30;
+	  uint64_t const sx1_w = ( 1U << 30 ) - (sx1_fp - (uint64_t(sx1)<<30)); // 1.30 fp, value (0,1]
+	  uint64_t const sx2_w = sx2_fp - (uint64_t(sx2)<<30); // 1.30 fp, value (0,1]
+#ifdef RESIZE_DEBUG
+	  printf("------\n");
+	  printf( "ry=%s sx1=%s sx2=%s\n", str(ry).c_str(), str(sx1).c_str(), str(sx2).c_str() );
+ 	  printf( "sx1=%s sx2=%s sx1_w=%s sx2_w=%s\n", str(sx1).c_str(), str(sx2).c_str(), str(sx1_w).c_str(), str(sx2_w).c_str() );
+	  printf( "(double(sx1_fp)/double(1<<30))=%s\n", str((double(sx1_fp)/double(1U<<30))).c_str() );
+	  printf( "(double(sx2_fp)/double(1<<30))=%s\n", str((double(sx2_fp)/double(1U<<30))).c_str() );
+
+	  printf( "(double(sx1_w)/double(1<<30))=%s\n", str((double(sx1_w)/double(1U<<30))).c_str() );
+	  printf( "(double(sx2_w)/double(1<<30))=%s\n", str((double(sx2_w)/double(1U<<30))).c_str() );
+#endif
+	  uint32_t const span = sx2 - sx1;
+	  assert( (span == 1) || (span == 2) );
+	  uint64_t const mid_pel = (span==1)?0:( 
+	    uint64_t( src->pels.get()[ rx*src->row_pitch + (sx1+1)*src->depth + c ] ) << 30 );
+//	  printf( "span=%s mid_pel=%s\n", str(span).c_str(), str(mid_pel).c_str() );
 	  ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ] = 
-	    src->pels.get()[ rx*src->row_pitch + sx*src->depth + c ];
+	    ( (
+	      ( uint64_t( src->pels.get()[ rx*src->row_pitch + sx1*src->depth + c ] ) * sx1_w ) +
+	      ( mid_pel ) +
+	      ( sx2_w ? ( uint64_t( src->pels.get()[ rx*src->row_pitch + sx2*src->depth + c ] ) * sx2_w ) : uint64_t(0) )
+	       ) * scale + (1lu << 45) ) >> 46;
+#ifdef RESIZE_DEBUG
+	  uint32_t p1 = src->pels.get()[ rx*src->row_pitch + sx1*src->depth + c ];
+	  uint32_t p2 = src->pels.get()[ rx*src->row_pitch + (sx1+1)*src->depth + c ];
+	  uint32_t p3 = src->pels.get()[ rx*src->row_pitch + sx2*src->depth + c ];
+	  uint32_t r = ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ];
+	  printf( "p1=%s p2=%s p3=%s r=%s\n", str(p1).c_str(), str(p2).c_str(), str(p3).c_str(), str(r).c_str() );
+#endif
+	  assert( (!sx2_w) || (sx2 < src->w) );
 	}
 	ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + 3 ] = uint8_t_const_max; // alpha
       }
@@ -118,13 +200,24 @@ namespace boda
     return ret;
   }
 
-  p_img_t img_t::downsample( uint16_t scale ) {
-    assert_st( scale >= (1U << 15 ) );
-    if( scale == (1U << 15 ) ) { return downsample_2x(); }
-    p_img_t tmp_img = downsample_w_transpose( this, scale );
-    return downsample_w_transpose( tmp_img.get(), scale );
+  p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) { // ds_w must be in [ceil(w/2),w]
+    assert( ds_w <= img->w );
+    assert( ds_w >= ((img->w+1)>>1) );
+    assert( ds_h <= img->h );
+    assert( ds_h >= ((img->h+1)>>1) );
+    p_img_t tmp_img = downsample_w_transpose( img.get(), ds_w );
+    return downsample_w_transpose( tmp_img.get(), ds_h );    
   }
 
+  p_img_t downsample( p_img_t img, double const scale ) { 
+    timer_t ds_timer("img_t::downsample");
+    assert( scale <= 1 );
+    assert( scale >= .5 );
+    if( scale == 1 ) { return img; }
+    uint32_t const ds_w = round(img->w*scale);
+    uint32_t const ds_h = round(img->h*scale);
+    return downsample_to_size( img, ds_w, ds_h );
+  }
 
   string img_t::WxH_str( void ) { return strprintf( "%sx%s", str(w).c_str(), str(h).c_str()); }
 
@@ -141,7 +234,7 @@ namespace boda
 	py_img_show( cur, "out/scale_" + str(s) + ".png" );
       }
       if( (cur->w < 2) || (cur->h < 2) ) { break; }
-      cur = cur->downsample( 1 << 15 );
+      cur = downsample_2x( cur );
     }
   }
 

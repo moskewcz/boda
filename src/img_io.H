@@ -24,13 +24,16 @@ namespace boda
     void load_fn( std::string const & fn );
     void load_fn_jpeg( std::string const & fn );
     void load_fn_png( std::string const & fn );
+    void save_fn_png( std::string const & fn );
+
     uint32_t min_dim( void ) { return std::min(w,h); }
     uint32_t sz_raw_bytes( void ) const { return row_pitch*h; }
-    p_img_t downsample( uint16_t scale ); // scale is 0.16 fixed point, value must be in [.5,1) (calls below when s=.5)
-    p_img_t downsample_2x( void ); // downsample by exactly 2X (special cased for speed, called by above when s=.5)
     string WxH_str( void );
   };
 
+  p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ); // ds_w must be in [ceil(w/2),w]
+  p_img_t downsample( p_img_t img, double const scale );
+  p_img_t downsample_2x( p_img_t img ); // downsample by exactly 2X (special cased for speed, called by above when s=.5)
   void downsample_test( std::string const & fn );
 
 }

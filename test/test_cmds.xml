@@ -64,6 +64,21 @@
 	     image_fn="%(boda_test_dir)/plasma_25.png"
 	     /> 
   </li>
+  <li test_name="oct_resize_1" slow="1"> 
+    <command mode="oct_resize" 
+	     image_fn="%(boda_test_dir)/plasma_100.png"
+	     /> 
+  </li>
+  <li test_name="oct_resize_2" slow="1"> 
+    <command mode="oct_resize" 
+	     image_fn="%(boda_test_dir)/plasma_25.png"
+	     /> 
+  </li>
+  <li test_name="oct_resize_3" slow="1"> 
+    <command mode="oct_resize" 
+	     image_fn="%(boda_test_dir)/b2w.png"
+	     /> 
+  </li>
 
 
 </root>
