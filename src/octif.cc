@@ -17,6 +17,7 @@
 #include"results_io.H"
 #include"octif.H"
 #include"timers.H"
+#include"nesi.H"
 
 
 namespace boda 
@@ -419,34 +420,45 @@ namespace boda
   struct oct_resize_t : virtual public nesi, public has_main_t // NESI(help="run resize over a single image file",bases=["has_main_t"], type_id="oct_resize")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t image_fn; //NESI(help="input: image filename",req=1)
-    filename_t out_fn; //NESI(default="%(boda_output_dir)/resize_out.boda",help="output: octave text output filename for resized image")
+    filename_t image_list_fn; //NESI(help="input: text list of image filenames, one per line",req=1)
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/oct_to_boda_comp.txt",help="output: text summary of differences between octave and boda resized images.")
+    uint32_t write_images; //NESI(default=0,help="write out octave and boda resized images?")
     string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
 
     void main( nesi_init_arg_t * nia ) {
       timer_t t( "oct_resize" );
+      p_ostream out = ofs_open( out_fn.exp );
+      p_vect_string image_fns = readlines_fn( image_list_fn.exp );
+      for( vect_string::const_iterator i = image_fns->begin(); i != image_fns->end(); ++i ) { 
+	(*out) << strprintf( "img_fn=%s\n", str(*i).c_str() );
+	proc_img( *out, nesi_filename_t_expand( nia, *i ) ); 
+      }
+    }
+    void proc_img( ostream & out, string const & img_fn )
+    {
       p_img_t img( new img_t );
-      img->load_fn( image_fn.exp.c_str() );
+      img->load_fn( img_fn.c_str() );
       //oct_featpyra_inner( img, 8, 10 ); return;
-      
       uint32_t const interval = 10;
       uint32_t const imax = interval;
       for( uint32_t i = 1; i <= imax; ++i ) { 
 	double const scale = pow(2.0d, 0.0d - (double(i) / double(interval) ) );
-	printf( "scale=%s\n", str(scale).c_str() );
 	oct_dfc_startup( dpm_fast_cascade_dir );
 	p_nda_double_t oct_resize_out = oct_img_resize( img, scale );
-	p_img_t oct_img = create_p_img_from_p_nda_double_from_img( oct_resize_out );
-	oct_img->save_fn_png( out_fn.exp + ".oct.png" );	
 	p_img_t ds_img = downsample( img, scale ); // note: input ids_img is released here	  
-	ds_img->save_fn_png( out_fn.exp + ".png" );
+	if( write_images ) {
+	  ds_img->save_fn_png( out_fn.exp + "." + str(i) + ".png" );
+	  p_img_t oct_img = create_p_img_from_p_nda_double_from_img( oct_resize_out );
+	  oct_img->save_fn_png( out_fn.exp + "." + str(i) + ".oct.png" );	
+	}
 	p_nda_double_t resize_out = create_p_nda_double_from_img( ds_img );
 	if( !(oct_resize_out->dims == resize_out->dims) ) {
-	  printf( "oct_resize_out->dims=%s resize_out->dims=%s\n", str(oct_resize_out->dims).c_str(), str(resize_out->dims).c_str() );
+	  out << strprintf( "oct_resize_out->dims=%s resize_out->dims=%s\n", str(oct_resize_out->dims).c_str(), str(resize_out->dims).c_str() );
 	  assert_st( resize_out->dims.fits_in( oct_resize_out->dims ) );
 	  oct_resize_out = clone_from_corner( resize_out->dims, oct_resize_out );
 	} 
-	printf( "ssds_str(oct_resize_out,resize_out)=%s\n", ssds_str(oct_resize_out,resize_out).c_str() );
+	out << strprintf( "scale=%s ssds_str(oct,boda)=%s\n", str(scale).c_str(),
+			  ssds_str(oct_resize_out,resize_out).c_str() );
 	//printf( "resize_out=%s oct_resize_out=%s\n", str(resize_out).c_str(), str(oct_resize_out).c_str() );
       }	
 #if 0	

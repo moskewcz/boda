@@ -1,0 +1,10 @@
+%(pascal_data_dir)/JPEGImages/000001.jpg
+%(pascal_data_dir)/JPEGImages/000002.jpg
+%(pascal_data_dir)/JPEGImages/000003.jpg
+%(pascal_data_dir)/JPEGImages/000004.jpg
+%(pascal_data_dir)/JPEGImages/000006.jpg
+%(pascal_data_dir)/JPEGImages/000008.jpg
+%(pascal_data_dir)/JPEGImages/000010.jpg
+%(pascal_data_dir)/JPEGImages/000011.jpg
+%(pascal_data_dir)/JPEGImages/000013.jpg
+%(pascal_data_dir)/JPEGImages/000014.jpg

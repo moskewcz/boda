@@ -560,6 +560,15 @@ namespace boda
   }
   void *filename_t_init_arg = (void *)"filename_t";
 
+  extern tinfo_t tinfo_filename_t;
+  string nesi_filename_t_expand( nesi_init_arg_t * nia, string const & s ) {
+    p_lexp_t ls = parse_lexp_leaf_str( s.c_str() );
+    lexp_name_val_map_t nvm( ls, nia );
+    filename_t ret;
+    nesi_filename_t_init( &nvm, &tinfo_filename_t, &ret ); 
+    return ret.exp;
+  }
+    
 
   // uint64_t  
   init_t * nesi_uint64_t_init = &nesi_lexcast_init< uint64_t >;

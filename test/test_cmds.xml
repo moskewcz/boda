@@ -64,14 +64,14 @@
 	     image_fn="%(boda_test_dir)/plasma_25.png"
 	     /> 
   </li>
+  <li test_name="oct_resize_1"> 
+  <command mode="oct_resize" image_list_fn="%(boda_test_dir)/plasma_imgs.txt" /> </li>
+  <li test_name="oct_resize_2" slow="1"> 
+  <command mode="oct_resize" image_list_fn="%(boda_test_dir)/pascal_imgs_10.txt" /> </li>
+<!--
   <li test_name="oct_resize_0" slow="1"> 
     <command mode="oct_resize" 
 	     image_fn="%(boda_test_dir)/pascal/000001.jpg"
-	     /> 
-  </li>
-  <li test_name="oct_resize_1" slow="1"> 
-    <command mode="oct_resize" 
-	     image_fn="%(boda_test_dir)/plasma_100.png"
 	     /> 
   </li>
   <li test_name="oct_resize_2" slow="1"> 
@@ -84,6 +84,6 @@
 	     image_fn="%(boda_test_dir)/b2w.png"
 	     /> 
   </li>
-
+-->
 
 </root>
