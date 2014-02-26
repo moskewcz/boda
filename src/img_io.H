@@ -15,9 +15,10 @@ namespace boda
     uint32_t w;
     uint32_t row_align; // what power-of-2 alignement is ensured for all row starts
     uint32_t row_pitch; // bytes between rows
+    uint32_t row_pitch_pels; // pixels between rows
     uint32_t h;
     p_uint8_t pels; // raw pixel data    
-    img_t( void ) : depth(4), w(0), row_align(0), row_pitch(0), h(0) {}
+    img_t( void ) : depth(4), w(0), row_align(0), row_pitch(0), row_pitch_pels(0), h(0) {}
     // if desired, call to set requested row alignment *before* loading
     void set_row_align( uint32_t const row_align_ ) { assert(!row_align); row_align = row_align_; }
     void set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ );
