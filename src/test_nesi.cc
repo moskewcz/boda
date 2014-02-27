@@ -289,6 +289,7 @@ namespace boda
 		str( ssds ).c_str(), str( aad ).c_str(),
 		str( sds ).c_str(), str( ad ).c_str() );
       }
+      
     }
   };
 
@@ -302,8 +303,12 @@ namespace boda
 	cout << "DIFF vect size: o1=" << o1.size() << " o2=" << o2.size() << endl;
 	return;
       }
-      eq_diff< T > eq_ix( has_diff );
-      for( uint32_t ix = 0; ix < o1.size(); ++ix ) { eq_ix( o1[ix], o2[ix] ); }
+      for( uint32_t ix = 0; ix < o1.size(); ++ix ) { 
+	bool item_diff = 0;
+	eq_diff< T > eq_ix( item_diff );
+	eq_ix( o1[ix], o2[ix] ); 
+	if( item_diff ) { has_diff = 1; }
+      }
     }
   };
 
@@ -316,36 +321,38 @@ namespace boda
     bread( i2, maybe_boda_magic );
     assert_st( maybe_boda_magic == boda_magic );
 
-    bool has_diff = 0;
-    eq_diff<string> eq_str( has_diff );
-    eq_diff<p_nda_double_t> eq_p_nda_double_t( has_diff );
-    eq_diff<vect_p_nda_double_t> eq_vect_p_nda_double_t( has_diff );
+    bool stream_diff = 0;
+    bool data_diff = 0;
+    eq_diff<string> eq_str( stream_diff );
+    eq_diff<p_nda_double_t> eq_p_nda_double_t( data_diff );
+    eq_diff<vect_p_nda_double_t> eq_vect_p_nda_double_t( data_diff );
 
     string id;
     string cmd;
     while( 1 ) {
       bread( i1, cmd );
       check_eq( eq_str, i2, cmd );
+      if( stream_diff ) { break; }
       if( cmd == "END_BODA" ) { break; }
       else if( cmd == "id" ) {
 	bread( i1, id );
 	check_eq( eq_str, i2, id );
-	if( has_diff ) { break; }
+	if( stream_diff ) { break; }
       }
       else if( cmd == "p_nda_double_t" ) {
 	p_nda_double_t o;
 	bread( i1, o );
 	check_eq( eq_p_nda_double_t, i2, o );
-	if( has_diff ) { break; }
       }
       else if( cmd == "vect_p_nda_double_t" ) {
 	vect_p_nda_double_t o;
 	bread( i1, o );
 	check_eq( eq_vect_p_nda_double_t, i2, o );
-	if( has_diff ) { break; }
       }
     }
-    if( has_diff ) { printf("DIFF: boda stream differs. last seen: cmd=%s id=%s\n", cmd.c_str(), id.c_str() ); }
+    if( stream_diff ) { printf("DIFF: boda stream differs. last seen: cmd=%s id=%s\n", cmd.c_str(), id.c_str() ); }
+    if( data_diff ) { printf("DIFF: boda data in stream differed.\n"); }
+    bool const has_diff = stream_diff || data_diff;
     return has_diff;
   }
 

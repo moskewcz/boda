@@ -130,13 +130,19 @@ namespace boda
       for( uint32_t ix = 0; ix < sz; ++ix ) { if( (*this)[ix] != o[ix] ) { ++ret; } }
       return ret;
     }
+    hunk_T< T > clone( void ) const { // clone will have newly allocated memory with a copy of the data
+      hunk_T<T> ret( sz ); 
+      for( uint32_t ix = 0; ix < sz; ++ix ) { ret[ix] = (*this)[ix]; }
+      return ret;
+    }
   };
 
+  // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1
   template< typename RT, typename DT >
   void sum_squared_diffs( RT & ssd, RT & sd, DT const & o1, DT const & o2 ) {
     assert_st( o1.sz == o2.sz );
     for( uint32_t i = 0; i < o1.sz; ++i ) { 
-      RT const d = RT(o1[i])-RT(o2[i]);
+      RT const d = RT(o2[i])-RT(o1[i]);
       sd += d; ssd += d*d;
     }
   }
@@ -213,19 +219,26 @@ namespace boda
   // using less than the full # of dims uses a prefix (or suffix for the cm_ variants) of the dims
   struct dims_t {
     hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
+    //dims_t clone( void ) const { dims_t ret; ret.dss = dss.clone(); return ret; } // not a good idea?
+    
     bool operator == ( dims_t const & o ) const { return dss == o.dss; }
     bool fits_in( dims_t const & o ) const { 
       if( sz() != o.sz() ) { return 0; }
       for( uint32_t ix = 0; ix != sz(); ++ix ) { if( dims(ix) > o.dims(ix) ) { return 0; } }
       return 1;
     }
-
+    dims_t( void ) { }
+    dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
     void resize_and_zero( uint32_t const num_dims ) { 
       dss = hunk_uint32_t( num_dims*2 ); 
       for( uint32_t ix = 0; ix != num_dims; ++ix ) { dims(ix) = 0; strides(ix) = 0; }
     }
     uint32_t sz( void ) const { return dss.sz>>1; }
     uint32_t & dims( uint32_t const ix ) { return dss[ix+sz()]; }
+    void make_dims_vect( vect_uint32_t & dv ) const { 
+      dv.resize(sz()); for( uint32_t ix = 0; ix != sz(); ++ix ) { dv[ix] = dims(ix); } 
+    }
+
     uint32_t & strides( uint32_t const ix ) { return dss[ix]; }
     uint32_t const & dims( uint32_t const ix ) const { return dss[ix+sz()]; }
     uint32_t const & strides( uint32_t const ix ) const { return dss[ix]; }
@@ -252,6 +265,13 @@ namespace boda
       for( uint32_t dix = 0; dix < di.size(); ++dix ) { ret += di[dix]*strides(dix); }
       return ret;
     }
+    uint32_t ix_sum( vect_uint32_t const & di, vect_uint32_t const & di2 ) const {
+      assert_st( di.size() <= sz() );
+      assert_st( di2.size() == di.size() );
+      uint32_t ret = 0;
+      for( uint32_t dix = 0; dix < di.size(); ++dix ) { ret += (di[dix]+di2[dix])*strides(dix); }
+      return ret;
+    }
     uint32_t ix1( uint32_t const d0i ) const {
       return d0i*strides(0); }
     uint32_t ix2( uint32_t const d0i, uint32_t const d1i ) const { 
@@ -263,15 +283,18 @@ namespace boda
   };
 
   struct dims_iter_t {
-    dims_t const & dims;
+    vect_uint32_t b;
+    vect_uint32_t e;
     vect_uint32_t di;
-    dims_iter_t( dims_t const & dims_ ) : dims(dims_) {
-      di.resize( dims.sz(), 0 );
+    dims_iter_t( dims_t const & dims_ ) {
+      b.resize( dims_.sz(), 0 );
+      dims_.make_dims_vect( e );
+      di = b;
     }
-    bool next( void ) { // returns 0 if iteration is complete (leaving the iterator back at 0).
+    bool next( void ) { // returns 0 if iteration is complete (leaving the iterator back at b).
       uint32_t dix_end = di.size();
       while( dix_end ) { 
-	if( ++di[dix_end-1] == dims.dims(dix_end-1) ) { di[dix_end-1] = 0; --dix_end; } 
+	if( ++di[dix_end-1] == e[dix_end-1] ) { di[dix_end-1] = b[dix_end-1]; --dix_end; } 
 	else { return 1; }
       }
       return 0;
@@ -316,6 +339,8 @@ namespace boda
       uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
 
     T & at( vect_uint32_t const & di ) { uint32_t const ix = dims.ix( di ); return elems[ix]; }
+    T & at( vect_uint32_t const & di, vect_uint32_t const & di2 ) { 
+      uint32_t const ix = dims.ix_sum( di, di2 ); return elems[ix]; }
     T & at1( uint32_t const d0i ) { 
       uint32_t const ix = dims.ix1( d0i ); return elems[ix]; }
     T & at2( uint32_t const d0i, uint32_t const d1i ) { 
@@ -335,6 +360,8 @@ namespace boda
       uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
 
     T const& at( vect_uint32_t const & di ) const { uint32_t const ix = dims.ix( di ); return elems[ix]; }
+    T const& at( vect_uint32_t const & di, vect_uint32_t const & di2 ) const { 
+      uint32_t const ix = dims.ix_sum( di, di2 ); return elems[ix]; }
     T const& at1( uint32_t const d0i ) const { 
       uint32_t const ix = dims.ix1( d0i ); return elems[ix]; }
     T const& at2( uint32_t const d0i, uint32_t const d1i ) const { 

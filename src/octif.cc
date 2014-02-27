@@ -24,6 +24,20 @@ namespace boda
 {
   using namespace::std;
 
+  p_nda_double_t pad_nda( double const v, vect_uint32_t const & pad_n, vect_uint32_t const & pad_p, p_nda_double_t in ) {
+    assert( pad_n.size() == in->dims.sz() );
+    assert( pad_p.size() == in->dims.sz() );
+    dims_t ret_dims( in->dims.sz() );
+    for( uint32_t i = 0; i < ret_dims.sz(); ++i ) { ret_dims.dims(i) = in->dims.dims(i) + pad_n[i] + pad_p[i]; }
+    p_nda_double_t ret( new nda_double_t );    
+    ret->set_dims( ret_dims );
+    for( uint32_t i = 0; i < ret->elems.sz; ++i ) { ret->elems[i] = v; } //  init
+    for( dims_iter_t di( in->dims ) ; ; ) { ret->at(di.di,pad_n) = in->at(di.di);  if( !di.next() ) { break; } }
+    return ret;
+  }
+  p_nda_double_t pad_nda( double const v, vect_uint32_t const & pad, p_nda_double_t in ) { 
+    return pad_nda( v, pad, pad, in );  }
+
 
   typedef vector< NDArray > vect_NDAarray;
 
@@ -278,8 +292,7 @@ namespace boda
   p_nda_double_t process( p_nda_double_t const & mximage, int const sbin );
 
   p_nda_double_t create_p_nda_double_from_img( p_img_t img ) {
-    dims_t dims;
-    dims.resize_and_zero( 3 );
+    dims_t dims(3);
     dims.dims(0) = 3;
     dims.dims(1) = img->w;
     dims.dims(2) = img->h;
@@ -295,63 +308,10 @@ namespace boda
     return ret;
   }
 
-  p_nda_double_t oct_featpyra_inner( vect_p_nda_double_t feats,
-				     p_img_t img, uint32_t const sbin, uint32_t const interval ) {
-    vect_double scales;
-    timer_t t( "oct_featpyra_inner" );
-    assert_st( sbin >= 2 ); // for sanity
-    uint32_t min_pyra_isz = 5 * sbin; // 5 seems pretty arbirtary. needs to be integer and at least 1 i think though.
-    for( uint32_t i = 0; i < interval; ++i ) { // we create one 'primary' scaled image per internal (octave sub-step)
-      p_img_t ids_img = img;
-      if( i ) { // don't try to scale for 0 step (where scale == 1)
-	double interval_scale = pow(2.0d, 0.0d - (double(i) / double(interval) ) ); // in 0.16 fixed point
-	printf( "interval_scale=%s\n", str(interval_scale).c_str() );
-	ids_img = downsample( img, interval_scale ); // note: scale must be in [.5,1)
-      }
-      uint32_t cur_scale = i;
-      for( int32_t octave = 1; octave > -15; --octave )  { // scale = 2^octave, -15 bound is a sanity limit only
-	uint32_t min_sz = (octave >= 0 ) ? (ids_img->min_dim() << octave) : (ids_img->min_dim() >> (-octave));
-	if( min_sz < min_pyra_isz ) { break; } // this octave/interval is too small.
-	double const scale = pow(2.0d, double(octave) - (double(i) / double(interval) ) );
-	printf( "scale=%s\n", str(scale).c_str() );
-	uint32_t feat_sbin = sbin;
-	// we now handle all the factor-of-2 up and down samplings of the image in this loop
-	if( octave >= 0 ) { // we handle octaves >= 0 (normal and upsampled octaves) by adjusting the feature sbin
-	  feat_sbin = sbin >> octave;
-	  assert_st( feat_sbin >= 2 ); // 1 might actually be okay for HOG, unclear, but it would be ... odd.
-	  assert_st( (feat_sbin << octave) == sbin ); // sbin should be evenly disisible
-	} else { // we handle the downsampled octaves by actually 2X downsampling the image and using the input sbin
-	  ids_img = downsample_2x( ids_img ); // note: input ids_img is released here	  
-	}
-	p_nda_double_t d_im = create_p_nda_double_from_img( ids_img );
-	p_nda_double_t scale_feats = process( d_im, feat_sbin );
-	if( cur_scale >= scales.size() ) { 
-	  scales.resize( cur_scale + 1 ); 
-	  feats.resize( cur_scale + 1 );
-	}
-	scales[cur_scale] = scale;
-	feats[cur_scale] = scale_feats;
-	cur_scale += interval;
-      }
-    }
-    if( scales.empty() ) {
-      rt_err( strprintf("input image with WxH = %s is too small to make a feature pyramid", img->WxH_str().c_str() ) );
-    }
-
-    // convert scales to a p_nda_double_t
-    dims_t scales_dims; 
-    scales_dims.resize_and_zero( 1 );
-    scales_dims.dims(0) = scales.size();
-    p_nda_double_t scales_out( new nda_double_t );
-    scales_out->set_dims( scales_dims );
-    for( uint32_t i = 0; i < scales.size(); ++i ) { scales_out->cm_at1(i) = scales[i]; }
-    return scales_out;
-  }
 
   p_nda_double_t create_p_nda_double_from_oct_NDArray( NDArray const & nda ) {
     dim_vector const & dv = nda.dims();
-    dims_t dims; // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
-    dims.resize_and_zero( dv.length() );
+    dims_t dims( dv.length() ); // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
     for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims(i) = dv.elem(dv.length()-1-i); }
     p_nda_double_t ret( new nda_double_t );
     ret->set_dims( dims );
@@ -383,8 +343,7 @@ namespace boda
   void write_scales_and_feats( p_ostream out, p_nda_double_t & scales, vect_p_nda_double_t & feats ) {
 #if 0
     scales.reset( new nda_double_t );
-    dims_t dims; 
-    dims.resize_and_zero( 2 );
+    dims_t dims( 2 );
     dims.dims(1) = 20;
     dims.dims(0) = 1;
     scales->set_dims( dims );
@@ -401,18 +360,8 @@ namespace boda
     
   }
 
-  p_nda_double_t oct_img_resize( p_img_t img, double const scale )
+  p_nda_double_t oct_img_resize( NDArray const & img_oct, double const scale )
   {
-    //return;
-    dim_vector img_dv(img->h, img->w, 3);
-    NDArray img_oct( img_dv );
-    for( uint32_t y = 0; y < img->h; ++y ) {
-      for( uint32_t x = 0; x < img->w; ++x ) {
-	for( uint32_t c = 0; c < 3; ++c ) {
-	  img_oct(y,x,c) = img->pels.get()[y*img->row_pitch + x*img->depth + c];
-	}
-      }
-    }
     octave_value_list in;
     in(0) = img_oct; //octave_value( image_fn );
     in(1) = octave_value( scale );
@@ -431,7 +380,36 @@ namespace boda
     p_nda_double_t resize_out = create_p_nda_double_from_oct_NDArray( oct_resize_out );
     return resize_out;
   }
-
+  p_nda_double_t oct_img_resize( p_img_t img, double const scale )
+  {
+    //return;
+    dim_vector img_dv(img->h, img->w, 3);
+    NDArray img_oct( img_dv );
+    for( uint32_t y = 0; y < img->h; ++y ) {
+      for( uint32_t x = 0; x < img->w; ++x ) {
+	for( uint32_t c = 0; c < 3; ++c ) {
+	  img_oct(y,x,c) = img->pels.get()[y*img->row_pitch + x*img->depth + c];
+	}
+      }
+    }
+    return oct_img_resize( img_oct, scale );
+  }
+  p_nda_double_t oct_img_resize( p_nda_double_t img, double const scale )
+  {
+    assert( img->dims.sz() == 3 );
+    assert( img->dims.dims(0) == 3 );
+    //return;
+    dim_vector img_dv(img->dims.dims(2), img->dims.dims(1), 3);
+    NDArray img_oct( img_dv );
+    for( uint32_t y = 0; y < img->dims.dims(2); ++y ) {
+      for( uint32_t x = 0; x < img->dims.dims(1); ++x ) {
+	for( uint32_t c = 0; c < 3; ++c ) {
+	  img_oct(y,x,c) = img->cm_at3(y,x,c);
+	}
+      }
+    }
+    return oct_img_resize( img_oct, scale );
+  }
 
   p_nda_double_t clone_from_corner( dims_t const & dims, p_nda_double_t in ) {
     p_nda_double_t ret( new nda_double_t );
@@ -439,6 +417,83 @@ namespace boda
     printf( "dims=%s in->dims=%s\n", str(dims).c_str(), str(in->dims).c_str() );
     for( dims_iter_t di( dims ) ; ; ) { ret->at(di.di) = in->at(di.di);  if( !di.next() ) { break; } }
     return ret;
+  }
+
+  p_nda_double_t oct_featpyra_inner( vect_p_nda_double_t & feats,
+				     p_img_t img, uint32_t const sbin, uint32_t const interval ) {
+    vect_double scales;
+    //p_nda_double_t ids_nda; // NOTE: uncomment various ids_nda lines to use float/octave resize
+    vect_uint32_t pad = { 0, 1, 1 };
+    timer_t t( "oct_featpyra_inner" );
+    assert_st( sbin >= 2 ); // for sanity
+    uint32_t min_pyra_isz = 5 * sbin; // 5 seems pretty arbirtary. needs to be integer and at least 1 i think though.
+    for( uint32_t i = 0; i < interval; ++i ) { // we create one 'primary' scaled image per internal (octave sub-step)
+      p_img_t ids_img = img;
+      if( i ) { // don't try to scale for 0 step (where scale == 1)
+	double interval_scale = pow(2.0d, 0.0d - (double(i) / double(interval) ) ); // in 0.16 fixed point
+	//printf( "interval_scale=%s\n", str(interval_scale).c_str() );
+	//ids_nda = oct_img_resize( img, interval_scale ); // NOTE: also must (1 || i) above cond 
+	ids_img = downsample( img, interval_scale ); // note: scale must be in [.5,1)
+      }
+      uint32_t cur_scale = i;
+      for( int32_t octave = 1; octave > -15; --octave )  { // scale = 2^octave, -15 bound is a sanity limit only
+	//uint32_t const ids_min_dim = min(ids_nda->dims.dims(1),ids_nda->dims.dims(2));
+	uint32_t const ids_min_dim = ids_img->min_dim();
+	uint32_t min_sz = (octave >= 0 ) ? (ids_min_dim << octave) : (ids_min_dim >> 1);
+	if( min_sz < min_pyra_isz ) { break; } // this octave/interval is too small.
+	double const scale = pow(2.0d, double(octave) - (double(i) / double(interval) ) );
+	//printf( "scale=%s\n", str(scale).c_str() );
+	uint32_t feat_sbin = sbin;
+	// we now handle all the factor-of-2 up and down samplings of the image in this loop
+	if( octave >= 0 ) { // we handle octaves >= 0 (normal and upsampled octaves) by adjusting the feature sbin
+	  feat_sbin = sbin >> octave;
+	  assert_st( feat_sbin >= 2 ); // 1 might actually be okay for HOG, unclear, but it would be ... odd.
+	  assert_st( (feat_sbin << octave) == sbin ); // sbin should be evenly disisible
+	} else { // we handle the downsampled octaves by actually 2X downsampling the image and using the input sbin
+	  //ids_nda = oct_img_resize( ids_nda, .5 );
+	  ids_img = downsample_2x( ids_img ); // note: input ids_img is released here	  
+	}
+	//p_nda_double_t d_im = ids_nda;
+	p_nda_double_t d_im = create_p_nda_double_from_img( ids_img );
+	p_nda_double_t scale_feats = process( d_im, feat_sbin );
+	if( cur_scale >= scales.size() ) { 
+	  scales.resize( cur_scale + 1 ); 
+	  feats.resize( cur_scale + 1 );
+	}
+	scale_feats = pad_nda( 0.0d, pad, scale_feats );
+	// fill in padding indicator feature
+	dims_iter_t di( scale_feats->dims );
+	assert( di.di.size() == 3 );
+	assert( pad.size() == 3 );
+	assert( di.e.front() );
+	di.b.front() = di.e.front()-1; // only iterate over last elem of first dim
+	for( di.di = di.b ; ; ) { 
+	  bool in_pad = 0;
+	  for( uint32_t d = 1; d < 3; ++d ) {  
+	    if( di.di[d] < pad[d] ) { in_pad = 1; } 
+	    if( (di.e[d] - di.di[d] - 1) < pad[d] ) { in_pad = 1; } 
+	  }
+	  if( in_pad ) { scale_feats->at(di.di) = 1; }
+	  if( !di.next() ) { break; } 
+	}
+
+	scales[cur_scale] = scale;
+	feats[cur_scale] = scale_feats;
+	cur_scale += interval;
+      }
+    }
+    if( scales.empty() ) {
+      rt_err( strprintf("input image with WxH = %s is too small to make a feature pyramid", img->WxH_str().c_str() ) );
+    }
+
+    // convert scales to a p_nda_double_t
+    dims_t scales_dims( 2 );
+    scales_dims.dims(0) = 1;
+    scales_dims.dims(1) = scales.size();
+    p_nda_double_t scales_out( new nda_double_t );
+    scales_out->set_dims( scales_dims );
+    for( uint32_t i = 0; i < scales.size(); ++i ) { scales_out->cm_at1(i) = scales[i]; }
+    return scales_out;
   }
 
   struct oct_resize_t : virtual public nesi, public has_main_t // NESI(help="run resize over a single image file",bases=["has_main_t"], type_id="oct_resize")
@@ -500,7 +555,8 @@ namespace boda
 
 
   void oct_featpyra( ostream & out, string const & dpm_fast_cascade_dir, 
-		     string const & image_fn, string const & pyra_out_fn ) {
+		     string const & image_fn, string const & pyra_out_fn,
+		     bool const use_boda ) {
     timer_t t( "oct_featpyra" );
     //out << strprintf( "oct_featpyra() image_fn=%s\n", str(image_fn).c_str() );
 
@@ -509,54 +565,56 @@ namespace boda
 
     p_nda_double_t scales;
     vect_p_nda_double_t feats;
-#if 0
-    scales = oct_featpyra_inner( feats, img, 8, 10 );
-#else
-    oct_dfc_startup( dpm_fast_cascade_dir );
-    dim_vector img_dv(img->h, img->w, 3);
-    NDArray img_oct( img_dv );
-    for( uint32_t y = 0; y < img->h; ++y ) {
-      for( uint32_t x = 0; x < img->w; ++x ) {
-	for( uint32_t c = 0; c < 3; ++c ) {
-	  img_oct(y,x,c) = img->pels.get()[y*img->row_pitch + x*img->depth + c];
+    if( use_boda  ) {
+      oct_dfc_startup( dpm_fast_cascade_dir );
+      scales = oct_featpyra_inner( feats, img, 8, 10 );
+    } else {
+      oct_dfc_startup( dpm_fast_cascade_dir );
+      dim_vector img_dv(img->h, img->w, 3);
+      NDArray img_oct( img_dv );
+      for( uint32_t y = 0; y < img->h; ++y ) {
+	for( uint32_t x = 0; x < img->w; ++x ) {
+	  for( uint32_t c = 0; c < 3; ++c ) {
+	    img_oct(y,x,c) = img->pels.get()[y*img->row_pitch + x*img->depth + c];
+	  }
 	}
       }
-    }
-    octave_value_list in;
-    in(0) = img_oct; //octave_value( image_fn );
-    in(1) = octave_value( pyra_out_fn );
-    octave_value_list boda_if_ret;
-    {
-      timer_t t( "oct_featpyra_boda_if_feat" );
-      boda_if_ret = feval("boda_if_feat", in, 1 );
-    }
-    assert_st( !error_state );
-    assert_st( boda_if_ret.length() == 1);
-    //osm_print_keys( out, boda_if_ret(0) );
-    assert_st( !error_state );
+      octave_value_list in;
+      in(0) = img_oct; //octave_value( image_fn );
+      in(1) = octave_value( pyra_out_fn );
+      octave_value_list boda_if_ret;
+      {
+	timer_t t( "oct_featpyra_boda_if_feat" );
+	boda_if_ret = feval("boda_if_feat", in, 1 );
+      }
+      assert_st( !error_state );
+      assert_st( boda_if_ret.length() == 1);
+      //osm_print_keys( out, boda_if_ret(0) );
+      assert_st( !error_state );
 
 
-    octave_scalar_map ret_osm = boda_if_ret(0).scalar_map_value();
-    //print_field( out, ret_osm, "scales" );
-    //print_field( out, ret_osm, "feat" );
-    NDArray oct_scales = get_field_as_NDArray( ret_osm, "scales" );
-    assert( oct_scales.numel() == oct_scales.dims().elem(0) ); // should be N(x1)* 
-    scales = create_p_nda_double_from_oct_NDArray( oct_scales );
-    //printf( "scales=%s\n", str(scales).c_str() );
-    vect_NDAarray oct_feats;
-    get_ndas_from_field( oct_feats, ret_osm, "feat" );
-    //printf( "scales.size()=%s\n", str(scales.size()).c_str() );
-    //printf( "oct_feats.size()=%s\n", str(oct_feats.size()).c_str() );
-    assert_st( scales->elems.sz == oct_feats.size() );
-    for( vect_NDAarray::const_iterator i = oct_feats.begin(); i != oct_feats.end(); ++i ) {
-      feats.push_back( create_p_nda_double_from_oct_NDArray( *i ) );
+      octave_scalar_map ret_osm = boda_if_ret(0).scalar_map_value();
+      //print_field( out, ret_osm, "scales" );
+      //print_field( out, ret_osm, "feat" );
+      NDArray oct_scales = get_field_as_NDArray( ret_osm, "scales" );
+      assert( oct_scales.numel() == oct_scales.dims().elem(0) ); // should be N(x1)* 
+      scales = create_p_nda_double_from_oct_NDArray( oct_scales );
+      //printf( "scales=%s\n", str(scales).c_str() );
+      vect_NDAarray oct_feats;
+      get_ndas_from_field( oct_feats, ret_osm, "feat" );
+      //printf( "scales.size()=%s\n", str(scales.size()).c_str() );
+      //printf( "oct_feats.size()=%s\n", str(oct_feats.size()).c_str() );
+      assert_st( scales->elems.sz == oct_feats.size() );
+      vect_uint32_t pad = {0,2,3};
+      for( vect_NDAarray::const_iterator i = oct_feats.begin(); i != oct_feats.end(); ++i ) {
+	feats.push_back( create_p_nda_double_from_oct_NDArray( *i ) );
+      }
     }
-#endif
 
     p_ostream bo = ofs_open( pyra_out_fn + ".boda" );
     write_scales_and_feats( bo, scales, feats );
 
-#if 1
+#if 0
     for( uint32_t i = 0; i < feats.size(); ++i ) {
       printf( "scale=%s\n", str(scales->elems[i]).c_str() );
       printf( "feats=%s\n", str(feats[i]).c_str() );
@@ -595,8 +653,9 @@ pyra.pady = pady;
     filename_t image_fn; //NESI(help="input: image filename",req=1)
     filename_t pyra_out_fn; //NESI(default="%(boda_output_dir)/pyra.oct",help="output: octave text output filename for feature pyramid")
     string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
+    uint32_t use_boda; // NESI(default=0,help="use boda for calc?")
     virtual void main( nesi_init_arg_t * nia ) {
-      oct_featpyra( cout, dpm_fast_cascade_dir, image_fn.exp, pyra_out_fn.exp );
+      oct_featpyra( cout, dpm_fast_cascade_dir, image_fn.exp, pyra_out_fn.exp, use_boda );
     }
   };
 
