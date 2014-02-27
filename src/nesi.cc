@@ -379,7 +379,7 @@ namespace boda
   {
     cinfo_t const * const * dci;
     for( dci = pc->derived; *dci; ++dci ) { 
-      if( !strcmp(tid_str,(*dci)->tid_str) ) { return *dci; }
+      if( (*dci)->tid_str && !strcmp(tid_str,(*dci)->tid_str) ) { return *dci; }
       if( (*dci)->tid_vix == uint32_t_const_max ) { // if no change in tid_vix, recurse
 	cinfo_t const * ret = get_derived_by_tid( *dci, tid_str );
 	if( ret ) { return ret; }
