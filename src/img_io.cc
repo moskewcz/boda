@@ -98,8 +98,9 @@ namespace boda
   {
     p_img_t ret( new img_t );
     ret->set_row_align( src->row_align ); // preserve alignment
-    ret->set_sz_and_alloc_pels( src->h, src->w >> 1 ); // downscale in w and transpose. 
-    // note: if src->w is odd, we will drop the last input column
+    ret->set_sz_and_alloc_pels( src->h, (src->w+1) >> 1 ); // downscale in w and transpose. 
+    // note: if src->w is odd, we will just copy the last input column
+    bool const src_w_odd = (src->w&1);
     uint64_t const * src_data = (uint64_t const *) src->pels.get(); 
     // FIXME/NOTE: when tested, enabling openmp here yielded a 4x
     // slowdown for this function when openmp was *not* enabled in the
@@ -107,13 +108,14 @@ namespace boda
     // enabled* in the other downsample function. that doesn't seem to
     // make sense.
 //#pragma omp parallel for 
-    for( uint32_t ry = 0; ry < ret->h; ++ry ) {
+    uint32_t const max_alpha = 0xffu << (3*8);
+    for( uint32_t ry = 0; ry < ret->h-src_w_odd; ++ry ) {
       uint32_t const sx = ry << 1;
       for( uint32_t rx = 0; rx < ret->w; ++rx ) {
 	uint32_t const sy = rx;
 	uint64_t const src_data_1 = src_data[ (sy*src->row_pitch_pels + sx)>>1 ];
 	uint32_t const src_data_2 = src_data_1 >> 32;
-	uint32_t dest_val = 0xffu << (3*8); // max alpha
+	uint32_t dest_val = max_alpha;
 	for( uint32_t c = 0; c < 3; ++c ) {
 	  dest_val += // note: we round .5 up
 	    uint32_t( uint8_t( (
@@ -121,6 +123,13 @@ namespace boda
 				 uint16_t( get_chan(c,src_data_2) ) + 1 ) >> 1 ) ) << (c*8);
 	}
 	((uint32_t *)ret->pels.get())[ ry*ret->row_pitch_pels + rx ] = dest_val;
+      }
+    }
+    if( src_w_odd ) {
+      for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+	uint32_t const sy = rx;
+	((uint32_t *)ret->pels.get())[ (ret->h-1)*ret->row_pitch_pels + rx ] =
+	  ((uint32_t *)src->pels.get())[ sy*src->row_pitch_pels + (src->w-1) ] | max_alpha;
       }
     }
     return ret;

@@ -1,3 +1,4 @@
+%(boda_test_dir)/plasma_128.png
 %(boda_test_dir)/plasma_100.png
 %(boda_test_dir)/plasma_50.png
 %(boda_test_dir)/plasma_25.png

@@ -414,7 +414,7 @@ namespace boda
   p_nda_double_t clone_from_corner( dims_t const & dims, p_nda_double_t in ) {
     p_nda_double_t ret( new nda_double_t );
     ret->set_dims( dims );
-    printf( "dims=%s in->dims=%s\n", str(dims).c_str(), str(in->dims).c_str() );
+    //printf( "dims=%s in->dims=%s\n", str(dims).c_str(), str(in->dims).c_str() );
     for( dims_iter_t di( dims ) ; ; ) { ret->at(di.di) = in->at(di.di);  if( !di.next() ) { break; } }
     return ret;
   }
@@ -455,6 +455,7 @@ namespace boda
 	}
 	//p_nda_double_t d_im = ids_nda;
 	p_nda_double_t d_im = create_p_nda_double_from_img( ids_img );
+	//printf( "scale=%s d_im->dims=%s\n", str(scale).c_str(), str(d_im->dims).c_str() );
 	p_nda_double_t scale_feats = process( d_im, feat_sbin );
 	if( cur_scale >= scales.size() ) { 
 	  scales.resize( cur_scale + 1 ); 
@@ -476,7 +477,7 @@ namespace boda
 	  if( in_pad ) { scale_feats->at(di.di) = 1; }
 	  if( !di.next() ) { break; } 
 	}
-
+	
 	scales[cur_scale] = scale;
 	feats[cur_scale] = scale_feats;
 	cur_scale += interval;
@@ -496,16 +497,15 @@ namespace boda
     return scales_out;
   }
 
-  struct oct_resize_t : virtual public nesi, public has_main_t // NESI(help="run resize over a single image file",bases=["has_main_t"], type_id="oct_resize")
+  struct proc_img_file_list_t : virtual public nesi, public has_main_t // NESI(help="process a list of image files to produce an output text file",bases=["has_main_t"], is_abstract=1)
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t image_list_fn; //NESI(help="input: text list of image filenames, one per line",req=1)
     filename_t out_fn; //NESI(default="%(boda_output_dir)/oct_to_boda_comp.txt",help="output: text summary of differences between octave and boda resized images.")
-    uint32_t write_images; //NESI(default=0,help="write out octave and boda resized images?")
     string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
 
     void main( nesi_init_arg_t * nia ) {
-      timer_t t( "oct_resize" );
+      timer_t t( mode );
       p_ostream out = ofs_open( out_fn.exp );
       p_vect_string image_fns = readlines_fn( image_list_fn.exp );
       for( vect_string::const_iterator i = image_fns->begin(); i != image_fns->end(); ++i ) { 
@@ -513,8 +513,15 @@ namespace boda
 	proc_img( *out, nesi_filename_t_expand( nia, *i ) ); 
       }
     }
-    void proc_img( ostream & out, string const & img_fn )
-    {
+    virtual void proc_img( ostream & out, string const & img_fn ) = 0;
+  };
+
+  struct oct_resize_t : virtual public nesi, public proc_img_file_list_t // NESI(help="compare resize using boda versus octave",bases=["proc_img_file_list_t"], type_id="oct_resize")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t write_images; //NESI(default=0,help="write out octave and boda resized images?")
+
+    virtual void proc_img( ostream & out, string const & img_fn ) {
       p_img_t img( new img_t );
       img->load_fn( img_fn.c_str() );
       //oct_featpyra_inner( img, 8, 10 ); return;
@@ -525,19 +532,29 @@ namespace boda
 	oct_dfc_startup( dpm_fast_cascade_dir );
 	p_nda_double_t oct_resize_out = oct_img_resize( img, scale );
 	p_img_t ds_img = downsample( img, scale ); // note: input ids_img is released here	  
-	if( write_images ) {
-	  ds_img->save_fn_png( out_fn.exp + "." + str(i) + ".png" );
-	  p_img_t oct_img = create_p_img_from_p_nda_double_from_img( oct_resize_out );
-	  oct_img->save_fn_png( out_fn.exp + "." + str(i) + ".oct.png" );	
+	double h_scale = scale;
+	for( uint32_t h = 0; h < 5; ++h ) {
+	  if( ds_img->min_dim() < 2 ) { break; } // this octave/interval is too small.
+	  if( h ) {
+	    h_scale = h_scale / 2.0d;
+	    ds_img = downsample_2x( ds_img ); // note: input ids_img is released here	  
+	    oct_resize_out = oct_img_resize( oct_resize_out, .5 );
+	  }
+	  if( write_images ) {
+	    ds_img->save_fn_png( out_fn.exp + "." + str(i) + "_" + str(h) + ".png" );
+	    p_img_t oct_img = create_p_img_from_p_nda_double_from_img( oct_resize_out );
+	    oct_img->save_fn_png( out_fn.exp + "." + str(i) + "_" + str(h) + ".oct.png" );	
+	  }
+	  p_nda_double_t resize_out = create_p_nda_double_from_img( ds_img );
+
+	  if( !(oct_resize_out->dims == resize_out->dims) ) {
+	    out << strprintf( "oct_resize_out->dims=%s resize_out->dims=%s\n", str(oct_resize_out->dims).c_str(), str(resize_out->dims).c_str() );
+	    assert_st( resize_out->dims.fits_in( oct_resize_out->dims ) );
+	    oct_resize_out = clone_from_corner( resize_out->dims, oct_resize_out );
+	  } 
+	  out << strprintf( "scale=%s ssds_str(oct,boda)=%s\n", str(h_scale).c_str(),
+			    ssds_str(oct_resize_out,resize_out).c_str() );
 	}
-	p_nda_double_t resize_out = create_p_nda_double_from_img( ds_img );
-	if( !(oct_resize_out->dims == resize_out->dims) ) {
-	  out << strprintf( "oct_resize_out->dims=%s resize_out->dims=%s\n", str(oct_resize_out->dims).c_str(), str(resize_out->dims).c_str() );
-	  assert_st( resize_out->dims.fits_in( oct_resize_out->dims ) );
-	  oct_resize_out = clone_from_corner( resize_out->dims, oct_resize_out );
-	} 
-	out << strprintf( "scale=%s ssds_str(oct,boda)=%s\n", str(scale).c_str(),
-			  ssds_str(oct_resize_out,resize_out).c_str() );
 	//printf( "resize_out=%s oct_resize_out=%s\n", str(resize_out).c_str(), str(oct_resize_out).c_str() );
       }	
 #if 0	
@@ -554,21 +571,21 @@ namespace boda
 
 
 
-  void oct_featpyra( ostream & out, string const & dpm_fast_cascade_dir, 
-		     string const & image_fn, string const & pyra_out_fn,
-		     bool const use_boda ) {
-    timer_t t( "oct_featpyra" );
-    //out << strprintf( "oct_featpyra() image_fn=%s\n", str(image_fn).c_str() );
+  struct oct_featpyra_t : virtual public nesi, public proc_img_file_list_t // NESI(help="compare HOG pyramid generated using boda versus octave",bases=["proc_img_file_list_t"], type_id="oct_featpyra")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    virtual void proc_img( ostream & out, string const & img_fn ) {
+      p_img_t img( new img_t );
+      img->load_fn( img_fn.c_str() );
 
-    p_img_t img( new img_t );
-    img->load_fn( image_fn.c_str() );
+      p_nda_double_t boda_scales;
+      vect_p_nda_double_t boda_feats;
+      boda_scales = oct_featpyra_inner( boda_feats, img, 8, 10 );
+      assert_st( boda_scales->elems.sz == boda_feats.size() );
 
-    p_nda_double_t scales;
-    vect_p_nda_double_t feats;
-    if( use_boda  ) {
-      oct_dfc_startup( dpm_fast_cascade_dir );
-      scales = oct_featpyra_inner( feats, img, 8, 10 );
-    } else {
+      p_nda_double_t scales;
+      vect_p_nda_double_t feats;
+
       oct_dfc_startup( dpm_fast_cascade_dir );
       dim_vector img_dv(img->h, img->w, 3);
       NDArray img_oct( img_dv );
@@ -581,7 +598,6 @@ namespace boda
       }
       octave_value_list in;
       in(0) = img_oct; //octave_value( image_fn );
-      in(1) = octave_value( pyra_out_fn );
       octave_value_list boda_if_ret;
       {
 	timer_t t( "oct_featpyra_boda_if_feat" );
@@ -609,55 +625,28 @@ namespace boda
       for( vect_NDAarray::const_iterator i = oct_feats.begin(); i != oct_feats.end(); ++i ) {
 	feats.push_back( create_p_nda_double_from_oct_NDArray( *i ) );
       }
-    }
 
-    p_ostream bo = ofs_open( pyra_out_fn + ".boda" );
-    write_scales_and_feats( bo, scales, feats );
+      assert_st( scales->elems.sz == boda_scales->elems.sz );
+      assert_st( feats.size() == boda_feats.size() );
+      assert_st( feats.size() == scales->elems.sz );
+      
+      for( uint32_t i = 0; i < feats.size(); ++i ) {
+	out << strprintf( "scale=%s boda_scale=%s\n", str(scales->elems[i]).c_str(), 
+			  str(boda_scales->elems[i]).c_str() );
+	out << strprintf( "feats: ssds_str(oct,boda)=%s\n", ssds_str(feats[i],boda_feats[i]).c_str() );
+      }
 
+//      p_ostream bo = ofs_open( pyra_out_fn + ".boda" );
+//      write_scales_and_feats( bo, scales, feats );
 #if 0
-    for( uint32_t i = 0; i < feats.size(); ++i ) {
-      printf( "scale=%s\n", str(scales->elems[i]).c_str() );
-      printf( "feats=%s\n", str(feats[i]).c_str() );
-    }
+      for( uint32_t i = 0; i < feats.size(); ++i ) {
+	printf( "scale=%s\n", str(scales->elems[i]).c_str() );
+	printf( "feats=%s\n", str(feats[i]).c_str() );
+      }
 #endif
-
-  }
-
-
-  
-
-#if 0
-
-pyra.num_levels = length(pyra.feat);
-
-td = model.features.truncation_dim;
-for i = 1:pyra.num_levels
-  % add 1 to padding because feature generation deletes a 1-cell
-  % wide border around the feature map
-  pyra.feat{i} = padarray(pyra.feat{i}, [pady+1 padx+1 0], 0);
-  % write boundary occlusion feature
-  pyra.feat{i}(1:pady+1, :, td) = 1;
-  pyra.feat{i}(end-pady:end, :, td) = 1;
-  pyra.feat{i}(:, 1:padx+1, td) = 1;
-  pyra.feat{i}(:, end-padx:end, td) = 1;
-end
-pyra.valid_levels = true(pyra.num_levels, 1);
-pyra.padx = padx;
-pyra.pady = pady;
-#endif
-
-
-  struct oct_featpyra_t : virtual public nesi, public has_main_t // NESI(help="run dpm fast cascade over a single image file",bases=["has_main_t"], type_id="oct_featpyra")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t image_fn; //NESI(help="input: image filename",req=1)
-    filename_t pyra_out_fn; //NESI(default="%(boda_output_dir)/pyra.oct",help="output: octave text output filename for feature pyramid")
-    string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
-    uint32_t use_boda; // NESI(default=0,help="use boda for calc?")
-    virtual void main( nesi_init_arg_t * nia ) {
-      oct_featpyra( cout, dpm_fast_cascade_dir, image_fn.exp, pyra_out_fn.exp, use_boda );
     }
   };
+
 
 
 #include"gen/octif.cc.nesi_gen.cc"
