@@ -1,3 +1,12 @@
+---
+files in src/gen are automatically generated during build.
+---
+the sub-directories of src (including src/ext and src/dtl) are
+(sometimes modified) third-party code, and have individual copyright
+and license information.
+---
+for the remainer (aka all *files* in src, aka src/*.{cc,H}, aka Boda):
+
 Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>
 All rights reserved.
 
