@@ -1,7 +1,7 @@
 #ifndef _XML_UTIL_H_
 #define _XML_UTIL_H_
 
-#include"pugixml.hpp"
+#include"ext/pugixml.hpp"
 
 namespace boda {
   pugi::xml_node xml_file_get_root( pugi::xml_document & doc, std::string const & xml_fn );

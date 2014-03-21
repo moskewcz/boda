@@ -28,7 +28,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#include"boda_tu_base.H"
+#include"../boda_tu_base.H"
 #include <math.h>
 // small value, used to avoid division by zero
 #define eps 0.0001
