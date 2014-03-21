@@ -1,3 +1,4 @@
+blf_pack.o
 vr5_mex_feats.o
 test_all.o
 bb_tests.o
