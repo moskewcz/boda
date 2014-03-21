@@ -5,7 +5,7 @@ the sub-directories of src (including src/ext and src/dtl) are
 (sometimes modified) third-party code, and have individual copyright
 and license information.
 ---
-for the remainer (aka all *files* in src, aka src/*.{cc,H}, aka Boda):
+for the remainer (aka all *files* in src and pysrc, aka src/*.{cc,H} pysrc/*.py, aka Boda):
 
 Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>
 All rights reserved.
