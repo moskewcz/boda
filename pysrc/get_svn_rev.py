@@ -1,3 +1,4 @@
+# Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 import os, re, socket;
 
 def get_svn_rev_c_str():

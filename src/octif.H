@@ -1,3 +1,4 @@
+// Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #ifndef _OCTIF_H_
 #define _OCTIF_H_
 

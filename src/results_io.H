@@ -1,3 +1,4 @@
+// Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #ifndef RESULTS_IO_H
 #define RESULTS_IO_H
 

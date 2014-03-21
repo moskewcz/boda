@@ -1,3 +1,4 @@
+// Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 // for now, only pyif.cc #include's Python.h and the numpy.
 // this may certainly be too limiting in the long run and isn't neccessary by any means. 
 // for python, we would move the python include from here to boda_tu_base.H if we want to use the Python/C-API globally.
