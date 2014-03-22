@@ -500,7 +500,7 @@ namespace boda
 
     void diff_command( p_cmd_test_t cmd, path const & gen_test_out_dir ) {
       timer_t t( "diff_command" );
-      path good_dir = path(boda_output_dir.exp) / "good";
+      path good_dir = path(boda_test_dir.exp) / "good_tr";
       ensure_is_dir( good_dir.string(), 1 );
       // note: test_out_dir should equivalent to gen_test_out_dir (but not ==). we check that:
       path const test_out_dir( cmd->command->boda_output_dir.exp );
@@ -510,25 +510,15 @@ namespace boda
 			   cmd->test_name.c_str(), test_out_dir.c_str() ) );
       }
 
-      // note: test_good_dir will be relative to the *test_cmds* output_dir, which is usually '.'
-      path const test_good_dir = good_dir / cmd->test_name; 
-      path const test_good_arc = path(boda_test_dir.exp) / "mt_good" / ( cmd->test_name + ".tbz2");
-      bool update_archive = 0;
-      if( !exists( test_good_arc ) ) {
+      path const test_good_dir = good_dir / cmd->test_name;
+      bool update_tr = 0;
+      bool tgd_exists = 0;
+      if( !exists( test_good_dir ) ) {
 	printf("NEW_TEST: no existing good results archive for test %s, will generate\n",cmd->test_name.c_str());
-	update_archive = 1;
-      } else { // achive exists, unpack it
-	assert_st( is_regular_file( test_good_arc ) );
-	// first, remove test_good_dir if it exists.
-	if( exists( test_good_dir ) ) {
-	  assert_st( is_directory( test_good_dir ) );
-	  uint32_t const num_rem = remove_all( test_good_dir );
-	  assert_st( num_rem );
-	}
-	bool const did_create = ensure_is_dir( test_good_dir.string(), 1 ); // create good dir, must not exists
-	assert_st( did_create );
-	run_system_cmd( strprintf("tar -C %s -xjf %s",
-				  test_good_dir.string().c_str(),test_good_arc.c_str()), 0 );
+	update_tr = 1;
+      } else { 
+	assert_st( is_directory( test_good_dir ) );
+	tgd_exists = 1; // in case we need to update, we'll need to remove first
 	// compare good and test directories
 	bool output_good = 1;
 	map_str_ziu32_t tags;
@@ -551,17 +541,22 @@ namespace boda
 	if( !output_good ) {
 	  if( update_failing ) { 
 	    printf("UPDATE-FAILING: test %s failed, will update.\n",cmd->test_name.c_str());
-	    update_archive = 1; 
+	    update_tr = 1; 
 	  } else {
 	    printf("FAIL: test %s failed.\n",cmd->test_name.c_str());
 	    ++num_fail;
 	  }
 	}
       }	  
-      if( update_archive ) {
-	printf("UPDATING good results archive for test %s.\n",cmd->test_name.c_str());
-	run_system_cmd( strprintf("tar -C %s -cjf %s .",
-				  test_out_dir.string().c_str(),test_good_arc.c_str()), 0 );
+      if( update_tr ) {
+	printf("UPDATING good results dir for test %s.\n",cmd->test_name.c_str());
+	if( tgd_exists ) {
+	  uint32_t const num_rem = remove_all( test_good_dir );
+	  assert_st( num_rem );
+	}
+	assert_st( !exists( test_good_dir ) );
+	run_system_cmd( strprintf("cp -a %s %s",
+				  test_out_dir.string().c_str(),test_good_dir.c_str()), 0 );
       }
     }
 
