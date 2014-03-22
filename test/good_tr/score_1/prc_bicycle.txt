@@ -1,0 +1,20 @@
+---BEGIN--- class_name=bicycle tot_num_class=337 name_scored_dets->size()=105035
+num_pos=1 num_test=1 score=2.503130 p=1 r=0.00296736 map=0.00296736
+num_pos=18 num_test=18 score=1.176490 p=1 r=0.0534125 map=0.0534125
+num_pos=35 num_test=35 score=0.908785 p=1 r=0.103858 map=0.103858
+num_pos=52 num_test=52 score=0.522033 p=1 r=0.154303 map=0.154303
+num_pos=69 num_test=69 score=0.320971 p=1 r=0.204748 map=0.204748
+num_pos=86 num_test=87 score=0.129920 p=0.988506 r=0.255193 map=0.254982
+num_pos=103 num_test=105 score=-0.015602 p=0.980952 r=0.305638 map=0.304816
+num_pos=120 num_test=126 score=-0.196863 p=0.952381 r=0.356083 map=0.354019
+num_pos=137 num_test=147 score=-0.278300 p=0.931973 r=0.406528 map=0.401312
+num_pos=154 num_test=169 score=-0.408631 p=0.911243 r=0.456973 map=0.44761
+num_pos=171 num_test=203 score=-0.532893 p=0.842365 r=0.507418 map=0.491781
+num_pos=188 num_test=280 score=-0.688631 p=0.671429 r=0.557864 map=0.528395
+num_pos=205 num_test=449 score=-0.808978 p=0.45657 r=0.608309 map=0.557117
+num_pos=222 num_test=958 score=-0.911053 p=0.231733 r=0.658754 map=0.573153
+num_pos=239 num_test=2864 score=-1.018710 p=0.0834497 r=0.709199 map=0.580851
+num_pos=256 num_test=9392 score=-1.133500 p=0.0272572 r=0.759644 map=0.583251
+num_pos=273 num_test=51919 score=-1.413310 p=0.00525819 r=0.810089 map=0.58406
+num_pos=277 num_test=103712 score=-2.594850 p=0.00267086 r=0.821958 map=0.584109
+---END--- class_name=bicycle tot_num=337 num_pos=277 num_test=105031 num_neg=104754 final_map=0.584109

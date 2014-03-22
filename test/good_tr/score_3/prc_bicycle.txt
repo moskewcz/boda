@@ -1,0 +1,6 @@
+---BEGIN--- class_name=bicycle tot_num_class=5 name_scored_dets->size()=2259
+num_pos=1 num_test=1 score=0.614554 p=1 r=0.2 map=0.2
+num_pos=2 num_test=2 score=0.347406 p=1 r=0.4 map=0.4
+num_pos=3 num_test=3 score=-0.364637 p=1 r=0.6 map=0.6
+num_pos=4 num_test=364 score=-1.227580 p=0.010989 r=0.8 map=0.602198
+---END--- class_name=bicycle tot_num=5 num_pos=4 num_test=2259 num_neg=2255 final_map=0.602198

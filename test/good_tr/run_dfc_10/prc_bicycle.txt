@@ -1,0 +1,2 @@
+---BEGIN--- class_name=bicycle tot_num_class=0 name_scored_dets->size()=0
+---END--- class_name=bicycle tot_num=0 num_pos=0 num_test=0 num_neg=0 final_map=-nan

@@ -1,0 +1,4 @@
+keys=sbin thresh maxsize minsize interval numblocks class numcomponents pca_coeff year note features bboxpred rootfilters offsets loc_w loc components partfilters defs cascade 
+thresh=-0.50000
+sbin= 8
+interval= 10

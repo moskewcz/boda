@@ -1,0 +1,856 @@
+img_fn=%(pascal_data_dir)/JPEGImages/000001.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=42182 sum_squared_diffs=1.97264e-12 avg_abs_diff=2.36729e-09 sum_diffs=-1.84583e-06 avg_diff=-5.24384e-12
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=253115 sum_squared_diffs=829.831 avg_abs_diff=0.05199 sum_diffs=-499.925 avg_diff=-0.00162838
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=221404 sum_squared_diffs=740.628 avg_abs_diff=0.052513 sum_diffs=-454.942 avg_diff=-0.00169391
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=192851 sum_squared_diffs=636.608 avg_abs_diff=0.0520469 sum_diffs=-343.004 avg_diff=-0.00145954
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=166798 sum_squared_diffs=525.747 avg_abs_diff=0.0508059 sum_diffs=-293.168 avg_diff=-0.00143936
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=146177 sum_squared_diffs=471.141 avg_abs_diff=0.0512431 sum_diffs=-314.728 avg_diff=-0.0017541
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=125178 sum_squared_diffs=403.748 avg_abs_diff=0.051195 sum_diffs=-240.878 avg_diff=-0.00156366
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=107710 sum_squared_diffs=334.904 avg_abs_diff=0.0501699 sum_diffs=-198.686 avg_diff=-0.00149325
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=94377 sum_squared_diffs=292.606 avg_abs_diff=0.0499017 sum_diffs=-210.543 avg_diff=-0.00179179
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=80519 sum_squared_diffs=239.992 avg_abs_diff=0.048802 sum_diffs=-161.409 avg_diff=-0.00160179
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=10244 sum_squared_diffs=5.38493e-13 avg_abs_diff=2.46387e-09 sum_diffs=6.72351e-08 avg_diff=7.57971e-13
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=64865 sum_squared_diffs=86.0856 avg_abs_diff=0.0336345 sum_diffs=-154.381 avg_diff=-0.00202877
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=55634 sum_squared_diffs=75.2263 avg_abs_diff=0.0338471 sum_diffs=-129.889 avg_diff=-0.00197808
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=49603 sum_squared_diffs=63.3605 avg_abs_diff=0.0328396 sum_diffs=-107.116 avg_diff=-0.00182318
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=42808 sum_squared_diffs=53.1253 avg_abs_diff=0.032232 sum_diffs=-90.6741 avg_diff=-0.00177319
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=36177 sum_squared_diffs=42.6688 avg_abs_diff=0.0312661 sum_diffs=-71.6473 avg_diff=-0.00164148
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=31273 sum_squared_diffs=38.5385 avg_abs_diff=0.0318259 sum_diffs=-59.609 avg_diff=-0.00156668
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=27522 sum_squared_diffs=32.4633 avg_abs_diff=0.031039 sum_diffs=-47.6038 avg_diff=-0.00141274
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=23232 sum_squared_diffs=24.7486 avg_abs_diff=0.0293143 sum_diffs=-40.564 avg_diff=-0.00140847
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=20864 sum_squared_diffs=22.4064 avg_abs_diff=0.0292932 sum_diffs=-39.02 avg_diff=-0.00149433
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=17277 sum_squared_diffs=28.6126 avg_abs_diff=0.0362086 sum_diffs=19.2072 avg_diff=0.000880095
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=15261 sum_squared_diffs=32.3081 avg_abs_diff=0.0407166 sum_diffs=46.9903 avg_diff=0.00241124
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=12645 sum_squared_diffs=23.3087 avg_abs_diff=0.0376812 sum_diffs=60.9376 avg_diff=0.00371209
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=10910 sum_squared_diffs=15.6093 avg_abs_diff=0.0329238 sum_diffs=16.2385 avg_diff=0.00112768
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=9780 sum_squared_diffs=14.2369 avg_abs_diff=0.033022 sum_diffs=21.2526 avg_diff=0.0016278
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=8258 sum_squared_diffs=5.21839 avg_abs_diff=0.021524 sum_diffs=-7.88962 avg_diff=-0.000700428
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=7293 sum_squared_diffs=10.1749 avg_abs_diff=0.0317712 sum_diffs=17.63 avg_diff=0.00174901
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=6041 sum_squared_diffs=8.31542 avg_abs_diff=0.0312555 sum_diffs=9.43323 avg_diff=0.00110823
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=5201 sum_squared_diffs=8.53578 avg_abs_diff=0.0337628 sum_diffs=21.6274 avg_diff=0.00288828
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=4418 sum_squared_diffs=5.48783 avg_abs_diff=0.0289941 sum_diffs=10.6933 avg_diff=0.00163807
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=3716 sum_squared_diffs=5.56022 avg_abs_diff=0.0314206 sum_diffs=10.7957 avg_diff=0.00191685
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3066 sum_squared_diffs=4.32824 avg_abs_diff=0.0300286 sum_diffs=9.52401 avg_diff=0.00198417
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2812 sum_squared_diffs=3.05359 avg_abs_diff=0.0261076 sum_diffs=5.34189 avg_diff=0.00119239
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2249 sum_squared_diffs=2.95488 avg_abs_diff=0.0280933 sum_diffs=8.28288 avg_diff=0.00221231
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=1755 sum_squared_diffs=1.12679 avg_abs_diff=0.0191519 sum_diffs=-1.47635 avg_diff=-0.000480583
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1580 sum_squared_diffs=1.9738 avg_abs_diff=0.0264749 sum_diffs=5.60802 avg_diff=0.00199149
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1170 sum_squared_diffs=1.79038 avg_abs_diff=0.0282715 sum_diffs=1.8411 avg_diff=0.000821919
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1175 sum_squared_diffs=1.67768 avg_abs_diff=0.0273672 sum_diffs=-1.30698 avg_diff=-0.000583472
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=809 sum_squared_diffs=0.63431 avg_abs_diff=0.0191593 sum_diffs=1.05983 avg_diff=0.000613328
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=702 sum_squared_diffs=0.977478 avg_abs_diff=0.0252266 sum_diffs=3.26643 avg_diff=0.00212658
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=697 sum_squared_diffs=1.60045 avg_abs_diff=0.0322794 sum_diffs=4.46813 avg_diff=0.00290894
+scale=0.116629 boda_scale=0.116629
+feats: ssds_str(oct,boda)=cnt=439 sum_squared_diffs=0.773452 avg_abs_diff=0.0262789 sum_diffs=1.37979 avg_diff=0.00123196
+img_fn=%(pascal_data_dir)/JPEGImages/000002.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=40327 sum_squared_diffs=1.80169e-12 avg_abs_diff=2.31564e-09 sum_diffs=-7.9232e-07 avg_diff=-2.3581e-12
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=240314 sum_squared_diffs=288.73 avg_abs_diff=0.0314435 sum_diffs=-39.0276 avg_diff=-0.000133641
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=209045 sum_squared_diffs=248.787 avg_abs_diff=0.0312582 sum_diffs=-35.9989 avg_diff=-0.00014138
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=181825 sum_squared_diffs=211.681 avg_abs_diff=0.0308825 sum_diffs=-15.4705 avg_diff=-6.97021e-05
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=158862 sum_squared_diffs=176.87 avg_abs_diff=0.0301509 sum_diffs=-40.0472 avg_diff=-0.000205835
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=136577 sum_squared_diffs=149.424 avg_abs_diff=0.0298205 sum_diffs=-22.0237 avg_diff=-0.000131069
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=118236 sum_squared_diffs=124.646 avg_abs_diff=0.0292108 sum_diffs=-7.15381 avg_diff=-4.89719e-05
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=103354 sum_squared_diffs=103.111 avg_abs_diff=0.0283681 sum_diffs=-40.4955 avg_diff=-0.000316055
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=88522 sum_squared_diffs=82.7958 avg_abs_diff=0.0273616 sum_diffs=-20.8522 avg_diff=-0.00018855
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=76866 sum_squared_diffs=66.257 avg_abs_diff=0.0262058 sum_diffs=-42.1422 avg_diff=-0.000436797
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=9757 sum_squared_diffs=5.25154e-13 avg_abs_diff=2.49043e-09 sum_diffs=1.42326e-07 avg_diff=1.68091e-12
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=61254 sum_squared_diffs=21.304 avg_abs_diff=0.0171557 sum_diffs=-7.04288 avg_diff=-9.72989e-05
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=53793 sum_squared_diffs=18.667 avg_abs_diff=0.017087 sum_diffs=-13.658 avg_diff=-0.000213621
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=46320 sum_squared_diffs=15.355 avg_abs_diff=0.0166351 sum_diffs=-7.64443 avg_diff=-0.000137767
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=39947 sum_squared_diffs=12.7579 avg_abs_diff=0.0162814 sum_diffs=-7.74995 avg_diff=-0.000161028
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=34761 sum_squared_diffs=11.3079 avg_abs_diff=0.0163617 sum_diffs=-0.361607 avg_diff=-8.56078e-06
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=29924 sum_squared_diffs=8.61349 avg_abs_diff=0.0153124 sum_diffs=-2.45612 avg_diff=-6.68588e-05
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=26239 sum_squared_diffs=7.15605 avg_abs_diff=0.0148506 sum_diffs=-8.83727 avg_diff=-0.000272352
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=22118 sum_squared_diffs=5.54485 avg_abs_diff=0.0141616 sum_diffs=-5.28915 avg_diff=-0.000191303
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=19876 sum_squared_diffs=4.68641 avg_abs_diff=0.0136849 sum_diffs=-8.94097 avg_diff=-0.000357296
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=16399 sum_squared_diffs=28.0884 avg_abs_diff=0.0367196 sum_diffs=19.5165 avg_diff=0.000936854
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=14486 sum_squared_diffs=29.7908 avg_abs_diff=0.0400638 sum_diffs=47.8044 avg_diff=0.00257567
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=11882 sum_squared_diffs=18.8851 avg_abs_diff=0.0348471 sum_diffs=14.6856 avg_diff=0.000944292
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=10218 sum_squared_diffs=2.22013 avg_abs_diff=0.0127767 sum_diffs=-1.39355 avg_diff=-0.000102467
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=9173 sum_squared_diffs=15.777 avg_abs_diff=0.0358321 sum_diffs=20.1807 avg_diff=0.00164231
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=7723 sum_squared_diffs=11.4181 avg_abs_diff=0.0328826 sum_diffs=12.6511 avg_diff=0.00119802
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=6764 sum_squared_diffs=10.8482 avg_abs_diff=0.033957 sum_diffs=3.85481 avg_diff=0.000409737
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=5524 sum_squared_diffs=0.818643 avg_abs_diff=0.0101771 sum_diffs=1.96591 avg_diff=0.000248723
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=4755 sum_squared_diffs=8.16931 avg_abs_diff=0.0343788 sum_diffs=9.60527 avg_diff=0.00138965
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=3976 sum_squared_diffs=0.715908 avg_abs_diff=0.0109379 sum_diffs=1.40704 avg_diff=0.000235134
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=3741 sum_squared_diffs=4.77189 avg_abs_diff=0.0291081 sum_diffs=4.8464 avg_diff=0.000860511
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3096 sum_squared_diffs=6.61266 avg_abs_diff=0.0371165 sum_diffs=16.7412 avg_diff=0.00348774
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2477 sum_squared_diffs=2.82291 avg_abs_diff=0.0264599 sum_diffs=-2.16474 avg_diff=-0.000536891
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2299 sum_squared_diffs=4.06855 avg_abs_diff=0.0329649 sum_diffs=1.72765 avg_diff=0.000461444
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=1786 sum_squared_diffs=3.4819 avg_abs_diff=0.0336665 sum_diffs=-0.592049 avg_diff=-0.000192724
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1608 sum_squared_diffs=4.29128 avg_abs_diff=0.0390371 sum_diffs=1.03524 avg_diff=0.00036763
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1190 sum_squared_diffs=2.8008 avg_abs_diff=0.0353604 sum_diffs=4.83801 avg_diff=0.00215983
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1184 sum_squared_diffs=2.51334 avg_abs_diff=0.0334966 sum_diffs=5.08684 avg_diff=0.00227091
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=831 sum_squared_diffs=0.962536 avg_abs_diff=0.0236013 sum_diffs=-1.36086 avg_diff=-0.000787533
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=706 sum_squared_diffs=0.10148 avg_abs_diff=0.00812821 sum_diffs=-0.193583 avg_diff=-0.000126031
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=536 sum_squared_diffs=1.37116 avg_abs_diff=0.0327295 sum_diffs=-1.76938 avg_diff=-0.00138233
+img_fn=%(pascal_data_dir)/JPEGImages/000003.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=45250 sum_squared_diffs=1.99037e-12 avg_abs_diff=2.30077e-09 sum_diffs=2.69406e-06 avg_diff=7.16504e-12
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=271616 sum_squared_diffs=254.458 avg_abs_diff=0.0277907 sum_diffs=37.317 avg_diff=0.000113263
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=235140 sum_squared_diffs=218.33 avg_abs_diff=0.0276288 sum_diffs=30.4284 avg_diff=0.000106387
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=202828 sum_squared_diffs=177.928 avg_abs_diff=0.0267818 sum_diffs=-12.5094 avg_diff=-5.04282e-05
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=176015 sum_squared_diffs=154.271 avg_abs_diff=0.0267348 sum_diffs=12.824 avg_diff=5.94145e-05
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=152875 sum_squared_diffs=127.486 avg_abs_diff=0.0260429 sum_diffs=8.00922 avg_diff=4.26095e-05
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=133240 sum_squared_diffs=110.519 avg_abs_diff=0.0259065 sum_diffs=8.77828 avg_diff=5.33077e-05
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=115122 sum_squared_diffs=89.4059 avg_abs_diff=0.025012 sum_diffs=-8.20866 avg_diff=-5.74385e-05
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=100059 sum_squared_diffs=80.3585 avg_abs_diff=0.0254143 sum_diffs=-1.73881 avg_diff=-1.39758e-05
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=85798 sum_squared_diffs=64.2218 avg_abs_diff=0.0244762 sum_diffs=4.55853 avg_diff=4.25236e-05
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=10976 sum_squared_diffs=5.68057e-13 avg_abs_diff=2.44851e-09 sum_diffs=1.32069e-06 avg_diff=1.39384e-11
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=69608 sum_squared_diffs=18.2274 avg_abs_diff=0.0149399 sum_diffs=18.7304 avg_diff=0.000229359
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=59951 sum_squared_diffs=15.3423 avg_abs_diff=0.0147157 sum_diffs=12.5424 avg_diff=0.000177033
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=52126 sum_squared_diffs=12.7433 avg_abs_diff=0.0143347 sum_diffs=6.39072 avg_diff=0.00010305
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=45294 sum_squared_diffs=10.8616 avg_abs_diff=0.0141636 sum_diffs=5.90853 avg_diff=0.000109126
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=38475 sum_squared_diffs=8.66336 avg_abs_diff=0.0136548 sum_diffs=8.69527 avg_diff=0.00018714
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=33381 sum_squared_diffs=7.38127 avg_abs_diff=0.0134716 sum_diffs=5.93873 avg_diff=0.000146015
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=29531 sum_squared_diffs=6.19096 avg_abs_diff=0.0130789 sum_diffs=2.20269 avg_diff=6.08611e-05
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=25126 sum_squared_diffs=5.57179 avg_abs_diff=0.0133841 sum_diffs=5.25959 avg_diff=0.000169097
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=21746 sum_squared_diffs=4.35459 avg_abs_diff=0.0126529 sum_diffs=5.10705 avg_diff=0.000187759
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=18981 sum_squared_diffs=34.1747 avg_abs_diff=0.037887 sum_diffs=86.0718 avg_diff=0.00361525
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=16019 sum_squared_diffs=21.8596 avg_abs_diff=0.0327217 sum_diffs=24.764 avg_diff=0.00121297
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=13336 sum_squared_diffs=19.4095 avg_abs_diff=0.0335147 sum_diffs=30.8767 avg_diff=0.00178685
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=11583 sum_squared_diffs=17.8849 avg_abs_diff=0.0343021 sum_diffs=50.5032 avg_diff=0.00332258
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=10436 sum_squared_diffs=15.0021 avg_abs_diff=0.0329426 sum_diffs=20.4916 avg_diff=0.00148232
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=8894 sum_squared_diffs=14.0265 avg_abs_diff=0.0342345 sum_diffs=42.5477 avg_diff=0.00355512
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=7892 sum_squared_diffs=12.9847 avg_abs_diff=0.0347513 sum_diffs=29.8676 avg_diff=0.00277786
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=6557 sum_squared_diffs=9.55227 avg_abs_diff=0.0323635 sum_diffs=13.8404 avg_diff=0.00151759
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=5690 sum_squared_diffs=11.3424 avg_abs_diff=0.037504 sum_diffs=32.8907 avg_diff=0.0040787
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=4899 sum_squared_diffs=7.8119 avg_abs_diff=0.0332359 sum_diffs=19.4424 avg_diff=0.00274921
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=4131 sum_squared_diffs=4.67115 avg_abs_diff=0.0275731 sum_diffs=21.3984 avg_diff=0.00348282
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3462 sum_squared_diffs=6.21715 avg_abs_diff=0.0343146 sum_diffs=20.5871 avg_diff=0.00389907
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2831 sum_squared_diffs=5.76231 avg_abs_diff=0.035864 sum_diffs=17.4744 avg_diff=0.00390053
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2591 sum_squared_diffs=5.77826 avg_abs_diff=0.0372694 sum_diffs=16.3782 avg_diff=0.00393708
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=2067 sum_squared_diffs=1.92079 avg_abs_diff=0.0235751 sum_diffs=3.81644 avg_diff=0.00110429
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1594 sum_squared_diffs=3.24124 avg_abs_diff=0.0339265 sum_diffs=4.56193 avg_diff=0.00162
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1420 sum_squared_diffs=2.41754 avg_abs_diff=0.0307303 sum_diffs=4.79692 avg_diff=0.0018738
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1178 sum_squared_diffs=1.07116 avg_abs_diff=0.0218677 sum_diffs=1.85614 avg_diff=0.000828635
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=1033 sum_squared_diffs=1.40629 avg_abs_diff=0.0264115 sum_diffs=1.90952 avg_diff=0.000947183
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=708 sum_squared_diffs=1.23268 avg_abs_diff=0.0283289 sum_diffs=-0.137684 avg_diff=-8.96377e-05
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=705 sum_squared_diffs=0.960504 avg_abs_diff=0.0250066 sum_diffs=0.949633 avg_diff=0.00061825
+scale=0.116629 boda_scale=0.116629
+feats: ssds_str(oct,boda)=cnt=590 sum_squared_diffs=1.20899 avg_abs_diff=0.0299925 sum_diffs=3.06636 avg_diff=0.00228152
+scale=0.108819 boda_scale=0.108819
+feats: ssds_str(oct,boda)=cnt=445 sum_squared_diffs=0.843044 avg_abs_diff=0.0274357 sum_diffs=3.11009 avg_diff=0.00277687
+img_fn=%(pascal_data_dir)/JPEGImages/000004.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=49174 sum_squared_diffs=1.69718e-12 avg_abs_diff=2.03955e-09 sum_diffs=2.48427e-06 avg_diff=6.08889e-12
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=293511 sum_squared_diffs=827.255 avg_abs_diff=0.048227 sum_diffs=-1041.94 avg_diff=-0.00292943
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=252077 sum_squared_diffs=684.456 avg_abs_diff=0.0472219 sum_diffs=-937.393 avg_diff=-0.00305396
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=221949 sum_squared_diffs=595.638 avg_abs_diff=0.0468897 sum_diffs=-816.791 avg_diff=-0.00301497
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=190724 sum_squared_diffs=506.46 avg_abs_diff=0.0465147 sum_diffs=-641.204 avg_diff=-0.00273925
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=166074 sum_squared_diffs=434.577 avg_abs_diff=0.0460359 sum_diffs=-544.931 avg_diff=-0.00265747
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=143333 sum_squared_diffs=361.276 avg_abs_diff=0.0450576 sum_diffs=-397.534 avg_diff=-0.00223394
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=124106 sum_squared_diffs=304.223 avg_abs_diff=0.0442696 sum_diffs=-390.038 avg_diff=-0.00251261
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=105770 sum_squared_diffs=256.906 avg_abs_diff=0.0438462 sum_diffs=-286.195 avg_diff=-0.00214166
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=93085 sum_squared_diffs=211.683 avg_abs_diff=0.0423691 sum_diffs=-267.814 avg_diff=-0.00227115
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=11951 sum_squared_diffs=4.88177e-13 avg_abs_diff=2.17901e-09 sum_diffs=4.03815e-07 avg_diff=3.92755e-12
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=74691 sum_squared_diffs=109.11 avg_abs_diff=0.0353667 sum_diffs=-291.099 avg_diff=-0.00333707
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=64699 sum_squared_diffs=87.4164 avg_abs_diff=0.0339077 sum_diffs=-256.658 avg_diff=-0.00337566
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=56621 sum_squared_diffs=75.4056 avg_abs_diff=0.0335699 sum_diffs=-204.324 avg_diff=-0.00305362
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=49302 sum_squared_diffs=62.5674 avg_abs_diff=0.0326601 sum_diffs=-168.455 avg_diff=-0.00287191
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=42236 sum_squared_diffs=51.5916 avg_abs_diff=0.0319034 sum_diffs=-143.216 avg_diff=-0.00282545
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=36988 sum_squared_diffs=43.2706 avg_abs_diff=0.0311451 sum_diffs=-93.6172 avg_diff=-0.00209866
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=31690 sum_squared_diffs=36.813 avg_abs_diff=0.030847 sum_diffs=-90.4445 avg_diff=-0.00233779
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=27061 sum_squared_diffs=30.461 avg_abs_diff=0.0301958 sum_diffs=-73.4177 avg_diff=-0.00219761
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=23632 sum_squared_diffs=24.3948 avg_abs_diff=0.0288172 sum_diffs=-62.8188 avg_diff=-0.00213844
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=19654 sum_squared_diffs=9.2261 avg_abs_diff=0.0192878 sum_diffs=-25.022 avg_diff=-0.00100895
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=17594 sum_squared_diffs=40.8221 avg_abs_diff=0.0428123 sum_diffs=29.5516 avg_diff=0.00132685
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=14780 sum_squared_diffs=34.9487 avg_abs_diff=0.0428793 sum_diffs=57.7188 avg_diff=0.00303655
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=12863 sum_squared_diffs=9.33623 avg_abs_diff=0.0235739 sum_diffs=-15.8418 avg_diff=-0.000942964
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=11025 sum_squared_diffs=20.9408 avg_abs_diff=0.0378826 sum_diffs=-17.2363 avg_diff=-0.00118121
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=9439 sum_squared_diffs=18.687 avg_abs_diff=0.0384014 sum_diffs=8.95673 avg_diff=0.000706813
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=8375 sum_squared_diffs=5.58735 avg_abs_diff=0.0221154 sum_diffs=-10.0374 avg_diff=-0.000878623
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=6972 sum_squared_diffs=4.20376 avg_abs_diff=0.0207877 sum_diffs=-4.51308 avg_diff=-0.000463926
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=6131 sum_squared_diffs=14.0899 avg_abs_diff=0.0403829 sum_diffs=14.4715 avg_diff=0.00167494
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=5301 sum_squared_diffs=2.77301 avg_abs_diff=0.0190815 sum_diffs=0.919689 avg_diff=0.000120758
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=4552 sum_squared_diffs=8.20453 avg_abs_diff=0.0351091 sum_diffs=13.5603 avg_diff=0.0020373
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3816 sum_squared_diffs=6.23175 avg_abs_diff=0.0328923 sum_diffs=0.772719 avg_diff=0.000134153
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=3189 sum_squared_diffs=7.73058 avg_abs_diff=0.0396069 sum_diffs=19.5014 avg_diff=0.00395727
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2595 sum_squared_diffs=5.22569 avg_abs_diff=0.0354426 sum_diffs=13.3485 avg_diff=0.00320878
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=2353 sum_squared_diffs=2.54332 avg_abs_diff=0.0257356 sum_diffs=2.81851 avg_diff=0.000733986
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1864 sum_squared_diffs=4.155 avg_abs_diff=0.0362154 sum_diffs=6.44964 avg_diff=0.00203587
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1417 sum_squared_diffs=2.3773 avg_abs_diff=0.0304735 sum_diffs=0.18937 avg_diff=7.39728e-05
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1420 sum_squared_diffs=2.97013 avg_abs_diff=0.0340618 sum_diffs=0.165876 avg_diff=6.47954e-05
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=1042 sum_squared_diffs=1.98674 avg_abs_diff=0.0313925 sum_diffs=7.00818 avg_diff=0.00347628
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=885 sum_squared_diffs=1.25191 avg_abs_diff=0.0264312 sum_diffs=3.59501 avg_diff=0.00200615
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=714 sum_squared_diffs=1.19522 avg_abs_diff=0.0278952 sum_diffs=2.36424 avg_diff=0.00153922
+scale=0.116629 boda_scale=0.116629
+feats: ssds_str(oct,boda)=cnt=596 sum_squared_diffs=1.32612 avg_abs_diff=0.0314117 sum_diffs=5.90178 avg_diff=0.00439121
+scale=0.108819 boda_scale=0.108819
+feats: ssds_str(oct,boda)=cnt=599 sum_squared_diffs=1.45142 avg_abs_diff=0.0328622 sum_diffs=3.59819 avg_diff=0.00267723
+scale=0.101532 boda_scale=0.101532
+feats: ssds_str(oct,boda)=cnt=353 sum_squared_diffs=0.631107 avg_abs_diff=0.0256399 sum_diffs=3.36148 avg_diff=0.00350154
+img_fn=%(pascal_data_dir)/JPEGImages/000006.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=41917 sum_squared_diffs=1.59122e-12 avg_abs_diff=2.05718e-09 sum_diffs=-2.91896e-07 avg_diff=-7.76318e-13
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=255512 sum_squared_diffs=529.732 avg_abs_diff=0.0400976 sum_diffs=3.47644 avg_diff=1.05515e-05
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=224495 sum_squared_diffs=451.656 avg_abs_diff=0.0397382 sum_diffs=-64.6612 avg_diff=-0.000226076
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=189842 sum_squared_diffs=375.627 avg_abs_diff=0.0389132 sum_diffs=-21.1627 avg_diff=-8.53113e-05
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=165088 sum_squared_diffs=316.605 avg_abs_diff=0.0382995 sum_diffs=-29.9428 avg_diff=-0.000138727
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=143899 sum_squared_diffs=268.205 avg_abs_diff=0.0377738 sum_diffs=-14.8044 avg_diff=-7.87605e-05
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=123383 sum_squared_diffs=224.611 avg_abs_diff=0.0369323 sum_diffs=-44.8318 avg_diff=-0.000272249
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=107162 sum_squared_diffs=186.825 avg_abs_diff=0.0361562 sum_diffs=21.7711 avg_diff=0.000152339
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=92391 sum_squared_diffs=145.807 avg_abs_diff=0.0342335 sum_diffs=-46.8363 avg_diff=-0.000376449
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=76661 sum_squared_diffs=124.369 avg_abs_diff=0.0340611 sum_diffs=-14.7106 avg_diff=-0.000137226
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=10362 sum_squared_diffs=4.37041e-13 avg_abs_diff=2.14767e-09 sum_diffs=-3.97686e-07 avg_diff=-4.19712e-12
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=67849 sum_squared_diffs=43.032 avg_abs_diff=0.0229552 sum_diffs=-10.5903 avg_diff=-0.000129682
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=58784 sum_squared_diffs=38.0264 avg_abs_diff=0.0231675 sum_diffs=-1.93082 avg_diff=-2.7253e-05
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=50713 sum_squared_diffs=31.6198 avg_abs_diff=0.0225802 sum_diffs=-12.2806 avg_diff=-0.000198022
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=44215 sum_squared_diffs=25.9136 avg_abs_diff=0.021877 sum_diffs=-9.35874 avg_diff=-0.000172849
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=37779 sum_squared_diffs=20.9567 avg_abs_diff=0.0212375 sum_diffs=-7.12577 avg_diff=-0.000153361
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=32527 sum_squared_diffs=18.0966 avg_abs_diff=0.0210936 sum_diffs=-10.3141 avg_diff=-0.000253591
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=28842 sum_squared_diffs=14.8136 avg_abs_diff=0.0202313 sum_diffs=-3.83564 avg_diff=-0.00010598
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=24761 sum_squared_diffs=11.4239 avg_abs_diff=0.0191646 sum_diffs=-8.47724 avg_diff=-0.000272545
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=21028 sum_squared_diffs=9.5414 avg_abs_diff=0.0187293 sum_diffs=-7.43059 avg_diff=-0.000273183
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=17979 sum_squared_diffs=21.2119 avg_abs_diff=0.0298489 sum_diffs=30.4625 avg_diff=0.00127951
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=15611 sum_squared_diffs=17.4563 avg_abs_diff=0.0292409 sum_diffs=14.6719 avg_diff=0.000718645
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=13118 sum_squared_diffs=14.7989 avg_abs_diff=0.0292646 sum_diffs=17.6177 avg_diff=0.00101954
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=11287 sum_squared_diffs=11.5458 avg_abs_diff=0.0275607 sum_diffs=13.0778 avg_diff=0.000860382
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=10312 sum_squared_diffs=9.58291 avg_abs_diff=0.0263288 sum_diffs=12.0169 avg_diff=0.000869275
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=8733 sum_squared_diffs=8.91387 avg_abs_diff=0.0272912 sum_diffs=10.4399 avg_diff=0.000872314
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=7717 sum_squared_diffs=6.55257 avg_abs_diff=0.0246866 sum_diffs=10.9989 avg_diff=0.00102296
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=6443 sum_squared_diffs=5.52752 avg_abs_diff=0.0246188 sum_diffs=0.133489 avg_diff=1.46369e-05
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=5634 sum_squared_diffs=7.00112 avg_abs_diff=0.0294651 sum_diffs=8.07158 avg_diff=0.00100094
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=4794 sum_squared_diffs=4.27662 avg_abs_diff=0.0245912 sum_diffs=4.82403 avg_diff=0.000682131
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=3950 sum_squared_diffs=2.20484 avg_abs_diff=0.0189436 sum_diffs=0.551672 avg_diff=8.97903e-05
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3403 sum_squared_diffs=3.45715 avg_abs_diff=0.0255883 sum_diffs=-2.48084 avg_diff=-0.000469856
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2803 sum_squared_diffs=2.21292 avg_abs_diff=0.0222251 sum_diffs=5.49288 avg_diff=0.00122609
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2578 sum_squared_diffs=3.30846 avg_abs_diff=0.0282011 sum_diffs=7.50345 avg_diff=0.00180371
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=2029 sum_squared_diffs=0.934912 avg_abs_diff=0.0164474 sum_diffs=-1.68693 avg_diff=-0.000488117
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1573 sum_squared_diffs=1.76458 avg_abs_diff=0.0250325 sum_diffs=-1.90143 avg_diff=-0.000675222
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1410 sum_squared_diffs=1.7008 avg_abs_diff=0.0257755 sum_diffs=3.14268 avg_diff=0.00122761
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1170 sum_squared_diffs=0.691216 avg_abs_diff=0.0175664 sum_diffs=2.15791 avg_diff=0.000963354
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=1018 sum_squared_diffs=0.870617 avg_abs_diff=0.0207811 sum_diffs=0.566323 avg_diff=0.000280914
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=702 sum_squared_diffs=0.886191 avg_abs_diff=0.0240197 sum_diffs=2.37073 avg_diff=0.00154344
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=704 sum_squared_diffs=0.856918 avg_abs_diff=0.0236197 sum_diffs=-1.37526 avg_diff=-0.000895352
+scale=0.116629 boda_scale=0.116629
+feats: ssds_str(oct,boda)=cnt=583 sum_squared_diffs=0.967906 avg_abs_diff=0.026836 sum_diffs=5.19148 avg_diff=0.00386271
+scale=0.108819 boda_scale=0.108819
+feats: ssds_str(oct,boda)=cnt=441 sum_squared_diffs=0.638893 avg_abs_diff=0.0238839 sum_diffs=0.543599 avg_diff=0.000485356
+img_fn=%(pascal_data_dir)/JPEGImages/000008.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=45243 sum_squared_diffs=1.70076e-12 avg_abs_diff=2.1268e-09 sum_diffs=1.74602e-06 avg_diff=4.64368e-12
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=270947 sum_squared_diffs=849.38 avg_abs_diff=0.050774 sum_diffs=-329.198 avg_diff=-0.000999167
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=233902 sum_squared_diffs=728.53 avg_abs_diff=0.0504695 sum_diffs=-256.751 avg_diff=-0.000897682
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=201263 sum_squared_diffs=613.969 avg_abs_diff=0.0497498 sum_diffs=-203.669 avg_diff=-0.000821032
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=174185 sum_squared_diffs=511.486 avg_abs_diff=0.04868 sum_diffs=-201.831 avg_diff=-0.000935098
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=150192 sum_squared_diffs=418.462 avg_abs_diff=0.047183 sum_diffs=-136.72 avg_diff=-0.000727358
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=130243 sum_squared_diffs=340.529 avg_abs_diff=0.0454744 sum_diffs=-16.7243 avg_diff=-0.000101561
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=111788 sum_squared_diffs=283.233 avg_abs_diff=0.0445182 sum_diffs=-81.3145 avg_diff=-0.000568983
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=96250 sum_squared_diffs=225.872 avg_abs_diff=0.0426082 sum_diffs=-52.3274 avg_diff=-0.000420584
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=82173 sum_squared_diffs=179.191 avg_abs_diff=0.0408847 sum_diffs=16.0202 avg_diff=0.000149442
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=10975 sum_squared_diffs=4.57027e-13 avg_abs_diff=2.19623e-09 sum_diffs=-3.21499e-07 avg_diff=-3.39306e-12
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=69545 sum_squared_diffs=84.2209 avg_abs_diff=0.032114 sum_diffs=-95.7635 avg_diff=-0.00117265
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=59978 sum_squared_diffs=69.1333 avg_abs_diff=0.0312377 sum_diffs=-73.988 avg_diff=-0.00104432
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=52065 sum_squared_diffs=56.8101 avg_abs_diff=0.0302664 sum_diffs=-50.7331 avg_diff=-0.000818065
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=45011 sum_squared_diffs=46.1377 avg_abs_diff=0.0291913 sum_diffs=-48.3628 avg_diff=-0.000893226
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=38280 sum_squared_diffs=36.9127 avg_abs_diff=0.0281857 sum_diffs=-38.8476 avg_diff=-0.000836079
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=33112 sum_squared_diffs=27.1722 avg_abs_diff=0.0258473 sum_diffs=-13.3262 avg_diff=-0.00032765
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=29225 sum_squared_diffs=23.1931 avg_abs_diff=0.0253147 sum_diffs=-23.376 avg_diff=-0.000645887
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=24789 sum_squared_diffs=18.0215 avg_abs_diff=0.0240706 sum_diffs=-11.788 avg_diff=-0.000378986
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=21428 sum_squared_diffs=13.2347 avg_abs_diff=0.0220584 sum_diffs=2.93225 avg_diff=0.000107803
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=18654 sum_squared_diffs=30.2904 avg_abs_diff=0.035669 sum_diffs=80.8105 avg_diff=0.00339426
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=15690 sum_squared_diffs=17.2143 avg_abs_diff=0.0290375 sum_diffs=40.8396 avg_diff=0.00200037
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=13017 sum_squared_diffs=14.1532 avg_abs_diff=0.0286191 sum_diffs=39.946 avg_diff=0.00231169
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=11272 sum_squared_diffs=14.2578 avg_abs_diff=0.030627 sum_diffs=53.9565 avg_diff=0.00354977
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=10149 sum_squared_diffs=9.48196 avg_abs_diff=0.0261898 sum_diffs=26.5322 avg_diff=0.00191929
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=8604 sum_squared_diffs=9.77929 avg_abs_diff=0.0285853 sum_diffs=39.7917 avg_diff=0.00332484
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=7646 sum_squared_diffs=9.01625 avg_abs_diff=0.028958 sum_diffs=37.437 avg_diff=0.00348186
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=6376 sum_squared_diffs=7.70232 avg_abs_diff=0.0290612 sum_diffs=39.5739 avg_diff=0.00433924
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=5554 sum_squared_diffs=8.97228 avg_abs_diff=0.0333562 sum_diffs=49.0901 avg_diff=0.00608756
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=4786 sum_squared_diffs=5.66159 avg_abs_diff=0.0282942 sum_diffs=19.3662 avg_diff=0.00273844
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=4052 sum_squared_diffs=2.94509 avg_abs_diff=0.0218939 sum_diffs=10.7107 avg_diff=0.00174328
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3396 sum_squared_diffs=4.64162 avg_abs_diff=0.0296495 sum_diffs=21.7778 avg_diff=0.00412458
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2797 sum_squared_diffs=3.52681 avg_abs_diff=0.0280577 sum_diffs=14.0224 avg_diff=0.00313
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2595 sum_squared_diffs=4.65325 avg_abs_diff=0.033445 sum_diffs=21.8249 avg_diff=0.00524637
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=2055 sum_squared_diffs=1.29263 avg_abs_diff=0.0193397 sum_diffs=2.28037 avg_diff=0.000659829
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1599 sum_squared_diffs=3.50165 avg_abs_diff=0.0352631 sum_diffs=14.1155 avg_diff=0.00501261
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1420 sum_squared_diffs=2.3424 avg_abs_diff=0.030249 sum_diffs=6.01761 avg_diff=0.00235063
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1169 sum_squared_diffs=0.984377 avg_abs_diff=0.0209632 sum_diffs=0.330433 avg_diff=0.000147515
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=1030 sum_squared_diffs=1.0728 avg_abs_diff=0.0230682 sum_diffs=3.62603 avg_diff=0.00179863
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=706 sum_squared_diffs=1.70824 avg_abs_diff=0.0333487 sum_diffs=5.35714 avg_diff=0.00348772
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=708 sum_squared_diffs=1.10554 avg_abs_diff=0.0268283 sum_diffs=4.90733 avg_diff=0.00319487
+scale=0.116629 boda_scale=0.116629
+feats: ssds_str(oct,boda)=cnt=592 sum_squared_diffs=0.806419 avg_abs_diff=0.0244952 sum_diffs=3.59536 avg_diff=0.00267512
+scale=0.108819 boda_scale=0.108819
+feats: ssds_str(oct,boda)=cnt=443 sum_squared_diffs=0.679598 avg_abs_diff=0.024633 sum_diffs=2.81822 avg_diff=0.00251627
+img_fn=%(pascal_data_dir)/JPEGImages/000010.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=41049 sum_squared_diffs=1.64123e-12 avg_abs_diff=2.19141e-09 sum_diffs=2.70058e-07 avg_diff=7.90198e-13
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=235759 sum_squared_diffs=229.125 avg_abs_diff=0.0277532 sum_diffs=45.2097 avg_diff=0.00015198
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=204778 sum_squared_diffs=188.96 avg_abs_diff=0.0270252 sum_diffs=28.8937 avg_diff=0.000111679
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=178025 sum_squared_diffs=153.067 avg_abs_diff=0.0260367 sum_diffs=8.86175 avg_diff=3.92474e-05
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=153290 sum_squared_diffs=131.96 avg_abs_diff=0.0260069 sum_diffs=35.129 avg_diff=0.000180053
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=134507 sum_squared_diffs=108.933 avg_abs_diff=0.025213 sum_diffs=11.3452 avg_diff=6.62068e-05
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=116512 sum_squared_diffs=88.1467 avg_abs_diff=0.0243102 sum_diffs=37.6614 avg_diff=0.000252504
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=101491 sum_squared_diffs=77.267 avg_abs_diff=0.0243571 sum_diffs=25.6012 avg_diff=0.00019657
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=87331 sum_squared_diffs=62.5886 avg_abs_diff=0.0235756 sum_diffs=24.5432 avg_diff=0.000217953
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=75718 sum_squared_diffs=51.7819 avg_abs_diff=0.0229511 sum_diffs=21.2121 avg_diff=0.000215781
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=9741 sum_squared_diffs=4.87286e-13 avg_abs_diff=2.40168e-09 sum_diffs=-8.32269e-07 avg_diff=-9.85167e-12
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=61689 sum_squared_diffs=17.7423 avg_abs_diff=0.0155397 sum_diffs=18.4404 avg_diff=0.000250986
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=54158 sum_squared_diffs=14.594 avg_abs_diff=0.0149961 sum_diffs=16.7679 avg_diff=0.000258381
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=46811 sum_squared_diffs=11.7267 avg_abs_diff=0.0144133 sum_diffs=11.7483 avg_diff=0.000208126
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=41239 sum_squared_diffs=10.2821 avg_abs_diff=0.0143334 sum_diffs=15.3906 avg_diff=0.000307516
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=33961 sum_squared_diffs=7.94592 avg_abs_diff=0.0138099 sum_diffs=10.6062 avg_diff=0.000254564
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=30070 sum_squared_diffs=6.30435 avg_abs_diff=0.0130322 sum_diffs=12.6556 avg_diff=0.000340937
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=25660 sum_squared_diffs=5.32834 avg_abs_diff=0.0129104 sum_diffs=13.5244 avg_diff=0.000423061
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=22258 sum_squared_diffs=4.65979 avg_abs_diff=0.0129004 sum_diffs=12.147 avg_diff=0.000433823
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=19392 sum_squared_diffs=3.59716 avg_abs_diff=0.0120983 sum_diffs=11.0649 avg_diff=0.000450232
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=16438 sum_squared_diffs=2.31633 avg_abs_diff=0.0104726 sum_diffs=5.39706 avg_diff=0.000255543
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=14532 sum_squared_diffs=2.73067 avg_abs_diff=0.0120468 sum_diffs=7.64577 avg_diff=0.000406344
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=11988 sum_squared_diffs=1.98635 avg_abs_diff=0.0112096 sum_diffs=6.4738 avg_diff=0.000409527
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=10361 sum_squared_diffs=1.7627 avg_abs_diff=0.011292 sum_diffs=7.78851 avg_diff=0.000563405
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=9259 sum_squared_diffs=1.72255 avg_abs_diff=0.0117334 sum_diffs=6.94638 avg_diff=0.000555177
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=7875 sum_squared_diffs=9.72203 avg_abs_diff=0.03007 sum_diffs=14.7261 avg_diff=0.00136962
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=6933 sum_squared_diffs=8.6012 avg_abs_diff=0.0299326 sum_diffs=12.8796 avg_diff=0.00134163
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=6036 sum_squared_diffs=8.45532 avg_abs_diff=0.0315173 sum_diffs=10.4915 avg_diff=0.00123255
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=4877 sum_squared_diffs=6.73559 avg_abs_diff=0.0308615 sum_diffs=7.94989 avg_diff=0.00112414
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=4151 sum_squared_diffs=5.90956 avg_abs_diff=0.0310136 sum_diffs=7.23084 avg_diff=0.00117689
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=3472 sum_squared_diffs=5.2344 avg_abs_diff=0.0314859 sum_diffs=7.50308 avg_diff=0.00142104
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=2850 sum_squared_diffs=3.77137 avg_abs_diff=0.0290142 sum_diffs=9.02065 avg_diff=0.00201354
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2611 sum_squared_diffs=3.86594 avg_abs_diff=0.0304846 sum_diffs=5.18048 avg_diff=0.00124531
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2070 sum_squared_diffs=3.30164 avg_abs_diff=0.0309085 sum_diffs=-0.0697845 avg_diff=-2.01923e-05
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=1586 sum_squared_diffs=0.193904 avg_abs_diff=0.00829807 sum_diffs=0.827783 avg_diff=0.000293957
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1600 sum_squared_diffs=3.4922 avg_abs_diff=0.0352154 sum_diffs=1.94814 avg_diff=0.000691811
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1191 sum_squared_diffs=3.40535 avg_abs_diff=0.0389903 sum_diffs=3.68261 avg_diff=0.00164402
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1038 sum_squared_diffs=2.30863 avg_abs_diff=0.0338401 sum_diffs=2.31228 avg_diff=0.00114697
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=838 sum_squared_diffs=1.02728 avg_abs_diff=0.0243822 sum_diffs=1.24155 avg_diff=0.000718488
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=712 sum_squared_diffs=2.40613 avg_abs_diff=0.0395789 sum_diffs=0.101847 avg_diff=6.63064e-05
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=715 sum_squared_diffs=2.12283 avg_abs_diff=0.0371759 sum_diffs=-1.94391 avg_diff=-0.00126557
+scale=0.116629 boda_scale=0.116629
+feats: ssds_str(oct,boda)=cnt=442 sum_squared_diffs=1.48208 avg_abs_diff=0.036377 sum_diffs=1.22555 avg_diff=0.00109424
+img_fn=%(pascal_data_dir)/JPEGImages/000011.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=38850 sum_squared_diffs=2.48499e-12 avg_abs_diff=2.76943e-09 sum_diffs=-6.49617e-07 avg_diff=-2.00499e-12
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=242007 sum_squared_diffs=492.178 avg_abs_diff=0.0415898 sum_diffs=12.7153 avg_diff=4.46865e-05
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=209766 sum_squared_diffs=428.54 avg_abs_diff=0.0415986 sum_diffs=16.9288 avg_diff=6.83583e-05
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=181925 sum_squared_diffs=371.078 avg_abs_diff=0.0415036 sum_diffs=12.5863 avg_diff=5.84258e-05
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=158481 sum_squared_diffs=327.371 avg_abs_diff=0.0416761 sum_diffs=14.3318 avg_diff=7.60389e-05
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=135801 sum_squared_diffs=267.719 avg_abs_diff=0.0406099 sum_diffs=10.2314 avg_diff=6.30264e-05
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=119431 sum_squared_diffs=235.865 avg_abs_diff=0.0405528 sum_diffs=9.65357 avg_diff=6.73079e-05
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=101992 sum_squared_diffs=203.315 avg_abs_diff=0.0406237 sum_diffs=-12.1902 avg_diff=-9.89465e-05
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=89236 sum_squared_diffs=169.501 avg_abs_diff=0.0395636 sum_diffs=13.9386 avg_diff=0.000128718
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=77095 sum_squared_diffs=143.708 avg_abs_diff=0.0390303 sum_diffs=-29.8185 avg_diff=-0.000316088
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=9514 sum_squared_diffs=6.4702e-13 avg_abs_diff=2.79783e-09 sum_diffs=-1.2128e-06 avg_diff=-1.46729e-11
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=60139 sum_squared_diffs=41.8177 avg_abs_diff=0.02435 sum_diffs=-7.92034 avg_diff=-0.000112301
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=51203 sum_squared_diffs=35.6187 avg_abs_diff=0.024268 sum_diffs=-10.6856 avg_diff=-0.000176681
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=45300 sum_squared_diffs=31.6612 avg_abs_diff=0.0242463 sum_diffs=-6.85432 avg_diff=-0.000127271
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=38922 sum_squared_diffs=27.8407 avg_abs_diff=0.0244363 sum_diffs=-0.187104 avg_diff=-4.01304e-06
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=33802 sum_squared_diffs=22.5257 avg_abs_diff=0.0234876 sum_diffs=-7.8303 avg_diff=-0.000191769
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=29066 sum_squared_diffs=19.1577 avg_abs_diff=0.0232554 sum_diffs=-3.06911 avg_diff=-8.66392e-05
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=25375 sum_squared_diffs=17.6255 avg_abs_diff=0.0237681 sum_diffs=-5.09402 avg_diff=-0.00016327
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=21259 sum_squared_diffs=13.3731 avg_abs_diff=0.022466 sum_diffs=-4.31279 avg_diff=-0.000162772
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=19075 sum_squared_diffs=12.2648 avg_abs_diff=0.0226363 sum_diffs=-7.69877 avg_diff=-0.00032164
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=15565 sum_squared_diffs=7.37191 avg_abs_diff=0.0192761 sum_diffs=-4.2989 avg_diff=-0.000216679
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=13748 sum_squared_diffs=29.0082 avg_abs_diff=0.0405611 sum_diffs=12.3367 avg_diff=0.000699678
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=12000 sum_squared_diffs=26.8995 avg_abs_diff=0.041589 sum_diffs=10.267 avg_diff=0.000660175
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=10349 sum_squared_diffs=24.6695 avg_abs_diff=0.0425903 sum_diffs=15.8528 avg_diff=0.00116565
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=8540 sum_squared_diffs=18.3393 avg_abs_diff=0.0398993 sum_diffs=8.53483 avg_diff=0.00074087
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=7174 sum_squared_diffs=15.7016 avg_abs_diff=0.0399137 sum_diffs=12.6441 avg_diff=0.00128288
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=6204 sum_squared_diffs=3.43559 avg_abs_diff=0.019831 sum_diffs=-3.32854 avg_diff=-0.000381014
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=5594 sum_squared_diffs=11.4117 avg_abs_diff=0.0379973 sum_diffs=3.86035 avg_diff=0.000488405
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=4786 sum_squared_diffs=8.49199 avg_abs_diff=0.0350512 sum_diffs=9.93154 avg_diff=0.00143685
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=4015 sum_squared_diffs=2.42204 avg_abs_diff=0.0201185 sum_diffs=-0.0116487 avg_diff=-1.94664e-06
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=3326 sum_squared_diffs=1.38517 avg_abs_diff=0.0164481 sum_diffs=0.795924 avg_diff=0.000155454
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3126 sum_squared_diffs=7.07281 avg_abs_diff=0.0383862 sum_diffs=7.05866 avg_diff=0.00147055
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2515 sum_squared_diffs=5.88638 avg_abs_diff=0.0382088 sum_diffs=-1.59482 avg_diff=-0.000395542
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=1981 sum_squared_diffs=4.65665 avg_abs_diff=0.0374063 sum_diffs=4.35096 avg_diff=0.00130738
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=1796 sum_squared_diffs=3.59564 avg_abs_diff=0.0342119 sum_diffs=-0.626441 avg_diff=-0.00020392
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1352 sum_squared_diffs=3.18394 avg_abs_diff=0.0359469 sum_diffs=3.64755 avg_diff=0.00148034
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1204 sum_squared_diffs=3.12512 avg_abs_diff=0.0373516 sum_diffs=1.8829 avg_diff=0.000840582
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=964 sum_squared_diffs=1.49097 avg_abs_diff=0.0278666 sum_diffs=0.0938905 avg_diff=4.89013e-05
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=844 sum_squared_diffs=1.89575 avg_abs_diff=0.0331222 sum_diffs=-1.01509 avg_diff=-0.000587434
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=727 sum_squared_diffs=1.52552 avg_abs_diff=0.0315148 sum_diffs=0.20321 avg_diff=0.000132298
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=545 sum_squared_diffs=1.5265 avg_abs_diff=0.0345337 sum_diffs=3.96424 avg_diff=0.00309706
+img_fn=%(pascal_data_dir)/JPEGImages/000013.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=45245 sum_squared_diffs=2.62838e-12 avg_abs_diff=2.64393e-09 sum_diffs=8.35761e-07 avg_diff=2.22277e-12
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=277896 sum_squared_diffs=269.968 avg_abs_diff=0.0286251 sum_diffs=-16.0921 avg_diff=-4.88421e-05
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=240642 sum_squared_diffs=230.693 avg_abs_diff=0.0284002 sum_diffs=-24.0708 avg_diff=-8.41588e-05
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=208219 sum_squared_diffs=199.568 avg_abs_diff=0.0283638 sum_diffs=-23.2349 avg_diff=-9.36651e-05
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=180562 sum_squared_diffs=167.06 avg_abs_diff=0.0278208 sum_diffs=-12.8225 avg_diff=-5.94074e-05
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=156818 sum_squared_diffs=139.709 avg_abs_diff=0.0272628 sum_diffs=7.48574 avg_diff=3.98245e-05
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=136880 sum_squared_diffs=125.857 avg_abs_diff=0.0276458 sum_diffs=-15.7078 avg_diff=-9.53882e-05
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=118291 sum_squared_diffs=105.26 avg_abs_diff=0.0271392 sum_diffs=-24.0542 avg_diff=-0.000168314
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=102417 sum_squared_diffs=91.4414 avg_abs_diff=0.0271102 sum_diffs=-4.21929 avg_diff=-3.39127e-05
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=87784 sum_squared_diffs=73.1584 avg_abs_diff=0.0261237 sum_diffs=-10.5959 avg_diff=-9.88421e-05
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=10974 sum_squared_diffs=7.53171e-13 avg_abs_diff=2.81937e-09 sum_diffs=4.67148e-07 avg_diff=4.93022e-12
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=69292 sum_squared_diffs=22.4631 avg_abs_diff=0.0165852 sum_diffs=-5.6359 avg_diff=-6.90133e-05
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=59766 sum_squared_diffs=18.9869 avg_abs_diff=0.0163706 sum_diffs=-5.21701 avg_diff=-7.36367e-05
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=52027 sum_squared_diffs=16.371 avg_abs_diff=0.0162475 sum_diffs=-0.29156 avg_diff=-4.70136e-06
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=45127 sum_squared_diffs=13.4062 avg_abs_diff=0.0157354 sum_diffs=-1.52664 avg_diff=-2.81959e-05
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=38422 sum_squared_diffs=11.1025 avg_abs_diff=0.015458 sum_diffs=0.797266 avg_diff=1.71588e-05
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=33363 sum_squared_diffs=9.94609 avg_abs_diff=0.0156379 sum_diffs=-3.7359 avg_diff=-9.18543e-05
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=29454 sum_squared_diffs=8.43396 avg_abs_diff=0.0152654 sum_diffs=-5.64033 avg_diff=-0.000155845
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=25029 sum_squared_diffs=7.2273 avg_abs_diff=0.0152433 sum_diffs=-0.226907 avg_diff=-7.29511e-06
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=21640 sum_squared_diffs=5.56056 avg_abs_diff=0.014298 sum_diffs=-1.63079 avg_diff=-5.99556e-05
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=19018 sum_squared_diffs=42.5769 avg_abs_diff=0.0422888 sum_diffs=54.2442 avg_diff=0.0022784
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=16010 sum_squared_diffs=29.5905 avg_abs_diff=0.0380707 sum_diffs=36.5484 avg_diff=0.00179018
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=13320 sum_squared_diffs=23.5661 avg_abs_diff=0.0369294 sum_diffs=20.7607 avg_diff=0.00120143
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=11583 sum_squared_diffs=22.4523 avg_abs_diff=0.0384334 sum_diffs=31.4344 avg_diff=0.00206805
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=10409 sum_squared_diffs=19.6281 avg_abs_diff=0.037681 sum_diffs=35.0036 avg_diff=0.00253209
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=8869 sum_squared_diffs=17.0654 avg_abs_diff=0.0377613 sum_diffs=24.8753 avg_diff=0.00207848
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=7862 sum_squared_diffs=15.0049 avg_abs_diff=0.0373569 sum_diffs=24.1122 avg_diff=0.00224258
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=6504 sum_squared_diffs=12.8721 avg_abs_diff=0.0375687 sum_diffs=19.1192 avg_diff=0.00209641
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=5660 sum_squared_diffs=13.8074 avg_abs_diff=0.0413791 sum_diffs=38.7022 avg_diff=0.00479938
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=4857 sum_squared_diffs=8.77702 avg_abs_diff=0.0352292 sum_diffs=14.4739 avg_diff=0.00204665
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=4111 sum_squared_diffs=5.27919 avg_abs_diff=0.0293128 sum_diffs=4.41337 avg_diff=0.000718322
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3419 sum_squared_diffs=6.12285 avg_abs_diff=0.0340534 sum_diffs=16.5253 avg_diff=0.00312979
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2808 sum_squared_diffs=5.35866 avg_abs_diff=0.0345851 sum_diffs=12.9243 avg_diff=0.0028849
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2570 sum_squared_diffs=6.54811 avg_abs_diff=0.0396745 sum_diffs=25.097 avg_diff=0.00603294
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=2037 sum_squared_diffs=1.89442 avg_abs_diff=0.0234127 sum_diffs=1.01682 avg_diff=0.000294219
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1565 sum_squared_diffs=3.9902 avg_abs_diff=0.0376427 sum_diffs=12.7113 avg_diff=0.00451397
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1393 sum_squared_diffs=1.87033 avg_abs_diff=0.0270296 sum_diffs=8.26112 avg_diff=0.003227
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1151 sum_squared_diffs=1.14588 avg_abs_diff=0.0226175 sum_diffs=2.83476 avg_diff=0.00126552
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=1006 sum_squared_diffs=1.2262 avg_abs_diff=0.0246624 sum_diffs=5.56667 avg_diff=0.00276124
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=691 sum_squared_diffs=1.21026 avg_abs_diff=0.0280701 sum_diffs=4.21676 avg_diff=0.00274529
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=692 sum_squared_diffs=0.913022 avg_abs_diff=0.0243806 sum_diffs=3.64034 avg_diff=0.00237001
+scale=0.116629 boda_scale=0.116629
+feats: ssds_str(oct,boda)=cnt=569 sum_squared_diffs=1.23132 avg_abs_diff=0.0302682 sum_diffs=4.68585 avg_diff=0.0034865
+scale=0.108819 boda_scale=0.108819
+feats: ssds_str(oct,boda)=cnt=431 sum_squared_diffs=0.654869 avg_abs_diff=0.0241807 sum_diffs=2.22334 avg_diff=0.00198512
+img_fn=%(pascal_data_dir)/JPEGImages/000014.jpg
+scale=2 boda_scale=2
+feats: ssds_str(oct,boda)=cnt=39835 sum_squared_diffs=1.08803e-12 avg_abs_diff=1.8103e-09 sum_diffs=1.69737e-07 avg_diff=5.11257e-13
+scale=1.86607 boda_scale=1.86607
+feats: ssds_str(oct,boda)=cnt=216758 sum_squared_diffs=177.882 avg_abs_diff=0.0246803 sum_diffs=-60.5189 avg_diff=-0.000207234
+scale=1.7411 boda_scale=1.7411
+feats: ssds_str(oct,boda)=cnt=189243 sum_squared_diffs=153.262 avg_abs_diff=0.024534 sum_diffs=-41.1041 avg_diff=-0.000161431
+scale=1.6245 boda_scale=1.6245
+feats: ssds_str(oct,boda)=cnt=164919 sum_squared_diffs=123.548 avg_abs_diff=0.0235932 sum_diffs=-109.575 avg_diff=-0.000493687
+scale=1.51572 boda_scale=1.51572
+feats: ssds_str(oct,boda)=cnt=141956 sum_squared_diffs=103.287 avg_abs_diff=0.0232228 sum_diffs=-60.4399 avg_diff=-0.00031558
+scale=1.41421 boda_scale=1.41421
+feats: ssds_str(oct,boda)=cnt=124036 sum_squared_diffs=83.6871 avg_abs_diff=0.0223169 sum_diffs=-52.5753 avg_diff=-0.000312888
+scale=1.31951 boda_scale=1.31951
+feats: ssds_str(oct,boda)=cnt=107405 sum_squared_diffs=68.4927 avg_abs_diff=0.0216534 sum_diffs=-23.666 avg_diff=-0.000162007
+scale=1.23114 boda_scale=1.23114
+feats: ssds_str(oct,boda)=cnt=92282 sum_squared_diffs=60.0122 avg_abs_diff=0.0218532 sum_diffs=-41.8091 avg_diff=-0.000332705
+scale=1.1487 boda_scale=1.1487
+feats: ssds_str(oct,boda)=cnt=81052 sum_squared_diffs=48.7221 avg_abs_diff=0.0209895 sum_diffs=-42.1411 avg_diff=-0.00038105
+scale=1.07177 boda_scale=1.07177
+feats: ssds_str(oct,boda)=cnt=70366 sum_squared_diffs=41.1173 avg_abs_diff=0.020644 sum_diffs=-12.6359 avg_diff=-0.000130969
+scale=1 boda_scale=1
+feats: ssds_str(oct,boda)=cnt=9753 sum_squared_diffs=3.45942e-13 avg_abs_diff=2.0213e-09 sum_diffs=2.14408e-07 avg_diff=2.53221e-12
+scale=0.933033 boda_scale=0.933033
+feats: ssds_str(oct,boda)=cnt=59916 sum_squared_diffs=14.5959 avg_abs_diff=0.0142002 sum_diffs=-34.4185 avg_diff=-0.000475498
+scale=0.870551 boda_scale=0.870551
+feats: ssds_str(oct,boda)=cnt=51281 sum_squared_diffs=12.1828 avg_abs_diff=0.0139943 sum_diffs=-19.359 avg_diff=-0.000311198
+scale=0.812252 boda_scale=0.812252
+feats: ssds_str(oct,boda)=cnt=45491 sum_squared_diffs=10.5671 avg_abs_diff=0.0138 sum_diffs=-40.187 avg_diff=-0.000724247
+scale=0.757858 boda_scale=0.757858
+feats: ssds_str(oct,boda)=cnt=39307 sum_squared_diffs=8.69672 avg_abs_diff=0.0134425 sum_diffs=-23.8876 avg_diff=-0.000496335
+scale=0.707107 boda_scale=0.707107
+feats: ssds_str(oct,boda)=cnt=32973 sum_squared_diffs=6.55067 avg_abs_diff=0.0126661 sum_diffs=-17.439 avg_diff=-0.000427091
+scale=0.659754 boda_scale=0.659754
+feats: ssds_str(oct,boda)=cnt=29429 sum_squared_diffs=5.73002 avg_abs_diff=0.0124891 sum_diffs=-13.6579 avg_diff=-0.000371785
+scale=0.615572 boda_scale=0.615572
+feats: ssds_str(oct,boda)=cnt=25869 sum_squared_diffs=5.3188 avg_abs_diff=0.012803 sum_diffs=-15.1627 avg_diff=-0.000467293
+scale=0.574349 boda_scale=0.574349
+feats: ssds_str(oct,boda)=cnt=21693 sum_squared_diffs=4.07567 avg_abs_diff=0.0121414 sum_diffs=-9.05851 avg_diff=-0.000327637
+scale=0.535887 boda_scale=0.535887
+feats: ssds_str(oct,boda)=cnt=18652 sum_squared_diffs=3.33365 avg_abs_diff=0.0118014 sum_diffs=-7.7137 avg_diff=-0.000322264
+scale=0.5 boda_scale=0.5
+feats: ssds_str(oct,boda)=cnt=16194 sum_squared_diffs=19.1862 avg_abs_diff=0.0303479 sum_diffs=20.2754 avg_diff=0.00097328
+scale=0.466516 boda_scale=0.466516
+feats: ssds_str(oct,boda)=cnt=14194 sum_squared_diffs=19.7519 avg_abs_diff=0.0326223 sum_diffs=30.8819 avg_diff=0.0016639
+scale=0.435275 boda_scale=0.435275
+feats: ssds_str(oct,boda)=cnt=11679 sum_squared_diffs=11.8054 avg_abs_diff=0.0275517 sum_diffs=7.44301 avg_diff=0.000478588
+scale=0.406126 boda_scale=0.406126
+feats: ssds_str(oct,boda)=cnt=10006 sum_squared_diffs=1.44333 avg_abs_diff=0.0103018 sum_diffs=-7.43344 avg_diff=-0.000546577
+scale=0.378929 boda_scale=0.378929
+feats: ssds_str(oct,boda)=cnt=8997 sum_squared_diffs=9.37527 avg_abs_diff=0.0276218 sum_diffs=2.23995 avg_diff=0.000182288
+scale=0.353553 boda_scale=0.353553
+feats: ssds_str(oct,boda)=cnt=7618 sum_squared_diffs=8.00184 avg_abs_diff=0.0275273 sum_diffs=7.15284 avg_diff=0.000677353
+scale=0.329877 boda_scale=0.329877
+feats: ssds_str(oct,boda)=cnt=6645 sum_squared_diffs=0.826719 avg_abs_diff=0.00937412 sum_diffs=-3.0514 avg_diff=-0.000324341
+scale=0.307786 boda_scale=0.307786
+feats: ssds_str(oct,boda)=cnt=5498 sum_squared_diffs=5.76372 avg_abs_diff=0.027004 sum_diffs=3.9214 avg_diff=0.000496128
+scale=0.287175 boda_scale=0.287175
+feats: ssds_str(oct,boda)=cnt=4706 sum_squared_diffs=7.36806 avg_abs_diff=0.0326494 sum_diffs=6.43788 avg_diff=0.000931407
+scale=0.267943 boda_scale=0.267943
+feats: ssds_str(oct,boda)=cnt=3937 sum_squared_diffs=0.426901 avg_abs_diff=0.00844632 sum_diffs=-3.62211 avg_diff=-0.000605298
+scale=0.25 boda_scale=0.25
+feats: ssds_str(oct,boda)=cnt=3680 sum_squared_diffs=5.60517 avg_abs_diff=0.0315474 sum_diffs=1.99618 avg_diff=0.000354436
+scale=0.233258 boda_scale=0.233258
+feats: ssds_str(oct,boda)=cnt=3048 sum_squared_diffs=3.08834 avg_abs_diff=0.0253654 sum_diffs=0.398178 avg_diff=8.29538e-05
+scale=0.217638 boda_scale=0.217638
+feats: ssds_str(oct,boda)=cnt=2464 sum_squared_diffs=3.35399 avg_abs_diff=0.0288417 sum_diffs=-1.7966 avg_diff=-0.000445586
+scale=0.203063 boda_scale=0.203063
+feats: ssds_str(oct,boda)=cnt=2261 sum_squared_diffs=3.91702 avg_abs_diff=0.0323452 sum_diffs=5.48152 avg_diff=0.00146408
+scale=0.189465 boda_scale=0.189465
+feats: ssds_str(oct,boda)=cnt=1754 sum_squared_diffs=1.73796 avg_abs_diff=0.0237853 sum_diffs=-2.40108 avg_diff=-0.000781603
+scale=0.176777 boda_scale=0.176777
+feats: ssds_str(oct,boda)=cnt=1322 sum_squared_diffs=2.05506 avg_abs_diff=0.0288797 sum_diffs=0.885456 avg_diff=0.000359357
+scale=0.164938 boda_scale=0.164938
+feats: ssds_str(oct,boda)=cnt=1175 sum_squared_diffs=1.53962 avg_abs_diff=0.026217 sum_diffs=1.65221 avg_diff=0.000737596
+scale=0.153893 boda_scale=0.153893
+feats: ssds_str(oct,boda)=cnt=1177 sum_squared_diffs=2.15724 avg_abs_diff=0.0310331 sum_diffs=-4.15384 avg_diff=-0.00185439
+scale=0.143587 boda_scale=0.143587
+feats: ssds_str(oct,boda)=cnt=828 sum_squared_diffs=0.975623 avg_abs_diff=0.0237612 sum_diffs=-0.127388 avg_diff=-7.37198e-05
+scale=0.133972 boda_scale=0.133972
+feats: ssds_str(oct,boda)=cnt=702 sum_squared_diffs=1.25161 avg_abs_diff=0.0285456 sum_diffs=-0.266286 avg_diff=-0.000173364
+scale=0.125 boda_scale=0.125
+feats: ssds_str(oct,boda)=cnt=529 sum_squared_diffs=1.14257 avg_abs_diff=0.029877 sum_diffs=-0.792643 avg_diff=-0.000619252
