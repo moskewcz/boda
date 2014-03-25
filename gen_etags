@@ -1,2 +1,2 @@
-etags src/*.{cc,H,cpp,hpp} pysrc/*.py
+etags src/*.{cc,H} pysrc/*.py
 
