@@ -6,5 +6,6 @@ lib
 obj
 .emacs*
 *.pyc
+*~
 
 
