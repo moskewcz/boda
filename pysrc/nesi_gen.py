@@ -1,6 +1,6 @@
 # Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 import os,sys,re
-from get_svn_rev import get_svn_rev_c_str
+from get_build_info import get_build_info_c_str
 from operator import attrgetter
 join = os.path.join
 
@@ -269,8 +269,8 @@ class nesi_gen( object ):
 
         
             
-        self.update_file_if_different( 'svn_rev.cc', get_svn_rev_c_str() )
-        self.gen_objs.append( 'svn_rev.o' )
+        self.update_file_if_different( 'build_info.cc', get_build_info_c_str() )
+        self.gen_objs.append( 'build_info.o' )
         self.update_file_if_different( 'gen_objs', ''.join( gen_obj + '\n' for gen_obj in self.gen_objs ) )
 
         self.remove_stale_files()
