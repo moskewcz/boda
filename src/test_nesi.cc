@@ -524,6 +524,7 @@ namespace boda
 	map_str_ziu32_t tags;
 	tag_dir_files( tags, test_good_dir, 0 );
 	tag_dir_files( tags, test_out_dir, 1 );
+	tags.erase(".keep"); // ingore .keep file's presense or absence anywhere
 	for( map_str_ziu32_t::const_iterator i = tags.begin(); i != tags.end(); ++i ) {
 	  uint32_t const & tv = i->second.v;
 	  if( tv == 1 ) { printf( "DIFF: file '%s' only in known-good output dir.\n", str(i->first).c_str()); 
@@ -555,8 +556,11 @@ namespace boda
 	  assert_st( num_rem );
 	}
 	assert_st( !exists( test_good_dir ) );
-	run_system_cmd( strprintf("cp -a %s %s",
-				  test_out_dir.string().c_str(),test_good_dir.c_str()), 0 );
+	run_system_cmd( strprintf("cp -a %s %s", test_out_dir.c_str(),test_good_dir.c_str()), 0 );
+	// since some VCSs :( git ): don't track empty dirs, make the dir non-empty with a file named .keep
+	path const keep_fn = test_good_dir / ".keep";
+	assert_st( !exists( keep_fn ) );
+	ofs_open( keep_fn.string() );
       }
     }
 
