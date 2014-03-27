@@ -8,10 +8,10 @@
     </command>
   </li>
   <li test_name="load_pil_1"> <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.txt" /> </li>
-  <li test_name="load_pil_2" err="error: invalid type string in image list file '/home/moskewcz/svn_work/boda/test/pascal/bicycle_10.inv_1.txt': saw '', expected '1', '-1', or '0'." >
+  <li test_name="load_pil_2" err="error: invalid type string in image list file '%(boda_test_dir)/pascal/bicycle_10.inv_1.txt': saw '', expected '1', '-1', or '0'." >
     <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.inv_1.txt"/>
   </li>
-  <li test_name="load_pil_3" err="error: invalid line in image list file '/home/moskewcz/svn_work/boda/test/pascal/bicycle_10.inv_2.txt': num of parts != 2 after space splitting. line was:&#10;000006" >
+  <li test_name="load_pil_3" err="error: invalid line in image list file '%(boda_test_dir)/pascal/bicycle_10.inv_2.txt': num of parts != 2 after space splitting. line was:&#10;000006" >
     <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.inv_2.txt"/>
   </li>
   <li test_name="load_pil_4" err="error: tried to load annotations multiple times for id '000001'" >
