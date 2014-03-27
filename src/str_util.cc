@@ -60,6 +60,33 @@ namespace boda
     return ret;
   }
 
+  // FIXME: factor out dupe junk around vasprintf() calls? can't do without ret more string copy overhead? hmm.
+  filename_t filename_t_printf( filename_t const & fn, ... ) // note: can't use gcc format-string checking here
+  {
+    filename_t ret;
+    va_list ap;
+    char *s = 0;
+    int va_ret = 0;
+
+    va_start( ap, fn );
+    va_ret = vasprintf( &s, fn.in.c_str(), ap );
+    assert( va_ret > 0 );
+    va_end( ap );
+    assert( s );
+    ret.in = string( s );
+    free(s); s = 0; va_ret = 0;
+
+    va_start( ap, fn );
+    va_ret = vasprintf( &s, fn.exp.c_str(), ap );
+    assert( va_ret > 0 );
+    va_end( ap );
+    assert( s );
+    ret.exp = string( s );
+    free(s); s = 0;
+
+    return ret;
+  }
+
   void printstr( string const & str )
   {
     printf( "%s", str.c_str() );

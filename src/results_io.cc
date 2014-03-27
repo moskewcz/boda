@@ -234,33 +234,33 @@ namespace boda
     uint32_t load_imgs; //NESI(default=0,help="if true, load images referenced by the file")
     p_img_db_t img_db; //NESI(default="()", help="image database")
     virtual void main( nesi_init_arg_t * nia ) { 
-      read_pascal_image_list_file( img_db, pil_fn.exp, false, 0 ); 
+      read_pascal_image_list_file( img_db, pil_fn, false, 0 ); 
       for( vect_filename_t::const_iterator i = check_pil_fns.begin(); i != check_pil_fns.end(); ++i ) {
-	read_pascal_image_list_file( img_db, i->exp, false, 1 );
+	read_pascal_image_list_file( img_db, *i, false, 1 );
       }
     }
   };
 
-  void read_pascal_image_list_file( p_img_db_t img_db, string const & pil_fn, bool const load_imgs, 
+  void read_pascal_image_list_file( p_img_db_t img_db, filename_t const & pil_fn, bool const load_imgs, 
 				    bool const check_ix_only )
   {
     timer_t t("read_pascal_image_list_file");
     p_ifstream in = ifs_open( pil_fn );  
     string line;
     uint32_t in_file_ix = 0; // almost (0 based) line number, but only for non-blank lines
-    while( !ifs_getline( pil_fn, in, line ) )
+    while( !ifs_getline( pil_fn.in, in, line ) )
     {
       vect_string parts;
       split( parts, line, is_space(), token_compress_on );
       if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
       if( parts.size() != 2 ) { 
 	rt_err( strprintf( "invalid line in image list file '%s': num of parts != 2 after space "
-			   "splitting. line was:\n%s", pil_fn.c_str(), line.c_str() ) ); }
+			   "splitting. line was:\n%s", pil_fn.in.c_str(), line.c_str() ) ); }
       string const id = parts[0];
       string const pn = parts[1];
       if( (pn != "1") && (pn != "-1") && (pn != "0") ) {
 	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
-			   pil_fn.c_str(), pn.c_str() ) );
+			   pil_fn.in.c_str(), pn.c_str() ) );
       }
       img_db->load_pascal_data_for_id( id, load_imgs, in_file_ix, check_ix_only );
       ++in_file_ix;
@@ -277,7 +277,7 @@ namespace boda
     string class_name; //NESI(help="name of object class",req=1)
     p_img_db_t img_db; //NESI(default="()", help="image database")
     virtual void main( nesi_init_arg_t * nia ) {
-      read_pascal_image_list_file( img_db, pil_fn.exp, false, 0 );
+      read_pascal_image_list_file( img_db, pil_fn, false, 0 );
       p_vect_scored_det_t scored_dets = read_results_file( img_db, res_fn.exp, class_name );
       img_db->score_results_for_class( scored_dets, prc_txt_fn.exp, prc_png_fn.exp );
     }
@@ -301,7 +301,7 @@ namespace boda
       p_vect_string classes = readlines_fn( pascal_classes_fn.exp );
       p_vect_p_vect_scored_det_t scored_dets( new vect_p_vect_scored_det_t );      
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	read_pascal_image_list_file( img_db, strprintf( pil_fn.exp.c_str(), (*i).c_str() ), 
+	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
 				     true, (i != (*classes).begin()) ); 	
       }
 
@@ -482,7 +482,7 @@ namespace boda
       p_vect_p_vect_scored_det_t dpm_scored_dets( new vect_p_vect_scored_det_t );
       
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	read_pascal_image_list_file( img_db, strprintf( pil_fn.exp.c_str(), (*i).c_str() ), 
+	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
 				     false, (i != (*classes).begin()) ); 	
       }
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {

@@ -22,6 +22,8 @@ namespace boda
   std::string strprintf( char const * const format, ... ) __attribute__( (format(__printf__, 1, 2) ) );
   void printstr( std::string const & str );
 
+  filename_t filename_t_printf( filename_t const & fn, ... ); // note: can't use gcc format-string checking here
+
   std::string xml_escape( std::string const & str );
 
   inline bool endswith( std::string const & s, std::string const & suf )

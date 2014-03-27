@@ -248,8 +248,7 @@ namespace boda
     }
 
     void convert_class( string const & class_name, bool const check_ix_only ) {
-      string c_pil_fn = strprintf( pil_fn.exp.c_str(), class_name.c_str() );
-      read_pascal_image_list_file( img_db, c_pil_fn, 0, check_ix_only );
+      read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, class_name.c_str() ), 0, check_ix_only );
       p_vect_scored_det_t scored_dets( new vect_scored_det_t( class_name ) );
       octave_value_list in;
       

@@ -65,15 +65,16 @@ namespace boda
   }
 
   // opens a ifstream. note: this function itself will raise if the open() fails.
-  p_ifstream ifs_open( std::string const & fn )
+  p_ifstream ifs_open( filename_t const & fn )
   {
-    ensure_is_regular_file( fn );
+    ensure_is_regular_file( fn.exp );
     p_ifstream ret( new ifstream );
-    ret->open( fn.c_str() );
-    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for reading", fn.c_str() ) ); }
+    ret->open( fn.exp.c_str() );
+    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for reading", fn.in.c_str() ) ); }
     assert( ret->good() );
     return ret;
   }
+  p_ifstream ifs_open( std::string const & fn ) { return ifs_open( filename_t{fn,fn} ); }
 
   // clears line and reads one line from in. returns true if at EOF. 
   // note: calls rt_err() if a complete line cannot be read.
