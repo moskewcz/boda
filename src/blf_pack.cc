@@ -13,7 +13,7 @@ namespace boda
   template< typename T >
   void read_text_file( vector< T > & out, string const & fn )
   {
-    timer_t t("read_boxes_file");
+    timer_t t("read_text_file");
     p_ifstream in = ifs_open( fn );  
     string line;
     while( !ifs_getline( fn, in, line ) )
