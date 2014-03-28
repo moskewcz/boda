@@ -5,6 +5,18 @@
 
 namespace boda 
 {
+
+  void u32_pt_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
+    assert( parts.size() >= (init_ix+2) );
+    d[0] = lc_str_u32( parts[init_ix+0] );
+    d[1] = lc_str_u32( parts[init_ix+1] );
+  }
+
+  void u32_box_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
+    p[0].read_from_line_parts( parts, init_ix   );
+    p[1].read_from_line_parts( parts, init_ix+2 );
+  }
+
   void u32_box_t::from_pascal_coord_adjust( void )
   {
     for( uint32_t d = 0; d < 2; ++d ) {
@@ -33,6 +45,11 @@ namespace boda
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v)
   {
     return os << v.d[0] << " " << v.d[1];
+  }
+
+  std::ostream & operator <<(std::ostream & os, u32_pt_w_t const & v)
+  {
+    return os << v.d[0] << " " << v.d[1] << " w=" << v.w;
   }
 
   std::ostream & operator <<(std::ostream & os, u32_box_t const & v)

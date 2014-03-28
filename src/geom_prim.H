@@ -12,6 +12,7 @@ namespace boda
     u32_pt_t( void ) : d{0,0} { } // no c++11? --> remove : d{0,0}, use { d[0]=0;d[1]=0; }
     u32_pt_t( uint32_t const d0, uint32_t const d1 ) : d{d0,d1} { } 
     uint32_t dims_prod( void ) const { return d[0] * d[1]; }
+    void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
 
     u32_pt_t operator + ( u32_pt_t const & o ) const { return u32_pt_t( d[0] + o.d[0], d[1] + o.d[1] ); }
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
@@ -25,11 +26,27 @@ namespace boda
     bool both_dims_ge( u32_pt_t const & o ) const { return d[0] >= o.d[0] && d[1] >= o.d[1]; }
   };
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
+
+  u32_pt_t const u32_pt_t_const_max{uint32_t_const_max,uint32_t_const_max};
   
   typedef vector< u32_pt_t > vect_u32_pt_t; 
   typedef shared_ptr< u32_pt_t > p_u32_pt_t; 
   typedef vector< p_u32_pt_t > vect_p_u32_pt_t;
   typedef shared_ptr< vect_u32_pt_t > p_vect_u32_pt_t; 
+
+  struct u32_pt_w_t : public u32_pt_t {
+    uint32_t w;
+    u32_pt_w_t( void ) : w(0) { }
+    u32_pt_w_t( uint32_t const d0, uint32_t const d1 ) : u32_pt_t(d0,d1), w(0) { } 
+    u32_pt_w_t( uint32_t const d0, uint32_t const d1, uint32_t const w_ ) : u32_pt_t(d0,d1), w(w_) { } 
+    u32_pt_w_t( u32_pt_t const d_, uint32_t const w_ ) : u32_pt_t(d_), w(w_) { } 
+  };
+  std::ostream & operator <<(std::ostream & os, u32_pt_w_t const & v);
+
+  typedef vector< u32_pt_w_t > vect_u32_pt_w_t; 
+  typedef shared_ptr< vect_u32_pt_w_t > p_vect_u32_pt_w_t; 
+  typedef shared_ptr< u32_pt_w_t > p_u32_pt_w_t; 
+  typedef vector< p_u32_pt_w_t > vect_p_u32_pt_w_t;
 
   struct u32_box_t
   {
@@ -69,6 +86,7 @@ namespace boda
 
     uint64_t get_area( void ) const { return uint64_t(p[1].d[0]-p[0].d[0])*(p[1].d[1]-p[0].d[1]); } 
 
+    void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
     void from_pascal_coord_adjust( void );
     void to_pascal_coord_adjust( void );
     std::string pascal_str( void ) const;
@@ -78,14 +96,11 @@ namespace boda
     u32_pt_t sz( void ) const { return u32_pt_t( p[1].d[0] - p[0].d[0], p[1].d[1] - p[0].d[1] ); }
   };
 
-  // compare two boxes by area > then box::op<()
-  struct u32_box_t_by_area_gt_t {
-    bool operator () ( u32_box_t const & a, u32_box_t const & b ) const {
-      return (a.get_area() != b.get_area()) ? (a.get_area() > b.get_area()) : (a < b);
-    }
+  // compare two points by product (i.e. area if pt's are sizes of boxes) >
+  struct u32_pt_t_by_prod_gt_t {
+    bool operator () ( u32_pt_t const & a, u32_pt_t const & b ) const { return a.dims_prod() > b.dims_prod(); }
   };
     
-
   typedef vector< u32_box_t > vect_u32_box_t; 
   typedef set< u32_box_t > set_u32_box_t;
   typedef shared_ptr< u32_box_t > p_u32_box_t; 
