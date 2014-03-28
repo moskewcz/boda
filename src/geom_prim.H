@@ -17,6 +17,8 @@ namespace boda
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
     bool both_dims_non_zero( void ) const { return d[0]&&d[1]; }
     bool operator == ( u32_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
+    bool operator != ( u32_pt_t const & o ) const { return !(*this == o); }
+    bool operator <  ( u32_pt_t const & o ) const { return (d[0] != o.d[0]) ? (d[0] < o.d[0]) : (d[1] < o.d[1]); }
     bool both_dims_lt( u32_pt_t const & o ) const { return d[0] <  o.d[0] && d[1] <  o.d[1]; }
     bool both_dims_gt( u32_pt_t const & o ) const { return d[0] >  o.d[0] && d[1] >  o.d[1]; }
     bool both_dims_le( u32_pt_t const & o ) const { return d[0] <= o.d[0] && d[1] <= o.d[1]; }
@@ -71,13 +73,25 @@ namespace boda
     void to_pascal_coord_adjust( void );
     std::string pascal_str( void ) const;
     bool operator == ( u32_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
+    bool operator != ( u32_box_t const & o ) const { return !(*this == o); }
+    bool operator <  ( u32_box_t const & o ) const { return (p[0] != o.p[0]) ? (p[0] < o.p[0]) : (p[1] < o.p[1]); }
     u32_pt_t sz( void ) const { return u32_pt_t( p[1].d[0] - p[0].d[0], p[1].d[1] - p[0].d[1] ); }
   };
 
+  // compare two boxes by area > then box::op<()
+  struct u32_box_t_by_area_gt_t {
+    bool operator () ( u32_box_t const & a, u32_box_t const & b ) const {
+      return (a.get_area() != b.get_area()) ? (a.get_area() > b.get_area()) : (a < b);
+    }
+  };
+    
+
   typedef vector< u32_box_t > vect_u32_box_t; 
+  typedef set< u32_box_t > set_u32_box_t;
   typedef shared_ptr< u32_box_t > p_u32_box_t; 
   typedef vector< p_u32_box_t > vect_p_u32_box_t;
   typedef shared_ptr< vect_u32_box_t > p_vect_u32_box_t; 
+
 
   std::ostream & operator <<(std::ostream & os, u32_box_t const & v);
 
