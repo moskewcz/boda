@@ -3,30 +3,12 @@
 #include"geom_prim.H"
 #include"timers.H"
 #include"str_util.H"
-#include<boost/algorithm/string.hpp>
 #include"has_main.H"
+#include"io_util.H"
 
 namespace boda 
 {
   using namespace boost;
-
-  template< typename T >
-  void read_text_file( vector< T > & out, string const & fn )
-  {
-    timer_t t("read_text_file");
-    p_ifstream in = ifs_open( fn );  
-    string line;
-    while( !ifs_getline( fn, in, line ) )
-    {
-      vect_string parts;
-      split( parts, line, is_space(), token_compress_on );
-      if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
-      T t;
-      t.read_from_line_parts( parts, 0 );
-      out.push_back( t );
-    }
-  }
-
 
   struct blf_bin_t {
     u32_box_t bin;
