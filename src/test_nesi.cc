@@ -157,7 +157,7 @@ namespace boda
 	else { 	// check if error is correct one
 	  string const exp_err_msg = string(lt.err_fmt); 
 	  if( rte.err_msg != exp_err_msg ) { 
-	    test_fail_wrong_err( strprintf( "  %s\nexpected:\n  %s\n", 
+	    test_fail_wrong_err( strprintf( "  '%s'\nexpected:\n  '%s'\n", 
 					    str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) );
 	    // (*ofs_open("/tmp/eib.txt")) << rte.err_msg; // poor-man's auto-update
 	  }
@@ -484,7 +484,7 @@ namespace boda
 	else { 	// check if error is correct one
 	  string const exp_err_msg = *cmd->err;
 	  if( rte.err_msg != exp_err_msg ) { 
-	    test_fail_wrong_err( strprintf( "  %s\nexpected:\n  %s\n", 
+	    test_fail_wrong_err( strprintf( "  '%s'\nexpected:\n  '%s'\n", 
 					    str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) );
 	    if( write_err ) { (*ofs_open("/tmp/eib.txt")) << rte.err_msg; } // poor-man's auto-update
 	  }

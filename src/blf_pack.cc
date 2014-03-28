@@ -64,10 +64,10 @@ namespace boda
 	      }
 	    }
 	  }
-	  printf( "OVER (*i)=%s ret=%s\n", str((*i)).c_str(), str(ret).c_str() );
+	  //printf( "OVER (*i)=%s ret=%s\n", str((*i)).c_str(), str(ret).c_str() );
 	} else { holes.push_back( *i ); } // no overlap with this hole, keep hole in holes (implicitly kept in holes_set)
       }
-      printf( "-- OUT holes=%s\n", str(holes).c_str() );
+      //printf( "-- OUT holes=%s\n", str(holes).c_str() );
       return ret.p[0];
     }
   };
@@ -91,7 +91,7 @@ namespace boda
 	placement = bins.back()->place_box( *i );
 	if( placement == u32_pt_t_const_max ) {
 	  rt_err( strprintf( "box (*i)=%s cannot be placed into empty bin with bin_sz=%s "
-			     "(i.e. box to place > bin size)\n", str((*i)).c_str(), str(bin_sz).c_str() ) );
+			     "(i.e. box to place > bin size)", str((*i)).c_str(), str(bin_sz).c_str() ) );
 	}
       }
       //printf( "placement=%s bin_ix=%s\n", str(placement).c_str(), str(bin_ix).c_str() );
@@ -103,17 +103,19 @@ namespace boda
   struct blf_pack_t : virtual public nesi, public has_main_t // NESI(help="blf rectangle packing",bases=["has_main_t"], type_id="blf_pack")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
     filename_t to_pack_fn; //NESI(help="input: filename for list of boxes to pack",req=1)
     uint32_t bin_sz; //NESI(help="bin size for packing (as many bins needed will be used)",req=1)
     virtual void main( nesi_init_arg_t * nia ) { 
+      p_ostream out = ofs_open( out_fn.exp );
       vect_u32_pt_t to_pack;
       read_text_file( to_pack, to_pack_fn.exp );
       sort( to_pack.begin(), to_pack.end(), u32_pt_t_by_prod_gt_t() );
-      printf( "bin_sz=%s\n", str(bin_sz).c_str() );
-      printf( "to_pack=%s\n", str(to_pack).c_str() );
+      (*out) << strprintf( "bin_sz=%s\n", str(bin_sz).c_str() );
+      (*out) << strprintf( "to_pack=%s\n", str(to_pack).c_str() );
       vect_u32_pt_w_t placements;
       blf_place( placements, u32_pt_t(bin_sz,bin_sz), to_pack );
-      printf( "placements=%s\n", str(placements).c_str() );
+      (*out) << strprintf( "placements=%s\n", str(placements).c_str() );
     }
   };
 

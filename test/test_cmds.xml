@@ -63,6 +63,14 @@
   <command mode="oct_resize" image_list_fn="%(boda_test_dir)/plasma_imgs.txt" /> </li>
   <li test_name="oct_resize_2" slow="1"> 
   <command mode="oct_resize" image_list_fn="%(boda_test_dir)/pascal_imgs_10.txt" /> </li>
+
+  <li test_name="blf_pack_1" 
+      err="error: box (*i)=50 50 cannot be placed into empty bin with bin_sz=40 40 (i.e. box to place > bin size)" >
+  <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="40"/>
+  </li>
+  <li test_name="blf_pack_2"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="50"/></li>
+  <li test_name="blf_pack_3"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="100"/></li>
+  <li test_name="blf_pack_4"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="500"/></li>
 <!--
   <li test_name="oct_resize_0" slow="1"> 
     <command mode="oct_resize" 
