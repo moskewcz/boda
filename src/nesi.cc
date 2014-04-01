@@ -7,6 +7,7 @@ using boost::shared_ptr;
 using std::vector;
 
 #include<boost/lexical_cast.hpp>
+#include<boost/algorithm/string.hpp>
 
 
 #include<string>
@@ -15,6 +16,7 @@ using std::string;
 #include"lexp.H"
 #include"str_util.H"
 #include"xml_util.H"
+#include"geom_prim.H"
 
 namespace boda 
 {
@@ -448,22 +450,39 @@ namespace boda
   // base type methods
 
   // shared base type functions
-  template< typename T >
-  void nesi_lexcast_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
+  lexp_t * nesi_leaf_val_init_helper( char const * & tstr, nesi_init_arg_t * nia, tinfo_t const * tinfo )
   { 
-    T * v = (T *)o;
     assert( nia->l ); // no_value_init disabled
     //if( !d ) { *v = 0; return; } // no_value_init = 0
-    char const * tstr = (char const *)tinfo->init_arg;
+    tstr = (char const *)tinfo->init_arg;
     lexp_t * l = nia->l.get();
     if( !l->leaf_val.exists() ) {
       rt_err( "invalid attempt to use name/value list as "+string(tstr)+" value. list was:" + str(*l) );
     }
     ++l->use_cnt;
-    string const s = l->leaf_val.str();  
+    return l;
+  }
+  template< typename T >
+  void nesi_lexcast_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
+  { 
+    T * v = (T *)o;
+    char const * tstr = 0;
+    string const s = nesi_leaf_val_init_helper(tstr,nia,tinfo)->leaf_val.str();  
     try { *v = boost::lexical_cast< T >( s ); }
     catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", s.c_str(), tstr ) ); }
   }
+  template< typename T >
+  void nesi_str_parts_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
+  { 
+    T * v = (T *)o;
+    char const * tstr = 0;
+    string const s = nesi_leaf_val_init_helper(tstr,nia,tinfo)->leaf_val.str();  
+    vect_string parts;
+    boost::algorithm::split( parts, s, boost::algorithm::is_space(), boost::algorithm::token_compress_on );
+    try { v->read_from_line_parts( parts, 0 ); }
+    catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", s.c_str(), tstr ) ); }
+  }
+
   // note: always prints/clear pending
   template< typename T >
   bool with_op_left_shift_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
@@ -599,6 +618,23 @@ namespace boda
   nesi_dump_t * uint8_t_nesi_dump = &with_op_left_shift_nesi_dump< uint8_t >;
   void *uint8_t_init_arg = (void *)"uint8_t (8-bit unsigned integer)";
 
+  // u32_pt_t
+  init_t * nesi_u32_pt_t_init = &nesi_str_parts_init< u32_pt_t >;
+  make_p_t * u32_pt_t_make_p = &has_def_ctor_make_p< u32_pt_t >;
+  vect_push_back_t * u32_pt_t_vect_push_back = &has_def_ctor_vect_push_back_t< u32_pt_t >;
+  nesi_dump_t * u32_pt_t_nesi_dump = &with_op_left_shift_nesi_dump< u32_pt_t >;
+  void *u32_pt_t_init_arg = (void *)"u32_pt_t (pair of 32-bit unsigned integers, i.e. an unsigned point)";
+
+  // u32_box_t
+  init_t * nesi_u32_box_t_init = &nesi_str_parts_init< u32_box_t >;
+  make_p_t * u32_box_t_make_p = &has_def_ctor_make_p< u32_box_t >;
+  vect_push_back_t * u32_box_t_vect_push_back = &has_def_ctor_vect_push_back_t< u32_box_t >;
+  nesi_dump_t * u32_box_t_nesi_dump = &with_op_left_shift_nesi_dump< u32_box_t >;
+  void *u32_box_t_init_arg = (void *)"u32_box_t (pair of u32_pt_t, i.e. an unsigned box)";
+
+
+// note: a special case in nesi_gen.py makes 'base' NESI types be associated with nesi.cc (and
+// thus go into the nesi.cc.nesi_gen.cc file)
 #include"gen/nesi.cc.nesi_gen.cc"
 
 }
