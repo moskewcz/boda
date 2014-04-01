@@ -1,0 +1,29 @@
+## algorithms
+### hashing/trees for classification/detection/whatever
+### quantization
+
+## Apps
+### Scene classification for high-level ad categories
+### zillion-class object detection (everything is something)
+### human pose/joint estimation
+### Object det. on a phone
+
+## Implimentation
+### DPM/cascade
+### Caffe
+#### memory optimization
+#### perf optimization
+#### CPU impl
+#### GPU impl -- non-blas: fater? lower mem? less restrictions?
+#### relaxing restrictions
+##### memory
+##### small planes / batches
+##### general overhead
+
+## Benchmarking (for speed/memory)
+### non-caffe CNNs 
+#### setup alexnet in all
+#### sweep design space of layer setups
+#### accuracy: harder to test
+
+
