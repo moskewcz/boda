@@ -15,6 +15,9 @@ namespace boda
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
 
     u32_pt_t operator + ( u32_pt_t const & o ) const { return u32_pt_t( d[0] + o.d[0], d[1] + o.d[1] ); }
+    u32_pt_t operator - ( u32_pt_t const & o ) const { return u32_pt_t( d[0] - o.d[0], d[1] - o.d[1] ); }
+    u32_pt_t operator * ( u32_pt_t const & o ) const { return u32_pt_t( d[0] * o.d[0], d[1] * o.d[1] ); }
+    u32_pt_t operator / ( u32_pt_t const & o ) const { return u32_pt_t( d[0] / o.d[0], d[1] / o.d[1] ); }
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
     bool both_dims_non_zero( void ) const { return d[0]&&d[1]; }
     bool operator == ( u32_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
@@ -93,7 +96,9 @@ namespace boda
     bool operator == ( u32_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
     bool operator != ( u32_box_t const & o ) const { return !(*this == o); }
     bool operator <  ( u32_box_t const & o ) const { return (p[0] != o.p[0]) ? (p[0] < o.p[0]) : (p[1] < o.p[1]); }
-    u32_pt_t sz( void ) const { return u32_pt_t( p[1].d[0] - p[0].d[0], p[1].d[1] - p[0].d[1] ); }
+    u32_pt_t sz( void ) const { return p[1] - p[0]; }
+    u32_pt_t bnds_sum( void ) const { return p[0] + p[1]; }
+    
   };
 
   // compare two points by product (i.e. area if pt's are sizes of boxes) >
