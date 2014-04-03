@@ -1,40 +1,42 @@
+>> calculating network sizes backward given an out_sz of 6
 == BEGIN CONV PIPE ==
-cio: sz=355 355 support_sz=1 1 support_stride=1 1
+cio: sz=227 227 support_sz=1 1 support_stride=1 1 support_pad=(64 64)(64 64)
     ----  conv=(tag=conv1,in_pad=(0 0)(0 0),kern_sz=11 11,stride=4 4) 
-cio: sz=87 87 support_sz=11 11 support_stride=4 4
+cio: sz=55 55 support_sz=11 11 support_stride=4 4 support_pad=(16 16)(16 16)
     ----  conv=(tag=pool1,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2) 
-cio: sz=43 43 support_sz=19 19 support_stride=8 8
-    ----  conv=(tag=conv2,in_pad=(0 0)(0 0),kern_sz=5 5) 
-cio: sz=39 39 support_sz=51 51 support_stride=8 8
+cio: sz=27 27 support_sz=19 19 support_stride=8 8 support_pad=(8 8)(8 8)
+    ----  conv=(tag=conv2,in_pad=(2 2)(2 2),kern_sz=5 5) 
+cio: sz=27 27 support_sz=51 51 support_stride=8 8 support_pad=(6 6)(6 6)
     ----  conv=(tag=pool2,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2) 
-cio: sz=19 19 support_sz=67 67 support_stride=16 16
-    ----  conv=(tag=conv3,in_pad=(0 0)(0 0),kern_sz=3 3) 
-cio: sz=17 17 support_sz=99 99 support_stride=16 16
-    ----  conv=(tag=conv4,in_pad=(0 0)(0 0),kern_sz=3 3) 
-cio: sz=15 15 support_sz=131 131 support_stride=16 16
-    ----  conv=(tag=conv5,in_pad=(0 0)(0 0),kern_sz=3 3) 
-cio: sz=13 13 support_sz=163 163 support_stride=16 16
+cio: sz=13 13 support_sz=67 67 support_stride=16 16 support_pad=(3 3)(3 3)
+    ----  conv=(tag=conv3,in_pad=(1 1)(1 1),kern_sz=3 3) 
+cio: sz=13 13 support_sz=99 99 support_stride=16 16 support_pad=(2 2)(2 2)
+    ----  conv=(tag=conv4,in_pad=(1 1)(1 1),kern_sz=3 3) 
+cio: sz=13 13 support_sz=131 131 support_stride=16 16 support_pad=(1 1)(1 1)
+    ----  conv=(tag=conv5,in_pad=(1 1)(1 1),kern_sz=3 3) 
+cio: sz=13 13 support_sz=163 163 support_stride=16 16 support_pad=(0 0)(0 0)
     ----  conv=(tag=pool5,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2) 
-cio: sz=6 6 support_sz=195 195 support_stride=32 32
+cio: sz=6 6 support_sz=195 195 support_stride=32 32 support_pad=(0 0)(0 0)
   --- DATA DISCARDED --- used_sz=0 0
 == END CONV PIPE ==
+>> calculating network sizes forward given an in_sz of 227
 == BEGIN CONV PIPE ==
-cio: sz=227 227 support_sz=1 1 support_stride=1 1
+cio: sz=227 227 support_sz=1 1 support_stride=1 1 support_pad=(64 64)(64 64)
     ----  conv=(tag=conv1,in_pad=(0 0)(0 0),kern_sz=11 11,stride=4 4) 
-cio: sz=55 55 support_sz=11 11 support_stride=4 4
+cio: sz=55 55 support_sz=11 11 support_stride=4 4 support_pad=(16 16)(16 16)
     ----  conv=(tag=pool1,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2) 
-cio: sz=27 27 support_sz=19 19 support_stride=8 8
-    ----  conv=(tag=conv2,in_pad=(0 0)(0 0),kern_sz=5 5) 
-cio: sz=23 23 support_sz=51 51 support_stride=8 8
+cio: sz=27 27 support_sz=19 19 support_stride=8 8 support_pad=(8 8)(8 8)
+    ----  conv=(tag=conv2,in_pad=(2 2)(2 2),kern_sz=5 5) 
+cio: sz=27 27 support_sz=51 51 support_stride=8 8 support_pad=(6 6)(6 6)
     ----  conv=(tag=pool2,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2) 
-cio: sz=11 11 support_sz=67 67 support_stride=16 16
-    ----  conv=(tag=conv3,in_pad=(0 0)(0 0),kern_sz=3 3) 
-cio: sz=9 9 support_sz=99 99 support_stride=16 16
-    ----  conv=(tag=conv4,in_pad=(0 0)(0 0),kern_sz=3 3) 
-cio: sz=7 7 support_sz=131 131 support_stride=16 16
-    ----  conv=(tag=conv5,in_pad=(0 0)(0 0),kern_sz=3 3) 
-cio: sz=5 5 support_sz=163 163 support_stride=16 16
+cio: sz=13 13 support_sz=67 67 support_stride=16 16 support_pad=(3 3)(3 3)
+    ----  conv=(tag=conv3,in_pad=(1 1)(1 1),kern_sz=3 3) 
+cio: sz=13 13 support_sz=99 99 support_stride=16 16 support_pad=(2 2)(2 2)
+    ----  conv=(tag=conv4,in_pad=(1 1)(1 1),kern_sz=3 3) 
+cio: sz=13 13 support_sz=131 131 support_stride=16 16 support_pad=(1 1)(1 1)
+    ----  conv=(tag=conv5,in_pad=(1 1)(1 1),kern_sz=3 3) 
+cio: sz=13 13 support_sz=163 163 support_stride=16 16 support_pad=(0 0)(0 0)
     ----  conv=(tag=pool5,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2) 
-cio: sz=2 2 support_sz=195 195 support_stride=32 32
+cio: sz=6 6 support_sz=195 195 support_stride=32 32 support_pad=(0 0)(0 0)
   --- DATA DISCARDED --- used_sz=0 0
 == END CONV PIPE ==

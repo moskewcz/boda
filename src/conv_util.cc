@@ -133,8 +133,16 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";
       conv_pipe_t cp{convs,ignore_padding_for_support};
-      if( out_sz ) { cp.calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); cp.dump_pipe(*out); }
-      if( in_sz ) { cp.calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); cp.dump_pipe(*out); }
+      if( out_sz ) { 
+	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
+	cp.calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
+	cp.dump_pipe(*out); 
+      }
+      if( in_sz ) { 
+	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
+	cp.calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
+	cp.dump_pipe(*out); 
+      }
     }
   };
 
