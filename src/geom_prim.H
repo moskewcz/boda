@@ -93,11 +93,13 @@ namespace boda
     void from_pascal_coord_adjust( void );
     void to_pascal_coord_adjust( void );
     std::string pascal_str( void ) const;
+    u32_box_t operator + ( u32_box_t const & o ) const { return u32_box_t( p[0] + o.p[0], p[1] + o.p[1] ); }
     bool operator == ( u32_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
     bool operator != ( u32_box_t const & o ) const { return !(*this == o); }
     bool operator <  ( u32_box_t const & o ) const { return (p[0] != o.p[0]) ? (p[0] < o.p[0]) : (p[1] < o.p[1]); }
     u32_pt_t sz( void ) const { return p[1] - p[0]; }
     u32_pt_t bnds_sum( void ) const { return p[0] + p[1]; }
+    u32_box_t scale_dims( u32_pt_t const & scale ) const { return u32_box_t( p[0] * scale, p[1] * scale ); }
     
   };
 
