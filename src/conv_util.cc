@@ -41,23 +41,32 @@ namespace boda
   struct conv_io_t {
     u32_pt_t sz;
     u32_pt_t used_sz;
-
-    u32_pt_t support_sz;
-    u32_pt_t support_stride;
-    u32_box_t support_pad;
   };
   
   typedef vector< conv_io_t > vect_conv_io_t; 
   typedef shared_ptr< conv_io_t > p_conv_io_t; 
   typedef vector< p_conv_io_t > vect_p_conv_io_t;
 
+  struct conv_support_info_t {  
+    u32_pt_t support_sz;
+    u32_pt_t support_stride;
+    u32_box_t support_pad;
+  };
+
+  typedef vector< conv_support_info_t > vect_conv_support_info_t; 
+  typedef shared_ptr< conv_support_info_t > p_conv_support_info_t; 
+  typedef vector< p_conv_support_info_t > vect_p_conv_support_info_t;
+
+
   struct conv_pipe_t {
     p_vect_conv_op_t convs;
-    vect_conv_io_t conv_ios; // note: imgs.size() == ( convs.size() + 1 )
+    vect_conv_io_t conv_ios; // note: conv_ios.size() == ( convs.size() + 1 )
+    vect_conv_support_info_t conv_sis; // note: conv_sis.size() == ( convs.size() + 1 )
     conv_pipe_t( p_vect_conv_op_t const & convs_, bool const ignore_padding_for_support ) : convs(convs_) {
       conv_ios.clear();
       conv_ios.resize( convs->size() + 1 );
-      calc_support_sz( ignore_padding_for_support );
+      conv_sis.resize( convs->size() + 1 );
+      calc_support_info( ignore_padding_for_support );
     }     
 
     void zero_conv_ios( void ) {
@@ -66,21 +75,21 @@ namespace boda
       }
     }
 
-    void calc_support_sz( bool const ignore_padding ) {
-      conv_ios.front().support_sz = u32_pt_t(1,1);
-      conv_ios.front().support_stride = u32_pt_t(1,1);
+    void calc_support_info( bool const ignore_padding ) {
+      conv_sis.front().support_sz = u32_pt_t(1,1);
+      conv_sis.front().support_stride = u32_pt_t(1,1);
       for( uint32_t i = 0; i != convs->size(); ++i ) {
 	conv_op_t const & cop = convs->at(i);
 	assert_st( cop.kern_sz.both_dims_non_zero() );
 	u32_pt_t const in_sz_1x1 = cop.out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding );
 	assert_st( in_sz_1x1.both_dims_non_zero() );
-	conv_ios[i+1].support_sz = conv_ios[i].support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*conv_ios[i].support_stride;
-	conv_ios[i+1].support_stride = conv_ios[i].support_stride*cop.stride;
+	conv_sis[i+1].support_sz = conv_sis[i].support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*conv_sis[i].support_stride;
+	conv_sis[i+1].support_stride = conv_sis[i].support_stride*cop.stride;
       }
       // backward pass to calculate support_pad
       for( uint32_t i = convs->size(); i; --i ) {
 	conv_op_t const & cop = convs->at(i-1);
-	conv_ios[i-1].support_pad = cop.in_pad + conv_ios[i].support_pad.scale_dims( cop.stride );	
+	conv_sis[i-1].support_pad = cop.in_pad + conv_sis[i].support_pad.scale_dims( cop.stride );	
       }
     }
 
@@ -106,9 +115,10 @@ namespace boda
       out << strprintf( "== BEGIN CONV PIPE ==\n" );
       for( uint32_t i = 0; ; ++i ) {
 	conv_io_t const & cio = conv_ios[i];
+	conv_support_info_t const & csi = conv_sis[i];
 	out << strprintf( "cio: sz=%s support_sz=%s support_stride=%s support_pad=%s\n", 
-			  str(cio.sz).c_str(), str(cio.support_sz).c_str(), 
-			  str(cio.support_stride).c_str(), str(cio.support_pad).c_str() );
+			  str(cio.sz).c_str(), str(csi.support_sz).c_str(), 
+			  str(csi.support_stride).c_str(), str(csi.support_pad).c_str() );
 	if( conv_ios[i].sz != conv_ios[i].used_sz ) {
 	  out << "  --- DATA DISCARDED --- " << strprintf( "used_sz=%s\n", str(conv_ios[i].used_sz).c_str() );
 	}
