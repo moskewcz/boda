@@ -50,7 +50,7 @@ namespace boda
   struct conv_support_info_t {  
     u32_pt_t support_sz;
     u32_pt_t support_stride;
-    u32_box_t support_pad;
+    u32_box_t eff_tot_pad;
   };
 
   typedef vector< conv_support_info_t > vect_conv_support_info_t; 
@@ -86,10 +86,10 @@ namespace boda
 	conv_sis[i+1].support_sz = conv_sis[i].support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*conv_sis[i].support_stride;
 	conv_sis[i+1].support_stride = conv_sis[i].support_stride*cop.stride;
       }
-      // backward pass to calculate support_pad
+      // backward pass to calculate eff_tot_pad
       for( uint32_t i = convs->size(); i; --i ) {
 	conv_op_t const & cop = convs->at(i-1);
-	conv_sis[i-1].support_pad = cop.in_pad + conv_sis[i].support_pad.scale_dims( cop.stride );	
+	conv_sis[i-1].eff_tot_pad = cop.in_pad + conv_sis[i].eff_tot_pad.scale_dims( cop.stride );	
       }
     }
 
@@ -116,9 +116,9 @@ namespace boda
       for( uint32_t i = 0; ; ++i ) {
 	conv_io_t const & cio = conv_ios[i];
 	conv_support_info_t const & csi = conv_sis[i];
-	out << strprintf( "cio: sz=%s support_sz=%s support_stride=%s support_pad=%s\n", 
+	out << strprintf( "cio: sz=%s support_sz=%s support_stride=%s eff_tot_pad=%s\n", 
 			  str(cio.sz).c_str(), str(csi.support_sz).c_str(), 
-			  str(csi.support_stride).c_str(), str(csi.support_pad).c_str() );
+			  str(csi.support_stride).c_str(), str(csi.eff_tot_pad).c_str() );
 	if( conv_ios[i].sz != conv_ios[i].used_sz ) {
 	  out << "  --- DATA DISCARDED --- " << strprintf( "used_sz=%s\n", str(conv_ios[i].used_sz).c_str() );
 	}
@@ -137,7 +137,7 @@ namespace boda
     // filename_t convs_fn; NESI(help="input: filename for list of convs",req=1)
     p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
-    uint32_t ignore_padding_for_support; //NESI(default=0,help="if 1, ignore any padding specified when calculating the support_size for a single pel for each layer")
+    uint32_t ignore_padding_for_support; //NESI(default=1,help="if 1, ignore any padding specified when calculating the support_size for a single pel for each layer")
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
     virtual void main( nesi_init_arg_t * nia ) { 
       p_ofstream out = ofs_open( out_fn.exp );
