@@ -1,3 +1,4 @@
+// Copyright (c) 2013, Forrest Iandola
 #ifndef MODEL_H
 #define MODEL_H
 
