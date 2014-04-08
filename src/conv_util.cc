@@ -129,7 +129,7 @@ namespace boda
     }
   };
 
-  struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="blf rectangle packing",bases=["has_main_t"], type_id="conv_ana")
+  struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["has_main_t"], type_id="conv_ana")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
