@@ -11,7 +11,7 @@
 #include<fstream>
 #include<boost/filesystem.hpp>
 
-#include"model.h"
+#include"ext/model.h"
 #include"geom_prim.H"
 #include"str_util.H"
 #include"img_io.H"
