@@ -25,10 +25,20 @@ namespace boda
     uint32_t groups; //NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
 
     u32_pt_t out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
-      return kern_sz + (out_sz-u32_pt_t(1,1))*stride - (ignore_padding?u32_pt_t():in_pad.bnds_sum());
+      assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
+      u32_pt_t const no_pad_in_sz =  kern_sz + (out_sz-u32_pt_t(1,1))*stride;
+      if( ignore_padding ) { return no_pad_in_sz; }
+      // if the following assert does not hold, the result would be
+      // negative, indicating *no input* yields a larger out_sz than
+      // requested (due to padding). this might be valid, but it's
+      // unclear what to return (zero?), so for now we refuse to try.
+      assert_st( no_pad_in_sz.both_dims_ge( in_pad.bnds_sum() ) ); 
+      return no_pad_in_sz - in_pad.bnds_sum();
     }
     u32_pt_t in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
-      return (in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum())-kern_sz)/stride + u32_pt_t(1,1); 
+      u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum());
+      if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
+      return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); 
     }
   };
 
@@ -75,13 +85,14 @@ namespace boda
       }
     }
 
+    // generally more sensible to call with ignore_padding = 1 (but possibly interesting if = 0 too)
     void calc_support_info( bool const ignore_padding ) {
       conv_sis.front().support_sz = u32_pt_t(1,1);
       conv_sis.front().support_stride = u32_pt_t(1,1);
       for( uint32_t i = 0; i != convs->size(); ++i ) {
 	conv_op_t const & cop = convs->at(i);
 	assert_st( cop.kern_sz.both_dims_non_zero() );
-	u32_pt_t const in_sz_1x1 = cop.out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding );
+	u32_pt_t const in_sz_1x1 = cop.out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
 	assert_st( in_sz_1x1.both_dims_non_zero() );
 	conv_sis[i+1].support_sz = conv_sis[i].support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*conv_sis[i].support_stride;
 	conv_sis[i+1].support_stride = conv_sis[i].support_stride*cop.stride;
@@ -93,14 +104,18 @@ namespace boda
       }
     }
 
-
     void calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding ) {
       zero_conv_ios();
       conv_ios.back().sz = out_sz;
       for( uint32_t i = convs->size(); i; --i ) {
-	conv_ios[i-1].sz = convs->at(i-1).out_sz_to_in_sz( conv_ios[i].sz, ignore_padding );
+	conv_op_t const & cop = convs->at(i-1);
+	if( !conv_ios[i].sz.both_dims_non_zero() ) {
+	  rt_err( strprintf( "calc_sizes_back(): unhandled/questionable case: pipeline stage %s output is zero-area.",
+			     cop.tag.c_str() ) );
+	}
+	conv_ios[i-1].sz = cop.out_sz_to_in_sz( conv_ios[i].sz, ignore_padding );
 	conv_ios[i-1].used_sz = conv_ios[i-1].sz; // by semantics of out_sz_to_in_sz (but checked below)
-	assert_st( conv_ios[i].sz == convs->at(i-1).in_sz_to_out_sz( conv_ios[i-1].sz, ignore_padding ) );
+	assert_st( conv_ios[i].sz == cop.in_sz_to_out_sz( conv_ios[i-1].sz, ignore_padding ) );
       }
     }
     void calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding ) {
@@ -108,7 +123,9 @@ namespace boda
       conv_ios.front().sz = in_sz;
       for( uint32_t i = 0; i != convs->size(); ++i ) {
 	conv_ios[i+1].sz = convs->at(i).in_sz_to_out_sz( conv_ios[i].sz, ignore_padding );
-	conv_ios[i].used_sz = convs->at(i).out_sz_to_in_sz( conv_ios[i+1].sz, ignore_padding );
+	if( conv_ios[i+1].sz.both_dims_non_zero() ) { 
+	  conv_ios[i].used_sz = convs->at(i).out_sz_to_in_sz( conv_ios[i+1].sz, ignore_padding );
+	} // else if there's no output, we used no input (used_sz left at zero)
       }
     }
     void dump_pipe( std::ostream & out ) {
