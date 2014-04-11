@@ -44,6 +44,7 @@ namespace boda
 
 
   using boost::shared_ptr;
+  template< typename T > struct null_deleter { void operator()( T * const ) const {}; };
   using boost::dynamic_pointer_cast;
   using boost::iostreams::mapped_file;
   using boost::iostreams::mapped_file_source;
