@@ -13,6 +13,7 @@ namespace boda
     u32_pt_t( uint32_t const d0, uint32_t const d1 ) : d{d0,d1} { } 
     uint32_t dims_prod( void ) const { return d[0] * d[1]; }
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
+    u32_pt_t scale_and_round( double const & s ) const { return u32_pt_t( round(d[0]*s), round(d[1]*s) ); }
 
     u32_pt_t operator + ( u32_pt_t const & o ) const { return u32_pt_t( d[0] + o.d[0], d[1] + o.d[1] ); }
     u32_pt_t operator - ( u32_pt_t const & o ) const { return u32_pt_t( d[0] - o.d[0], d[1] - o.d[1] ); }
@@ -37,19 +38,28 @@ namespace boda
   typedef vector< p_u32_pt_t > vect_p_u32_pt_t;
   typedef shared_ptr< vect_u32_pt_t > p_vect_u32_pt_t; 
 
-  struct u32_pt_w_t : public u32_pt_t {
-    uint32_t w;
-    u32_pt_w_t( void ) : w(0) { }
-    u32_pt_w_t( uint32_t const d0, uint32_t const d1 ) : u32_pt_t(d0,d1), w(0) { } 
-    u32_pt_w_t( uint32_t const d0, uint32_t const d1, uint32_t const w_ ) : u32_pt_t(d0,d1), w(w_) { } 
-    u32_pt_w_t( u32_pt_t const d_, uint32_t const w_ ) : u32_pt_t(d_), w(w_) { } 
+  // note: T must be a type initializable with 0
+  template< typename T >
+  struct u32_pt_T_t : public u32_pt_t {
+    T w;
+    u32_pt_T_t( void ) : w(0) { }
+    u32_pt_T_t( uint32_t const d0, uint32_t const d1 ) : u32_pt_t(d0,d1), w(0) { } 
+    u32_pt_T_t( uint32_t const d0, uint32_t const d1, uint32_t const w_ ) : u32_pt_t(d0,d1), w(w_) { } 
+    u32_pt_T_t( u32_pt_t const d_, T const & w_ ) : u32_pt_t(d_), w(w_) { } 
   };
+  typedef u32_pt_T_t< uint32_t > u32_pt_w_t;
   std::ostream & operator <<(std::ostream & os, u32_pt_w_t const & v);
-
   typedef vector< u32_pt_w_t > vect_u32_pt_w_t; 
   typedef shared_ptr< vect_u32_pt_w_t > p_vect_u32_pt_w_t; 
   typedef shared_ptr< u32_pt_w_t > p_u32_pt_w_t; 
   typedef vector< p_u32_pt_w_t > vect_p_u32_pt_w_t;
+
+  typedef u32_pt_T_t< float > u32_pt_f_t;
+  std::ostream & operator <<(std::ostream & os, u32_pt_f_t const & v);
+  typedef vector< u32_pt_f_t > vect_u32_pt_f_t; 
+  typedef shared_ptr< vect_u32_pt_f_t > p_vect_u32_pt_f_t; 
+  typedef shared_ptr< u32_pt_f_t > p_u32_pt_f_t; 
+  typedef vector< p_u32_pt_f_t > vect_p_u32_pt_f_t;
 
   struct u32_box_t
   {
