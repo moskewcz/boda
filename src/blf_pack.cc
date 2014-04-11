@@ -101,6 +101,63 @@ namespace boda
     }
   };
 
+  u32_pt_t pad_and_align_sz( u32_pt_t const & sz, u32_pt_t const & align ) {
+    assert_st( sz.both_dims_non_zero() ); // might be okay, but doesn't seem sensible
+    assert_st( align.both_dims_non_zero() );
+    assert(0); // TODO
+  }
+
+
+  // create a logarithmically spaced list of sizes given an input size, with 'interval' steps per
+  // octave (factor of 2). the scale of the largest size returned will be
+  // 2^num_upsampled_octaves. note that a 'primary' set of sizes (for the first downsampled octave)
+  // are determined by scaling the input size by 2^(-i/interval) (with i in [0,interval) and
+  // rounding to the nearest integer. the remaining sizes are calculated per-octave by iteratively
+  // doubling the primary sizes for each upsampled octave, and by iteratively halving and rounding
+  // the primary sizes for the downsampled octaves. sizes with either dimension == 1 won't be halved
+  // again, and thus the retuned set of sizes is finite. roughly log2(min_dim(in_sz))*interval sizes
+  // will be returned.
+  void create_pyra_sizes( vect_u32_pt_t & pyra, u32_pt_t const & in_sz, 
+			  uint32_t const num_upsamp_octaves, uint32_t const interval ) 
+  {
+    pyra.clear();
+    assert_st( num_upsamp_octaves < 7 ); // sanity limit, maybe a little too strong?
+    assert_st( in_sz.both_dims_non_zero() );
+    assert_st( (in_sz.d[0] != uint32_t_const_max) && (in_sz.d[1] != uint32_t_const_max) ); // avoid overflow/sanity check
+    for( uint32_t i = 0; i < interval; ++i ) { 
+      double const scale = pow(2.0d, 0.0d - (double(i) / double(interval) ) );
+      u32_pt_t scale_sz = in_sz.scale_and_round( scale );
+      for( uint32_t oct_ix = 0; oct_ix != num_upsamp_octaves ; ++oct_ix ) { 
+	u32_pt_t const us_scale_sz( scale_sz.d[0] << 1, scale_sz.d[1] << 1 ); // scale up one octave (factor of 2)
+	assert_st( us_scale_sz.both_dims_gt( scale_sz ) ); // check for no overflow
+	scale_sz = us_scale_sz;
+      }      
+      uint32_t cur_scale_ix = i;
+      for( int32_t oct_ix = num_upsamp_octaves; oct_ix > -20 ; --oct_ix ) { // limit if -20 is another sanity-ish limit.
+	assert_st( scale_sz.both_dims_non_zero() );
+	while( pyra.size() <= cur_scale_ix ) { pyra.push_back( u32_pt_t() ); }
+	pyra[cur_scale_ix] = scale_sz;
+	if( (scale_sz.d[0] == 1) || (scale_sz.d[1] == 1) ) { break; } // more-or-less can't scale down more
+	scale_sz = u32_pt_t( (scale_sz.d[0]+1) >> 1, (scale_sz.d[1]+1) >> 1 ); // scale down one octave (factor of 2)
+	cur_scale_ix += interval;
+      }
+    }
+  }
+
+  struct pyra_pack_t : virtual public nesi, public has_main_t // NESI(help="pyramid packing",bases=["has_main_t"], type_id="pyra_pack")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    u32_pt_t in_sz; //NESI(help="input size to create pyramid for",req=1)
+    uint32_t num_upsamp_octaves; //NESI(default=1,help="number of upsampled octaves")
+    uint32_t interval; //NESI(default=10,help="steps per octave (factor of 2)")
+    virtual void main( nesi_init_arg_t * nia ) { 
+      p_ostream out = p_ostream( &std::cout, null_deleter<std::ostream>() ); //ofs_open( out_fn.exp );
+      vect_u32_pt_t pyra;
+      create_pyra_sizes( pyra, in_sz, num_upsamp_octaves, interval );
+      (*out) << strprintf( "pyra=%s\n", str(pyra).c_str() );
+    }
+  };
+
 #include"gen/blf_pack.cc.nesi_gen.cc"
 
 };
