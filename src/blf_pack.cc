@@ -108,15 +108,24 @@ namespace boda
   }
 
 
-  // create a logarithmically spaced list of sizes given an input size, with 'interval' steps per
-  // octave (factor of 2). the scale of the largest size returned will be
+  // create an approximately logarithmically spaced list of sizes given an input size, with
+  // 'interval' steps per octave (factor of 2). the scale of the largest size returned will be
   // 2^num_upsampled_octaves. note that a 'primary' set of sizes (for the first downsampled octave)
   // are determined by scaling the input size by 2^(-i/interval) (with i in [0,interval) and
   // rounding to the nearest integer. the remaining sizes are calculated per-octave by iteratively
   // doubling the primary sizes for each upsampled octave, and by iteratively halving and rounding
-  // the primary sizes for the downsampled octaves. sizes with either dimension == 1 won't be halved
-  // again, and thus the retuned set of sizes is finite. roughly log2(min_dim(in_sz))*interval sizes
-  // will be returned.
+  // the primary sizes for the downsampled octaves. this is done to allow for efficient and
+  // close-to-right 2x up/downsampling to create the non-primary sizes, with the approximation being
+  // the need to fudge 2x downsamples of odd sizes by (for example) clone-padding by 1 on the +
+  // edge. sizes with either dimension == 1 won't be halved again, and thus the retuned set of sizes
+  // is finite. due to rounding effects, one might want to re-calculate the scale of each primary
+  // size by taking a ratio with the original size. it would also be possible to scale at exactly
+  // the ideal scale and pad or clip the input or output slightly. for the down sampled sizes, the
+  // best scale to use for them might depend on if exact-to-size versus exactly-2x scaling is
+  // used. generally, as the intent is to use exactly-2x downsampling, the scales of the downsamples
+  // sizes should be treated as exactly 2x less than thier parent size, even if the parent size was
+  // odd. any scales smaller than and including the first duplicate size will be removed. roughly
+  // log2(min_dim(in_sz))*interval sizes will be returned.
   void create_pyra_sizes( vect_u32_pt_t & pyra, u32_pt_t const & in_sz, 
 			  uint32_t const num_upsamp_octaves, uint32_t const interval ) 
   {
@@ -142,6 +151,9 @@ namespace boda
 	cur_scale_ix += interval;
       }
     }
+    // remove all scales after and including first duplicate
+    vect_u32_pt_t::iterator af = std::adjacent_find( pyra.begin(), pyra.end() );
+    if( af != pyra.end() ) { pyra.erase( ++af, pyra.end() ); } 
   }
 
   struct pyra_pack_t : virtual public nesi, public has_main_t // NESI(help="pyramid packing",bases=["has_main_t"], type_id="pyra_pack")
