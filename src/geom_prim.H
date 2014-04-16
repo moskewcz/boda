@@ -19,6 +19,8 @@ namespace boda
     u32_pt_t operator - ( u32_pt_t const & o ) const { return u32_pt_t( d[0] - o.d[0], d[1] - o.d[1] ); }
     u32_pt_t operator * ( u32_pt_t const & o ) const { return u32_pt_t( d[0] * o.d[0], d[1] * o.d[1] ); }
     u32_pt_t operator / ( u32_pt_t const & o ) const { return u32_pt_t( d[0] / o.d[0], d[1] / o.d[1] ); }
+    u32_pt_t operator << ( uint32_t const & o ) const { return u32_pt_t( d[0] << o, d[1] << o ); }
+    u32_pt_t operator >> ( uint32_t const & o ) const { return u32_pt_t( d[0] >> o, d[1] >> o ); }
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
     bool both_dims_non_zero( void ) const { return d[0]&&d[1]; }
     bool operator == ( u32_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
@@ -28,8 +30,13 @@ namespace boda
     bool both_dims_gt( u32_pt_t const & o ) const { return d[0] >  o.d[0] && d[1] >  o.d[1]; }
     bool both_dims_le( u32_pt_t const & o ) const { return d[0] <= o.d[0] && d[1] <= o.d[1]; }
     bool both_dims_ge( u32_pt_t const & o ) const { return d[0] >= o.d[0] && d[1] >= o.d[1]; }
+    u32_pt_t ceil_align( u32_pt_t const & align ) const { 
+      return u32_pt_t( u32_ciel_align(d[0],align.d[0]), u32_ciel_align(d[1],align.d[1]) ); 
+    }
   };
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
+
+  template< typename HAS_WH > u32_pt_t get_wh( HAS_WH const & o ) { return u32_pt_t( o.w, o.h ); }
 
   u32_pt_t const u32_pt_t_const_max{uint32_t_const_max,uint32_t_const_max};
   
