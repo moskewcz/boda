@@ -275,6 +275,44 @@ namespace boda
     string image_fn; //NESI(help="input: image filename",req=1)
     virtual void main( nesi_init_arg_t * nia ) { downsample_test( image_fn ); }
   };
+
+  p_img_t upsample_w_transpose_2x( img_t const * const src )
+  {
+    p_img_t ret( new img_t );
+    ret->set_row_align( src->row_align ); // preserve alignment
+    ret->set_sz_and_alloc_pels( src->h, src->w << 1 ); // upscale in w and transpose. 
+    uint32_t const * src_data = (uint32_t const *)src->pels.get(); 
+    for( uint32_t sx = 0; sx < src->w; ++sx ) {
+      uint32_t const ry = sx << 1;
+      for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+	uint32_t const sy = rx;
+	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
+	((uint32_t *)ret->pels.get())[ (ry+0)*ret->row_pitch_pels + rx ] = pel;
+	((uint32_t *)ret->pels.get())[ (ry+1)*ret->row_pitch_pels + rx ] = pel;
+      }
+    }
+    return ret;
+  }
+
+  void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy ) {
+    assert_st( (dx+src->w) < dest->w );
+    assert_st( (dy+src->h) < dest->h );
+    uint32_t const * const src_data = (uint32_t const *)src->pels.get(); 
+    uint32_t * const dest_data = ((uint32_t *)dest->pels.get()) + dy*dest->row_pitch_pels + dx; 
+    for( uint32_t sy = 0; sy < src->h; ++sy ) {
+      for( uint32_t sx = 0; sx < src->w; ++sx ) {
+	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
+	dest_data[ sy*dest->row_pitch_pels + sx ] = pel;
+      }
+    }
+  }
+
+  p_img_t upsample_2x( p_img_t img ) {
+    timer_t ds_timer("upsample_2x");
+    p_img_t tmp_img = upsample_w_transpose_2x( img.get() );
+    return upsample_w_transpose_2x( tmp_img.get() );
+  }
+
   
 #include"gen/img_io.cc.nesi_gen.cc"
 
