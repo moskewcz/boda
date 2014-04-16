@@ -5,6 +5,7 @@
 #include"str_util.H"
 #include"has_main.H"
 #include"io_util.H"
+#include"img_io.H"
 
 namespace boda 
 {
@@ -14,10 +15,10 @@ namespace boda
     u32_box_t bin;
     vect_u32_box_t holes; 
     set_u32_box_t holes_set;
-    void add_hole( u32_box_t const & hole ) {
-      holes.push_back( hole );
-      bool const did_ins = holes_set.insert( hole ).second; assert_st( did_ins );
-    }
+    // note: strict subset holes may be added in some situations, and thus we may later try to add
+    // duplicate holes (which we drop). if we could drop/ignore subset holes easily, that might be
+    // nice, but shouldn't be needed.
+    void add_hole( u32_box_t const & hole ) { if( holes_set.insert( hole ).second ) { holes.push_back( hole ); } }
     blf_bin_t( u32_box_t const & bin_ ) : bin(bin_) { add_hole( bin ); }
     u32_pt_t place_box( u32_pt_t bsz ) {
       assert_st( bsz.both_dims_non_zero() );
@@ -58,7 +59,7 @@ namespace boda
   typedef shared_ptr< blf_bin_t > p_blf_bin_t; 
   typedef vector< p_blf_bin_t > vect_p_blf_bin_t;
 
-  void blf_place( vect_u32_pt_w_t & out, u32_pt_t bin_sz, vect_u32_pt_t const & to_place )
+  uint32_t blf_place( vect_u32_pt_w_t & out, u32_pt_t bin_sz, vect_u32_pt_t const & to_place, bool const no_fit_okay )
   {
     vect_p_blf_bin_t bins;
     for( vect_u32_pt_t::const_iterator i = to_place.begin(); i != to_place.end(); ++i ) {
@@ -72,13 +73,17 @@ namespace boda
 	bins.push_back( p_blf_bin_t( new blf_bin_t( u32_box_t( u32_pt_t(), bin_sz ) ) ) );
 	placement = bins.back()->place_box( *i );
 	if( placement == u32_pt_t_const_max ) {
-	  rt_err( strprintf( "box (*i)=%s cannot be placed into empty bin with bin_sz=%s "
-			     "(i.e. box to place > bin size)", str((*i)).c_str(), str(bin_sz).c_str() ) );
+	  if( no_fit_okay ) { bin_ix = uint32_t_const_max; } 
+	  else {
+	    rt_err( strprintf( "box (*i)=%s cannot be placed into empty bin with bin_sz=%s "
+			       "(i.e. box to place > bin size)", str((*i)).c_str(), str(bin_sz).c_str() ) );
+	  }
 	}
       }
       //printf( "placement=%s bin_ix=%s\n", str(placement).c_str(), str(bin_ix).c_str() );
       out.push_back( u32_pt_w_t( placement, bin_ix ) );
     }
+    return bins.size();
   }
 
 
@@ -96,17 +101,21 @@ namespace boda
       (*out) << strprintf( "bin_sz=%s\n", str(bin_sz).c_str() );
       (*out) << strprintf( "to_pack=%s\n", str(to_pack).c_str() );
       vect_u32_pt_w_t placements;
-      blf_place( placements, u32_pt_t(bin_sz,bin_sz), to_pack );
+      blf_place( placements, u32_pt_t(bin_sz,bin_sz), to_pack, 0 );
       (*out) << strprintf( "placements=%s\n", str(placements).c_str() );
     }
   };
 
-  u32_pt_t pad_and_align_sz( u32_pt_t const & sz, u32_pt_t const & align ) {
+
+  // return a minimal amount of padding (4 per-edge padding values packed into a u32_box_t) for a
+  // box of size sz, such that there is a minimum of min_pad[dim] on the -/+[dim] edges, and such
+  // that both the - edge padding *and* the total of the padding + sz in each dim is a multiple of
+  // align.
+  u32_box_t pad_and_align_sz( u32_pt_t const & sz, u32_pt_t const & align, u32_pt_t const & min_pad ) {
     assert_st( sz.both_dims_non_zero() ); // might be okay, but doesn't seem sensible
     assert_st( align.both_dims_non_zero() );
-    assert(0); // TODO
+    return u32_box_t( min_pad.ceil_align( align ), (min_pad + sz).ceil_align( align ) - sz );
   }
-
 
   // create an approximately logarithmically spaced list of sizes given an input size, with
   // 'interval' steps per octave (factor of 2). the scale of the largest size returned will be
@@ -162,11 +171,120 @@ namespace boda
     u32_pt_t in_sz; //NESI(help="input size to create pyramid for",req=1)
     uint32_t num_upsamp_octaves; //NESI(default=1,help="number of upsampled octaves")
     uint32_t interval; //NESI(default=10,help="steps per octave (factor of 2)")
+    u32_pt_t align; //NESI(default="16 16", help="pyra per-dim alignment")
+    u32_pt_t min_pad; //NESI(default="165 165", help="pyra per-dim minimum padding")
+    uint32_t bin_sz; //NESI(default="1200", help="bin size for packing (as many bins needed will be used)")
+
+    // for interactive/testing use
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
+
+    // outputs
+    vect_u32_pt_t sizes;
+    vect_u32_box_t pads;          
+    vect_u32_pt_w_t placements;
+    uint32_t num_bins;
+
+    pyra_pack_t( void ) : num_bins(0) { }
+
+    void do_place( void ) {
+      create_pyra_sizes( sizes, in_sz, num_upsamp_octaves, interval );
+      vect_u32_pt_t to_pack;
+      for( vect_u32_pt_t::const_iterator i = sizes.begin(); i != sizes.end(); ++i ) {
+	pads.push_back( pad_and_align_sz( *i, align, min_pad ) );
+	to_pack.push_back( pads.back().bnds_sum() + (*i) );
+      }
+      num_bins = blf_place( placements, u32_pt_t(bin_sz,bin_sz), to_pack, 1 );
+    }
+
     virtual void main( nesi_init_arg_t * nia ) { 
-      p_ostream out = p_ostream( &std::cout, null_deleter<std::ostream>() ); //ofs_open( out_fn.exp );
-      vect_u32_pt_t pyra;
-      create_pyra_sizes( pyra, in_sz, num_upsamp_octaves, interval );
-      (*out) << strprintf( "pyra=%s\n", str(pyra).c_str() );
+      p_ostream out = ofs_open( out_fn.exp );
+      do_place();
+      (*out) << strprintf( "sizes=%s\n", str(sizes).c_str() );
+      (*out) << strprintf( "bin_sz=%s\n", str(bin_sz).c_str() );
+      (*out) << strprintf( "num_bins=%s placements=%s\n", str(num_bins).c_str(), str(placements).c_str() );
+    }
+  };
+
+
+  void create_pyra_imgs( vect_p_img_t & pyra_imgs, p_img_t const & src_img, pyra_pack_t const & pyra ) {
+    pyra_imgs.resize( pyra.sizes.size() );
+    assert_st( get_wh(*src_img).both_dims_non_zero() );
+    for( uint32_t i = 0; i < pyra.interval; ++i ) {
+      if( i >= pyra.sizes.size() ) { break; } // < 1 octave in pyra, we're done
+      u32_pt_t const i_max_sz = pyra.sizes[i];
+      u32_pt_t const base_octave_sz = i_max_sz >> pyra.num_upsamp_octaves;
+      if( ( base_octave_sz << pyra.num_upsamp_octaves ) != i_max_sz ) {
+	rt_err( strprintf( "for interval step %s, i_max_sz=%s isn't evenly divisible by num_upsamp_octaves=%s.\n", 
+			   str(i).c_str(), str(i_max_sz).c_str(), str(pyra.num_upsamp_octaves).c_str() ) );
+      }
+      p_img_t base_octave_img = src_img;
+      if( !i ) { 
+	if( base_octave_sz != get_wh(*src_img) ) {
+	  rt_err( strprintf( "pyramid scale=1 size of base_octave_sz=%s does not equal src_img_sz=%s (pyra/src_img mismatch)\n", 
+			     str(base_octave_sz).c_str(), str(get_wh(*src_img)).c_str() ) );
+	} 
+      } else {
+	base_octave_img = downsample_to_size( src_img, base_octave_sz.d[0], base_octave_sz.d[1] );
+      }
+      p_img_t cur_octave_img = base_octave_img;
+      // create base and (if any) upsampled octaves
+      for( uint32_t j = i + (pyra.interval * pyra.num_upsamp_octaves); ; j -= pyra.interval ) {
+	if( j < pyra_imgs.size() ) {
+	  assert_st( pyra.sizes[j] == get_wh(*cur_octave_img) );
+	  pyra_imgs[j] = cur_octave_img; 
+	}
+	if( j < pyra.interval ) { break; }
+	cur_octave_img = upsample_2x( cur_octave_img );
+      }
+      cur_octave_img = base_octave_img;
+      // create downsampled octaves
+      for( uint32_t j = i + (pyra.interval * (1 + pyra.num_upsamp_octaves)); ; j += pyra.interval ) {
+	if( ! (j < pyra_imgs.size()) ) { break; } // all done with ds'd octaves
+	cur_octave_img = downsample_2x( cur_octave_img );
+	assert_st( pyra.sizes[j] == get_wh(*cur_octave_img) );
+	pyra_imgs[j] = cur_octave_img; 
+      }
+    }
+  }
+
+  struct img_pyra_pack_t : virtual public nesi, public pyra_pack_t // NESI(help="image pyramid packing",bases=["pyra_pack_t"], type_id="img_pyra_pack")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    // for interactive/testing use
+    filename_t img_in_fn; //NESI(help="input image filename",req=1)
+    filename_t img_out_fn; //NESI(default="%(boda_output_dir)/out_%%s.png",help="format for filenames of output image bin files. %%s will be replaced with the bin index.")
+
+    virtual void main( nesi_init_arg_t * nia ) { 
+      do_place();
+
+      p_img_t img_in( new img_t );
+      img_in->load_fn( img_in_fn.exp );
+
+      vect_p_img_t pyra_imgs;
+      create_pyra_imgs( pyra_imgs, img_in, *this );
+
+      vect_p_img_t bin_imgs;
+      for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	bin_imgs.push_back( p_img_t( new img_t ) );
+	bin_imgs.back()->set_sz_and_alloc_pels( bin_sz, bin_sz ); // w, h
+      }
+
+      for( uint32_t pix = 0; pix != pyra_imgs.size(); ++pix ) {
+	//filename_t ofn = filename_t_printf( img_out_fn, str(pix).c_str() );
+	//pyra_imgs[pix]->save_fn_png( ofn.exp );
+	assert_st( get_wh(*pyra_imgs.at(pix)) == sizes.at(pix) );
+	uint32_t const bix = placements.at(pix).w;
+	if( bix == uint32_t_const_max ) { continue; } // skip failed placements FIXME: diagnostic?
+	u32_pt_t const dest = placements.at(pix) + pads.at(pix).p[0];
+	img_copy_to( pyra_imgs.at(pix).get(), bin_imgs.at(bix).get(), dest.d[0], dest.d[1] );
+      }
+
+      for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
+	bin_imgs.at(bix)->save_fn_png( ofn.exp );
+	printf( "ofn.exp=%s\n", str(ofn.exp).c_str() );	
+      }
+
     }
   };
 

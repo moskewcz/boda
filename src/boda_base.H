@@ -42,6 +42,8 @@ namespace boda
   int8_t const int8_t_const_max = boost::integer_traits< int8_t >::const_max;
   int8_t const int8_t_const_min = boost::integer_traits< int8_t >::const_min;
 
+  inline uint32_t u32_ciel_align( uint32_t const & val, uint32_t const & align ) { 
+    return (val + align - 1) / align * align; }
 
   using boost::shared_ptr;
   template< typename T > struct null_deleter { void operator()( T * const ) const {}; };

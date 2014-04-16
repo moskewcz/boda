@@ -135,7 +135,7 @@ namespace boda
   std::ostream & operator <<(std::ostream & os, u32_box_t const & v);
 
   // misc higher-level operations
-  void blf_place( vect_u32_pt_w_t & out, u32_pt_t bin_sz, vect_u32_pt_t const & to_place );
+  uint32_t blf_place( vect_u32_pt_w_t & out, u32_pt_t bin_sz, vect_u32_pt_t const & to_place );
 
 };
 #endif // GEOM_PRIM_H
