@@ -1,6 +1,6 @@
 TARGET=../lib/boda
 CPP=g++
-CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -I/usr/include/python2.7 -I/usr/include/octave-3.6.4 -I/usr/include/octave-3.6.4/octave -fopenmp -Wall
+CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -fPIC -I/usr/include/python2.7 -I/usr/include/octave-3.6.4 -I/usr/include/octave-3.6.4/octave -fopenmp -Wall
 LDFLAGS=-lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg
 # generally, there is no need to alter the makefile below this line
 VPATH=../src ../src/gen ../src/ext
@@ -26,9 +26,12 @@ DEPENDENCIES = $(OBJS:.o=.d)
 # somtimes likes to run prebuild.py multiple times (which not great, but okay). the solutions i know of seem
 # worse than the problem, though.
 $(info py_prebuild_hook:  $(shell python ../pysrc/prebuild.py )) 
-all : $(TARGET) 
+LIBTARGET=../lib/libboda.so
+all : $(TARGET) # $(LIBTARGET)
 $(TARGET): $(OBJS)
 	$(CPP) $(CPPFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+$(LIBTARGET): $(OBJS)
+	$(CPP) -shared $(CPPFLAGS) -o $(LIBTARGET) $(OBJS) $(LDFLAGS)
 .PHONY : clean
 clean:
 	-rm -f $(TARGET) $(OBJS) $(DEPENDENCIES)
