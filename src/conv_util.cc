@@ -20,9 +20,9 @@ namespace boda
     u32_pt_t kern_sz; //NESI(default="0 0",help="convolutional kernel size")
     u32_pt_t stride; //NESI(default="1 1",help="step/stride in input")
 
-    // related to depth (optional?)
-    uint32_t channels; //NESI(default="1",help="number of channels")
-    uint32_t groups; //NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
+    // related to depth (currently unused; might be optional?)
+    // uint32_t channels; NESI(default="1",help="number of channels")
+    // uint32_t groups; NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
 
     u32_pt_t out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
       assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
@@ -56,6 +56,7 @@ namespace boda
   typedef vector< conv_io_t > vect_conv_io_t; 
   typedef shared_ptr< conv_io_t > p_conv_io_t; 
   typedef vector< p_conv_io_t > vect_p_conv_io_t;
+  typedef shared_ptr< vect_conv_io_t > p_vect_conv_io_t; 
 
   struct conv_support_info_t {  
     u32_pt_t support_sz;
@@ -70,16 +71,15 @@ namespace boda
 
   struct conv_pipe_t {
     p_vect_conv_op_t convs;
-    vect_conv_io_t conv_ios; // note: conv_ios.size() == ( convs.size() + 1 )
     vect_conv_support_info_t conv_sis; // note: conv_sis.size() == ( convs.size() + 1 )
     conv_pipe_t( p_vect_conv_op_t const & convs_, bool const ignore_padding_for_support ) : convs(convs_) {
-      conv_ios.clear();
-      conv_ios.resize( convs->size() + 1 );
       conv_sis.resize( convs->size() + 1 );
       calc_support_info( ignore_padding_for_support );
     }     
 
-    void zero_conv_ios( void ) {
+    void zero_conv_ios( vect_conv_io_t & conv_ios ) {
+      conv_ios.clear();
+      conv_ios.resize( convs->size() + 1 );
       for( vect_conv_io_t::iterator i = conv_ios.begin(); i != conv_ios.end(); ++i ) {
 	i->sz = u32_pt_t(); i->used_sz = u32_pt_t();
       }
@@ -104,45 +104,56 @@ namespace boda
       }
     }
 
-    void calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding ) {
-      zero_conv_ios();
-      conv_ios.back().sz = out_sz;
+    p_vect_conv_io_t calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding ) {
+      p_vect_conv_io_t conv_ios( new vect_conv_io_t( convs->size() + 1 ) );
+      conv_ios->back().sz = out_sz;
       for( uint32_t i = convs->size(); i; --i ) {
 	conv_op_t const & cop = convs->at(i-1);
-	if( !conv_ios[i].sz.both_dims_non_zero() ) {
+	if( !conv_ios->at(i).sz.both_dims_non_zero() ) {
 	  rt_err( strprintf( "calc_sizes_back(): unhandled/questionable case: pipeline stage %s output is zero-area.",
 			     cop.tag.c_str() ) );
 	}
-	conv_ios[i-1].sz = cop.out_sz_to_in_sz( conv_ios[i].sz, ignore_padding );
-	conv_ios[i-1].used_sz = conv_ios[i-1].sz; // by semantics of out_sz_to_in_sz (but checked below)
-	assert_st( conv_ios[i].sz == cop.in_sz_to_out_sz( conv_ios[i-1].sz, ignore_padding ) );
+	conv_ios->at(i-1).sz = cop.out_sz_to_in_sz( conv_ios->at(i).sz, ignore_padding );
+	conv_ios->at(i-1).used_sz = conv_ios->at(i-1).sz; // by semantics of out_sz_to_in_sz (but checked below)
+	assert_st( conv_ios->at(i).sz == cop.in_sz_to_out_sz( conv_ios->at(i-1).sz, ignore_padding ) );
       }
+      return conv_ios;
     }
-    void calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding ) {
-      zero_conv_ios(); 
-      conv_ios.front().sz = in_sz;
+    p_vect_conv_io_t calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding ) {
+      p_vect_conv_io_t conv_ios( new vect_conv_io_t( convs->size() + 1 ) );
+      conv_ios->front().sz = in_sz;
       for( uint32_t i = 0; i != convs->size(); ++i ) {
-	conv_ios[i+1].sz = convs->at(i).in_sz_to_out_sz( conv_ios[i].sz, ignore_padding );
-	if( conv_ios[i+1].sz.both_dims_non_zero() ) { 
-	  conv_ios[i].used_sz = convs->at(i).out_sz_to_in_sz( conv_ios[i+1].sz, ignore_padding );
+	conv_ios->at(i+1).sz = convs->at(i).in_sz_to_out_sz( conv_ios->at(i).sz, ignore_padding );
+	if( conv_ios->at(i+1).sz.both_dims_non_zero() ) { 
+	  conv_ios->at(i).used_sz = convs->at(i).out_sz_to_in_sz( conv_ios->at(i+1).sz, ignore_padding );
 	} // else if there's no output, we used no input (used_sz left at zero)
       }
+      return conv_ios;
     }
     void dump_pipe( std::ostream & out ) {
       out << strprintf( "== BEGIN CONV PIPE ==\n" );
       for( uint32_t i = 0; ; ++i ) {
-	conv_io_t const & cio = conv_ios[i];
 	conv_support_info_t const & csi = conv_sis[i];
-	out << strprintf( "cio: sz=%s support_sz=%s support_stride=%s eff_tot_pad=%s\n", 
-			  str(cio.sz).c_str(), str(csi.support_sz).c_str(), 
+	out << strprintf( "support_sz=%s support_stride=%s eff_tot_pad=%s\n", 
+			  str(csi.support_sz).c_str(), 
 			  str(csi.support_stride).c_str(), str(csi.eff_tot_pad).c_str() );
-	if( conv_ios[i].sz != conv_ios[i].used_sz ) {
-	  out << "  --- DATA DISCARDED --- " << strprintf( "used_sz=%s\n", str(conv_ios[i].used_sz).c_str() );
-	}
 	if( i == convs->size() ) { break; }
 	out << strprintf( "    ----  conv=%s \n", str(convs->at(i)).c_str() );
       }
       out << strprintf( "== END CONV PIPE ==\n" );
+    }
+    void dump_ios( std::ostream & out, p_vect_conv_io_t const & conv_ios ) {
+      out << "CONV_IOS: ";
+      for( uint32_t i = 0; ; ++i ) {
+	conv_io_t const & cio = conv_ios->at(i);
+	out << strprintf( "sz=%s -> ", str(cio.sz).c_str() );
+	if( cio.sz != cio.used_sz ) { 
+	  out << strprintf( "[DATA DISCARDED; used_sz=%s] -> ", str(cio.used_sz).c_str() );
+	}
+	if( i == convs->size() ) { break; }
+	out << convs->at(i).tag << " -> ";
+      }
+      out << "\n";
     }
   };
 
@@ -160,15 +171,16 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";
       conv_pipe_t cp{convs,ignore_padding_for_support};
+      cp.dump_pipe( *out ); 
       if( out_sz ) { 
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
-	cp.calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
-	cp.dump_pipe(*out); 
+	p_vect_conv_io_t conv_ios = cp.calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
+	cp.dump_ios( *out, conv_ios ); 
       }
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	cp.calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
-	cp.dump_pipe(*out); 
+	p_vect_conv_io_t conv_ios = cp.calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
+	cp.dump_ios( *out, conv_ios ); 
       }
     }
   };
