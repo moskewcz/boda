@@ -5,6 +5,7 @@
 namespace boda 
 {
   void oct_init( void );
+  void oct_exit( int const retval );
   void test_oct( void );
 
   struct vect_scored_det_t;

@@ -3,6 +3,7 @@
 #include<iostream>
 #include<octave/oct.h>
 #include<octave/octave.h>
+#include<octave/toplev.h> // for clean_up_and_exit()
 #include<octave/parse.h>
 #include<octave/oct-map.h>
 #include<octave/Cell.h>
@@ -99,6 +100,15 @@ namespace boda
     argv(1) = "-q";
     octave_main (2, argv.c_str_vec (), 1);
   }
+
+  void oct_exit( int const retval )
+  {
+    // without this call, octave chokes (inf loop, double free, ???)
+    // at process exit time. so, we seem to have little option other
+    // than calling this, which will terminate our process. charming!
+    clean_up_and_exit( retval ); 
+  }
+
   using boost::filesystem3::path;
   void test_oct( ostream & out, string const & mat_fn )
   {

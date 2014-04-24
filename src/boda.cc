@@ -134,4 +134,8 @@ namespace boda
   }
 }
 
-int main( int argc, char **argv ) { return boda::boda_main_wrap( argc, argv ); }
+int main( int argc, char **argv ) { 
+  int const retval = boda::boda_main_wrap( argc, argv ); 
+  //return retval;
+  boda::oct_exit( retval ); // gee, who doesn't want octave to terminate the process for them in some unknown way?
+}
