@@ -1,6 +1,6 @@
 TARGET=../lib/boda
 CPP=g++
-CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -fPIC -I/usr/include/python2.7 -I/usr/include/octave-3.6.4 -I/usr/include/octave-3.6.4/octave -fopenmp -Wall
+CPPFLAGS=-Wall -O3 -g -std=c++0x -rdynamic -fPIC -I/usr/include/python2.7 -I/usr/include/octave-3.8.1 -I/usr/include/octave-3.8.1/octave -fopenmp -Wall
 LDFLAGS=-lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg
 # generally, there is no need to alter the makefile below this line
 VPATH=../src ../src/gen ../src/ext

@@ -6,7 +6,7 @@
 #include<octave/parse.h>
 #include<octave/oct-map.h>
 #include<octave/Cell.h>
-//#include<octave/mxarray.h>
+#include<octave/mxarray.h>
 //#include<octave/mexproto.h>
 #include<fstream>
 #include<boost/filesystem.hpp>
