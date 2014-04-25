@@ -26,10 +26,19 @@ namespace boda
     // if desired, call to set requested row alignment *before* loading
     void set_row_align( uint32_t const row_align_ ) { assert(!row_align); row_align = row_align_; }
     void set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ );
+    void fill_with_pel( uint32_t const & v );
     void load_fn( std::string const & fn );
     void load_fn_jpeg( std::string const & fn );
     void load_fn_png( std::string const & fn );
     void save_fn_png( std::string const & fn );
+
+    // always equivalent to y*row_pitch_pels + x (i.e get_pel_ix(0,0) will always == 0)
+    uint32_t get_pel_ix( uint32_t const & x, uint32_t const & y ) const { 
+      assert_st( x < w ); 
+      assert_st( y < h );
+      return y*row_pitch_pels + x; 
+    }
+    uint32_t get_pel( uint32_t const & x, uint32_t const & y ) const { return ((uint32_t *)pels.get())[get_pel_ix(x,y)];}
 
     uint32_t min_dim( void ) { return std::min(w,h); }
     uint32_t sz_raw_bytes( void ) const { return row_pitch*h; }
@@ -43,6 +52,9 @@ namespace boda
   void downsample_test( std::string const & fn );
 
   void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy );
+  void img_draw_pels( img_t * const dest, uint32_t const & dx, uint32_t const & dy, uint32_t const & num, 
+		      int32_t const & stride_x, int32_t const & stride_y, 
+		      uint32_t const & ic, uint32_t const & ec );
 
 }
 

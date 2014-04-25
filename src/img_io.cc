@@ -41,6 +41,13 @@ namespace boda
     pels = ma_p_uint8_t( row_pitch*h, row_align );
   }
 
+  void img_t::fill_with_pel( uint32_t const & v ) {
+    uint64_t const vv = (uint64_t(v) << 32) + v;
+    uint64_t * const dest_data = (uint64_t *) pels.get(); 
+    assert_st( !(row_pitch_pels&1) );
+    for( uint32_t i = 0; i < (row_pitch_pels>>1)*h; ++i ) { dest_data[i] = vv; }
+  }
+
   void img_t::load_fn_jpeg( std::string const & fn )
   {
     p_mapped_file_source mfile = map_file_ro( fn );
@@ -295,10 +302,8 @@ namespace boda
   }
 
   void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy ) {
-    assert_st( (dx+src->w) < dest->w );
-    assert_st( (dy+src->h) < dest->h );
+    uint32_t * const dest_data = ((uint32_t *)dest->pels.get()) + dest->get_pel_ix( dx, dy ); 
     uint32_t const * const src_data = (uint32_t const *)src->pels.get(); 
-    uint32_t * const dest_data = ((uint32_t *)dest->pels.get()) + dy*dest->row_pitch_pels + dx; 
     for( uint32_t sy = 0; sy < src->h; ++sy ) {
       for( uint32_t sx = 0; sx < src->w; ++sx ) {
 	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
@@ -313,6 +318,31 @@ namespace boda
     return upsample_w_transpose_2x( tmp_img.get() );
   }
 
+  // note: i==0 -> returns ic, i==num --> returns ec, otherwise returns mix: (ic*(num-i) + ec*i)/num
+  uint32_t interp_pel( uint32_t const & ic, uint32_t const & ec, uint32_t const & num, uint32_t const & i ) {
+    assert_st( i <= num );
+    uint32_t ret = 0;
+    for( uint32_t c = 0; c < 4; ++c ) {
+      uint8_t const cs = c * 8; // shift amt for this channel
+      uint32_t const icc = (ic >> cs) & 0xff;
+      uint32_t const ecc = (ec >> cs) & 0xff;
+      uint8_t const rc = uint8_t( (icc*(num-i) + ecc*(i)) / num );
+      ret += rc << cs;
+    }
+    return ret;
+  }
+  // note: draws num pels. first pel = ic. last pel = (ic + ec*(num-1))/num (i.e. almost ec, next pel would be ec)
+  void img_draw_pels( img_t * const dest, uint32_t const & dx, uint32_t const & dy, uint32_t const & num, 
+		      int32_t const & stride_x, int32_t const & stride_y, 
+		      uint32_t const & ic, uint32_t const & ec )
+  {
+    assert_st( num ); // allow num == 0? if so, return here i guess ... or fix assumptions below
+    assert_st( dx+stride_x*(num-1) < dest->w );
+    assert_st( dy+stride_y*(num-1) < dest->h );
+    uint32_t * dest_data = ((uint32_t *)dest->pels.get()) + dest->get_pel_ix( dx, dy );
+    int32_t stride = stride_y*dest->row_pitch_pels + stride_x;
+    for( uint32_t i = 0; i < num; ++i ) { *dest_data = interp_pel(ic,ec,num,i); dest_data += stride; }
+  }
   
 #include"gen/img_io.cc.nesi_gen.cc"
 
