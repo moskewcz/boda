@@ -1,1 +1,0 @@
-BODA_DIR=`pwd`
