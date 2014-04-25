@@ -247,6 +247,46 @@ namespace boda
     }
   }
 
+
+  void img_draw_box_pad( img_t * const dest, u32_box_t const & b, u32_box_t const & pad, uint32_t const & ec ) {
+    // pad edges
+    for( uint32_t e = 0; e != 2; ++e ) {
+      for( uint32_t d = 0; d != 2; ++d ) {
+	u32_pt_t sp;
+	sp.d[d^1] = b.p[e].d[d^1]-e; // d coord of pixel on e edge
+	for( sp.d[d] = b.p[0].d[d]; sp.d[d] != b.p[1].d[d]; ++sp.d[d] ) {
+	  int32_t const stride = e?1:-1;
+	  int32_t const stride_x = d?stride:0;
+	  int32_t const stride_y = d?0:stride;
+	  uint32_t const ic = dest->get_pel( sp.d[0], sp.d[1] );
+	  img_draw_pels( dest, sp.d[0]+stride_x, sp.d[1]+stride_y, pad.p[e].d[d^1], stride_x, stride_y, ic, ec ); 
+	}
+      }
+    }
+    // pad corners
+	
+    // dim 0 --> - side of image
+    for( uint32_t dx = 0; dx != 2; ++ dx ) { 
+      for( uint32_t dy = 0; dy != 2; ++ dy ) {
+	u32_pt_t cp;
+	cp.d[0] = b.p[dx].d[0]-dx; 
+	cp.d[1] = b.p[dy].d[1]-dy;
+	// cp is coord of dx,dy source (non-padding) corner image pixel 
+	uint32_t const lt_sz = std::min( pad.p[dx].d[0], pad.p[dy].d[1] ); 
+	for( uint32_t dd = 2; dd <= lt_sz; ++dd ) {
+	  uint32_t const cx = cp.d[0] + ( dx ? dd : -dd ); // cx,y is point on existing dx padding, dd outside image
+	  uint32_t const cy = cp.d[1] + ( dy ? dd : -dd ); // x,cy is point on existing dy padding, dd outside image
+	  uint32_t const cx_y_v = dest->get_pel( cx, cp.d[1] );
+	  uint32_t const x_cy_v = dest->get_pel( cp.d[0], cy );
+	  int32_t const stride_x = dx ? -1 :  1 ;
+	  int32_t const stride_y = dy ?  1 : -1 ;
+	  //printf( "cx=%s cp.d[1]=%s (dd-1)=%s stride_x=%s stride_y=%s\n", str(cx).c_str(), str(cp.d[1]).c_str(), str((dd-1)).c_str(), str(stride_x).c_str(), str(stride_y).c_str() );
+	  img_draw_pels( dest, cx, cp.d[1], dd, stride_x, stride_y, cx_y_v, x_cy_v );  // note: overwrites cx,cp.d[1]
+	}
+      }
+    }
+  }
+
   struct img_pyra_pack_t : virtual public nesi, public pyra_pack_t // NESI(help="image pyramid packing",bases=["pyra_pack_t"], type_id="img_pyra_pack")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -263,10 +303,13 @@ namespace boda
       vect_p_img_t pyra_imgs;
       create_pyra_imgs( pyra_imgs, img_in, *this );
 
+      uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
+
       vect_p_img_t bin_imgs;
       for( uint32_t bix = 0; bix != num_bins; ++bix ) {
 	bin_imgs.push_back( p_img_t( new img_t ) );
 	bin_imgs.back()->set_sz_and_alloc_pels( bin_sz, bin_sz ); // w, h
+	bin_imgs.back()->fill_with_pel( inmc );
       }
 
       for( uint32_t pix = 0; pix != pyra_imgs.size(); ++pix ) {
@@ -277,6 +320,8 @@ namespace boda
 	if( bix == uint32_t_const_max ) { continue; } // skip failed placements FIXME: diagnostic?
 	u32_pt_t const dest = placements.at(pix) + pads.at(pix).p[0];
 	img_copy_to( pyra_imgs.at(pix).get(), bin_imgs.at(bix).get(), dest.d[0], dest.d[1] );
+	//printf( "dest=%s sizes.at(pix)=%s pads.at(pix)=%s\n", str(dest).c_str(), str(sizes.at(pix)).c_str(), str(pads.at(pix)).c_str() );
+	img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), inmc );
       }
 
       for( uint32_t bix = 0; bix != num_bins; ++bix ) {
@@ -284,7 +329,6 @@ namespace boda
 	bin_imgs.at(bix)->save_fn_png( ofn.exp );
 	printf( "ofn.exp=%s\n", str(ofn.exp).c_str() );	
       }
-
     }
   };
 
