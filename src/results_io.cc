@@ -298,7 +298,7 @@ namespace boda
 
 
     virtual void main( nesi_init_arg_t * nia ) {
-      p_vect_string classes = readlines_fn( pascal_classes_fn.exp );
+      p_vect_string classes = readlines_fn( pascal_classes_fn );
       p_vect_p_vect_scored_det_t scored_dets( new vect_p_vect_scored_det_t );      
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
@@ -477,7 +477,7 @@ namespace boda
     filename_t score_diff_summary_fn; //NESI(default="%(boda_output_dir)/diff_summ.csv",help="output: text summary of differences between two scored sets.")
     
     virtual void main( nesi_init_arg_t * nia ) { 
-      p_vect_string classes = readlines_fn( pascal_classes_fn.exp );
+      p_vect_string classes = readlines_fn( pascal_classes_fn );
       p_vect_p_vect_scored_det_t hamming_scored_dets( new vect_p_vect_scored_det_t );
       p_vect_p_vect_scored_det_t dpm_scored_dets( new vect_p_vect_scored_det_t );
       

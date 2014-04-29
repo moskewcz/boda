@@ -98,24 +98,24 @@ namespace boda
     }
   }
 
-  p_vect_string readlines_fn( string const & fn ) {
+  p_vect_string readlines_fn( filename_t const & fn ) {
     p_ifstream in = ifs_open( fn );
     p_vect_string ret( new vect_string );
     string line;
-    while( !ifs_getline( fn, in, line ) ) { ret->push_back( line ); }
+    while( !ifs_getline( fn.in, in, line ) ) { ret->push_back( line ); }
     return ret;
   }
 
-
   // opens a ofstream. note: this function itself will raise if the open() fails.
-  p_ofstream ofs_open( std::string const & fn )
+  p_ofstream ofs_open( filename_t const & fn )
   {
     p_ofstream ret( new ofstream );
-    ret->open( fn.c_str() );
-    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for writing", fn.c_str() ) ); }
+    ret->open( fn.exp.c_str() );
+    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for writing", fn.in.c_str() ) ); }
     assert( ret->good() );
     return ret;
   }
+  p_ofstream ofs_open( std::string const & fn ) { return ofs_open( filename_t{fn,fn} ); }
 
   p_mapped_file_source map_file_ro( std::string const & fn ) {
     //ensure_is_regular_file( fn ); // too strong? a good idea?

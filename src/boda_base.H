@@ -78,10 +78,10 @@ namespace boda
   typedef shared_ptr< std::ostream > p_ostream;
   typedef shared_ptr< std::ofstream > p_ofstream;
   bool ifs_getline( std::string const &fn, p_ifstream in, std::string & line );
+  p_ofstream ofs_open( filename_t const & fn );
   p_ofstream ofs_open( string const & fn );
-  //p_ofstream ofs_open( filename_t const & fn );//TODO
-  p_vect_string readlines_fn( string const & fn );
-  //p_vect_string readlines_fn( filename_t const & fn );//TODO
+  p_vect_string readlines_fn( filename_t const & fn );
+  //p_vect_string readlines_fn( string const & fn );
 
   typedef shared_ptr< boost::iostreams::mapped_file > p_mapped_file;
   typedef shared_ptr< boost::iostreams::mapped_file_source > p_mapped_file_source;

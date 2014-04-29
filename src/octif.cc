@@ -251,7 +251,7 @@ namespace boda
     p_img_db_t img_db; //NESI(default="()", help="image database")
 
     virtual void main( nesi_init_arg_t * nia ) {
-      p_vect_string classes = readlines_fn( pascal_classes_fn.exp );
+      p_vect_string classes = readlines_fn( pascal_classes_fn );
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	convert_class( *i, i != (*classes).begin() );
       }
@@ -517,7 +517,7 @@ namespace boda
     void main( nesi_init_arg_t * nia ) {
       timer_t t( mode );
       p_ostream out = ofs_open( out_fn.exp );
-      p_vect_string image_fns = readlines_fn( image_list_fn.exp );
+      p_vect_string image_fns = readlines_fn( image_list_fn );
       for( vect_string::const_iterator i = image_fns->begin(); i != image_fns->end(); ++i ) { 
 	(*out) << strprintf( "img_fn=%s\n", str(*i).c_str() );
 	proc_img( *out, nesi_filename_t_expand( nia, *i ) ); 
