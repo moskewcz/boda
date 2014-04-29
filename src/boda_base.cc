@@ -117,17 +117,25 @@ namespace boda
   }
   p_ofstream ofs_open( std::string const & fn ) { return ofs_open( filename_t{fn,fn} ); }
 
-  p_mapped_file_source map_file_ro( std::string const & fn ) {
+  p_mapped_file_source map_file_ro( filename_t const & fn ) {
     //ensure_is_regular_file( fn ); // too strong? a good idea?
     p_mapped_file_source ret;
-    try { ret.reset( new mapped_file_source( fn ) ); }
+    try { ret.reset( new mapped_file_source( fn.exp ) ); }
     catch( std::exception & err ) { 
       // note: fn.c_str(),err.what() is not too useful? it does give 'permission denied' sometimes, but other times is it just 'std::exception'.
-      rt_err( strprintf("failed to open/map file '%s' for reading",fn.c_str()) ); 
+      rt_err( strprintf("failed to open/map file '%s' for reading",fn.in.c_str()) ); 
     }
     assert_st( ret->is_open() ); // possible?
     return ret;
   }
+  p_mapped_file_source map_file_ro( std::string const & fn ) { return map_file_ro( filename_t{fn,fn} ); }
+
+  p_string read_whole_fn( filename_t const & fn ) {
+    p_mapped_file_source mfile = map_file_ro( fn );
+    uint8_t const * const fn_data = (uint8_t const *)mfile->data();
+    return p_string( new string( fn_data, fn_data+mfile->size() ) );
+  }
+
   uint32_t const max_frames = 64;
 
   p_vect_rp_void get_backtrace( void )
