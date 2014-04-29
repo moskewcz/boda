@@ -435,6 +435,38 @@ namespace boda {
     return ret;
   }
 
+  void str_format_from_nvm( string & out, string const & fmt, lexp_name_val_map_t & nvm )
+  {
+    // expand refs. note: refs do not inc the use count of the lexp they use (as this seems sensible).
+    for( string::const_iterator i = fmt.begin(); i != fmt.end(); ++i ) {
+      if( *i == '%' ) {
+	++i; if( i == fmt.end() ) { rt_err( "end of string after '%' in filename, expected '(' or '%'." ); }
+	if( *i == '%' ) { out.push_back( *i ); } // escaped '%'
+	else if( *i != '(' ) { rt_err( "'" + string(1,*i) + "' after '%' in filename, expected '(' or '%'." ); }
+	else { // saw '(', process ref
+	  string ref;
+	  while( 1 ) {
+	    ++i;
+	    if( i == fmt.end() ) { rt_err( "end of string after '%(' in filename, expected ')' to terminate ref" ); }
+	    if( *i == ')' ) { break; }
+	    ref.push_back( *i );
+	  }
+	  // expand ref recursively
+	  nesi_init_arg_t * found_scope = 0;
+	  p_lexp_t di = nvm.find( ref.c_str(), &found_scope );
+	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" );  }
+	  if( !di->leaf_val.exists() ) { 
+	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
+	  }
+	  ++di->use_cnt;
+	  string const nest_fmt = di->leaf_val.str();
+	  lexp_name_val_map_t nest_nvm( di, found_scope ); // note lexical (non-dynamic) scoping here
+	  str_format_from_nvm( out, nest_fmt, nest_nvm );
+	}
+      } else { out.push_back( *i ); } // not a '%'
+    }
+  }
+
   struct lexp_test_t
   {
     string name;

@@ -90,6 +90,7 @@ namespace boda {
   void test_lexp( void );
   void lexp_check_unused( lexp_t * l, vect_string & path );
 
+  void str_format_from_nvm( string & out, string const & fmt, lexp_name_val_map_t & nvm );
 }
 
 #endif /* _LEXP_H_ */

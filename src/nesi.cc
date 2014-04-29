@@ -539,38 +539,13 @@ namespace boda
   void *string_init_arg = (void *)"string";
 
   // filename_t 
-  void nesi_filename_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
+  void nesi_filename_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) // note: tinfo unused
   {
     filename_t * v = (filename_t *)o;
-    nesi_string_init( nia, tinfo, &v->in );
-    // expand refs. note: refs do not inc the use count of the lexp they use (as this seems sensible).
-    for( string::const_iterator i = v->in.begin(); i != v->in.end(); ++i ) {
-      if( *i == '%' ) {
-	++i; if( i == v->in.end() ) { rt_err( "end of string after '%' in filename, expected '(' or '%'." ); }
-	if( *i == '%' ) { v->exp.push_back( *i ); } // escaped '%'
-	else if( *i != '(' ) { rt_err( "'" + string(1,*i) + "' after '%' in filename, expected '(' or '%'." ); }
-	else { // saw '(', process ref
-	  string ref;
-	  while( 1 ) {
-	    ++i;
-	    if( i == v->in.end() ) { rt_err( "end of string after '%(' in filename, expected ')' to terminate ref" ); }
-	    if( *i == ')' ) { break; }
-	    ref.push_back( *i );
-	  }
-	  // expand ref recursively
-	  nesi_init_arg_t * found_scope = 0;
-	  p_lexp_t di = nia->find( ref.c_str(), &found_scope );
-	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" );  }
-	  if( !di->leaf_val.exists() ) { // note: nesi_string_init would return a similar error if we skipped this check.
-	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
-	  }
-	  filename_t iv;
-	  lexp_name_val_map_t nvm( di, found_scope ); // note lexical (non-dynamic) scoping here
-	  nesi_filename_t_init( &nvm, tinfo, &iv ); 
-	  v->exp += iv.exp;
-	}
-      } else { v->exp.push_back( *i ); } // not a '%'
-    }
+    nesi_string_init( nia, 0, &v->in ); // note: tinfo unused 
+    assert( v->exp.empty() );
+    assert_st( nia );
+    str_format_from_nvm( v->exp, v->in, *nia );
   }
   make_p_t * filename_t_make_p = &has_def_ctor_make_p< filename_t >;
   vect_push_back_t * filename_t_vect_push_back = &has_def_ctor_vect_push_back_t< filename_t >;
@@ -580,16 +555,12 @@ namespace boda
   }
   void *filename_t_init_arg = (void *)"filename_t";
 
-  extern tinfo_t tinfo_filename_t;
-  string nesi_filename_t_expand( nesi_init_arg_t * nia, string const & s ) {
-    p_lexp_t ls = parse_lexp_leaf_str( s.c_str() );
-    lexp_name_val_map_t nvm( ls, nia );
-    filename_t ret;
-    nesi_filename_t_init( &nvm, &tinfo_filename_t, &ret ); 
-    return ret.exp;
+  string nesi_filename_t_expand( nesi_init_arg_t * nia, string const & fmt ) {
+    string ret;
+    str_format_from_nvm( ret, fmt, *nia );
+    return ret;
   }
     
-
   // uint64_t  
   init_t * nesi_uint64_t_init = &nesi_lexcast_init< uint64_t >;
   make_p_t * uint64_t_make_p = &has_def_ctor_make_p< uint64_t >;
