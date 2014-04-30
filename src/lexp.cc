@@ -467,6 +467,12 @@ namespace boda {
     }
   }
 
+  void str_format_from_nvm_str( string & out, string const & fmt, string const & nvm_str ) {
+    lexp_name_val_map_t nvm( parse_lexp( nvm_str ) );
+    nvm.init_nvm();
+    str_format_from_nvm( out, fmt, nvm );
+  }
+
   struct lexp_test_t
   {
     string name;
