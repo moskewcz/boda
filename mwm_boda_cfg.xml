@@ -16,6 +16,7 @@
 
 <root verbose="0" 
       boda_output_dir="."
+      home_dir="/home/moskewcz"
       bench_dir="/home/moskewcz/bench"
       pascal_data_dir="/home/moskewcz/bench/VOCdevkit/VOC2007"
       dpm_fast_cascade_dir="/home/moskewcz/svn_work/dpm_fast_cascade"

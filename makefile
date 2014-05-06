@@ -5,7 +5,7 @@ LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lp
 #for caffe/cuda
 CAFFE_HOME := /home/moskewcz/git_work/caffe_3
 CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I/usr/local/cuda/include
-LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe -lcudart -lcublas -lcurand
+LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe -lcudart -lcublas -lcurand -lprotobuf
 # generally, there is no need to alter the makefile below this line
 VPATH := ../src ../src/gen ../src/ext
 OBJS := $(shell cat ../src/obj_list | grep -v ^\#) $(shell cat ../src/gen/gen_objs | grep -v ^\#)
