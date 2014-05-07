@@ -5,6 +5,7 @@
 #include"str_util.H"
 #include"has_main.H"
 #include"lexp.H"
+#include"conv_util.H"
 
 #include "caffe/caffe.hpp"
 #include <glog/logging.h>
@@ -16,6 +17,8 @@ namespace boda
   using namespace caffe;
   void init_caffe( string const & param_str );
 
+  p_conv_pipe_t make_p_conv_pipe_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+  
   struct conv_pyra_t : virtual public nesi, public has_main_t // NESI(help="conv_ana / blf_pack integration test",bases=["has_main_t"], type_id="conv_pyra")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -26,6 +29,8 @@ namespace boda
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="output filename.")
 
     virtual void main( nesi_init_arg_t * nia ) { 
+      p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp_xml_file( pipe_fn.exp ), 0 );
+
       p_string ptt_str = read_whole_fn( ptt_fn );
       string out_pt_str;
       str_format_from_nvm_str( out_pt_str, *ptt_str, 
@@ -33,6 +38,8 @@ namespace boda
 					  str(100).c_str(), str(100).c_str(), str(1).c_str(), str(3).c_str() ) );
       //(*ofs_open( out_fn )) << out_pt_str;
       init_caffe( out_pt_str );      
+
+      
     }
 
     void init_caffe( string const & param_str ) {

@@ -1,0 +1,11 @@
+<pipe ignore_padding_for_support="1"><convs>
+  <li tag="conv1" in_pad="0 0 0 0" kern_sz="11 11" stride="4 4"/>
+  <li tag="pool1" in_pad="0 0 0 0" kern_sz="3 3" stride="2 2"/>
+  <li tag="conv2" in_pad="2 2 2 2" kern_sz="5 5" stride="1 1"/>
+  <li tag="pool2" in_pad="0 0 0 0" kern_sz="3 3" stride="2 2"/>
+  <li tag="conv3" in_pad="1 1 1 1" kern_sz="3 3" stride="1 1"/>
+  <li tag="conv4" in_pad="1 1 1 1" kern_sz="3 3" stride="1 1"/>
+  <li tag="conv5" in_pad="1 1 1 1" kern_sz="3 3" stride="1 1"/>
+  <li tag="pool5" in_pad="0 0 0 0" kern_sz="3 3" stride="2 2"/> 
+</convs></pipe>
+
