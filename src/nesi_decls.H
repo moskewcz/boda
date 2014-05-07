@@ -95,4 +95,7 @@ struct cinfo_t
   bool exists( void ) const { return help; }
 };
 
+void nesi_init_and_check_unused_from_nia( nesi_init_arg_t * nia, tinfo_t const * ti, void * o );
+void nesi_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * parent, tinfo_t const * ti,  void * o );
+
 #endif /* _NESI_DECLS_H_ */

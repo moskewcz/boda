@@ -27,6 +27,11 @@ namespace boda
     lexp_check_unused( nia->l.get(), path );
   }
 
+  void nesi_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * parent, tinfo_t const * ti,  void * o ) {
+    lexp_name_val_map_t nvm( lexp, parent );
+    nesi_init_and_check_unused_from_nia( &nvm, ti, o );
+  }
+
   struct xml_attr_t {
     string n;
     string v;

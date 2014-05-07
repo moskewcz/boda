@@ -164,6 +164,20 @@ class cinfo_t( object ):
   tinfo_t tinfo_%(cname)s = { sizeof(%(cname)s), "%(cname)s", &cinfo_%(cname)s, nesi_struct_init, nesi_struct_make_p, vect_push_back_%(cname)s, nesi_struct_nesi_dump, 1, nesi_struct_nesi_help };
   cinfo_t const * %(cname)s::get_cinfo( void ) const { return &cinfo_%(cname)s; }
 
+  typedef shared_ptr< %(cname)s > p_%(cname)s;
+  extern tinfo_t tinfo_p_%(cname)s; // note: will be always generated later in this file; see wts.expand() call in nesi_gen.py
+  p_%(cname)s make_p_%(cname)s_init_and_check_unused_from_nia( nesi_init_arg_t * const nia ) {
+    p_%(cname)s ret;
+    nesi_init_and_check_unused_from_nia( nia, &tinfo_p_%(cname)s, &ret ); 
+    return ret;
+  }
+  p_%(cname)s make_p_%(cname)s_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const parent ) {
+    p_%(cname)s ret;
+    nesi_init_and_check_unused_from_lexp( lexp, parent, &tinfo_p_%(cname)s, &ret ); 
+    return ret;
+  }
+
+
 """
         return gen_template % {'cname':self.cname, 'help':self.help, 'num_vars':len(self.vars),
                                'tid_vix':tid_vix, 'tid_str':tid_str, 'hide':self.hide }
@@ -219,14 +233,22 @@ class nesi_gen( object ):
             
         # populate tinfos for any remaining types (vector, pointer, and base types)
         for cinfo in self.cinfos.itervalues():
-            for var in cinfo.vars_list:
-                wts = list( iter_wrapped_types( var.tname ) )
+            tnames = [ (var, var.tname) for var in cinfo.vars_list ] 
+            # include an entry for the class itself, so that we'll
+            # generate the p_ and vect_p_ wrappers for all classes
+            # (via the wts.extend() below) even if they are not used
+            # anywhere as NESI vars themselves:
+            tnames.append( (None,cinfo.cname) ) 
+            for var,tname in tnames:
+                wts = list( iter_wrapped_types( tname ) )
                 assert len(wts)
                 lt = wts[0] # leaf / least-derived type
                 src_fn = None
                 if lt in self.cinfos:
                     src_fn = self.cinfos[lt].src_fn
                     wts[0:1] = []
+                    # optional: always add p_ and vect_p_ tinfos for nesi types
+                    wts.extend( [ "p_" + lt, "vect_p_" + lt ] )
                 else:
                     src_fn = "nesi.cc"
                 for wt in wts:
@@ -238,10 +260,10 @@ class nesi_gen( object ):
                 
                 # check no_init_okay restrictions
                 no_init_okay = None
-                if var.tname in self.cinfos:
+                if tname in self.cinfos:
                     no_init_okay = 1
-                elif var.tname in self.tinfos_seen:
-                    no_init_okay = self.tinfos_seen[var.tname].no_init_okay
+                elif tname in self.tinfos_seen:
+                    no_init_okay = self.tinfos_seen[tname].no_init_okay
                 assert not (no_init_okay is None) # type must must be struct or other
                 
                 if not no_init_okay: # i.e. not a pointer type
