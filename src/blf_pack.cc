@@ -6,6 +6,7 @@
 #include"has_main.H"
 #include"io_util.H"
 #include"img_io.H"
+#include"conv_common.H"
 
 namespace boda 
 {
@@ -59,7 +60,7 @@ namespace boda
   typedef shared_ptr< blf_bin_t > p_blf_bin_t; 
   typedef vector< p_blf_bin_t > vect_p_blf_bin_t;
 
-  uint32_t blf_place( vect_u32_pt_w_t & out, u32_pt_t bin_sz, vect_u32_pt_t const & to_place, bool const no_fit_okay )
+  uint32_t blf_place( vect_u32_pt_w_t & out, u32_box_t const & bin, vect_u32_pt_t const & to_place, bool const no_fit_okay )
   {
     vect_p_blf_bin_t bins;
     for( vect_u32_pt_t::const_iterator i = to_place.begin(); i != to_place.end(); ++i ) {
@@ -70,13 +71,13 @@ namespace boda
 	if( placement != u32_pt_t_const_max ) { break; }
       }
       if( placement == u32_pt_t_const_max ) { // didn't fit in any bin, add one
-	bins.push_back( p_blf_bin_t( new blf_bin_t( u32_box_t( u32_pt_t(), bin_sz ) ) ) );
+	bins.push_back( p_blf_bin_t( new blf_bin_t( bin ) ) );
 	placement = bins.back()->place_box( *i );
 	if( placement == u32_pt_t_const_max ) {
 	  if( no_fit_okay ) { bin_ix = uint32_t_const_max; } 
 	  else {
-	    rt_err( strprintf( "box (*i)=%s cannot be placed into empty bin with bin_sz=%s "
-			       "(i.e. box to place > bin size)", str((*i)).c_str(), str(bin_sz).c_str() ) );
+	    rt_err( strprintf( "box (*i)=%s cannot be placed into empty bin of shape %s "
+			       "(i.e. box to place > bin size)", str((*i)).c_str(), str(bin).c_str() ) );
 	  }
 	}
       }
@@ -101,7 +102,7 @@ namespace boda
       (*out) << strprintf( "bin_sz=%s\n", str(bin_sz).c_str() );
       (*out) << strprintf( "to_pack=%s\n", str(to_pack).c_str() );
       vect_u32_pt_w_t placements;
-      blf_place( placements, u32_pt_t(bin_sz,bin_sz), to_pack, 0 );
+      blf_place( placements, u32_box_t( u32_pt_t(), u32_pt_t(bin_sz,bin_sz) ), to_pack, 0 );
       (*out) << strprintf( "placements=%s\n", str(placements).c_str() );
     }
   };
@@ -173,7 +174,7 @@ namespace boda
     uint32_t interval; //NESI(default=10,help="steps per octave (factor of 2)")
     u32_pt_t align; //NESI(default="16 16", help="pyra per-dim alignment")
     u32_pt_t min_pad; //NESI(default="165 165", help="pyra per-dim minimum padding")
-    uint32_t bin_sz; //NESI(default="1200", help="bin size for packing (as many bins needed will be used)")
+    u32_pt_t bin_sz; //NESI(default="1200", help="bin size for packing (as many bins needed will be used)")
 
     // for interactive/testing use
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
@@ -187,13 +188,53 @@ namespace boda
     pyra_pack_t( void ) : num_bins(0) { }
 
     void do_place( void ) {
+      timer_t t("pyra_pack_do_place");
+      conv_support_info_t const csi = {min_pad,align,{{64,64},{64,64}}};
+
+#if 0
+      // note: we if the padding between images is 'neutral', we could
+      // use ceil( support_sz / 2.0 ) padding on each image edge along
+      // with some bin_edge_pad.
+      u32_pt_t const img_edge_pad = (csi.support_sz + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.support_sz
+      // note: we might - csi.eff_tot_pad from bin_edge_pad here to
+      // reduce wasted bin space. but. we choose not to because the
+      // eff_tot_pad generally isn't equivalent to our internal padding.
+      u32_box_t bin_edge_pad = {img_edge_pad,img_edge_pad};
+#else
+      // for now, we (conservatively) totally isolate each image. we don't need any bin_edge_pad in this case
+      u32_pt_t const img_edge_pad = csi.support_sz;
+      u32_box_t bin_edge_pad;
+#endif
+      // increase - edge of bin padding so that (eff_tot_pad+bin_edge_pad) is a multiple of support_stride
+      bin_edge_pad.p[0] = (bin_edge_pad.p[0]+csi.eff_tot_pad.p[0]).ceil_align( csi.support_stride ) - csi.eff_tot_pad.p[0];
+
       create_pyra_sizes( sizes, in_sz, num_upsamp_octaves, interval );
       vect_u32_pt_t to_pack;
       for( vect_u32_pt_t::const_iterator i = sizes.begin(); i != sizes.end(); ++i ) {
-	pads.push_back( pad_and_align_sz( *i, align, min_pad ) );
+	pads.push_back( pad_and_align_sz( *i, csi.support_stride, img_edge_pad ) );
 	to_pack.push_back( pads.back().bnds_sum() + (*i) );
       }
-      num_bins = blf_place( placements, u32_pt_t(bin_sz,bin_sz), to_pack, 1 );
+      // place the padded sizes (in to_pack) into bins of size bin_sz (with bin_edge_pad excluded from the edges)
+      assert( bin_sz.both_dims_gt( bin_edge_pad.bnds_sum() ) ); // bin_edge_pad must leave some space left
+      u32_pt_t const bin_sz_minus_pad = bin_sz - bin_edge_pad.bnds_sum();
+      num_bins = blf_place( placements, u32_box_t( bin_edge_pad.p[0], bin_sz - bin_edge_pad.p[1] ), to_pack, 1 );
+
+      // validate that results fit in bins (FIXME: add overlap check?)
+      assert( sizes.size() == pads.size() );
+      assert( sizes.size() == placements.size() );
+      for( uint32_t i = 0; i != sizes.size(); ++i ) {
+	if( placements[i].w == uint32_t_const_max ) { // didn't place, must be too big
+	  assert_st( !(sizes[i] + pads[i].bnds_sum()).both_dims_le( bin_sz_minus_pad ) ); // check was too big
+	} else { // placed this size, check and adjust placement
+	  assert_st( sizes[i].both_dims_le( bin_sz ) );
+	  assert_st( placements[i].both_dims_lt( bin_sz ) );
+	  assert_st( pads[i].bnds_sum().both_dims_lt( bin_sz ) );
+	  assert_st( (placements[i]+pads[i].bnds_sum()+sizes[i]).both_dims_le( bin_sz ) );
+	}
+      }
+      // adjust placements to be for the unpadded sizes
+      for( uint32_t i = 0; i != sizes.size(); ++i ) { if( placements[i].w != uint32_t_const_max ) { placements[i] += pads[i].p[0];}}
+
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -207,6 +248,8 @@ namespace boda
 
 
   void create_pyra_imgs( vect_p_img_t & pyra_imgs, p_img_t const & src_img, pyra_pack_t const & pyra ) {
+    timer_t t("create_pyra_images");
+
     pyra_imgs.resize( pyra.sizes.size() );
     assert_st( get_wh(*src_img).both_dims_non_zero() );
     for( uint32_t i = 0; i < pyra.interval; ++i ) {
@@ -249,6 +292,7 @@ namespace boda
 
 
   void img_draw_box_pad( img_t * const dest, u32_box_t const & b, u32_box_t const & pad, uint32_t const & ec ) {
+    timer_t t("img_draw_box_pad");
     // pad edges
     for( uint32_t e = 0; e != 2; ++e ) {
       for( uint32_t d = 0; d != 2; ++d ) {
@@ -295,6 +339,8 @@ namespace boda
     filename_t img_out_fn; //NESI(default="%(boda_output_dir)/out_%%s.png",help="format for filenames of output image bin files. %%s will be replaced with the bin index.")
 
     virtual void main( nesi_init_arg_t * nia ) { 
+      timer_t t("img_pyra_pack_top");
+      
       do_place();
 
       p_img_t img_in( new img_t );
@@ -306,10 +352,13 @@ namespace boda
       uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
 
       vect_p_img_t bin_imgs;
-      for( uint32_t bix = 0; bix != num_bins; ++bix ) {
-	bin_imgs.push_back( p_img_t( new img_t ) );
-	bin_imgs.back()->set_sz_and_alloc_pels( bin_sz, bin_sz ); // w, h
-	bin_imgs.back()->fill_with_pel( inmc );
+      {
+	timer_t t2("img_pyra_pack_create_bins");
+	for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	  bin_imgs.push_back( p_img_t( new img_t ) );
+	  bin_imgs.back()->set_sz_and_alloc_pels( bin_sz.d[0], bin_sz.d[1] ); // w, h
+	  bin_imgs.back()->fill_with_pel( inmc );
+	}
       }
 
       for( uint32_t pix = 0; pix != pyra_imgs.size(); ++pix ) {
@@ -318,7 +367,7 @@ namespace boda
 	assert_st( get_wh(*pyra_imgs.at(pix)) == sizes.at(pix) );
 	uint32_t const bix = placements.at(pix).w;
 	if( bix == uint32_t_const_max ) { continue; } // skip failed placements FIXME: diagnostic?
-	u32_pt_t const dest = placements.at(pix) + pads.at(pix).p[0];
+	u32_pt_t const dest = placements.at(pix);
 	img_copy_to( pyra_imgs.at(pix).get(), bin_imgs.at(bix).get(), dest.d[0], dest.d[1] );
 	//printf( "dest=%s sizes.at(pix)=%s pads.at(pix)=%s\n", str(dest).c_str(), str(sizes.at(pix)).c_str(), str(pads.at(pix)).c_str() );
 	img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), inmc );
@@ -326,7 +375,7 @@ namespace boda
 
       for( uint32_t bix = 0; bix != num_bins; ++bix ) {
 	filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
-	bin_imgs.at(bix)->save_fn_png( ofn.exp );
+	//bin_imgs.at(bix)->save_fn_png( ofn.exp );
 	printf( "ofn.exp=%s\n", str(ofn.exp).c_str() );	
       }
     }

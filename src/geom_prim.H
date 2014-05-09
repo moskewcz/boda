@@ -15,6 +15,9 @@ namespace boda
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
     u32_pt_t scale_and_round( double const & s ) const { return u32_pt_t( round(d[0]*s), round(d[1]*s) ); }
 
+    void operator += ( u32_pt_t const & o ) { d[0] += o.d[0]; d[1] += o.d[1]; }
+    void operator -= ( u32_pt_t const & o ) { d[0] -= o.d[0]; d[1] -= o.d[1]; }
+
     u32_pt_t operator + ( u32_pt_t const & o ) const { return u32_pt_t( d[0] + o.d[0], d[1] + o.d[1] ); }
     u32_pt_t operator - ( u32_pt_t const & o ) const { return u32_pt_t( d[0] - o.d[0], d[1] - o.d[1] ); }
     u32_pt_t operator * ( u32_pt_t const & o ) const { return u32_pt_t( d[0] * o.d[0], d[1] * o.d[1] ); }
@@ -135,7 +138,7 @@ namespace boda
   std::ostream & operator <<(std::ostream & os, u32_box_t const & v);
 
   // misc higher-level operations
-  uint32_t blf_place( vect_u32_pt_w_t & out, u32_pt_t bin_sz, vect_u32_pt_t const & to_place );
+  uint32_t blf_place( vect_u32_pt_w_t & out, u32_box_t const & bin, vect_u32_pt_t const & to_place, bool const no_fit_okay );
 
 };
 #endif // GEOM_PRIM_H
