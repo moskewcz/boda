@@ -239,6 +239,7 @@ namespace boda
   }
 
   p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) { // ds_w must be in [ceil(w/2),w]
+    timer_t ds_timer("downsample_to_size");
     assert( ds_w <= img->w );
     assert( ds_w >= ((img->w+1)>>1) );
     assert( ds_h <= img->h );
@@ -302,6 +303,7 @@ namespace boda
   }
 
   void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy ) {
+    timer_t t("img_copy_to");
     uint32_t * const dest_data = ((uint32_t *)dest->pels.get()) + dest->get_pel_ix( dx, dy ); 
     uint32_t const * const src_data = (uint32_t const *)src->pels.get(); 
     for( uint32_t sy = 0; sy < src->h; ++sy ) {
