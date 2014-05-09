@@ -39,11 +39,23 @@ namespace boda
   }
 
   struct tlog_elem_t {
+    uint64_t min_bt;
     uint32_t cnt;
     uint32_t tot_dur;
-    tlog_elem_t( void ) : cnt(0), tot_dur(0) { }
+    tlog_elem_t( void ) : min_bt(uint64_t_const_max), cnt(0), tot_dur(0) { }
   };
   typedef dense_hash_map< string, tlog_elem_t > tlog_map_t;
+  typedef pair< string, tlog_elem_t > tlog_map_val_t;
+  typedef vector< tlog_map_val_t > vect_tlog_elem_t;
+
+  struct tlog_map_val_by_bt_comp { 
+    bool operator () ( tlog_map_val_t const & a, tlog_map_val_t const & b ) const { return a.second.min_bt < b.second.min_bt; }
+  };
+
+  string pre_pad_to_sz( string const & s, uint32_t const & sz ) {
+    if( s.size() >= sz ) { return s; }
+    return string( sz-s.size(), ' ' ) + s;
+  }
 
   string pretty_format_nsecs( uint64_t const nsecs )
   {
@@ -59,19 +71,25 @@ namespace boda
     tlog_map_t tlog_map;
     timer_log_t( void ) { tlog_map.set_empty_key( string() ); }
     void finalize( void ) {
-      for (tlog_map_t::const_iterator i = tlog_map.begin(); i != tlog_map.end(); ++i) {
-	printf( "timer: tag=%s cnt=%s tot_dur=%s avg_dur=%s\n", str(i->first).c_str(), str(i->second.cnt).c_str(), 
-		pretty_format_nsecs(i->second.tot_dur).c_str(),
-		pretty_format_nsecs(i->second.tot_dur / i->second.cnt).c_str() );
+      vect_tlog_elem_t tlog( tlog_map.begin(), tlog_map.end() );
+      std::sort( tlog.begin(), tlog.end(), tlog_map_val_by_bt_comp() );
+      printf( "TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  \n" ); 
+      for( vect_tlog_elem_t::const_iterator i = tlog.begin(); i != tlog.end(); ++i) {
+	printf( "%s %s %s    %s\n", 
+		pre_pad_to_sz( str(i->second.cnt), 12 ).c_str(), 
+		pre_pad_to_sz( pretty_format_nsecs(i->second.tot_dur), 12 ).c_str(),
+		pre_pad_to_sz( pretty_format_nsecs(i->second.tot_dur / i->second.cnt), 12).c_str(),
+		str(i->first).c_str()
+		);
       }
     }
     void log_timer( timer_t const * const t ) {
       assert_st( t->ended );
       tlog_elem_t & te = tlog_map[ t->tag ];
+      min_eq( te.min_bt, t->bt );
       te.cnt += 1;
       te.tot_dur += t->dur;
     }
-
   };
 
   timer_log_t global_timer_log;
