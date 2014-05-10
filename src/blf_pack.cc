@@ -88,7 +88,8 @@ namespace boda
   }
 
 
-  struct blf_pack_t : virtual public nesi, public has_main_t // NESI(help="blf rectangle packing",bases=["has_main_t"], type_id="blf_pack")
+  struct blf_pack_t : virtual public nesi, public has_main_t // NESI(help="blf rectangle packing",
+		      // bases=["has_main_t"], type_id="blf_pack")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
@@ -166,7 +167,8 @@ namespace boda
     if( af != pyra.end() ) { pyra.erase( ++af, pyra.end() ); } 
   }
 
-  struct pyra_pack_t : virtual public nesi, public has_main_t // NESI(help="pyramid packing",bases=["has_main_t"], type_id="pyra_pack")
+  struct pyra_pack_t : virtual public nesi, public has_main_t // NESI(help="pyramid packing",
+		       // bases=["has_main_t"], type_id="pyra_pack")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     u32_pt_t in_sz; //NESI(help="input size to create pyramid for",req=1)
@@ -336,13 +338,14 @@ namespace boda
     }
   }
 
-  struct img_pyra_pack_t : virtual public nesi, public pyra_pack_t // NESI(help="image pyramid packing",bases=["pyra_pack_t"], type_id="img_pyra_pack")
+  struct img_pyra_pack_t : virtual public nesi, public pyra_pack_t // NESI(help="image pyramid packing",
+			   // bases=["pyra_pack_t"], type_id="img_pyra_pack")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     // for interactive/testing use
     filename_t img_in_fn; //NESI(help="input image filename",req=1)
-    filename_t img_out_fn; //NESI(default="%(boda_output_dir)/out_%%s.png",help="format for filenames of output image bin files. %%s will be replaced with the bin index.")
-
+    filename_t img_out_fn; // NESI(default="%(boda_output_dir)/out_%%s.png", help="format for filenames of"
+                           //   " output image bin files. %%s will replaced with the bin index.")
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("img_pyra_pack_top");
       
