@@ -311,26 +311,44 @@ class nesi_gen( object ):
         fn_lines = file( fn_path ).readlines()
         # FIXME: add multiline support
         # for now, any lines matching this re are considered NESI command lines. this is certainly not perfect/complete.
-        nesi_decl = re.compile( r"//\s*NESI\s*\((.*)\)" ) # note: greedy, which is what we want
+        nesi_decl = re.compile( r"//\s*NESI\s*\((.*)" ) # note: greedy, which is what we want
         struct_decl = re.compile( r"\s*(?:class|struct)\s*(\S+)" ) # NESI structs decl lines must match this
         var_decl = re.compile( r"\s*(\S+)\s*(\S+)\s*;" )  # NESI var decls lines must match this
         self.cur_sdecl = None
+        partial_nesi_decl = None
+        nesi_decl_first_line = None
         for line in fn_lines:
-            nd_ret = nesi_decl.search(line)
-            if nd_ret:
-                nesi_kwargs = nd_ret.groups()[0]
-                sd_ret = struct_decl.match(line)
-                if sd_ret:
-                    cname = sd_ret.groups()[0]
-                    # note: sets self.cur_sdecl
-                    self.print_err_eval( "self.proc_sdecl(%r, %r,%s)" % (fn,cname,nesi_kwargs) ) 
-                    continue
-                vd_ret = var_decl.match(line)
-                if vd_ret:
-                    tname, vname = vd_ret.groups()
-                    self.print_err_eval( "self.proc_vdecl(tname=%r,vname=%r,%s)" % (tname,vname,nesi_kwargs) ) 
-                    continue
-                raise RuntimeError( "line looks like NESI decl, but doesn't match as struct or var decl:" + line )
+            if partial_nesi_decl is not None:
+                line = line.strip()
+                if not line.startswith("//"):
+                    raise RuntimeError( "saw start of NESI decl that didn't end in ) on line %r,"
+                                        " but subsequent line %r didn't start with c++ style comment (i.e. //):" % (
+                            nesi_decl_first_line, line ) )
+                line = line[2:]
+                partial_nesi_decl += line.strip()
+            else:
+                assert partial_nesi_decl is None
+                nd_ret = nesi_decl.search(line)
+                if nd_ret:
+                    nesi_decl_first_line = line
+                    partial_nesi_decl = nd_ret.groups()[0].strip()
+            if (partial_nesi_decl is None) or (not partial_nesi_decl.endswith(')')):
+                continue
+            nesi_kwargs = partial_nesi_decl[:-1]                
+            sd_ret = struct_decl.match(nesi_decl_first_line)
+            vd_ret = var_decl.match(nesi_decl_first_line)
+            if sd_ret:
+                cname = sd_ret.groups()[0]
+                # note: sets self.cur_sdecl
+                self.print_err_eval( "self.proc_sdecl(%r, %r,%s)" % (fn,cname,nesi_kwargs) ) 
+            elif vd_ret:
+                tname, vname = vd_ret.groups()
+                self.print_err_eval( "self.proc_vdecl(tname=%r,vname=%r,%s)" % (tname,vname,nesi_kwargs) ) 
+            else:
+                raise RuntimeError( "line looks like start of NESI decl, but doesn't match as struct or var decl:" 
+                                    + nesi_decl_first_line )
+            nesi_decl_first_line = None
+            partial_nesi_decl = None
 
     # for now, we support only a (very) limited form of
     # inheritance/factory generation: we generate a single factory
