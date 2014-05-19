@@ -176,7 +176,7 @@ namespace boda
     uint32_t interval; //NESI(default=10,help="steps per octave (factor of 2)")
     u32_pt_t align; //NESI(default="16 16", help="pyra per-dim alignment")
     u32_pt_t min_pad; //NESI(default="165 165", help="pyra per-dim minimum padding")
-    u32_pt_t bin_sz; //NESI(default="1200", help="bin size for packing (as many bins needed will be used)")
+    u32_pt_t bin_sz; //NESI(default="1200 1200", help="bin size for packing (as many bins needed will be used)")
 
     // for interactive/testing use
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
@@ -344,6 +344,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     // for interactive/testing use
     filename_t img_in_fn; //NESI(help="input image filename",req=1)
+    uint32_t write_images; //NESI(default=0,help="if true, write out stiched images")
     filename_t img_out_fn; // NESI(default="%(boda_output_dir)/out_%%s.png", help="format for filenames of"
                            //   " output image bin files. %%s will replaced with the bin index.")
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -381,10 +382,12 @@ namespace boda
 	img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), inmc );
       }
 
-      for( uint32_t bix = 0; bix != num_bins; ++bix ) {
-	filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
-	bin_imgs.at(bix)->save_fn_png( ofn.exp );
-	printf( "ofn.exp=%s\n", str(ofn.exp).c_str() );	
+      if( write_images ) { 
+	for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	  filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
+	  printf( "ofn.exp=%s\n", str(ofn.exp).c_str() );	
+	  bin_imgs.at(bix)->save_fn_png( ofn.exp ); 
+	}
       }
     }
   };
