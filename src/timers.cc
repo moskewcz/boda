@@ -71,6 +71,7 @@ namespace boda
     tlog_map_t tlog_map;
     timer_log_t( void ) { tlog_map.set_empty_key( string() ); }
     void finalize( void ) {
+      if( tlog_map.empty() ) { return; } // don't print column headings if no timer data
       vect_tlog_elem_t tlog( tlog_map.begin(), tlog_map.end() );
       std::sort( tlog.begin(), tlog.end(), tlog_map_val_by_bt_comp() );
       printf( "TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  \n" ); 
