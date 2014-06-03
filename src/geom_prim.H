@@ -12,6 +12,8 @@ namespace boda
     u32_pt_t( void ) : d{0,0} { } // no c++11? --> remove : d{0,0}, use { d[0]=0;d[1]=0; }
     u32_pt_t( uint32_t const d0, uint32_t const d1 ) : d{d0,d1} { } 
     uint32_t dims_prod( void ) const { return d[0] * d[1]; }
+    uint32_t dims_min( void ) const { return std::min(d[0],d[1]); }
+    uint32_t dims_max( void ) const { return std::max(d[0],d[1]); }
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
     u32_pt_t scale_and_round( double const & s ) const { return u32_pt_t( round(d[0]*s), round(d[1]*s) ); }
 
