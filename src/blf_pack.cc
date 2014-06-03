@@ -225,7 +225,7 @@ namespace boda
       for( uint32_t i = 0; i != sizes.size(); ++i ) {
 	if( placements[i].w == uint32_t_const_max ) { // didn't place, must be too big
 	  assert_st( !(sizes[i] + pads[i].bnds_sum()).both_dims_le( bin_sz_minus_pad ) ); // check was too big
-	} else { // placed this size, check and adjust placement
+	} else { // placed this size, check placement
 	  assert_st( sizes[i].both_dims_le( bin_sz ) );
 	  assert_st( placements[i].both_dims_lt( bin_sz ) );
 	  assert_st( pads[i].bnds_sum().both_dims_lt( bin_sz ) );
@@ -293,6 +293,10 @@ namespace boda
 
   void img_draw_box_pad( img_t * const dest, u32_box_t const & b, u32_box_t const & pad, uint32_t const & ec ) {
     timer_t t("img_draw_box_pad");
+    // from the image edge to a distance of the min across all edge padding values, we interpolate
+    // from the image border value to ec.
+    uint32_t const min_edge_pad = std::min( pad.p[0].dims_min(), pad.p[1].dims_min() );
+
     // pad edges
     for( uint32_t e = 0; e != 2; ++e ) {
       for( uint32_t d = 0; d != 2; ++d ) {
@@ -303,7 +307,8 @@ namespace boda
 	  int32_t const stride_x = d?stride:0;
 	  int32_t const stride_y = d?0:stride;
 	  uint32_t const ic = dest->get_pel( sp.d[0], sp.d[1] );
-	  img_draw_pels( dest, sp.d[0]+stride_x, sp.d[1]+stride_y, pad.p[e].d[d^1], stride_x, stride_y, ic, ec ); 
+	  img_draw_pels( dest, sp.d[0]+stride_x, sp.d[1]+stride_y, min_edge_pad/*pad.p[e].d[d^1]*/,
+			 stride_x, stride_y, ic, ec ); 
 	}
       }
     }
@@ -316,7 +321,7 @@ namespace boda
 	cp.d[0] = b.p[dx].d[0]-dx; 
 	cp.d[1] = b.p[dy].d[1]-dy;
 	// cp is coord of dx,dy source (non-padding) corner image pixel 
-	uint32_t const lt_sz = std::min( pad.p[dx].d[0], pad.p[dy].d[1] ); 
+	uint32_t const lt_sz = min_edge_pad; //std::min( pad.p[dx].d[0], pad.p[dy].d[1] ); 
 	for( uint32_t dd = 2; dd <= lt_sz; ++dd ) {
 	  uint32_t const cx = cp.d[0] + ( dx ? dd : -dd ); // cx,y is point on existing dx padding, dd outside image
 	  uint32_t const cy = cp.d[1] + ( dy ? dd : -dd ); // x,cy is point on existing dy padding, dd outside image
@@ -375,7 +380,7 @@ namespace boda
 
       for( uint32_t bix = 0; bix != num_bins; ++bix ) {
 	filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
-	//bin_imgs.at(bix)->save_fn_png( ofn.exp );
+	bin_imgs.at(bix)->save_fn_png( ofn.exp );
 	printf( "ofn.exp=%s\n", str(ofn.exp).c_str() );	
       }
     }
