@@ -3,7 +3,7 @@ CPP := g++
 CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -I/usr/include/python2.7 -I/usr/include/octave-3.8.1 -I/usr/include/octave-3.8.1/octave -fopenmp -Wall 
 LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg
 #for caffe/cuda
-CAFFE_HOME := /home/moskewcz/git_work/caffe_3
+CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
 CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src -I/usr/local/cuda/include
 LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe -lcudart -lcublas -lcurand -lprotobuf
 # generally, there is no need to alter the makefile below this line
