@@ -402,6 +402,23 @@ namespace boda
     return out;
   }
 
+  template< typename T > struct max_functor { 
+    typedef T Result; 
+    T operator()( T const & a, T const & b ) const { return std::max(a,b); } 
+  };
+  template< typename T > struct min_functor { 
+    typedef T Result; 
+    T operator()( T const & a, T const & b ) const { return std::min(a,b); } 
+  };
+  
+  template< typename VT, typename BF > typename BF::Result nda_reduce( VT const & vt, BF const & bf, 
+								       typename BF::Result const & iv ) {
+    typename BF::Result ret = iv;
+    for( dims_iter_t di( vt.dims ) ; ; ) { ret = bf(ret,vt.at(di.di));  if( !di.next() ) { break; } }    
+    return ret;
+  }
+
+
   template< typename T > inline void bwrite( std::ostream & out, nda_T<T> const & o ) { 
     bwrite(out,o.dims); bwrite(out,o.elems); }
   template< typename T > inline void bread( std::istream & in, nda_T<T> & o ) { 
