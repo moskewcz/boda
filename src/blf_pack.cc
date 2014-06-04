@@ -330,6 +330,7 @@ namespace boda
   }
 
   void img_pyra_pack_t::do_place_imgs( conv_support_info_t const & csi, p_img_t img_in ) {
+    timer_t t("img_pyra_pack_do_place_imgs");
     do_place( csi );
     create_pyra_imgs( pyra_imgs, img_in, *this );
     uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA

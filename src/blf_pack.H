@@ -34,6 +34,17 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia );
 
   };
+  
+  typedef vector< pyra_pack_t > vect_pyra_pack_t; 
+  typedef shared_ptr< pyra_pack_t > p_pyra_pack_t; 
+  typedef vector< p_pyra_pack_t > vect_p_pyra_pack_t;
+
+  
+  struct img_t;
+  typedef vector< img_t > vect_img_t; 
+  typedef shared_ptr< img_t > p_img_t; 
+  typedef vector< p_img_t > vect_p_img_t;
+
 
   struct img_pyra_pack_t : virtual public nesi, public pyra_pack_t // NESI(help="image pyramid packing",
 			   // bases=["pyra_pack_t"], type_id="img_pyra_pack")
@@ -53,6 +64,11 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia );
     void do_place_imgs( conv_support_info_t const & csi, p_img_t img_in );
   };
+
+  typedef vector< img_pyra_pack_t > vect_img_pyra_pack_t; 
+  typedef shared_ptr< img_pyra_pack_t > p_img_pyra_pack_t; 
+  typedef vector< p_img_pyra_pack_t > vect_p_img_pyra_pack_t;
+
 
 }
 
