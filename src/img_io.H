@@ -39,11 +39,19 @@ namespace boda
       return y*row_pitch_pels + x; 
     }
     uint32_t get_pel( uint32_t const & x, uint32_t const & y ) const { return ((uint32_t *)pels.get())[get_pel_ix(x,y)];}
-
+    void set_pel( uint32_t const & x, uint32_t const & y, uint32_t const & v ) { 
+      ((uint32_t *)pels.get())[get_pel_ix(x,y)] = v; }
+    uint8_t get_pel_chan( uint32_t const & x, uint32_t const & y, uint8_t const & c ) const { 
+      return (get_pel( x, y ) >> (c*8))&0xff;
+    }
     uint32_t min_dim( void ) { return std::min(w,h); }
     uint32_t sz_raw_bytes( void ) const { return row_pitch*h; }
     string WxH_str( void );
   };
+
+  inline uint32_t grey_to_pel( uint8_t const gv, uint8_t const av = uint8_t_const_max ) {
+    return gv + (gv<<8) + (gv<<16) + (av<<24);
+  }
 
   p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ); // ds_w must be in [ceil(w/2),w]
   p_img_t downsample( p_img_t img, double const scale );
