@@ -85,6 +85,8 @@ namespace boda
 
   void img_t::save_fn_png( std::string const & fn )
   {
+    timer_t t("save_fn_png");
+
     uint32_t const lp_depth = 4;
     assert( depth == lp_depth );
     vect_uint8_t lp_pels; // will contain packed RGBA (no padding)
