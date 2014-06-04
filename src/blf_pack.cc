@@ -6,7 +6,7 @@
 #include"has_main.H"
 #include"io_util.H"
 #include"img_io.H"
-#include"conv_common.H"
+#include"blf_pack.H"
 
 namespace boda 
 {
@@ -167,87 +167,62 @@ namespace boda
     if( af != pyra.end() ) { pyra.erase( ++af, pyra.end() ); } 
   }
 
-  struct pyra_pack_t : virtual public nesi, public has_main_t // NESI(help="pyramid packing",
-		       // bases=["has_main_t"], type_id="pyra_pack")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    u32_pt_t in_sz; //NESI(help="input size to create pyramid for",req=1)
-    uint32_t num_upsamp_octaves; //NESI(default=1,help="number of upsampled octaves")
-    uint32_t interval; //NESI(default=10,help="steps per octave (factor of 2)")
-    u32_pt_t align; //NESI(default="16 16", help="pyra per-dim alignment")
-    u32_pt_t min_pad; //NESI(default="165 165", help="pyra per-dim minimum padding")
-    u32_pt_t bin_sz; //NESI(default="1200 1200", help="bin size for packing (as many bins needed will be used)")
-
-    // for interactive/testing use
-    filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
-
-    // outputs
-    vect_u32_pt_t sizes;
-    vect_u32_box_t pads;          
-    vect_u32_pt_w_t placements;
-    uint32_t num_bins;
-
-    pyra_pack_t( void ) : num_bins(0) { }
-
-    void do_place( void ) {
-      timer_t t("pyra_pack_do_place");
-      conv_support_info_t const csi = {min_pad,align,{{64,64},{64,64}}};
-
+  void pyra_pack_t::do_place( conv_support_info_t const & csi ) {
+    timer_t t("pyra_pack_do_place");
 #if 0
-      // note: we if the padding between images is 'neutral', we could
-      // use ceil( support_sz / 2.0 ) padding on each image edge along
-      // with some bin_edge_pad.
-      u32_pt_t const img_edge_pad = (csi.support_sz + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.support_sz
-      // note: we might - csi.eff_tot_pad from bin_edge_pad here to
-      // reduce wasted bin space. but. we choose not to because the
-      // eff_tot_pad generally isn't equivalent to our internal padding.
-      u32_box_t bin_edge_pad = {img_edge_pad,img_edge_pad};
+    // note: we if the padding between images is 'neutral', we could
+    // use ceil( support_sz / 2.0 ) padding on each image edge along
+    // with some bin_edge_pad.
+    u32_pt_t const img_edge_pad = (csi.support_sz + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.support_sz
+    // note: we might - csi.eff_tot_pad from bin_edge_pad here to
+    // reduce wasted bin space. but. we choose not to because the
+    // eff_tot_pad generally isn't equivalent to our internal padding.
+    u32_box_t bin_edge_pad = {img_edge_pad,img_edge_pad};
 #else
-      // for now, we (conservatively) totally isolate each image. we don't need any bin_edge_pad in this case
-      u32_pt_t const img_edge_pad = csi.support_sz;
-      u32_box_t bin_edge_pad;
+    // for now, we (conservatively) totally isolate each image. we don't need any bin_edge_pad in this case
+    u32_pt_t const img_edge_pad = csi.support_sz;
+    u32_box_t bin_edge_pad;
 #endif
-      // increase - edge of bin padding so that (eff_tot_pad+bin_edge_pad) is a multiple of support_stride
-      bin_edge_pad.p[0] = (bin_edge_pad.p[0]+csi.eff_tot_pad.p[0]).ceil_align( csi.support_stride ) - csi.eff_tot_pad.p[0];
+    // increase - edge of bin padding so that (eff_tot_pad+bin_edge_pad) is a multiple of support_stride
+    bin_edge_pad.p[0] = (bin_edge_pad.p[0]+csi.eff_tot_pad.p[0]).ceil_align( csi.support_stride ) - csi.eff_tot_pad.p[0];
 
-      create_pyra_sizes( sizes, in_sz, num_upsamp_octaves, interval );
-      vect_u32_pt_t to_pack;
-      for( vect_u32_pt_t::const_iterator i = sizes.begin(); i != sizes.end(); ++i ) {
-	pads.push_back( pad_and_align_sz( *i, csi.support_stride, img_edge_pad ) );
-	to_pack.push_back( pads.back().bnds_sum() + (*i) );
-      }
-      // place the padded sizes (in to_pack) into bins of size bin_sz (with bin_edge_pad excluded from the edges)
-      assert( bin_sz.both_dims_gt( bin_edge_pad.bnds_sum() ) ); // bin_edge_pad must leave some space left
-      u32_pt_t const bin_sz_minus_pad = bin_sz - bin_edge_pad.bnds_sum();
-      num_bins = blf_place( placements, u32_box_t( bin_edge_pad.p[0], bin_sz - bin_edge_pad.p[1] ), to_pack, 1 );
-
-      // validate that results fit in bins (FIXME: add overlap check?)
-      assert( sizes.size() == pads.size() );
-      assert( sizes.size() == placements.size() );
-      for( uint32_t i = 0; i != sizes.size(); ++i ) {
-	if( placements[i].w == uint32_t_const_max ) { // didn't place, must be too big
-	  assert_st( !(sizes[i] + pads[i].bnds_sum()).both_dims_le( bin_sz_minus_pad ) ); // check was too big
-	} else { // placed this size, check placement
-	  assert_st( sizes[i].both_dims_le( bin_sz ) );
-	  assert_st( placements[i].both_dims_lt( bin_sz ) );
-	  assert_st( pads[i].bnds_sum().both_dims_lt( bin_sz ) );
-	  assert_st( (placements[i]+pads[i].bnds_sum()+sizes[i]).both_dims_le( bin_sz ) );
-	}
-      }
-      // adjust placements to be for the unpadded sizes
-      for( uint32_t i = 0; i != sizes.size(); ++i ) { if( placements[i].w != uint32_t_const_max ) { placements[i] += pads[i].p[0];}}
-
+    create_pyra_sizes( sizes, in_sz, num_upsamp_octaves, interval );
+    vect_u32_pt_t to_pack;
+    for( vect_u32_pt_t::const_iterator i = sizes.begin(); i != sizes.end(); ++i ) {
+      pads.push_back( pad_and_align_sz( *i, csi.support_stride, img_edge_pad ) );
+      to_pack.push_back( pads.back().bnds_sum() + (*i) );
     }
+    // place the padded sizes (in to_pack) into bins of size bin_sz (with bin_edge_pad excluded from the edges)
+    assert( bin_sz.both_dims_gt( bin_edge_pad.bnds_sum() ) ); // bin_edge_pad must leave some space left
+    u32_pt_t const bin_sz_minus_pad = bin_sz - bin_edge_pad.bnds_sum();
+    num_bins = blf_place( placements, u32_box_t( bin_edge_pad.p[0], bin_sz - bin_edge_pad.p[1] ), to_pack, 1 );
 
-    virtual void main( nesi_init_arg_t * nia ) { 
-      p_ostream out = ofs_open( out_fn.exp );
-      do_place();
-      (*out) << strprintf( "sizes=%s\n", str(sizes).c_str() );
-      (*out) << strprintf( "bin_sz=%s\n", str(bin_sz).c_str() );
-      (*out) << strprintf( "num_bins=%s placements=%s\n", str(num_bins).c_str(), str(placements).c_str() );
+    // validate that results fit in bins (FIXME: add overlap check?)
+    assert( sizes.size() == pads.size() );
+    assert( sizes.size() == placements.size() );
+    for( uint32_t i = 0; i != sizes.size(); ++i ) {
+      if( placements[i].w == uint32_t_const_max ) { // didn't place, must be too big
+	assert_st( !(sizes[i] + pads[i].bnds_sum()).both_dims_le( bin_sz_minus_pad ) ); // check was too big
+      } else { // placed this size, check placement
+	assert_st( sizes[i].both_dims_le( bin_sz ) );
+	assert_st( placements[i].both_dims_lt( bin_sz ) );
+	assert_st( pads[i].bnds_sum().both_dims_lt( bin_sz ) );
+	assert_st( (placements[i]+pads[i].bnds_sum()+sizes[i]).both_dims_le( bin_sz ) );
+      }
     }
-  };
+    // adjust placements to be for the unpadded sizes
+    for( uint32_t i = 0; i != sizes.size(); ++i ) { if( placements[i].w != uint32_t_const_max ) { placements[i] += pads[i].p[0];}}
 
+  }
+
+  void pyra_pack_t::main( nesi_init_arg_t * nia ) { 
+    if( !in_sz.both_dims_non_zero() ) { rt_err( "in_sz should be specified and non-zero in both dims" ); }
+    p_ostream out = ofs_open( out_fn.exp );
+    do_place( conv_support_info_t{min_pad,align,eff_tot_pad} );
+    (*out) << strprintf( "sizes=%s\n", str(sizes).c_str() );
+    (*out) << strprintf( "bin_sz=%s\n", str(bin_sz).c_str() );
+    (*out) << strprintf( "num_bins=%s placements=%s\n", str(num_bins).c_str(), str(placements).c_str() );
+  }
 
   void create_pyra_imgs( vect_p_img_t & pyra_imgs, p_img_t const & src_img, pyra_pack_t const & pyra ) {
     timer_t t("create_pyra_images");
@@ -338,60 +313,51 @@ namespace boda
     }
   }
 
-  struct img_pyra_pack_t : virtual public nesi, public pyra_pack_t // NESI(help="image pyramid packing",
-			   // bases=["pyra_pack_t"], type_id="img_pyra_pack")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    // for interactive/testing use
-    filename_t img_in_fn; //NESI(help="input image filename",req=1)
-    uint32_t write_images; //NESI(default=0,help="if true, write out stiched images")
-    filename_t img_out_fn; // NESI(default="%(boda_output_dir)/out_%%s.png", help="format for filenames of"
-                           //   " output image bin files. %%s will replaced with the bin index.")
-    virtual void main( nesi_init_arg_t * nia ) { 
-      timer_t t("img_pyra_pack_top");
-      
-      do_place();
-
-      p_img_t img_in( new img_t );
-      img_in->load_fn( img_in_fn.exp );
-
-      vect_p_img_t pyra_imgs;
-      create_pyra_imgs( pyra_imgs, img_in, *this );
-
-      uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
-
-      vect_p_img_t bin_imgs;
-      {
-	timer_t t2("img_pyra_pack_create_bins");
-	for( uint32_t bix = 0; bix != num_bins; ++bix ) {
-	  bin_imgs.push_back( p_img_t( new img_t ) );
-	  bin_imgs.back()->set_sz_and_alloc_pels( bin_sz.d[0], bin_sz.d[1] ); // w, h
-	  bin_imgs.back()->fill_with_pel( inmc );
-	}
-      }
-
-      for( uint32_t pix = 0; pix != pyra_imgs.size(); ++pix ) {
-	//filename_t ofn = filename_t_printf( img_out_fn, str(pix).c_str() );
-	//pyra_imgs[pix]->save_fn_png( ofn.exp );
-	assert_st( get_wh(*pyra_imgs.at(pix)) == sizes.at(pix) );
-	uint32_t const bix = placements.at(pix).w;
-	if( bix == uint32_t_const_max ) { continue; } // skip failed placements FIXME: diagnostic?
-	u32_pt_t const dest = placements.at(pix);
-	img_copy_to( pyra_imgs.at(pix).get(), bin_imgs.at(bix).get(), dest.d[0], dest.d[1] );
-	//printf( "dest=%s sizes.at(pix)=%s pads.at(pix)=%s\n", str(dest).c_str(), str(sizes.at(pix)).c_str(), str(pads.at(pix)).c_str() );
-	img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), inmc );
-      }
-
-      if( write_images ) { 
-	for( uint32_t bix = 0; bix != num_bins; ++bix ) {
-	  filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
-	  printf( "ofn.exp=%s\n", str(ofn.exp).c_str() );	
-	  bin_imgs.at(bix)->save_fn_png( ofn.exp ); 
-	}
+  void img_pyra_pack_t::main( nesi_init_arg_t * nia ) { 
+    if( !in_sz.is_zeros() ) { rt_err("for img_pyra_pack, don't set in_sz, it will be determined from the input image"); }
+    timer_t t("img_pyra_pack_top");
+    p_img_t img_in( new img_t );
+    img_in->load_fn( img_in_fn.exp );
+    in_sz.d[0] = img_in->w; in_sz.d[1] = img_in->h;
+    do_place_imgs( conv_support_info_t{min_pad,align,eff_tot_pad}, img_in );
+    if( write_images ) { 
+      for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
+	printf( "ofn.exp=%s\n", str(ofn.exp).c_str() );	
+	bin_imgs.at(bix)->save_fn_png( ofn.exp ); 
       }
     }
-  };
+  }
 
+  void img_pyra_pack_t::do_place_imgs( conv_support_info_t const & csi, p_img_t img_in ) {
+    do_place( csi );
+    create_pyra_imgs( pyra_imgs, img_in, *this );
+    uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
+
+    {
+      timer_t t2("img_pyra_pack_create_bins");
+      for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	bin_imgs.push_back( p_img_t( new img_t ) );
+	bin_imgs.back()->set_sz_and_alloc_pels( bin_sz.d[0], bin_sz.d[1] ); // w, h
+	bin_imgs.back()->fill_with_pel( inmc );
+      }
+    }
+
+    for( uint32_t pix = 0; pix != pyra_imgs.size(); ++pix ) {
+      //filename_t ofn = filename_t_printf( img_out_fn, str(pix).c_str() );
+      //pyra_imgs[pix]->save_fn_png( ofn.exp );
+      assert_st( get_wh(*pyra_imgs.at(pix)) == sizes.at(pix) );
+      uint32_t const bix = placements.at(pix).w;
+      if( bix == uint32_t_const_max ) { continue; } // skip failed placements FIXME: diagnostic?
+      u32_pt_t const dest = placements.at(pix);
+      img_copy_to( pyra_imgs.at(pix).get(), bin_imgs.at(bix).get(), dest.d[0], dest.d[1] );
+      //printf( "dest=%s sizes.at(pix)=%s pads.at(pix)=%s\n", str(dest).c_str(), str(sizes.at(pix)).c_str(), str(pads.at(pix)).c_str() );
+      img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), inmc );
+    }
+
+  }
+
+#include"gen/blf_pack.H.nesi_gen.cc"
 #include"gen/blf_pack.cc.nesi_gen.cc"
 
 };
