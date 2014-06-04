@@ -40,8 +40,8 @@ namespace boda
 
   struct tlog_elem_t {
     uint64_t min_bt;
-    uint32_t cnt;
-    uint32_t tot_dur;
+    uint64_t cnt;
+    uint64_t tot_dur;
     tlog_elem_t( void ) : min_bt(uint64_t_const_max), cnt(0), tot_dur(0) { }
   };
   typedef dense_hash_map< string, tlog_elem_t > tlog_map_t;
