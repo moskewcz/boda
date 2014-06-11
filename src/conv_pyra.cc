@@ -46,6 +46,8 @@ namespace boda
 
     uint32_t write_output; //NESI(default=0,help="if true, write output images/bins (slow)")
 
+    p_img_pyra_pack_t ipp; //NESI(default="()",help="pyramid packing options")
+
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("conv_prya_top");
 
@@ -54,7 +56,7 @@ namespace boda
 
       p_img_t img_in( new img_t );
       img_in->load_fn( img_in_fn.exp );
-      p_img_pyra_pack_t ipp = make_p_img_pyra_pack_t_init_and_check_unused_from_lexp( parse_lexp("(mode=img_pyra_pack,img_in_fn=fixme.remove)"), nia );
+      //p_img_pyra_pack_t ipp = make_p_img_pyra_pack_t_init_and_check_unused_from_lexp( parse_lexp("(mode=img_pyra_pack,img_in_fn=fixme.remove)"), nia );
 
       ipp->in_sz.d[0] = img_in->w; ipp->in_sz.d[1] = img_in->h;
       ipp->do_place_imgs( conv_pipe->conv_sis.back(), img_in );

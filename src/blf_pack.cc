@@ -215,7 +215,7 @@ namespace boda
 
   }
 
-  void pyra_pack_t::main( nesi_init_arg_t * nia ) { 
+  void pyra_pack_cli_t::main( nesi_init_arg_t * nia ) { 
     if( !in_sz.both_dims_non_zero() ) { rt_err( "in_sz should be specified and non-zero in both dims" ); }
     p_ostream out = ofs_open( out_fn.exp );
     do_place( conv_support_info_t{min_pad,align,eff_tot_pad} );
@@ -313,7 +313,7 @@ namespace boda
     }
   }
 
-  void img_pyra_pack_t::main( nesi_init_arg_t * nia ) { 
+  void img_pyra_pack_cli_t::main( nesi_init_arg_t * nia ) { 
     if( !in_sz.is_zeros() ) { rt_err("for img_pyra_pack, don't set in_sz, it will be determined from the input image"); }
     timer_t t("img_pyra_pack_top");
     p_img_t img_in( new img_t );
