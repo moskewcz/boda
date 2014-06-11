@@ -273,6 +273,7 @@ namespace boda
     // from the image edge to a distance of the min across all edge padding values, we interpolate
     // from the image border value to ec.
     uint32_t const min_edge_pad = std::min( pad.p[0].dims_min(), pad.p[1].dims_min() );
+    if( !min_edge_pad ) { return; }
 
     // pad edges
     for( uint32_t e = 0; e != 2; ++e ) {
