@@ -45,6 +45,7 @@ namespace boda
     uint64_t const vv = (uint64_t(v) << 32) + v;
     uint64_t * const dest_data = (uint64_t *) pels.get(); 
     assert_st( !(row_pitch_pels&1) );
+#pragma omp parallel for
     for( uint32_t i = 0; i < (row_pitch_pels>>1)*h; ++i ) { dest_data[i] = vv; }
   }
 
@@ -83,7 +84,7 @@ namespace boda
     for( uint32_t i = 0; i < h; ++i ) { memcpy( pels.get() + i*row_pitch, (&lp_pels[0]) + i*w*lp_depth, w*lp_depth ); }
   }
 
-  void img_t::save_fn_png( std::string const & fn )
+  void img_t::save_fn_png( std::string const & fn, bool const disable_compression )
   {
     timer_t t("save_fn_png");
 
@@ -95,14 +96,13 @@ namespace boda
     for( uint32_t i = 0; i < h; ++i ) { memcpy( (&lp_pels[0]) + i*w*lp_depth, pels.get() + i*row_pitch, w*lp_depth ); }
     vect_uint8_t png_file_data;
     
-    unsigned ret = lodepng::encode( png_file_data, lp_pels, w, h );
+    lodepng::State state;
+    if( disable_compression ) { state.encoder.zlibsettings.btype=0; }
+    unsigned ret = lodepng::encode( png_file_data, lp_pels, w, h, state );
     if( ret ) { rt_err( strprintf( "failed to encode image '%s': lodepng decoder error %s: %s", 
 				   fn.c_str(), str(ret).c_str(), lodepng_error_text(ret) ) ); }
     lodepng::save_file(png_file_data, fn);
   }
-
-  uint8_t get_chan( uint8_t const c, uint32_t const v ) { return v >> (c*8); }
-  uint64_t get_chan_64( uint8_t const c, uint32_t const v ) { return get_chan( c, v ); }
 
   p_img_t downsample_w_transpose_2x( img_t const * const src )
   {
@@ -112,13 +112,8 @@ namespace boda
     // note: if src->w is odd, we will just copy the last input column
     bool const src_w_odd = (src->w&1);
     uint64_t const * src_data = (uint64_t const *) src->pels.get(); 
-    // FIXME/NOTE: when tested, enabling openmp here yielded a 4x
-    // slowdown for this function when openmp was *not* enabled in the
-    // non-2x downsample function, or *no effect* if openmp *was
-    // enabled* in the other downsample function. that doesn't seem to
-    // make sense.
-//#pragma omp parallel for 
     uint32_t const max_alpha = 0xffu << (3*8);
+#pragma omp parallel for 
     for( uint32_t ry = 0; ry < ret->h-src_w_odd; ++ry ) {
       uint32_t const sx = ry << 1;
       for( uint32_t rx = 0; rx < ret->w; ++rx ) {
@@ -193,7 +188,7 @@ namespace boda
     //printf( "scale=%s inv_scale=%s ((double)scale/double(1<<16))=%s ((double)inv_scale/double(1<<30))=%s\n", str(scale).c_str(), str(inv_scale).c_str(), str(((double)scale/double(1<<16))).c_str(), str(((double)inv_scale/double(1<<30))).c_str() );
     uint32_t const * src_data = (uint32_t const *) src->pels.get(); 
     assert( src->depth == 4 );
-//#pragma omp parallel for
+#pragma omp parallel for
     for( uint32_t ry = 0; ry < ret->h; ++ry ) {
       uint64_t const sx1_fp = (uint64_t( ry ) * inv_scale); // img_sz_bits.30 fp
       uint32_t const sx1 = sx1_fp >> 30;
@@ -216,14 +211,15 @@ namespace boda
       for( uint32_t rx = 0; rx < ret->w; ++rx ) {
 	uint32_t const src_data_1 = src_data[ rx*src->row_pitch_pels + sx1 ];
 	uint32_t const src_data_m = (span==1)?0:src_data[ rx*src->row_pitch_pels + (sx1+1) ];
-	uint32_t const src_data_2 = src_data[ rx*src->row_pitch_pels + sx2 ];
+	uint32_t const src_data_2 = sx2_w ? src_data[ rx*src->row_pitch_pels + sx2 ] : 0;
+
 	uint32_t dest_val = 0xffu << (3*8); // max alpha
 	for( uint32_t c = 0; c < 3; ++c ) {
 	  dest_val += 
 	    uint32_t( uint8_t( ( (
 			 ( get_chan_64(c,src_data_1) * sx1_w ) +
 			 ( (get_chan_64(c,src_data_m) << 30) ) + // note: src_data_m may be zero
-			 ( sx2_w ? ( get_chan_64(c,src_data_2) * sx2_w ) : uint64_t(0) )
+			 ( get_chan_64(c,src_data_2) * sx2_w )
 				  ) * scale + (1lu << 45) ) >> 46 ) ) << (c*8);
 #ifdef RESIZE_DEBUG
 	  uint32_t p1 = src->pels.get()[ rx*src->row_pitch + sx1*src->depth + c ];
@@ -292,6 +288,7 @@ namespace boda
     ret->set_row_align( src->row_align ); // preserve alignment
     ret->set_sz_and_alloc_pels( src->h, src->w << 1 ); // upscale in w and transpose. 
     uint32_t const * src_data = (uint32_t const *)src->pels.get(); 
+#pragma omp parallel for
     for( uint32_t sx = 0; sx < src->w; ++sx ) {
       uint32_t const ry = sx << 1;
       for( uint32_t rx = 0; rx < ret->w; ++rx ) {

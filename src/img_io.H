@@ -30,7 +30,7 @@ namespace boda
     void load_fn( std::string const & fn );
     void load_fn_jpeg( std::string const & fn );
     void load_fn_png( std::string const & fn );
-    void save_fn_png( std::string const & fn );
+    void save_fn_png( std::string const & fn, bool const disable_compression = 0 );
 
     // always equivalent to y*row_pitch_pels + x (i.e get_pel_ix(0,0) will always == 0)
     uint32_t get_pel_ix( uint32_t const & x, uint32_t const & y ) const { 
@@ -52,6 +52,9 @@ namespace boda
   inline uint32_t grey_to_pel( uint8_t const gv, uint8_t const av = uint8_t_const_max ) {
     return gv + (gv<<8) + (gv<<16) + (av<<24);
   }
+  inline uint8_t get_chan( uint8_t const c, uint32_t const v ) { return v >> (c*8); }
+  inline uint64_t get_chan_64( uint8_t const c, uint32_t const v ) { return get_chan( c, v ); }
+
 
   p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ); // ds_w must be in [ceil(w/2),w]
   p_img_t downsample( p_img_t img, double const scale );

@@ -86,10 +86,13 @@ namespace boda
     }
     void log_timer( timer_t const * const t ) {
       assert_st( t->ended );
-      tlog_elem_t & te = tlog_map[ t->tag ];
-      min_eq( te.min_bt, t->bt );
-      te.cnt += 1;
-      te.tot_dur += t->dur;
+#pragma omp critical 
+      {
+	tlog_elem_t & te = tlog_map[ t->tag ];
+	min_eq( te.min_bt, t->bt );
+	te.cnt += 1;
+	te.tot_dur += t->dur;
+      }
     }
   };
 

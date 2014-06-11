@@ -87,10 +87,13 @@ namespace boda
 	timer_t t("conv_prya_copy_bins_in");
 	// copy images to batch
 	for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	  img_t const & bimg = *ipp->bin_imgs[bix];
+#pragma omp parallel for	  
 	  for( uint32_t y = 0; y < bin_h; ++y ) {
 	    for( uint32_t x = 0; x < bin_w; ++x ) {
+	      uint32_t const pel = bimg.get_pel(x,y);
 	      for( uint32_t c = 0; c < 3; ++c ) {
-		in_batch->at4(bix,c,y,x) = ipp->bin_imgs[bix]->get_pel_chan(x,y,c) - float(uint8_t(inmc >> (c*8)));
+		in_batch->at4(bix,c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
 	      }
 	    }
 	  }
@@ -119,7 +122,6 @@ namespace boda
 
       if( write_output ) {
 	timer_t t("conv_pyra_write_output");
-	printf( "out start\n" );
 	float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f ); // note clamp to 0
 	//assert_st( out_min == 0.0f ); // shouldn't be any negative values
 	float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f ); // note clamp to 0
@@ -142,9 +144,8 @@ namespace boda
 	    }
 	  }
 	  filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
-	  out_img->save_fn_png( ofn.exp );
+	  out_img->save_fn_png( ofn.exp, 1 );
 	}
-	printf( "stop\n" );
       }
     }
 

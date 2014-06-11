@@ -343,8 +343,8 @@ namespace boda
 	bin_imgs.back()->fill_with_pel( inmc );
       }
     }
-
-    for( uint32_t pix = 0; pix != pyra_imgs.size(); ++pix ) {
+#pragma omp parallel for 
+    for( uint32_t pix = 0; pix < pyra_imgs.size(); ++pix ) {
       //filename_t ofn = filename_t_printf( img_out_fn, str(pix).c_str() );
       //pyra_imgs[pix]->save_fn_png( ofn.exp );
       assert_st( get_wh(*pyra_imgs.at(pix)) == sizes.at(pix) );
