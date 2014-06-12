@@ -574,7 +574,7 @@ namespace boda
       pugi::xml_node xn = xml_file_get_root( doc, xml_fn.exp );
       tix = 0;
       for( pugi::xml_node xn_i: xn.children() ) { 
-	lexp_name_val_map_t nvm( parse_lexp_list_xml( xn_i ), nia );
+	lexp_name_val_map_t nvm( parse_lexp_list_xml( xn_i, xml_fn.exp ), nia );
 	nvm.insert_leaf( "boda_output_dir", "%(test_name)", 1 ); // unused is okay --> inc_use_cnt = 1
 	p_cmd_test_t cmd_test;
 	nesi_init_and_check_unused_from_nia( &nvm, &tinfo_p_cmd_test_t, &cmd_test ); 

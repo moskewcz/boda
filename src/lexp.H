@@ -83,7 +83,7 @@ namespace boda {
 
   p_lexp_t parse_lexp( std::string const & s );
   p_lexp_t parse_lexp_xml_file( std::string const & fn );
-  p_lexp_t parse_lexp_list_xml( pugi::xml_node const & xn );
+  p_lexp_t parse_lexp_list_xml( pugi::xml_node const & xn, std::string const & xml_fn );
   p_lexp_t parse_lexp_leaf_str( char const * const s );
   p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v );
 

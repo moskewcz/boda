@@ -82,6 +82,8 @@
     <li tag="conv5" in_pad="1 1 1 1" kern_sz="3 3" stride="1 1"/>
     <li tag="pool5" in_pad="0 0 0 0" kern_sz="3 3" stride="2 2"/> 
   </convs></command></li>
+  <li test_name="conv_ana_xml"> <command mode="conv_ana" out_sz="6" in_sz="227" ignore_padding_for_support="1" 
+  ignore_padding_for_sz="0" XML_INC_convs="conv_pyra_pipe.xml:convs"/></li>
 <!-- 
   <li test_name="conv_ana_2"> <command mode="conv_ana" out_sz="6" in_sz="227" 
 				       ignore_padding_for_support="1" ignore_padding_for_sz="0" ><convs>

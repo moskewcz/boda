@@ -6,9 +6,19 @@
 #include"xml_util.H"
 #include"has_main.H"
 
+#include<boost/filesystem.hpp>
+
 namespace boda {
   using std::string;
   using namespace pugi;
+  
+  using boost::filesystem::path;
+
+  string const xml_inc_prefix = "XML_INC_";
+
+  string apply_rel_path_of( string const & ref_fn, string const & targ_fn ) {
+    return ( path( ref_fn ).parent_path() / targ_fn ).string();
+  }
 
   // error format strings
   string const le_unparsed_data( "unparsed data remaining (expected end of input)" );
@@ -292,8 +302,15 @@ namespace boda {
     next_c(); // consume '('
     while( cur_c() != ')' ) {
       lexp_nv_t kid;
-      kid.n = parse_name_eq();
+      kid.n = parse_name_eq();      
       kid.v = parse_lexp();
+      if( startswith( kid.n.str(), xml_inc_prefix ) ) {
+	if( !kid.v->leaf_val.exists() ) { // FIXME: better error?
+	  rt_err( "invalid attempt to use name/value list as filename for XML include. list was:" + str(*kid.v) );
+	}
+	kid.n.set_from_string( string( kid.n.str(), xml_inc_prefix.size(), string::npos ) );
+	kid.v = parse_lexp_xml_file( kid.v->leaf_val.str() );
+      }
       ret->kids.push_back( kid );
       if( cur_c() == 0 ) { err( le_end_after_list_item ); }
       else if( cur_c() == ',' ) { next_c(); }
@@ -386,18 +403,24 @@ namespace boda {
   // similar to borrow from string, but, we need some trickery to keep
   // the xml doc in memory ... a custom deleter that holds a
   // shared_ptr to the xml doc should do it.
-  p_lexp_t parse_lexp_list_xml( xml_node const & xn )
+  p_lexp_t parse_lexp_list_xml( xml_node const & xn, string const & xml_fn )
   {
     p_lexp_t ret( new lexp_t( sstr_t() ) );
     lexp_nv_t kid;
     for( xml_attribute attr: xn.attributes() ) { // attributes become leaf values
-      kid.n.set_from_string( attr.name() );
-      kid.v = parse_lexp_leaf_str( attr.value() );
+      if( startswith( attr.name(), xml_inc_prefix ) ) {
+	kid.n.set_from_string( string( attr.name(), xml_inc_prefix.size(), string::npos ) );
+	string const xml_inc_fn( apply_rel_path_of( xml_fn, attr.value() ) );
+	kid.v = parse_lexp_xml_file( xml_inc_fn );
+      } else {
+	kid.n.set_from_string( attr.name() );
+	kid.v = parse_lexp_leaf_str( attr.value() );
+      }
       ret->kids.push_back( kid );
     }
     for( xml_node xn_i: xn.children() ) { // child elements become list values
       kid.n.set_from_string( xn_i.name() );
-      kid.v = parse_lexp_list_xml( xn_i );
+      kid.v = parse_lexp_list_xml( xn_i, xml_fn );
       ret->kids.push_back( kid );
     }
     return ret;
@@ -411,11 +434,16 @@ namespace boda {
 
   void lexp_t::add_key_val( std::string const & k, std::string const & v ) {
     lexp_nv_t kid;
-    kid.n.set_from_string( k );
-    try { kid.v = parse_lexp( v ); }
-    catch( rt_exception & rte ) {
-      rte.err_msg = "parsing value '" + k + "': " + rte.err_msg;
-      throw;
+    if( startswith( k, xml_inc_prefix ) ) {
+      kid.n.set_from_string( string( k, xml_inc_prefix.size(), string::npos ) );
+      kid.v = parse_lexp_xml_file( v );
+    } else {
+      kid.n.set_from_string( k );
+      try { kid.v = parse_lexp( v ); }
+      catch( rt_exception & rte ) {
+	rte.err_msg = "parsing value '" + k + "': " + rte.err_msg;
+	throw;
+      }
     }
     kids.push_back( kid );
   }
@@ -430,7 +458,7 @@ namespace boda {
     for (vect_string::const_iterator i = fn_parts.begin() + 1; i != fn_parts.end(); ++i) { // decend path if given
       xn = xml_must_decend( xml_fn.c_str(), xn, (*i).c_str() );
     }
-    p_lexp_t ret = parse_lexp_list_xml( xn );
+    p_lexp_t ret = parse_lexp_list_xml( xn, xml_fn );
     //printf( "*ret=%s\n", str(*ret).c_str() );
     return ret;
   }

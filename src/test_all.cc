@@ -29,7 +29,7 @@ namespace boda
       pugi::xml_document doc;
       pugi::xml_node xn = xml_file_get_root( doc, xml_fn.exp );
       for( pugi::xml_node xn_i: xn.children() ) { 
-	lexp_name_val_map_t nvm( parse_lexp_list_xml( xn_i ), nia );
+	lexp_name_val_map_t nvm( parse_lexp_list_xml( xn_i, xml_fn.exp ), nia );
 	p_has_main_t test_mode;
 	nesi_init_and_check_unused_from_nia( &nvm, &tinfo_p_has_main_t, &test_mode ); 
 	if( regex_search( test_mode->mode, filt_regex ) ) {
