@@ -6,32 +6,35 @@
 #include"str_util.H"
 #include"img_io.H"
 
-#define DECL_MAKE_P_SDL_OBJ( tn ) \
-  typedef shared_ptr< SDL_##tn > p_SDL_##tn; \
-  p_SDL_##tn make_p_SDL( SDL_##tn * const rp ) { return p_SDL_##tn( rp, SDL_Destroy##tn ); }
 
 
 namespace boda 
 {
   using namespace boost;
 
+#define DECL_MAKE_P_SDL_OBJ( tn ) p_SDL_##tn make_p_SDL( SDL_##tn * const rp ) { return p_SDL_##tn( rp, SDL_Destroy##tn ); }
+
   DECL_MAKE_P_SDL_OBJ( Window );
   DECL_MAKE_P_SDL_OBJ( Renderer );
   DECL_MAKE_P_SDL_OBJ( Texture );
 
-  void disp_skel( vect_p_img_t const & imgs ) {
+#undef DECL_MAKE_P_SDL_OBJ
+
+  void disp_win_t::disp_skel( vect_p_img_t const & imgs ) {
     assert_st( !imgs.empty() );
     
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
 
     uint32_t window_w = 640;
     uint32_t window_h = 480;
-    p_SDL_Window window = make_p_SDL( SDL_CreateWindow( "boda display", 
+    assert( !window );
+    window = make_p_SDL( SDL_CreateWindow( "boda display", 
 							SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
 							window_w, window_h,
 							SDL_WINDOW_RESIZABLE) );
     if( !window ) { rt_err( strprintf( "Couldn't set create window: %s\n", SDL_GetError() ) ); }
-    p_SDL_Renderer renderer = make_p_SDL( SDL_CreateRenderer( window.get(), -1, 0) ) ;
+    assert( !renderer );
+    renderer = make_p_SDL( SDL_CreateRenderer( window.get(), -1, 0) ) ;
     if (!renderer) { rt_err( strprintf( "Couldn't set create renderer: %s\n", SDL_GetError() ) ); }
 
 #if 0
@@ -43,13 +46,14 @@ namespace boda
     //uint32_t const pixel_format = SDL_PIXELFORMAT_ABGR8888;
     uint32_t const pixel_format = SDL_PIXELFORMAT_YV12;
 
-    uint32_t const img_w = imgs.front()->w;
-    uint32_t const img_h = imgs.front()->h;
+    uint32_t img_w = imgs.front()->w;
+    uint32_t img_h = imgs.front()->h;
     for( vect_p_img_t::const_iterator i = imgs.begin(); i != imgs.end(); ++i ) {
-      assert_st( img_w == (*i)->w );
-      assert_st( img_h == (*i)->h );
+      max_eq( img_w, (*i)->w );
+      max_eq( img_h, (*i)->h );
     }
-    p_SDL_Texture tex = make_p_SDL( SDL_CreateTexture( renderer.get(), pixel_format, SDL_TEXTUREACCESS_STREAMING, 
+    assert( !tex );
+    tex = make_p_SDL( SDL_CreateTexture( renderer.get(), pixel_format, SDL_TEXTUREACCESS_STREAMING, 
 						       img_w, img_w ) );
     p_uint8_t yuv_buf = ma_p_uint8_t( img_w * img_h * 3, 4096 );
     for( uint32_t i = 0; i < img_w * img_h * 3; ++i ) { yuv_buf.get()[i] = 128; }
@@ -115,10 +119,11 @@ namespace boda
         if (!paused) {
 	  fix = (fix + 1) % imgs.size();
 	  uint8_t * __restrict__ yuv_dest = yuv_buf.get();
-	  for( uint32_t y = 0; y < img_h; ++y ) { 
-	    for( uint32_t x = 0; x < img_w; ++x ) { 
-	      *yuv_dest++ = get_chan( 1, imgs[fix]->get_pel( x, y ) );
+	  for( uint32_t y = 0; y < imgs[fix]->h; ++y ) { 
+	    for( uint32_t x = 0; x < imgs[fix]->w; ++x ) { 
+	      yuv_dest[x] = get_chan( 1, imgs[fix]->get_pel( x, y ) );
 	    }
+	    yuv_dest += img_w;
 	  }
 	  SDL_UpdateTexture( tex.get(), NULL, yuv_buf.get(), img_w );
         }
