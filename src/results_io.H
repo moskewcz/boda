@@ -71,5 +71,12 @@ namespace boda
   void write_results_file( p_img_db_t img_db, string const & fn, p_vect_scored_det_t scored_dets );
   void img_db_show_dets( p_img_db_t img_db, p_vect_scored_det_t scored_dets, uint32_t img_ix );
 
+  struct img_t; 
+  typedef shared_ptr< img_t > p_img_t; 
+  typedef vector< p_img_t > vect_p_img_t; 
+  typedef shared_ptr< vect_p_img_t > p_vect_p_img_t; 
+
+  p_vect_p_img_t img_db_get_all_loaded_imgs( p_img_db_t img_db );
+
 }
 #endif // RESULTS_IO_H

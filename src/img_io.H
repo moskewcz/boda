@@ -12,6 +12,7 @@ namespace boda
   struct img_t; 
   typedef shared_ptr< img_t > p_img_t; 
   typedef vector< p_img_t > vect_p_img_t; 
+  typedef shared_ptr< vect_p_img_t > p_vect_p_img_t; 
 
   struct img_t
   {

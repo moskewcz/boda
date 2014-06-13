@@ -180,6 +180,15 @@ namespace boda
   };
   typedef shared_ptr< img_db_t > p_img_db_t;
 
+  // for testing/debugging
+  p_vect_p_img_t img_db_get_all_loaded_imgs( p_img_db_t img_db ) {
+    p_vect_p_img_t ret( new vect_p_img_t );
+    for( vect_p_img_info_t::const_iterator i = img_db->img_infos.begin(); i != img_db->img_infos.end(); ++i ) {
+      if( (*i)->img ) { ret->push_back( (*i)->img ); }
+    }
+    return ret;
+  }
+
   void img_db_show_dets( p_img_db_t img_db, p_vect_scored_det_t scored_dets, uint32_t img_ix )
   {
     assert_st( img_ix < img_db->img_infos.size() );
