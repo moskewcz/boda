@@ -1,3 +1,4 @@
+cap_util.o
 disp_util.o
 conv_pyra.o
 conv_util.o
