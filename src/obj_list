@@ -1,3 +1,4 @@
+disp_util.o
 conv_pyra.o
 conv_util.o
 blf_pack.o

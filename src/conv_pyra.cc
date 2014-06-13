@@ -8,6 +8,7 @@
 #include"conv_util.H"
 #include"blf_pack.H"
 #include"img_io.H"
+#include"disp_util.H"
 
 #include "caffe/caffe.hpp"
 #include <glog/logging.h>
@@ -45,6 +46,7 @@ namespace boda
     string out_layer_name;//NESI(default="conv5",help="output layer name of which to output top blob of")
 
     uint32_t write_output; //NESI(default=0,help="if true, write output images/bins (slow)")
+    uint32_t disp_output; //NESI(default=0,help="if true, display output images/bins")
 
     p_img_pyra_pack_t ipp; //NESI(default="()",help="pyramid packing options")
 
@@ -121,13 +123,13 @@ namespace boda
       assert( sqrt_out_chan );
       assert( (sqrt_out_chan*sqrt_out_chan) >= obd.dims(1) );
 
-
-      if( write_output ) {
+      if( write_output || disp_output ) {
 	timer_t t("conv_pyra_write_output");
 	float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f ); // note clamp to 0
 	//assert_st( out_min == 0.0f ); // shouldn't be any negative values
 	float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f ); // note clamp to 0
 	float const out_rng = out_max - out_min;
+	vect_p_img_t out_imgs;
 	for( uint32_t bix = 0; bix != num_bins; ++bix ) {
 	  p_img_t out_img( new img_t );
 	  out_img->set_sz_and_alloc_pels( obd.dims(3)*sqrt_out_chan, obd.dims(2)*sqrt_out_chan ); // w, h
@@ -145,9 +147,13 @@ namespace boda
 	      out_img->set_pel( x, y, gv );
 	    }
 	  }
-	  filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
-	  out_img->save_fn_png( ofn.exp, 1 );
+	  if( write_output ) {
+	    filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
+	    out_img->save_fn_png( ofn.exp, 1 );
+	  }
+	  if( disp_output ) { out_imgs.push_back( out_img ); }
 	}
+	if( disp_output ) { disp_skel( out_imgs ); }
       }
     }
 
