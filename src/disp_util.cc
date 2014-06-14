@@ -54,7 +54,7 @@ namespace boda
     }
     assert( !tex );
     tex = make_p_SDL( SDL_CreateTexture( renderer.get(), pixel_format, SDL_TEXTUREACCESS_STREAMING, 
-						       img_w, img_w ) );
+						       img_w, img_h ) );
     p_uint8_t yuv_buf = ma_p_uint8_t( img_w * img_h * 3, 4096 );
     for( uint32_t i = 0; i < img_w * img_h * 3; ++i ) { yuv_buf.get()[i] = 128; }
 
