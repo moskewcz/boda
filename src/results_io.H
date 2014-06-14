@@ -76,7 +76,7 @@ namespace boda
   typedef vector< p_img_t > vect_p_img_t; 
   typedef shared_ptr< vect_p_img_t > p_vect_p_img_t; 
 
-  p_vect_p_img_t img_db_get_all_loaded_imgs( p_img_db_t img_db );
+  void img_db_get_all_loaded_imgs( p_vect_p_img_t const & out, p_img_db_t img_db );
 
 }
 #endif // RESULTS_IO_H
