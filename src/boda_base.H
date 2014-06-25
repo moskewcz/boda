@@ -10,6 +10,7 @@
 #include<map>
 #include<set>
 #include<exception>
+#include<poll.h>
 #include<boost/integer_traits.hpp>
 
 # define assert_st(expr)							\
@@ -18,6 +19,8 @@
    : __assert_fail ((std::string(" failed:\n") + __STRING(expr)+\
 		     "\n "+stacktrace_str( get_backtrace(), 0 )).c_str(),	\
 		    __FILE__, __LINE__, __ASSERT_FUNCTION))
+
+
 namespace boost {
   namespace filesystem3 {
     struct path;
@@ -464,6 +467,12 @@ namespace boda
   struct cinfo_t;
   struct nesi { virtual cinfo_t const * get_cinfo( void ) const = 0; };
   typedef shared_ptr< nesi > p_nesi;
+
+  struct poll_req_t {
+    virtual pollfd get_pollfd( void ) = 0;
+    virtual void check_pollfd( pollfd const & pfd ) = 0;
+  };
+
 }
 
 #endif // BODA_BASE_H

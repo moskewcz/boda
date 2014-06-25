@@ -155,7 +155,7 @@ namespace boda
 	}
 	if( disp_output ) { 
 	  disp_win_t disp_win;
-	  disp_win.disp_skel( out_imgs ); 
+	  disp_win.disp_skel( out_imgs, 0 ); 
 	}
       }
     }

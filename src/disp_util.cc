@@ -5,12 +5,35 @@
 #include"timers.H"
 #include"str_util.H"
 #include"img_io.H"
+#include<poll.h>
+#if 0
+struct timespec deadline;
+clock_gettime(CLOCK_MONOTONIC, &deadline);
 
+// Add the time you want to sleep
+deadline.tv_nsec += 1000;
 
+// Normalize the time to account for the second boundary
+if(deadline.tv_nsec >= 1000000000) {
+    deadline.tv_nsec -= 1000000000;
+    deadline.tv_sec++;
+}
+clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL);
+#endif
 
 namespace boda 
 {
   using namespace boost;
+
+  typedef vector< pollfd > vect_pollfd;
+
+  void delay_secs( uint32_t const secs ) {
+    timespec delay;
+    delay.tv_sec = secs;
+    delay.tv_nsec = 0;
+    int const ret = clock_nanosleep( CLOCK_MONOTONIC, 0, &delay, 0 );
+    if( ret ) { assert_st( ret == EINTR ); } // note: EINTR is allowed but not handled. could handle using remain arg.
+  }
 
 #define DECL_MAKE_P_SDL_OBJ( tn ) p_SDL_##tn make_p_SDL( SDL_##tn * const rp ) { return p_SDL_##tn( rp, SDL_Destroy##tn ); }
 
@@ -20,7 +43,18 @@ namespace boda
 
 #undef DECL_MAKE_P_SDL_OBJ
 
-  void disp_win_t::disp_skel( vect_p_img_t const & imgs ) {
+  void * pipe_stuffer( void * rpv_pfd ) {
+    int const pfd = (int)(intptr_t)rpv_pfd;
+    uint8_t const c = 123;
+    for( uint32_t i = 0; i < 10; ++i ) {
+      ssize_t const w_ret = write( pfd, &c, 1 );
+      assert_st( w_ret == 1 );
+      delay_secs( 1 );
+    }
+    return 0;
+  }
+
+  void disp_win_t::disp_skel( vect_p_img_t const & imgs, poll_req_t * const poll_req ) {
     assert_st( !imgs.empty() );
     
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
@@ -63,14 +97,9 @@ namespace boda
     int fix = 0;
     bool const nodelay = 0;
     int fps = 60;
-    int fpsdelay;
 
-
-    if (nodelay) {
-        fpsdelay = 0;
-    } else {
-        fpsdelay = 1000 / fps;
-    }
+    timespec fpsdelay{0,0};
+    if( !nodelay ) { fpsdelay.tv_nsec = 1000 * 1000 * 1000 / fps; }
 
     SDL_Rect displayrect;
     displayrect.x = 0;
@@ -81,6 +110,18 @@ namespace boda
     SDL_Event event;
     bool paused = 0;
     bool done = 0;
+
+    int pipe_fds[2];
+    int const pipe_ret = pipe( pipe_fds );
+    assert_st( pipe_ret == 0 );
+
+    pthread_t pipe_stuffer_thread;
+    int const pthread_ret = pthread_create( &pipe_stuffer_thread, 0, &pipe_stuffer, (void *)(intptr_t)pipe_fds[1] );
+    assert_st( pthread_ret == 0 );
+
+    vect_pollfd pollfds;
+    pollfds.push_back( pollfd{ pipe_fds[0], POLLIN } );
+    if( poll_req ) { pollfds.push_back( poll_req->get_pollfd() ); }
     while (!done) {
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -114,7 +155,26 @@ namespace boda
                 break;
             }
         }
-        SDL_Delay(fpsdelay);
+
+	int const ppoll_ret = ppoll( &pollfds[0], pollfds.size(), &fpsdelay, 0 );
+	if( ppoll_ret < 0 ) {
+	  assert_st( ppoll_ret == EINTR ); // FIXME: should handle
+	} else if( ppoll_ret > 0 ) {
+	  {
+	    short const re = pollfds[0].revents;
+	    assert_st( !( re & POLLERR ) );
+	    assert_st( !( re & POLLHUP ) );
+	    assert_st( !( re & POLLNVAL ) );
+	    if( re & POLLIN ) {
+	      uint8_t c = 0;
+	      int const read_ret = read( pollfds[0].fd, &c, 1 );
+	      assert_st( read_ret == 1 );
+	      printf( "c=%s\n", str(uint32_t(c)).c_str() );
+	      assert_st( c == 123 );
+	    }
+	  }
+	  if( poll_req ) { assert( 1 < pollfds.size() ); poll_req->check_pollfd( pollfds[1] ); }
+	}
 
         if (!paused) {
 	  fix = (fix + 1) % imgs.size();

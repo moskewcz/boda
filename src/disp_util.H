@@ -23,7 +23,7 @@ namespace boda {
     p_SDL_Renderer renderer;
     p_SDL_Texture tex;
 
-    void disp_skel( vect_p_img_t const & imgs );
+    void disp_skel( vect_p_img_t const & imgs, poll_req_t * const poll_req );
   };
 
 }
