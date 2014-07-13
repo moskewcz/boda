@@ -173,16 +173,17 @@ namespace boda
     // note: we if the padding between images is 'neutral', we could
     // use ceil( support_sz / 2.0 ) padding on each image edge along
     // with some bin_edge_pad.
-    u32_pt_t const img_edge_pad = (csi.support_sz + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.support_sz
+    u32_pt_t img_edge_pad = (csi.support_sz + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.support_sz
     // note: we might - csi.eff_tot_pad from bin_edge_pad here to
     // reduce wasted bin space. but. we choose not to because the
     // eff_tot_pad generally isn't equivalent to our internal padding.
     u32_box_t bin_edge_pad = {img_edge_pad,img_edge_pad};
 #else
     // for now, we (conservatively) totally isolate each image. we don't need any bin_edge_pad in this case
-    u32_pt_t const img_edge_pad = csi.support_sz;
+    u32_pt_t img_edge_pad = csi.support_sz;
     u32_box_t bin_edge_pad;
 #endif
+    if( force_img_edge_pad ) { img_edge_pad = *force_img_edge_pad; }
     // increase - edge of bin padding so that (eff_tot_pad+bin_edge_pad) is a multiple of support_stride
     bin_edge_pad.p[0] = (bin_edge_pad.p[0]+csi.eff_tot_pad.p[0]).ceil_align( csi.support_stride ) - csi.eff_tot_pad.p[0];
 

@@ -13,6 +13,7 @@ namespace boda
     uint32_t interval; //NESI(default=10,help="steps per octave (factor of 2)")
     u32_pt_t bin_sz; //NESI(default="1200 1200", help="bin size for packing (as many bins needed will be used)")
     u32_pt_t in_sz; //NESI(default="0 0",help="input size to create pyramid for")
+    p_u32_pt_t force_img_edge_pad; //NESI(help="if specified, force image edge padding to this value.")
 
     // outputs
     vect_u32_pt_t sizes;
