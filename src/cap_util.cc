@@ -62,7 +62,7 @@ namespace boda
     filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of classes to process")
     p_img_db_t img_db; //NESI(default="()", help="image database")
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
-    uint32_t cap_cam; //NESI(default=5, help="capture N frames from /dev/video0")
+    uint32_t cap_cam; //NESI(default=1, help="if non-zero, capture frames from /dev/video0 forever")
     filename_t cap_dev; //NESI(default="/dev/video0",help="capture device filename")
     u32_pt_t cap_res; //NESI(default="640 480", help="capture resolution. good choices might be '640 480' or '320 240'. 
     // you can use 'v4l2-ctl --list-formats-ext' to list valid resolutions. (note: v4l2-ctl is in the vl4-utils package in ubuntu).")
@@ -87,12 +87,10 @@ namespace boda
 #endif
 
       if( cap_cam ) { 
-	fd = -1;
-	force_format = 1;
+	cap_fd = -1;
 	open_device();
 	init_device();
 	start_capturing();
-	frames_left = cap_cam;
       }
 
       disp_win_t disp_win;
@@ -101,20 +99,18 @@ namespace boda
       if( cap_cam ) {
 	stop_capturing();
 	buffers.clear();
-	if( fd != -1 ) { if( -1 == close(fd) ) { rt_err("close"); } }
+	if( cap_fd != -1 ) { if( -1 == close(cap_fd) ) { rt_err("close"); } }
       }
     }
 
-    virtual pollfd get_pollfd( void ) { assert_st( fd != -1 ); return pollfd{ fd, POLLIN }; }
-    virtual void check_pollfd( pollfd const & pfd ) { if( frames_left ) { --frames_left; read_frame( disp_imgs ); } }
+    virtual pollfd get_pollfd( void ) { assert_st( cap_fd != -1 ); return pollfd{ cap_fd, POLLIN }; }
+    virtual void check_pollfd( pollfd const & pfd ) { read_frame( disp_imgs ); }
 
-    // V4L2 cap example vars/code
+    // V4L2 data
+    int cap_fd;
+    vect_p_mmap_buffer buffers;
 
-    int                     fd;
-    vect_p_mmap_buffer      buffers;
-    int                     force_format;
-    uint32_t frames_left;
-
+    // V4L2 code
     void process_image( p_vect_p_img_t const & out, const void *p, int size)
     {
       fflush(stderr);
@@ -142,7 +138,7 @@ namespace boda
       buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
       buf.memory = V4L2_MEMORY_MMAP;
 
-      if (-1 == xioctl(fd, VIDIOC_DQBUF, &buf)) {
+      if (-1 == xioctl(cap_fd, VIDIOC_DQBUF, &buf)) {
 	switch (errno) {
 	case EAGAIN:
 	  return 0;
@@ -161,7 +157,7 @@ namespace boda
 
       process_image( out, buffers[buf.index]->start, buf.bytesused);
 
-      if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
+      if (-1 == xioctl(cap_fd, VIDIOC_QBUF, &buf))
 	rt_err("VIDIOC_QBUF");
 
       return 1;
@@ -170,7 +166,7 @@ namespace boda
     void stop_capturing(void) {
       enum v4l2_buf_type type;
       type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-      if( -1 == xioctl(fd, VIDIOC_STREAMOFF, &type) ) { rt_err("VIDIOC_STREAMOFF"); }
+      if( -1 == xioctl(cap_fd, VIDIOC_STREAMOFF, &type) ) { rt_err("VIDIOC_STREAMOFF"); }
     }
 
     void start_capturing(void) {
@@ -181,10 +177,10 @@ namespace boda
 	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory = V4L2_MEMORY_MMAP;
 	buf.index = i;
-	if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ) { rt_err("VIDIOC_QBUF"); }
+	if( -1 == xioctl(cap_fd, VIDIOC_QBUF, &buf) ) { rt_err("VIDIOC_QBUF"); }
       }
       type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-      if( -1 == xioctl(fd, VIDIOC_STREAMON, &type) ) { rt_err("VIDIOC_STREAMON"); }
+      if( -1 == xioctl(cap_fd, VIDIOC_STREAMON, &type) ) { rt_err("VIDIOC_STREAMON"); }
     }
     
     void uninit_device(void) { buffers.clear(); }
@@ -194,7 +190,7 @@ namespace boda
       req.count = 4;
       req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
       req.memory = V4L2_MEMORY_MMAP;
-      if (-1 == xioctl(fd, VIDIOC_REQBUFS, &req)) {
+      if (-1 == xioctl(cap_fd, VIDIOC_REQBUFS, &req)) {
 	if (EINVAL == errno) { rt_err( strprintf( "%s does not support memory mapping\n", cap_dev.in.c_str() ) ); }
 	else { rt_err("VIDIOC_REQBUFS"); }
       }
@@ -206,15 +202,15 @@ namespace boda
 	buf.type        = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory      = V4L2_MEMORY_MMAP;
 	buf.index       = bix;
-	if( -1 == xioctl(fd, VIDIOC_QUERYBUF, &buf) ) { rt_err("VIDIOC_QUERYBUF"); }
+	if( -1 == xioctl(cap_fd, VIDIOC_QUERYBUF, &buf) ) { rt_err("VIDIOC_QUERYBUF"); }
 	
-	buffers.push_back( make_p_mmap_buffer( fd, buf.length, buf.m.offset ) );
+	buffers.push_back( make_p_mmap_buffer( cap_fd, buf.length, buf.m.offset ) );
       }
     }
 
     void init_device(void) {
       struct v4l2_capability cap;
-      if (-1 == xioctl(fd, VIDIOC_QUERYCAP, &cap)) {
+      if (-1 == xioctl(cap_fd, VIDIOC_QUERYCAP, &cap)) {
 	if( EINVAL == errno ) { rt_err( strprintf( "%s is not a V4L2 device\n", cap_dev.in.c_str()) ); }
 	else { rt_err("VIDIOC_QUERYCAP"); }
       }
@@ -229,10 +225,10 @@ namespace boda
       struct v4l2_crop crop;
       v4l2_cropcap cropcap = {};
       cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-      if (0 == xioctl(fd, VIDIOC_CROPCAP, &cropcap)) {
+      if (0 == xioctl(cap_fd, VIDIOC_CROPCAP, &cropcap)) {
 	crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	crop.c = cropcap.defrect; /* reset to default */
-	if (-1 == xioctl(fd, VIDIOC_S_CROP, &crop)) {
+	if (-1 == xioctl(cap_fd, VIDIOC_S_CROP, &crop)) {
 	  switch (errno) {
 	  case EINVAL:
 	    /* Cropping not supported. */
@@ -248,12 +244,12 @@ namespace boda
 
       v4l2_format fmt = {};
       fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-      if( -1 == xioctl( fd, VIDIOC_G_FMT, &fmt ) ) { rt_err("VIDIOC_G_FMT"); } // get current settings
+      if( -1 == xioctl( cap_fd, VIDIOC_G_FMT, &fmt ) ) { rt_err("VIDIOC_G_FMT"); } // get current settings
       // alter the settings we need
       fmt.fmt.pix.width       = cap_res.d[0];
       fmt.fmt.pix.height      = cap_res.d[1];
       fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-      if( -1 == xioctl( fd, VIDIOC_S_FMT, &fmt ) ) { rt_err("VIDIOC_S_FMT"); } // try to set our changes to the format
+      if( -1 == xioctl( cap_fd, VIDIOC_S_FMT, &fmt ) ) { rt_err("VIDIOC_S_FMT"); } // try to set our changes to the format
 
       // check that the current/set format is okay. note that the driver can change (any?) of the fields from what we passed to VIDIOC_S_FMT ...
       if( fmt.fmt.pix.field != V4L2_FIELD_NONE ) {
@@ -279,8 +275,8 @@ namespace boda
       if (-1 == stat(cap_dev.exp.c_str(), &st)) { rt_err( strprintf( "stat failed for '%s': %d, %s\n",
 								      cap_dev.in.c_str(), errno, strerror(errno) ) ); }
       if (!S_ISCHR(st.st_mode)) { rt_err( strprintf( "%s is not a device\n", cap_dev.in.c_str() ) ); }
-      fd = open(cap_dev.exp.c_str(), O_RDWR /* required */ | O_NONBLOCK, 0);
-      if (-1 == fd) { rt_err( strprintf("Cannot open '%s': %d, %s\n", cap_dev.in.c_str(), errno, strerror(errno) ) ); }
+      cap_fd = open(cap_dev.exp.c_str(), O_RDWR /* required */ | O_NONBLOCK, 0);
+      if (-1 == cap_fd) { rt_err( strprintf("Cannot open '%s': %d, %s\n", cap_dev.in.c_str(), errno, strerror(errno) ) ); }
     }
 
 
