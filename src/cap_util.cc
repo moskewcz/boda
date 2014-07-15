@@ -64,6 +64,8 @@ namespace boda
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
     uint32_t cap_cam; //NESI(default=5, help="capture N frames from /dev/video0")
     filename_t cap_dev; //NESI(default="/dev/video0",help="capture device filename")
+    u32_pt_t cap_res; //NESI(default="640 480", help="capture resolution. good choices might be '640 480' or '320 240'. 
+    // you can use 'v4l2-ctl --list-formats-ext' to list valid resolutions. (note: v4l2-ctl is in the vl4-utils package in ubuntu).")
 
     p_vect_p_img_t disp_imgs;
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -71,7 +73,7 @@ namespace boda
       disp_imgs.reset( new vect_p_img_t );
 
       p_img_t img( new img_t );
-      img->set_sz_and_alloc_pels( 640, 480 ); // w, h
+      img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
       disp_imgs->push_back( img );
 
 #if 0
@@ -93,7 +95,6 @@ namespace boda
 	frames_left = cap_cam;
       }
 
-      //if( cap_cam ) { mainloop( disp_imgs, cap_cam ); }
       disp_win_t disp_win;
       disp_win.disp_skel( *disp_imgs, cap_cam ? this : 0 ); 
 
@@ -105,7 +106,7 @@ namespace boda
     }
 
     virtual pollfd get_pollfd( void ) { assert_st( fd != -1 ); return pollfd{ fd, POLLIN }; }
-    virtual void check_pollfd( pollfd const & pfd ) { if( frames_left-- ) { read_frame( disp_imgs ); } }
+    virtual void check_pollfd( pollfd const & pfd ) { if( frames_left ) { --frames_left; read_frame( disp_imgs ); } }
 
     // V4L2 cap example vars/code
 
@@ -121,13 +122,13 @@ namespace boda
       fflush(stdout);
 
       //p_img_t img( new img_t );
-      //img->set_sz_and_alloc_pels( 640, 480 ); // w, h
+      //img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
       //out->push_back( img );
       assert_st( out->size() == 1 );
       p_img_t img = out->at(0);
       uint8_t const * src = (uint8_t const * )p;
-      for( uint32_t i = 0; i != 480; ++i ) {
-	for( uint32_t j = 0; j != 640; ++j ) {
+      for( uint32_t i = 0; i != cap_res.d[1]; ++i ) {
+	for( uint32_t j = 0; j != cap_res.d[0]; ++j ) {
 	  img->set_pel( j, i, grey_to_pel(*src) );
 	  src += 2;
 	}
@@ -164,45 +165,6 @@ namespace boda
 	rt_err("VIDIOC_QBUF");
 
       return 1;
-    }
-
-    void mainloop( p_vect_p_img_t const & out, uint32_t const frame_count )
-    {
-      unsigned int count;
-
-      count = frame_count;
-
-      while (count-- > 0) {
-	for (;;) {
-	  fd_set fds;
-	  struct timeval tv;
-	  int r;
-
-	  FD_ZERO(&fds);
-	  FD_SET(fd, &fds);
-
-	  /* Timeout. */
-	  tv.tv_sec = 2;
-	  tv.tv_usec = 0;
-
-	  r = select(fd + 1, &fds, NULL, NULL, &tv);
-
-	  if (-1 == r) {
-	    if (EINTR == errno)
-	      continue;
-	    rt_err("select");
-	  }
-
-	  if (0 == r) {
-	    fprintf(stderr, "select timeout\n");
-	    exit(EXIT_FAILURE);
-	  }
-
-	  if (read_frame( out ))
-	    break;
-	  /* EAGAIN - continue select loop. */
-	}
-      }
     }
 
     void stop_capturing(void) {
@@ -284,21 +246,31 @@ namespace boda
 	/* Errors ignored. */
       }
 
-
       v4l2_format fmt = {};
       fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-      if (force_format) {
-	fmt.fmt.pix.width       = 640;
-	fmt.fmt.pix.height      = 480;
-	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-	fmt.fmt.pix.field       = V4L2_FIELD_INTERLACED;
+      if( -1 == xioctl( fd, VIDIOC_G_FMT, &fmt ) ) { rt_err("VIDIOC_G_FMT"); } // get current settings
+      // alter the settings we need
+      fmt.fmt.pix.width       = cap_res.d[0];
+      fmt.fmt.pix.height      = cap_res.d[1];
+      fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+      if( -1 == xioctl( fd, VIDIOC_S_FMT, &fmt ) ) { rt_err("VIDIOC_S_FMT"); } // try to set our changes to the format
 
-	if( -1 == xioctl(fd, VIDIOC_S_FMT, &fmt) ) { rt_err("VIDIOC_S_FMT"); }
-	/* Note VIDIOC_S_FMT may change width and height. */
-      } else {
-	/* Preserve original settings as set by v4l2-ctl for example */
-	if (-1 == xioctl(fd, VIDIOC_G_FMT, &fmt)) { rt_err("VIDIOC_G_FMT"); }
-      }	
+      // check that the current/set format is okay. note that the driver can change (any?) of the fields from what we passed to VIDIOC_S_FMT ...
+      if( fmt.fmt.pix.field != V4L2_FIELD_NONE ) {
+	printf( "note: fmt.fmt.pix.field was != V4L2_FIELD_NONE. proceeding anyway. fmt.fmt.pix.field=%s fmt.fmt.pix.colorspace=%s\n", 
+		str(fmt.fmt.pix.field).c_str(), str(fmt.fmt.pix.colorspace).c_str() );
+      }
+      if( fmt.fmt.pix.pixelformat != V4L2_PIX_FMT_YUYV ) {
+	rt_err( strprintf( "requested pixelformat=V4L2_PIX_FMT_YUYV, but got fmt_res=%s", str(fmt.fmt.pix.pixelformat).c_str() ) );
+      }
+      u32_pt_t const fmt_res( fmt.fmt.pix.width, fmt.fmt.pix.height );
+      if( fmt_res != cap_res ) { rt_err( strprintf( "requested cap_res=%s, but got fmt_res=%s", str(cap_res).c_str(), str(fmt_res).c_str() ) ); }
+      if( fmt.fmt.pix.bytesperline != (cap_res.d[0]*2) ) {  // note: *2 is hard-coded for YUVU format req'd above
+	rt_err( strprintf( "TODO: fmt.fmt.pix.bytesperline=%s != (cap_res.d[0]*2)=%s", 
+			   str(fmt.fmt.pix.bytesperline).c_str(), str(cap_res.d[0]*2).c_str() ) );
+      }
+      assert_st( fmt.fmt.pix.sizeimage == (fmt.fmt.pix.bytesperline*cap_res.d[1]) ); // could handle, but not possible/okay?
+
       init_mmap();
     }
 
