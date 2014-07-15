@@ -23,7 +23,7 @@ namespace boda
   typedef shared_ptr< Net_float > p_Net_float;
   void init_caffe( string const & param_str );
   void raw_do_forward( shared_ptr<Net<float> > net_, vect_p_nda_float_t const & bottom );
-  void copy_output_blob_data( shared_ptr<Net<float> > net_, string const & out_layer_name,
+  void copy_output_blob_data( p_Net_float net_, string const & out_layer_name,
 				     vect_p_nda_float_t & top );
 
   p_conv_pipe_t make_p_conv_pipe_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
@@ -182,7 +182,7 @@ namespace boda
 
       double test_accuracy = 0;
       for (int i = 0; i < total_iter; ++i) {
-	const vector<Blob<float>*>& result = caffe_test_net.ForwardPrefilled();
+	const vector<Blob<float>*>& result = net->ForwardPrefilled();
 	test_accuracy += result[0]->cpu_data()[0];
 	LOG(ERROR) << "Batch " << i << ", accuracy: " << result[0]->cpu_data()[0];
       }
@@ -194,7 +194,7 @@ namespace boda
 
   };
 
-  void raw_do_forward( shared_ptr<Net<float> > net_, vect_p_nda_float_t const & bottom ) {
+  void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom ) {
     timer_t t("caffe_forward");
     vector<Blob<float>*>& input_blobs = net_->input_blobs();
     assert_st( bottom.size() == input_blobs.size() );
@@ -218,14 +218,13 @@ namespace boda
     net_->ForwardPrefilled();
   }
 
-  uint32_t get_layer_ix( shared_ptr<Net<float> > net_, string const & out_layer_name ) {
+  uint32_t get_layer_ix( p_Net_float net_, string const & out_layer_name ) {
     vect_string const & layer_names = net_->layer_names();
     for( uint32_t i = 0; i != layer_names.size(); ++i ) { if( out_layer_name == layer_names[i] ) { return i; } }
     rt_err( strprintf("layer out_layer_name=%s not found in netowrk\n",str(out_layer_name).c_str() )); 
   }
 
-  void copy_output_blob_data( shared_ptr<Net<float> > net_, string const & out_layer_name,
-				     vect_p_nda_float_t & top )
+  void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top )
   {
     timer_t t("caffe_copy_output_blob_data");
     uint32_t const out_layer_ix = get_layer_ix( net_, out_layer_name );
