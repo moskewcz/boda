@@ -54,6 +54,45 @@ namespace boda
     return 0;
   }
 
+
+// BEGIN --- yanked from SDL/test/testoverlay2.c
+  void
+  RGBtoYUV(Uint8 * rgb, int *yuv )
+  {
+#if 1                           /* these are the two formulas that I found on the FourCC site... */
+      yuv[0] = (int)(0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]);
+      yuv[1] = (int)((rgb[2] - yuv[0]) * 0.565 + 128);
+      yuv[2] = (int)((rgb[0] - yuv[0]) * 0.713 + 128);
+#else
+      yuv[0] = (0.257 * rgb[0]) + (0.504 * rgb[1]) + (0.098 * rgb[2]) + 16;
+      yuv[1] = 128 - (0.148 * rgb[0]) - (0.291 * rgb[1]) + (0.439 * rgb[2]);
+      yuv[2] = 128 + (0.439 * rgb[0]) - (0.368 * rgb[1]) - (0.071 * rgb[2]);
+#endif
+  }
+
+  void
+  ConvertRGBtoYV12(Uint8 *rgb, Uint8 *out, int w, int h )
+  {
+    int x, y;
+    int yuv[3];
+    Uint8 *op[3];
+    op[0] = out;
+    op[1] = op[0] + w*h;
+    op[2] = op[1] + w*h/4;
+    for (y = 0; y < h; ++y) {
+      for (x = 0; x < w; ++x) {
+	RGBtoYUV( rgb, yuv );
+	*(op[0]++) = yuv[0];
+	if (x % 2 == 0 && y % 2 == 0) {
+	  *(op[1]++) = yuv[2];
+	  *(op[2]++) = yuv[1];
+	}
+	rgb += 4;
+      }
+    }
+  }
+// END --- yanked from SDL/test/testoverlay2.c
+
   void disp_win_t::disp_skel( vect_p_img_t const & imgs, poll_req_t * const poll_req ) {
     assert_st( !imgs.empty() );
     
@@ -86,11 +125,15 @@ namespace boda
       max_eq( img_w, (*i)->w );
       max_eq( img_h, (*i)->h );
     }
+    // make w/h even for simplicity of YUV UV (2x downsampled) planes
+    if( img_w & 1 ) { ++img_w; }
+    if( img_h & 1 ) { ++img_h; }
     assert( !tex );
     tex = make_p_SDL( SDL_CreateTexture( renderer.get(), pixel_format, SDL_TEXTUREACCESS_STREAMING, 
 						       img_w, img_h ) );
-    p_uint8_t yuv_buf = ma_p_uint8_t( img_w * img_h * 3, 4096 );
-    for( uint32_t i = 0; i < img_w * img_h * 3; ++i ) { yuv_buf.get()[i] = 128; }
+    uint32_t const yuv_buf_sz = img_w * ( img_h + (img_h/2) );
+    p_uint8_t yuv_buf = ma_p_uint8_t( yuv_buf_sz, 4096 );
+    for( uint32_t i = 0; i < yuv_buf_sz; ++i ) { yuv_buf.get()[i] = 128; }
 
     if( !tex ) { rt_err( strprintf( "Couldn't set create texture: %s\n", SDL_GetError()) ); }
 
@@ -143,6 +186,11 @@ namespace boda
                 }
                 break;
             case SDL_KEYDOWN:
+                if( event.key.keysym.sym == SDLK_s ) {
+		  printf( "fix=%s\n", str(fix).c_str() );
+		  imgs[fix]->save_fn_png("ss.png");
+		  break;
+                }
                 if (event.key.keysym.sym == SDLK_SPACE) {
                     paused = !paused;
                     break;
@@ -179,12 +227,15 @@ namespace boda
         if (!paused) {
 	  fix = (fix + 1) % imgs.size();
 	  uint8_t * __restrict__ yuv_dest = yuv_buf.get();
+	  ConvertRGBtoYV12( imgs[fix]->pels.get(), yuv_dest, imgs[fix]->w, imgs[fix]->h );
+#if 0
 	  for( uint32_t y = 0; y < imgs[fix]->h; ++y ) { 
 	    for( uint32_t x = 0; x < imgs[fix]->w; ++x ) { 
 	      yuv_dest[x] = get_chan( 1, imgs[fix]->get_pel( x, y ) );
 	    }
 	    yuv_dest += img_w;
 	  }
+#endif
 	  SDL_UpdateTexture( tex.get(), NULL, yuv_buf.get(), img_w );
         }
         SDL_RenderClear( renderer.get() );

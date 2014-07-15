@@ -68,6 +68,18 @@ namespace boda
 		      int32_t const & stride_x, int32_t const & stride_y, 
 		      uint32_t const & ic, uint32_t const & ec );
 
+  // from fourcc.org, YUYV->RGB conversion formula. 
+  inline uint8_t clip_to_u8( float const & v ) { if( v < 0 ) { return 0; } if( v > 255 ) { return 255; } return v; }
+  inline uint32_t yuva2rgba( uint8_t const & y, uint8_t const & u, uint8_t const & v, uint8_t const a = uint8_t_const_max ) {
+    float const yf = float(y)-16.0f;
+    float const uf = float(u)-128.0f;
+    float const vf = float(v)-128.0f;
+    uint8_t const r = clip_to_u8( 1.164f*yf + 1.596f*vf );
+    uint8_t const g = clip_to_u8( 1.164f*yf - 0.813f*vf - 0.391f*uf );
+    uint8_t const b = clip_to_u8( 1.164f*yf + 2.018f*uf );
+    return r + (g<<8) + (b<<16) + (a<<24);
+  }
+
 }
 
 #endif /* _IMG_IO_H_ */

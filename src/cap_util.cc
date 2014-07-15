@@ -123,10 +123,12 @@ namespace boda
       assert_st( out->size() == 1 );
       p_img_t img = out->at(0);
       uint8_t const * src = (uint8_t const * )p;
+      assert_st( !(cap_res.d[0] & 1) );
       for( uint32_t i = 0; i != cap_res.d[1]; ++i ) {
-	for( uint32_t j = 0; j != cap_res.d[0]; ++j ) {
-	  img->set_pel( j, i, grey_to_pel(*src) );
-	  src += 2;
+	for( uint32_t j = 0; j != cap_res.d[0]; j += 2 ) {
+	  img->set_pel( j+0, i, yuva2rgba(src[0],src[1],src[3]) );
+	  img->set_pel( j+1, i, yuva2rgba(src[2],src[1],src[3]) );
+	  src += 4;
 	}
       }
     }
