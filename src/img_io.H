@@ -47,6 +47,7 @@ namespace boda
     }
     uint32_t min_dim( void ) { return std::min(w,h); }
     uint32_t sz_raw_bytes( void ) const { return row_pitch*h; }
+    uint32_t * get_row_pels_data( uint32_t const y ) { assert( y < h ); return ((uint32_t *)pels.get()) + row_pitch_pels*y; }
     string WxH_str( void );
   };
 
@@ -78,6 +79,22 @@ namespace boda
     uint8_t const g = clip_to_u8( 1.164f*yf - 0.813f*vf - 0.391f*uf );
     uint8_t const b = clip_to_u8( 1.164f*yf + 2.018f*uf );
     return r + (g<<8) + (b<<16) + (a<<24);
+  }
+  inline void rgba2yuv( uint32_t const & p, uint8_t & y, uint8_t & u, uint8_t & v ) { 
+    float const r = float(get_chan(0,p)); float const g = float(get_chan(1,p)); float const b = float(get_chan(2,p));
+    y = clip_to_u8(  16.0f + 0.257f*r + 0.504f*g + 0.098f*b );
+    u = clip_to_u8( 128.0f - 0.148f*r - 0.291f*g + 0.439f*b );
+    v = clip_to_u8( 128.0f + 0.439f*r - 0.368f*g - 0.071f*b );
+  }
+  // versions of rgba2yuv for when we only want y or uv (for subsamp)
+  inline void rgba2y( uint32_t const & p, uint8_t & y ) { 
+    float const r = float(get_chan(0,p)); float const g = float(get_chan(1,p)); float const b = float(get_chan(2,p));
+    y = clip_to_u8(  16.0f + 0.257f*r + 0.504f*g + 0.098f*b );
+  }
+  inline void rgba2uv( uint32_t const & p, uint8_t & u, uint8_t & v ) { 
+    float const r = float(get_chan(0,p)); float const g = float(get_chan(1,p)); float const b = float(get_chan(2,p));
+    u = clip_to_u8( 128.0f - 0.148f*r - 0.291f*g + 0.439f*b );
+    v = clip_to_u8( 128.0f + 0.439f*r - 0.368f*g - 0.071f*b );
   }
 
 }

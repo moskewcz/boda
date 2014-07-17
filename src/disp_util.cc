@@ -54,44 +54,21 @@ namespace boda
     return 0;
   }
 
-
-// BEGIN --- yanked from SDL/test/testoverlay2.c
-  void
-  RGBtoYUV(Uint8 * rgb, int *yuv )
+  void img_to_YV12( p_img_t const & img, uint8_t * out_YV12 )
   {
-#if 1                           /* these are the two formulas that I found on the FourCC site... */
-      yuv[0] = (int)(0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]);
-      yuv[1] = (int)((rgb[2] - yuv[0]) * 0.565 + 128);
-      yuv[2] = (int)((rgb[0] - yuv[0]) * 0.713 + 128);
-#else
-      yuv[0] = (0.257 * rgb[0]) + (0.504 * rgb[1]) + (0.098 * rgb[2]) + 16;
-      yuv[1] = 128 - (0.148 * rgb[0]) - (0.291 * rgb[1]) + (0.439 * rgb[2]);
-      yuv[2] = 128 + (0.439 * rgb[0]) - (0.368 * rgb[1]) - (0.071 * rgb[2]);
-#endif
-  }
-
-  void
-  ConvertRGBtoYV12(Uint8 *rgb, Uint8 *out, int w, int h )
-  {
-    int x, y;
-    int yuv[3];
-    Uint8 *op[3];
-    op[0] = out;
-    op[1] = op[0] + w*h;
-    op[2] = op[1] + w*h/4;
-    for (y = 0; y < h; ++y) {
-      for (x = 0; x < w; ++x) {
-	RGBtoYUV( rgb, yuv );
-	*(op[0]++) = yuv[0];
-	if (x % 2 == 0 && y % 2 == 0) {
-	  *(op[1]++) = yuv[2];
-	  *(op[2]++) = yuv[1];
-	}
-	rgb += 4;
+    uint32_t const w = img->w; assert( !(w&1) );
+    uint32_t const h = img->h; assert( !(h&1) );
+    uint8_t * out_Y = out_YV12;
+    uint8_t * out_V = out_Y + w*h; // w*h == size of out_Y
+    uint8_t * out_U = out_V + (w/2)*(h/2); // (w/2)*(h/2) == size of out_V (and out_U, which is unneeded)
+    for( uint32_t y = 0; y < h; ++y ) {
+      uint32_t const * rgb = img->get_row_pels_data( y );
+      for( uint32_t x = 0; x < w; ++x, ++rgb ) {
+	rgba2y( *rgb, *(out_Y++) );
+	if (x % 2 == 0 && y % 2 == 0) { rgba2uv( *rgb, *(out_U++), *(out_V++) ); }
       }
     }
   }
-// END --- yanked from SDL/test/testoverlay2.c
 
   void disp_win_t::disp_skel( vect_p_img_t const & imgs, poll_req_t * const poll_req ) {
     assert_st( !imgs.empty() );
@@ -189,6 +166,7 @@ namespace boda
                 if( event.key.keysym.sym == SDLK_s ) {
 		  printf( "fix=%s\n", str(fix).c_str() );
 		  imgs[fix]->save_fn_png("ss.png");
+		  paused = 1;
 		  break;
                 }
                 if (event.key.keysym.sym == SDLK_SPACE) {
@@ -227,7 +205,7 @@ namespace boda
         if (!paused) {
 	  fix = (fix + 1) % imgs.size();
 	  uint8_t * __restrict__ yuv_dest = yuv_buf.get();
-	  ConvertRGBtoYV12( imgs[fix]->pels.get(), yuv_dest, imgs[fix]->w, imgs[fix]->h );
+	  img_to_YV12( imgs[fix], yuv_dest );
 #if 0
 	  for( uint32_t y = 0; y < imgs[fix]->h; ++y ) { 
 	    for( uint32_t x = 0; x < imgs[fix]->w; ++x ) { 
