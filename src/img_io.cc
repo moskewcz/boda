@@ -164,6 +164,20 @@ namespace boda
     return downsample_w_transpose_2x( tmp_img.get() );
   }
 
+  // downsample by 2x in both dims as many times as possible without
+  // yielding an image smaller than is desired.
+  p_img_t downsample_2x_to_size( p_img_t img, uint32_t ds_w, uint32_t ds_h ) {
+    timer_t ds_timer("downsample_2x");
+    assert_st( ds_w && ds_h );
+    while( 1 ) {
+      bool const do_x_ds = ((img->w+1) >> 1) >= ds_w;
+      bool const do_y_ds = ((img->h+1) >> 1) >= ds_h;
+      if( !(do_x_ds || do_y_ds) ) { return img; }
+      if( do_x_ds ) { img = downsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
+      if( do_y_ds ) { img = downsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
+    }
+  }
+
 
 //#define RESIZE_DEBUG
   // for all downsample functions, scale is 0.16 fixed point, value must be in [.5,1)
@@ -236,6 +250,9 @@ namespace boda
     return ret;
   }
 
+  // FIXME: rename this to downsample_up_to_2x and make a
+  // fully-generic downsample_to_size that uses downsample_2x
+  // as-needed per dims as a first pass.
   p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) { // ds_w must be in [ceil(w/2),w]
     timer_t ds_timer("downsample_to_size");
     assert( ds_w <= img->w );
