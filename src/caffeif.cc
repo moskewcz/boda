@@ -2,15 +2,8 @@
 #include"boda_tu_base.H"
 #include"timers.H"
 #include"str_util.H"
-#if 0
-#include"geom_prim.H"
-#include"has_main.H"
-#include"lexp.H"
-#include"conv_util.H"
-#include"blf_pack.H"
 #include"img_io.H"
-#include"disp_util.H"
-#endif
+#include"lexp.H"
 
 #include "caffeif.H"
 #include <glog/logging.h>
@@ -112,6 +105,111 @@ namespace boda
     }
   }
 
+  struct synset_elem_t {
+    string id;
+    string tag;
+  };
+  std::ostream & operator <<(std::ostream & os, synset_elem_t const & v) { return os << "id=" << v.id << " tag=" << v.tag; }
+  
 
+  void read_synset( p_vect_synset_elem_t out, filename_t const & fn ) {
+    p_ifstream ifs = ifs_open( fn );  
+    string line;
+    while( !ifs_getline( fn.in, ifs, line ) ) {
+      size_t const spos = line.find( ' ' );
+      if( spos == string::npos ) { rt_err( "failing to parse synset line: no space found: line was '" + line + "'" ); }
+      size_t cpos = line.find( ',', spos+1 );
+      if( cpos == string::npos ) { cpos = line.size(); }
+      assert( spos < cpos );
+      uint32_t const tag_len = cpos - spos - 1;
+      if( !tag_len ) { rt_err( "failing to parse synset line: no tag found, (comma after first space) or (first space at end of line (note: implies no command after first space)): line was '" + line + "'" ); }
+      synset_elem_t t;
+      t.id = string( line, 0, spos );
+      t.tag = string( line, spos+1, tag_len );
+      out->push_back( t );
+    }
+    //printf( "out=%s\n", str(out).c_str() );
+  }
+
+
+  void run_cnet_t::main( nesi_init_arg_t * nia ) { 
+    setup_predict();
+    p_img_t img_in( new img_t );
+    img_in->load_fn( img_in_fn.exp );
+    p_img_t img_in_ds = downsample_to_size( downsample_2x_to_size( img_in, in_sz.d[0], in_sz.d[1] ), 
+					    in_sz.d[0], in_sz.d[1] );
+    do_predict( img_in_ds );
+  }
+
+
+  void run_cnet_t::setup_predict( void ) {
+    assert_st( !out_labels );
+    out_labels.reset( new vect_synset_elem_t );
+    read_synset( out_labels, out_labels_fn );
+
+    p_string ptt_str = read_whole_fn( ptt_fn );
+    string out_pt_str;
+    str_format_from_nvm_str( out_pt_str, *ptt_str, 
+			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
+					str(in_sz.d[0]).c_str(), str(in_sz.d[1]).c_str(), 
+					str(1).c_str(), str(3).c_str() ) );
+    assert( !net );
+    net = init_caffe( out_pt_str, trained_fn.exp );      
+
+    dims_t in_batch_dims( 4 );
+    in_batch_dims.dims(3) = in_sz.d[0];
+    in_batch_dims.dims(2) = in_sz.d[1];
+    in_batch_dims.dims(1) = 3; 
+    in_batch_dims.dims(0) = 1;
+     
+    assert( !in_batch );
+    in_batch.reset( new nda_float_t );
+    in_batch->set_dims( in_batch_dims );
+  }
+
+  void run_cnet_t::do_predict( p_img_t const & img_in_ds ) {
+    assert( img_in_ds->w == in_sz.d[0] );
+    assert( img_in_ds->h == in_sz.d[1] );
+    uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
+    {
+#pragma omp parallel for	  
+      for( uint32_t y = 0; y < in_sz.d[1]; ++y ) {
+	for( uint32_t x = 0; x < in_sz.d[0]; ++x ) {
+	  uint32_t const pel = img_in_ds->get_pel(x,y);
+	  for( uint32_t c = 0; c < 3; ++c ) {
+	    in_batch->at4(0,2-c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
+	  }
+	}
+      }
+    }
+    vect_p_nda_float_t in_data; 
+    in_data.push_back( in_batch ); // assume single input blob
+    raw_do_forward( net, in_data );
+
+    vect_p_nda_float_t out_data; 
+    copy_output_blob_data( net, out_layer_name, out_data );
+      
+    //printf( "out_data=%s\n", str(out_data).c_str() );
+    assert( out_data.size() == 1 ); // assume single output blob
+    //p_nda_float_t const & out_batch = in_data.front();
+    p_nda_float_t const & out_batch = out_data.front();
+    dims_t const & obd = out_batch->dims;
+    assert( obd.sz() == 4 );
+    assert( obd.dims(0) == 1 );
+    assert( obd.dims(1) == out_labels->size() );
+    assert( obd.dims(2) == 1 );
+    assert( obd.dims(3) == 1 );
+
+    for( uint32_t i = 0; i < obd.dims(1); ++i ) {
+      float const p = out_batch->at4(0,i,0,0);
+      if( p >= .01 ) {
+	printf( "out_labels->at(i)=%s p=%s\n", str(out_labels->at(i)).c_str(), str(p).c_str() );
+      }
+    }
+    //printf( "obd=%s\n", str(obd).c_str() );
+    //(*ofs_open( out_fn )) << out_pt_str;
+  }
+
+#include"gen/caffeif.H.nesi_gen.cc"
 }
 
