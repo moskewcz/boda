@@ -97,7 +97,7 @@ namespace boda
 	  for( uint32_t x = 0; x < in_sz.d[0]; ++x ) {
 	    uint32_t const pel = img_in_ds->get_pel(x,y);
 	    for( uint32_t c = 0; c < 3; ++c ) {
-	      in_batch->at4(0,c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
+	      in_batch->at4(0,2-c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
 	    }
 	  }
 	}
@@ -202,7 +202,7 @@ namespace boda
 	    for( uint32_t x = 0; x < bin_w; ++x ) {
 	      uint32_t const pel = bimg.get_pel(x,y);
 	      for( uint32_t c = 0; c < 3; ++c ) {
-		in_batch->at4(bix,c^2,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
+		in_batch->at4(bix,2-c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
 	      }
 	    }
 	  }
