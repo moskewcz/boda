@@ -136,9 +136,7 @@ namespace boda
     setup_predict();
     p_img_t img_in( new img_t );
     img_in->load_fn( img_in_fn.exp );
-    p_img_t img_in_ds = downsample_to_size( downsample_2x_to_size( img_in, in_sz.d[0], in_sz.d[1] ), 
-					    in_sz.d[0], in_sz.d[1] );
-    do_predict( img_in_ds );
+    do_predict( img_in );
   }
 
 
@@ -167,7 +165,9 @@ namespace boda
     in_batch->set_dims( in_batch_dims );
   }
 
-  void run_cnet_t::do_predict( p_img_t const & img_in_ds ) {
+  void run_cnet_t::do_predict( p_img_t const & img_in ) {
+    p_img_t img_in_ds = downsample_to_size( downsample_2x_to_size( img_in, in_sz.d[0], in_sz.d[1] ), 
+					    in_sz.d[0], in_sz.d[1] );
     assert( img_in_ds->w == in_sz.d[0] );
     assert( img_in_ds->h == in_sz.d[1] );
     uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA

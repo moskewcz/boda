@@ -47,8 +47,9 @@ namespace boda
 
     void setup_predict( void );
     void do_predict( p_img_t const & img_in_ds );
-
   };
+
+  struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 
 }
 

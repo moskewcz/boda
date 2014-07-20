@@ -9,6 +9,7 @@
 #include"results_io.H"
 #include"disp_util.H"
 
+#include"caffeif.H"
 
 // v4l2 capture headers
 #include <fcntl.h>              /* low-level i/o */
@@ -55,6 +56,8 @@ namespace boda
     return p_mmap_buffer( new mmap_buffer( ret ), mmap_buffer_deleter() ); 
   }
 
+  p_run_cnet_t make_p_run_cnet_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
   struct cap_skel_t : public poll_req_t, virtual public nesi, public has_main_t // NESI(help="video capture skeleton",
 		      // bases=["has_main_t"], type_id="cap_skel")
   {
@@ -68,7 +71,11 @@ namespace boda
     // you can use 'v4l2-ctl --list-formats-ext' to list valid resolutions. (note: v4l2-ctl is in the vl4-utils package in ubuntu).")
 
     p_vect_p_img_t disp_imgs;
+    p_run_cnet_t run_cnet;
     virtual void main( nesi_init_arg_t * nia ) { 
+
+      run_cnet = make_p_run_cnet_t_init_and_check_unused_from_lexp( parse_lexp("(mode=run_cnet)"), nia );
+      run_cnet->setup_predict();
 
       disp_imgs.reset( new vect_p_img_t );
 
@@ -131,6 +138,7 @@ namespace boda
 	  src += 4;
 	}
       }
+      run_cnet->do_predict( img );
     }
 
     int read_frame( p_vect_p_img_t const & out )
