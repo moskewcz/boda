@@ -38,12 +38,18 @@ namespace boda
     string out_layer_name;//NESI(default="prob",help="output layer name of which to output top blob of")
 
     filename_t out_labels_fn; //NESI(default="%(caffe_dir)/data/ilsvrc12/synset_words.txt",help="list of labels in net output layer channel order")
+    double filt_rate;//NESI(default=".02",help="filter rate cooef labels display. should be < 1.0.")
+    double filt_show_thresh;//NESI(default=".02",help="start display of labels above this filtered prob. should be < 1.0 and > filt_drop_thresh.")
+    double filt_drop_thresh;//NESI(default=".005",help="drop display of labels below this filtered prob. should be < 1.0 and < filt_show_thresh.")
 
     virtual void main( nesi_init_arg_t * nia );
 
     p_vect_synset_elem_t out_labels;
     p_nda_float_t in_batch;
     p_Net_float net;
+
+    vect_float filt_prob;
+    vect_uint8_t to_disp;
 
     void setup_predict( void );
     void do_predict( p_img_t const & img_in_ds );

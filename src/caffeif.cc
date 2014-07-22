@@ -165,6 +165,16 @@ namespace boda
     in_batch->set_dims( in_batch_dims );
   }
 
+  template< typename T > struct gt_indexed {
+    vector< T > const & v;
+    gt_indexed( vector< T > const & v_ ) : v(v_) {}
+    bool operator()( uint32_t const & ix1, uint32_t const & ix2 ) { 
+      assert_st( ix1 < v.size() );
+      assert_st( ix2 < v.size() );
+      return v[ix1] > v[ix2];
+    }
+  };
+
   void run_cnet_t::do_predict( p_img_t const & img_in ) {
     p_img_t img_in_ds = downsample_to_size( downsample_2x_to_size( img_in, in_sz.d[0], in_sz.d[1] ), 
 					    in_sz.d[0], in_sz.d[1] );
@@ -200,12 +210,28 @@ namespace boda
     assert( obd.dims(2) == 1 );
     assert( obd.dims(3) == 1 );
 
+    bool const init_filt_prob = filt_prob.empty();
+    if( init_filt_prob ) { filt_prob.resize( obd.dims(1) ); to_disp.resize( obd.dims(1), 0 ); }
     for( uint32_t i = 0; i < obd.dims(1); ++i ) {
       float const p = out_batch->at4(0,i,0,0);
-      if( p >= .01 ) {
-	printf( "out_labels->at(i)=%s p=%s\n", str(out_labels->at(i)).c_str(), str(p).c_str() );
-      }
+      if( init_filt_prob ) { filt_prob[i] = p; }
+      else { filt_prob[i] *= (1 - filt_rate); filt_prob[i] += p * filt_rate; }
+      if( filt_prob[i] >= filt_show_thresh ) { to_disp[i] = 1; }
+      else if( filt_prob[i] <= filt_drop_thresh ) { to_disp[i] = 0; }
     }
+    printf("\033[2J\033[1;1H");
+    printf("---- frame -----\n");
+    vect_uint32_t disp_list;
+    for( uint32_t i = 0; i < to_disp.size(); ++i ) {  if( to_disp[i] ) { disp_list.push_back(i); } }
+    sort( disp_list.begin(), disp_list.end(), gt_indexed<float>( filt_prob ) );
+    for( vect_uint32_t::const_iterator ii = disp_list.begin(); ii != disp_list.end(); ++ii ) {
+      uint32_t const i = *ii;
+      float const p = out_batch->at4(0,i,0,0);
+      printf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(i).tag).c_str(), 
+	      str(filt_prob[i]).c_str(),
+	      str(p).c_str() );
+    }
+    printf("---- end frame -----\n");
     //printf( "obd=%s\n", str(obd).c_str() );
     //(*ofs_open( out_fn )) << out_pt_str;
   }
