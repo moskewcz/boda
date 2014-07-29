@@ -6,39 +6,44 @@
 
 namespace boda 
 {
-  struct u32_pt_t
-  {
-    uint32_t d[2];
-    u32_pt_t( void ) : d{0,0} { } // no c++11? --> remove : d{0,0}, use { d[0]=0;d[1]=0; }
-    u32_pt_t( uint32_t const d0, uint32_t const d1 ) : d{d0,d1} { } 
-    uint32_t dims_prod( void ) const { return d[0] * d[1]; }
-    uint32_t dims_min( void ) const { return std::min(d[0],d[1]); }
-    uint32_t dims_max( void ) const { return std::max(d[0],d[1]); }
+  template< typename T > struct T_pt_t {
+    T d[2];
+    T_pt_t( void ) : d{0,0} { } // no c++11? --> remove : d{0,0}, use { d[0]=0;d[1]=0; }
+    T_pt_t( T const d0, T const d1 ) : d{d0,d1} { } 
+    T dims_prod( void ) const { return d[0] * d[1]; }
+    T dims_min( void ) const { return std::min(d[0],d[1]); }
+    T dims_max( void ) const { return std::max(d[0],d[1]); }
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
-    u32_pt_t scale_and_round( double const & s ) const { return u32_pt_t( round(d[0]*s), round(d[1]*s) ); }
+    T_pt_t scale_and_round( double const & s ) const { return T_pt_t( round(d[0]*s), round(d[1]*s) ); }
 
-    void operator += ( u32_pt_t const & o ) { d[0] += o.d[0]; d[1] += o.d[1]; }
-    void operator -= ( u32_pt_t const & o ) { d[0] -= o.d[0]; d[1] -= o.d[1]; }
+    void operator += ( T_pt_t const & o ) { d[0] += o.d[0]; d[1] += o.d[1]; }
+    void operator -= ( T_pt_t const & o ) { d[0] -= o.d[0]; d[1] -= o.d[1]; }
 
-    u32_pt_t operator + ( u32_pt_t const & o ) const { return u32_pt_t( d[0] + o.d[0], d[1] + o.d[1] ); }
-    u32_pt_t operator - ( u32_pt_t const & o ) const { return u32_pt_t( d[0] - o.d[0], d[1] - o.d[1] ); }
-    u32_pt_t operator * ( u32_pt_t const & o ) const { return u32_pt_t( d[0] * o.d[0], d[1] * o.d[1] ); }
-    u32_pt_t operator / ( u32_pt_t const & o ) const { return u32_pt_t( d[0] / o.d[0], d[1] / o.d[1] ); }
-    u32_pt_t operator << ( uint32_t const & o ) const { return u32_pt_t( d[0] << o, d[1] << o ); }
-    u32_pt_t operator >> ( uint32_t const & o ) const { return u32_pt_t( d[0] >> o, d[1] >> o ); }
+    T_pt_t operator + ( T_pt_t const & o ) const { return T_pt_t( d[0] + o.d[0], d[1] + o.d[1] ); }
+    T_pt_t operator - ( T_pt_t const & o ) const { return T_pt_t( d[0] - o.d[0], d[1] - o.d[1] ); }
+    T_pt_t operator * ( T_pt_t const & o ) const { return T_pt_t( d[0] * o.d[0], d[1] * o.d[1] ); }
+    T_pt_t operator / ( T_pt_t const & o ) const { return T_pt_t( d[0] / o.d[0], d[1] / o.d[1] ); }
+    T_pt_t operator << ( uint32_t const & o ) const { return T_pt_t( d[0] << o, d[1] << o ); }
+    T_pt_t operator >> ( uint32_t const & o ) const { return T_pt_t( d[0] >> o, d[1] >> o ); }
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
     bool both_dims_non_zero( void ) const { return d[0]&&d[1]; }
-    bool operator == ( u32_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
-    bool operator != ( u32_pt_t const & o ) const { return !(*this == o); }
-    bool operator <  ( u32_pt_t const & o ) const { return (d[0] != o.d[0]) ? (d[0] < o.d[0]) : (d[1] < o.d[1]); }
-    bool both_dims_lt( u32_pt_t const & o ) const { return d[0] <  o.d[0] && d[1] <  o.d[1]; }
-    bool both_dims_gt( u32_pt_t const & o ) const { return d[0] >  o.d[0] && d[1] >  o.d[1]; }
-    bool both_dims_le( u32_pt_t const & o ) const { return d[0] <= o.d[0] && d[1] <= o.d[1]; }
-    bool both_dims_ge( u32_pt_t const & o ) const { return d[0] >= o.d[0] && d[1] >= o.d[1]; }
-    u32_pt_t ceil_align( u32_pt_t const & align ) const { 
-      return u32_pt_t( u32_ciel_align(d[0],align.d[0]), u32_ciel_align(d[1],align.d[1]) ); 
-    }
+    bool operator == ( T_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
+    bool operator != ( T_pt_t const & o ) const { return !(*this == o); }
+    bool operator <  ( T_pt_t const & o ) const { return (d[0] != o.d[0]) ? (d[0] < o.d[0]) : (d[1] < o.d[1]); }
+    bool both_dims_lt( T_pt_t const & o ) const { return d[0] <  o.d[0] && d[1] <  o.d[1]; }
+    bool both_dims_gt( T_pt_t const & o ) const { return d[0] >  o.d[0] && d[1] >  o.d[1]; }
+    bool both_dims_le( T_pt_t const & o ) const { return d[0] <= o.d[0] && d[1] <= o.d[1]; }
+    bool both_dims_ge( T_pt_t const & o ) const { return d[0] >= o.d[0] && d[1] >= o.d[1]; }
   };
+
+  typedef T_pt_t< uint32_t > u32_pt_t;
+  typedef T_pt_t< int32_t  > i32_pt_t;
+
+  inline u32_pt_t ceil_align( u32_pt_t const &v, u32_pt_t const & align ) { 
+    return u32_pt_t( u32_ciel_align(v.d[0],align.d[0]), u32_ciel_align(v.d[1],align.d[1]) ); 
+  }
+
+
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
 
   template< typename HAS_WH > u32_pt_t get_wh( HAS_WH const & o ) { return u32_pt_t( o.w, o.h ); }

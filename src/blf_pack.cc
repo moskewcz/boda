@@ -116,7 +116,7 @@ namespace boda
   u32_box_t pad_and_align_sz( u32_pt_t const & sz, u32_pt_t const & align, u32_pt_t const & min_pad ) {
     assert_st( sz.both_dims_non_zero() ); // might be okay, but doesn't seem sensible
     assert_st( align.both_dims_non_zero() );
-    return u32_box_t( min_pad.ceil_align( align ), (min_pad + sz).ceil_align( align ) - sz );
+    return u32_box_t( ceil_align( min_pad, align ), ceil_align( min_pad + sz, align ) - sz );
   }
 
   // create an approximately logarithmically spaced list of sizes given an input size, with
@@ -185,7 +185,7 @@ namespace boda
 #endif
     if( force_img_edge_pad ) { img_edge_pad = *force_img_edge_pad; }
     // increase - edge of bin padding so that (eff_tot_pad+bin_edge_pad) is a multiple of support_stride
-    bin_edge_pad.p[0] = (bin_edge_pad.p[0]+csi.eff_tot_pad.p[0]).ceil_align( csi.support_stride ) - csi.eff_tot_pad.p[0];
+    bin_edge_pad.p[0] = ceil_align( bin_edge_pad.p[0] + csi.eff_tot_pad.p[0], csi.support_stride ) - csi.eff_tot_pad.p[0];
 
     create_pyra_sizes( sizes, in_sz, num_upsamp_octaves, interval );
     vect_u32_pt_t to_pack;

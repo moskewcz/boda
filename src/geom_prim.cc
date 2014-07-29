@@ -6,7 +6,7 @@
 namespace boda 
 {
 
-  void u32_pt_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
+  template<> void u32_pt_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
     if( parts.size() < (init_ix+2) ) { lc_str_u32("not enough parts"); } // will throw bad_lexical_cast
     d[0] = lc_str_u32( parts[init_ix+0] );
     d[1] = lc_str_u32( parts[init_ix+1] );
