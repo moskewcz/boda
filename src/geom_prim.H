@@ -79,11 +79,11 @@ namespace boda
   typedef shared_ptr< u32_pt_f_t > p_u32_pt_f_t; 
   typedef vector< p_u32_pt_f_t > vect_p_u32_pt_f_t;
 
-  struct u32_box_t
-  {
-    u32_pt_t p[2];
-    u32_box_t( void ) { }
-    u32_box_t( u32_pt_t const & p0, u32_pt_t const & p1 ) : p{p0,p1} { } 
+  template< typename T > struct T_box_t {
+    typedef T value_type;
+    T p[2];
+    T_box_t( void ) { }
+    T_box_t( T const & p0, T const & p1 ) : p{p0,p1} { } 
     bool is_normalized( void ) const { return (p[0].d[0]<=p[1].d[0]) && (p[0].d[1]<=p[1].d[1]); }
     bool is_strictly_normalized( void ) const { return (p[0].d[0]<p[1].d[0]) && (p[0].d[1]<p[1].d[1]); }
     void normalize( void ) { // for both dims, if lb>ub, swap them. afterwards, this->is_normalized() will hold
@@ -92,25 +92,25 @@ namespace boda
     }
     // all overlap functions assume both this->is_strictly_normalized() && o.is_strictly_normalized() 
     // (otherwise, they do what they do, but the names don't mean as much)
-    void get_overlap_bnds( u32_pt_t & lb, u32_pt_t & ub, u32_box_t const & o ) const {
+    void get_overlap_bnds( T & lb, T & ub, T_box_t const & o ) const {
       lb.d[0] = std::max( p[0].d[0], o.p[0].d[0] );
       ub.d[0] = std::min( p[1].d[0], o.p[1].d[0] );
       lb.d[1] = std::max( p[0].d[1], o.p[0].d[1] );
       ub.d[1] = std::min( p[1].d[1], o.p[1].d[1] );
     }
-    uint64_t get_overlap_with( u32_box_t const & o ) const {
-      u32_pt_t lb, ub;
+    uint64_t get_overlap_with( T_box_t const & o ) const {
+      T lb, ub;
       get_overlap_bnds( lb, ub, o );
       if( ( lb.d[0] >= ub.d[0] ) || ( lb.d[1] >= ub.d[1] ) ) { return 0; }
       return uint64_t(ub.d[0]-lb.d[0])*(ub.d[1]-lb.d[1]);
     }
-    bool has_overlap_with( u32_box_t const & o ) const {
-      u32_pt_t lb, ub;
+    bool has_overlap_with( T_box_t const & o ) const {
+      T lb, ub;
       get_overlap_bnds( lb, ub, o );
       return !( ( lb.d[0] >= ub.d[0] ) || ( lb.d[1] >= ub.d[1] ) );
     }
-    u32_box_t get_overlap_box_with( u32_box_t const & o ) const {
-      u32_box_t ret;
+    T_box_t get_overlap_box_with( T_box_t const & o ) const {
+      T_box_t ret;
       get_overlap_bnds( ret.p[0], ret.p[1], o );
       return ret; //note: if !ret.is_strictly_normalized(), there was no overlap (assuming o/this is_strictly_normalized())
     }
@@ -121,15 +121,17 @@ namespace boda
     void from_pascal_coord_adjust( void );
     void to_pascal_coord_adjust( void );
     std::string pascal_str( void ) const;
-    u32_box_t operator + ( u32_box_t const & o ) const { return u32_box_t( p[0] + o.p[0], p[1] + o.p[1] ); }
-    bool operator == ( u32_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
-    bool operator != ( u32_box_t const & o ) const { return !(*this == o); }
-    bool operator <  ( u32_box_t const & o ) const { return (p[0] != o.p[0]) ? (p[0] < o.p[0]) : (p[1] < o.p[1]); }
-    u32_pt_t sz( void ) const { return p[1] - p[0]; }
-    u32_pt_t bnds_sum( void ) const { return p[0] + p[1]; }
-    u32_box_t scale_dims( u32_pt_t const & scale ) const { return u32_box_t( p[0] * scale, p[1] * scale ); }
-    
+    T_box_t operator + ( T_box_t const & o ) const { return T_box_t( p[0] + o.p[0], p[1] + o.p[1] ); }
+    bool operator == ( T_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
+    bool operator != ( T_box_t const & o ) const { return !(*this == o); }
+    bool operator <  ( T_box_t const & o ) const { return (p[0] != o.p[0]) ? (p[0] < o.p[0]) : (p[1] < o.p[1]); }
+    T sz( void ) const { return p[1] - p[0]; }
+    T bnds_sum( void ) const { return p[0] + p[1]; }
+    T_box_t scale_dims( T const & scale ) const { return T_box_t( p[0] * scale, p[1] * scale ); }    
   };
+
+  typedef T_box_t< u32_pt_t > u32_box_t;
+  typedef T_box_t< i32_pt_t > i32_box_t;
 
   // compare two points by product (i.e. area if pt's are sizes of boxes) >
   struct u32_pt_t_by_prod_gt_t {

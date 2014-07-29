@@ -12,12 +12,12 @@ namespace boda
     d[1] = lc_str_u32( parts[init_ix+1] );
   }
 
-  void u32_box_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
+  template<> void u32_box_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
     p[0].read_from_line_parts( parts, init_ix   );
     p[1].read_from_line_parts( parts, init_ix+2 );
   }
 
-  void u32_box_t::from_pascal_coord_adjust( void )
+  template<> void u32_box_t::from_pascal_coord_adjust( void )
   {
     for( uint32_t d = 0; d < 2; ++d ) {
       if( !p[0].d[d] ) { rt_err( "during from_pascal_coord_adjust(), box had 0 coord, expected >= 1" ); }
@@ -27,7 +27,7 @@ namespace boda
     }
   }
 
-  void u32_box_t::to_pascal_coord_adjust( void )
+  template<> void u32_box_t::to_pascal_coord_adjust( void )
   {
     for( uint32_t d = 0; d < 2; ++d ) {
       ++p[0].d[d]; // adjust 0 based [) coords into 1 based [] ones.
@@ -35,7 +35,7 @@ namespace boda
     }
   }
 
-  std::string u32_box_t::pascal_str( void ) const
+  template<> std::string u32_box_t::pascal_str( void ) const
   {
     u32_box_t pascal_box( *this );
     pascal_box.to_pascal_coord_adjust();
