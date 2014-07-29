@@ -7,6 +7,7 @@
 namespace boda 
 {
   template< typename T > struct T_pt_t {
+    typedef T value_type;
     T d[2];
     T_pt_t( void ) : d{0,0} { } // no c++11? --> remove : d{0,0}, use { d[0]=0;d[1]=0; }
     T_pt_t( T const d0, T const d1 ) : d{d0,d1} { } 
@@ -91,27 +92,27 @@ namespace boda
     }
     // all overlap functions assume both this->is_strictly_normalized() && o.is_strictly_normalized() 
     // (otherwise, they do what they do, but the names don't mean as much)
-    void get_overlap_bnds( uint32_t & lb0, uint32_t & ub0, uint32_t & lb1, uint32_t & ub1, u32_box_t const & o ) const {
-      lb0 = std::max( p[0].d[0], o.p[0].d[0] );
-      ub0 = std::min( p[1].d[0], o.p[1].d[0] );
-      lb1 = std::max( p[0].d[1], o.p[0].d[1] );
-      ub1 = std::min( p[1].d[1], o.p[1].d[1] );
+    void get_overlap_bnds( u32_pt_t & lb, u32_pt_t & ub, u32_box_t const & o ) const {
+      lb.d[0] = std::max( p[0].d[0], o.p[0].d[0] );
+      ub.d[0] = std::min( p[1].d[0], o.p[1].d[0] );
+      lb.d[1] = std::max( p[0].d[1], o.p[0].d[1] );
+      ub.d[1] = std::min( p[1].d[1], o.p[1].d[1] );
     }
     uint64_t get_overlap_with( u32_box_t const & o ) const {
-      uint32_t lb0, ub0, lb1, ub1;
-      get_overlap_bnds( lb0, ub0, lb1, ub1, o );
-      if( ( lb0 >= ub0 ) || ( lb1 >= ub1 ) ) { return 0; }
-      return uint64_t(ub0-lb0)*(ub1-lb1);
+      u32_pt_t lb, ub;
+      get_overlap_bnds( lb, ub, o );
+      if( ( lb.d[0] >= ub.d[0] ) || ( lb.d[1] >= ub.d[1] ) ) { return 0; }
+      return uint64_t(ub.d[0]-lb.d[0])*(ub.d[1]-lb.d[1]);
     }
     bool has_overlap_with( u32_box_t const & o ) const {
-      uint32_t lb0, ub0, lb1, ub1;
-      get_overlap_bnds( lb0, ub0, lb1, ub1, o );
-      return !( ( lb0 >= ub0 ) || ( lb1 >= ub1 ) );
+      u32_pt_t lb, ub;
+      get_overlap_bnds( lb, ub, o );
+      return !( ( lb.d[0] >= ub.d[0] ) || ( lb.d[1] >= ub.d[1] ) );
     }
     u32_box_t get_overlap_box_with( u32_box_t const & o ) const {
       u32_box_t ret;
-      get_overlap_bnds( ret.p[0].d[0], ret.p[1].d[0], ret.p[0].d[1], ret.p[1].d[1], o );
-      return ret; // note: if !ret.is_strictly_normalized(), there was no overlap (assuming o/this is_strictly_normalized() )
+      get_overlap_bnds( ret.p[0], ret.p[1], o );
+      return ret; //note: if !ret.is_strictly_normalized(), there was no overlap (assuming o/this is_strictly_normalized())
     }
 
     uint64_t get_area( void ) const { return uint64_t(p[1].d[0]-p[0].d[0])*(p[1].d[1]-p[0].d[1]); } 
