@@ -49,7 +49,7 @@ namespace boda
   
   template< typename T > inline void min_eq( T & v, T const & o ) { v = std::min( v, o ); }
   template< typename T > inline void max_eq( T & v, T const & o ) { v = std::max( v, o ); }
-  inline uint32_t u32_ciel_align( uint32_t const & val, uint32_t const & align ) { 
+  inline uint32_t u32_ceil_align( uint32_t const & val, uint32_t const & align ) { 
     return (val + align - 1) / align * align; }
 
   using boost::shared_ptr;

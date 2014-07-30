@@ -34,8 +34,8 @@ namespace boda
       rt_err( strprintf("can't create zero-area image. requests WxH was %sx%s",str(w).c_str(), str(h).c_str())); }
     if( !row_align ) { row_align = sizeof( void * ); } // minimum alignment for posix_memalign
     uint32_t row_size =  depth * w; // 'unaligned' (maybe not mult of row_align) / raw / minimum
-    uint32_t const ciel_row_size_over_row_align = (row_size+row_align-1)/row_align;
-    row_pitch = ciel_row_size_over_row_align * row_align; // multiple of row_align / padded
+    uint32_t const ceil_row_size_over_row_align = (row_size+row_align-1)/row_align;
+    row_pitch = ceil_row_size_over_row_align * row_align; // multiple of row_align / padded
     row_pitch_pels = row_pitch / depth;
     assert_st( row_pitch_pels * depth == row_pitch ); // could relax?
     pels = ma_p_uint8_t( row_pitch*h, row_align );
