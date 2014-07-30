@@ -360,6 +360,45 @@ namespace boda
 
   }
 
+
+// conversion functions for image<-->feature space
+// handle scales / placements
+
+  enum conv_mode_t : uint8_t { valid = 0, full = 1, core_valid = 2 };
+  // valid: any returned output is computed using *only* values in the input value. that is, the
+  // full support region of all returned outputs are fully contained in the input region.
+
+  // full: the returned output consists of all outputs that using *any* of the input values (but may
+  // also use padding or even garbage when the padding is anti-convervative )
+
+  // core_valid: like 'valid', but only requires that a central core region of each returned
+  // output's support region be contained in the input region. thus, it returns a larger area than
+  // the 'valid' mode. the size of the core region is equal to the support stride of the output,
+  // such that the core regions of the output tile to cover the input without overlaps or gaps. 
+
+  // note: in core_valid mode, if there is an odd/even mismatch between the support stride and the
+  // support size (per dim) then the boundaries of the core region will not align to the input
+  // grid. in this case, the core is shifted by +.5 pixels (per dim) to align to the input grid.
+
+  // note: in the case where the stride=1, and the support size is odd, then 'core_valid' mode
+  // yields an output area equal to the input area, like the 'same' mode of matlab's 2D
+  // convolution. if the support size is even, the shifting of the core as above should match the
+  // arbitrary choice of matlab's 'same' mode to still return an output of the same size as the
+  // input by favoring - outputs when clipping the central region. when the stride is > 1 ... i'm
+  // not sure exactly what i'd compare the behavior to. strides > 1 cause other odd effects, but
+  // hopefully the overall behavior is still sensible.
+
+  void in_box_to_out_box( i32_box_t & out_box, u32_box_t const & in_box, conv_mode_t const mode, 
+			  conv_support_info_t const & csi ) 
+  {
+    u32_box_t valid; // note: in padded input space, not input space ( in_box - pad = pad_space_box )
+    valid.p[0] = ceil_div( in_box.p[0], csi.support_stride );
+    //valid.p[1] = ( in_box.p[1] - csi.support_sz + csi.support_stride - u32_pt_t( 1, 1 ) ) / csi.support_stride;
+    
+  }
+
+
+
 #include"gen/blf_pack.H.nesi_gen.cc"
 #include"gen/blf_pack.cc.nesi_gen.cc"
 
