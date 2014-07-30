@@ -40,10 +40,9 @@ namespace boda
   typedef T_pt_t< uint32_t > u32_pt_t;
   typedef T_pt_t< int32_t  > i32_pt_t;
 
-  inline u32_pt_t ceil_align( u32_pt_t const &v, u32_pt_t const & align ) { 
-    return u32_pt_t( u32_ceil_align(v.d[0],align.d[0]), u32_ceil_align(v.d[1],align.d[1]) ); 
-  }
-
+  inline u32_pt_t ceil_div( u32_pt_t const &v, u32_pt_t const & d ) { 
+    return u32_pt_t( u32_ceil_div(v.d[0],d.d[0]), u32_ceil_div(v.d[1],d.d[1]) ); }
+  inline u32_pt_t ceil_align( u32_pt_t const &v, u32_pt_t const & align ) { return ceil_div( v, align ) * align; }
 
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
 
