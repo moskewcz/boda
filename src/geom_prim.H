@@ -22,6 +22,8 @@ namespace boda
 
     T_pt_t operator + ( T_pt_t const & o ) const { return T_pt_t( d[0] + o.d[0], d[1] + o.d[1] ); }
     T_pt_t operator - ( T_pt_t const & o ) const { return T_pt_t( d[0] - o.d[0], d[1] - o.d[1] ); }
+    T_pt_t sub_sat_zero( T_pt_t const & o ) const { return T_pt_t( (d[0]>o.d[0])?(d[0]-o.d[0]):0,
+								   (d[1]>o.d[1])?(d[1]-o.d[1]):0 ); }
     T_pt_t operator * ( T_pt_t const & o ) const { return T_pt_t( d[0] * o.d[0], d[1] * o.d[1] ); }
     T_pt_t operator / ( T_pt_t const & o ) const { return T_pt_t( d[0] / o.d[0], d[1] / o.d[1] ); }
     T_pt_t operator << ( uint32_t const & o ) const { return T_pt_t( d[0] << o, d[1] << o ); }
@@ -127,6 +129,9 @@ namespace boda
     T sz( void ) const { return p[1] - p[0]; }
     T bnds_sum( void ) const { return p[0] + p[1]; }
     T_box_t scale_dims( T const & scale ) const { return T_box_t( p[0] * scale, p[1] * scale ); }    
+
+    T center_ru( void ) const { return (bnds_sum() + T(1,1))/2; }
+    T center_rd( void ) const { return bnds_sum()/2; }
   };
 
   typedef T_box_t< u32_pt_t > u32_box_t;
