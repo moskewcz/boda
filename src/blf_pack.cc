@@ -403,39 +403,38 @@ namespace boda
 
   void in_box_to_out_box( i32_box_t & out_box, u32_box_t const & in_box, conv_mode_t const mode, 
 			  conv_support_info_t const & csi ) 
-  {
-    u32_box_t valid; // note: in padded input space, not input space ( in_box - pad = pad_space_box )
-    valid.p[0] = ceil_div( in_box.p[0], csi.support_stride );
-    //valid.p[1] = ( in_box.p[1] - csi.support_sz + csi.support_stride - u32_pt_t( 1, 1 ) ) / csi.support_stride;    
-    
+  {    
+    // calculate the full supporting in_box for the first out pixel (i.e. an out_box of (0,0) (1,1))
     u32_box_t const support( u32_pt_t(), csi.support_sz );
-
+    // calculate the 'core' smaller supporting in_box for the same out pixel as above, such than the
+    // cores are centered in the full support (i.e. are of size csi.support_stride) and tile to
+    // cover in the input space with no gaps or overlap between the cores of adjacent output
+    // pixels. note that the tiled cores may/will not extend to the borders of the input.
     u32_pt_t const support_core_lb = ( csi.support_sz + csi.support_stride + u32_pt_t( 1, 1 ) ) >> 1;
     u32_box_t const support_core( support_core_lb, support_core_lb + csi.support_stride );
-
+    // choose which type support region we wish to use based on the mode
     u32_box_t const & need_valid_support = ( mode == core_valid ) ? support_core : support;
     assert( need_valid_support.is_strictly_normalized() );
 
-    u32_pt_t const in_pel_lb = in_box.p[0] + csi.eff_tot_pad.p[0];
-    u32_pt_t const out_valid_lb = in_pel_lb.sub_sat_zero( need_valid_support.p[0] ) / csi.support_stride;
-    // check that out_valid_lb is correct: it is valid, and minimal (one less in either dim is not valid)
-    u32_pt_t const in_used_pel_lb = out_valid_lb * csi.support_stride + need_valid_support.p[0]; 
-    assert_st( in_used_pel_lb.both_dims_ge( in_pel_lb ) ); // valid check
-    for( uint32_t d = 0; d < 2; ++d ) { if( out_valid_lb.d[d] ) { 
-	assert_st( in_used_pel_lb.d[d] - csi.support_stride.d[d] < in_pel_lb.d[d] ); } } // minimal check
-    
-    u32_pt_t const in_pel_ub = in_box.p[1] + csi.eff_tot_pad.p[0];
-    u32_pt_t out_valid_ub;
-    for( uint32_t d = 0; d < 2; ++d ) { if( in_pel_ub.d[d] >= need_valid_support.p[1].d[d] ) {
-	out_valid_ub.d[d] = ( ( in_pel_ub.d[d] - need_valid_support.p[1].d[d] ) / csi.support_stride.d[d] ) + 1; }
-      // check that out_valid_ub is correct: it is valid, and maximal (one more in either dim is not valid)
-      assert_st( out_valid_ub.d[d] );
-      uint32_t const in_used_pel_ub_d = (out_valid_ub.d[d] - 1)* csi.support_stride.d[d] + need_valid_support.p[1].d[d];
-      assert_st( in_used_pel_ub_d <= in_pel_ub.d[d] ); // valid check
-      assert_st( in_used_pel_ub_d + csi.support_stride.d[d] > in_pel_ub.d[d] ); // minimal check
-    }  
-    //out_box.p[0] = out_valid_lb;
-    //out_box.p[1] = out_valid_ub;
+    i32_box_t const in_pel = u32_to_i32(in_box + csi.eff_tot_pad.p[0]);
+    assert_st( in_pel.is_strictly_normalized() );
+    i32_box_t const out_valid = floor_div( in_pel - u32_to_i32( need_valid_support ), csi.support_stride );
+    // check that out_valid is correct: it is valid, and minimal/maximal (one less/more in either dim is not valid)
+    i32_box_t const in_used_pel = out_valid * u32_to_i32(csi.support_stride) + u32_to_i32( need_valid_support );
+    assert_st( in_used_pel.is_strictly_normalized() );
+    assert_st( in_pel.contains( in_used_pel ) ); // valid check
+    assert_st( in_used_pel.p[0].both_dims_lt( in_pel.p[0] + u32_to_i32(csi.support_stride) ) ); // minimal check
+    assert_st( in_used_pel.p[1].both_dims_gt( in_pel.p[1] - u32_to_i32(csi.support_stride) ) ); // maximal check
+
+    // note1: out_box may not be strictly normalized. if it is not, it means the given input box
+    // doesn't have any valid output features for the given mode.  note2: out_box may extend outside
+    // the boundaries of the output space. in that case, it means that the given output pixels were
+    // not calculated even though the input region covered the requested support (sub-)region. this
+    // can only occur if the mode is 'core_valid' and if there is less than a certain amount of
+    // padding/garbage in the input space. generally speaking, care must be taken when using
+    // 'core_valid' mode to avoid using 'bad' parts of the input space.
+    out_box = out_valid;
+    out_box.p[1] += i32_pt_t(1,1);
   }
 
 
