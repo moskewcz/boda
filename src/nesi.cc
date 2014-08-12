@@ -262,10 +262,10 @@ namespace boda
     *os += prefix;
     //if( !prefix.empty() ) { return; } // type can't be created, and we're not at the top: do nothing
     if( ci->tid_str ) { *os += string(ci->tid_str) + ":  "; }
-    *os += string(ci->help);
     if( ci->tid_vix != uint32_t_const_max )  {
-      *os += " when "+string(ci->vars[ci->tid_vix].vname)+"=mode_name:";
-    } else { if( *(ci->derived) ) { *os += "; has subtypes:"; } }
+      *os += ">" + string(ci->help) + " when "+string(ci->vars[ci->tid_vix].vname)+"=mode_name:";
+    } else if( *(ci->derived) ) { *os += ">" + string(ci->help) + "; has subtypes:"; }
+    else { *os += string(ci->help); }
     *os += string("\n");
     uint32_t const orig_prefix_sz = prefix.size();
     prefix += "|   ";
