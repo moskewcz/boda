@@ -105,7 +105,9 @@ namespace boda
     }
     return 0;
   }
+  void boda_asserts( void ); // language/portability checks
   int boda_main( int argc, char **argv ) {
+    boda_asserts();
     assert_st( argc >= 0 );
     py_init( argv[0] );
     oct_init();

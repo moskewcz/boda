@@ -87,5 +87,43 @@ namespace boda
 
   }
 
+  void boda_asserts( void ) { // always-run simple/fast/low-level language/portability checks
+    // integer division checks: check for common (and c99/c++11 mandated) int div round toward zero
+    assert_st( ( -5 /  2 )  == -2 );
+    assert_st( ( -5 %  2 )  == -1 );
 
+    assert_st( (  5 /  2 )  ==  2 );
+    assert_st( (  5 %  2 )  ==  1 );    
+
+    assert_st( ( -5 / -2 ) ==  2 );
+    assert_st( ( -5 % -2 ) == -1 );
+
+    assert_st( (  5 / -2 ) == -2 );
+    assert_st( (  5 % -2 ) ==  1 );    
+
+    assert_st( i32_floor_div(  5,  2 ) ==  2 );    
+    assert_st( i32_floor_div( -5,  2 ) == -3 );    
+
+    assert_st( i32_floor_div(  5, -2 ) == -3 );    
+    assert_st( i32_floor_div( -5, -2 ) ==  2 );    
+
+    assert_st( i32_floor_div(  4,  2 ) ==  2 );    
+    assert_st( i32_floor_div( -4,  2 ) == -2 );    
+ 
+    assert_st( i32_floor_div(  4, -2 ) == -2 );    
+    assert_st( i32_floor_div( -4, -2 ) ==  2 );    
+
+    assert_st( i32_ceil_div(  5,  2 ) ==  3 );    
+    assert_st( i32_ceil_div( -5,  2 ) == -2 );    
+
+    assert_st( i32_ceil_div(  5, -2 ) == -2 );    
+    assert_st( i32_ceil_div( -5, -2 ) ==  3 );    
+
+    assert_st( i32_ceil_div(  4,  2 ) ==  2 );    
+    assert_st( i32_ceil_div( -4,  2 ) == -2 );    
+ 
+    assert_st( i32_ceil_div(  4, -2 ) == -2 );    
+    assert_st( i32_ceil_div( -4, -2 ) ==  2 );    
+
+  }
 }

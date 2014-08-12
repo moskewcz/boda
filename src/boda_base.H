@@ -52,6 +52,13 @@ namespace boda
   inline uint32_t u32_ceil_div( uint32_t const & val, uint32_t const & d ) { return (val + d - 1) / d; }
   inline uint32_t u32_ceil_align( uint32_t const & val, uint32_t const & align ) {
     return u32_ceil_div( val, align ) * align; }
+  inline int32_t i32_floor_div( int32_t const & val, int32_t const & d ) { 
+    return (val / d) - ( ( d > 0 ) ? ((val % d) < 0) : ((val % d) > 0)  ); 
+  }
+  inline int32_t i32_ceil_div( int32_t const & val, int32_t const & d ) { 
+    return (val / d) + ( ( d < 0 ) ? ((val % d) < 0) : ((val % d) > 0)  ); 
+  }
+  inline int32_t u32_to_i32( uint32_t const & v ) { int32_t const ret( v ); assert( ret >= 0 ); return ret; }
 
   using boost::shared_ptr;
   template< typename T > struct null_deleter { void operator()( T * const ) const {}; };

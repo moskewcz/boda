@@ -30,6 +30,7 @@ namespace boda
     T_pt_t operator >> ( uint32_t const & o ) const { return T_pt_t( d[0] >> o, d[1] >> o ); }
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
     bool both_dims_non_zero( void ) const { return d[0]&&d[1]; }
+    bool both_dims_ge_zero( void ) const { return (d[0]>=0)&&(d[1]>=0); }
     bool operator == ( T_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
     bool operator != ( T_pt_t const & o ) const { return !(*this == o); }
     bool operator <  ( T_pt_t const & o ) const { return (d[0] != o.d[0]) ? (d[0] < o.d[0]) : (d[1] < o.d[1]); }
@@ -42,9 +43,20 @@ namespace boda
   typedef T_pt_t< uint32_t > u32_pt_t;
   typedef T_pt_t< int32_t  > i32_pt_t;
 
+  inline i32_pt_t u32_to_i32( u32_pt_t const & v ) {
+    i32_pt_t const ret( v.d[0], v.d[1] );
+    assert( ret.both_dims_ge_zero() ); // overflow check (hopefully: assumes unrep uint will wrap to neg)
+    return ret;
+  }
+
   inline u32_pt_t ceil_div( u32_pt_t const &v, u32_pt_t const & d ) { 
     return u32_pt_t( u32_ceil_div(v.d[0],d.d[0]), u32_ceil_div(v.d[1],d.d[1]) ); }
   inline u32_pt_t ceil_align( u32_pt_t const &v, u32_pt_t const & align ) { return ceil_div( v, align ) * align; }
+
+  inline i32_pt_t floor_div( i32_pt_t const &v, u32_pt_t const & d ) { 
+    i32_pt_t const id = u32_to_i32( d );
+    return i32_pt_t( i32_floor_div(v.d[0],id.d[0]), i32_ceil_div(v.d[1],id.d[1]) ); 
+  }
 
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
 
@@ -115,7 +127,7 @@ namespace boda
       get_overlap_bnds( ret.p[0], ret.p[1], o );
       return ret; //note: if !ret.is_strictly_normalized(), there was no overlap (assuming o/this is_strictly_normalized())
     }
-
+    bool contains( T_box_t const & o ) const { return o.p[0].both_dims_ge( p[0] ) && o.p[1].both_dims_le( p[1] ); }
     uint64_t get_area( void ) const { return uint64_t(p[1].d[0]-p[0].d[0])*(p[1].d[1]-p[0].d[1]); } 
 
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
@@ -123,6 +135,10 @@ namespace boda
     void to_pascal_coord_adjust( void );
     std::string pascal_str( void ) const;
     T_box_t operator + ( T_box_t const & o ) const { return T_box_t( p[0] + o.p[0], p[1] + o.p[1] ); }
+    T_box_t operator - ( T_box_t const & o ) const { return T_box_t( p[0] - o.p[0], p[1] - o.p[1] ); }
+    T_box_t operator + ( T const & o ) const { return T_box_t( p[0] + o, p[1] + o ); }
+    T_box_t operator - ( T const & o ) const { return T_box_t( p[0] - o, p[1] - o ); }
+    T_box_t operator * ( T const & o ) const { return T_box_t( p[0] * o, p[1] * o ); }
     bool operator == ( T_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
     bool operator != ( T_box_t const & o ) const { return !(*this == o); }
     bool operator <  ( T_box_t const & o ) const { return (p[0] != o.p[0]) ? (p[0] < o.p[0]) : (p[1] < o.p[1]); }
@@ -141,6 +157,10 @@ namespace boda
   struct u32_pt_t_by_prod_gt_t {
     bool operator () ( u32_pt_t const & a, u32_pt_t const & b ) const { return a.dims_prod() > b.dims_prod(); }
   };
+  inline i32_box_t u32_to_i32( u32_box_t const & v ) { return i32_box_t( u32_to_i32( v.p[0] ), u32_to_i32( v.p[1] ) ); }
+
+  inline i32_box_t floor_div( i32_box_t const &v, u32_pt_t const & d ) { 
+    return i32_box_t( floor_div( v.p[0], d ), floor_div( v.p[1], d ) ); }
     
   typedef vector< u32_box_t > vect_u32_box_t; 
   typedef set< u32_box_t > set_u32_box_t;
