@@ -57,6 +57,10 @@ namespace boda
     i32_pt_t const id = u32_to_i32( d );
     return i32_pt_t( i32_floor_div(v.d[0],id.d[0]), i32_ceil_div(v.d[1],id.d[1]) ); 
   }
+  inline i32_pt_t ceil_div( i32_pt_t const &v, u32_pt_t const & d ) { 
+    i32_pt_t const id = u32_to_i32( d );
+    return i32_pt_t( i32_ceil_div(v.d[0],id.d[0]), i32_ceil_div(v.d[1],id.d[1]) ); 
+  }
 
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
 
@@ -161,6 +165,8 @@ namespace boda
 
   inline i32_box_t floor_div( i32_box_t const &v, u32_pt_t const & d ) { 
     return i32_box_t( floor_div( v.p[0], d ), floor_div( v.p[1], d ) ); }
+  inline i32_box_t ceil_div( i32_box_t const &v, u32_pt_t const & d ) { 
+    return i32_box_t( ceil_div( v.p[0], d ), ceil_div( v.p[1], d ) ); }
     
   typedef vector< u32_box_t > vect_u32_box_t; 
   typedef set< u32_box_t > set_u32_box_t;
