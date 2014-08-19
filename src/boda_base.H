@@ -481,6 +481,9 @@ namespace boda
     virtual void check_pollfd( pollfd const & pfd ) = 0;
   };
 
+  struct img_t; typedef shared_ptr< img_t > p_img_t; 
+  struct img_proc_t { virtual void on_img( p_img_t const & img ) = 0; };
+
 }
 
 #endif // BODA_BASE_H

@@ -1,3 +1,4 @@
+cap_app.o
 caffeif.o
 cap_util.o
 disp_util.o
