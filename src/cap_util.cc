@@ -71,11 +71,11 @@ namespace boda
     // you can use 'v4l2-ctl --list-formats-ext' to list valid resolutions. (note: v4l2-ctl is in the vl4-utils package in ubuntu).")
 
     p_vect_p_img_t disp_imgs;
-    p_run_cnet_t run_cnet; //NESI(default="()",help="cnet running options")
+    p_cnet_predict_t cnet_predict; //NESI(default="()",help="cnet running options")
     virtual void main( nesi_init_arg_t * nia ) { 
 
-      //run_cnet = make_p_run_cnet_t_init_and_check_unused_from_lexp( parse_lexp("(mode=run_cnet)"), nia );
-      run_cnet->setup_predict();
+      //cnet_predict = make_p_cnet_predict_t_init_and_check_unused_from_lexp( parse_lexp("(mode=cnet_predict)"), nia );
+      cnet_predict->setup_predict();
 
       disp_imgs.reset( new vect_p_img_t );
 
@@ -139,7 +139,7 @@ namespace boda
 	  src += 4;
 	}
       }
-      run_cnet->do_predict( img );
+      cnet_predict->do_predict( img );
     }
 
     int read_frame( p_vect_p_img_t const & out )

@@ -27,9 +27,10 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
+    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt)",help="cnet running options")
+
     filename_t pipe_fn; //NESI(default="%(boda_test_dir)/conv_pyra_pipe.xml",help="input pipe XML filename")
-    filename_t ptt_fn; //NESI(default="%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt",help="input net prototxt template filename")
-    filename_t trained_fn; //NESI(default="%(home_dir)/alexnet/alexnet_train_iter_470000_v1",help="input trained net from which to copy params")
+
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="output filename.")
     
     filename_t img_in_fn; //NESI(default="%(boda_test_dir)/pascal/000001.jpg",help="input image filename")
@@ -55,52 +56,38 @@ namespace boda
 
       ipp->in_sz.d[0] = img_in->w; ipp->in_sz.d[1] = img_in->h;
       ipp->do_place_imgs( conv_pipe->conv_sis.back(), img_in );
-      
-      uint32_t const bin_w = ipp->bin_sz.d[0];
-      uint32_t const bin_h = ipp->bin_sz.d[1];
-      uint32_t const num_bins = ipp->bin_imgs.size();
 
-      p_string ptt_str = read_whole_fn( ptt_fn );
-      string out_pt_str;
-      str_format_from_nvm_str( out_pt_str, *ptt_str, 
-			       strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
-					  str(bin_w).c_str(), str(bin_h).c_str(), 
-					  str(num_bins).c_str(), str(3).c_str() ) );
-      //(*ofs_open( out_fn )) << out_pt_str;
-      p_Net_float net = init_caffe( out_pt_str, trained_fn.exp );      
-      
-      dims_t in_batch_dims( 4 );
-      in_batch_dims.dims(3) = bin_w;
-      in_batch_dims.dims(2) = bin_h;
-      in_batch_dims.dims(1) = 3; 
-      in_batch_dims.dims(0) = num_bins;
-     
-      p_nda_float_t in_batch( new nda_float_t );
-      in_batch->set_dims( in_batch_dims );
+      run_cnet->in_sz = ipp->bin_sz;
+      run_cnet->in_num_imgs = ipp->bin_imgs.size();
 
+      run_cnet->setup_cnet();
+
+      dims_t const & ibd = run_cnet->in_batch->dims;
+
+      assert_st( ibd.dims(1) == 3 );
       uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
       {
 	timer_t t("conv_prya_copy_bins_in");
 	// copy images to batch
-	for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	for( uint32_t bix = 0; bix != ibd.dims(0); ++bix ) {
 	  img_t const & bimg = *ipp->bin_imgs[bix];
 #pragma omp parallel for	  
-	  for( uint32_t y = 0; y < bin_h; ++y ) {
-	    for( uint32_t x = 0; x < bin_w; ++x ) {
+	  for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
+	    for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
 	      uint32_t const pel = bimg.get_pel(x,y);
 	      for( uint32_t c = 0; c < 3; ++c ) {
-		in_batch->at4(bix,2-c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
+		run_cnet->in_batch->at4(bix,2-c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
 	      }
 	    }
 	  }
 	}
       }
       vect_p_nda_float_t in_data; 
-      in_data.push_back( in_batch ); // assume single input blob
-      raw_do_forward( net, in_data );
+      in_data.push_back( run_cnet->in_batch ); // assume single input blob
+      raw_do_forward( run_cnet->net, in_data );
 
       vect_p_nda_float_t out_data; 
-      copy_output_blob_data( net, out_layer_name, out_data );
+      copy_output_blob_data( run_cnet->net, out_layer_name, out_data );
       
       //printf( "out_data=%s\n", str(out_data).c_str() );
       assert( out_data.size() == 1 ); // assume single output blob
@@ -108,8 +95,7 @@ namespace boda
       p_nda_float_t const & out_batch = out_data.front();
       dims_t const & obd = out_batch->dims;
       assert( obd.sz() == 4 );
-      assert( obd.dims(0) == num_bins );
-
+      assert( obd.dims(0) == ibd.dims(0) );
 
       uint32_t sqrt_out_chan = uint32_t( ceil( sqrt( double( obd.dims(1) ) ) ) );
       assert( sqrt_out_chan );
@@ -122,7 +108,7 @@ namespace boda
 	float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f ); // note clamp to 0
 	float const out_rng = out_max - out_min;
 	vect_p_img_t out_imgs;
-	for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	for( uint32_t bix = 0; bix != obd.dims(0); ++bix ) {
 	  p_img_t out_img( new img_t );
 	  out_img->set_sz_and_alloc_pels( obd.dims(3)*sqrt_out_chan, obd.dims(2)*sqrt_out_chan ); // w, h
 	  for( uint32_t y = 0; y < out_img->h; ++y ) {

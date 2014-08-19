@@ -133,36 +133,43 @@ namespace boda
 
 
   void run_cnet_t::main( nesi_init_arg_t * nia ) { 
+    setup_cnet();
+  }
+
+  void run_cnet_t::setup_cnet( void ) {
+    p_string ptt_str = read_whole_fn( ptt_fn );
+    string out_pt_str;
+
+    dims_t in_batch_dims( 4 );
+    in_batch_dims.dims(3) = in_sz.d[0];
+    in_batch_dims.dims(2) = in_sz.d[1];
+    in_batch_dims.dims(1) = in_num_chans; 
+    in_batch_dims.dims(0) = in_num_imgs;
+
+    str_format_from_nvm_str( out_pt_str, *ptt_str, 
+			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
+					str(in_batch_dims.dims(3)).c_str(), str(in_batch_dims.dims(2)).c_str(), 
+					str(in_batch_dims.dims(0)).c_str(), str(in_batch_dims.dims(1)).c_str() ) );
+    assert( !net );
+    net = init_caffe( out_pt_str, trained_fn.exp );      
+
+    assert( !in_batch );
+    in_batch.reset( new nda_float_t );
+    in_batch->set_dims( in_batch_dims );
+  }
+
+  void cnet_predict_t::main( nesi_init_arg_t * nia ) { 
     setup_predict();
     p_img_t img_in( new img_t );
     img_in->load_fn( img_in_fn.exp );
     do_predict( img_in );
   }
 
-
-  void run_cnet_t::setup_predict( void ) {
+  void cnet_predict_t::setup_predict( void ) {
     assert_st( !out_labels );
     out_labels.reset( new vect_synset_elem_t );
     read_synset( out_labels, out_labels_fn );
-
-    p_string ptt_str = read_whole_fn( ptt_fn );
-    string out_pt_str;
-    str_format_from_nvm_str( out_pt_str, *ptt_str, 
-			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
-					str(in_sz.d[0]).c_str(), str(in_sz.d[1]).c_str(), 
-					str(1).c_str(), str(3).c_str() ) );
-    assert( !net );
-    net = init_caffe( out_pt_str, trained_fn.exp );      
-
-    dims_t in_batch_dims( 4 );
-    in_batch_dims.dims(3) = in_sz.d[0];
-    in_batch_dims.dims(2) = in_sz.d[1];
-    in_batch_dims.dims(1) = 3; 
-    in_batch_dims.dims(0) = 1;
-     
-    assert( !in_batch );
-    in_batch.reset( new nda_float_t );
-    in_batch->set_dims( in_batch_dims );
+    setup_cnet();
   }
 
   template< typename T > struct gt_indexed {
@@ -175,7 +182,7 @@ namespace boda
     }
   };
 
-  void run_cnet_t::do_predict( p_img_t const & img_in ) {
+  void cnet_predict_t::do_predict( p_img_t const & img_in ) {
     p_img_t img_in_ds = downsample_to_size( downsample_2x_to_size( img_in, in_sz.d[0], in_sz.d[1] ), 
 					    in_sz.d[0], in_sz.d[1] );
     assert( img_in_ds->w == in_sz.d[0] );
