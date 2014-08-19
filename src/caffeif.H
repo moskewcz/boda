@@ -14,6 +14,8 @@ namespace boda
   p_Net_float init_caffe( string const & param_str, string const & trained_fn );
   void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom );
   void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top );
+  p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in );
+  void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img );
 
   struct synset_elem_t;
   typedef vector< synset_elem_t > vect_synset_elem_t; 
@@ -38,6 +40,7 @@ namespace boda
     p_nda_float_t in_batch;
     p_Net_float net;
     void setup_cnet( void );
+    p_nda_float_t run_one_blob_in_one_blob_out( void );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 

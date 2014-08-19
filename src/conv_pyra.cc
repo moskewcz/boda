@@ -59,43 +59,20 @@ namespace boda
 
       run_cnet->in_sz = ipp->bin_sz;
       run_cnet->in_num_imgs = ipp->bin_imgs.size();
-
+      run_cnet->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
       run_cnet->setup_cnet();
 
-      dims_t const & ibd = run_cnet->in_batch->dims;
-
-      assert_st( ibd.dims(1) == 3 );
-      uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
       {
 	timer_t t("conv_prya_copy_bins_in");
 	// copy images to batch
-	for( uint32_t bix = 0; bix != ibd.dims(0); ++bix ) {
-	  img_t const & bimg = *ipp->bin_imgs[bix];
-#pragma omp parallel for	  
-	  for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
-	    for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
-	      uint32_t const pel = bimg.get_pel(x,y);
-	      for( uint32_t c = 0; c < 3; ++c ) {
-		run_cnet->in_batch->at4(bix,2-c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
-	      }
-	    }
-	  }
+	for( uint32_t bix = 0; bix != run_cnet->in_num_imgs; ++bix ) {
+	  subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, bix, ipp->bin_imgs[bix] );
 	}
       }
-      vect_p_nda_float_t in_data; 
-      in_data.push_back( run_cnet->in_batch ); // assume single input blob
-      raw_do_forward( run_cnet->net, in_data );
-
-      vect_p_nda_float_t out_data; 
-      copy_output_blob_data( run_cnet->net, out_layer_name, out_data );
-      
-      //printf( "out_data=%s\n", str(out_data).c_str() );
-      assert( out_data.size() == 1 ); // assume single output blob
-      //p_nda_float_t const & out_batch = in_data.front();
-      p_nda_float_t const & out_batch = out_data.front();
+      p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
       dims_t const & obd = out_batch->dims;
       assert( obd.sz() == 4 );
-      assert( obd.dims(0) == ibd.dims(0) );
+      assert( obd.dims(0) == run_cnet->in_batch->dims.dims(0) );
 
       uint32_t sqrt_out_chan = uint32_t( ceil( sqrt( double( obd.dims(1) ) ) ) );
       assert( sqrt_out_chan );

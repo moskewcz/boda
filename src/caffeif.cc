@@ -14,6 +14,26 @@ namespace boda
   using namespace boost;
   using caffe::Caffe;
   using caffe::Blob;
+  
+  void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img )
+  {
+    dims_t const & ibd = in_batch->dims;
+    assert_st( img_ix < ibd.dims(0) );
+    assert_st( 3 == ibd.dims(1) );
+    assert_st( img->w == ibd.dims(3) );
+    assert_st( img->h == ibd.dims(2) );
+    uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
+#pragma omp parallel for	  
+    for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
+      for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
+	uint32_t const pel = img->get_pel(x,y);
+	for( uint32_t c = 0; c < 3; ++c ) {
+	  // note: RGB -> BGR swap via the '2-c' below
+	  in_batch->at4( img_ix, 2-c, y, x ) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
+	}
+      }
+    }
+  }
 
   p_Net_float init_caffe( string const & param_str, string const & trained_fn ) {
     timer_t t("caffe_init");
@@ -77,8 +97,7 @@ namespace boda
     rt_err( strprintf("layer out_layer_name=%s not found in netowrk\n",str(out_layer_name).c_str() )); 
   }
 
-  void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top )
-  {
+  void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top ) {
     timer_t t("caffe_copy_output_blob_data");
     uint32_t const out_layer_ix = get_layer_ix( net_, out_layer_name );
     const vector<Blob<float>*>& output_blobs = net_->top_vecs()[ out_layer_ix ];
@@ -104,6 +123,19 @@ namespace boda
       }  // switch (Caffe::mode())
     }
   }
+
+
+  p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in ) {
+    vect_p_nda_float_t in_data; 
+    in_data.push_back( in ); // assume single input blob
+    raw_do_forward( net, in_data );
+    vect_p_nda_float_t out_data; 
+    copy_output_blob_data( net, out_layer_name, out_data );
+    assert( out_data.size() == 1 ); // assume single output blob
+    return out_data.front();
+  }
+  p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out( void ) { 
+    return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch ); }
 
   struct synset_elem_t {
     string id;
@@ -185,31 +217,9 @@ namespace boda
   void cnet_predict_t::do_predict( p_img_t const & img_in ) {
     p_img_t img_in_ds = downsample_to_size( downsample_2x_to_size( img_in, in_sz.d[0], in_sz.d[1] ), 
 					    in_sz.d[0], in_sz.d[1] );
-    assert( img_in_ds->w == in_sz.d[0] );
-    assert( img_in_ds->h == in_sz.d[1] );
-    uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
-    {
-#pragma omp parallel for	  
-      for( uint32_t y = 0; y < in_sz.d[1]; ++y ) {
-	for( uint32_t x = 0; x < in_sz.d[0]; ++x ) {
-	  uint32_t const pel = img_in_ds->get_pel(x,y);
-	  for( uint32_t c = 0; c < 3; ++c ) {
-	    in_batch->at4(0,2-c,y,x) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
-	  }
-	}
-      }
-    }
-    vect_p_nda_float_t in_data; 
-    in_data.push_back( in_batch ); // assume single input blob
-    raw_do_forward( net, in_data );
+    subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
+    p_nda_float_t out_batch = run_one_blob_in_one_blob_out();
 
-    vect_p_nda_float_t out_data; 
-    copy_output_blob_data( net, out_layer_name, out_data );
-      
-    //printf( "out_data=%s\n", str(out_data).c_str() );
-    assert( out_data.size() == 1 ); // assume single output blob
-    //p_nda_float_t const & out_batch = in_data.front();
-    p_nda_float_t const & out_batch = out_data.front();
     dims_t const & obd = out_batch->dims;
     assert( obd.sz() == 4 );
     assert( obd.dims(0) == 1 );
