@@ -31,14 +31,19 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
     p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,out_layer_name=conv5)",help="cnet running options")
+    p_img_t feat_img;
     virtual void main( nesi_init_arg_t * nia ) { 
       run_cnet->in_sz = capture->cap_res;
       run_cnet->setup_cnet(); 
+      feat_img.reset( new img_t );
+      feat_img->set_sz_and_alloc_pels( 624, 464 ); // w, h
+      capture->disp_imgs.push_back( feat_img );
       capture->cap_loop( this ); 
     }
     virtual void on_img( p_img_t const & img ) { 
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, img );
       p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
+      copy_batch_to_img( out_batch, 0, feat_img );
     }
   };
 

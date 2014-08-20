@@ -62,11 +62,9 @@ namespace boda
 
   void capture_t::cap_loop( img_proc_t * const img_proc_ ) { 
     img_proc = img_proc_; 
-    disp_imgs.reset( new vect_p_img_t );
-    p_img_t img( new img_t );
-    img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
-    disp_imgs->push_back( img );
-
+    cap_img.reset( new img_t );
+    cap_img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
+    if( echo_capture ) { disp_imgs.push_back( cap_img ); }
 #if 0
     p_vect_string classes = readlines_fn( pascal_classes_fn );
     for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
@@ -74,7 +72,7 @@ namespace boda
       read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
 				   true && is_first_class, !is_first_class );
     }
-    img_db_get_all_loaded_imgs( disp_imgs, img_db );
+    img_db_get_all_loaded_imgs( disp_imgs, img_db ); // FIXME: disp_imgs isn't a p_ vect anymore ...
 #endif
 
     cap_fd = -1;
@@ -83,7 +81,7 @@ namespace boda
     start_capturing();
 
     disp_win_t disp_win;
-    disp_win.disp_skel( *disp_imgs, this ); 
+    disp_win.disp_skel( disp_imgs, this ); 
 
     stop_capturing();
     buffers.clear();
@@ -93,22 +91,12 @@ namespace boda
 
   // poll_req_t iface:
   pollfd capture_t::get_pollfd( void ) { assert_st( cap_fd != -1 ); return pollfd{ cap_fd, POLLIN }; }
-  void capture_t::check_pollfd( pollfd const & pfd ) { read_frame( disp_imgs ); }
+  void capture_t::check_pollfd( pollfd const & pfd ) { read_frame( cap_img ); }
 
 
   // V4L2 code
-  void capture_t::process_image( p_vect_p_img_t const & out, const void *p, int size)
+  void capture_t::process_image( p_img_t const & img, const void *p, int size)
   {
-#if 0
-    fflush(stderr);
-    fprintf(stderr, ".");
-    fflush(stdout);
-#endif
-    //p_img_t img( new img_t );
-    //img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
-    //out->push_back( img );
-    assert_st( out->size() == 1 );
-    p_img_t img = out->at(0);
     uint8_t const * src = (uint8_t const * )p;
     assert_st( !(cap_res.d[0] & 1) );
     for( uint32_t i = 0; i != cap_res.d[1]; ++i ) {
@@ -121,7 +109,7 @@ namespace boda
     if( img_proc ) { img_proc->on_img( img ); }
   }
 
-  int capture_t::read_frame( p_vect_p_img_t const & out )
+  int capture_t::read_frame( p_img_t const & out_img )
   {
     v4l2_buffer buf = {};
 
@@ -145,7 +133,7 @@ namespace boda
 
     assert(buf.index < buffers.size());
 
-    process_image( out, buffers[buf.index]->start, buf.bytesused);
+    process_image( out_img, buffers[buf.index]->start, buf.bytesused);
 
     if (-1 == xioctl(cap_fd, VIDIOC_QBUF, &buf))
       rt_err("VIDIOC_QBUF");

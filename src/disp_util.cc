@@ -54,22 +54,53 @@ namespace boda
     return 0;
   }
 
-  void img_to_YV12( p_img_t const & img, uint8_t * out_YV12 )
+  struct YV12_buf_t {
+    p_uint8_t d;
+    uint32_t w;
+    uint32_t h;
+
+    // calculated fields
+    uint32_t sz;
+    uint8_t * Y;
+    uint8_t * V;
+    uint8_t * U;
+
+    YV12_buf_t( void ) : w(0), h(0), sz(0), Y(0), V(0), U(0) { }
+    void set_sz_and_alloc( uint32_t const w_, uint32_t const h_ ) {
+      w = w_; assert_st( !(w&1) );
+      h = h_; assert_st( !(h&1) );
+      sz = w * ( h + (h/2) );
+      d = ma_p_uint8_t( sz, 4096 );
+      for( uint32_t i = 0; i < sz; ++i ) { d.get()[i] = 128; } // init to grey
+      Y = d.get();
+      V = Y + w*h; // w*h == size of Y
+      U = V + (w/2)*(h/2); // (w/2)*(h/2) == size of V (and U, which is unneeded)
+    }
+
+    void YVUat( uint8_t * & out_Y, uint8_t * & out_V, uint8_t * & out_U, uint32_t const & x, uint32_t const & y ) const { 
+      assert_st( x < w ); assert_st( y < h );
+      out_Y = Y + y*w + x; out_V = V + (y>>1)*(w>>1) + (x>>1); out_U = U + (y>>1)*(w>>1) + (x>>1); 
+    }
+  };
+
+  void img_to_YV12( YV12_buf_t const & YV12_buf, p_img_t const & img, uint32_t const out_x, uint32_t const out_y )
   {
     uint32_t const w = img->w; assert( !(w&1) );
     uint32_t const h = img->h; assert( !(h&1) );
-    uint8_t * out_Y = out_YV12;
-    uint8_t * out_V = out_Y + w*h; // w*h == size of out_Y
-    uint8_t * out_U = out_V + (w/2)*(h/2); // (w/2)*(h/2) == size of out_V (and out_U, which is unneeded)
+    uint8_t *out_Y, *out_V, *out_U;
     for( uint32_t y = 0; y < h; ++y ) {
+      YV12_buf.YVUat( out_Y, out_V, out_U, out_x, out_y+y );
       uint32_t const * rgb = img->get_row_pels_data( y );
       for( uint32_t x = 0; x < w; ++x, ++rgb ) {
 	rgba2y( *rgb, *(out_Y++) );
 	if (x % 2 == 0 && y % 2 == 0) { rgba2uv( *rgb, *(out_U++), *(out_V++) ); }
       }
+      
     }
   }
 
+  // FIXME: the size of imgs and the w/h of the img_t's inside imgs
+  // may not change after this call, but this is not checked.
   void disp_win_t::disp_skel( vect_p_img_t const & imgs, poll_req_t * const poll_req ) {
     assert_st( !imgs.empty() );
     
@@ -96,25 +127,26 @@ namespace boda
     //uint32_t const pixel_format = SDL_PIXELFORMAT_ABGR8888;
     uint32_t const pixel_format = SDL_PIXELFORMAT_YV12;
 
-    uint32_t img_w = imgs.front()->w;
-    uint32_t img_h = imgs.front()->h;
-    for( vect_p_img_t::const_iterator i = imgs.begin(); i != imgs.end(); ++i ) {
-      max_eq( img_w, (*i)->w );
-      max_eq( img_h, (*i)->h );
+    YV12_buf_t YV12_buf;
+    {
+      uint32_t img_w = 0;
+      uint32_t img_h = 0;
+      for( vect_p_img_t::const_iterator i = imgs.begin(); i != imgs.end(); ++i ) {
+	img_w += (*i)->w;
+	max_eq( img_h, (*i)->h );
+      }
+      // make w/h even for simplicity of YUV UV (2x downsampled) planes
+      if( img_w & 1 ) { ++img_w; }
+      if( img_h & 1 ) { ++img_h; }
+      YV12_buf.set_sz_and_alloc( img_w, img_h );
     }
-    // make w/h even for simplicity of YUV UV (2x downsampled) planes
-    if( img_w & 1 ) { ++img_w; }
-    if( img_h & 1 ) { ++img_h; }
+
     assert( !tex );
     tex = make_p_SDL( SDL_CreateTexture( renderer.get(), pixel_format, SDL_TEXTUREACCESS_STREAMING, 
-						       img_w, img_h ) );
-    uint32_t const yuv_buf_sz = img_w * ( img_h + (img_h/2) );
-    p_uint8_t yuv_buf = ma_p_uint8_t( yuv_buf_sz, 4096 );
-    for( uint32_t i = 0; i < yuv_buf_sz; ++i ) { yuv_buf.get()[i] = 128; }
+						       YV12_buf.w, YV12_buf.h ) );
 
     if( !tex ) { rt_err( strprintf( "Couldn't set create texture: %s\n", SDL_GetError()) ); }
 
-    int fix = 0;
     bool const nodelay = 0;
     int fps = 60;
 
@@ -164,8 +196,9 @@ namespace boda
                 break;
             case SDL_KEYDOWN:
                 if( event.key.keysym.sym == SDLK_s ) {
-		  printf( "fix=%s\n", str(fix).c_str() );
-		  imgs[fix]->save_fn_png("ss.png");
+		  for( uint32_t i = 0; i != imgs.size(); ++i ) {
+		    imgs[i]->save_fn_png( strprintf( "ss_%s.png", str(i).c_str() ) );
+		  }
 		  paused = 1;
 		  break;
                 }
@@ -203,18 +236,12 @@ namespace boda
 	}
 
         if (!paused) {
-	  fix = (fix + 1) % imgs.size();
-	  uint8_t * __restrict__ yuv_dest = yuv_buf.get();
-	  img_to_YV12( imgs[fix], yuv_dest );
-#if 0
-	  for( uint32_t y = 0; y < imgs[fix]->h; ++y ) { 
-	    for( uint32_t x = 0; x < imgs[fix]->w; ++x ) { 
-	      yuv_dest[x] = get_chan( 1, imgs[fix]->get_pel( x, y ) );
-	    }
-	    yuv_dest += img_w;
+	  uint32_t out_x = 0;
+	  for( uint32_t i = 0; i != imgs.size(); ++i ) { 
+	    img_to_YV12( YV12_buf, imgs[i], out_x, YV12_buf.h - imgs[i]->h );
+	    out_x += imgs[i]->w;
 	  }
-#endif
-	  SDL_UpdateTexture( tex.get(), NULL, yuv_buf.get(), img_w );
+	  SDL_UpdateTexture( tex.get(), NULL, YV12_buf.d.get(), YV12_buf.w );
         }
         SDL_RenderClear( renderer.get() );
         SDL_RenderCopy( renderer.get(), tex.get(), NULL, &displayrect);

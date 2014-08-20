@@ -15,8 +15,7 @@ namespace boda
   using caffe::Caffe;
   using caffe::Blob;
   
-  void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img )
-  {
+  void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img ) {
     dims_t const & ibd = in_batch->dims;
     assert_st( img_ix < ibd.dims(0) );
     assert_st( 3 == ibd.dims(1) );
@@ -31,6 +30,47 @@ namespace boda
 	  // note: RGB -> BGR swap via the '2-c' below
 	  in_batch->at4( img_ix, 2-c, y, x ) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
 	}
+      }
+    }
+  }
+
+
+  void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img ) {
+    
+    dims_t const & obd = out_batch->dims;
+    assert( obd.sz() == 4 );
+    assert_st( img_ix < obd.dims(0) );
+
+    uint32_t sqrt_out_chan = uint32_t( ceil( sqrt( double( obd.dims(1) ) ) ) );
+    assert( sqrt_out_chan );
+    assert( (sqrt_out_chan*sqrt_out_chan) >= obd.dims(1) );
+
+    assert_st( (img_ix == 0) && (obd.dims(0)==1) ); // FIXME: use only data from img img_ix in reduces here to relax this
+    float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f ); // note clamp to 0
+    //assert_st( out_min == 0.0f ); // shouldn't be any negative values
+    float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f ); // note clamp to 0
+    float const out_rng = out_max - out_min;
+
+    printf( "sqrt_out_chan=%s obd.dims(3)*sqrt_out_chan=%s obd.dims(2)*sqrt_out_chan=%s\n", 
+	    str(sqrt_out_chan).c_str(), 
+	    str(obd.dims(3)*sqrt_out_chan).c_str(), 
+	    str(obd.dims(2)*sqrt_out_chan).c_str() );
+    assert_st( img->w == obd.dims(3)*sqrt_out_chan );
+    assert_st( img->h == obd.dims(2)*sqrt_out_chan );
+    //out_img->set_sz_and_alloc_pels( obd.dims(3)*sqrt_out_chan, obd.dims(2)*sqrt_out_chan ); // w, h
+
+    for( uint32_t y = 0; y < img->h; ++y ) {
+      for( uint32_t x = 0; x < img->w; ++x ) {
+	uint32_t const bx = x / sqrt_out_chan;
+	uint32_t const by = y / sqrt_out_chan;
+	uint32_t const bc = (y%sqrt_out_chan)*sqrt_out_chan + (x%sqrt_out_chan);
+	uint32_t gv;
+	if( bc < obd.dims(1) ) {
+	  float const norm_val = ((out_batch->at4(img_ix,bc,by,bx)-out_min) / out_rng );
+	  //gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * norm_val ) ) );
+	  gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * (log(.01) - log(std::max(.01f,norm_val))) / (-log(.01)) )));
+	} else { gv = grey_to_pel( 0 ); }
+	img->set_pel( x, y, gv );
       }
     }
   }
