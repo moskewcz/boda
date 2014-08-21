@@ -34,6 +34,10 @@ namespace boda
     }
   }
 
+  void chans_to_area( uint32_t & out_s, u32_pt_t & out_sz, u32_pt_t const & in_sz, uint32_t in_chan ) {
+    out_s = u32_ceil_sqrt( in_chan );
+    out_sz = in_sz.scale( out_s );
+  }
 
   void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img ) {
     
@@ -41,23 +45,20 @@ namespace boda
     assert( obd.sz() == 4 );
     assert_st( img_ix < obd.dims(0) );
 
-    uint32_t sqrt_out_chan = uint32_t( ceil( sqrt( double( obd.dims(1) ) ) ) );
+    u32_pt_t const out_sz( obd.dims(3), obd.dims(2) );
+    uint32_t sqrt_out_chan;
+    u32_pt_t img_sz;
+    chans_to_area( sqrt_out_chan, img_sz, out_sz, obd.dims(1) );
     assert( sqrt_out_chan );
     assert( (sqrt_out_chan*sqrt_out_chan) >= obd.dims(1) );
 
     assert_st( (img_ix == 0) && (obd.dims(0)==1) ); // FIXME: use only data from img img_ix in reduces here to relax this
-    float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f ); // note clamp to 0
+    //float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f ); // note clamp to 0
     //assert_st( out_min == 0.0f ); // shouldn't be any negative values
     float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f ); // note clamp to 0
-    float const out_rng = out_max - out_min;
+    //float const out_rng = out_max - out_min;
 
-    printf( "sqrt_out_chan=%s obd.dims(3)*sqrt_out_chan=%s obd.dims(2)*sqrt_out_chan=%s\n", 
-	    str(sqrt_out_chan).c_str(), 
-	    str(obd.dims(3)*sqrt_out_chan).c_str(), 
-	    str(obd.dims(2)*sqrt_out_chan).c_str() );
-    assert_st( img->w == obd.dims(3)*sqrt_out_chan );
-    assert_st( img->h == obd.dims(2)*sqrt_out_chan );
-    //out_img->set_sz_and_alloc_pels( obd.dims(3)*sqrt_out_chan, obd.dims(2)*sqrt_out_chan ); // w, h
+    assert_st( u32_pt_t(img->w,img->h) == img_sz );
 
     for( uint32_t y = 0; y < img->h; ++y ) {
       for( uint32_t x = 0; x < img->w; ++x ) {
@@ -66,9 +67,10 @@ namespace boda
 	uint32_t const bc = (y%sqrt_out_chan)*sqrt_out_chan + (x%sqrt_out_chan);
 	uint32_t gv;
 	if( bc < obd.dims(1) ) {
-	  float const norm_val = ((out_batch->at4(img_ix,bc,by,bx)-out_min) / out_rng );
-	  //gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * norm_val ) ) );
-	  gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * (log(.01) - log(std::max(.01f,norm_val))) / (-log(.01)) )));
+	  //float const norm_val = ((out_batch->at4(img_ix,bc,by,bx)-out_min) / out_rng );
+	  float const norm_val = ((out_batch->at4(img_ix,bc,by,bx)) / out_max );
+	  gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * norm_val ) ) );
+	  //gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * (log(.01) - log(std::max(.01f,norm_val))) / (-log(.01)) )));
 	} else { gv = grey_to_pel( 0 ); }
 	img->set_pel( x, y, gv );
       }
@@ -164,6 +166,16 @@ namespace boda
     }
   }
 
+  // note: assumes/includes chans_to_area conversion
+  u32_pt_t run_cnet_t::get_one_blob_img_out_sz( void ) {
+    assert_st( net );
+    uint32_t const out_layer_ix = get_layer_ix( net, out_layer_name );
+    const vector<Blob<float>*>& output_blobs = net->top_vecs()[ out_layer_ix ];
+    assert_st( output_blobs.size() == 1 );
+    Blob<float> const * const output_blob = output_blobs[0];
+    return u32_pt_t( output_blob->width(), output_blob->height() ).scale( u32_ceil_sqrt( output_blob->channels() ) );
+  }
+
 
   p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in ) {
     vect_p_nda_float_t in_data; 
@@ -222,10 +234,10 @@ namespace boda
 			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
 					str(in_batch_dims.dims(3)).c_str(), str(in_batch_dims.dims(2)).c_str(), 
 					str(in_batch_dims.dims(0)).c_str(), str(in_batch_dims.dims(1)).c_str() ) );
-    assert( !net );
+    assert_st( !net );
     net = init_caffe( out_pt_str, trained_fn.exp );      
 
-    assert( !in_batch );
+    assert_st( !in_batch );
     in_batch.reset( new nda_float_t );
     in_batch->set_dims( in_batch_dims );
   }

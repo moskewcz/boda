@@ -41,6 +41,7 @@ namespace boda
     p_nda_float_t in_batch;
     p_Net_float net;
     void setup_cnet( void );
+    u32_pt_t get_one_blob_img_out_sz( void ); // note: assumes/includes chans_to_area conversion
     p_nda_float_t run_one_blob_in_one_blob_out( void );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 

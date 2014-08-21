@@ -36,7 +36,8 @@ namespace boda
       run_cnet->in_sz = capture->cap_res;
       run_cnet->setup_cnet(); 
       feat_img.reset( new img_t );
-      feat_img->set_sz_and_alloc_pels( 624, 464 ); // w, h
+      u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
+      feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
       capture->disp_imgs.push_back( feat_img );
       capture->cap_loop( this ); 
     }

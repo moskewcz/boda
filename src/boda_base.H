@@ -50,6 +50,8 @@ namespace boda
   template< typename T > inline void min_eq( T & v, T const & o ) { v = std::min( v, o ); }
   template< typename T > inline void max_eq( T & v, T const & o ) { v = std::max( v, o ); }
   inline uint32_t u32_ceil_div( uint32_t const & val, uint32_t const & d ) { return (val + d - 1) / d; }
+  inline uint32_t u32_ceil_sqrt( uint32_t const v ) { return uint32_t( ceil( sqrt( double( v ) ) ) ); }
+
   inline uint32_t u32_ceil_align( uint32_t const & val, uint32_t const & align ) {
     return u32_ceil_div( val, align ) * align; }
   inline int32_t i32_floor_div( int32_t const & val, int32_t const & d ) { 

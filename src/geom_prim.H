@@ -16,6 +16,7 @@ namespace boda
     T dims_max( void ) const { return std::max(d[0],d[1]); }
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
     T_pt_t scale_and_round( double const & s ) const { return T_pt_t( round(d[0]*s), round(d[1]*s) ); }
+    T_pt_t scale( T const & o ) const { return T_pt_t( d[0] * o, d[1] * o ); }
 
     void operator += ( T_pt_t const & o ) { d[0] += o.d[0]; d[1] += o.d[1]; }
     void operator -= ( T_pt_t const & o ) { d[0] -= o.d[0]; d[1] -= o.d[1]; }
