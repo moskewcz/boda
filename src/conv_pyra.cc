@@ -61,7 +61,6 @@ namespace boda
       run_cnet->in_num_imgs = ipp->bin_imgs.size();
       run_cnet->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
       run_cnet->setup_cnet();
-
       {
 	timer_t t("conv_prya_copy_bins_in");
 	// copy images to batch
@@ -69,44 +68,23 @@ namespace boda
 	  subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, bix, ipp->bin_imgs[bix] );
 	}
       }
+      vect_p_img_t out_imgs;
       p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
       dims_t const & obd = out_batch->dims;
       assert( obd.sz() == 4 );
       assert( obd.dims(0) == run_cnet->in_batch->dims.dims(0) );
-
-      uint32_t sqrt_out_chan = uint32_t( ceil( sqrt( double( obd.dims(1) ) ) ) );
-      assert( sqrt_out_chan );
-      assert( (sqrt_out_chan*sqrt_out_chan) >= obd.dims(1) );
-
       if( write_output || disp_output ) {
 	timer_t t("conv_pyra_write_output");
-	float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f ); // note clamp to 0
-	//assert_st( out_min == 0.0f ); // shouldn't be any negative values
-	float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f ); // note clamp to 0
-	float const out_rng = out_max - out_min;
-	vect_p_img_t out_imgs;
 	for( uint32_t bix = 0; bix != obd.dims(0); ++bix ) {
-	  p_img_t out_img( new img_t );
-	  out_img->set_sz_and_alloc_pels( obd.dims(3)*sqrt_out_chan, obd.dims(2)*sqrt_out_chan ); // w, h
-	  for( uint32_t y = 0; y < out_img->h; ++y ) {
-	    for( uint32_t x = 0; x < out_img->w; ++x ) {
-	      uint32_t const bx = x / sqrt_out_chan;
-	      uint32_t const by = y / sqrt_out_chan;
-	      uint32_t const bc = (y%sqrt_out_chan)*sqrt_out_chan + (x%sqrt_out_chan);
-	      uint32_t gv;
-	      if( bc < obd.dims(1) ) {
-		float const norm_val = ((out_batch->at4(bix,bc,by,bx)-out_min) / out_rng );
-		//gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * norm_val ) ) );
-		gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * (log(.01) - log(std::max(.01f,norm_val))) / (-log(.01)) )));
-	      } else { gv = grey_to_pel( 0 ); }
-	      out_img->set_pel( x, y, gv );
-	    }
-	  }
+	  p_img_t feat_img( new img_t );
+	  u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
+	  feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
+	  copy_batch_to_img( out_batch, bix, feat_img );
 	  if( write_output ) {
 	    filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
-	    out_img->save_fn_png( ofn.exp, 1 );
+	    feat_img->save_fn_png( ofn.exp, 1 );
 	  }
-	  if( disp_output ) { out_imgs.push_back( out_img ); }
+	  if( disp_output ) { out_imgs.push_back( feat_img ); }
 	}
 	if( disp_output ) { 
 	  disp_win_t disp_win;
@@ -115,6 +93,5 @@ namespace boda
       }
     }
   };  
-
 #include"gen/conv_pyra.cc.nesi_gen.cc"
 }
