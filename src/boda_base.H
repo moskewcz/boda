@@ -318,6 +318,11 @@ namespace boda
       dims_.make_dims_vect( e );
       di = b;
     }
+    dims_iter_t( dims_t const & b_, dims_t const & e_ ) {
+      b_.make_dims_vect( b );
+      e_.make_dims_vect( e );
+      di = b;
+    }
     bool next( void ) { // returns 0 if iteration is complete (leaving the iterator back at b).
       uint32_t dix_end = di.size();
       while( dix_end ) { 
@@ -428,6 +433,14 @@ namespace boda
 								       typename BF::Result const & iv ) {
     typename BF::Result ret = iv;
     for( dims_iter_t di( vt.dims ) ; ; ) { ret = bf(ret,vt.at(di.di));  if( !di.next() ) { break; } }    
+    return ret;
+  }
+
+  template< typename VT, typename BF > typename BF::Result nda_reduce( VT const & vt, BF const & bf, 
+								       typename BF::Result const & iv,
+								       dims_t const & b, dims_t const & e ) {
+    typename BF::Result ret = iv;
+    for( dims_iter_t di( b, e ) ; ; ) { ret = bf(ret,vt.at(di.di));  if( !di.next() ) { break; } }    
     return ret;
   }
 
