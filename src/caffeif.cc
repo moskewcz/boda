@@ -52,10 +52,14 @@ namespace boda
     assert( sqrt_out_chan );
     assert( (sqrt_out_chan*sqrt_out_chan) >= obd.dims(1) );
 
-    assert_st( (img_ix == 0) && (obd.dims(0)==1) ); // FIXME: use only data from img img_ix in reduces here to relax this
-    //float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f ); // note clamp to 0
+    // set up dim iterators that span only the image we want to process
+    dims_t img_e = out_batch->dims;
+    dims_t img_b( img_e.sz() );
+    img_b.dims(0) = img_ix;
+    img_e.dims(0) = img_ix + 1;
+    float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f, img_b, img_e ); // note clamp to 0
+    //float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f, img_b, img_e ); // note clamp to 0
     //assert_st( out_min == 0.0f ); // shouldn't be any negative values
-    float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f ); // note clamp to 0
     //float const out_rng = out_max - out_min;
 
     assert_st( u32_pt_t(img->w,img->h) == img_sz );
