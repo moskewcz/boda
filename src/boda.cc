@@ -32,29 +32,50 @@ namespace boda
   char const * const boda_help_all_note = "(notes: use help_all instead of help to show hidden things. use help_all_ex to use a full lexp as the mode if you need on help on deeply polymophic structs)";
   char const * const boda_xml_usage = "boda xml command_file.xml[:element][:subelement][:...]";
 
+  // scan all arguments (execpt 0) for anything that looks like a 'cry for help', so we can force help-mode if found 
+  int32_t check_has_help_arg( int const argc, char const * const * const argv ) {
+    for( int32_t i = 1; i < argc; ++i ) {
+      string const arg(argv[i]);
+      if( startswith( arg, "--help" ) ||  ( arg == "-h" ) ) { return i; } // no help_ex / help_all with short opt form
+    }
+    return 0;
+  }
+
   int boda_main_arg_proc( ostream & os, int argc, char **argv ) {
     string prefix; // empty prefix for printing usage
     string out; // output string for printing usage
+    int32_t const help_arg_ix = check_has_help_arg( argc, argv );
     std::string const mode = argv[1];
+    bool const mode_is_help_mode = mode == "help" || mode == "help_all" || mode == "help_all_ex";
     if(0) { } 
     // low-level help/testing modes that either cannot rely on NESI
     // support or where it seem to make little sense to use it
-    else if( mode == "help" || mode == "help_all" || mode == "help_all_ex" ) {
-      bool show_all = startswith( mode, "help_all" );
-      bool help_ex =  endswith( mode, "_ex" );
-      if( argc < 3 ) { os << strprintf("error: boda help/help_all takes at least 1 argument, but got %s\nfor help:"
-				       "   %s\n%s\n\n",
-				       str(argc-2).c_str(), boda_help_usage, boda_help_all_note);
+    else if( help_arg_ix || mode_is_help_mode ) {
+      bool show_all = 0;
+      bool help_ex = 0;
+      // setup the help-args, and parse the (singular) help-arg
+      vect_string help_args;
+      for( int32_t i = 1; i < argc; ++i ) { 
+	string const arg(argv[i]);
+	if( ( i == help_arg_ix ) || ( (i == 1) && mode_is_help_mode ) ) { 
+	  // note: handles both '--help' and 'help' forms of help arg
+	  show_all |= startswith( arg, "help_all" ) || startswith( arg, "--help_all" );
+	  help_ex |=  endswith( arg, "_ex" );
+	}
+	else { help_args.push_back( arg ); }
+      }
+      if( help_args.empty() ) { 
+	os <<  strprintf("error: boda help/help_all takes at least 1 argument, but got %s\nfor help:   %s\n%s\n\n",
+			 str(argc-2).c_str(), boda_help_usage, boda_help_all_note);
 	nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, show_all ); os << out;
 	return 1;
       } else { 
-	std::string const help_for_mode = argv[2];
+	std::string const help_for_mode = help_args.front();
+	help_args.erase( help_args.begin() );
 	p_lexp_t lexp = help_ex ? parse_lexp( help_for_mode ) : make_list_lexp_from_one_key_val( "mode", help_for_mode );
 	p_has_main_t has_main;
 	lexp_name_val_map_t nvm( lexp );
 	nesi_struct_make_p( &nvm, &tinfo_has_main_t, &has_main );
-	vect_string help_args;
-	for( uint32_t i = 3; i < (uint32_t)argc; ++i ) { help_args.push_back( string( argv[i] ) ); }
 	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, show_all, &help_args, 0 ); os << out;
       }
     }
