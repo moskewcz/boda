@@ -31,7 +31,7 @@ namespace boda
   struct conv_pipe_t : virtual public nesi // NESI(help="pipeline of convolution-ish opa with strides, padding, and kernel sizes. ")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    p_vect_conv_op_t convs; //NESI(help="set of conv-ish ops",req=1)
+    p_vect_conv_op_t convs; //NESI(default="()",help="set of conv-ish ops")
     uint32_t ignore_padding_for_support; //NESI(default=1,help="if 1, ignore any padding specified when calculating the support_size for a single pel for each layer")
     vect_conv_support_info_t conv_sis; // note: conv_sis.size() == ( convs.size() + 1 )
     void zero_conv_ios( vect_conv_io_t & conv_ios );

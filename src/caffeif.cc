@@ -4,10 +4,11 @@
 #include"str_util.H"
 #include"img_io.H"
 #include"lexp.H"
-
-#include "caffeif.H"
-#include <glog/logging.h>
-#include <google/protobuf/text_format.h>
+#include"conv_util.H"
+#include"caffeif.H"
+#include<glog/logging.h>
+#include<google/protobuf/text_format.h>
+#include"caffe/caffe.hpp"
 
 namespace boda 
 {
@@ -140,8 +141,62 @@ namespace boda
   uint32_t get_layer_ix( p_Net_float net_, string const & out_layer_name ) {
     vect_string const & layer_names = net_->layer_names();
     for( uint32_t i = 0; i != layer_names.size(); ++i ) { if( out_layer_name == layer_names[i] ) { return i; } }
-    rt_err( strprintf("layer out_layer_name=%s not found in netowrk\n",str(out_layer_name).c_str() )); 
+    rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
   }
+  
+  p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
+  template< typename CP > p_conv_op_t get_conv_op_from_param( CP const & cp ) {
+    p_conv_op_t conv_op( new conv_op_t );
+    // TODO/NOTE: non-square (_w/_h) handling is untested
+    // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
+    if( !(cp.has_pad_w() || cp.has_pad_h()) ){ 
+      u32_pt_t const p( cp.pad(), cp.pad() ); conv_op->in_pad = u32_box_t(p,p);
+    } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.has_pad()) );
+      u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = u32_box_t(p,p); 
+    }
+    if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
+      conv_op->stride = u32_pt_t( cp.stride(), cp.stride() );
+    } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.has_stride()) );
+      conv_op->stride = u32_pt_t( cp.stride_w(), cp.stride_h() );
+    }
+    if( !(cp.has_kernel_w() || cp.has_kernel_h()) ){ 
+      conv_op->kern_sz = u32_pt_t( cp.kernel_size(), cp.kernel_size() );
+    } else { assert_st( cp.has_kernel_w() && cp.has_kernel_h() && (!cp.has_kernel_size()) );
+      conv_op->kern_sz = u32_pt_t( cp.kernel_w(), cp.kernel_h() );
+    }
+    return conv_op;
+  }
+
+  p_conv_pipe_t make_p_conv_pipe_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
+  p_conv_pipe_t get_pipe( p_Net_float net, string const & out_layer_name ) {
+    p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
+    vect_string const & layer_names = net->layer_names();
+    for( uint32_t i = 0; i != layer_names.size(); ++i ) { 
+      caffe::LayerParameter const & lp = net->layers()[i]->layer_param();
+      p_conv_op_t conv_op;
+      if( 0 ) {
+      } else if( lp.has_convolution_param() ) {
+	caffe::ConvolutionParameter const & cp = lp.convolution_param();
+	conv_op = get_conv_op_from_param( cp );
+      } else if( lp.has_pooling_param() ) {
+	caffe::PoolingParameter const & pp = lp.pooling_param();
+	conv_op = get_conv_op_from_param( pp );
+      }
+      if( conv_op ) { 
+	assert( lp.has_name() );
+	conv_op->tag = lp.name();
+	conv_pipe->convs->push_back( *conv_op ); 
+      }
+      if( out_layer_name == layer_names[i] ) { 
+	conv_pipe->calc_support_info();
+	return conv_pipe; 
+      }
+    }
+    rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
+  }
+
 
   void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top ) {
     timer_t t("caffe_copy_output_blob_data");
@@ -192,6 +247,15 @@ namespace boda
   }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out( void ) { 
     return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch ); }
+  p_conv_pipe_t run_cnet_t::get_pipe( void ) { 
+    // note; there is an unfortunate potential circular dependency here: we may need the pipe info
+    // about the network before we have set it up if the desired size of the input image depends on
+    // the net architeture (i.e. support size / padding / etc ). we could potentially create a
+    // 'dummy' net with some semi-arbitrary input sizes here. but, for now, we can squeak around the
+    // dependency in our current use cases ...
+    assert_st( net ); // net must already be set up
+    return boda::get_pipe( net, out_layer_name ); 
+  }
 
   struct synset_elem_t {
     string id;

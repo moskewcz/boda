@@ -5,7 +5,11 @@
 #include"boda_base.H"
 #include"has_main.H"
 #include"geom_prim.H"
-#include"caffe/caffe.hpp"
+
+namespace caffe
+{
+  template< typename T > struct Net;
+}
 
 namespace boda 
 {
@@ -23,8 +27,8 @@ namespace boda
   typedef shared_ptr< synset_elem_t > p_synset_elem_t; 
   typedef shared_ptr< vect_synset_elem_t > p_vect_synset_elem_t; 
 
-  struct img_t;
-  typedef shared_ptr< img_t > p_img_t; 
+  struct img_t; typedef shared_ptr< img_t > p_img_t; 
+  struct conv_pipe_t; typedef shared_ptr< conv_pipe_t > p_conv_pipe_t; 
 
   struct run_cnet_t : virtual public nesi, public has_main_t // NESI(help="run a caffe net on a single input",
 		     // bases=["has_main_t"], type_id="run_cnet")
@@ -43,6 +47,7 @@ namespace boda
     void setup_cnet( void );
     u32_pt_t get_one_blob_img_out_sz( void ); // note: assumes/includes chans_to_area conversion
     p_nda_float_t run_one_blob_in_one_blob_out( void );
+    p_conv_pipe_t get_pipe( void );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 
@@ -71,6 +76,9 @@ namespace boda
   };
 
   struct cnet_predict_t; typedef shared_ptr< cnet_predict_t > p_cnet_predict_t; 
+
+  p_conv_pipe_t get_pipe( p_Net_float net, string const & out_layer_name );
+
 
 }
 

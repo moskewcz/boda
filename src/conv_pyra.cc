@@ -5,6 +5,7 @@
 #include"str_util.H"
 #include"has_main.H"
 #include"lexp.H"
+#include"nesi.H"
 #include"conv_util.H"
 #include"blf_pack.H"
 #include"img_io.H"
@@ -47,49 +48,47 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("conv_prya_top");
 
-      p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp_xml_file( pipe_fn.exp ), 0 );
-      conv_pipe->calc_support_info();
-
       p_img_t img_in( new img_t );
       img_in->load_fn( img_in_fn.exp );
-      //p_img_pyra_pack_t ipp = make_p_img_pyra_pack_t_init_and_check_unused_from_lexp( parse_lexp("(mode=img_pyra_pack,img_in_fn=fixme.remove)"), nia );
 
       ipp->in_sz.d[0] = img_in->w; ipp->in_sz.d[1] = img_in->h;
-      ipp->do_place_imgs( conv_pipe->conv_sis.back(), img_in );
-
       run_cnet->in_sz = ipp->bin_sz;
-      run_cnet->in_num_imgs = ipp->bin_imgs.size();
+      run_cnet->in_num_imgs = 1;
       run_cnet->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
       run_cnet->setup_cnet();
-      {
-	timer_t t("conv_prya_copy_bins_in");
-	// copy images to batch
-	for( uint32_t bix = 0; bix != run_cnet->in_num_imgs; ++bix ) {
-	  subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, bix, ipp->bin_imgs[bix] );
-	}
-      }
+
+      p_conv_pipe_t conv_pipe = run_cnet->get_pipe();
+      ipp->do_place_imgs( conv_pipe->conv_sis.back(), img_in );
+
       vect_p_img_t out_imgs;
-      p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
-      dims_t const & obd = out_batch->dims;
-      assert( obd.sz() == 4 );
-      assert( obd.dims(0) == run_cnet->in_batch->dims.dims(0) );
-      if( write_output || disp_output ) {
-	timer_t t("conv_pyra_write_output");
-	for( uint32_t bix = 0; bix != obd.dims(0); ++bix ) {
+      printf( "ipp->bin_imgs.size()=%s\n", str(ipp->bin_imgs.size()).c_str() );
+      for( uint32_t bix = 0; bix != ipp->bin_imgs.size(); ++bix ) {
+	{
+	  // copy images to batch
+	  timer_t t("conv_prya_copy_bins_in");
+	  subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, ipp->bin_imgs[bix] );
+	}
+	p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
+	dims_t const & obd = out_batch->dims;
+	assert( obd.sz() == 4 );
+	assert( obd.dims(0) == 1 );
+	if( write_output || disp_output ) {
+	  timer_t t("conv_pyra_write_output");
+
 	  p_img_t feat_img( new img_t );
 	  u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
 	  feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
-	  copy_batch_to_img( out_batch, bix, feat_img );
+	  copy_batch_to_img( out_batch, 0, feat_img );
 	  if( write_output ) {
 	    filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
 	    feat_img->save_fn_png( ofn.exp, 1 );
 	  }
 	  if( disp_output ) { out_imgs.push_back( feat_img ); }
 	}
-	if( disp_output ) { 
-	  disp_win_t disp_win;
-	  disp_win.disp_skel( out_imgs, 0 ); 
-	}
+      }
+      if( disp_output ) { 
+	disp_win_t disp_win;
+	disp_win.disp_skel( out_imgs, 0 ); 
       }
     }
   };  
