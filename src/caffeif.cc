@@ -17,6 +17,7 @@ namespace boda
   using caffe::Blob;
   
   void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img ) {
+    timer_t t("subtract_mean_and_copy_img_to_batch");
     dims_t const & ibd = in_batch->dims;
     assert_st( img_ix < ibd.dims(0) );
     assert_st( 3 == ibd.dims(1) );
