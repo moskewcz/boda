@@ -109,36 +109,45 @@ namespace boda
     if( img_proc ) { img_proc->on_img( img ); }
   }
 
-  int capture_t::read_frame( p_img_t const & out_img )
+  void must_q_buf( int const & cap_fd, v4l2_buffer & buf ) { 
+    if( -1 == xioctl( cap_fd, VIDIOC_QBUF, &buf ) ) { rt_err("VIDIOC_QBUF"); } }
+
+  // read any availible frames, but only process the freshest/newest one (discarding any others)
+  void capture_t::read_frame( p_img_t const & out_img )
   {
     v4l2_buffer buf = {};
+    v4l2_buffer last_buf = {};
 
-    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    // these two fields should never change/be changed by xioctl(), but this is not checked ...
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; 
     buf.memory = V4L2_MEMORY_MMAP;
 
-    if (-1 == xioctl(cap_fd, VIDIOC_DQBUF, &buf)) {
-      switch (errno) {
-      case EAGAIN:
-	return 0;
-
-      case EIO:
-	/* Could ignore EIO, see spec. */
-
-	/* fall through */
-
-      default:
-	rt_err("VIDIOC_DQBUF");
+    bool last_buf_valid = 0;
+    while( 1 ) {
+      buf.index = uint32_t_const_max; // set output to an invalid value that the xioctl() should overwrite
+      if (-1 == xioctl(cap_fd, VIDIOC_DQBUF, &buf)) {
+	switch (errno) {
+	case EAGAIN: // no frames left/availible, we're done no matter what
+	  if( last_buf_valid ) { // if we got a any frames, process the last one (only)
+	    process_image( out_img, buffers[last_buf.index]->start, buf.bytesused);
+	    must_q_buf( cap_fd, last_buf );
+	  }
+	  return;
+	case EIO:
+	  /* Could ignore EIO, see spec. */
+	  /* fall through */
+	default:
+	  rt_err("VIDIOC_DQBUF");
+	}
       }
+      // note: we assume the bufs will be DQ'd in squence order. we could handle the general case ...
+      // printf( "buf.sequence=%s\n", str(buf.sequence).c_str() );
+      // buf is now a valid buf
+      assert(buf.index < buffers.size());
+      if( last_buf_valid ) { must_q_buf( cap_fd, last_buf ); }
+      last_buf_valid = 1;
+      last_buf = buf;
     }
-
-    assert(buf.index < buffers.size());
-
-    process_image( out_img, buffers[buf.index]->start, buf.bytesused);
-
-    if (-1 == xioctl(cap_fd, VIDIOC_QBUF, &buf))
-      rt_err("VIDIOC_QBUF");
-
-    return 1;
   }
 
   void capture_t::stop_capturing(void) {
@@ -163,7 +172,7 @@ namespace boda
     
   void capture_t::init_mmap(void) {
     v4l2_requestbuffers req = {};
-    req.count = 4;
+    req.count = 2;
     req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     req.memory = V4L2_MEMORY_MMAP;
     if (-1 == xioctl(cap_fd, VIDIOC_REQBUFS, &req)) {

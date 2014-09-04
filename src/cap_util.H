@@ -42,7 +42,7 @@ namespace boda {
 
     // V4L2 funcs
     void process_image( p_img_t const & img, const void *p, int size);
-    int read_frame( p_img_t const & out_img );
+    void read_frame( p_img_t const & out_img );
 
     void init_mmap(void);
     void stop_capturing(void);
