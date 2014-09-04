@@ -168,6 +168,7 @@ namespace boda
   }
 
   void pyra_pack_t::do_place( conv_support_info_t const & csi ) {
+    assert_st( sizes.empty() );
     timer_t t("pyra_pack_do_place");
 #if 0
     // note: we if the padding between images is 'neutral', we could
@@ -321,7 +322,8 @@ namespace boda
     p_img_t img_in( new img_t );
     img_in->load_fn( img_in_fn.exp );
     in_sz.d[0] = img_in->w; in_sz.d[1] = img_in->h;
-    do_place_imgs( conv_support_info_t{min_pad,align,eff_tot_pad}, img_in );
+    do_place_imgs( conv_support_info_t{min_pad,align,eff_tot_pad} );
+    scale_and_pack_img_into_bins( img_in );
     if( write_images ) { 
       for( uint32_t bix = 0; bix != num_bins; ++bix ) {
 	filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
@@ -331,20 +333,10 @@ namespace boda
     }
   }
 
-  void img_pyra_pack_t::do_place_imgs( conv_support_info_t const & csi, p_img_t img_in ) {
-    timer_t t("img_pyra_pack_do_place_imgs");
-    do_place( csi );
-    create_pyra_imgs( pyra_imgs, img_in, *this );
-    uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
+  uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
 
-    {
-      timer_t t2("img_pyra_pack_create_bins");
-      for( uint32_t bix = 0; bix != num_bins; ++bix ) {
-	bin_imgs.push_back( p_img_t( new img_t ) );
-	bin_imgs.back()->set_sz_and_alloc_pels( bin_sz.d[0], bin_sz.d[1] ); // w, h
-	bin_imgs.back()->fill_with_pel( inmc );
-      }
-    }
+  void img_pyra_pack_t::scale_and_pack_img_into_bins( p_img_t img_in ) {
+    create_pyra_imgs( pyra_imgs, img_in, *this );
 #pragma omp parallel for 
     for( uint32_t pix = 0; pix < pyra_imgs.size(); ++pix ) {
       //filename_t ofn = filename_t_printf( img_out_fn, str(pix).c_str() );
@@ -357,7 +349,21 @@ namespace boda
       //printf( "dest=%s sizes.at(pix)=%s pads.at(pix)=%s\n", str(dest).c_str(), str(sizes.at(pix)).c_str(), str(pads.at(pix)).c_str() );
       img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), inmc );
     }
+  }
 
+  void img_pyra_pack_t::do_place_imgs( conv_support_info_t const & csi ) {
+    timer_t t("img_pyra_pack_do_place_imgs");
+    assert_st( bin_imgs.empty() );
+    do_place( csi );
+    assert_st( num_bins );
+    {
+      timer_t t2("img_pyra_pack_create_bins");
+      for( uint32_t bix = 0; bix != num_bins; ++bix ) {
+	bin_imgs.push_back( p_img_t( new img_t ) );
+	bin_imgs.back()->set_sz_and_alloc_pels( bin_sz.d[0], bin_sz.d[1] ); // w, h
+	bin_imgs.back()->fill_with_pel( inmc );
+      }
+    }
   }
 
 

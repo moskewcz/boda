@@ -10,6 +10,7 @@
 #include"blf_pack.H"
 #include"img_io.H"
 #include"disp_util.H"
+#include"cap_util.H"
 
 #include "caffeif.H"
 #include <glog/logging.h>
@@ -20,56 +21,59 @@ namespace boda
   using namespace boost;
 
   struct conv_pyra_t : virtual public nesi, public has_main_t // NESI(help="conv_ana / blf_pack integration test",
-		       // bases=["has_main_t"], type_id="conv_pyra")
+		       // bases=["has_main_t"], type_id="conv_pyra" )
+		     , public img_proc_t
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
     p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt)",help="cnet running options")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="output filename.")
     
-    filename_t img_in_fn; //NESI(default="%(boda_test_dir)/pascal/000001.jpg",help="input image filename")
+    //filename_t img_in_fn; //xNESI(default="%(boda_test_dir)/pascal/000001.jpg",help="input image filename")
     filename_t img_out_fn; // NESI(default="%(boda_output_dir)/out_%%s.png", help="format for filenames of"
                            //   " output image bin files. %%s will replaced with the bin index.")
     string out_layer_name;//NESI(default="conv5",help="output layer name of which to output top blob of")
     uint32_t write_output; //NESI(default=0,help="if true, write output images/bins (slow)")
     uint32_t disp_output; //NESI(default=0,help="if true, display output images/bins")
     p_img_pyra_pack_t ipp; //NESI(default="()",help="pyramid packing options")
-
+    p_capture_t capture; //NESI(default="()",help="capture from camera options")
+    
+    p_img_t feat_img;
+    
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("conv_prya_top");
-      p_img_t img_in( new img_t );
-      img_in->load_fn( img_in_fn.exp );
-
-      ipp->in_sz.d[0] = img_in->w; ipp->in_sz.d[1] = img_in->h;
+      
+      //p_img_t img_in( new img_t );
+      //img_in->load_fn( img_in_fn.exp );
+      
+      //u32_pt_t const img_in_sz( img_in->w, img_in->h );
+      u32_pt_t const img_in_sz( capture->cap_res );
+      ipp->in_sz = img_in_sz;
       run_cnet->in_sz = ipp->bin_sz;
       run_cnet->in_num_imgs = 1;
       run_cnet->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
       run_cnet->setup_cnet();
 
       p_conv_pipe_t conv_pipe = run_cnet->get_pipe();
-      ipp->do_place_imgs( conv_pipe->conv_sis.back(), img_in );
+      ipp->do_place_imgs( conv_pipe->conv_sis.back() );
 
-      vect_p_img_t out_imgs;
-      printf( "ipp->bin_imgs.size()=%s\n", str(ipp->bin_imgs.size()).c_str() );
+      feat_img.reset( new img_t );
+      u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
+      feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
+      capture->disp_imgs.push_back( feat_img );
+      capture->cap_loop( this ); 
+
+    }
+
+    virtual void on_img( p_img_t const & img ) {
+      ipp->scale_and_pack_img_into_bins( img );
       for( uint32_t bix = 0; bix != ipp->bin_imgs.size(); ++bix ) {
 	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, ipp->bin_imgs[bix] );
 	p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
 	if( write_output || disp_output ) {
 	  timer_t t("conv_pyra_write_output");
-	  p_img_t feat_img( new img_t );
-	  u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
-	  feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
 	  copy_batch_to_img( out_batch, 0, feat_img );
-	  if( write_output ) {
-	    filename_t ofn = filename_t_printf( img_out_fn, str(bix).c_str() );
-	    feat_img->save_fn_png( ofn.exp, 1 );
-	  }
-	  if( disp_output ) { out_imgs.push_back( feat_img ); }
 	}
-      }
-      if( disp_output ) { 
-	disp_win_t disp_win;
-	disp_win.disp_skel( out_imgs, 0 ); 
       }
     }
   };  

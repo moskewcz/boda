@@ -69,7 +69,8 @@ namespace boda
     // outputs
     vect_p_img_t pyra_imgs;
     vect_p_img_t bin_imgs;
-    void do_place_imgs( conv_support_info_t const & csi, p_img_t img_in );
+    void scale_and_pack_img_into_bins( p_img_t img_in );
+    void do_place_imgs( conv_support_info_t const & csi );
   };
 
   typedef vector< img_pyra_pack_t > vect_img_pyra_pack_t; 
