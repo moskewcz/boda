@@ -60,6 +60,11 @@ namespace boda
 
   std::string join( vect_string const & vs, std::string const & sep );
   vect_string split( std::string const & s, char const sep );
+
+  inline void strip_prefixes( std::string & s, std::string const & prefix )
+  {
+    while( startswith(s,prefix) ) { s = std::string( s, prefix.size() ); }
+  }
   
   inline void strip_suffs( std::string & s, std::string const & suff )
   {

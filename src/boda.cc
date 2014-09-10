@@ -33,41 +33,43 @@ namespace boda
   char const * const boda_xml_usage = "boda xml command_file.xml[:element][:subelement][:...]";
 
   // scan all arguments (execpt 0) for anything that looks like a 'cry for help', so we can force help-mode if found 
-  int32_t check_has_help_arg( int const argc, char const * const * const argv ) {
+  void check_has_help_arg_and_setup_help( int const argc, char const * const * const argv,
+					  bool & do_help, bool & help_ex, bool & help_all, vect_string & help_args ) 
+  {
+    assert( (!do_help) && (!help_ex) && (!help_all) );
     for( int32_t i = 1; i < argc; ++i ) {
-      string const arg(argv[i]);
-      if( startswith( arg, "--help" ) ||  ( arg == "-h" ) ) { return i; } // no help_ex / help_all with short opt form
+      string arg = argv[i];
+      strip_prefixes( arg, "--" );
+      if( do_help ) { help_args.push_back( arg ); continue; } // note: stripped of "--"'s ...
+      if( arg == "-h" ) { do_help = 1; continue; } // it's not possible to enable help_ex / help_all with short opt form
+      if( startswith( arg, "help" ) ) { 
+	do_help = 1;
+	help_all |= startswith( arg, "help_all" );
+	help_ex |=  endswith( arg, "_ex" );
+	continue;
+      }
+      if( i == 1 ) {
+	assert( !do_help ); // otherwise, would have continued
+	help_args.push_back( arg ); // keep mode arg (stripped of "--"'s, not that that should matter).
+      }
     }
-    return 0;
   }
 
   int boda_main_arg_proc( ostream & os, int argc, char **argv ) {
     string prefix; // empty prefix for printing usage
     string out; // output string for printing usage
-    int32_t const help_arg_ix = check_has_help_arg( argc, argv );
+    bool do_help = 0, help_ex = 0, help_all = 0;
+    vect_string help_args;
+    check_has_help_arg_and_setup_help( argc, argv, do_help, help_ex, help_all, help_args );
     std::string const mode = argv[1];
-    bool const mode_is_help_mode = mode == "help" || mode == "help_all" || mode == "help_all_ex";
     if(0) { } 
     // low-level help/testing modes that either cannot rely on NESI
     // support or where it seem to make little sense to use it
-    else if( help_arg_ix || mode_is_help_mode ) {
-      bool show_all = 0;
-      bool help_ex = 0;
-      // setup the help-args, and parse the (singular) help-arg
-      vect_string help_args;
-      for( int32_t i = 1; i < argc; ++i ) { 
-	string const arg(argv[i]);
-	if( ( i == help_arg_ix ) || ( (i == 1) && mode_is_help_mode ) ) { 
-	  // note: handles both '--help' and 'help' forms of help arg
-	  show_all |= startswith( arg, "help_all" ) || startswith( arg, "--help_all" );
-	  help_ex |=  endswith( arg, "_ex" );
-	}
-	else { help_args.push_back( arg ); }
-      }
+    else if( do_help ) {
       if( help_args.empty() ) { 
 	os <<  strprintf("error: boda help/help_all takes at least 1 argument, but got %s\nfor help:   %s\n%s\n\n",
 			 str(argc-2).c_str(), boda_help_usage, boda_help_all_note);
-	nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, show_all ); os << out;
+	nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, help_all ); os << out;
 	return 1;
       } else { 
 	std::string const help_for_mode = help_args.front();
@@ -76,7 +78,7 @@ namespace boda
 	p_has_main_t has_main;
 	lexp_name_val_map_t nvm( lexp );
 	nesi_struct_make_p( &nvm, &tinfo_has_main_t, &has_main );
-	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, show_all, &help_args, 0 ); os << out;
+	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, help_all, &help_args, 0 ); os << out;
       }
     }
     else if( mode == "xml" ) {
