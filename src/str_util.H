@@ -92,6 +92,12 @@ namespace boda
   template< typename T >
   inline std::ostream & operator << ( std::ostream & out, shared_ptr< T > const & v ) { return out << (*v); }
 
+  struct string_scoped_prefixer_t {
+    std::string & s;
+    uint32_t const orig_sz; 
+    string_scoped_prefixer_t( std::string & s_, std::string const & prefix ) : s(s_), orig_sz( s.size() ) { s += prefix; }
+    ~string_scoped_prefixer_t( void ) { s.resize( orig_sz ); }
+  };
 
   class str_exception : public std::exception
   {
