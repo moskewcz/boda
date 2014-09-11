@@ -78,7 +78,7 @@ namespace boda
 	p_has_main_t has_main;
 	lexp_name_val_map_t nvm( lexp );
 	nesi_struct_make_p( &nvm, &tinfo_has_main_t, &has_main );
-	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, help_all, &help_args, 0 ); os << out;
+	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, prefix, help_all, &help_args, 0 ); os << out;
       }
     }
     else if( mode == "xml" ) {

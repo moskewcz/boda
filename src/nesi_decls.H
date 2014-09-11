@@ -10,6 +10,10 @@
 // lack namespace blocks or other includes. while this method seems
 // okay for now it may want or need to be changed at some point.
 
+// note: minimally, external predeclarations of some std:: classes are
+// required, such as std::string. this seems okay for now, but we
+// could probably do something different if need be.
+
 struct nesi;
 struct tinfo_t;
 struct nesi_dump_buf_t;
@@ -29,8 +33,8 @@ typedef void * set_p_cname_from_p_nesi_t( void * v, void * dv );
 typedef void init_t( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ); // o is (t *), calls o->init( init_arg, ... )
 typedef void * vect_push_back_t( void * v ); // v is (vect_t *), calls v->push_back( t() ), return & v->back()
 typedef bool nesi_dump_t( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb );
-typedef void nesi_help_t( tinfo_t const * tinfo, void * o, void * os, 
-			  bool const show_all, void * help_args, uint32_t help_ix );
+typedef void nesi_help_t( tinfo_t const * tinfo, void * o, string * os, string & prefix, 
+			  bool const show_all, vect_string * help_args, uint32_t help_ix );
 
 init_t nesi_struct_init;
 init_t vect_init;

@@ -143,11 +143,14 @@ namespace boda
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
     return pt->nesi_dump( pt, ((p_void *)o)->get(), ndb );
   }
-  void p_nesi_help( tinfo_t const * tinfo, void * o, void * os, 
-		    bool const show_all, void * help_args, uint32_t help_ix ) {
+
+  string const deep_help_str( "-" );
+
+  void p_nesi_help( tinfo_t const * tinfo, void * o, string * os, string & prefix,
+		    bool const show_all, vect_string * help_args, uint32_t help_ix ) {
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg ); 
     void * fo = o ? ((p_void *)o)->get() : 0; // note: fo is NULL is o is NULL, or if o points to NULL
-    return pt->nesi_help( pt, fo, os, show_all, help_args, help_ix ); // as per above, fo may be null
+    return pt->nesi_help( pt, fo, os, prefix, show_all, help_args, help_ix ); // as per above, fo may be null
   }
 
   void vect_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
@@ -193,15 +196,15 @@ namespace boda
   //  note: we could use a help arg here as a list index. this seems
   //  slightly more correct and complete, but also not to useful and
   //  confusing. hmm.
-  void vect_nesi_help( tinfo_t const * tinfo, void * o, void * os, 
-		    bool const show_all, void * help_args, uint32_t help_ix ) {
+  void vect_nesi_help( tinfo_t const * tinfo, void * o, string * os, string & prefix,
+		    bool const show_all, vect_string * help_args, uint32_t help_ix ) {
     tinfo_t * const pt = (tinfo_t *)( tinfo->init_arg );
     void * fo = 0;
     if( o ) { // note: use first elem, or NULL if vect is empty or NULL itself
       vect_char & vc = *(vect_char *)( o );
       if( vc.size() ) { fo = (&vc.front()); }
     } 
-    return pt->nesi_help( pt, fo, os, show_all, help_args, help_ix ); // note: as per above, fo may be null
+    return pt->nesi_help( pt, fo, os, prefix, show_all, help_args, help_ix ); // note: as per above, fo may be null
   }
 
   void init_var_from_nvm( nesi_init_arg_t * nia, vinfo_t const * const vi, void * rpv )
@@ -267,18 +270,19 @@ namespace boda
     } else if( *(ci->derived) ) { *os += ">" + string(ci->help) + "; has subtypes:"; }
     else { *os += string(ci->help); }
     *os += string("\n");
-    uint32_t const orig_prefix_sz = prefix.size();
-    prefix += "|   ";
-    for( cinfo_t const * const * dci = ci->derived; *dci; ++dci ) { 
-      nesi_struct_hier_help( *dci, os, prefix, show_all );
+    {
+      string_scoped_prefixer_t ssp( prefix, "|   " );
+      for( cinfo_t const * const * dci = ci->derived; *dci; ++dci ) { 
+	nesi_struct_hier_help( *dci, os, prefix, show_all );
+      }
     }
-    prefix.resize( orig_prefix_sz );
   }
 
-  void nesi_struct_vars_help_rec( string * const os, cinfo_t const * ci, bool const show_all )
+  void nesi_struct_vars_help_rec( void * o, string * const os, string & prefix, cinfo_t const * ci, bool const show_all,
+				  vect_string * help_args, uint32_t help_ix ) 
   {
     for( cinfo_t const * const * bci = ci->bases; *bci; ++bci ) { // handle bases
-      nesi_struct_vars_help_rec( os, *bci, show_all );
+      nesi_struct_vars_help_rec( o, os, prefix, *bci, show_all, help_args, help_ix );
     }
     for( uint32_t i = 0; ci->vars[i].exists(); ++i ) {
       vinfo_t const * vi = &ci->vars[i];
@@ -287,8 +291,15 @@ namespace boda
       string req_opt_def = "(optional)";
       if( vi->req ) { req_opt_def = "(required)"; assert_st( !vi->default_val ); }
       else if( vi->default_val ) { req_opt_def = strprintf("(default='%s')",vi->default_val ); }
-      *os += strprintf( "  %s: %s%s type=%s  --  %s\n", vi->vname, 
+      *os += strprintf( "%s  %s: %s%s type=%s  --  %s\n", prefix.c_str(), vi->vname, 
 			hidden, req_opt_def.c_str(), vi->tinfo->tname, vi->help );
+      // for 'deep help' case, descend to all fields
+      if( (help_ix < help_args->size()) && (help_args->at(help_ix) == deep_help_str) ) { 
+	string_scoped_prefixer_t ssp( prefix, "  |   " );
+	void * fo = 0;
+	if( o ) { fo = ci->get_field( o, i ); }
+	vi->tinfo->nesi_help( vi->tinfo, fo, os, prefix, show_all, help_args, help_ix );
+      }
     }
   }
 
@@ -310,29 +321,26 @@ namespace boda
   }
 
 
-  void nesi_struct_nesi_help( tinfo_t const * tinfo, void * o, void * os_, 
-			      bool const show_all, void * help_args_, uint32_t help_ix ) {
+  void nesi_struct_nesi_help( tinfo_t const * tinfo, void * o, string * os, string & prefix,
+			      bool const show_all, vect_string * help_args, uint32_t help_ix ) {
     cinfo_t const * ci = (cinfo_t const *)( tinfo->init_arg );
     make_most_derived( ci, o, 1 ); // null ok here
-    string * os = (string *)os_; 
-    vect_string * help_args = (vect_string *)help_args_; 
     assert_st( help_args );
-    if( help_ix < help_args->size() ) { // use a help-arg to decend
+    assert_st( help_ix <= help_args->size() );
+    if( (help_ix < help_args->size()) && (help_args->at(help_ix) != deep_help_str) ) { // use a help-arg to decend
       void * fo = 0;
       vinfo_t const * vi = nesi_struct_find_var( ci, o, help_args->at(help_ix), fo ); // may or may not set fo
       if( !vi ) { rt_err( strprintf("struct '%s' has no field '%s', so help cannot be provided for it.",
 				    ci->cname, help_args->at(help_ix).c_str() ) ); }
-      *os += strprintf( "DECENDING TO DEATILED HELP FOR field '%s' of type=%s of struct '%s'\n",
-			vi->vname, vi->tinfo->tname, ci->cname );
+      *os += strprintf( "%sDESCENDING TO DETAILED HELP FOR field '%s' of type=%s of struct '%s'\n",
+			prefix.c_str(), vi->vname, vi->tinfo->tname, ci->cname );
       assert_st( vi->tinfo->nesi_help );
-      vi->tinfo->nesi_help( vi->tinfo, fo, os, show_all, help_args, help_ix + 1 );
-    } else { // leaf case, emit help for this struct
-      assert_st( help_ix == help_args->size() );
-      string prefix;
-      *os += strprintf( "\nTYPE INFO:\n" );
+      vi->tinfo->nesi_help( vi->tinfo, fo, os, prefix, show_all, help_args, help_ix + 1 );
+    } else { // leaf or deep case, emit help for this struct
+      *os += strprintf( "%sTYPE INFO:\n", prefix.c_str() );
       nesi_struct_hier_help( ci, os, prefix, show_all );
-      *os += strprintf( "\nFIELDS:\n" );
-      nesi_struct_vars_help_rec( os, ci, show_all );
+      *os += strprintf( "%sFIELDS:\n", prefix.c_str() );
+      nesi_struct_vars_help_rec( o, os, prefix, ci, show_all, help_args, help_ix );
     }
   } 
 
@@ -511,17 +519,17 @@ namespace boda
     p->reset( new T );
     return p->get();
   }
-  void leaf_type_nesi_help( tinfo_t const * tinfo, void * o, void * os_, 
-			    bool const show_all, void * help_args_, uint32_t help_ix ) {
-    string * os = (string *)os_; 
-    vect_string * help_args = (vect_string *)help_args_; 
+  void leaf_type_nesi_help( tinfo_t const * tinfo, void * o, string * os, string & prefix,
+			    bool const show_all, vect_string * help_args, uint32_t help_ix ) {
     assert_st( help_args );
     if( help_ix < help_args->size() ) { // use a help-arg to decend
-      rt_err( strprintf("leaf type '%s' has no fields at all, certainly not '%s', so help cannot be provided for it.",
-			tinfo->tname, help_args->at(help_ix).c_str() ) );
+      if( help_args->at(help_ix) != deep_help_str ) { // for 'deep help' case, don't print anything for leaf types
+	rt_err( strprintf("%sleaf type '%s' has no fields at all, certainly not '%s', so help cannot be provided for it.",
+			  prefix.c_str(), tinfo->tname, help_args->at(help_ix).c_str() ) );
+      }
     } else { // leaf case, emit help for this leaf type
       assert_st( help_ix == help_args->size() );
-      *os += strprintf( "LEAF TYPE INFO: %s\n", (char const *)tinfo->init_arg );
+      *os += strprintf( "%sLEAF TYPE INFO: %s\n", prefix.c_str(), (char const *)tinfo->init_arg );
     }
   }
 
