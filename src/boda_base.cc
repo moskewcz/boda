@@ -6,6 +6,7 @@
 #include<cxxabi.h>
 #include<boost/filesystem.hpp>
 #include<boost/iostreams/device/mapped_file.hpp>
+#include<sys/mman.h>
 
 namespace boda 
 {
@@ -23,6 +24,19 @@ namespace boda
 		      str( o1->elems.cnt_diff_elems( o2->elems ) ).c_str(),
 		      str( ssds ).c_str(), str( aad ).c_str(),
 		      str( sds ).c_str(), str( ad ).c_str() );
+  }
+
+  struct uint8_t_munmap_deleter { 
+    size_t length;
+    uint8_t_munmap_deleter( size_t const & length_ ) : length(length_) { }
+    void operator()( uint8_t * const & b ) const { if( munmap( b, length) == -1 ) { rt_err("munmap"); } } 
+  };
+  p_uint8_t make_mmap_shared_p_uint8_t( int const fd, size_t const length, off_t const offset ) {
+    int flags = MAP_SHARED;
+    if( fd == -1 ) { assert_st( !offset ); flags |= MAP_ANONYMOUS; }
+    void * ret = mmap( 0, length, PROT_READ | PROT_WRITE, flags, fd, offset);
+    if( MAP_FAILED == ret ) { rt_err("mmap"); }
+    return p_uint8_t( (uint8_t *)ret, uint8_t_munmap_deleter( length ) ); 
   }
 
   void * posix_memalign_check( size_t const sz, uint32_t const a ) {

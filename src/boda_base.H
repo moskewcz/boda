@@ -110,6 +110,7 @@ namespace boda
 
   typedef vector< void * > vect_rp_void;
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
+  typedef vector< char * > vect_rp_char;
   p_vect_rp_void get_backtrace( void );
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   bool ensure_is_dir( string const & fn, bool const create = 0 );
@@ -117,6 +118,7 @@ namespace boda
 
   typedef vector< uint8_t > vect_uint8_t;  
   typedef shared_ptr< uint8_t > p_uint8_t;  
+  typedef vector< p_uint8_t > vect_p_uint8_t;  
   typedef vector< uint32_t > vect_uint32_t;
   typedef shared_ptr< uint32_t > p_uint32_t;  
   typedef vector< float > vect_float; 
@@ -124,6 +126,7 @@ namespace boda
   typedef vector< double > vect_double; 
   typedef shared_ptr< double > p_double; 
 
+  p_uint8_t make_mmap_shared_p_uint8_t( int const fd, size_t const length, off_t const offset );
   void * posix_memalign_check( size_t const sz, uint32_t const a );
   // ma_p == make aligned shared_ptr. note: alloc'd with posix_memaling() and has custom deleter that invokes free()
   template< typename T > inline shared_ptr< T > ma_p_T( uint32_t const num, uint32_t const a ) {
