@@ -6,6 +6,8 @@
 #include"str_util.H"
 #include"img_io.H"
 #include<poll.h>
+#include"mutex.H"
+
 #if 0
 struct timespec deadline;
 clock_gettime(CLOCK_MONOTONIC, &deadline);
@@ -206,6 +208,10 @@ namespace boda
                     paused = !paused;
                     break;
                 }
+                if (event.key.keysym.sym == SDLK_r) {
+		  imgs[0]->fill_with_pel( grey_to_pel( 20 ) );
+		  break;
+		}
                 if (event.key.keysym.sym != SDLK_ESCAPE) {
                     break;
                 }
@@ -217,7 +223,8 @@ namespace boda
 
 	int const ppoll_ret = ppoll( &pollfds[0], pollfds.size(), &fpsdelay, 0 );
 	if( ppoll_ret < 0 ) {
-	  assert_st( ppoll_ret == EINTR ); // FIXME: should handle
+	  assert_st( ppoll_ret == -1 ); 
+	  assert_st( errno == EINTR ); // FIXME: should handle (better)
 	} else if( ppoll_ret > 0 ) {
 	  {
 	    short const re = pollfds[0].revents;
