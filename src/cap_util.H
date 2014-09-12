@@ -5,11 +5,6 @@
 
 namespace boda {
 
-  // FIXME: promote mmap_buffer to boda_base and/or use elsewhere?
-  struct mmap_buffer;
-  typedef shared_ptr< mmap_buffer > p_mmap_buffer;
-  typedef vector< p_mmap_buffer > vect_p_mmap_buffer;
-
   struct capture_t : public poll_req_t, virtual public nesi, public has_main_t // NESI(help="video capture skeleton",
 		      // bases=["has_main_t"], type_id="capture")
   {
@@ -38,7 +33,7 @@ namespace boda {
 
     // V4L2 data
     int cap_fd;
-    vect_p_mmap_buffer buffers;
+    vect_p_uint8_t buffers;
 
     // V4L2 funcs
     void process_image( p_img_t const & img, const void *p, int size);

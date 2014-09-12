@@ -17,7 +17,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
 
@@ -32,28 +31,6 @@ namespace boda
       if( (ret == -1) && (errno == EINTR) ) { continue; }
       return ret;
     }
-  }
-
-  struct mmap_buffer { void   *start; size_t  length;  };
-  typedef shared_ptr< mmap_buffer > p_mmap_buffer;
-  typedef vector< p_mmap_buffer > vect_p_mmap_buffer;
-
-  struct mmap_buffer_deleter { 
-    void operator()( mmap_buffer * const b ) const { if( munmap( b->start, b->length) == -1 ) { rt_err("munmap"); } } 
-  };
-
-  p_mmap_buffer make_p_mmap_buffer( int const fd, size_t const length, off_t const offset ) {
-    mmap_buffer ret;
-
-    ret.length = length;
-    ret.start =
-      mmap(NULL /* start anywhere */,
-	   length,
-	   PROT_READ | PROT_WRITE /* required */,
-	   MAP_SHARED /* recommended */,
-	   fd, offset);
-    if( MAP_FAILED == ret.start ) { rt_err("mmap"); }
-    return p_mmap_buffer( new mmap_buffer( ret ), mmap_buffer_deleter() ); 
   }
 
   p_run_cnet_t make_p_run_cnet_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
@@ -129,7 +106,7 @@ namespace boda
 	switch (errno) {
 	case EAGAIN: // no frames left/availible, we're done no matter what
 	  if( last_buf_valid ) { // if we got a any frames, process the last one (only)
-	    process_image( out_img, buffers[last_buf.index]->start, buf.bytesused);
+	    process_image( out_img, buffers[last_buf.index].get(), buf.bytesused);
 	    must_q_buf( cap_fd, last_buf );
 	  }
 	  return;
@@ -189,7 +166,7 @@ namespace boda
       buf.index       = bix;
       if( -1 == xioctl(cap_fd, VIDIOC_QUERYBUF, &buf) ) { rt_err("VIDIOC_QUERYBUF"); }
 	
-      buffers.push_back( make_p_mmap_buffer( cap_fd, buf.length, buf.m.offset ) );
+      buffers.push_back( make_mmap_shared_p_uint8_t( cap_fd, buf.length, buf.m.offset ) );
     }
   }
 
