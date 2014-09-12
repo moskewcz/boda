@@ -27,8 +27,7 @@ namespace boda
     if( tj_ret ) { rt_err( "failed to load image '"+fn+"': "  + err_tag + " failed:" + string(tjGetErrorStr()) ); } }
 
   // note: sets row_align to a default value if it is zero
-  void img_t::set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ )
-  {
+  void img_t::set_sz( uint32_t const w_, uint32_t const h_ ) {
     w = w_; h = h_; 
     if( (!w) || (!h) ) { 
       rt_err( strprintf("can't create zero-area image. requests WxH was %sx%s",str(w).c_str(), str(h).c_str())); }
@@ -38,8 +37,9 @@ namespace boda
     row_pitch = ceil_row_size_over_row_align * row_align; // multiple of row_align / padded
     row_pitch_pels = row_pitch / depth;
     assert_st( row_pitch_pels * depth == row_pitch ); // could relax?
-    pels = ma_p_uint8_t( row_pitch*h, row_align );
   }
+  void img_t::alloc_pels( void ) { pels = ma_p_uint8_t( sz_raw_bytes(), row_align ); }
+  void img_t::set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ ) { set_sz( w_, h_ ); alloc_pels(); }
 
   void img_t::fill_with_pel( uint32_t const & v ) {
     uint64_t const vv = (uint64_t(v) << 32) + v;

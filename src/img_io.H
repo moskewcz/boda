@@ -26,7 +26,10 @@ namespace boda
     img_t( void ) : depth(4), w(0), row_align(0), row_pitch(0), row_pitch_pels(0), h(0) {}
     // if desired, call to set requested row alignment *before* loading
     void set_row_align( uint32_t const row_align_ ) { assert(!row_align); row_align = row_align_; }
+    void set_sz( uint32_t const w_, uint32_t const h_ );
+    void alloc_pels( void );
     void set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ );
+
     void fill_with_pel( uint32_t const & v );
     void load_fn( std::string const & fn );
     void load_fn_jpeg( std::string const & fn );
