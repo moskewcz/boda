@@ -15,6 +15,9 @@ namespace boda
   using filesystem::path;
   using filesystem::filesystem_error;
 
+  void rt_err_errno( char const * const func_name ) { rt_err( strprintf( "%s failed with errno=%s (%s)", func_name, str(errno).c_str(),
+									 strerror(errno) ) ); }
+
   string ssds_str( p_nda_double_t o1, p_nda_double_t o2 ) {
     double ssds = 0, sds = 0;
     sum_squared_diffs( ssds, sds, o1->elems, o2->elems );
@@ -26,17 +29,32 @@ namespace boda
 		      str( sds ).c_str(), str( ad ).c_str() );
   }
 
+  // questionably, we use (abuse?) the fact that we can mutate the
+  // deleter to support mremap()ing the memory pointed to by the
+  // deleter's (unique) shared_ptr.
   struct uint8_t_munmap_deleter { 
     size_t length;
-    uint8_t_munmap_deleter( size_t const & length_ ) : length(length_) { }
-    void operator()( uint8_t * const & b ) const { if( munmap( b, length) == -1 ) { rt_err("munmap"); } } 
+    uint8_t_munmap_deleter( size_t const & length_ ) : length(length_) { assert(length); }
+    void operator()( uint8_t * const & b ) const { if( !length ) { return; } if( munmap( b, length) == -1 ) { rt_err("munmap"); } } 
   };
+
   p_uint8_t make_mmap_shared_p_uint8_t( int const fd, size_t const length, off_t const offset ) {
     int flags = MAP_SHARED;
     if( fd == -1 ) { assert_st( !offset ); flags |= MAP_ANONYMOUS; }
     void * ret = mmap( 0, length, PROT_READ | PROT_WRITE, flags, fd, offset);
-    if( MAP_FAILED == ret ) { rt_err("mmap"); }
+    if( MAP_FAILED == ret ) { rt_err_errno("mmap(...)"); }
     return p_uint8_t( (uint8_t *)ret, uint8_t_munmap_deleter( length ) ); 
+  }
+
+  void remap_mmap_shared_p_uint8_t( p_uint8_t &p, size_t const new_length ) {
+    assert_st( p.unique() );
+    uint8_t_munmap_deleter * d = get_deleter<uint8_t_munmap_deleter>(p);
+    assert_st( d );
+    assert( new_length > d->length );
+    void * new_d = mremap( p.get(), d->length, new_length, MREMAP_MAYMOVE );
+    if( MAP_FAILED == new_d ) { rt_err_errno("mmap(...)"); }
+    d->length = 0; // make currently deleter into a no-op
+    p.reset( (uint8_t *)new_d, uint8_t_munmap_deleter( new_length ) );
   }
 
   void * posix_memalign_check( size_t const sz, uint32_t const a ) {

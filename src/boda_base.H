@@ -127,6 +127,7 @@ namespace boda
   typedef shared_ptr< double > p_double; 
 
   p_uint8_t make_mmap_shared_p_uint8_t( int const fd, size_t const length, off_t const offset );
+  void remap_mmap_shared_p_uint8_t( p_uint8_t &p, size_t const new_length );
   void * posix_memalign_check( size_t const sz, uint32_t const a );
   // ma_p == make aligned shared_ptr. note: alloc'd with posix_memaling() and has custom deleter that invokes free()
   template< typename T > inline shared_ptr< T > ma_p_T( uint32_t const num, uint32_t const a ) {
