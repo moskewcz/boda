@@ -183,7 +183,7 @@ namespace boda
       img->fill_with_pel( grey_to_pel( 128 ) );
 
       // fork/exec
-      fork_and_exec_self( {"boda","display_test",
+      fork_and_exec_self( {"boda","display_ipc",
 	    strprintf("--pels-off=%s",str(pels_off).c_str()),
 	    strprintf("--boda-shm-fd=%s",str(boda_shm_fd).c_str())} );
 
@@ -197,8 +197,8 @@ namespace boda
   };
 
 
-  struct display_test_t : virtual public nesi, public has_main_t // NESI(help="video display test",
-			  // bases=["has_main_t"], type_id="display_test")
+  struct display_ipc_t : virtual public nesi, public has_main_t // NESI(help="video display over ipc test",
+			  // bases=["has_main_t"], type_id="display_ipc")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     int32_t boda_shm_fd; //NESI(help="an open fd created by shm_open() in the parent process.",req=1)
@@ -216,6 +216,21 @@ namespace boda
       disp_imgs.push_back( img );
       //fork();
 
+      disp_win_t disp_win;
+      disp_win.disp_skel( disp_imgs, 0 ); 
+    }
+  };
+
+  struct display_test_t : virtual public nesi, public has_main_t // NESI(help="video display test",
+			  // bases=["has_main_t"], type_id="display_test")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_p_img_t disp_imgs;
+    virtual void main( nesi_init_arg_t * nia ) { 
+      p_img_t img( new img_t );
+      img->set_sz_and_alloc_pels( 100, 100 );
+      img->fill_with_pel( grey_to_pel( 128 ) );
+      disp_imgs.push_back( img );
       disp_win_t disp_win;
       disp_win.disp_skel( disp_imgs, 0 ); 
     }

@@ -7,21 +7,10 @@
 #include"img_io.H"
 #include<poll.h>
 #include"mutex.H"
+#include<boost/asio.hpp>
+#include<boost/bind.hpp>
+#include<boost/date_time/posix_time/posix_time.hpp>
 
-#if 0
-struct timespec deadline;
-clock_gettime(CLOCK_MONOTONIC, &deadline);
-
-// Add the time you want to sleep
-deadline.tv_nsec += 1000;
-
-// Normalize the time to account for the second boundary
-if(deadline.tv_nsec >= 1000000000) {
-    deadline.tv_nsec -= 1000000000;
-    deadline.tv_sec++;
-}
-clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL);
-#endif
 
 namespace boda 
 {
@@ -48,11 +37,12 @@ namespace boda
   void * pipe_stuffer( void * rpv_pfd ) {
     int const pfd = (int)(intptr_t)rpv_pfd;
     uint8_t const c = 123;
-    for( uint32_t i = 0; i < 10; ++i ) {
+    for( uint32_t i = 0; i < 2; ++i ) {
       ssize_t const w_ret = write( pfd, &c, 1 );
       assert_st( w_ret == 1 );
       delay_secs( 1 );
     }
+    close( pfd );
     return 0;
   }
 
@@ -101,15 +91,43 @@ namespace boda
     }
   }
 
+  typedef boost::system::error_code error_code;
+  typedef boost::asio::posix::stream_descriptor asio_fd_t;
+  typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
+
+  struct asio_t {
+    asio_t( void ) : frame_timer(io), pipe_afd(io) { }
+    boost::asio::io_service io;
+    boost::asio::deadline_timer frame_timer;
+    posix_time::time_duration frame_dur;
+    asio_fd_t pipe_afd;
+    uint8_t pipe_data;
+  };
+
+  void on_frame( disp_win_t * const dw, error_code const & ec ) {
+    if( ec ) { return; } // handle?
+    //printf( "dw->asio->frame_timer->expires_at()=%s\n", str(dw->asio->frame_timer.expires_at()).c_str() );
+    dw->asio->frame_timer.expires_at( dw->asio->frame_timer.expires_at() + dw->asio->frame_dur );
+    dw->drain_sdl_events_and_redisplay();
+    if( !dw->done ) { dw->asio->frame_timer.async_wait( bind( on_frame, dw, _1 ) ); }
+  }
+
+  void on_pipe_data( disp_win_t * const dw, error_code const & ec ) {
+    if( ec ) { return; }
+    printf( "uint32_t(dw->asio->pipe_data)=%s\n", str(uint32_t(dw->asio->pipe_data)).c_str() );
+    async_read( dw->asio->pipe_afd, asio::buffer( &dw->asio->pipe_data, 1 ), bind( on_pipe_data, dw, _1 ) );
+  }
+
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
   // may not change after this call, but this is not checked.
-  void disp_win_t::disp_skel( vect_p_img_t const & imgs, poll_req_t * const poll_req ) {
-    assert_st( !imgs.empty() );
+  void disp_win_t::disp_skel( vect_p_img_t & imgs_, poll_req_t * const poll_req ) {
+    imgs.reset( &imgs_, null_deleter<vect_p_img_t const>() ); // FIXME: change iface to p_?
+    assert_st( !imgs->empty() );
     
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
 
-    uint32_t window_w = 640;
-    uint32_t window_h = 480;
+    window_w = 640;
+    window_h = 480;
     assert( !window );
     window = make_p_SDL( SDL_CreateWindow( "boda display", 
 							SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -128,24 +146,23 @@ namespace boda
 
     //uint32_t const pixel_format = SDL_PIXELFORMAT_ABGR8888;
     uint32_t const pixel_format = SDL_PIXELFORMAT_YV12;
-
-    YV12_buf_t YV12_buf;
+    YV12_buf.reset( new YV12_buf_t );
     {
       uint32_t img_w = 0;
       uint32_t img_h = 0;
-      for( vect_p_img_t::const_iterator i = imgs.begin(); i != imgs.end(); ++i ) {
+      for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
 	img_w += (*i)->w;
 	max_eq( img_h, (*i)->h );
       }
       // make w/h even for simplicity of YUV UV (2x downsampled) planes
       if( img_w & 1 ) { ++img_w; }
       if( img_h & 1 ) { ++img_h; }
-      YV12_buf.set_sz_and_alloc( img_w, img_h );
+      YV12_buf->set_sz_and_alloc( img_w, img_h );
     }
 
     assert( !tex );
     tex = make_p_SDL( SDL_CreateTexture( renderer.get(), pixel_format, SDL_TEXTUREACCESS_STREAMING, 
-						       YV12_buf.w, YV12_buf.h ) );
+						       YV12_buf->w, YV12_buf->h ) );
 
     if( !tex ) { rt_err( strprintf( "Couldn't set create texture: %s\n", SDL_GetError()) ); }
 
@@ -155,15 +172,14 @@ namespace boda
     timespec fpsdelay{0,0};
     if( !nodelay ) { fpsdelay.tv_nsec = 1000 * 1000 * 1000 / fps; }
 
-    SDL_Rect displayrect;
-    displayrect.x = 0;
-    displayrect.y = 0;
-    displayrect.w = window_w;
-    displayrect.h = window_h;
+    displayrect.reset( new SDL_Rect );
+    displayrect->x = 0;
+    displayrect->y = 0;
+    displayrect->w = window_w;
+    displayrect->h = window_h;
 
-    SDL_Event event;
-    bool paused = 0;
-    bool done = 0;
+    paused = 0;
+    done = 0;
 
     int pipe_fds[2];
     int const pipe_ret = pipe( pipe_fds );
@@ -173,88 +189,85 @@ namespace boda
     int const pthread_ret = pthread_create( &pipe_stuffer_thread, 0, &pipe_stuffer, (void *)(intptr_t)pipe_fds[1] );
     assert_st( pthread_ret == 0 );
 
-    vect_pollfd pollfds;
-    pollfds.push_back( pollfd{ pipe_fds[0], POLLIN } );
-    if( poll_req ) { pollfds.push_back( poll_req->get_pollfd() ); }
-    while (!done) {
-        while (SDL_PollEvent(&event)) {
-            switch (event.type) {
-            case SDL_WINDOWEVENT:
-                if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-		  SDL_RenderSetViewport(renderer.get(), NULL);
-		  displayrect.w = window_w = event.window.data1;
-		  displayrect.h = window_h = event.window.data2;
-                }
-                break;
-            case SDL_MOUSEBUTTONDOWN:
-                displayrect.x = event.button.x - window_w / 2;
-                displayrect.y = event.button.y - window_h / 2;
-                break;
-            case SDL_MOUSEMOTION:
-                if (event.motion.state) {
-                    displayrect.x = event.motion.x - window_w / 2;
-                    displayrect.y = event.motion.y - window_h / 2;
-                }
-                break;
-            case SDL_KEYDOWN:
-                if( event.key.keysym.sym == SDLK_s ) {
-		  for( uint32_t i = 0; i != imgs.size(); ++i ) {
-		    imgs[i]->save_fn_png( strprintf( "ss_%s.png", str(i).c_str() ) );
-		  }
-		  paused = 1;
-		  break;
-                }
-                if (event.key.keysym.sym == SDLK_SPACE) {
-                    paused = !paused;
-                    break;
-                }
-                if (event.key.keysym.sym == SDLK_r) {
-		  imgs[0]->fill_with_pel( grey_to_pel( 20 ) );
-		  break;
-		}
-                if (event.key.keysym.sym != SDLK_ESCAPE) {
-                    break;
-                }
-            case SDL_QUIT:
-                done = SDL_TRUE;
-                break;
-            }
-        }
+    asio.reset( new asio_t );
+    asio->frame_dur = posix_time::microseconds( 1000 * 1000 / fps );
+    asio->frame_timer.expires_from_now( posix_time::time_duration() );
+    asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
+    asio->pipe_afd.assign( ::dup(pipe_fds[0]) );
+    async_read( asio->pipe_afd, asio::buffer( &asio->pipe_data, 1 ), bind( on_pipe_data, this, _1 ) );
 
-	int const ppoll_ret = ppoll( &pollfds[0], pollfds.size(), &fpsdelay, 0 );
-	if( ppoll_ret < 0 ) {
-	  assert_st( ppoll_ret == -1 ); 
-	  assert_st( errno == EINTR ); // FIXME: should handle (better)
-	} else if( ppoll_ret > 0 ) {
-	  {
-	    short const re = pollfds[0].revents;
-	    assert_st( !( re & POLLERR ) );
-	    assert_st( !( re & POLLHUP ) );
-	    assert_st( !( re & POLLNVAL ) );
-	    if( re & POLLIN ) {
-	      uint8_t c = 0;
-	      int const read_ret = read( pollfds[0].fd, &c, 1 );
-	      assert_st( read_ret == 1 );
-	      printf( "c=%s\n", str(uint32_t(c)).c_str() );
-	      assert_st( c == 123 );
-	    }
-	  }
-	  if( poll_req ) { assert( 1 < pollfds.size() ); poll_req->check_pollfd( pollfds[1] ); }
-	}
-
-        if (!paused) {
-	  uint32_t out_x = 0;
-	  for( uint32_t i = 0; i != imgs.size(); ++i ) { 
-	    img_to_YV12( YV12_buf, imgs[i], out_x, YV12_buf.h - imgs[i]->h );
-	    out_x += imgs[i]->w;
-	  }
-	  SDL_UpdateTexture( tex.get(), NULL, YV12_buf.d.get(), YV12_buf.w );
-        }
-        SDL_RenderClear( renderer.get() );
-        SDL_RenderCopy( renderer.get(), tex.get(), NULL, &displayrect);
-        SDL_RenderPresent( renderer.get() );
+    p_asio_fd_t poll_req_afd;
+    if( poll_req ) { 
+      pollfd const pfd = poll_req->get_pollfd();
+      poll_req_afd.reset( new asio_fd_t( asio->io, ::dup(pfd.fd) ) );
     }
+
+    frame_cnt = 0;
+    asio->io.run();
 
     SDL_Quit();
   }
+
+  void disp_win_t::drain_sdl_events_and_redisplay( void ) {
+
+    SDL_Event event;
+
+    while (SDL_PollEvent(&event)) {
+      switch (event.type) {
+      case SDL_WINDOWEVENT:
+	if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+	  SDL_RenderSetViewport(renderer.get(), NULL);
+	  displayrect->w = window_w = event.window.data1;
+	  displayrect->h = window_h = event.window.data2;
+	}
+	break;
+      case SDL_MOUSEBUTTONDOWN:
+	displayrect->x = event.button.x - window_w / 2;
+	displayrect->y = event.button.y - window_h / 2;
+	break;
+      case SDL_MOUSEMOTION:
+	if (event.motion.state) {
+	  displayrect->x = event.motion.x - window_w / 2;
+	  displayrect->y = event.motion.y - window_h / 2;
+	}
+	break;
+      case SDL_KEYDOWN:
+	if( event.key.keysym.sym == SDLK_s ) {
+	  for( uint32_t i = 0; i != imgs->size(); ++i ) {
+	    imgs->at(i)->save_fn_png( strprintf( "ss_%s.png", str(i).c_str() ) );
+	  }
+	  paused = 1;
+	  break;
+	}
+	if (event.key.keysym.sym == SDLK_SPACE) {
+	  paused = !paused;
+	  break;
+	}
+	if (event.key.keysym.sym == SDLK_r) {
+	  imgs->at(0)->fill_with_pel( grey_to_pel( frame_cnt % 256 ) );
+	  break;
+	}
+	if (event.key.keysym.sym != SDLK_ESCAPE) {
+	  break;
+	}
+      case SDL_QUIT:
+	done = SDL_TRUE;
+	break;
+      }
+    }
+
+    if (!paused) {
+      uint32_t out_x = 0;
+      for( uint32_t i = 0; i != imgs->size(); ++i ) { 
+	img_to_YV12( *YV12_buf, imgs->at(i), out_x, YV12_buf->h - imgs->at(i)->h );
+	out_x += imgs->at(i)->w;
+      }
+      SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
+    }
+    SDL_RenderClear( renderer.get() );
+    SDL_RenderCopy( renderer.get(), tex.get(), NULL, displayrect.get() );
+    ++frame_cnt;
+    SDL_RenderPresent( renderer.get() );
+  }
+
 }
