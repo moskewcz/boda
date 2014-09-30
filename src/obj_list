@@ -25,3 +25,4 @@ geom_prim.o
 boda_base.o 
 pugixml.o
 lodepng.o 
+boda_help.o
