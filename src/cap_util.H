@@ -5,7 +5,7 @@
 
 namespace boda {
 
-  struct capture_t : public poll_req_t, virtual public nesi, public has_main_t // NESI(help="video capture skeleton",
+  struct capture_t : public read_req_t, virtual public nesi, public has_main_t // NESI(help="video capture skeleton",
 		      // bases=["has_main_t"], type_id="capture")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -27,9 +27,9 @@ namespace boda {
     virtual void main( nesi_init_arg_t * nia );
     void cap_loop( img_proc_t * const img_proc_ );
 
-    // poll_req_t iface:
-    virtual pollfd get_pollfd( void );
-    virtual void check_pollfd( pollfd const & pfd );
+    // read_req_t iface:
+    virtual int get_fd( void );
+    virtual void on_readable( void );
 
     // V4L2 data
     int cap_fd;

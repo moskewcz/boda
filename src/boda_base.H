@@ -495,9 +495,9 @@ namespace boda
   struct nesi { virtual cinfo_t const * get_cinfo( void ) const = 0; };
   typedef shared_ptr< nesi > p_nesi;
 
-  struct poll_req_t {
-    virtual pollfd get_pollfd( void ) = 0;
-    virtual void check_pollfd( pollfd const & pfd ) = 0;
+  struct read_req_t {
+    virtual int get_fd( void ) = 0;
+    virtual void on_readable( void ) = 0;
   };
 
   struct img_t; typedef shared_ptr< img_t > p_img_t; 

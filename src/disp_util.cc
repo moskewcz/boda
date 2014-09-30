@@ -74,11 +74,11 @@ namespace boda
   typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
 
   struct asio_t {
-    asio_t( void ) : frame_timer(io), poll_req_afd(io), pipe_read_afd(io), pipe_iter(0), pipe_timer(io), pipe_write_afd(io) { }
+    asio_t( void ) : frame_timer(io), read_req_afd(io), pipe_read_afd(io), pipe_iter(0), pipe_timer(io), pipe_write_afd(io) { }
     boost::asio::io_service io;
     boost::asio::deadline_timer frame_timer;
     posix_time::time_duration frame_dur;
-    asio_fd_t poll_req_afd;
+    asio_fd_t read_req_afd;
     asio_fd_t pipe_read_afd;
     uint8_t pipe_read_data;
     uint32_t pipe_iter;
@@ -105,11 +105,11 @@ namespace boda
   }
 
 
-  void on_poll_req( disp_win_t * const dw, error_code const & ec ) {
+  void on_read_req( disp_win_t * const dw, error_code const & ec ) {
     if( ec ) { return; }
-    assert_st( dw->poll_req );
-    dw->poll_req->check_pollfd( pollfd() );
-    async_read( dw->asio->poll_req_afd, asio::null_buffers(), bind( on_poll_req, dw, _1 ) );
+    assert_st( dw->read_req );
+    dw->read_req->on_readable();
+    async_read( dw->asio->read_req_afd, asio::null_buffers(), bind( on_read_req, dw, _1 ) );
   }
 
   void pipe_stuffer( disp_win_t * const dw, error_code const & ec ) {
@@ -125,9 +125,9 @@ namespace boda
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
   // may not change after this call, but this is not checked.
-  void disp_win_t::disp_skel( vect_p_img_t & imgs_, poll_req_t * const poll_req_ ) {
+  void disp_win_t::disp_skel( vect_p_img_t & imgs_, read_req_t * const read_req_ ) {
     imgs.reset( &imgs_, null_deleter<vect_p_img_t const>() ); // FIXME: change iface to p_?
-    poll_req = poll_req_;
+    read_req = read_req_;
     assert_st( !imgs->empty() );
     
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
@@ -203,10 +203,9 @@ namespace boda
     asio->pipe_timer.expires_from_now( posix_time::time_duration() );
     asio->pipe_timer.async_wait( bind( pipe_stuffer, this, _1 ) );
 
-    if( poll_req ) { 
-      pollfd const pfd = poll_req->get_pollfd();
-      asio->poll_req_afd.assign( ::dup(pfd.fd) );
-      async_read( asio->poll_req_afd, asio::null_buffers(), bind( on_poll_req, this, _1 ) );
+    if( read_req ) { 
+      asio->read_req_afd.assign( ::dup(read_req->get_fd()) );
+      async_read( asio->read_req_afd, asio::null_buffers(), bind( on_read_req, this, _1 ) );
     }
 
     frame_cnt = 0;

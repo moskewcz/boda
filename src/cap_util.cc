@@ -66,9 +66,9 @@ namespace boda
 
   }
 
-  // poll_req_t iface:
-  pollfd capture_t::get_pollfd( void ) { assert_st( cap_fd != -1 ); return pollfd{ cap_fd, POLLIN }; }
-  void capture_t::check_pollfd( pollfd const & pfd ) { read_frame( cap_img ); }
+  // read_req_t iface:
+  int capture_t::get_fd( void ) { assert_st( cap_fd != -1 ); return cap_fd; }
+  void capture_t::on_readable( void ) { read_frame( cap_img ); }
 
 
   // V4L2 code

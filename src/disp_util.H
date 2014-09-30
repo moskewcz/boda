@@ -46,8 +46,8 @@ namespace boda {
 
     p_asio_t asio;
 
-    poll_req_t * poll_req;
-    void disp_skel( vect_p_img_t & imgs_, poll_req_t * const poll_req_ );
+    read_req_t * read_req;
+    void disp_skel( vect_p_img_t & imgs_, read_req_t * const read_req_ );
     void drain_sdl_events_and_redisplay( void );
     void on_pipe_data( boost::system::error_code const & ec );
   };
