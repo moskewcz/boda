@@ -309,7 +309,6 @@ class nesi_gen( object ):
             return # skip file if it's not a boda source or header file. note that this skips the lodepng/pugixml src.
         fn_path = join( self.src_dir, fn )
         fn_lines = file( fn_path ).readlines()
-        # FIXME: add multiline support
         # for now, any lines matching this re are considered NESI command lines. this is certainly not perfect/complete.
         nesi_decl = re.compile( r"//\s*NESI\s*\((.*)" ) # note: greedy, which is what we want
         struct_decl = re.compile( r"\s*(?:class|struct)\s*(\S+)" ) # NESI structs decl lines must match this
