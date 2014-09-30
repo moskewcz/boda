@@ -16,16 +16,6 @@ namespace boda
 {
   using namespace boost;
 
-  typedef vector< pollfd > vect_pollfd;
-
-  void delay_secs( uint32_t const secs ) {
-    timespec delay;
-    delay.tv_sec = secs;
-    delay.tv_nsec = 0;
-    int const ret = clock_nanosleep( CLOCK_MONOTONIC, 0, &delay, 0 );
-    if( ret ) { assert_st( ret == EINTR ); } // note: EINTR is allowed but not handled. could handle using remain arg.
-  }
-
 #define DECL_MAKE_P_SDL_OBJ( tn ) p_SDL_##tn make_p_SDL( SDL_##tn * const rp ) { return p_SDL_##tn( rp, SDL_Destroy##tn ); }
 
   DECL_MAKE_P_SDL_OBJ( Window );
@@ -33,18 +23,6 @@ namespace boda
   DECL_MAKE_P_SDL_OBJ( Texture );
 
 #undef DECL_MAKE_P_SDL_OBJ
-
-  void * pipe_stuffer( void * rpv_pfd ) {
-    int const pfd = (int)(intptr_t)rpv_pfd;
-    uint8_t const c = 123;
-    for( uint32_t i = 0; i < 2; ++i ) {
-      ssize_t const w_ret = write( pfd, &c, 1 );
-      assert_st( w_ret == 1 );
-      delay_secs( 1 );
-    }
-    close( pfd );
-    return 0;
-  }
 
   struct YV12_buf_t {
     p_uint8_t d;
@@ -96,28 +74,34 @@ namespace boda
   typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
 
   struct asio_t {
-    asio_t( void ) : frame_timer(io), pipe_afd(io), poll_req_afd(io) { }
+    asio_t( void ) : frame_timer(io), poll_req_afd(io), pipe_read_afd(io), pipe_iter(0), pipe_timer(io), pipe_write_afd(io) { }
     boost::asio::io_service io;
     boost::asio::deadline_timer frame_timer;
     posix_time::time_duration frame_dur;
-    asio_fd_t pipe_afd;
     asio_fd_t poll_req_afd;
-    uint8_t pipe_data;
+    asio_fd_t pipe_read_afd;
+    uint8_t pipe_read_data;
+    uint32_t pipe_iter;
+    boost::asio::deadline_timer pipe_timer;
+    asio_fd_t pipe_write_afd;
+    uint8_t pipe_write_data;
   };
 
   void on_frame( disp_win_t * const dw, error_code const & ec ) {
     if( ec ) { return; } // handle?
     //printf( "dw->asio->frame_timer->expires_at()=%s\n", str(dw->asio->frame_timer.expires_at()).c_str() );
-    dw->asio->frame_timer.expires_at( dw->asio->frame_timer.expires_at() + dw->asio->frame_dur );
     dw->drain_sdl_events_and_redisplay();
-    if( !dw->done ) { dw->asio->frame_timer.async_wait( bind( on_frame, dw, _1 ) ); }
+    if( !dw->done ) { 
+      dw->asio->frame_timer.expires_at( dw->asio->frame_timer.expires_at() + dw->asio->frame_dur );
+      dw->asio->frame_timer.async_wait( bind( on_frame, dw, _1 ) ); 
+    }
     else { dw->asio->io.stop(); }
   }
 
   void on_pipe_data( disp_win_t * const dw, error_code const & ec ) {
     if( ec ) { return; }
-    printf( "uint32_t(dw->asio->pipe_data)=%s\n", str(uint32_t(dw->asio->pipe_data)).c_str() );
-    async_read( dw->asio->pipe_afd, asio::buffer( &dw->asio->pipe_data, 1 ), bind( on_pipe_data, dw, _1 ) );
+    printf( "uint32_t(dw->asio->pipe_data)=%s\n", str(uint32_t(dw->asio->pipe_read_data)).c_str() );
+    async_read( dw->asio->pipe_read_afd, asio::buffer( &dw->asio->pipe_read_data, 1 ), bind( on_pipe_data, dw, _1 ) );
   }
 
 
@@ -126,6 +110,17 @@ namespace boda
     assert_st( dw->poll_req );
     dw->poll_req->check_pollfd( pollfd() );
     async_read( dw->asio->poll_req_afd, asio::null_buffers(), bind( on_poll_req, dw, _1 ) );
+  }
+
+  void pipe_stuffer( disp_win_t * const dw, error_code const & ec ) {
+    assert_st( !ec ); // timer error?
+    if( dw->asio->pipe_iter ) {
+      --dw->asio->pipe_iter;
+      dw->asio->pipe_timer.expires_at( dw->asio->pipe_timer.expires_at() + posix_time::seconds( 1 ) );
+      dw->asio->pipe_timer.async_wait( bind( pipe_stuffer, dw, _1 ) ); 
+      // note: write throws on error (including blocking), which is okay since no error (including blocking) is expected / handleable
+      write( dw->asio->pipe_write_afd, asio::buffer( &dw->asio->pipe_write_data, 1 ) ); 
+    }
   }
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
@@ -177,11 +172,6 @@ namespace boda
 
     if( !tex ) { rt_err( strprintf( "Couldn't set create texture: %s\n", SDL_GetError()) ); }
 
-    bool const nodelay = 0;
-    int fps = 60;
-
-    timespec fpsdelay{0,0};
-    if( !nodelay ) { fpsdelay.tv_nsec = 1000 * 1000 * 1000 / fps; }
 
     displayrect.reset( new SDL_Rect );
     displayrect->x = 0;
@@ -192,20 +182,26 @@ namespace boda
     paused = 0;
     done = 0;
 
+    asio.reset( new asio_t );
+    int const fps = 60;
+    asio->frame_dur = posix_time::microseconds( 1000 * 1000 / fps );
+    asio->frame_timer.expires_from_now( posix_time::time_duration() );
+    asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
+
     int pipe_fds[2];
     int const pipe_ret = pipe( pipe_fds );
     assert_st( pipe_ret == 0 );
 
-    pthread_t pipe_stuffer_thread;
-    int const pthread_ret = pthread_create( &pipe_stuffer_thread, 0, &pipe_stuffer, (void *)(intptr_t)pipe_fds[1] );
-    assert_st( pthread_ret == 0 );
+    asio->pipe_read_afd.assign( pipe_fds[0] );
+    async_read( asio->pipe_read_afd, asio::buffer( &asio->pipe_read_data, 1 ), bind( on_pipe_data, this, _1 ) );
 
-    asio.reset( new asio_t );
-    asio->frame_dur = posix_time::microseconds( 1000 * 1000 / fps );
-    asio->frame_timer.expires_from_now( posix_time::time_duration() );
-    asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
-    asio->pipe_afd.assign( ::dup(pipe_fds[0]) );
-    async_read( asio->pipe_afd, asio::buffer( &asio->pipe_data, 1 ), bind( on_pipe_data, this, _1 ) );
+    asio->pipe_write_afd.assign( pipe_fds[1] ); // note: ownership transfer
+    asio->pipe_write_afd.non_blocking( 1 );
+
+    asio->pipe_write_data = 123;
+    asio->pipe_iter = 2;
+    asio->pipe_timer.expires_from_now( posix_time::time_duration() );
+    asio->pipe_timer.async_wait( bind( pipe_stuffer, this, _1 ) );
 
     if( poll_req ) { 
       pollfd const pfd = poll_req->get_pollfd();
