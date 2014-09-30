@@ -70,6 +70,7 @@ namespace boda
   u32_pt_t const u32_pt_t_const_max{uint32_t_const_max,uint32_t_const_max};
   
   typedef vector< u32_pt_t > vect_u32_pt_t; 
+  typedef vector< vect_u32_pt_t > vect_vect_u32_pt_t; 
   typedef shared_ptr< u32_pt_t > p_u32_pt_t; 
   typedef vector< p_u32_pt_t > vect_p_u32_pt_t;
   typedef shared_ptr< vect_u32_pt_t > p_vect_u32_pt_t; 

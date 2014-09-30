@@ -1,5 +1,6 @@
 // Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
+#include"geom_prim.H"
 #include"disp_util.H"
 #include<SDL.h>
 #include"timers.H"
@@ -74,11 +75,10 @@ namespace boda
   typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
 
   struct asio_t {
-    asio_t( void ) : frame_timer(io), read_req_afd(io), pipe_read_afd(io), pipe_iter(0), pipe_timer(io), pipe_write_afd(io) { }
+    asio_t( void ) : frame_timer(io), pipe_read_afd(io), pipe_iter(0), pipe_timer(io), pipe_write_afd(io) { }
     boost::asio::io_service io;
     boost::asio::deadline_timer frame_timer;
     posix_time::time_duration frame_dur;
-    asio_fd_t read_req_afd;
     asio_fd_t pipe_read_afd;
     uint8_t pipe_read_data;
     uint32_t pipe_iter;
@@ -86,6 +86,8 @@ namespace boda
     asio_fd_t pipe_write_afd;
     uint8_t pipe_write_data;
   };
+  
+  boost::asio::io_service & get_io( disp_win_t * const dw ) { return dw->asio->io; }
 
   void on_frame( disp_win_t * const dw, error_code const & ec ) {
     if( ec ) { return; } // handle?
@@ -95,21 +97,16 @@ namespace boda
       dw->asio->frame_timer.expires_at( dw->asio->frame_timer.expires_at() + dw->asio->frame_dur );
       dw->asio->frame_timer.async_wait( bind( on_frame, dw, _1 ) ); 
     }
-    else { dw->asio->io.stop(); }
+    else { 
+      SDL_Quit();
+      dw->asio->io.stop();  // should be optional?
+    }
   }
 
   void disp_win_t::on_pipe_data( error_code const & ec ) {
     if( ec ) { return; }
     printf( "uint32_t(asio->pipe_data)=%s\n", str(uint32_t(asio->pipe_read_data)).c_str() );
     async_read( asio->pipe_read_afd, asio::buffer( &asio->pipe_read_data, 1 ), bind( &disp_win_t::on_pipe_data, this, _1 ) );
-  }
-
-
-  void on_read_req( disp_win_t * const dw, error_code const & ec ) {
-    if( ec ) { return; }
-    assert_st( dw->read_req );
-    dw->read_req->on_readable();
-    async_read( dw->asio->read_req_afd, asio::null_buffers(), bind( on_read_req, dw, _1 ) );
   }
 
   void pipe_stuffer( disp_win_t * const dw, error_code const & ec ) {
@@ -124,10 +121,28 @@ namespace boda
   }
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
-  // may not change after this call, but this is not checked.
-  void disp_win_t::disp_skel( vect_p_img_t & imgs_, read_req_t * const read_req_ ) {
-    imgs.reset( &imgs_, null_deleter<vect_p_img_t const>() ); // FIXME: change iface to p_?
-    read_req = read_req_;
+  // may not change after setup, but this is not checked.
+
+  void disp_win_t::disp_setup( p_img_t const & img ) {
+    p_vect_p_img_t req_imgs( new vect_p_img_t );
+    req_imgs->push_back( img );
+    disp_setup( req_imgs );
+  }
+
+  p_vect_p_img_t disp_win_t::disp_setup( vect_u32_pt_t const & disp_img_szs ) {
+    p_vect_p_img_t req_imgs( new vect_p_img_t );
+    for( vect_u32_pt_t::const_iterator i = disp_img_szs.begin(); i != disp_img_szs.end(); ++i ) {
+      p_img_t img( new img_t );
+      img->set_sz_and_alloc_pels( i->d[0], i->d[1] );
+      img->fill_with_pel( grey_to_pel( 128 ) );
+      req_imgs->push_back( img );
+    }
+    disp_setup( req_imgs );
+    return req_imgs;
+  }
+
+  void disp_win_t::disp_setup( p_vect_p_img_t const & imgs_ ) {
+    imgs = imgs_;
     assert_st( !imgs->empty() );
     
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
@@ -181,9 +196,10 @@ namespace boda
 
     paused = 0;
     done = 0;
+    frame_cnt = 0;
+    int const fps = 60;
 
     asio.reset( new asio_t );
-    int const fps = 60;
     asio->frame_dur = posix_time::microseconds( 1000 * 1000 / fps );
     asio->frame_timer.expires_from_now( posix_time::time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
@@ -203,16 +219,8 @@ namespace boda
     asio->pipe_timer.expires_from_now( posix_time::time_duration() );
     asio->pipe_timer.async_wait( bind( pipe_stuffer, this, _1 ) );
 
-    if( read_req ) { 
-      asio->read_req_afd.assign( ::dup(read_req->get_fd()) );
-      async_read( asio->read_req_afd, asio::null_buffers(), bind( on_read_req, this, _1 ) );
-    }
-
-    frame_cnt = 0;
-    asio->io.run();
-
-    SDL_Quit();
   }
+
 
   void disp_win_t::drain_sdl_events_and_redisplay( void ) {
 

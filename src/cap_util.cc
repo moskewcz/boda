@@ -7,7 +7,6 @@
 #include"lexp.H"
 #include"img_io.H"
 #include"results_io.H"
-#include"disp_util.H"
 #include"cap_util.H"
 
 #include"caffeif.H"
@@ -35,35 +34,22 @@ namespace boda
 
   p_run_cnet_t make_p_run_cnet_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
-  void capture_t::main( nesi_init_arg_t * nia ) { cap_loop( 0 ); }
-
-  void capture_t::cap_loop( img_proc_t * const img_proc_ ) { 
-    img_proc = img_proc_; 
+  void capture_t::cap_start( void  ) { 
     cap_img.reset( new img_t );
     cap_img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
-    if( echo_capture ) { disp_imgs.push_back( cap_img ); }
-#if 0
-    p_vect_string classes = readlines_fn( pascal_classes_fn );
-    for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-      bool const is_first_class = (i == (*classes).begin());
-      read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
-				   true && is_first_class, !is_first_class );
-    }
-    img_db_get_all_loaded_imgs( disp_imgs, img_db ); // FIXME: disp_imgs isn't a p_ vect anymore ...
-#endif
-
     cap_fd = -1;
     open_device();
     init_device();
     start_capturing();
+  }
 
-    disp_win_t disp_win;
-    disp_win.disp_skel( disp_imgs, this ); 
-
-    stop_capturing();
-    buffers.clear();
-    if( cap_fd != -1 ) { if( -1 == close(cap_fd) ) { rt_err("close"); } }
-
+  void capture_t::cap_stop( void ) {
+    if( cap_fd != -1 ) { 
+      stop_capturing();
+      buffers.clear();
+      if( -1 == close(cap_fd) ) { rt_err("close"); } 
+      cap_fd = -1;
+    }
   }
 
   // read_req_t iface:
@@ -72,7 +58,7 @@ namespace boda
 
 
   // V4L2 code
-  void capture_t::process_image( p_img_t const & img, const void *p, int size)
+  void capture_t::process_image( p_img_t const & img, const void *p, int size )
   {
     uint8_t const * src = (uint8_t const * )p;
     assert_st( !(cap_res.d[0] & 1) );
@@ -83,7 +69,6 @@ namespace boda
 	src += 4;
       }
     }
-    if( img_proc ) { img_proc->on_img( img ); }
   }
 
   void must_q_buf( int const & cap_fd, v4l2_buffer & buf ) { 

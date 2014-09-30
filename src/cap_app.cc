@@ -16,7 +16,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-
+#include<boost/asio.hpp>
+#include<boost/bind.hpp>
+#include<boost/date_time/posix_time/posix_time.hpp>
 
 namespace boda 
 {
@@ -197,13 +199,17 @@ namespace boda
   };
 
 
+  typedef boost::system::error_code error_code;
+  typedef boost::asio::posix::stream_descriptor asio_fd_t;
+  typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
+  boost::asio::io_service & get_io( disp_win_t * const dw );
+
   struct display_ipc_t : virtual public nesi, public has_main_t // NESI(help="video display over ipc test",
 			  // bases=["has_main_t"], type_id="display_ipc")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     int32_t boda_shm_fd; //NESI(help="an open fd created by shm_open() in the parent process.",req=1)
     uint64_t pels_off; //NESI(help="offset to pels",req=1)
-    vect_p_img_t disp_imgs;
     virtual void main( nesi_init_arg_t * nia ) { 
       shm_seg_t shm_seg;
       shm_seg.init( boda_shm_fd, 0 );
@@ -213,61 +219,72 @@ namespace boda
       img->set_sz( 100, 100 );
       img->pels = pels; // make_mmap_shared_p_uint8_t( -1, img->sz_raw_bytes(), 0 ); // FIXME: check img->row_align wrt map page sz?
       img->fill_with_pel( grey_to_pel( 128 ) );
-      disp_imgs.push_back( img );
       //fork();
-
       disp_win_t disp_win;
-      disp_win.disp_skel( disp_imgs, 0 ); 
-    }
-  };
-
-  struct display_test_t : virtual public nesi, public has_main_t // NESI(help="video display test",
-			  // bases=["has_main_t"], type_id="display_test")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    vect_p_img_t disp_imgs;
-    virtual void main( nesi_init_arg_t * nia ) { 
-      p_img_t img( new img_t );
-      img->set_sz_and_alloc_pels( 100, 100 );
-      img->fill_with_pel( grey_to_pel( 128 ) );
-      disp_imgs.push_back( img );
-      disp_win_t disp_win;
-      disp_win.disp_skel( disp_imgs, 0 ); 
+      disp_win.disp_setup( img );
+      get_io( &disp_win ).run();
     }
   };
 
   struct capture_classify_t : virtual public nesi, public has_main_t // NESI(help="cnet classifaction from video capture",
 			      // bases=["has_main_t"], type_id="capture_classify")
-			    , public img_proc_t
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
     p_cnet_predict_t cnet_predict; //NESI(default="()",help="cnet running options")    
-    virtual void main( nesi_init_arg_t * nia ) { cnet_predict->setup_predict(); capture->cap_loop( this ); }
-    virtual void on_img( p_img_t const & img ) { cnet_predict->do_predict( img ); }
+    p_asio_fd_t cap_afd;
+    void on_cap_read( error_code const & ec ) { 
+      assert_st( !ec );
+      capture->on_readable();
+      cnet_predict->do_predict( capture->cap_img ); 
+      async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
+    }
+    virtual void main( nesi_init_arg_t * nia ) { 
+      cnet_predict->setup_predict(); 
+      capture->cap_start();
+      disp_win_t disp_win;
+      disp_win.disp_setup( capture->cap_img );
+
+      boost::asio::io_service & io = get_io( &disp_win );
+      cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
+      async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
+      io.run();
+    }
   };
 
   struct capture_feats_t : virtual public nesi, public has_main_t // NESI(help="cnet classifaction from video capture",
 			   // bases=["has_main_t"], type_id="capture_feats")
-			 , public img_proc_t
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
-    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,out_layer_name=conv5)",help="cnet running options")
+    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,out_layer_name=conv3)",help="cnet running options")
     p_img_t feat_img;
+    p_asio_fd_t cap_afd;
+    void on_cap_read( error_code const & ec ) { 
+      assert_st( !ec );
+      capture->on_readable();
+
+      subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, capture->cap_img );
+      p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
+      copy_batch_to_img( out_batch, 0, feat_img );
+
+      async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
+    }
     virtual void main( nesi_init_arg_t * nia ) { 
       run_cnet->in_sz = capture->cap_res;
       run_cnet->setup_cnet(); 
       feat_img.reset( new img_t );
       u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
       feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
-      capture->disp_imgs.push_back( feat_img );
-      capture->cap_loop( this ); 
-    }
-    virtual void on_img( p_img_t const & img ) { 
-      subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, img );
-      p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
-      copy_batch_to_img( out_batch, 0, feat_img );
+
+      capture->cap_start();
+      disp_win_t disp_win;
+      disp_win.disp_setup( feat_img );
+
+      boost::asio::io_service & io = get_io( &disp_win );
+      cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
+      async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
+      io.run();
     }
   };
 
