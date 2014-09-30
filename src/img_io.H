@@ -69,6 +69,7 @@ namespace boda
   void downsample_test( std::string const & fn );
 
   void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy );
+  void img_copy_to_clip( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy );
   void img_draw_pels( img_t * const dest, uint32_t const & dx, uint32_t const & dy, uint32_t const & num, 
 		      int32_t const & stride_x, int32_t const & stride_y, 
 		      uint32_t const & ic, uint32_t const & ec );

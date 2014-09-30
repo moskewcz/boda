@@ -318,12 +318,30 @@ namespace boda
     return ret;
   }
 
+  // FIXME: dupe'd code ... 
   void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy ) {
     timer_t t("img_copy_to");
     uint32_t * const dest_data = ((uint32_t *)dest->pels.get()) + dest->get_pel_ix( dx, dy ); 
     uint32_t const * const src_data = (uint32_t const *)src->pels.get(); 
     for( uint32_t sy = 0; sy < src->h; ++sy ) {
       for( uint32_t sx = 0; sx < src->w; ++sx ) {
+	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
+	dest_data[ sy*dest->row_pitch_pels + sx ] = pel;
+      }
+    }
+  }
+  void img_copy_to_clip( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy ) {
+    timer_t t("img_copy_to");
+    assert_st( dx < dest->w );
+    assert_st( dy < dest->h );
+   
+    uint32_t const xl = std::min( (dest->w - dx), src->w );
+    uint32_t const yl = std::min( (dest->h - dy), src->h );
+
+    uint32_t * const dest_data = ((uint32_t *)dest->pels.get()) + dest->get_pel_ix( dx, dy ); 
+    uint32_t const * const src_data = (uint32_t const *)src->pels.get(); 
+    for( uint32_t sy = 0; sy < yl; ++sy ) {
+      for( uint32_t sx = 0; sx < xl; ++sx ) {
 	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
 	dest_data[ sy*dest->row_pitch_pels + sx ] = pel;
       }
