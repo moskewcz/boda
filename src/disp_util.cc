@@ -98,10 +98,10 @@ namespace boda
     else { dw->asio->io.stop(); }
   }
 
-  void on_pipe_data( disp_win_t * const dw, error_code const & ec ) {
+  void disp_win_t::on_pipe_data( error_code const & ec ) {
     if( ec ) { return; }
-    printf( "uint32_t(dw->asio->pipe_data)=%s\n", str(uint32_t(dw->asio->pipe_read_data)).c_str() );
-    async_read( dw->asio->pipe_read_afd, asio::buffer( &dw->asio->pipe_read_data, 1 ), bind( on_pipe_data, dw, _1 ) );
+    printf( "uint32_t(asio->pipe_data)=%s\n", str(uint32_t(asio->pipe_read_data)).c_str() );
+    async_read( asio->pipe_read_afd, asio::buffer( &asio->pipe_read_data, 1 ), bind( &disp_win_t::on_pipe_data, this, _1 ) );
   }
 
 
@@ -193,13 +193,13 @@ namespace boda
     assert_st( pipe_ret == 0 );
 
     asio->pipe_read_afd.assign( pipe_fds[0] );
-    async_read( asio->pipe_read_afd, asio::buffer( &asio->pipe_read_data, 1 ), bind( on_pipe_data, this, _1 ) );
+    async_read( asio->pipe_read_afd, asio::buffer( &asio->pipe_read_data, 1 ), bind( &disp_win_t::on_pipe_data, this, _1 ) );
 
     asio->pipe_write_afd.assign( pipe_fds[1] ); // note: ownership transfer
     asio->pipe_write_afd.non_blocking( 1 );
 
     asio->pipe_write_data = 123;
-    asio->pipe_iter = 2;
+    asio->pipe_iter = 1000;
     asio->pipe_timer.expires_from_now( posix_time::time_duration() );
     asio->pipe_timer.async_wait( bind( pipe_stuffer, this, _1 ) );
 
@@ -271,6 +271,7 @@ namespace boda
       }
       SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
     }
+
     SDL_RenderClear( renderer.get() );
     SDL_RenderCopy( renderer.get(), tex.get(), NULL, displayrect.get() );
     ++frame_cnt;

@@ -12,7 +12,7 @@ PRE_DECL_SDL_OBJ( Texture );
 PRE_DECL_SDL_OBJ( Rect );
 
 #undef PRE_DECL_SDL_OBJ
-
+namespace boost { namespace system { struct error_code; } }
 namespace boda {
 
   struct img_t;
@@ -49,6 +49,7 @@ namespace boda {
     poll_req_t * poll_req;
     void disp_skel( vect_p_img_t & imgs_, poll_req_t * const poll_req_ );
     void drain_sdl_events_and_redisplay( void );
+    void on_pipe_data( boost::system::error_code const & ec );
   };
 
 }
