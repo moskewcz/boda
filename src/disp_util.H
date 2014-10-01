@@ -46,7 +46,8 @@ namespace boda {
 
     p_asio_t asio;
 
-    void disp_setup( p_vect_p_img_t const & imgs_ ); // list of existing images
+    void disp_setup( p_vect_p_img_t const & imgs_ ); // reference to list of existing images (for now: don't modify it later)
+    void disp_setup( vect_p_img_t const & imgs_ ); // list of existing images 
     void disp_setup( p_img_t const & img ); // one existing image 
     p_vect_p_img_t disp_setup( vect_u32_pt_t const & disp_img_szs ); // create/usr/return a list of images of the given sizes
     void drain_sdl_events_and_redisplay( void );

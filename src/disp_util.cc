@@ -129,6 +129,11 @@ namespace boda
     disp_setup( req_imgs );
   }
 
+  void disp_win_t::disp_setup( vect_p_img_t const & imgs_ ) {
+    p_vect_p_img_t req_imgs( new vect_p_img_t(imgs_) );
+    disp_setup( req_imgs );
+  }
+
   p_vect_p_img_t disp_win_t::disp_setup( vect_u32_pt_t const & disp_img_szs ) {
     p_vect_p_img_t req_imgs( new vect_p_img_t );
     for( vect_u32_pt_t::const_iterator i = disp_img_szs.begin(); i != disp_img_szs.end(); ++i ) {
