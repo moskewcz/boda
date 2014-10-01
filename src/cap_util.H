@@ -14,7 +14,7 @@ namespace boda {
     u32_pt_t cap_res; //NESI(default="640 480", help="capture resolution. good choices might be '640 480' or '320 240'. 
     // you can use 'v4l2-ctl --list-formats-ext' to list valid resolutions. (note: v4l2-ctl is in the vl4-utils package in ubuntu).")
     p_img_t cap_img;
-    capture_t( void ) {}
+    capture_t( void ) : cap_fd(-1) {}
     ~capture_t( void ) { cap_stop(); }
 
     virtual void main( nesi_init_arg_t * nia ) { cap_start(); cap_stop(); } // note: doesn't try to read any frames
