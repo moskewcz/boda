@@ -293,7 +293,7 @@ namespace boda
 
       capture->cap_start();
       disp_win_t disp_win;
-      disp_win.disp_setup( feat_img );
+      disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
 
       boost::asio::io_service & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
