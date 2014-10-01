@@ -226,6 +226,19 @@ namespace boda
     }
   };
 
+  // DEMOABLE items:
+  //  -- sunglasses (wearing or on surface)
+  //  -- keyboard (zoom in)
+  //  -- loafer (better have both in view. socks optional)
+  //  -- fruit/pear (might work ...)
+  //  -- water bottle
+  //  -- window shade
+  //  -- teddy bear (more or less ...)
+  //  -- coffee mug (great if centered)
+  //  -- sandals 
+  //  -- napkin (aka handkerchief, better be on flat surface) 
+  //  -- paper towel (ehh, maybe ...)
+
   struct capture_classify_t : virtual public nesi, public has_main_t // NESI(help="cnet classifaction from video capture",
 			      // bases=["has_main_t"], type_id="capture_classify")
   {
