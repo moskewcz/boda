@@ -238,6 +238,7 @@ namespace boda
   //  -- sandals 
   //  -- napkin (aka handkerchief, better be on flat surface) 
   //  -- paper towel (ehh, maybe ...)
+  //  -- hat (aka mortarboard / cowboy hat )
 
   struct capture_classify_t : virtual public nesi, public has_main_t // NESI(help="cnet classifaction from video capture",
 			      // bases=["has_main_t"], type_id="capture_classify")
