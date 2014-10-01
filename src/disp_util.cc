@@ -204,6 +204,7 @@ namespace boda
     asio->frame_timer.expires_from_now( posix_time::time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
 
+#if 0
     int pipe_fds[2];
     int const pipe_ret = pipe( pipe_fds );
     assert_st( pipe_ret == 0 );
@@ -218,6 +219,7 @@ namespace boda
     asio->pipe_iter = 1000;
     asio->pipe_timer.expires_from_now( posix_time::time_duration() );
     asio->pipe_timer.async_wait( bind( pipe_stuffer, this, _1 ) );
+#endif
 
   }
 
