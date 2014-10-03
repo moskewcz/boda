@@ -330,12 +330,15 @@ namespace boda
     if( (help_ix < help_args->size()) && (help_args->at(help_ix) != deep_help_str) ) { // use a help-arg to decend
       void * fo = 0;
       vinfo_t const * vi = nesi_struct_find_var( ci, o, help_args->at(help_ix), fo ); // may or may not set fo
-      if( !vi ) { rt_err( strprintf("struct '%s' has no field '%s', so help cannot be provided for it.",
-				    ci->cname, help_args->at(help_ix).c_str() ) ); }
-      *os += strprintf( "%sDESCENDING TO DETAILED HELP FOR field '%s' of type=%s of struct '%s'\n",
-			prefix.c_str(), vi->vname, vi->tinfo->tname, ci->cname );
-      assert_st( vi->tinfo->nesi_help );
-      vi->tinfo->nesi_help( vi->tinfo, fo, os, prefix, show_all, help_args, help_ix + 1 );
+      if( !vi ) { 
+	*os += strprintf("struct '%s' has no field '%s', so help cannot be provided for it.\n",
+			 ci->cname, help_args->at(help_ix).c_str() );
+      } else {
+	*os += strprintf( "%sDESCENDING TO DETAILED HELP FOR field '%s' of type=%s of struct '%s'\n",
+			  prefix.c_str(), vi->vname, vi->tinfo->tname, ci->cname );
+	assert_st( vi->tinfo->nesi_help );
+	vi->tinfo->nesi_help( vi->tinfo, fo, os, prefix, show_all, help_args, help_ix + 1 );
+      }
     } else { // leaf or deep case, emit help for this struct
       *os += strprintf( "%sTYPE INFO:\n", prefix.c_str() );
       nesi_struct_hier_help( ci, os, prefix, show_all );
@@ -523,9 +526,9 @@ namespace boda
 			    bool const show_all, vect_string * help_args, uint32_t help_ix ) {
     assert_st( help_args );
     if( help_ix < help_args->size() ) { // use a help-arg to decend
-      if( help_args->at(help_ix) != deep_help_str ) { // for 'deep help' case, don't print anything for leaf types
-	rt_err( strprintf("%sleaf type '%s' has no fields at all, certainly not '%s', so help cannot be provided for it.",
-			  prefix.c_str(), tinfo->tname, help_args->at(help_ix).c_str() ) );
+      if( help_args->at(help_ix) != deep_help_str ) { // the 'deep help' case on leaf types doesn't make sense
+	*os += strprintf("%sleaf type '%s' has no fields at all, certainly not '%s', so help cannot be provided for it.\n",
+			 prefix.c_str(), tinfo->tname, help_args->at(help_ix).c_str() );
       }
     } else { // leaf case, emit help for this leaf type
       assert_st( help_ix == help_args->size() );

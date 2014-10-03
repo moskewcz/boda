@@ -37,21 +37,20 @@ namespace boda
 					  bool & do_help, bool & help_ex, bool & help_all, vect_string & help_args ) 
   {
     assert( (!do_help) && (!help_ex) && (!help_all) );
+    assert( help_args.empty() );
+    assert( argc > 0 );
+    if( argc == 1 ) { do_help = 1; } // no arguments case is the same as a bare -h or --help option: print usage
     for( int32_t i = 1; i < argc; ++i ) {
       string arg = argv[i];
       strip_prefixes( arg, "--" );
-      if( do_help ) { help_args.push_back( arg ); continue; } // note: stripped of "--"'s ...
-      if( arg == "-h" ) { do_help = 1; continue; } // it's not possible to enable help_ex / help_all with short opt form
-      if( startswith( arg, "help" ) ) { 
+      if( arg == "-h" ) { do_help = 1; } // it's not possible to enable help_ex / help_all with short opt form
+      else if( startswith( arg, "help" ) ) { 
 	do_help = 1;
 	help_all |= startswith( arg, "help_all" );
 	help_ex |=  endswith( arg, "_ex" );
-	continue;
       }
-      if( i == 1 ) {
-	assert( !do_help ); // otherwise, would have continued
-	help_args.push_back( arg ); // keep mode arg (stripped of "--"'s, not that that should matter).
-      }
+      if( do_help ) { break; }
+      help_args.push_back( arg ); // note: stripped of "--"'s ...
     }
   }
 
@@ -61,16 +60,14 @@ namespace boda
     bool do_help = 0, help_ex = 0, help_all = 0;
     vect_string help_args;
     check_has_help_arg_and_setup_help( argc, argv, do_help, help_ex, help_all, help_args );
-    std::string const mode = argv[1];
-    if(0) { } 
     // low-level help/testing modes that either cannot rely on NESI
     // support or where it seem to make little sense to use it
-    else if( do_help ) {
+    if( do_help ) {
       if( help_args.empty() ) { 
-	os <<  strprintf("error: boda help/help_all takes at least 1 argument, but got %s\nfor help:   %s\n%s\n\n",
-			 str(argc-2).c_str(), boda_help_usage, boda_help_all_note);
+	os << strprintf("   usage:   boda mode [--mode-arg=mode_val]*\n");
+	os << strprintf("   usage:   %s\n", boda_xml_usage );
+	os << strprintf("for help:   %s\n%s\n\n", boda_help_usage, boda_help_all_note );
 	nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, help_all ); os << out;
-	return 1;
       } else { 
 	std::string const help_for_mode = help_args.front();
 	help_args.erase( help_args.begin() );
@@ -80,8 +77,11 @@ namespace boda
 	nesi_struct_make_p( &nvm, &tinfo_has_main_t, &has_main );
 	nesi_struct_nesi_help( &tinfo_has_main_t, has_main.get(), &out, prefix, help_all, &help_args, 0 ); os << out;
       }
+      return 1;
     }
-    else if( mode == "xml" ) {
+    assert( argc > 1 );
+    std::string const mode = argv[1];
+    if( mode == "xml" ) {
       if( argc != 3 ) { os << strprintf("run command from xml file\nusage: %s\n", boda_xml_usage); }
       else { create_and_run_has_main_t( parse_lexp_xml_file( argv[2] ) ); }
     // otherwise, in the common/main case, treat first arg as mode for has_main_t, with remaining
@@ -131,18 +131,9 @@ namespace boda
   void boda_asserts( void ); // language/portability checks
   int boda_main( int argc, char **argv ) {
     boda_asserts();
-    assert_st( argc >= 0 );
+    assert_st( argc > 0 );
     py_init( argv[0] );
     oct_init();
-    string prefix; // empty prefix for printing usage
-    string out; // output string for printing usage
-    if( argc < 2 ) {
-      printf("   usage:   boda mode [--mode-arg=mode_val]*\n");
-      printf("   usage:   %s\n", boda_xml_usage );
-      printf("for help:   %s\n%s\n\n", boda_help_usage, boda_help_all_note );
-      nesi_struct_hier_help( &cinfo_has_main_t, &out, prefix, 0 ); printstr( out );
-      return 1;
-    }
     int const ret = boda_main_arg_proc( std::cout, argc, argv ); // split out for unit testing
     global_timer_log_finalize();
     py_finalize();

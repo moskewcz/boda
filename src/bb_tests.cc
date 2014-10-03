@@ -9,6 +9,7 @@
 #include"img_io.H"
 #include"xml_util.H"
 #include"test_base.H"
+#include<sstream>
 
 namespace boda {
   using std::ostream;
@@ -37,13 +38,15 @@ namespace boda {
 
     char const * cur_tn;
     char const * cur_fn;
+    string cur_str_out;
     void test_print( void ) {
       assert_st( cur_tn );
       printf( "tix=%s %s\n", str(tix).c_str(), cur_tn );
     }
 
-    void test_run( char const * tn, test_func_t tf, char const * exp_err )
+    void test_run( char const * tn, test_func_t tf, char const * exp_err, char const * exp_out = 0 )
     {
+      assert( ! ( exp_err && exp_out ) ); // can't expect both an error and output
       cur_tn = tn; // for test_print()
       bool had_err = 1;
       try {
@@ -57,8 +60,15 @@ namespace boda {
 	  }
 	}
       }
-      if( (!had_err) && exp_err ) { test_fail_no_err( exp_err ); }
-      // note: !had_err && !exp_err case (i.e. checking correct output) is handled inside test function.
+      if( !had_err ) {
+	if( exp_err ) { test_fail_no_err( exp_err ); }
+	else if ( exp_out ) {
+	  if( cur_str_out != string(exp_out) ) { test_fail_wrong_res( 
+	      strprintf( "%s\nexpected:\n  %s\n", cur_str_out.c_str(), exp_out ) ); 
+	  }
+	}
+	// note: further !had_err && !exp_err case handling (i.e. checking correct output) may be inside test function.
+      }
       ++tix;
     }
     void remap_fns( vect_string & fns ) {
@@ -108,8 +118,12 @@ namespace boda {
       for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
 	argv.push_back( i->c_str() );
       }
-      p_ostream dnos = ofs_open( "/dev/null" );
-      boda_main_arg_proc( *dnos, argv.size(), (char**)&argv.front() );
+      // FIXME: ignoring the output of main makes our tests less
+      // brittle, but isn't ideal. we should check that the output is
+      // correct in at least a few more cases?
+      std::ostringstream oss;
+      boda_main_arg_proc( oss, argv.size(), (char**)&argv.front() );
+      cur_str_out = oss.str();
     }
     void boda_main_t1( void ) { boda_main_wrap( { "boda", "(foo=biz)" } ); }
     void boda_main_t2( void ) { boda_main_wrap( { "boda", "foo", "--foo" } ); }
@@ -119,9 +133,10 @@ namespace boda {
     void boda_main_t6( void ) { boda_main_wrap( { "boda", "help" } ); } 
     void boda_main_t7( void ) { boda_main_wrap( { "boda", "help_all" } ); } 
     void boda_main_t8( void ) { boda_main_wrap( { "boda", "help_all_ex" } ); } 
-    void boda_main_t9( void ) { boda_main_wrap( { "boda", "help", "vst", "boozle" } ); } 
+    void boda_main_t9_orig( void ) { boda_main_wrap( { "boda", "help", "vst", "boozle" } ); } 
+    void boda_main_t9( void ) { boda_main_wrap( { "boda", "vst", "boozle", "help" } ); } 
     void boda_main_t10( void ) { boda_main_wrap( { "boda", "help", "vst", "dpf" } ); } 
-    void boda_main_t11( void ) { boda_main_wrap( { "boda", "help", "vst", "dpf", "baz" } ); } 
+    void boda_main_t11( void ) { boda_main_wrap( { "boda", "vst", "dpf", "baz", "help" } ); } 
     void u32_box_t1_( void ) { u32_box_t1(); }
     void u32_box_t2_( void ) { u32_box_t2(); }
     void load_img_tst( void ) { img_t img; img.load_fn( cur_fn ); }
@@ -174,9 +189,12 @@ namespace boda {
       test_run( TND(boda_main_t6), 0 ); 
       test_run( TND(boda_main_t7), 0 ); 
       test_run( TND(boda_main_t8), 0 ); 
-      test_run( TND(boda_main_t9), "error: struct 'various_stuff_t' has no field 'boozle', so help cannot be provided for it." ); 
+      test_run( TND(boda_main_t9_orig), 0, 0 ); // return usage, ignore args after help
+      test_run( TND(boda_main_t9), 0, "struct 'various_stuff_t' has no field 'boozle', so help cannot be provided for it.\n" ); 
       test_run( TND(boda_main_t10), 0 ); 
-      test_run( TND(boda_main_t11), "error: leaf type 'double' has no fields at all, certainly not 'baz', so help cannot be provided for it." ); 
+      test_run( TND(boda_main_t11), 0, 
+		"DESCENDING TO DETAILED HELP FOR field 'dpf' of type=double of struct 'various_stuff_t'\n" 
+		"leaf type 'double' has no fields at all, certainly not 'baz', so help cannot be provided for it.\n" ); 
       test_run( TND(u32_box_t1_), "error: during from_pascal_coord_adjust(), box had 0 coord, expected >= 1" );
       test_run( TND(u32_box_t2_), 0 );
       test_run_ifns( TND(load_img_tst), "00---", "%s" );
