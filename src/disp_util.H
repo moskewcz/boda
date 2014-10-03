@@ -50,6 +50,7 @@ namespace boda {
     void disp_setup( vect_p_img_t const & imgs_ ); // list of existing images 
     void disp_setup( p_img_t const & img ); // one existing image 
     p_vect_p_img_t disp_setup( vect_u32_pt_t const & disp_img_szs ); // create/usr/return a list of images of the given sizes
+    void update_disp_imgs( void );
     void drain_sdl_events_and_redisplay( void );
     void on_pipe_data( boost::system::error_code const & ec );
   };

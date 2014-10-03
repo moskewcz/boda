@@ -117,7 +117,13 @@ namespace boda
   };
   inline void shm_seg_once( void ) { assert( once_shm_seg ); once_shm_seg->once(); }
 
-
+  void set_fd_cloexec( int const fd, bool const val ) {
+    int fd_flags = 0;
+    neg_one_fail( fd_flags = fcntl( fd, F_GETFD ), "fcntl" );
+    if( val ) { fd_flags |= FD_CLOEXEC; }
+    else { fd_flags &= ~FD_CLOEXEC; }
+    neg_one_fail( fcntl( fd, F_SETFD, fd_flags ), "fcntl" );
+  }
 
   void fork_and_exec_self( vect_string const & args ) {
     vect_rp_char argp;
@@ -158,14 +164,18 @@ namespace boda
     // by default, the fd returned from shm_open() has FD_CLOEXEC
     // set. it seems okay to remove it so that it will stay open
     // across execve.
-    int fd_flags = 0;
-    neg_one_fail( fd_flags = fcntl( fd, F_GETFD ), "fcntl" );
-    fd_flags &= ~FD_CLOEXEC;
-    neg_one_fail( fcntl( fd, F_SETFD, fd_flags ), "fcntl" );
+    set_fd_cloexec( fd, 0 );
     return fd;
   }
 
   void delay_secs( uint32_t const secs );
+
+  typedef boost::system::error_code error_code;
+  typedef boost::asio::posix::stream_descriptor asio_fd_t;
+  typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
+  typedef boost::asio::local::stream_protocol::socket asio_alss_t;
+  typedef shared_ptr< asio_alss_t > p_asio_alss_t; 
+  boost::asio::io_service & get_io( disp_win_t * const dw );
 
   struct cs_disp_t : virtual public nesi, public has_main_t // NESI(help="client-server video display test",
 			  // bases=["has_main_t"], type_id="cs_disp")
@@ -184,32 +194,53 @@ namespace boda
       img->pels = pels; // make_mmap_shared_p_uint8_t( -1, img->sz_raw_bytes(), 0 ); // FIXME: check img->row_align wrt map page sz?
       img->fill_with_pel( grey_to_pel( 128 ) );
 
+      int sp_fds[2];
+      neg_one_fail( socketpair( AF_LOCAL, SOCK_STREAM, 0, sp_fds ), "socketpair" );
+      set_fd_cloexec( sp_fds[0], 0 ); // we want the parent fd closed in our child
       // fork/exec
       fork_and_exec_self( {"boda","display_ipc",
 	    strprintf("--pels-off=%s",str(pels_off).c_str()),
-	    strprintf("--boda-shm-fd=%s",str(boda_shm_fd).c_str())} );
+	    strprintf("--boda-parent-socket-fd=%s",str(sp_fds[1]).c_str()),
+	    strprintf("--boda-shm-fd=%s",str(boda_shm_fd).c_str())
+	    } );
+      neg_one_fail( close( sp_fds[1] ), "close" ); // in the parent, we close the socket child will use
+
+      boost::asio::io_service io;
+      asio_alss_t alss( io ); 
+      alss.assign( boost::asio::local::stream_protocol(), sp_fds[0] );
+
+      uint8_t a_byte = 123;
 
       for( uint32_t j = 0; j != 10000; ++j ) {
 	for( uint32_t i = 0; i != 10; ++i ) {
 	  img->fill_with_pel( grey_to_pel( 50 + i*15 ) );
+	  write( alss, boost::asio::buffer( &a_byte, 1 ) ); 	  
+	  read( alss, boost::asio::buffer( &a_byte, 1 ) );
 	}
       }
 
     }
   };
 
-
-  typedef boost::system::error_code error_code;
-  typedef boost::asio::posix::stream_descriptor asio_fd_t;
-  typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
-  boost::asio::io_service & get_io( disp_win_t * const dw );
-
   struct display_ipc_t : virtual public nesi, public has_main_t // NESI(help="video display over ipc test",
 			  // bases=["has_main_t"], type_id="display_ipc")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     int32_t boda_shm_fd; //NESI(help="an open fd created by shm_open() in the parent process.",req=1)
+    int32_t boda_parent_socket_fd; //NESI(help="an open fd created by socketpair() in the parent process.",req=1)
     uint64_t pels_off; //NESI(help="offset to pels",req=1)
+
+    disp_win_t disp_win;
+    p_asio_alss_t alss;
+    uint8_t a_byte;
+
+    void on_parent_data( error_code const & ec ) { 
+      assert_st( !ec );
+      disp_win.update_disp_imgs();
+      write( *alss, boost::asio::buffer( &a_byte, 1 ) ); 	  
+      async_read( *alss, boost::asio::buffer( &a_byte, 1 ), bind( &display_ipc_t::on_parent_data, this, _1 ) );
+    }
+
     virtual void main( nesi_init_arg_t * nia ) { 
       shm_seg_t shm_seg;
       shm_seg.init( boda_shm_fd, 0 );
@@ -220,9 +251,13 @@ namespace boda
       img->pels = pels; // make_mmap_shared_p_uint8_t( -1, img->sz_raw_bytes(), 0 ); // FIXME: check img->row_align wrt map page sz?
       img->fill_with_pel( grey_to_pel( 128 ) );
       //fork();
-      disp_win_t disp_win;
       disp_win.disp_setup( img );
-      get_io( &disp_win ).run();
+      boost::asio::io_service & io( get_io( &disp_win ) );
+      alss.reset( new asio_alss_t(io)  );
+      alss->assign( boost::asio::local::stream_protocol(), boda_parent_socket_fd );
+      async_read( *alss, boost::asio::buffer( &a_byte, 1 ), bind( &display_ipc_t::on_parent_data, this, _1 ) );
+
+      io.run();
     }
   };
 
@@ -247,16 +282,17 @@ namespace boda
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
     p_cnet_predict_t cnet_predict; //NESI(default="()",help="cnet running options")    
     p_asio_fd_t cap_afd;
+    disp_win_t disp_win;
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
       capture->on_readable();
       cnet_predict->do_predict( capture->cap_img ); 
+      disp_win.update_disp_imgs();
       async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
       cnet_predict->setup_predict(); 
       capture->cap_start();
-      disp_win_t disp_win;
       disp_win.disp_setup( capture->cap_img );
 
       boost::asio::io_service & io = get_io( &disp_win );
@@ -274,6 +310,7 @@ namespace boda
     p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,out_layer_name=conv3)",help="cnet running options")
     p_img_t feat_img;
     p_asio_fd_t cap_afd;
+    disp_win_t disp_win;
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
       capture->on_readable();
@@ -281,7 +318,7 @@ namespace boda
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, capture->cap_img );
       p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
       copy_batch_to_img( out_batch, 0, feat_img );
-
+      disp_win.update_disp_imgs();
       async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -292,7 +329,6 @@ namespace boda
       feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
 
       capture->cap_start();
-      disp_win_t disp_win;
       disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
 
       boost::asio::io_service & io = get_io( &disp_win );

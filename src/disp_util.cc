@@ -228,11 +228,20 @@ namespace boda
 
   }
 
+  // call when changes to imgs should be reflected/copied onto the display texture
+  void disp_win_t::update_disp_imgs( void ) {
+    if (!paused) {
+      uint32_t out_x = 0;
+      for( uint32_t i = 0; i != imgs->size(); ++i ) { 
+	img_to_YV12( *YV12_buf, imgs->at(i), out_x, YV12_buf->h - imgs->at(i)->h );
+	out_x += imgs->at(i)->w;
+      }
+      SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
+    }
+  }
 
   void disp_win_t::drain_sdl_events_and_redisplay( void ) {
-
     SDL_Event event;
-
     while (SDL_PollEvent(&event)) {
       switch (event.type) {
       case SDL_WINDOWEVENT:
@@ -276,16 +285,6 @@ namespace boda
 	break;
       }
     }
-
-    if (!paused) {
-      uint32_t out_x = 0;
-      for( uint32_t i = 0; i != imgs->size(); ++i ) { 
-	img_to_YV12( *YV12_buf, imgs->at(i), out_x, YV12_buf->h - imgs->at(i)->h );
-	out_x += imgs->at(i)->w;
-      }
-      SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
-    }
-
     SDL_RenderClear( renderer.get() );
     SDL_RenderCopy( renderer.get(), tex.get(), NULL, displayrect.get() );
     ++frame_cnt;

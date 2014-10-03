@@ -48,6 +48,7 @@ namespace boda
     
     p_img_t feat_img; 
     p_asio_fd_t cap_afd;
+    disp_win_t disp_win;
 
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
@@ -59,6 +60,7 @@ namespace boda
 	if( write_output || disp_output ) {
 	  timer_t t("conv_pyra_write_output");
 	  copy_batch_to_img( out_batch, 0, feat_img );
+	  disp_win.update_disp_imgs();
 	}
       }
       async_read( *cap_afd, boost::asio::null_buffers(), bind( &conv_pyra_t::on_cap_read, this, _1 ) );
@@ -83,7 +85,6 @@ namespace boda
       u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
       feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
       capture->cap_start();
-      disp_win_t disp_win;
       disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
 
       boost::asio::io_service & io = get_io( &disp_win );
