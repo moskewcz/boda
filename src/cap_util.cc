@@ -35,8 +35,10 @@ namespace boda
   p_run_cnet_t make_p_run_cnet_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
   void capture_t::cap_start( void  ) { 
-    cap_img.reset( new img_t );
-    cap_img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
+    if( !cap_img ) {
+      cap_img.reset( new img_t );
+      cap_img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
+    }
     cap_fd = -1;
     open_device();
     init_device();

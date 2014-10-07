@@ -92,6 +92,18 @@ namespace boda
 			  // bases=["has_main_t"], type_id="cs_disp")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    p_asio_alss_t alss; 
+    p_capture_t capture; //NESI(default="()",help="capture from camera options")    
+    p_asio_fd_t cap_afd;
+    void on_cap_read( error_code const & ec ) { 
+      assert_st( !ec );
+      capture->on_readable();
+      bwrite( *alss, string( "foo" ) );
+      uint8_t done;
+      bread( *alss, done );
+      async_read( *cap_afd, boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
+    }
+
     virtual void main( nesi_init_arg_t * nia ) { 
       int sp_fds[2];
       neg_one_fail( socketpair( AF_LOCAL, SOCK_STREAM, 0, sp_fds ), "socketpair" );
@@ -101,26 +113,21 @@ namespace boda
       neg_one_fail( close( sp_fds[1] ), "close" ); // in the parent, we close the socket child will use
 
       boost::asio::io_service io;
-      asio_alss_t alss( io ); 
-      alss.assign( boost::asio::local::stream_protocol(), sp_fds[0] );
+      alss.reset( new asio_alss_t(io)  );
+      alss->assign( boost::asio::local::stream_protocol(), sp_fds[0] );
 
+      bwrite( *alss, capture->cap_res );
       p_img_t img( new img_t );
-      //img->set_sz_and_alloc_pels( 100, 100 );
-      img->set_sz( 100, 100 );
-      img->pels = make_and_share_p_uint8_t( alss, img->sz_raw_bytes() ); // FIXME: check img->row_align wrt map page sz?
+      img->set_sz( capture->cap_res.d[0], capture->cap_res.d[1] ); // w, h
+      img->pels = make_and_share_p_uint8_t( *alss, img->sz_raw_bytes() ); // FIXME: check img->row_align wrt map page sz?
       img->fill_with_pel( grey_to_pel( 128 ) );
+      capture->cap_img = img;
 
-      uint8_t a_byte = 123;
-
-      for( uint32_t j = 0; j != 10000; ++j ) {
-	for( uint32_t i = 0; i != 10; ++i ) {
-	  img->fill_with_pel( grey_to_pel( 50 + i*15 ) );
-	  bwrite( alss, string( "foo" ) );
-	  //write( alss, boost::asio::buffer( &a_byte, 1 ) ); 	  
-	  read( alss, boost::asio::buffer( &a_byte, 1 ) );
-	}
-      }
-
+      capture->cap_start();
+      cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
+      async_read( *cap_afd, boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
+      
+      io.run();
     }
   };
 
@@ -132,34 +139,28 @@ namespace boda
 
     disp_win_t disp_win;
     p_asio_alss_t alss;
-    uint8_t a_byte;
 
     void on_parent_data( error_code const & ec ) { 
       assert_st( !ec );
       disp_win.update_disp_imgs();
       string ret;
       bread( *alss, ret );
-      printf( "ret=%s\n", str(ret).c_str() );
-      write( *alss, boost::asio::buffer( &a_byte, 1 ) ); 	  
+      uint8_t const done = 1;
+      bwrite( *alss, done );
       async_read( *alss, boost::asio::null_buffers(), bind( &display_ipc_t::on_parent_data, this, _1 ) );
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
-      //fork();
       boost::asio::io_service & io( get_io( &disp_win ) );
       alss.reset( new asio_alss_t(io)  );
       alss->assign( boost::asio::local::stream_protocol(), boda_parent_socket_fd );
-
       p_img_t img( new img_t );
-      //img->set_sz_and_alloc_pels( 100, 100 );
-      img->set_sz( 100, 100 );
+      u32_pt_t img_res;
+      bread( *alss, img_res );
+      img->set_sz( img_res.d[0], img_res.d[1] );
       img->pels = recv_shared_p_uint8_t( *alss ); // FIXME: check img->row_align wrt map page sz?
-      img->fill_with_pel( grey_to_pel( 128 ) );
-
       disp_win.disp_setup( img );
-
       async_read( *alss, boost::asio::null_buffers(), bind( &display_ipc_t::on_parent_data, this, _1 ) );
-
       io.run();
     }
   };
