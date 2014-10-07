@@ -102,6 +102,10 @@ namespace boda
   p_vect_string readlines_fn( filename_t const & fn );
   //p_vect_string readlines_fn( string const & fn );
 
+  void neg_one_fail( int const & ret, char const * const func_name );
+  void fork_and_exec_self( vect_string const & args );
+  void set_fd_cloexec( int const fd, bool const val );
+
   typedef shared_ptr< boost::iostreams::mapped_file > p_mapped_file;
   typedef shared_ptr< boost::iostreams::mapped_file_source > p_mapped_file_source;
   typedef shared_ptr< boost::iostreams::mapped_file_sink > p_mapped_file_sink;

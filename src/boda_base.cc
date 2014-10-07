@@ -1,12 +1,15 @@
 // Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
 #include"str_util.H"
+#include"pyif.H"
 #include<memory>
 #include<execinfo.h>
 #include<cxxabi.h>
 #include<boost/filesystem.hpp>
 #include<boost/iostreams/device/mapped_file.hpp>
 #include<sys/mman.h>
+#include<sys/stat.h>
+#include<fcntl.h>
 
 namespace boda 
 {
@@ -14,6 +17,12 @@ namespace boda
   using namespace boost;  
   using filesystem::path;
   using filesystem::filesystem_error;
+
+  // prints errno
+  void neg_one_fail( int const & ret, char const * const func_name ) {
+    if( ret == -1 ) { rt_err( strprintf( "%s() failed with errno=%s (%s)", func_name, str(errno).c_str(),
+					 strerror(errno) ) ); }
+  }
 
   void rt_err_errno( char const * const func_name ) { rt_err( strprintf( "%s failed with errno=%s (%s)", func_name, str(errno).c_str(),
 									 strerror(errno) ) ); }
@@ -94,6 +103,27 @@ namespace boda
     catch( filesystem_error const & e ) {
       rt_err( strprintf( "filesystem error while trying to check if '%s' is a regular file: %s", 
 			 p.c_str(), e.what() ) ); }
+  }
+
+  void set_fd_cloexec( int const fd, bool const val ) {
+    int fd_flags = 0;
+    neg_one_fail( fd_flags = fcntl( fd, F_GETFD ), "fcntl" );
+    if( val ) { fd_flags |= FD_CLOEXEC; }
+    else { fd_flags &= ~FD_CLOEXEC; }
+    neg_one_fail( fcntl( fd, F_SETFD, fd_flags ), "fcntl" );
+  }
+
+  void fork_and_exec_self( vect_string const & args ) {
+    vect_rp_char argp;
+    for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { argp.push_back( (char *)i->c_str() ); }
+    argp.push_back( 0 );
+    string const self_exe = py_boda_dir() + "/lib/boda"; // note: uses readlink on /proc/self/exe internally
+    pid_t const ret = fork();
+    if( ret == 0 ) {
+      execve( self_exe.c_str(), &argp[0], environ );
+      rt_err( strprintf( "execve of '%s' failed. envp=environ, args=%s", self_exe.c_str(), str(args).c_str() ) );
+    }
+    // ret == child pid, not used
   }
 
   // opens a ifstream. note: this function itself will raise if the open() fails.
