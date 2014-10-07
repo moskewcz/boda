@@ -119,6 +119,7 @@ namespace boda
       write( dw->asio->pipe_write_afd, asio::buffer( &dw->asio->pipe_write_data, 1 ) ); 
     }
   }
+  disp_win_t::disp_win_t( void ) : asio( new asio_t ) { }
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
   // may not change after setup, but this is not checked.
@@ -204,7 +205,6 @@ namespace boda
     frame_cnt = 0;
     int const fps = 60;
 
-    asio.reset( new asio_t );
     asio->frame_dur = posix_time::microseconds( 1000 * 1000 / fps );
     asio->frame_timer.expires_from_now( posix_time::time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );

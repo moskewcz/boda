@@ -46,6 +46,8 @@ namespace boda {
 
     p_asio_t asio;
 
+    disp_win_t( void );
+
     void disp_setup( p_vect_p_img_t const & imgs_ ); // reference to list of existing images (for now: don't modify it later)
     void disp_setup( vect_p_img_t const & imgs_ ); // list of existing images 
     void disp_setup( p_img_t const & img ); // one existing image 
