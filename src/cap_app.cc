@@ -127,13 +127,12 @@ namespace boda
 			  // bases=["has_main_t"], type_id="cs_disp")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t fps; //NESI(default=1000,help="camera poll rate: frames to try to capture per second (note: independent of display rate)")
     p_asio_alss_t disp_alss; 
     uint8_t in_redisplay;
     p_img_t disp_res_img;
     p_asio_alss_t proc_alss; 
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
-    //p_asio_fd_t cap_afd;
+    p_asio_fd_t cap_afd;
 
     uint8_t proc_done;
     p_img_t proc_in_img;
@@ -162,14 +161,11 @@ namespace boda
     }
 
     void on_cap_read( error_code const & ec ) { 
-      //printf( "in_redisplay=%s\n", str(uint32_t(in_redisplay)).c_str() );
       assert_st( !ec );
       bool want_frame = !(in_redisplay);
       bool const got_frame = capture->on_readable( want_frame );
-      //printf( "  got_frame=%s\n", str(got_frame).c_str() );
-      frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
-      frame_timer->async_wait( bind( &cs_disp_t::on_cap_read, this, _1 ) );
-//      async_read( *cap_afd, boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
+      //if( want_frame ) { printf( "want_frame=1 --> got_frame=%s\n", str(got_frame).c_str() ); }
+      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
       if( got_frame ) { 
 	do_redisplay();
 	if( proc_done ) {
@@ -180,9 +176,6 @@ namespace boda
 	}
       }
     }
-
-    boost::posix_time::time_duration frame_dur;
-    p_deadline_timer_t frame_timer;
 
     cs_disp_t( void ) : in_redisplay(0), proc_done(1) { }
 
@@ -198,16 +191,9 @@ namespace boda
       proc_out_img = make_and_share_p_img_t( *proc_alss, capture->cap_res );
  
       capture->cap_start();
-      // NOTE: boost::asio and V4L2 don't seem to work together: the epoll_wait() inside asio always
-      //returns immediatly for the V4L2 fd ... sigh. for now we'll use 1ms polling (i.e. 1000 fps),
-      //which doesn't seem to have noticable overhead and doesn't hurt capture latency too much.
-      //cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) ); async_read( *cap_afd,
-      //boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
-      frame_dur = boost::posix_time::microseconds( 1000 * 1000 / fps );
-      frame_timer.reset( new deadline_timer_t(io) );
-      frame_timer->expires_from_now( boost::posix_time::time_duration() );
-      frame_timer->async_wait( bind( &cs_disp_t::on_cap_read, this, _1 ) );
-     
+
+      cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) ); 
+      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );     
       io.run();
     }
   };
@@ -254,7 +240,7 @@ namespace boda
 
       proc_done = 1;
       bwrite( *alss, proc_done );
-      async_read( *alss, boost::asio::null_buffers(), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
+      alss->async_read_some( boost::asio::null_buffers(), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -263,7 +249,7 @@ namespace boda
       alss->assign( boost::asio::local::stream_protocol(), boda_parent_socket_fd );
       in_img = recv_shared_p_img_t( *alss );
       out_img = recv_shared_p_img_t( *alss );
-      async_read( *alss, boost::asio::null_buffers(), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
+      alss->async_read_some( boost::asio::null_buffers(), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
       io.run();
     }
   };
@@ -326,7 +312,7 @@ namespace boda
       capture->on_readable( 1 );
       cnet_predict->do_predict( capture->cap_img ); 
       disp_win.update_disp_imgs();
-      async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
       cnet_predict->setup_predict(); 
@@ -335,7 +321,7 @@ namespace boda
 
       boost::asio::io_service & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
-      async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
       io.run();
     }
   };
@@ -357,7 +343,7 @@ namespace boda
       p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
       copy_batch_to_img( out_batch, 0, feat_img );
       disp_win.update_disp_imgs();
-      async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
       run_cnet->in_sz = capture->cap_res;
@@ -371,7 +357,7 @@ namespace boda
 
       boost::asio::io_service & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
-      async_read( *cap_afd, boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
       io.run();
     }
   };
