@@ -52,7 +52,7 @@ namespace boda
 
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
-      capture->on_readable();
+      capture->on_readable( 1 );
       ipp->scale_and_pack_img_into_bins( capture->cap_img );
       for( uint32_t bix = 0; bix != ipp->bin_imgs.size(); ++bix ) {
 	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, ipp->bin_imgs[bix] );
