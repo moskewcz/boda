@@ -6,7 +6,7 @@
 
 namespace boda {
 
-  struct capture_t : public read_req_t, virtual public nesi, public has_main_t // NESI(help="video capture skeleton",
+  struct capture_t : virtual public nesi, public has_main_t // NESI(help="video capture skeleton",
 		      // bases=["has_main_t"], type_id="capture")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -23,7 +23,7 @@ namespace boda {
 
     // read_req_t iface:
     virtual int get_fd( void );
-    virtual void on_readable( void );
+    virtual bool on_readable( bool const want_frame );
 
     // V4L2 data
     int cap_fd;
@@ -31,7 +31,7 @@ namespace boda {
 
     // V4L2 funcs
     void process_image( p_img_t const & img, const void *p, int size);
-    void read_frame( p_img_t const & out_img );
+    bool read_frame( p_img_t const & out_img, bool const want_frame );
 
     void init_mmap(void);
     void stop_capturing(void);

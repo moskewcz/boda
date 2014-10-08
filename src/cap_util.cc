@@ -56,7 +56,7 @@ namespace boda
 
   // read_req_t iface:
   int capture_t::get_fd( void ) { assert_st( cap_fd != -1 ); return cap_fd; }
-  void capture_t::on_readable( void ) { read_frame( cap_img ); }
+  bool capture_t::on_readable( bool const want_frame ) { return read_frame( cap_img, want_frame ); }
 
 
   // V4L2 code
@@ -76,9 +76,32 @@ namespace boda
   void must_q_buf( int const & cap_fd, v4l2_buffer & buf ) { 
     if( -1 == xioctl( cap_fd, VIDIOC_QBUF, &buf ) ) { rt_err("VIDIOC_QBUF"); } }
 
+#if 0
+  void dq_all_events( int const fd ) {
+    v4l2_event ev;
+    while( 1 )
+    {
+      if (-1 == xioctl( fd, VIDIOC_DQEVENT, &ev )) {
+	switch (errno) {
+	case EINVAL: // no events
+	//case EAGAIN: // also no events?
+	  return;
+	case EIO:
+	  // maybe ignore?
+	default:
+	  rt_err_errno("VIDIOC_DQEVENT");
+	}
+      }
+      printf( "ev.type=%s\n", str(ev.type).c_str() );
+    }
+  }
+#endif
+
   // read any availible frames, but only process the freshest/newest one (discarding any others)
-  void capture_t::read_frame( p_img_t const & out_img )
+  bool capture_t::read_frame( p_img_t const & out_img, bool const want_frame )
   {
+    timer_t t("read_frame");
+    //dq_all_events( cap_fd );
     v4l2_buffer buf = {};
     v4l2_buffer last_buf = {};
 
@@ -93,10 +116,10 @@ namespace boda
 	switch (errno) {
 	case EAGAIN: // no frames left/availible, we're done no matter what
 	  if( last_buf_valid ) { // if we got a any frames, process the last one (only)
-	    process_image( out_img, buffers[last_buf.index].get(), buf.bytesused);
+	    if( want_frame ) { process_image( out_img, buffers[last_buf.index].get(), buf.bytesused); }
 	    must_q_buf( cap_fd, last_buf );
 	  }
-	  return;
+	  return last_buf_valid && want_frame;
 	case EIO:
 	  /* Could ignore EIO, see spec. */
 	  /* fall through */
