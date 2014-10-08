@@ -491,6 +491,7 @@ namespace boda
   // like above, but assumes PyErr_Occured(). currently just calls
   // PyErr_Print() then calls rt_err(...)
   void rt_py_err( string const & err_msg ) __attribute__((noreturn));
+  void rt_err_errno( char const * const func_name ); // like rt_err, but prints errno
 
   // for any class to have nesi support, it must inherit ": public
   // virtual nesi", and *declare* get_cinfo() (which will be generated
