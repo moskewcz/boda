@@ -132,7 +132,13 @@ namespace boda
       // printf( "buf.sequence=%s\n", str(buf.sequence).c_str() );
       // buf is now a valid buf
       assert(buf.index < buffers.size());
-      if( last_buf_valid ) { must_q_buf( cap_fd, last_buf ); }
+      // note: seems like a V4L2/epoll() kernel issues can cause at
+      // least late (and then dropped) frames here (with some V4L2
+      // drivers?). in particular, the epoll() doesn't return until
+      // *all* buffers are full, so we drop frames here (we have
+      // nothing to do with them as they are stale), *and* we might be
+      // dropping more frames at the camera/driver level ...
+      if( last_buf_valid ) { ++read_but_dropped_frames; must_q_buf( cap_fd, last_buf ); }
       last_buf_valid = 1;
       last_buf = buf;
     }
@@ -253,11 +259,12 @@ namespace boda
   }
 
   void capture_t::main( nesi_init_arg_t * nia ) { 
+    // note: works, but subject to V4L2/epoll() kernel bug(s).
     cap_start(); 
     int epfd = -1;
     neg_one_fail( epfd = epoll_create( 1 ), "epoll_create" );
-    //int const all_ev = EPOLLIN|EPOLLPRI|EPOLLOUT|EPOLLERR|EPOLLHUP|EPOLLET;
-    epoll_event ev{ EPOLLIN };
+    int const all_ev = EPOLLIN|EPOLLPRI|EPOLLOUT|EPOLLERR|EPOLLHUP|EPOLLET;
+    epoll_event ev{ all_ev }; // EPOLLIN|EPOLLET };
     ev.data.fd = cap_fd;
     neg_one_fail( epoll_ctl( epfd, EPOLL_CTL_ADD, cap_fd, &ev ), "epoll_ctl" );
     //printf( "EPOLLIN=%s EPOLLPRI=%s EPOLLOUT=%s EPOLLERR=%s EPOLLHUP=%s EPOLLET=%s\n", str(EPOLLIN).c_str(), str(EPOLLPRI).c_str(), str(EPOLLOUT).c_str(), str(EPOLLERR).c_str(), str(EPOLLHUP).c_str(), str(EPOLLET).c_str() );
@@ -274,6 +281,8 @@ namespace boda
       else { printstr("-"); }
     }
     printstr("\n");
+    // note: the following should be zero. but, due to bug, =9 on my 3.2 kernel ...
+    printf( "read_but_dropped_frames=%s\n", str(read_but_dropped_frames).c_str() ); 
     cap_stop(); 
   }
 #include"gen/cap_util.H.nesi_gen.cc"
