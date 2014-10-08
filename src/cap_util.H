@@ -17,7 +17,7 @@ namespace boda {
     capture_t( void ) : cap_fd(-1) {}
     ~capture_t( void ) { cap_stop(); }
 
-    virtual void main( nesi_init_arg_t * nia ) { cap_start(); cap_stop(); } // note: doesn't try to read any frames
+    virtual void main( nesi_init_arg_t * nia );
     void cap_start( void );
     void cap_stop( void );
 

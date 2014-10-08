@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
+#include <sys/epoll.h>
 #include <linux/videodev2.h>
 
 namespace boda 
@@ -250,7 +251,31 @@ namespace boda
     cap_fd = open(cap_dev.exp.c_str(), O_RDWR /* required */ | O_NONBLOCK, 0);
     if (-1 == cap_fd) { rt_err( strprintf("Cannot open '%s': %d, %s\n", cap_dev.in.c_str(), errno, strerror(errno) ) ); }
   }
-  
+
+  void capture_t::main( nesi_init_arg_t * nia ) { 
+    cap_start(); 
+    int epfd = -1;
+    neg_one_fail( epfd = epoll_create( 1 ), "epoll_create" );
+    //int const all_ev = EPOLLIN|EPOLLPRI|EPOLLOUT|EPOLLERR|EPOLLHUP|EPOLLET;
+    epoll_event ev{ EPOLLIN };
+    ev.data.fd = cap_fd;
+    neg_one_fail( epoll_ctl( epfd, EPOLL_CTL_ADD, cap_fd, &ev ), "epoll_ctl" );
+    //printf( "EPOLLIN=%s EPOLLPRI=%s EPOLLOUT=%s EPOLLERR=%s EPOLLHUP=%s EPOLLET=%s\n", str(EPOLLIN).c_str(), str(EPOLLPRI).c_str(), str(EPOLLOUT).c_str(), str(EPOLLERR).c_str(), str(EPOLLHUP).c_str(), str(EPOLLET).c_str() );
+    for( uint32_t i = 0; i != 10; ) {
+      int num_ev;
+      ev = {};
+      num_ev = epoll_wait( epfd, &ev, 1, 2000 );
+      if( num_ev == -1 ) { if( errno == EINTR ) { continue; } else { rt_err_errno("epoll_wait"); } }
+      if( num_ev == 0 ) { rt_err("epoll timeout"); }
+      assert_st( num_ev == 1 );
+      assert_st( ev.data.fd == cap_fd );
+      //printf( "ev.events=%s\n", str(ev.events).c_str() );
+      if( read_frame( cap_img, 1 ) ) { ++i; printstr("."); } // got a frame
+      else { printstr("-"); }
+    }
+    printstr("\n");
+    cap_stop(); 
+  }
 #include"gen/cap_util.H.nesi_gen.cc"
 //#include"gen/cap_util.cc.nesi_gen.cc"
   
