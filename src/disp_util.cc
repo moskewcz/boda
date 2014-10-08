@@ -109,16 +109,6 @@ namespace boda
     async_read( asio->pipe_read_afd, asio::buffer( &asio->pipe_read_data, 1 ), bind( &disp_win_t::on_pipe_data, this, _1 ) );
   }
 
-  void pipe_stuffer( disp_win_t * const dw, error_code const & ec ) {
-    assert_st( !ec ); // timer error?
-    if( dw->asio->pipe_iter ) {
-      --dw->asio->pipe_iter;
-      dw->asio->pipe_timer.expires_at( dw->asio->pipe_timer.expires_at() + posix_time::seconds( 1 ) );
-      dw->asio->pipe_timer.async_wait( bind( pipe_stuffer, dw, _1 ) ); 
-      // note: write throws on error (including blocking), which is okay since no error (including blocking) is expected / handleable
-      write( dw->asio->pipe_write_afd, asio::buffer( &dw->asio->pipe_write_data, 1 ) ); 
-    }
-  }
   disp_win_t::disp_win_t( void ) : asio( new asio_t ) { }
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
@@ -208,23 +198,6 @@ namespace boda
     asio->frame_dur = posix_time::microseconds( 1000 * 1000 / fps );
     asio->frame_timer.expires_from_now( posix_time::time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
-
-#if 0
-    int pipe_fds[2];
-    int const pipe_ret = pipe( pipe_fds );
-    assert_st( pipe_ret == 0 );
-
-    asio->pipe_read_afd.assign( pipe_fds[0] );
-    async_read( asio->pipe_read_afd, asio::buffer( &asio->pipe_read_data, 1 ), bind( &disp_win_t::on_pipe_data, this, _1 ) );
-
-    asio->pipe_write_afd.assign( pipe_fds[1] ); // note: ownership transfer
-    asio->pipe_write_afd.non_blocking( 1 );
-
-    asio->pipe_write_data = 123;
-    asio->pipe_iter = 1000;
-    asio->pipe_timer.expires_from_now( posix_time::time_duration() );
-    asio->pipe_timer.async_wait( bind( pipe_stuffer, this, _1 ) );
-#endif
 
   }
 
