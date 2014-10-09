@@ -38,7 +38,7 @@ namespace boda
   };
   typedef shared_ptr< display_pil_asio_t > p_display_pil_asio_t; 
 
-  struct display_pil_t : virtual public nesi, public has_main_t // NESI(help="video capture skeleton",
+  struct display_pil_t : virtual public nesi, public has_main_t // NESI(help="display PASCAL VOC list of images in video window",
 		      // bases=["has_main_t"], type_id="display_pil")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support

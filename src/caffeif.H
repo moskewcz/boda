@@ -52,7 +52,7 @@ namespace boda
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 
   struct cnet_predict_t : virtual public nesi, public run_cnet_t // NESI(help="run a caffe net on a single input",
-		     // bases=["run_cnet_t"], type_id="run_cnet")
+		     // bases=["run_cnet_t"], type_id="cnet_predict")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 

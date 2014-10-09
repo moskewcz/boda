@@ -343,7 +343,7 @@ namespace boda
     }
   };
 
-  struct capture_feats_t : virtual public nesi, public has_main_t // NESI(help="cnet classifaction from video capture",
+  struct capture_feats_t : virtual public nesi, public has_main_t // NESI(help="cnet feature extraction from video capture",
 			   // bases=["has_main_t"], type_id="capture_feats")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
