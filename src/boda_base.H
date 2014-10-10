@@ -197,55 +197,75 @@ namespace boda
 
   uint32_t const boda_magic= *(uint32_t *)"BODA";
 
-  template< typename T > inline void bwrite( std::ostream & out, T const & o ) { 
-    out.write( (char *)&o, sizeof(o) ); assert_st( out.good() ); }
-  template< typename T > inline void bread( std::istream & in, T & o ) { 
-    in.read( (char *)&o, sizeof(o) ); assert_st( in.good() ); }
 
-  template< typename T > inline void bwrite( std::ostream & out, shared_ptr< T > const & o ) { bwrite( out, *o ); }
-  template< typename T > inline void bread( std::istream & in, shared_ptr< T > & o ) { 
+  template< typename T > struct check_T { typedef void void_; typedef int int_; };
+
+  // the b{read,write}_bytes() functions are the basic low-level read/write that must be implimented
+  // for any stream class we wish to use for IO. the two basic ones here are for istream/ostream and
+  // for ASIO classes that ASIO::read/write will work on. the total # of actual instantiations is
+  // probably pretty low: just istream and ostream for the IOS case, and a few socket/file classes
+  // for ASIO. so we could explicitly instantiate them somewhere maybe.
+  template< typename IOSWritable, typename check_T<typename IOSWritable::pos_type>::int_ = 0 > void
+  bwrite_bytes( IOSWritable & out, char const * const & d, size_t const & sz ) {
+    out.write( d, sz ); assert_st( out.good() ); }
+  template< typename IOSReadable, typename check_T<typename IOSReadable::pos_type>::int_ = 0 > void
+  bread_bytes( IOSReadable & in, char * const & d, size_t const & sz ) { in.read( d, sz ); assert_st( in.good() ); }
+#if 1
+  // FIXME: can't define here since asio isn't availible ... and we seem to need to declare them
+  // before the below usages or the overloads won't be found? so we declare here, and define in the
+  // files that will instantiate these ... hmm.
+  template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ = 0 > void 
+  bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ); //write( out, boost::asio::buffer( d, sz ) ); }
+  template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > void 
+  bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ); // read( in, boost::asio::buffer( d, sz ) ); }
+#endif
+
+  template< typename STREAM, typename T > inline void bwrite( STREAM & out, T const & o ) { 
+    bwrite_bytes( out, (char *)&o, sizeof(o) ); }
+  template< typename STREAM, typename T > inline void bread( STREAM & in, T & o ) { 
+    bread_bytes( in, (char *)&o, sizeof(o) ); }
+  template< typename STREAM > inline void bwrite( STREAM & out, string const & o ) {
+    uint32_t const sz = o.size();
+    bwrite( out, sz );
+    bwrite_bytes( out, (char *)&o[0], o.size()*sizeof(string::value_type) );
+  }
+  template< typename STREAM > inline void bread( STREAM & in, string & o ) {
+    uint32_t sz = 0;
+    bread( in, sz );
+    o.resize( sz );
+    bread_bytes( in, (char *)&o[0], o.size()*sizeof(string::value_type) );
+  }
+
+  template< typename STREAM, typename T > inline void bwrite( STREAM & out, shared_ptr< T > const & o ) { 
+    bwrite( out, *o ); }
+  template< typename STREAM, typename T > inline void bread( STREAM & in, shared_ptr< T > & o ) { 
     o.reset( new T );
     bread( in, *o );
   }
 
-  
-  template< typename T > inline void bwrite( std::ostream & out, vector< T > const & o ) { 
+  template< typename STREAM, typename T > inline void bwrite( STREAM & out, vector< T > const & o ) { 
     uint32_t const sz = o.size();
     bwrite( out, sz );
     for( uint32_t i = 0; i < sz; ++i ) { bwrite( out, o[i] ); }
   }
-  template< typename T > inline void bread( std::istream & in, vector< T > & o ) { 
+  template< typename STREAM, typename T > inline void bread( STREAM & in, vector< T > & o ) { 
     uint32_t sz = 0;
     bread( in, sz );
     o.resize( sz );
     for( uint32_t i = 0; i < sz; ++i ) { bread( in, o[i] ); }
   }
 
-  inline void bwrite( std::ostream & out, string const & o ) {
-    uint32_t const sz = o.size();
-    bwrite( out, sz );
-    out.write( (char *)&o[0], o.size()*sizeof(string::value_type) );
-  }
-  inline void bread( std::istream & in, string & o ) {
-    uint32_t sz = 0;
-    bread( in, sz );
-    o.resize( sz );
-    in.read( (char *)&o[0], o.size()*sizeof(string::value_type) );
-    assert_st( in.good() );
-  }
+  template< typename STREAM >
+  inline void bwrite_id( STREAM & out, string const & o ) { bwrite( out, string("id") ); bwrite( out, o ); }
 
-  inline void bwrite_id( std::ostream & out, string const & o ) { bwrite( out, string("id") ); bwrite( out, o ); }
-
-  template< typename T > inline void bwrite( std::ostream & out, hunk_T< T > const & o ) { 
+  template< typename STREAM, typename T > inline void bwrite( STREAM & out, hunk_T< T > const & o ) { 
     bwrite( out, o.sz );
-    out.write( (char *)o.p.get(), o.sz*sizeof(T) );
-    assert_st( out.good() );
+    bwrite_bytes( out, (char *)o.p.get(), o.sz*sizeof(T) );
   }
-  template< typename T > inline void bread( std::istream & in, hunk_T< T > & o ) { 
+  template< typename STREAM, typename T > inline void bread( STREAM & in, hunk_T< T > & o ) { 
     bread( in, o.sz );
     o.p = ma_p_T<T>( o.sz );
-    in.read( (char *)o.p.get(), o.sz*sizeof(T) );
-    assert_st( in.good() );
+    bread_bytes( in, (char *)o.p.get(), o.sz*sizeof(T) );
   }
 
 
@@ -350,8 +370,8 @@ namespace boda
   }
 
 
-  inline void bwrite( std::ostream & out, dims_t const & o ) { bwrite( out, o.dss ); }
-  inline void bread( std::istream & in, dims_t & o ) { bread( in, o.dss ); }
+  template< typename STREAM > inline void bwrite( STREAM & out, dims_t const & o ) { bwrite( out, o.dss ); }
+  template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { bread( in, o.dss ); }
 
   template< typename T > struct nda_T {
     hunk_T< T > elems; 
@@ -453,9 +473,10 @@ namespace boda
   }
 
 
-  template< typename T > inline void bwrite( std::ostream & out, nda_T<T> const & o ) { 
+
+  template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_T<T> const & o ) { 
     bwrite(out,o.dims); bwrite(out,o.elems); }
-  template< typename T > inline void bread( std::istream & in, nda_T<T> & o ) { 
+  template< typename STREAM, typename T > inline void bread( STREAM & in, nda_T<T> & o ) { 
     bread(in,o.dims); bread(in,o.elems); }
   
   typedef nda_T< float > nda_float_t;

@@ -39,21 +39,12 @@ namespace boda
   typedef shared_ptr< asio_alss_t > p_asio_alss_t; 
   boost::asio::io_service & get_io( disp_win_t * const dw );
 
-  template< typename STREAM, typename T > inline void bwrite( STREAM & out, T const & o ) { 
-    write( out, boost::asio::buffer( (char *)&o, sizeof(o) ) ); }
-  template< typename STREAM, typename T > inline void bread( STREAM & in, T & o ) { 
-    read( in, boost::asio::buffer( (char *)&o, sizeof(o) ) ); }
-  template< typename STREAM > inline void bwrite( STREAM & out, string const & o ) {
-    uint32_t const sz = o.size();
-    bwrite( out, sz );
-    write( out, boost::asio::buffer( (char *)&o[0], o.size()*sizeof(string::value_type) ) );
-  }
-  template< typename STREAM > inline void bread( STREAM & in, string & o ) {
-    uint32_t sz = 0;
-    bread( in, sz );
-    o.resize( sz );
-    read( in, boost::asio::buffer( (char *)&o[0], o.size()*sizeof(string::value_type) ) );
-  }
+#if 1
+  template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ = 0 > void 
+  bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ) { write( out, boost::asio::buffer( d, sz ) ); }
+  template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > void 
+  bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ) { read( in, boost::asio::buffer( d, sz ) ); }
+#endif
 
   template< typename STREAM > p_uint8_t make_and_share_p_uint8_t( STREAM & out, uint32_t const sz ) {
     string const fn = get_boda_shm_filename();
