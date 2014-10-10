@@ -128,6 +128,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t fps; //NESI(default=1000,help="camera poll rate: frames to try to capture per second (note: independent of display rate)")
+    uint32_t debug; //NESI(default="0",help="set debug level (9 for max)")
 
     p_asio_alss_t disp_alss; 
     uint8_t in_redisplay;
@@ -142,17 +143,22 @@ namespace boda
     p_img_t proc_in_img;
     p_img_t proc_out_img;
 
+    uint32_t redisp_cnt;
+
     void on_redisplay_done( error_code const & ec ) { 
       assert_st( !ec );
       assert_st( in_redisplay == 0 );
     }
 
     void do_redisplay( void ) {
+      ++redisp_cnt;
+      if( debug ) { 
+	printf( "redisp_cnt=%s in_redisplay=%s\n", str(redisp_cnt).c_str(), str(uint32_t(in_redisplay)).c_str() ); }
       if( !in_redisplay ) {
 	in_redisplay = 1;
 	bwrite( *disp_alss, in_redisplay );
 	async_read( *disp_alss, boost::asio::buffer( (char *)&in_redisplay, 1), bind( &cs_disp_t::on_redisplay_done, this, _1 ) );
-      }
+      } 
     }
 
     void on_proc_done( error_code const & ec ) { 
@@ -183,7 +189,7 @@ namespace boda
       }
     }
 
-    cs_disp_t( void ) : in_redisplay(0), proc_done(1) { }
+    cs_disp_t( void ) : in_redisplay(0), proc_done(1), redisp_cnt(0) { }
 
     virtual void main( nesi_init_arg_t * nia ) { 
       boost::asio::io_service io;

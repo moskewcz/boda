@@ -101,11 +101,12 @@ namespace boda
   // read any availible frames, but only process the freshest/newest one (discarding any others)
   bool capture_t::read_frame( p_img_t const & out_img, bool const want_frame )
   {
+    uint32_t const read_but_dropped_frames_init = read_but_dropped_frames;
     timer_t t("read_frame");
     //dq_all_events( cap_fd );
     v4l2_buffer buf = {};
     v4l2_buffer last_buf = {};
-
+    
     // these two fields should never change/be changed by xioctl(), but this is not checked ...
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; 
     buf.memory = V4L2_MEMORY_MMAP;
@@ -118,7 +119,12 @@ namespace boda
 	case EAGAIN: // no frames left/availible, we're done no matter what
 	  if( last_buf_valid ) { // if we got a any frames, process the last one (only)
 	    if( want_frame ) { process_image( out_img, buffers[last_buf.index].get(), buf.bytesused); }
+	    else { ++read_but_dropped_frames; }
 	    must_q_buf( cap_fd, last_buf );
+	  }
+	  if( debug && (read_but_dropped_frames != read_but_dropped_frames_init) ) {
+	    printf( "read_but_dropped_frames_init=%s read_but_dropped_frames=%s\n", 
+	      str(read_but_dropped_frames_init).c_str(), str(read_but_dropped_frames).c_str() );
 	  }
 	  return last_buf_valid && want_frame;
 	case EIO:

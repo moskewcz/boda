@@ -13,6 +13,7 @@ namespace boda {
     filename_t cap_dev; //NESI(default="/dev/video0",help="capture device filename")
     u32_pt_t cap_res; //NESI(default="640 480", help="capture resolution. good choices might be '640 480' or '320 240'. 
     // you can use 'v4l2-ctl --list-formats-ext' to list valid resolutions. (note: v4l2-ctl is in the vl4-utils package in ubuntu).")
+    uint32_t debug; //NESI(default="0",help="set debug level (9 for max)")
     p_img_t cap_img;
 
     capture_t( void ) : cap_fd(-1), read_but_dropped_frames(0) {}
