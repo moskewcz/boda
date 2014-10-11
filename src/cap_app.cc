@@ -147,7 +147,6 @@ namespace boda
     p_deadline_timer_t frame_timer;
 
     uint8_t proc_done;
-    p_img_t proc_in_img;
     p_img_t proc_out_img;
 
     uint32_t redisp_cnt;
@@ -195,9 +194,10 @@ namespace boda
       if( got_frame ) { 
 	do_redisplay();
 	if( proc_done ) {
-	  img_copy_to( capture->cap_img.get(), proc_in_img.get(), 0, 0 );
 	  proc_done = 0;
 	  bwrite( *proc_alss, proc_done );
+	  bread( *proc_alss, proc_done ); // wait for input data to be saved/copied from cap_img in proc
+	  assert_st( !proc_done );
 	  async_read( *proc_alss, boost::asio::buffer( (char *)&proc_done, 1), bind( &cs_disp_t::on_proc_done, this,_1 ) );
 	}
       }
@@ -209,13 +209,11 @@ namespace boda
       boost::asio::io_service io;
 
       create_boda_worker( io, disp_alss, {"boda","display_ipc"} );
-      capture->cap_img = make_and_share_p_img_t( *disp_alss, capture->cap_res );
-
       create_boda_worker( io, proc_alss, {"boda","proc_ipc"} );
-      proc_in_img = make_and_share_p_img_t( *proc_alss, capture->cap_res );
-      //proc_out_img = make_and_share_p_img_t( *proc_alss, capture->cap_res );
  
       multi_alss_t all_workers_alsss; all_workers_alsss.push_back(disp_alss); all_workers_alsss.push_back(proc_alss);
+
+      capture->cap_img = make_and_share_p_img_t( all_workers_alsss, capture->cap_res );
       proc_out_img = make_and_share_p_img_t( all_workers_alsss, capture->cap_res );
 
 
@@ -250,13 +248,15 @@ namespace boda
     p_img_t out_img;
 
     boost::random::mt19937 gen;
+    uint8_t proc_done;
+    
+    proc_ipc_t( void ) : proc_done(1) { }
 
     void on_parent_data( error_code const & ec ) { 
       assert_st( !ec );
-      uint8_t proc_done;
-      bread( *alss, proc_done );
       assert_st( proc_done == 0 );
       img_copy_to( in_img.get(), out_img.get(), 0, 0 );
+      bwrite( *alss, proc_done ); // report input image captured/saved
       boost::random::uniform_int_distribution<> rx(0, out_img->w - 2);
       while( 1 ) {
 	uint64_t num_swap = 0;
@@ -284,10 +284,9 @@ namespace boda
 	// bwrite( *alss, proc_done );
 	if( num_swap < 1000 ) { break; }
       }
-
       proc_done = 1;
       bwrite( *alss, proc_done );
-      alss->async_read_some( boost::asio::null_buffers(), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
+      alss->async_read_some( boost::asio::buffer( &proc_done, 1 ), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -296,7 +295,7 @@ namespace boda
       alss->assign( boost::asio::local::stream_protocol(), boda_parent_socket_fd );
       in_img = recv_shared_p_img_t( *alss );
       out_img = recv_shared_p_img_t( *alss );
-      alss->async_read_some( boost::asio::null_buffers(), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
+      alss->async_read_some( boost::asio::buffer( &proc_done, 1 ), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
       io.run();
     }
   };
