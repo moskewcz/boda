@@ -37,7 +37,24 @@ namespace boda
   typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
   typedef boost::asio::local::stream_protocol::socket asio_alss_t;
   typedef shared_ptr< asio_alss_t > p_asio_alss_t; 
+  typedef vector< p_asio_alss_t > vect_p_asio_alss_t;
+
   boost::asio::io_service & get_io( disp_win_t * const dw );
+
+  struct multi_alss_t : public vect_p_asio_alss_t { typedef void has_bread_bwrite; };
+
+  void bwrite_bytes( multi_alss_t & out, char const * const & d, size_t const & sz ) {
+    for( vect_p_asio_alss_t::const_iterator i = out.begin(); i != out.end(); ++i ) { bwrite_bytes( **i, d, sz ); } }
+  void bread_bytes( multi_alss_t & in, char * const & d, size_t const & sz ) {
+    char * const buf = (char *)alloca( sz );
+    for( vect_p_asio_alss_t::const_iterator i = in.begin(); i != in.end(); ++i ) { 
+      if( i == in.begin() ) { bread_bytes( **i, d, sz ); } // read from first stream to final output
+      else { // read from other streams to buffer and check result is same
+	bread_bytes( **i, buf, sz ); 
+	if( memcmp( d, buf, sz ) ) { rt_err( "interprocess comm logic error: multi-read not equal across dests" ); }
+      }
+    }
+  }
 
 #if 1
   template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ = 0 > void 
@@ -123,7 +140,6 @@ namespace boda
 
     p_asio_alss_t disp_alss; 
     uint8_t in_redisplay;
-    p_img_t disp_res_img;
     p_asio_alss_t proc_alss; 
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
     //p_asio_fd_t cap_afd;
@@ -154,17 +170,24 @@ namespace boda
 
     void on_proc_done( error_code const & ec ) { 
       assert_st( !ec );
-      img_copy_to( proc_out_img.get(), disp_res_img.get(), 0, 0 );
+      assert( proc_done );
+#if 0 
+      // for now, this is disabled/not possible/not useful, since: (1)
+      // proc's out img is shared with the display (2) we update the
+      // display frequently enough via the capture.  however, if
+      // either changes we'd want to tweak this a bit. i.e. force
+      // redisplay at (at leat) some FPS or the like, or change the
+      // display code to update it's buffers every frame ...
       do_redisplay();
       if( !proc_done ) { // not done yet, just was progress update
 	async_read( *proc_alss, boost::asio::buffer( (char *)&proc_done, 1), bind( &cs_disp_t::on_proc_done, this, _1 ) );
       }
+#endif
     }
 
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
-      bool want_frame = !(in_redisplay);
-      bool const got_frame = capture->on_readable( want_frame );
+      bool const got_frame = capture->on_readable( 1 );
       //if( want_frame ) { printf( "want_frame=1 --> got_frame=%s\n", str(got_frame).c_str() ); }
       //cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
@@ -175,7 +198,7 @@ namespace boda
 	  img_copy_to( capture->cap_img.get(), proc_in_img.get(), 0, 0 );
 	  proc_done = 0;
 	  bwrite( *proc_alss, proc_done );
-	  async_read( *proc_alss, boost::asio::buffer( (char *)&proc_done, 1), bind( &cs_disp_t::on_proc_done, this, _1 ) );
+	  async_read( *proc_alss, boost::asio::buffer( (char *)&proc_done, 1), bind( &cs_disp_t::on_proc_done, this,_1 ) );
 	}
       }
     }
@@ -187,12 +210,15 @@ namespace boda
 
       create_boda_worker( io, disp_alss, {"boda","display_ipc"} );
       capture->cap_img = make_and_share_p_img_t( *disp_alss, capture->cap_res );
-      disp_res_img = make_and_share_p_img_t( *disp_alss, capture->cap_res );
 
       create_boda_worker( io, proc_alss, {"boda","proc_ipc"} );
       proc_in_img = make_and_share_p_img_t( *proc_alss, capture->cap_res );
-      proc_out_img = make_and_share_p_img_t( *proc_alss, capture->cap_res );
+      //proc_out_img = make_and_share_p_img_t( *proc_alss, capture->cap_res );
  
+      multi_alss_t all_workers_alsss; all_workers_alsss.push_back(disp_alss); all_workers_alsss.push_back(proc_alss);
+      proc_out_img = make_and_share_p_img_t( all_workers_alsss, capture->cap_res );
+
+
       capture->cap_start();
       // NOTE: boost::asio (really:epoll) and V4L2 don't seem to work together: reads are only
       //triggered when *all* capture bufs are full, not just one. google v4l2 epoll bug. maybe as of
@@ -247,8 +273,15 @@ namespace boda
 	    if( y1 < y2 ) { std::swap( rpd[x1], rpd[x2] ); ++num_swap; }
 	  }
 	}
-
-	bwrite( *alss, proc_done ); // progress update
+	// explicit progress update -- not needed with shared mem,
+	// display always uses current out_img note: if we're in some
+	// non-shared-mem mode/future, we probably want a time/fps
+	// based update here, not per-some-unit-work. but that's
+	// tricky if we're in some long, blocking compute process. i
+	// suppose we could have a timer thread that copied the out
+	// buf over the network explicitly every so often or the like
+	// ... 
+	// bwrite( *alss, proc_done );
 	if( num_swap < 1000 ) { break; }
       }
 
