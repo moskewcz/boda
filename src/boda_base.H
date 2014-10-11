@@ -219,6 +219,11 @@ namespace boda
   template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > void 
   bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ); // read( in, boost::asio::buffer( d, sz ) ); }
 #endif
+  template< typename T, typename check_T<typename T::has_bread_bwrite>::int_ = 0 > 
+  void bwrite_bytes( T & out, char const * const & d, size_t const & sz );
+  template< typename T, typename check_T<typename T::has_bread_bwrite>::int_ = 0  >
+  void bread_bytes( T & in, char * const & d, size_t const & sz );
+
 
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, T const & o ) { 
     bwrite_bytes( out, (char *)&o, sizeof(o) ); }
