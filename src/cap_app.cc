@@ -247,7 +247,6 @@ namespace boda
     p_img_t in_img;
     p_img_t out_img;
 
-    boost::random::mt19937 gen;
     uint8_t proc_done;
     
     proc_ipc_t( void ) : proc_done(1) { }
@@ -257,33 +256,38 @@ namespace boda
       assert_st( proc_done == 0 );
       img_copy_to( in_img.get(), out_img.get(), 0, 0 );
       bwrite( *alss, proc_done ); // report input image captured/saved
+      boost::random::uniform_int_distribution<> ry(0, out_img->h - 1);
       boost::random::uniform_int_distribution<> rx(0, out_img->w - 2);
-      while( 1 ) {
-	uint64_t num_swap = 0;
-#pragma omp parallel for
-	for( uint32_t i = 0; i < 1<<16; ++i ) {
-	  uint32_t * const rpd = out_img->get_row_pels_data( i%(out_img->h) );
-	  for( uint32_t j = 0; j < 1<<8; ++j ) {
-	    uint32_t x1 = (i*23+j*67)%(out_img->w - 2); // rx(gen);
+      uint32_t rows_done = 0;
+#pragma omp parallel
+      {
+	boost::random::mt19937 gen;
+	while( 1 ) {
+	  uint32_t * const rpd = out_img->get_row_pels_data( ry(gen) );
+	  uint64_t num_swap = 0;
+	  for( uint32_t j = 0; j < 1<<12; ++j ) {
+	    uint32_t x1 = rx(gen);
 	    uint32_t x2 = x1 + 1;
 	    uint8_t y1,y2;
-	    if( x1 < x2 ) { std::swap(x1,x2); }
 	    rgba2y( rpd[x1], y1 );
 	    rgba2y( rpd[x2], y2 );
 	    if( y1 < y2 ) { std::swap( rpd[x1], rpd[x2] ); ++num_swap; }
 	  }
+	  if( !num_swap ) { ++rows_done; }
+	  if( rows_done > (out_img->h*300) ) { break; }
 	}
-	// explicit progress update -- not needed with shared mem,
-	// display always uses current out_img note: if we're in some
-	// non-shared-mem mode/future, we probably want a time/fps
-	// based update here, not per-some-unit-work. but that's
-	// tricky if we're in some long, blocking compute process. i
-	// suppose we could have a timer thread that copied the out
-	// buf over the network explicitly every so often or the like
-	// ... 
-	// bwrite( *alss, proc_done );
-	if( num_swap < 1000 ) { break; }
       }
+
+      // explicit progress update -- not needed with shared mem,
+      // display always uses current out_img note: if we're in some
+      // non-shared-mem mode/future, we probably want a time/fps
+      // based update here, not per-some-unit-work. but that's
+      // tricky if we're in some long, blocking compute process. i
+      // suppose we could have a timer thread that copied the out
+      // buf over the network explicitly every so often or the like
+      // ... 
+      // bwrite( *alss, proc_done );
+
       proc_done = 1;
       bwrite( *alss, proc_done );
       alss->async_read_some( boost::asio::buffer( &proc_done, 1 ), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
