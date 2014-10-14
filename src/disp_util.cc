@@ -75,16 +75,10 @@ namespace boda
   typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
 
   struct asio_t {
-    asio_t( void ) : frame_timer(io), pipe_read_afd(io), pipe_iter(0), pipe_timer(io), pipe_write_afd(io) { }
+    asio_t( void ) : frame_timer(io) { }
     boost::asio::io_service io;
     boost::asio::deadline_timer frame_timer;
     posix_time::time_duration frame_dur;
-    asio_fd_t pipe_read_afd;
-    uint8_t pipe_read_data;
-    uint32_t pipe_iter;
-    boost::asio::deadline_timer pipe_timer;
-    asio_fd_t pipe_write_afd;
-    uint8_t pipe_write_data;
   };
   
   boost::asio::io_service & get_io( disp_win_t * const dw ) { return dw->asio->io; }
@@ -99,14 +93,8 @@ namespace boda
     }
     else { 
       SDL_Quit();
-      dw->asio->io.stop();  // should be optional?
+      dw->asio->io.stop();
     }
-  }
-
-  void disp_win_t::on_pipe_data( error_code const & ec ) {
-    if( ec ) { return; }
-    printf( "uint32_t(asio->pipe_data)=%s\n", str(uint32_t(asio->pipe_read_data)).c_str() );
-    async_read( asio->pipe_read_afd, asio::buffer( &asio->pipe_read_data, 1 ), bind( &disp_win_t::on_pipe_data, this, _1 ) );
   }
 
   disp_win_t::disp_win_t( void ) : asio( new asio_t ) { }
