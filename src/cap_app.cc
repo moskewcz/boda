@@ -280,6 +280,7 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
+      global_timer_log_set_disable_finalize( 1 );
       io_service_t io;
       alss.reset( new asio_alss_t(io)  );
       alss->assign( stream_protocol(), boda_parent_socket_fd );
@@ -316,6 +317,7 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
+      global_timer_log_set_disable_finalize( 1 );
       io_service_t & io( get_io( &disp_win ) );
       alss.reset( new asio_alss_t(io)  );
       alss->assign( stream_protocol(), boda_parent_socket_fd );
