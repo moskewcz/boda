@@ -54,7 +54,7 @@ namespace boda
 	  disp_win.update_disp_imgs();
 	}
       }
-      cap_afd->async_read_some( null_buffers_t(), bind( &conv_pyra_t::on_cap_read, this, _1 ) );
+      setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
     }
    
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -80,7 +80,7 @@ namespace boda
 
       io_service_t & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
-      cap_afd->async_read_some( null_buffers_t(), bind( &conv_pyra_t::on_cap_read, this, _1 ) );
+      setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
       io.run();
     }
   };  

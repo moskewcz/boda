@@ -29,4 +29,9 @@ namespace boda {
   io_service_t & get_io( disp_win_t * const dw );
   deadline_timer_t & get_quit_event( disp_win_t * const dw );
 
+  template< typename CAP, typename MFUNC, typename OBJ > 
+  void setup_capture_on_read( CAP & cap_afd, MFUNC const & mfunc, OBJ const  & obj ) {
+    cap_afd.async_read_some( null_buffers_t(), bind( mfunc, obj, _1 ) );
+  }
+
 }
