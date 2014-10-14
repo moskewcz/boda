@@ -8,17 +8,10 @@
 #include"disp_util.H"
 #include"cap_util.H"
 
-#include<boost/asio.hpp>
-#include<boost/bind.hpp>
-#include<boost/date_time/posix_time/posix_time.hpp>
+#include"asio_util.H"
 
 namespace boda 
 {
-  using namespace boost;
-  typedef system::error_code error_code;
-
-  asio::io_service & get_io( disp_win_t * const dw );
-
   struct display_test_t : virtual public nesi, public has_main_t // NESI(help="video display test",
 			  // bases=["has_main_t"], type_id="display_test")
   {
@@ -26,15 +19,15 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia ) { 
       disp_win_t disp_win;
       disp_win.disp_setup( {{100,100}} ); 
-      boost::asio::io_service & io = get_io( &disp_win );
+      io_service_t & io = get_io( &disp_win );
       io.run();
     }
   };
 
   struct display_pil_asio_t {
-    display_pil_asio_t( boost::asio::io_service & io ) : frame_timer(io) { }
-    posix_time::time_duration frame_dur;
-    boost::asio::deadline_timer frame_timer;
+    display_pil_asio_t( io_service_t & io ) : frame_timer(io) { }
+    time_duration frame_dur;
+    deadline_timer_t frame_timer;
   };
   typedef shared_ptr< display_pil_asio_t > p_display_pil_asio_t; 
 
@@ -77,11 +70,11 @@ namespace boda
       disp_imgs = disp_win.disp_setup( {{640,480}} );
       
       cur_img_ix = 0;
-      boost::asio::io_service & io = get_io( &disp_win );
+      io_service_t & io = get_io( &disp_win );
       asio.reset( new display_pil_asio_t( io ) );
       
-      asio->frame_dur = posix_time::microseconds( 1000 * 1000 / fps );
-      asio->frame_timer.expires_from_now( posix_time::time_duration() );
+      asio->frame_dur = microseconds( 1000 * 1000 / fps );
+      asio->frame_timer.expires_from_now( time_duration() );
       asio->frame_timer.async_wait( bind( &display_pil_t::on_frame, this, _1 ) );
 
       io.run();

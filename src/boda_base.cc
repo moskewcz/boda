@@ -13,10 +13,12 @@
 
 namespace boda 
 {
-  using namespace std;
-  using namespace boost;  
-  using filesystem::path;
-  using filesystem::filesystem_error;
+  using std::get_deleter;
+  using std::unique_ptr;
+  using std::ifstream;
+  using std::ofstream;
+  using boost::filesystem::path;
+  using boost::filesystem::filesystem_error;
 
   // prints errno
   void neg_one_fail( int const & ret, char const * const func_name ) {

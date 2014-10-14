@@ -16,19 +16,10 @@
 #include <glog/logging.h>
 #include <google/protobuf/text_format.h>
 
-#include<boost/asio.hpp>
-#include<boost/bind.hpp>
-#include<boost/date_time/posix_time/posix_time.hpp>
+#include"asio_util.H"
 
 namespace boda 
 {
-  using namespace boost;
-
-  typedef boost::system::error_code error_code;
-  typedef boost::asio::posix::stream_descriptor asio_fd_t;
-  typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
-  boost::asio::io_service & get_io( disp_win_t * const dw );
-
   struct conv_pyra_t : virtual public nesi, public has_main_t // NESI(help="conv_ana / blf_pack integration test",
 		       // bases=["has_main_t"], type_id="conv_pyra" )
   {
@@ -63,7 +54,7 @@ namespace boda
 	  disp_win.update_disp_imgs();
 	}
       }
-      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &conv_pyra_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( null_buffers_t(), bind( &conv_pyra_t::on_cap_read, this, _1 ) );
     }
    
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -87,9 +78,9 @@ namespace boda
       capture->cap_start();
       disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
 
-      boost::asio::io_service & io = get_io( &disp_win );
+      io_service_t & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
-      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &conv_pyra_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( null_buffers_t(), bind( &conv_pyra_t::on_cap_read, this, _1 ) );
       io.run();
     }
   };  

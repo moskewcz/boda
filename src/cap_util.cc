@@ -22,8 +22,6 @@
 
 namespace boda 
 {
-  using namespace boost;
-
   static int xioctl( int fh, unsigned long int request, void *arg ) {
     int ret;
     while( 1 ) {

@@ -24,7 +24,9 @@
 
 namespace boda 
 {
-  using namespace::std;
+  using std::ostream;
+  using std::endl;
+  using std::cout;
 
   p_nda_double_t pad_nda( double const v, vect_uint32_t const & pad_n, vect_uint32_t const & pad_p, p_nda_double_t in ) {
     assert( pad_n.size() == in->dims.sz() );

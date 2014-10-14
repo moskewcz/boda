@@ -12,7 +12,6 @@
 
 namespace boda 
 {
-  using namespace boost;
   using caffe::Caffe;
   using caffe::Blob;
   

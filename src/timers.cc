@@ -7,7 +7,7 @@
 
 namespace boda
 {
-  using namespace std;
+  using std::pair;
   using google::dense_hash_map;
   // note: in general, these timer routines are not thread safe, as
   // they use statics and globals. sigh. but, with some rules/effort,

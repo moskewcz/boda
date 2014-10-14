@@ -17,10 +17,11 @@
 
 namespace boda 
 {
-  using namespace std;
-  using namespace boost;
-  using filesystem::path;
-  using filesystem::filesystem_error;
+  using boost::algorithm::is_space;
+  using boost::algorithm::token_compress_on;
+  using boost::filesystem::path;
+  using boost::filesystem::filesystem_error;
+  using std::cout;
   using namespace pugi;
 
   typedef vector< string > vect_string;

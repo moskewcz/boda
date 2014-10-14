@@ -8,14 +8,11 @@
 #include"img_io.H"
 #include<poll.h>
 #include"mutex.H"
-#include<boost/asio.hpp>
-#include<boost/bind.hpp>
-#include<boost/date_time/posix_time/posix_time.hpp>
 
+#include"asio_util.H"
 
 namespace boda 
 {
-  using namespace boost;
 
 #define DECL_MAKE_P_SDL_OBJ( tn ) p_SDL_##tn make_p_SDL( SDL_##tn * const rp ) { return p_SDL_##tn( rp, SDL_Destroy##tn ); }
 
@@ -70,18 +67,16 @@ namespace boda
     }
   }
 
-  typedef boost::system::error_code error_code;
-  typedef boost::asio::posix::stream_descriptor asio_fd_t;
-  typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
-
   struct asio_t {
-    asio_t( void ) : frame_timer(io) { }
-    boost::asio::io_service io;
-    boost::asio::deadline_timer frame_timer;
-    posix_time::time_duration frame_dur;
+    asio_t( void ) : frame_timer(io), quit_event(io) { }
+    io_service_t io;
+    deadline_timer_t frame_timer;
+    time_duration frame_dur;
+    deadline_timer_t quit_event;
   };
   
-  boost::asio::io_service & get_io( disp_win_t * const dw ) { return dw->asio->io; }
+  io_service_t & get_io( disp_win_t * const dw ) { return dw->asio->io; }
+  deadline_timer_t & get_quit_event( disp_win_t * const dw ) { return dw->asio->quit_event; }
 
   void on_frame( disp_win_t * const dw, error_code const & ec ) {
     if( ec ) { return; } // handle?
@@ -183,10 +178,10 @@ namespace boda
     frame_cnt = 0;
     int const fps = 60;
 
-    asio->frame_dur = posix_time::microseconds( 1000 * 1000 / fps );
-    asio->frame_timer.expires_from_now( posix_time::time_duration() );
+    asio->frame_dur = microseconds( 1000 * 1000 / fps );
+    asio->frame_timer.expires_from_now( time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
-
+    asio->quit_event.expires_from_now( pos_infin );
   }
 
   // call when changes to imgs should be reflected/copied onto the display texture

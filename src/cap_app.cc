@@ -1,5 +1,6 @@
 // Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
+#include"asio_util.H"
 #include"geom_prim.H"
 #include"timers.H"
 #include"str_util.H"
@@ -15,9 +16,6 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-#include<boost/asio.hpp>
-#include<boost/bind.hpp>
-#include<boost/date_time/posix_time/posix_time.hpp>
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
@@ -30,16 +28,6 @@ namespace boda
   string get_boda_shm_filename( void ) { return strprintf( "/boda-rev-%s-pid-%s-top.shm", build_rev, 
 							   str(getpid()).c_str() ); }
 
-  typedef boost::system::error_code error_code;
-  typedef boost::asio::posix::stream_descriptor asio_fd_t;
-  typedef boost::asio::deadline_timer deadline_timer_t;
-  typedef shared_ptr< deadline_timer_t > p_deadline_timer_t;
-  typedef shared_ptr< asio_fd_t > p_asio_fd_t; 
-  typedef boost::asio::local::stream_protocol::socket asio_alss_t;
-  typedef shared_ptr< asio_alss_t > p_asio_alss_t; 
-  typedef vector< p_asio_alss_t > vect_p_asio_alss_t;
-
-  boost::asio::io_service & get_io( disp_win_t * const dw );
 
   struct multi_alss_t : public vect_p_asio_alss_t { typedef void has_bread_bwrite; };
 
@@ -58,9 +46,9 @@ namespace boda
 
 #if 1
   template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ = 0 > void 
-  bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ) { write( out, boost::asio::buffer( d, sz ) ); }
+  bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ) { write( out, buffer( d, sz ) ); }
   template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > void 
-  bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ) { read( in, boost::asio::buffer( d, sz ) ); }
+  bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ) { read( in, buffer( d, sz ) ); }
 #endif
 
   template< typename STREAM > p_uint8_t make_and_share_p_uint8_t( STREAM & out, uint32_t const sz ) {
@@ -119,7 +107,7 @@ namespace boda
     return img;
   }
 
-  void create_boda_worker( boost::asio::io_service & io, p_asio_alss_t & alss, vect_string const & args ) {
+  void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args ) {
     int sp_fds[2];
     neg_one_fail( socketpair( AF_LOCAL, SOCK_STREAM, 0, sp_fds ), "socketpair" );
     set_fd_cloexec( sp_fds[0], 0 ); // we want the parent fd closed in our child
@@ -128,7 +116,7 @@ namespace boda
     fork_and_exec_self( fin_args );
     neg_one_fail( close( sp_fds[1] ), "close" ); // in the parent, we close the socket child will use
     alss.reset( new asio_alss_t(io)  );
-    alss->assign( boost::asio::local::stream_protocol(), sp_fds[0] );
+    alss->assign( stream_protocol(), sp_fds[0] );
   }
 
   struct cs_disp_t : virtual public nesi, public has_main_t // NESI(help="client-server video display test",
@@ -161,7 +149,7 @@ namespace boda
       if( !in_redisplay ) {
 	in_redisplay = 1;
 	bwrite( *disp_alss, in_redisplay );
-	async_read( *disp_alss, boost::asio::buffer( (char *)&in_redisplay, 1), bind( &cs_disp_t::on_redisplay_done, this, _1 ) );
+	async_read( *disp_alss, buffer( (char *)&in_redisplay, 1), bind( &cs_disp_t::on_redisplay_done, this, _1 ) );
       } 
     }
 
@@ -177,7 +165,7 @@ namespace boda
       // display code to update it's buffers every frame ...
       do_redisplay();
       if( !proc_done ) { // not done yet, just was progress update
-	async_read( *proc_alss, boost::asio::buffer( (char *)&proc_done, 1), bind( &cs_disp_t::on_proc_done, this, _1 ) );
+	async_read( *proc_alss, buffer( (char *)&proc_done, 1), bind( &cs_disp_t::on_proc_done, this, _1 ) );
       }
 #endif
     }
@@ -186,7 +174,7 @@ namespace boda
       assert_st( !ec );
       bool const got_frame = capture->on_readable( 1 );
       //if( want_frame ) { printf( "want_frame=1 --> got_frame=%s\n", str(got_frame).c_str() ); }
-      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( null_buffers_t(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
       if( got_frame ) { 
 	do_redisplay();
 	if( proc_done ) {
@@ -194,7 +182,7 @@ namespace boda
 	  bwrite( *proc_alss, proc_done );
 	  bread( *proc_alss, proc_done ); // wait for input data to be saved/copied from cap_img in proc
 	  assert_st( !proc_done );
-	  async_read( *proc_alss, boost::asio::buffer( (char *)&proc_done, 1), bind( &cs_disp_t::on_proc_done, this,_1 ) );
+	  async_read( *proc_alss, buffer( (char *)&proc_done, 1), bind( &cs_disp_t::on_proc_done, this,_1 ) );
 	}
       }
     }
@@ -202,7 +190,7 @@ namespace boda
     cs_disp_t( void ) : in_redisplay(0), proc_done(1), redisp_cnt(0) { }
 
     virtual void main( nesi_init_arg_t * nia ) { 
-      boost::asio::io_service io;
+      io_service_t io;
 
       create_boda_worker( io, disp_alss, {"boda","display_ipc"} );
       create_boda_worker( io, proc_alss, {"boda","proc_ipc"} );
@@ -213,7 +201,7 @@ namespace boda
       proc_out_img = make_and_share_p_img_t( all_workers_alsss, capture->cap_res );
       capture->cap_start();
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) ); 
-      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( null_buffers_t(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
 
       io.run();
     }
@@ -236,6 +224,7 @@ namespace boda
 
     void on_parent_data( error_code const & ec ) { 
       assert_st( !ec );
+      // if( proc_done == 2 ) { io->stop(); return; }
       assert_st( proc_done == 0 );
       img_copy_to( in_img.get(), out_img.get(), 0, 0 );
       bwrite( *alss, proc_done ); // report input image captured/saved
@@ -273,16 +262,16 @@ namespace boda
 
       proc_done = 1;
       bwrite( *alss, proc_done );
-      alss->async_read_some( boost::asio::buffer( &proc_done, 1 ), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
+      alss->async_read_some( buffer( &proc_done, 1 ), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
-      boost::asio::io_service io;
+      io_service_t io;
       alss.reset( new asio_alss_t(io)  );
-      alss->assign( boost::asio::local::stream_protocol(), boda_parent_socket_fd );
+      alss->assign( stream_protocol(), boda_parent_socket_fd );
       in_img = recv_shared_p_img_t( *alss );
       out_img = recv_shared_p_img_t( *alss );
-      alss->async_read_some( boost::asio::buffer( &proc_done, 1 ), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
+      alss->async_read_some( buffer( &proc_done, 1 ), bind( &proc_ipc_t::on_parent_data, this, _1 ) );
       io.run();
     }
   };
@@ -303,17 +292,17 @@ namespace boda
       disp_win.update_disp_imgs();
       uint8_t const in_redisplay = 0;
       bwrite( *alss, in_redisplay );
-      async_read( *alss, boost::asio::buffer(&parent_cmd, 1), bind( &display_ipc_t::on_parent_data, this, _1 ) );
+      async_read( *alss, buffer(&parent_cmd, 1), bind( &display_ipc_t::on_parent_data, this, _1 ) );
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
-      boost::asio::io_service & io( get_io( &disp_win ) );
+      io_service_t & io( get_io( &disp_win ) );
       alss.reset( new asio_alss_t(io)  );
-      alss->assign( boost::asio::local::stream_protocol(), boda_parent_socket_fd );
+      alss->assign( stream_protocol(), boda_parent_socket_fd );
       p_img_t img = recv_shared_p_img_t( *alss );
       p_img_t img2 = recv_shared_p_img_t( *alss );
       disp_win.disp_setup( vect_p_img_t{img,img2} );
-      async_read( *alss, boost::asio::buffer(&parent_cmd, 1), bind( &display_ipc_t::on_parent_data, this, _1 ) );
+      async_read( *alss, buffer(&parent_cmd, 1), bind( &display_ipc_t::on_parent_data, this, _1 ) );
       io.run();
     }
   };
@@ -346,16 +335,16 @@ namespace boda
       capture->on_readable( 1 );
       cnet_predict->do_predict( capture->cap_img ); 
       disp_win.update_disp_imgs();
-      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( null_buffers_t(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
       cnet_predict->setup_predict(); 
       capture->cap_start();
       disp_win.disp_setup( capture->cap_img );
 
-      boost::asio::io_service & io = get_io( &disp_win );
+      io_service_t & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
-      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( null_buffers_t(), bind( &capture_classify_t::on_cap_read, this, _1 ) );
       io.run();
     }
   };
@@ -378,7 +367,7 @@ namespace boda
       p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
       copy_batch_to_img( out_batch, 0, feat_img );
       disp_win.update_disp_imgs();
-      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( null_buffers_t(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
       run_cnet->in_sz = capture->cap_res;
@@ -390,9 +379,9 @@ namespace boda
       capture->cap_start();
       disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
 
-      boost::asio::io_service & io = get_io( &disp_win );
+      io_service_t & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
-      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( null_buffers_t(), bind( &capture_feats_t::on_cap_read, this, _1 ) );
       io.run();
     }
   };

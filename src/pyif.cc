@@ -14,7 +14,6 @@
 
 namespace boda 
 {
-  using namespace std;
   using boost::filesystem::path;
   using boost::filesystem::canonical;
 

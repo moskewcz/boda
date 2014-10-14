@@ -202,7 +202,7 @@ namespace boda
 
   // the b{read,write}_bytes() functions are the basic low-level read/write that must be implimented
   // for any stream class we wish to use for IO. the two basic ones here are for istream/ostream and
-  // for ASIO classes that ASIO::read/write will work on. the total # of actual instantiations is
+  // for ASIO classes that ASIO read/write will work on. the total # of actual instantiations is
   // probably pretty low: just istream and ostream for the IOS case, and a few socket/file classes
   // for ASIO. so we could explicitly instantiate them somewhere maybe.
   template< typename IOSWritable, typename check_T<typename IOSWritable::pos_type>::int_ = 0 > void
@@ -215,9 +215,9 @@ namespace boda
   // before the below usages or the overloads won't be found? so we declare here, and define in the
   // files that will instantiate these ... hmm.
   template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ = 0 > void 
-  bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ); //write( out, boost::asio::buffer( d, sz ) ); }
+  bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ); //write( out, buffer( d, sz ) ); }
   template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > void 
-  bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ); // read( in, boost::asio::buffer( d, sz ) ); }
+  bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ); // read( in, buffer( d, sz ) ); }
 #endif
   template< typename T, typename check_T<typename T::has_bread_bwrite>::int_ = 0 > 
   void bwrite_bytes( T & out, char const * const & d, size_t const & sz );

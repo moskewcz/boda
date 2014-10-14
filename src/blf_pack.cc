@@ -10,8 +10,6 @@
 
 namespace boda 
 {
-  using namespace boost;
-
   struct blf_bin_t {
     u32_box_t bin;
     vect_u32_box_t holes; 

@@ -5,7 +5,6 @@
 
 namespace boda {
   using namespace pugi;
-  using namespace std;
 
   xml_node xml_file_get_root( xml_document & doc, string const & xml_fn ) {
     ensure_is_regular_file( xml_fn );
