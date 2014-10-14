@@ -24,13 +24,6 @@ namespace boda
     }
   };
 
-  struct display_pil_asio_t {
-    display_pil_asio_t( io_service_t & io ) : frame_timer(io) { }
-    time_duration frame_dur;
-    deadline_timer_t frame_timer;
-  };
-  typedef shared_ptr< display_pil_asio_t > p_display_pil_asio_t; 
-
   struct display_pil_t : virtual public nesi, public has_main_t // NESI(help="display PASCAL VOC list of images in video window",
 		      // bases=["has_main_t"], type_id="display_pil")
   {
@@ -43,14 +36,16 @@ namespace boda
     disp_win_t disp_win;
     p_vect_p_img_t all_imgs;
     p_vect_p_img_t disp_imgs;
-    p_display_pil_asio_t asio;
+    p_deadline_timer_t frame_timer;
+    time_duration frame_dur;
 
     uint32_t cur_img_ix;
 
     void on_frame( error_code const & ec ) {
-      assert_st( !ec );
-      asio->frame_timer.expires_at( asio->frame_timer.expires_at() + asio->frame_dur );
-      asio->frame_timer.async_wait( bind( &display_pil_t::on_frame, this, _1 ) ); 
+      if( ec == errc::operation_canceled ) { return; }
+      assert( !ec );
+      frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
+      frame_timer->async_wait( bind( &display_pil_t::on_frame, this, _1 ) ); 
       if( cur_img_ix == all_imgs->size() ) { cur_img_ix = 0; }
       if( cur_img_ix < all_imgs->size() ) {
 	img_copy_to_clip( all_imgs->at(cur_img_ix).get(), disp_imgs->at(0).get(), 0, 0 );
@@ -58,6 +53,7 @@ namespace boda
       }
       disp_win.update_disp_imgs();
     }
+    void on_quit( error_code const & ec ) { frame_timer->cancel(); }
 
     virtual void main( nesi_init_arg_t * nia ) {
       p_vect_string classes = readlines_fn( pascal_classes_fn );
@@ -73,14 +69,12 @@ namespace boda
       
       cur_img_ix = 0;
       io_service_t & io = get_io( &disp_win );
-      asio.reset( new display_pil_asio_t( io ) );
-      
-      asio->frame_dur = microseconds( 1000 * 1000 / fps );
-      asio->frame_timer.expires_from_now( time_duration() );
-      asio->frame_timer.async_wait( bind( &display_pil_t::on_frame, this, _1 ) );
-
+      frame_timer.reset( new deadline_timer_t( io ) );
+      frame_dur = microseconds( 1000 * 1000 / fps );
+      frame_timer->expires_from_now( time_duration() );
+      frame_timer->async_wait( bind( &display_pil_t::on_frame, this, _1 ) );
+      register_quit_handler( disp_win, &display_pil_t::on_quit, this );
       io.run();
-
     }
 
   };

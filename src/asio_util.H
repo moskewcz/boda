@@ -11,6 +11,7 @@
 namespace boda {
 
   typedef boost::system::error_code error_code;
+  namespace errc = boost::system::errc;
   typedef boost::asio::io_service io_service_t;
   typedef boost::asio::deadline_timer deadline_timer_t;
   using boost::asio::buffer;
@@ -31,7 +32,9 @@ namespace boda {
 
   template< typename CAP, typename MFUNC, typename OBJ > 
   void setup_capture_on_read( CAP & cap_afd, MFUNC const & mfunc, OBJ const  & obj ) {
-    cap_afd.async_read_some( null_buffers_t(), bind( mfunc, obj, _1 ) );
-  }
+    cap_afd.async_read_some( null_buffers_t(), bind( mfunc, obj, _1 ) ); }
+  template< typename T, typename MFUNC, typename OBJ > 
+  void register_quit_handler( T & has_quit, MFUNC const & mfunc, OBJ const  & obj ) {
+    get_quit_event( &has_quit ).async_wait( bind( mfunc, obj, _1 ) ); }
 
 }

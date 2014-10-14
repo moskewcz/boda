@@ -87,8 +87,9 @@ namespace boda
       dw->asio->frame_timer.async_wait( bind( on_frame, dw, _1 ) ); 
     }
     else { 
+      dw->asio->quit_event.cancel();
       SDL_Quit();
-      dw->asio->io.stop();
+      //dw->asio->io.stop();
     }
   }
 
