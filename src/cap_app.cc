@@ -142,9 +142,7 @@ namespace boda
     uint8_t in_redisplay;
     p_asio_alss_t proc_alss; 
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
-    //p_asio_fd_t cap_afd;
-    boost::posix_time::time_duration frame_dur;
-    p_deadline_timer_t frame_timer;
+    p_asio_fd_t cap_afd;
 
     uint8_t proc_done;
     p_img_t proc_out_img;
@@ -188,9 +186,7 @@ namespace boda
       assert_st( !ec );
       bool const got_frame = capture->on_readable( 1 );
       //if( want_frame ) { printf( "want_frame=1 --> got_frame=%s\n", str(got_frame).c_str() ); }
-      //cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
-      frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
-      frame_timer->async_wait( bind( &cs_disp_t::on_cap_read, this, _1 ) );
+      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
       if( got_frame ) { 
 	do_redisplay();
 	if( proc_done ) {
@@ -215,22 +211,9 @@ namespace boda
 
       capture->cap_img = make_and_share_p_img_t( all_workers_alsss, capture->cap_res );
       proc_out_img = make_and_share_p_img_t( all_workers_alsss, capture->cap_res );
-
-
       capture->cap_start();
-      // NOTE: boost::asio (really:epoll) and V4L2 don't seem to work together: reads are only
-      //triggered when *all* capture bufs are full, not just one. google v4l2 epoll bug. maybe as of
-      //some kernel it is fixed, but in 2014.10 with a up-to-date 3.2 kernel it seems broken at per
-      //the bug report, which is the default supported kernel for ubuntu 12.04. so, for now we'll
-      //use 1ms polling (i.e. 1000 fps), which doesn't seem to have noticable overhead and doesn't
-      //hurt capture latency too much.  
-
-      // cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) ); 
-      // cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
-      frame_dur = boost::posix_time::microseconds( 1000 * 1000 / fps );
-      frame_timer.reset( new deadline_timer_t(io) );
-      frame_timer->expires_from_now( boost::posix_time::time_duration() );
-      frame_timer->async_wait( bind( &cs_disp_t::on_cap_read, this, _1 ) );
+      cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) ); 
+      cap_afd->async_read_some( boost::asio::null_buffers(), bind( &cs_disp_t::on_cap_read, this, _1 ) );
 
       io.run();
     }
