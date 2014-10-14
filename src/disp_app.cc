@@ -39,6 +39,8 @@ namespace boda
     filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of classes to process")
     p_img_db_t img_db; //NESI(default="()", help="image database")
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
+
+    disp_win_t disp_win;
     p_vect_p_img_t all_imgs;
     p_vect_p_img_t disp_imgs;
     p_display_pil_asio_t asio;
@@ -54,6 +56,7 @@ namespace boda
 	img_copy_to_clip( all_imgs->at(cur_img_ix).get(), disp_imgs->at(0).get(), 0, 0 );
 	++cur_img_ix;
       }
+      disp_win.update_disp_imgs();
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
@@ -66,7 +69,6 @@ namespace boda
       all_imgs.reset( new vect_p_img_t );
       img_db_get_all_loaded_imgs( all_imgs, img_db );
 
-      disp_win_t disp_win;
       disp_imgs = disp_win.disp_setup( {{640,480}} );
       
       cur_img_ix = 0;
