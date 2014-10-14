@@ -8,6 +8,7 @@ namespace boda
   struct timer_log_t;
   extern timer_log_t global_timer_log; // for address only used in default below
   void global_timer_log_finalize( void );
+  void global_timer_log_set_disable_finalize( bool const disable_finalize );
   struct timer_t {
     string tag; // name of timer
     timer_log_t * tlog; // borrowed pointer, may be null

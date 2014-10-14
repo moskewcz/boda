@@ -69,8 +69,10 @@ namespace boda
 
   struct timer_log_t {
     tlog_map_t tlog_map;
-    timer_log_t( void ) { tlog_map.set_empty_key( string() ); }
+    bool disable_finalize;
+    timer_log_t( void ) : disable_finalize(0) { tlog_map.set_empty_key( string() ); }
     void finalize( void ) {
+      if( disable_finalize ) { return; }
       if( tlog_map.empty() ) { return; } // don't print column headings if no timer data
       vect_tlog_elem_t tlog( tlog_map.begin(), tlog_map.end() );
       std::sort( tlog.begin(), tlog.end(), tlog_map_val_by_bt_comp() );
@@ -99,6 +101,9 @@ namespace boda
   timer_log_t global_timer_log;
   void global_timer_log_finalize( void ) {
     global_timer_log.finalize();
+  }
+  void global_timer_log_set_disable_finalize( bool const disable_finalize ) {
+    global_timer_log.disable_finalize = disable_finalize;
   }
   
   
