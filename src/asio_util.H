@@ -13,6 +13,7 @@ namespace boda {
   typedef boost::system::error_code error_code;
   namespace errc = boost::system::errc;
   typedef boost::asio::io_service io_service_t;
+  typedef shared_ptr< io_service_t > p_io_service_t; 
   typedef boost::asio::deadline_timer deadline_timer_t;
   using boost::asio::buffer;
   using boost::asio::local::stream_protocol;

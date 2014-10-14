@@ -139,7 +139,18 @@ namespace boda
 
     void on_redisplay_done( error_code const & ec ) { 
       assert_st( !ec );
+      if( in_redisplay == 2 ) { 
+	// stop capture
+	capture->cap_stop(); 
+	cap_afd->cancel(); 
+	// stop proc
+	uint8_t const quit = 2;
+	bwrite( *proc_alss, quit );
+	proc_alss->cancel();
+	return; 
+      }
       assert_st( in_redisplay == 0 );
+      async_read( *disp_alss, buffer( (char *)&in_redisplay, 1), bind( &cs_disp_t::on_redisplay_done, this, _1 ) );
     }
 
     void do_redisplay( void ) {
@@ -149,11 +160,11 @@ namespace boda
       if( !in_redisplay ) {
 	in_redisplay = 1;
 	bwrite( *disp_alss, in_redisplay );
-	async_read( *disp_alss, buffer( (char *)&in_redisplay, 1), bind( &cs_disp_t::on_redisplay_done, this, _1 ) );
       } 
     }
 
     void on_proc_done( error_code const & ec ) { 
+      if( ec == errc::operation_canceled ) { return; }
       assert_st( !ec );
       assert( proc_done );
 #if 0 
@@ -171,6 +182,7 @@ namespace boda
     }
 
     void on_cap_read( error_code const & ec ) { 
+      if( ec == errc::operation_canceled ) { return; }
       assert_st( !ec );
       bool const got_frame = capture->on_readable( 1 );
       //if( want_frame ) { printf( "want_frame=1 --> got_frame=%s\n", str(got_frame).c_str() ); }
@@ -189,20 +201,23 @@ namespace boda
 
     cs_disp_t( void ) : in_redisplay(0), proc_done(1), redisp_cnt(0) { }
 
-    virtual void main( nesi_init_arg_t * nia ) { 
-      io_service_t io;
+    p_io_service_t io;
 
-      create_boda_worker( io, disp_alss, {"boda","display_ipc"} );
-      create_boda_worker( io, proc_alss, {"boda","proc_ipc"} );
- 
+    virtual void main( nesi_init_arg_t * nia ) { 
+      io.reset( new io_service_t );
+      create_boda_worker( *io, disp_alss, {"boda","display_ipc"} );
+      create_boda_worker( *io, proc_alss, {"boda","proc_ipc"} );
+
+      async_read( *disp_alss, buffer( (char *)&in_redisplay, 1), bind( &cs_disp_t::on_redisplay_done, this, _1 ) );
+
       multi_alss_t all_workers_alsss; all_workers_alsss.push_back(disp_alss); all_workers_alsss.push_back(proc_alss);
 
       capture->cap_img = make_and_share_p_img_t( all_workers_alsss, capture->cap_res );
       proc_out_img = make_and_share_p_img_t( all_workers_alsss, capture->cap_res );
       capture->cap_start();
-      cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) ); 
+      cap_afd.reset( new asio_fd_t( *io, ::dup(capture->get_fd() ) ) ); 
       setup_capture_on_read( *cap_afd, &cs_disp_t::on_cap_read, this );
-      io.run();
+      io->run();
     }
   };
 
@@ -223,7 +238,7 @@ namespace boda
 
     void on_parent_data( error_code const & ec ) { 
       assert_st( !ec );
-      // if( proc_done == 2 ) { io->stop(); return; }
+      if( proc_done == 2 ) { return; } // quit command
       assert_st( proc_done == 0 );
       img_copy_to( in_img.get(), out_img.get(), 0, 0 );
       bwrite( *alss, proc_done ); // report input image captured/saved
@@ -286,12 +301,18 @@ namespace boda
     p_asio_alss_t alss;
 
     void on_parent_data( error_code const & ec ) { 
+      if( ec == errc::operation_canceled ) { return; }
       assert_st( !ec );
       //printf( "parent_cmd=%s\n", str(uint32_t(parent_cmd)).c_str() );
       disp_win.update_disp_imgs();
       uint8_t const in_redisplay = 0;
       bwrite( *alss, in_redisplay );
       async_read( *alss, buffer(&parent_cmd, 1), bind( &display_ipc_t::on_parent_data, this, _1 ) );
+    }
+    void on_quit( error_code const & ec ) { 
+      alss->cancel(); 
+      uint8_t const quit = 2;
+      bwrite( *alss, quit );      
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -302,6 +323,7 @@ namespace boda
       p_img_t img2 = recv_shared_p_img_t( *alss );
       disp_win.disp_setup( vect_p_img_t{img,img2} );
       async_read( *alss, buffer(&parent_cmd, 1), bind( &display_ipc_t::on_parent_data, this, _1 ) );
+      register_quit_handler( disp_win, &display_ipc_t::on_quit, this );
       io.run();
     }
   };
