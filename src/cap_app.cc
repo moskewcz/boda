@@ -13,112 +13,11 @@
 #include"caffeif.H"
 #include"pyif.H" // for py_boda_dir()
 
-#include <sys/mman.h>
-#include <sys/stat.h>
-
-
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
 
 namespace boda 
 {
-
-#include"gen/build_info.cc"
-
-  string get_boda_shm_filename( void ) { return strprintf( "/boda-rev-%s-pid-%s-top.shm", build_rev, 
-							   str(getpid()).c_str() ); }
-
-
-  struct multi_alss_t : public vect_p_asio_alss_t { typedef void has_bread_bwrite; };
-
-  void bwrite_bytes( multi_alss_t & out, char const * const & d, size_t const & sz ) {
-    for( vect_p_asio_alss_t::const_iterator i = out.begin(); i != out.end(); ++i ) { bwrite_bytes( **i, d, sz ); } }
-  void bread_bytes( multi_alss_t & in, char * const & d, size_t const & sz ) {
-    char * const buf = (char *)alloca( sz );
-    for( vect_p_asio_alss_t::const_iterator i = in.begin(); i != in.end(); ++i ) { 
-      if( i == in.begin() ) { bread_bytes( **i, d, sz ); } // read from first stream to final output
-      else { // read from other streams to buffer and check result is same
-	bread_bytes( **i, buf, sz ); 
-	if( memcmp( d, buf, sz ) ) { rt_err( "interprocess comm logic error: multi-read not equal across dests" ); }
-      }
-    }
-  }
-
-#if 1
-  template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ = 0 > void 
-  bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ) { write( out, buffer( d, sz ) ); }
-  template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > void 
-  bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ) { read( in, buffer( d, sz ) ); }
-#endif
-
-  template< typename STREAM > p_uint8_t make_and_share_p_uint8_t( STREAM & out, uint32_t const sz ) {
-    string const fn = get_boda_shm_filename();
-    shm_unlink( fn.c_str() ); // we don't want to use any existing shm, so try to remove it if it exists.
-    // note that, in theory, we could have just unlinked an in-use shm, and thus broke some other
-    // processes. also note that between the unlink above and the shm_open() below, someone could
-    // create shm with the name we want, and then we will fail. note that, generally speaking,
-    // shm_open() doesn't seem secure/securable (maybe one could use a random shm name here?), but
-    // we're mainly trying to just be robust -- including being non-malicious
-    // errors/bugs/exceptions.
-    int const fd = shm_open( fn.c_str(), O_RDWR | O_CREAT | O_TRUNC | O_EXCL, S_IRUSR | S_IWUSR );
-    if( fd == -1 ) { rt_err( strprintf( "send-end shm_open() failed with errno=%s", str(errno).c_str() ) ); }
-    neg_one_fail( ftruncate( fd, sz ), "ftruncate" );
-    p_uint8_t ret = make_mmap_shared_p_uint8_t( fd, sz, 0 );
-    bwrite( out, fn ); 
-    bwrite( out, sz );
-    uint8_t done;
-    bread( out, done );
-    // we're done with the shm segment name now, so free it. notes: (1) we could have freed it
-    // earlier and used SCM_RIGHTS to xfer the fd. (2) we could make a better effort to unlink here
-    // in the event of errors in the above xfer.
-    neg_one_fail( shm_unlink( fn.c_str() ), "shm_unlink" );
-    return ret;
-  }
-
-  template< typename STREAM > p_uint8_t recv_shared_p_uint8_t( STREAM & in ) {
-    string fn;
-    bread( in, fn ); // note: currently always == get_boda_shm_filename() ...
-    uint32_t sz = 0;
-    bread( in, sz );
-    assert_st( sz );
-    int const fd = shm_open( fn.c_str(), O_RDWR, S_IRUSR | S_IWUSR );
-    if( fd == -1 ) { rt_err( strprintf( "recv-end shm_open() failed with errno=%s", str(errno).c_str() ) ); }
-    neg_one_fail( ftruncate( fd, sz ), "ftruncate" );
-    p_uint8_t ret = make_mmap_shared_p_uint8_t( fd, sz, 0 );
-    uint8_t const done = 1;
-    bwrite( in, done );
-    return ret;
-  }
-
-  template< typename STREAM > p_img_t make_and_share_p_img_t( STREAM & out, u32_pt_t const & sz ) {
-    bwrite( out, sz );
-    p_img_t img( new img_t );
-    img->set_sz( sz.d[0], sz.d[1] ); // w, h
-    img->pels = make_and_share_p_uint8_t( out, img->sz_raw_bytes() ); // FIXME: check img->row_align wrt map page sz?
-    return img;
-  }
-
-  template< typename STREAM > p_img_t recv_shared_p_img_t( STREAM & stream ) {
-    p_img_t img( new img_t );
-    u32_pt_t img_res;
-    bread( stream, img_res );
-    img->set_sz( img_res.d[0], img_res.d[1] );
-    img->pels = recv_shared_p_uint8_t( stream ); // FIXME: check img->row_align wrt map page sz?
-    return img;
-  }
-
-  void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args ) {
-    int sp_fds[2];
-    neg_one_fail( socketpair( AF_LOCAL, SOCK_STREAM, 0, sp_fds ), "socketpair" );
-    set_fd_cloexec( sp_fds[0], 0 ); // we want the parent fd closed in our child
-    vect_string fin_args = args;
-    fin_args.push_back( strprintf("--boda-parent-socket-fd=%s",str(sp_fds[1]).c_str() ) );
-    fork_and_exec_self( fin_args );
-    neg_one_fail( close( sp_fds[1] ), "close" ); // in the parent, we close the socket child will use
-    alss.reset( new asio_alss_t(io)  );
-    alss->assign( stream_protocol(), sp_fds[0] );
-  }
-
   struct cs_disp_t : virtual public nesi, public has_main_t // NESI(help="client-server video display test",
 			  // bases=["has_main_t"], type_id="cs_disp")
   {

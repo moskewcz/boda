@@ -1,7 +1,16 @@
+#include"boda_base.H"
+
+#include"str_util.H"
+#include"geom_prim.H"
+#include"img_io.H"
+
 #include<boost/asio.hpp>
 #include<boost/bind.hpp>
 #include<boost/date_time/posix_time/posix_time.hpp>
-#include"boda_base.H"
+
+#include<sys/mman.h>
+#include<sys/stat.h>
+
 
 // note: unlike some of the other _util headers, this file doesn't
 // attempt to hide/encapsulate asio. instead, it just groups together
@@ -37,5 +46,87 @@ namespace boda {
   template< typename T, typename MFUNC, typename OBJ > 
   void register_quit_handler( T & has_quit, MFUNC const & mfunc, OBJ const  & obj ) {
     get_quit_event( &has_quit ).async_wait( bind( mfunc, obj, _1 ) ); }
+
+  struct multi_alss_t : public vect_p_asio_alss_t { typedef void has_bread_bwrite; };
+
+  inline void bwrite_bytes( multi_alss_t & out, char const * const & d, size_t const & sz ) {
+    for( vect_p_asio_alss_t::const_iterator i = out.begin(); i != out.end(); ++i ) { bwrite_bytes( **i, d, sz ); } }
+  inline void bread_bytes( multi_alss_t & in, char * const & d, size_t const & sz ) {
+    char * const buf = (char *)alloca( sz );
+    for( vect_p_asio_alss_t::const_iterator i = in.begin(); i != in.end(); ++i ) { 
+      if( i == in.begin() ) { bread_bytes( **i, d, sz ); } // read from first stream to final output
+      else { // read from other streams to buffer and check result is same
+	bread_bytes( **i, buf, sz ); 
+	if( memcmp( d, buf, sz ) ) { rt_err( "interprocess comm logic error: multi-read not equal across dests" ); }
+      }
+    }
+  }
+
+  template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ = 0 > inline 
+  void bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ) { write( out, buffer( d, sz ) ); }
+  template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > inline
+  void bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ) { read( in, buffer( d, sz ) ); }
+
+  // shm related functionality. break this up more? de-templatize and/or explicitly instantiate to reduce header code?
+
+  string get_boda_shm_filename( void );
+
+  template< typename STREAM > p_uint8_t make_and_share_p_uint8_t( STREAM & out, uint32_t const sz ) {
+    string const fn = get_boda_shm_filename();
+    shm_unlink( fn.c_str() ); // we don't want to use any existing shm, so try to remove it if it exists.
+    // note that, in theory, we could have just unlinked an in-use shm, and thus broke some other
+    // processes. also note that between the unlink above and the shm_open() below, someone could
+    // create shm with the name we want, and then we will fail. note that, generally speaking,
+    // shm_open() doesn't seem secure/securable (maybe one could use a random shm name here?), but
+    // we're mainly trying to just be robust -- including being non-malicious
+    // errors/bugs/exceptions.
+    int const fd = shm_open( fn.c_str(), O_RDWR | O_CREAT | O_TRUNC | O_EXCL, S_IRUSR | S_IWUSR );
+    if( fd == -1 ) { rt_err( strprintf( "send-end shm_open() failed with errno=%s", str(errno).c_str() ) ); }
+    neg_one_fail( ftruncate( fd, sz ), "ftruncate" );
+    p_uint8_t ret = make_mmap_shared_p_uint8_t( fd, sz, 0 );
+    bwrite( out, fn ); 
+    bwrite( out, sz );
+    uint8_t done;
+    bread( out, done );
+    // we're done with the shm segment name now, so free it. notes: (1) we could have freed it
+    // earlier and used SCM_RIGHTS to xfer the fd. (2) we could make a better effort to unlink here
+    // in the event of errors in the above xfer.
+    neg_one_fail( shm_unlink( fn.c_str() ), "shm_unlink" );
+    return ret;
+  }
+
+  template< typename STREAM > p_uint8_t recv_shared_p_uint8_t( STREAM & in ) {
+    string fn;
+    bread( in, fn ); // note: currently always == get_boda_shm_filename() ...
+    uint32_t sz = 0;
+    bread( in, sz );
+    assert_st( sz );
+    int const fd = shm_open( fn.c_str(), O_RDWR, S_IRUSR | S_IWUSR );
+    if( fd == -1 ) { rt_err( strprintf( "recv-end shm_open() failed with errno=%s", str(errno).c_str() ) ); }
+    neg_one_fail( ftruncate( fd, sz ), "ftruncate" );
+    p_uint8_t ret = make_mmap_shared_p_uint8_t( fd, sz, 0 );
+    uint8_t const done = 1;
+    bwrite( in, done );
+    return ret;
+  }
+
+  template< typename STREAM > p_img_t make_and_share_p_img_t( STREAM & out, u32_pt_t const & sz ) {
+    bwrite( out, sz );
+    p_img_t img( new img_t );
+    img->set_sz( sz.d[0], sz.d[1] ); // w, h
+    img->pels = make_and_share_p_uint8_t( out, img->sz_raw_bytes() ); // FIXME: check img->row_align wrt map page sz?
+    return img;
+  }
+
+  template< typename STREAM > p_img_t recv_shared_p_img_t( STREAM & stream ) {
+    p_img_t img( new img_t );
+    u32_pt_t img_res;
+    bread( stream, img_res );
+    img->set_sz( img_res.d[0], img_res.d[1] );
+    img->pels = recv_shared_p_uint8_t( stream ); // FIXME: check img->row_align wrt map page sz?
+    return img;
+  }
+
+  void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args );
 
 }
