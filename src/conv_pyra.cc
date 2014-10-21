@@ -42,6 +42,7 @@ namespace boda
     disp_win_t disp_win;
 
     void on_cap_read( error_code const & ec ) { 
+      if( ec == errc::operation_canceled ) { return; }
       assert_st( !ec );
       capture->on_readable( 1 );
       ipp->scale_and_pack_img_into_bins( capture->cap_img );
@@ -56,6 +57,8 @@ namespace boda
       }
       setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
     }
+
+    void on_quit( error_code const & ec ) { cap_afd->cancel(); }
    
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("conv_prya_top");
@@ -81,6 +84,7 @@ namespace boda
       io_service_t & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
       setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
+      register_quit_handler( disp_win, &conv_pyra_t::on_quit, this );
       io.run();
     }
   };  
