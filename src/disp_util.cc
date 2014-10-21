@@ -75,8 +75,11 @@ namespace boda
     deadline_timer_t quit_event;
   };
   
+  // for now, our quit model is to stop all io on quit unless someone
+  // has requested the quit event, in which case we assume they will
+  // handle things.
   io_service_t & get_io( disp_win_t * const dw ) { return dw->asio->io; }
-  deadline_timer_t & get_quit_event( disp_win_t * const dw ) { return dw->asio->quit_event; }
+  deadline_timer_t & get_quit_event( disp_win_t * const dw ) { dw->stop_io_on_quit = 0; return dw->asio->quit_event; }
 
   void on_frame( disp_win_t * const dw, error_code const & ec ) {
     if( ec ) { return; } // handle?
@@ -89,11 +92,11 @@ namespace boda
     else { 
       dw->asio->quit_event.cancel();
       SDL_Quit();
-      //dw->asio->io.stop();
+      if( dw->stop_io_on_quit ) { dw->asio->io.stop(); }
     }
   }
 
-  disp_win_t::disp_win_t( void ) : asio( new asio_t ) { }
+  disp_win_t::disp_win_t( void ) : stop_io_on_quit(1), asio( new asio_t ) { }
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
   // may not change after setup, but this is not checked.

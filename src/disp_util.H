@@ -35,6 +35,7 @@ namespace boda {
     p_SDL_Rect displayrect;
     bool paused;
     bool done;
+    bool stop_io_on_quit;
 
     uint32_t window_w;
     uint32_t window_h;
