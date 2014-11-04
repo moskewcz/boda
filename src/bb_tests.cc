@@ -127,7 +127,7 @@ namespace boda {
     }
     void boda_main_t1( void ) { boda_main_wrap( { "boda", "(foo=biz)" } ); }
     void boda_main_t2( void ) { boda_main_wrap( { "boda", "foo", "--foo" } ); }
-    void boda_main_t3( void ) { boda_main_wrap( { "boda", "foo", "bar" } ); } 
+    void boda_main_t3( void ) { boda_main_wrap( { "boda", "vst", "bar", "--dpf=5.0" } ); } 
     void boda_main_t4( void ) { boda_main_wrap( { "boda", "foo", "--bar=biz" } ); }
     void boda_main_t5( void ) { boda_main_wrap( { "boda", "foo", "--bar", "biz" } ); }
     void boda_main_t6( void ) { boda_main_wrap( { "boda", "help" } ); } 
@@ -182,7 +182,8 @@ namespace boda {
       test_run_tfns( TND(mapfnro_tst), "00111101", "error: failed to open/map file '%s' for reading" );
       test_run( TND(boda_main_t1), "error: specified mode name '(foo=biz)' parses as a list, and it must not be a list." );
       test_run( TND(boda_main_t2), "error: missing value for option '--foo': no '=' present, and no more args" );
-      test_run( TND(boda_main_t3), "error: expected option, but argument 'bar' does not start with '--'" );
+      //test_run( TND(boda_main_t3), "error: expected option, but argument 'bar' does not start with '--'" ); // for now, pos args are allowed, so we get a different error
+      test_run( TND(boda_main_t3), "error: unused input: pos_args:(0=bar)" );
       char const * bad_mode_foo_err = "error: type id str of 'foo' did not match any derived class of has_main_t\n";
       test_run( TND(boda_main_t4), bad_mode_foo_err ); // AKA success (no prior errors)
       test_run( TND(boda_main_t5), bad_mode_foo_err ); // AKA success (no prior errors)
