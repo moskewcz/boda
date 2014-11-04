@@ -24,8 +24,19 @@ namespace boda
 			  // bases=["has_main_t"], type_id="compsup")
   {
     uint32_t show_all; //NESI(default=0,help="if true, show hidden modes")
+    vect_string pos_args; //NESI(help="current command line args")
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    virtual void main( nesi_init_arg_t * nia ) { nesi_struct_derived_modes( &cinfo_has_main_t, show_all ); printf("\n"); }
+    virtual void main( nesi_init_arg_t * nia ) { 
+      if( pos_args.size() < 3 ) { // show modes
+	printf("-W\n");
+	nesi_struct_derived_modes( &cinfo_has_main_t, show_all ); 
+	printf("\n");
+	if( pos_args.size() > 1 ) { printf("--\n%s\n",str(pos_args[1]).c_str()); }
+      } else {
+	printf("-o\nfilenames\n-f\n");
+	printf("--\n%s\n",str(pos_args.back()).c_str());
+      }
+    }
   };
 #include"gen/boda_help.cc.nesi_gen.cc"
 }
