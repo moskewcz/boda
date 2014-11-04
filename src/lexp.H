@@ -72,6 +72,7 @@ namespace boda {
     lexp_t( sstr_t const & src_ ) : src(src_), use_cnt(0) { }
     void get_stats( lexp_stats_t & lex_stats );
     void add_key_val( std::string const & k, std::string const & v );
+    void add_key_lexp_val( std::string const & k, p_lexp_t const & v );
 #if 0 // unused   
     void add_all_kids_from( p_lexp_t lexp );
     void deep_inc_use_cnt( void );
@@ -86,6 +87,7 @@ namespace boda {
   p_lexp_t parse_lexp_list_xml( pugi::xml_node const & xn, std::string const & xml_fn );
   p_lexp_t parse_lexp_leaf_str( char const * const s );
   p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v );
+  p_lexp_t make_list_lexp_from_vals_vector( std::string const & k, vect_string const & vs );
 
   void test_lexp( void );
   void lexp_check_unused( lexp_t * l, vect_string & path );

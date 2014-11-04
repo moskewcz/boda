@@ -431,6 +431,20 @@ namespace boda {
     ret->add_key_val( k, v );
     return ret;
   }
+  p_lexp_t make_list_lexp_from_vals_vector( std::string const & kp, vect_string const & vs ) {
+    p_lexp_t ret( new lexp_t( sstr_t() ) );
+    for( vect_string::const_iterator i = vs.begin(); i != vs.end(); ++i ) {
+      ret->add_key_val( kp+str(i - vs.begin()), *i );
+    }
+    return ret;
+  }
+
+  void lexp_t::add_key_lexp_val( std::string const & k, p_lexp_t const & v ) {
+    lexp_nv_t kid;
+    kid.n.set_from_string( k );
+    kid.v = v;
+    kids.push_back( kid );
+  }
 
   void lexp_t::add_key_val( std::string const & k, std::string const & v ) {
     lexp_nv_t kid;
