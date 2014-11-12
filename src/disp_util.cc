@@ -207,21 +207,20 @@ namespace boda
     // font setup
     if( TTF_Init() < 0 ) { rt_err_sdl( "Couldn't initialize TTF" ); }
 
-    string const font_fn = py_boda_dir() +"/fonts/FreeMono.ttf"; // FIXME: use boost filesystem?
-    uint32_t const ptsize = 16;
+    string const font_fn = py_boda_dir() +"/fonts/DroidSansMono.ttf"; // FIXME: use boost filesystem?
+    uint32_t const ptsize = 18;
     font.reset( TTF_OpenFont(font_fn.c_str(), ptsize), TTF_CloseFont );
     if( !font ) { rt_err_sdl( strprintf( "Couldn't load %s pt font from %s", str(ptsize).c_str(), font_fn.c_str() ).c_str() ); }
 
     int const renderstyle = TTF_STYLE_NORMAL;
-    int const outline = 0;
     int const hinting = TTF_HINTING_MONO;
-    int const kerning = 1;
+    int const kerning = 0;
 
+    //printf( "TTF_FontFaceIsFixedWidth()=%s\n", str(TTF_FontFaceIsFixedWidth(font.get())).c_str() );
     TTF_SetFontStyle( font.get(), renderstyle );
-    TTF_SetFontOutline( font.get(), outline );
+    TTF_SetFontOutline( font.get(), 0 );
     TTF_SetFontKerning( font.get(), kerning );
     TTF_SetFontHinting( font.get(), hinting );
-
   }
 
   // call when changes to imgs should be reflected/copied onto the display texture
@@ -313,17 +312,18 @@ namespace boda
 	// render string
 
 	p_SDL_Texture str_tex;
-	// note: we might use anno_box.w instead of disp_img_sz.d[0]
-	// as the auto-wrapping size here to keep the text inside
-	// anno_box in X. but, that's not really what we want: if we
-	// ever auto-wrap it's probably bad, and if we ever can't fix
-	// a word on a line it's bad. so we might just prefer to use a
-	// large/infinite value for the wrapping (and let text
-	// overflow the anno_box in X as needed). but, the wrapLength
-	// must be non-zero to enable wrapping at all, and then it
-	// determines the width of the returned surface. so ... we
-	// pick a hopefully okay-ish value ...
-        p_SDL_Surface text( TTF_RenderText_Blended_Wrapped( font.get(), i->str.c_str(), color_to_sdl(i->str_color), disp_img_sz.d[0] ), 
+	// note: we might use anno_box.w instead of a hard-coded 800
+	// here (or maybe disp_img_sz.d[0]) as the auto-wrapping size
+	// here to keep the text inside anno_box in X. but, that's not
+	// really what we want: if we ever auto-wrap it's probably
+	// bad, and if we ever can't fix a word on a line it's bad. so
+	// we might just prefer to use a large/infinite value for the
+	// wrapping (and let text overflow the anno_box in X as
+	// needed). but, the wrapLength must be non-zero to enable
+	// wrapping at all, and then it determines the width of the
+	// returned surface. so ... we pick a hopefully okay-ish value
+	// ...
+        p_SDL_Surface text( TTF_RenderText_Blended_Wrapped( font.get(), i->str.c_str(), color_to_sdl(i->str_color), 800 ), 
 			    SDL_FreeSurface );
 	if( !text ) { printf("text render failed\n"); }
         else { 
@@ -331,9 +331,13 @@ namespace boda
 	  SDL_Rect text_box = anno_box; // for - corner
 	  text_box.h = text->h; // may be +- height of anno_box
 	  text_box.w = text->w; // may be +- width of anno_box
+	  p_SDL_Surface text_shadow( SDL_CreateRGBSurface(SDL_SWSURFACE, text->w, text->h, 32,
+							  0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000), SDL_FreeSurface );
+	  SDL_FillRect( text_shadow.get(), 0, rgba_to_pel( 0,0,0,120 ) );
+	  str_tex = make_p_SDL( SDL_CreateTextureFromSurface( renderer.get(), text_shadow.get() ) ); 
+	  SDL_RenderCopy( renderer.get(), str_tex.get(), 0, &text_box );
 	  str_tex = make_p_SDL( SDL_CreateTextureFromSurface( renderer.get(), text.get() ) ); 
-	  SDL_RenderCopy( renderer.get(), str_tex.get(), NULL, &text_box );
-	  
+	  SDL_RenderCopy( renderer.get(), str_tex.get(), 0, &text_box );
 	}
 
       }
