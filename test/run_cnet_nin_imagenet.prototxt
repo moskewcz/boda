@@ -416,8 +416,7 @@ layers {
   type: POOLING
   pooling_param {
     pool: AVE
-    kernel_size: 6
-    stride: 1
+    global_pooling: 1
   }
 }
 layers {
