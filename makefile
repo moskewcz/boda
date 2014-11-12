@@ -1,7 +1,7 @@
 TARGET := ../lib/boda
 CPP := g++
-CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -I/usr/include/python2.7 -I/usr/include/octave-3.8.1 -I/usr/include/octave-3.8.1/octave -I/usr/include/SDL2 -fopenmp -Wall 
-LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg -lSDL2
+CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -I/usr/include/python2.7 -I/usr/include/octave-3.8.1 -I/usr/include/octave-3.8.1/octave -I/usr/include/SDL2 -I/usr/local/include/SDL2 -fopenmp -Wall 
+LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lpython2.7 -loctave -loctinterp -fopenmp -lturbojpeg -lSDL2 -lSDL2_ttf
 #for caffe/cuda
 CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
 CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src -I/usr/local/cuda/include
