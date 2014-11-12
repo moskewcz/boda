@@ -8,11 +8,22 @@
 #include"img_io.H"
 #include<poll.h>
 #include"mutex.H"
-
 #include"asio_util.H"
+#include"anno_util.H"
 
 namespace boda 
 {
+  
+  SDL_Rect box_to_sdl( i32_box_t const & b ) {
+    i32_pt_t const bsz = b.sz();
+    i32_pt_t const & bnc = b.p[0];
+    return SDL_Rect{bnc.d[0],bnc.d[1],bsz.d[0],bsz.d[1]};
+  }
+  i32_box_t box_from_sdl( SDL_Rect const & b ) { return i32_box_t{{b.x,b.y},{b.x+b.w,b.y+b.h}}; }
+
+  void sdl_set_color_from_pel( p_SDL_Renderer const & r, uint32_t const & c ) {
+    SDL_SetRenderDrawColor( r.get(), get_chan(0,c),get_chan(1,c),get_chan(2,c),get_chan(3,c) ); }
+  
 
 #define DECL_MAKE_P_SDL_OBJ( tn ) p_SDL_##tn make_p_SDL( SDL_##tn * const rp ) { return p_SDL_##tn( rp, SDL_Destroy##tn ); }
 
@@ -126,6 +137,7 @@ namespace boda
 
   void disp_win_t::disp_setup( p_vect_p_img_t const & imgs_ ) {
     imgs = imgs_;
+    img_annos.resize( imgs->size() );
     assert_st( !imgs->empty() );
     
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
@@ -200,6 +212,8 @@ namespace boda
     }
   }
 
+  void disp_win_t::update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos ) { img_annos.at(img_ix) = annos; }
+
   void disp_win_t::drain_sdl_events_and_redisplay( void ) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -247,6 +261,32 @@ namespace boda
     }
     SDL_RenderClear( renderer.get() );
     SDL_RenderCopy( renderer.get(), tex.get(), NULL, displayrect.get() );
+
+    i32_pt_t const disp_sz{displayrect->w,displayrect->h}; // display window is of size displayrect w,h
+    i32_pt_t const disp_off{displayrect->x,displayrect->y}; // display window x,y is the offset where the neg_corner of the texure will be drawn. 
+    i32_pt_t const tex_sz = { YV12_buf->w, YV12_buf->h }; // the texture is always it is always drawn resized to the window size (regardless of offset)
+    uint32_t out_x = 0;
+    for( uint32_t i = 0; i != imgs->size(); ++i ) { 
+      p_img_t const & img = imgs->at(i);
+      // calculate what region in the display window this image occupies
+      // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
+      i32_pt_t const img_nc = { out_x, YV12_buf->h - img->h };
+      i32_pt_t const disp_img_nc = (img_nc*disp_sz/tex_sz) + disp_off;
+      i32_pt_t const img_sz = { img->w, img->h };
+      i32_pt_t const disp_img_sz = img_sz*disp_sz/tex_sz;
+      //i32_box_t const disp_img_box = {disp_img_nc,disp_img_nc+disp_img_sz};
+      //printf( "disp_img_box=%s\n", str(disp_img_box).c_str() );
+      out_x += imgs->at(i)->w;
+      // draw annotations
+      p_vect_anno_t const & annos = img_annos.at(i);
+      if( !annos ) { continue; }
+      for( vect_anno_t::const_iterator i = annos->begin(); i != annos->end(); ++i ) {
+	sdl_set_color_from_pel( renderer, i->box_color );
+	SDL_Rect rectToDraw = box_to_sdl( (i->box*disp_img_sz/img_sz) + disp_img_nc );
+	if( i->fill ) { SDL_RenderFillRect(renderer.get(), &rectToDraw ); } 
+	else { SDL_RenderDrawRect(renderer.get(), &rectToDraw ); }
+      }
+    }      
     ++frame_cnt;
     SDL_RenderPresent( renderer.get() );
   }

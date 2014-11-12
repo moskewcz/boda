@@ -27,6 +27,11 @@ namespace boda {
 
   struct asio_t; typedef shared_ptr< asio_t > p_asio_t; 
 
+  struct anno_t;
+  typedef vector< anno_t > vect_anno_t; 
+  typedef shared_ptr< vect_anno_t > p_vect_anno_t; 
+  typedef vector< p_vect_anno_t > vect_p_vect_anno_t; 
+
   struct disp_win_t {
     p_SDL_Window window;
     p_SDL_Renderer renderer;
@@ -42,6 +47,7 @@ namespace boda {
 
     p_YV12_buf_t YV12_buf;
     p_vect_p_img_t imgs;
+    vect_p_vect_anno_t img_annos;
 
     uint64_t frame_cnt;
 
@@ -54,6 +60,7 @@ namespace boda {
     void disp_setup( p_img_t const & img ); // one existing image 
     p_vect_p_img_t disp_setup( vect_u32_pt_t const & disp_img_szs ); // create/usr/return a list of images of the given sizes
     void update_disp_imgs( void );
+    void update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos );
     void drain_sdl_events_and_redisplay( void );
     void on_pipe_data( boost::system::error_code const & ec );
   };

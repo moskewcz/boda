@@ -54,9 +54,9 @@ namespace boda
     string WxH_str( void );
   };
 
-  inline uint32_t grey_to_pel( uint8_t const gv, uint8_t const av = uint8_t_const_max ) {
-    return gv + (gv<<8) + (gv<<16) + (av<<24);
-  }
+  inline uint32_t rgba_to_pel( uint8_t const r, uint8_t const g, uint8_t const b, int8_t const av = uint8_t_const_max ) { 
+    return r + (g<<8) + (b<<16) + (av<<24); }
+  inline uint32_t grey_to_pel( uint8_t const gv, uint8_t const av = uint8_t_const_max ) { return rgba_to_pel(gv,gv,gv,av); } 
   inline uint8_t get_chan( uint8_t const c, uint32_t const v ) { return v >> (c*8); }
   inline uint64_t get_chan_64( uint8_t const c, uint32_t const v ) { return get_chan( c, v ); }
 

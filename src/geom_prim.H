@@ -145,6 +145,7 @@ namespace boda
     T_box_t operator + ( T const & o ) const { return T_box_t( p[0] + o, p[1] + o ); }
     T_box_t operator - ( T const & o ) const { return T_box_t( p[0] - o, p[1] - o ); }
     T_box_t operator * ( T const & o ) const { return T_box_t( p[0] * o, p[1] * o ); }
+    T_box_t operator / ( T const & o ) const { return T_box_t( p[0] / o, p[1] / o ); }
     bool operator == ( T_box_t const & o ) const { return p[0] == o.p[0] && p[1] == o.p[1]; }
     bool operator != ( T_box_t const & o ) const { return !(*this == o); }
     bool operator <  ( T_box_t const & o ) const { return (p[0] != o.p[0]) ? (p[0] < o.p[0]) : (p[1] < o.p[1]); }
@@ -178,6 +179,7 @@ namespace boda
 
 
   std::ostream & operator <<(std::ostream & os, u32_box_t const & v);
+  std::ostream & operator <<(std::ostream & os, i32_box_t const & v);
 
   // misc higher-level operations
   uint32_t blf_place( vect_u32_pt_w_t & out, u32_box_t const & bin, vect_u32_pt_t const & to_place, bool const no_fit_okay );

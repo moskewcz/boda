@@ -9,6 +9,7 @@
 #include"cap_util.H"
 
 #include"asio_util.H"
+#include"anno_util.H"
 
 namespace boda 
 {
@@ -18,7 +19,13 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     virtual void main( nesi_init_arg_t * nia ) { 
       disp_win_t disp_win;
-      disp_win.disp_setup( {{100,100}} ); 
+      disp_win.disp_setup( {{500,500},{200,200}} ); 
+      p_vect_anno_t annos( new vect_anno_t );
+      annos->push_back( anno_t{{{100,50},{200,250}}, rgba_to_pel(170,40,40), 0, "foo!!", grey_to_pel(230) } );
+      disp_win.update_img_annos( 0, annos );
+      disp_win.update_img_annos( 1, annos );
+      disp_win.update_disp_imgs();
+
       io_service_t & io = get_io( &disp_win );
       io.run();
     }
