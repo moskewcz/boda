@@ -534,6 +534,10 @@ namespace boda
   struct img_t; typedef shared_ptr< img_t > p_img_t; 
   struct img_proc_t { virtual void on_img( p_img_t const & img ) = 0; };
 
+  // also in pyif.H, but often needed elsewhere / more general / not python specific. maybe might reimpl not using python as well?
+  std::string const & py_boda_dir( void ); 
+  std::string const & py_boda_test_dir( void ); 
+
 }
 
 #endif // BODA_BASE_H

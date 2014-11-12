@@ -3,7 +3,6 @@
 #include"has_main.H"
 #include"lexp.H"
 #include"nesi.H"
-#include"pyif.H"
 #include"str_util.H"
 #include<boost/filesystem.hpp>
 
