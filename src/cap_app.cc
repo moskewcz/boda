@@ -256,7 +256,7 @@ namespace boda
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
       capture->on_readable( 1 );
-      cnet_predict->do_predict( capture->cap_img ); 
+      disp_win.update_img_annos( 0, cnet_predict->do_predict( capture->cap_img, 0 ) );
       disp_win.update_disp_imgs();
       setup_capture_on_read( *cap_afd, &capture_classify_t::on_cap_read, this );
     }

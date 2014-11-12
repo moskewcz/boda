@@ -51,6 +51,10 @@ namespace boda
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 
+  struct anno_t;
+  typedef vector< anno_t > vect_anno_t; 
+  typedef shared_ptr< vect_anno_t > p_vect_anno_t; 
+
   struct cnet_predict_t : virtual public nesi, public run_cnet_t // NESI(help="run a caffe net on a single input",
 		     // bases=["run_cnet_t"], type_id="cnet_predict")
   {
@@ -72,7 +76,7 @@ namespace boda
     vect_uint8_t to_disp;
 
     void setup_predict( void );
-    void do_predict( p_img_t const & img_in_ds );
+    p_vect_anno_t do_predict( p_img_t const & img_in_ds, bool const print_to_terminal );
   };
 
   struct cnet_predict_t; typedef shared_ptr< cnet_predict_t > p_cnet_predict_t; 

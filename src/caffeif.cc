@@ -9,6 +9,7 @@
 #include<glog/logging.h>
 #include<google/protobuf/text_format.h>
 #include"caffe/caffe.hpp"
+#include"anno_util.H"
 
 namespace boda 
 {
@@ -314,7 +315,7 @@ namespace boda
     setup_predict();
     p_img_t img_in( new img_t );
     img_in->load_fn( img_in_fn.exp );
-    do_predict( img_in );
+    do_predict( img_in, 1 );
   }
 
   void cnet_predict_t::setup_predict( void ) {
@@ -334,7 +335,7 @@ namespace boda
     }
   };
 
-  void cnet_predict_t::do_predict( p_img_t const & img_in ) {
+  p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) {
     p_img_t img_in_ds = downsample_to_size( downsample_2x_to_size( img_in, in_sz.d[0], in_sz.d[1] ), 
 					    in_sz.d[0], in_sz.d[1] );
     subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
@@ -356,21 +357,30 @@ namespace boda
       if( filt_prob[i] >= filt_show_thresh ) { to_disp[i] = 1; }
       else if( filt_prob[i] <= filt_drop_thresh ) { to_disp[i] = 0; }
     }
-    printf("\033[2J\033[1;1H");
-    printf("---- frame -----\n");
+
+    p_vect_anno_t annos( new vect_anno_t );
+    annos->push_back( anno_t{{{0,0},{img_in->w,img_in->h}}, rgba_to_pel(170,40,40), 0, "", rgba_to_pel(220,220,255) } );
+
+    if( print_to_terminal ) {
+      printf("\033[2J\033[1;1H");
+      printf("---- frame -----\n");
+    }
     vect_uint32_t disp_list;
     for( uint32_t i = 0; i < to_disp.size(); ++i ) {  if( to_disp[i] ) { disp_list.push_back(i); } }
     sort( disp_list.begin(), disp_list.end(), gt_indexed<float>( filt_prob ) );
     for( vect_uint32_t::const_iterator ii = disp_list.begin(); ii != disp_list.end(); ++ii ) {
       uint32_t const i = *ii;
       float const p = out_batch->at4(0,i,0,0);
-      printf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(i).tag).c_str(), 
-	      str(filt_prob[i]).c_str(),
-	      str(p).c_str() );
+      string const anno_str = strprintf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(i).tag).c_str(), 
+					 str(filt_prob[i]).c_str(),
+					 str(p).c_str() );
+      annos->back().str += anno_str;
+      if( print_to_terminal ) { printstr( anno_str ); }
     }
-    printf("---- end frame -----\n");
+    if( print_to_terminal ) { printf("---- end frame -----\n"); }
     //printf( "obd=%s\n", str(obd).c_str() );
     //(*ofs_open( out_fn )) << out_pt_str;
+    return annos;
   }
 
 #include"gen/caffeif.H.nesi_gen.cc"
