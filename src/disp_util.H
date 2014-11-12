@@ -12,6 +12,12 @@ PRE_DECL_SDL_OBJ( Texture );
 PRE_DECL_SDL_OBJ( Rect );
 
 #undef PRE_DECL_SDL_OBJ
+
+struct SDL_Surface;
+typedef boost::shared_ptr< SDL_Surface > p_SDL_Surface;
+struct _TTF_Font;
+typedef boost::shared_ptr< _TTF_Font > p_TTF_Font;
+
 namespace boost { namespace system { struct error_code; } }
 namespace boda {
 
@@ -52,6 +58,8 @@ namespace boda {
     uint64_t frame_cnt;
 
     p_asio_t asio;
+    
+    p_TTF_Font font;
 
     disp_win_t( void );
 

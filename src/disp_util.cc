@@ -3,6 +3,7 @@
 #include"geom_prim.H"
 #include"disp_util.H"
 #include<SDL.h>
+#include<SDL_ttf.h>
 #include"timers.H"
 #include"str_util.H"
 #include"img_io.H"
@@ -21,9 +22,12 @@ namespace boda
   }
   i32_box_t box_from_sdl( SDL_Rect const & b ) { return i32_box_t{{b.x,b.y},{b.x+b.w,b.y+b.h}}; }
 
+  SDL_Color color_to_sdl( uint32_t const & c ) { return SDL_Color{ get_chan(0,c),get_chan(1,c),get_chan(2,c),get_chan(3,c)}; }
   void sdl_set_color_from_pel( p_SDL_Renderer const & r, uint32_t const & c ) {
     SDL_SetRenderDrawColor( r.get(), get_chan(0,c),get_chan(1,c),get_chan(2,c),get_chan(3,c) ); }
-  
+
+  void rt_err_sdl( char const * const msg ); // like rt_err, but prints sdl error
+  void rt_err_sdl( char const * const msg ) { rt_err( strprintf( "%s (SDL error: %s)", msg, SDL_GetError() ) ); }
 
 #define DECL_MAKE_P_SDL_OBJ( tn ) p_SDL_##tn make_p_SDL( SDL_##tn * const rp ) { return p_SDL_##tn( rp, SDL_Destroy##tn ); }
 
@@ -189,6 +193,7 @@ namespace boda
     displayrect->w = window_w;
     displayrect->h = window_h;
 
+
     paused = 0;
     done = 0;
     frame_cnt = 0;
@@ -198,6 +203,25 @@ namespace boda
     asio->frame_timer.expires_from_now( time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
     asio->quit_event.expires_from_now( pos_infin );
+
+    // font setup
+    if( TTF_Init() < 0 ) { rt_err_sdl( "Couldn't initialize TTF" ); }
+
+    string const font_fn = py_boda_dir() +"/fonts/FreeMono.ttf"; // FIXME: use boost filesystem?
+    uint32_t const ptsize = 16;
+    font.reset( TTF_OpenFont(font_fn.c_str(), ptsize), TTF_CloseFont );
+    if( !font ) { rt_err_sdl( strprintf( "Couldn't load %s pt font from %s", str(ptsize).c_str(), font_fn.c_str() ).c_str() ); }
+
+    int const renderstyle = TTF_STYLE_NORMAL;
+    int const outline = 0;
+    int const hinting = TTF_HINTING_MONO;
+    int const kerning = 1;
+
+    TTF_SetFontStyle( font.get(), renderstyle );
+    TTF_SetFontOutline( font.get(), outline );
+    TTF_SetFontKerning( font.get(), kerning );
+    TTF_SetFontHinting( font.get(), hinting );
+
   }
 
   // call when changes to imgs should be reflected/copied onto the display texture
@@ -281,10 +305,37 @@ namespace boda
       p_vect_anno_t const & annos = img_annos.at(i);
       if( !annos ) { continue; }
       for( vect_anno_t::const_iterator i = annos->begin(); i != annos->end(); ++i ) {
+	// render box
 	sdl_set_color_from_pel( renderer, i->box_color );
-	SDL_Rect rectToDraw = box_to_sdl( (i->box*disp_img_sz/img_sz) + disp_img_nc );
-	if( i->fill ) { SDL_RenderFillRect(renderer.get(), &rectToDraw ); } 
-	else { SDL_RenderDrawRect(renderer.get(), &rectToDraw ); }
+	SDL_Rect anno_box = box_to_sdl( (i->box*disp_img_sz/img_sz) + disp_img_nc );
+	if( i->fill ) { SDL_RenderFillRect(renderer.get(), &anno_box ); } 
+	else { SDL_RenderDrawRect(renderer.get(), &anno_box ); }
+	// render string
+
+	p_SDL_Texture str_tex;
+	// note: we might use anno_box.w instead of disp_img_sz.d[0]
+	// as the auto-wrapping size here to keep the text inside
+	// anno_box in X. but, that's not really what we want: if we
+	// ever auto-wrap it's probably bad, and if we ever can't fix
+	// a word on a line it's bad. so we might just prefer to use a
+	// large/infinite value for the wrapping (and let text
+	// overflow the anno_box in X as needed). but, the wrapLength
+	// must be non-zero to enable wrapping at all, and then it
+	// determines the width of the returned surface. so ... we
+	// pick a hopefully okay-ish value ...
+        p_SDL_Surface text( TTF_RenderText_Blended_Wrapped( font.get(), i->str.c_str(), color_to_sdl(i->str_color), disp_img_sz.d[0] ), 
+			    SDL_FreeSurface );
+	if( !text ) { printf("text render failed\n"); }
+        else { 
+	  //assert_st( text->w == anno_box.w );
+	  SDL_Rect text_box = anno_box; // for - corner
+	  text_box.h = text->h; // may be +- height of anno_box
+	  text_box.w = text->w; // may be +- width of anno_box
+	  str_tex = make_p_SDL( SDL_CreateTextureFromSurface( renderer.get(), text.get() ) ); 
+	  SDL_RenderCopy( renderer.get(), str_tex.get(), NULL, &text_box );
+	  
+	}
+
       }
     }      
     ++frame_cnt;
