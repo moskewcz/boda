@@ -83,11 +83,12 @@ namespace boda
   }
 
   struct asio_t {
-    asio_t( void ) : frame_timer(io), quit_event(io) { }
+    asio_t( void ) : frame_timer(io), quit_event(io), lb_event(io) { }
     io_service_t io;
     deadline_timer_t frame_timer;
     time_duration frame_dur;
     deadline_timer_t quit_event;
+    lb_event_t lb_event;
   };
   
   // for now, our quit model is to stop all io on quit unless someone
@@ -95,6 +96,7 @@ namespace boda
   // handle things.
   io_service_t & get_io( disp_win_t * const dw ) { return dw->asio->io; }
   deadline_timer_t & get_quit_event( disp_win_t * const dw ) { dw->stop_io_on_quit = 0; return dw->asio->quit_event; }
+  lb_event_t & get_lb_event( disp_win_t * const dw ) { return dw->asio->lb_event; }
 
   void on_frame( disp_win_t * const dw, error_code const & ec ) {
     if( ec ) { return; } // handle?
@@ -203,6 +205,7 @@ namespace boda
     asio->frame_timer.expires_from_now( time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
     asio->quit_event.expires_from_now( pos_infin );
+    asio->lb_event.expires_from_now( pos_infin );
 
     // font setup
     if( TTF_Init() < 0 ) { rt_err_sdl( "Couldn't initialize TTF" ); }
@@ -237,6 +240,36 @@ namespace boda
 
   void disp_win_t::update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos ) { img_annos.at(img_ix) = annos; }
 
+  void disp_win_t::on_lb( int32_t const x, int32_t const y ) { 
+    printf( "x=%s y=%s\n", str(x).c_str(), str(y).c_str() );
+    i32_pt_t const xy{x,y};
+    // FIXME: dup'd constants/code with annotation code below ...
+    i32_pt_t const disp_sz{displayrect->w,displayrect->h}; // display window is of size displayrect w,h
+    i32_pt_t const disp_off{displayrect->x,displayrect->y}; // display window x,y is the offset where the neg_corner of the texure will be drawn. 
+    i32_pt_t const tex_sz = { YV12_buf->w, YV12_buf->h }; // the texture is always it is always drawn resized to the window size (regardless of offset)
+    uint32_t out_x = 0;
+    for( uint32_t i = 0; i != imgs->size(); ++i ) { 
+      p_img_t const & img = imgs->at(i);
+      // calculate what region in the display window this image occupies
+      // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
+      i32_pt_t const img_nc = { out_x, YV12_buf->h - img->h };
+      i32_pt_t const disp_img_nc = (img_nc*disp_sz/tex_sz) + disp_off;
+      i32_pt_t const img_sz = { img->w, img->h };
+      i32_pt_t const disp_img_sz = img_sz*disp_sz/tex_sz;
+      i32_box_t const disp_img_box = {disp_img_nc,disp_img_nc+disp_img_sz};
+      //printf( "disp_img_box=%s\n", str(disp_img_box).c_str() );
+      //printf( "img_sz=%s\n", str(img_sz).c_str() );
+      out_x += imgs->at(i)->w;
+      if( disp_img_box.contains( pel_to_box( i32_pt_t{x,y} ) ) ) {
+	i32_pt_t const img_xy = (xy - disp_img_nc)*img_sz/disp_img_sz;
+	//printf( "i=%s img_xy=%s\n", str(i).c_str(), str(img_xy).c_str() );
+	asio->lb_event.img_ix = i;
+	asio->lb_event.xy = img_xy;
+	asio->lb_event.cancel();
+      }
+    }
+  }
+
   void disp_win_t::drain_sdl_events_and_redisplay( void ) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -249,11 +282,13 @@ namespace boda
 	}
 	break;
       case SDL_MOUSEBUTTONDOWN:
-	displayrect->x = event.button.x - window_w / 2;
-	displayrect->y = event.button.y - window_h / 2;
+	if( event.button.button == SDL_BUTTON_RIGHT ) {
+	  displayrect->x = event.button.x - window_w / 2;
+	  displayrect->y = event.button.y - window_h / 2;
+	} else if( event.button.button == SDL_BUTTON_LEFT ) { on_lb( event.button.x, event.button.y ); }
 	break;
       case SDL_MOUSEMOTION:
-	if (event.motion.state) {
+	if (event.motion.state&SDL_BUTTON(3)) {
 	  displayrect->x = event.motion.x - window_w / 2;
 	  displayrect->y = event.motion.y - window_h / 2;
 	}

@@ -12,6 +12,7 @@
 #include"cap_util.H"
 #include"caffeif.H"
 #include"pyif.H" // for py_boda_dir()
+#include"anno_util.H"
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
@@ -292,6 +293,18 @@ namespace boda
       disp_win.update_disp_imgs();
       setup_capture_on_read( *cap_afd, &capture_feats_t::on_cap_read, this );
     }
+    void on_lb( error_code const & ec ) { 
+      lb_event_t const & lbe = get_lb_event(&disp_win);
+      printf( "lbe.img_ix=%s lbe.xy=%s\n", str(lbe.img_ix).c_str(), str(lbe.xy).c_str() );
+
+      p_vect_anno_t annos( new vect_anno_t );
+      annos->push_back( anno_t{{lbe.xy,lbe.xy+i32_pt_t{10,10}}, rgba_to_pel(170,40,40), 0, "CLICK!", rgba_to_pel(220,220,255) } );
+      disp_win.update_img_annos( lbe.img_ix, annos );
+      disp_win.update_disp_imgs();
+
+      register_lb_handler( disp_win, &capture_feats_t::on_lb, this );
+    }
+
     virtual void main( nesi_init_arg_t * nia ) { 
       run_cnet->in_sz = capture->cap_res;
       run_cnet->setup_cnet(); 
@@ -301,6 +314,7 @@ namespace boda
 
       capture->cap_start();
       disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
+      register_lb_handler( disp_win, &capture_feats_t::on_lb, this );
 
       io_service_t & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );

@@ -64,6 +64,7 @@ namespace boda
   }
 
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
+  std::ostream & operator <<(std::ostream & os, i32_pt_t const & v);
 
   template< typename HAS_WH > u32_pt_t get_wh( HAS_WH const & o ) { return u32_pt_t( o.w, o.h ); }
 
@@ -156,6 +157,8 @@ namespace boda
     T center_ru( void ) const { return (bnds_sum() + T(1,1))/2; }
     T center_rd( void ) const { return bnds_sum()/2; }
   };
+
+  template< typename T > T_box_t<T> pel_to_box( T const & pel ) { return T_box_t<T>( pel, pel + T{1,1} ); }
 
   typedef T_box_t< u32_pt_t > u32_box_t;
   typedef T_box_t< i32_pt_t > i32_box_t;

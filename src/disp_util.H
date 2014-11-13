@@ -70,7 +70,7 @@ namespace boda {
     void update_disp_imgs( void );
     void update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos );
     void drain_sdl_events_and_redisplay( void );
-    void on_pipe_data( boost::system::error_code const & ec );
+    void on_lb( int32_t const x, int32_t const y );
   };
 }
 

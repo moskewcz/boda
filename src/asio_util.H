@@ -40,12 +40,22 @@ namespace boda {
   io_service_t & get_io( disp_win_t * const dw );
   deadline_timer_t & get_quit_event( disp_win_t * const dw );
 
+  struct lb_event_t : public deadline_timer_t {
+    lb_event_t( io_service_t & io ) : deadline_timer_t(io) { }
+    uint32_t img_ix;
+    i32_pt_t xy;
+  };
+  lb_event_t & get_lb_event( disp_win_t * const dw );
+
   template< typename CAP, typename MFUNC, typename OBJ > 
   void setup_capture_on_read( CAP & cap_afd, MFUNC const & mfunc, OBJ const  & obj ) {
     cap_afd.async_read_some( null_buffers_t(), bind( mfunc, obj, _1 ) ); }
   template< typename T, typename MFUNC, typename OBJ > 
   void register_quit_handler( T & has_quit, MFUNC const & mfunc, OBJ const  & obj ) {
     get_quit_event( &has_quit ).async_wait( bind( mfunc, obj, _1 ) ); }
+  template< typename T, typename MFUNC, typename OBJ > 
+  void register_lb_handler( T & has_quit, MFUNC const & mfunc, OBJ const  & obj ) {
+    get_lb_event( &has_quit ).async_wait( bind( mfunc, obj, _1 ) ); }
 
   struct multi_alss_t : public vect_p_asio_alss_t { typedef void has_bread_bwrite; };
 
