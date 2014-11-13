@@ -491,7 +491,8 @@ namespace boda
       in_box = support + ( out_box_closed * u32_to_i32(csi.support_stride) );
     } else { assert(!"unknown mode"); }
     in_box = in_box - u32_to_i32(csi.eff_tot_pad.p[0]); // adjust for padding
-}
+  }
+  
 #include"gen/blf_pack.H.nesi_gen.cc"
 #include"gen/blf_pack.cc.nesi_gen.cc"
 
