@@ -99,6 +99,8 @@ namespace boda
 	string arg( argv[ai] );
 	string key;
 	string val;
+	// hack for compsup / completion support: dump all args into pos_args
+	if( mode == "compsup" ) { pos_args.push_back( arg ); continue; } 
 	bool const allow_pos_param = 1;
 	if( !startswith( arg, "--" ) ) { 
 	  if( !allow_pos_param ) {
