@@ -54,8 +54,8 @@ namespace boda
     assert( csi.support_sz.both_dims_non_zero() );
     if( !core_only ) { return i32_box_t( i32_pt_t(), u32_to_i32( csi.support_sz ) ); }
     else {
-      i32_pt_t const support_core_lb = u32_to_i32( ( csi.support_sz + csi.support_stride + u32_pt_t( 1, 1 ) ) >> 1 );
-      return i32_box_t( support_core_lb, support_core_lb + u32_to_i32( csi.support_stride ) ); 
+      i32_pt_t const support_core_ub = u32_to_i32( ( csi.support_sz + csi.support_stride + u32_pt_t( 1, 1 ) ) >> 1 );
+      return i32_box_t( support_core_ub - u32_to_i32( csi.support_stride ), support_core_ub ); 
     }
   }
   
