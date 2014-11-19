@@ -344,7 +344,7 @@ namespace boda
   };
 
   p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) {
-    p_img_t img_in_ds = downsample_to_size( img_in, in_sz.d[0], in_sz.d[1] );
+    p_img_t img_in_ds = resample_to_size( img_in, in_sz.d[0], in_sz.d[1] );
     subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
     p_nda_float_t out_batch = run_one_blob_in_one_blob_out();
 
