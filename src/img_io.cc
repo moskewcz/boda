@@ -104,6 +104,24 @@ namespace boda
     lodepng::save_file(png_file_data, fn);
   }
 
+  p_img_t transpose( img_t const * const src )
+  {
+    p_img_t ret( new img_t );
+    ret->set_row_align( src->row_align ); // preserve alignment
+    ret->set_sz_and_alloc_pels( src->h, src->w );
+    for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+      for( uint32_t ry = 0; ry < ret->h; ++ry ) {
+	for( uint32_t c = 0; c < 4; ++c ) {
+	  uint32_t const sx = ry;
+	  uint32_t const sy = rx;
+	  ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ] =
+	    src->pels.get()[ sy*src->row_pitch + sx*src->depth + c ];
+	}
+      }
+    }
+    return ret;
+  }
+
   p_img_t downsample_w_transpose_2x( img_t const * const src )
   {
     p_img_t ret( new img_t );
@@ -140,24 +158,6 @@ namespace boda
     return ret;
   }
 
-  p_img_t transpose( img_t const * const src )
-  {
-    p_img_t ret( new img_t );
-    ret->set_row_align( src->row_align ); // preserve alignment
-    ret->set_sz_and_alloc_pels( src->h, src->w );
-    for( uint32_t rx = 0; rx < ret->w; ++rx ) {
-      for( uint32_t ry = 0; ry < ret->h; ++ry ) {
-	for( uint32_t c = 0; c < 4; ++c ) {
-	  uint32_t const sx = ry;
-	  uint32_t const sy = rx;
-	  ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ] =
-	    src->pels.get()[ sy*src->row_pitch + sx*src->depth + c ];
-	}
-      }
-    }
-    return ret;
-  }
-
   p_img_t downsample_2x( p_img_t img ) {
     timer_t ds_timer("downsample_2x");
     p_img_t tmp_img = downsample_w_transpose_2x( img.get() );
@@ -167,7 +167,7 @@ namespace boda
   // downsample by 2x in both dims as many times as possible without
   // yielding an image smaller than is desired.
   p_img_t downsample_2x_to_size( p_img_t img, uint32_t ds_w, uint32_t ds_h ) {
-    timer_t ds_timer("downsample_2x");
+    timer_t ds_timer("downsample_2x_to_size");
     assert_st( ds_w && ds_h );
     while( 1 ) {
       bool const do_x_ds = ((img->w+1) >> 1) >= ds_w;
@@ -177,7 +177,6 @@ namespace boda
       if( do_y_ds ) { img = downsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
     }
   }
-
 
 //#define RESIZE_DEBUG
   // for all downsample functions, scale is 0.16 fixed point, value must be in [.5,1)
@@ -250,11 +249,8 @@ namespace boda
     return ret;
   }
 
-  // FIXME: rename this to downsample_up_to_2x and make a
-  // fully-generic downsample_to_size that uses downsample_2x
-  // as-needed per dims as a first pass.
-  p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) { // ds_w must be in [ceil(w/2),w]
-    timer_t ds_timer("downsample_to_size");
+  p_img_t downsample_up_to_2x_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) { // ds_w must be in [ceil(w/2),w]
+    timer_t ds_timer("downsample_up_to_2x_to_size");
     assert( ds_w <= img->w );
     assert( ds_w >= ((img->w+1)>>1) );
     assert( ds_h <= img->h );
@@ -263,15 +259,18 @@ namespace boda
     return downsample_w_transpose( tmp_img.get(), ds_h );    
   }
 
-  p_img_t downsample( p_img_t img, double const scale ) { 
+  p_img_t downsample_up_to_2x( p_img_t img, double const scale ) { 
     timer_t ds_timer("downsample");
     assert( scale <= 1 );
     assert( scale >= .5 );
     if( scale == 1 ) { return img; }
     uint32_t const ds_w = round(img->w*scale);
     uint32_t const ds_h = round(img->h*scale);
-    return downsample_to_size( img, ds_w, ds_h );
+    return downsample_up_to_2x_to_size( img, ds_w, ds_h );
   }
+
+  p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) { 
+    return downsample_up_to_2x_to_size( downsample_2x_to_size( img, ds_w, ds_h ), ds_w, ds_h ); }
 
   string img_t::WxH_str( void ) { return strprintf( "%sx%s", str(w).c_str(), str(h).c_str()); }
 
@@ -317,6 +316,24 @@ namespace boda
     }
     return ret;
   }
+
+  // upsample by 2x in both dims as many times as needed until the
+  // image is at least the requested size in each dim.
+  p_img_t upsample_2x_to_size( p_img_t img, uint32_t ds_w, uint32_t ds_h ) {
+    timer_t ds_timer("upsample_2x_to_size");
+    assert_st( ds_w && ds_h );
+    while( 1 ) {
+      bool const do_x_us = img->w < ds_w;
+      bool const do_y_us = img->h < ds_h;
+      if( !(do_x_us || do_y_us) ) { return img; }
+      if( do_x_us ) { img = upsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
+      if( do_y_us ) { img = upsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
+    }
+  }
+
+  p_img_t resample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) {
+    return downsample_to_size( upsample_2x_to_size( img, ds_w, ds_h ), ds_w, ds_h ); 
+  }    
 
   // FIXME: dupe'd code ... 
   void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy ) {

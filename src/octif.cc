@@ -445,7 +445,7 @@ namespace boda
 	double interval_scale = pow(2.0d, 0.0d - (double(i) / double(interval) ) ); // in 0.16 fixed point
 	//printf( "interval_scale=%s\n", str(interval_scale).c_str() );
 	//ids_nda = oct_img_resize( img, interval_scale ); // NOTE: also must (1 || i) above cond 
-	ids_img = downsample( img, interval_scale ); // note: scale must be in [.5,1)
+	ids_img = downsample_up_to_2x( img, interval_scale ); // note: scale must be in [.5,1)
       }
       uint32_t cur_scale = i;
       for( int32_t octave = 1; octave > -15; --octave )  { // scale = 2^octave, -15 bound is a sanity limit only
@@ -543,7 +543,7 @@ namespace boda
 	double const scale = pow(2.0d, 0.0d - (double(i) / double(interval) ) );
 	oct_dfc_startup( dpm_fast_cascade_dir );
 	p_nda_double_t oct_resize_out = oct_img_resize( img, scale );
-	p_img_t ds_img = downsample( img, scale ); // note: input ids_img is released here	  
+	p_img_t ds_img = downsample_up_to_2x( img, scale ); // note: input ids_img is released here	  
 	double h_scale = scale;
 	for( uint32_t h = 0; h < 5; ++h ) {
 	  if( ds_img->min_dim() < 2 ) { break; } // this octave/interval is too small.

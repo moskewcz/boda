@@ -244,7 +244,7 @@ namespace boda
 			     str(base_octave_sz).c_str(), str(get_wh(*src_img)).c_str() ) );
 	} 
       } else {
-	base_octave_img = downsample_to_size( src_img, base_octave_sz.d[0], base_octave_sz.d[1] );
+	base_octave_img = downsample_up_to_2x_to_size( src_img, base_octave_sz.d[0], base_octave_sz.d[1] );
       }
       p_img_t cur_octave_img = base_octave_img;
       // create base and (if any) upsampled octaves
