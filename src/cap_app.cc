@@ -17,6 +17,11 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
 
+// for capture_feats in<->out space testing
+#include"conv_common.H"
+#include"conv_util.H"
+
+
 namespace boda 
 {
   struct cs_disp_t : virtual public nesi, public has_main_t // NESI(help="client-server video display test",
@@ -283,6 +288,9 @@ namespace boda
     p_img_t feat_img;
     p_asio_fd_t cap_afd;
     disp_win_t disp_win;
+    p_conv_pipe_t conv_pipe;
+    p_vect_conv_io_t conv_ios;
+
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
       capture->on_readable( 1 );
@@ -295,19 +303,49 @@ namespace boda
     }
     void on_lb( error_code const & ec ) { 
       lb_event_t const & lbe = get_lb_event(&disp_win);
-      printf( "lbe.img_ix=%s lbe.xy=%s\n", str(lbe.img_ix).c_str(), str(lbe.xy).c_str() );
+      //printf( "lbe.img_ix=%s lbe.xy=%s\n", str(lbe.img_ix).c_str(), str(lbe.xy).c_str() );
+      if( lbe.img_ix == 0 ) { 
+	u32_pt_t const feat_img_xy = i32_to_u32( lbe.xy );
+	assert_st( feat_img_xy.both_dims_lt( u32_pt_t( feat_img->w, feat_img->h ) ) );
+	// calculate feat xy from feat_img xy (which is scaled up by ~sqrt(chans) from the feature xy)
+	conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
+	uint32_t const out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
+	assert_st( out_s );
+	u32_pt_t const feat_xy = floor_div_u32( feat_img_xy, out_s );
+	assert_st( feat_xy.both_dims_lt( conv_ios->back().sz ) );
+	//printf( "feat_img_xy=%s feat_xy=%s\n", str(feat_img_xy).c_str(), str(feat_xy).c_str() );
 
-      p_vect_anno_t annos( new vect_anno_t );
-      annos->push_back( anno_t{{lbe.xy,lbe.xy+i32_pt_t{10,10}}, rgba_to_pel(170,40,40), 0, "CLICK!", rgba_to_pel(220,220,255) } );
-      disp_win.update_img_annos( lbe.img_ix, annos );
-      disp_win.update_disp_imgs();
+	// using feat_img_xy annotate the area of feat_img corresponding to it
+	u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
+	i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(out_s));
+	p_vect_anno_t annos( new vect_anno_t );
+	annos->push_back( anno_t{feat_img_pel_box, rgba_to_pel(170,40,40), 0, str(feat_xy), rgba_to_pel(220,220,255) } );
+	disp_win.update_img_annos( 0, annos );
+	
+	// calculate in_xy from feat_xy
+	i32_box_t valid_in_xy, core_valid_in_xy, any_valid_in_xy;
+	unchecked_out_box_to_in_box( valid_in_xy, u32_to_i32( feat_pel_box ), cm_valid, ol_csi );
+	unchecked_out_box_to_in_box( core_valid_in_xy, u32_to_i32( feat_pel_box ), cm_core_valid, ol_csi );
 
+	// annotate region of input image corresponding to feat_xy
+	annos.reset( new vect_anno_t );
+	annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy), rgba_to_pel(220,220,255) } );
+	annos->push_back( anno_t{core_valid_in_xy, rgba_to_pel(170,40,40), 0, str(core_valid_in_xy), rgba_to_pel(220,255,220) } );
+	disp_win.update_img_annos( 1, annos );
+
+	disp_win.update_disp_imgs();
+      }
       register_lb_handler( disp_win, &capture_feats_t::on_lb, this );
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
       run_cnet->in_sz = capture->cap_res;
       run_cnet->setup_cnet(); 
+
+      conv_pipe = run_cnet->get_pipe();
+      conv_pipe->dump_pipe( std::cout );
+      conv_ios = conv_pipe->calc_sizes_forward( run_cnet->in_sz, 0 ); 
+      conv_pipe->dump_ios( std::cout, conv_ios );
       feat_img.reset( new img_t );
       u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
       feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
@@ -322,7 +360,6 @@ namespace boda
       io.run();
     }
   };
-
 
 #include"gen/cap_app.cc.nesi_gen.cc"
 

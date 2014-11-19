@@ -241,7 +241,7 @@ namespace boda
   void disp_win_t::update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos ) { img_annos.at(img_ix) = annos; }
 
   void disp_win_t::on_lb( int32_t const x, int32_t const y ) { 
-    printf( "x=%s y=%s\n", str(x).c_str(), str(y).c_str() );
+    //printf( "x=%s y=%s\n", str(x).c_str(), str(y).c_str() );
     i32_pt_t const xy{x,y};
     // FIXME: dup'd constants/code with annotation code below ...
     i32_pt_t const disp_sz{displayrect->w,displayrect->h}; // display window is of size displayrect w,h

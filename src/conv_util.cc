@@ -14,7 +14,9 @@ namespace boda
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
     u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum());
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
-    return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); 
+    if( type == "conv" ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
+    else if( type == "pool" ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
+    else { rt_err("unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
     assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
@@ -49,10 +51,12 @@ namespace boda
       conv_sis[i+1].support_sz = conv_sis[i].support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*conv_sis[i].support_stride;
       conv_sis[i+1].support_stride = conv_sis[i].support_stride*cop.stride;
     }
-    // backward pass to calculate eff_tot_pad
-    for( uint32_t i = convs->size(); i; --i ) {
-      conv_op_t const & cop = convs->at(i-1);
-      conv_sis[i-1].eff_tot_pad = cop.in_pad + conv_sis[i].eff_tot_pad.scale_dims( cop.stride );	
+    // backward passes to calculate eff_tot_pad
+    for( uint32_t j = 0; j != conv_sis.size(); ++j ) {
+      for( uint32_t i = j; i; --i ) {
+	conv_op_t const & cop = convs->at(i - 1);
+	conv_sis[j].eff_tot_pad = cop.in_pad + conv_sis[j].eff_tot_pad.scale_dims( cop.stride );	
+      }
     }
   }
 

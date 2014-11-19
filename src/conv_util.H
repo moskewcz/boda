@@ -9,13 +9,13 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string tag; //NESI(help="tag to refer to conv op by",req=1)
-    
+    string type; //NESI(help="type of op; may impact in/out size calculations",req=1)
     u32_box_t in_pad; //NESI(default="0 0 0 0",help="input padding")
     u32_pt_t kern_sz; //NESI(default="0 0",help="convolutional kernel size")
     u32_pt_t stride; //NESI(default="1 1",help="step/stride in input")
 
     // related to depth (currently unused; might be optional?)
-    // uint32_t channels; NESI(default="1",help="number of channels")
+    uint32_t out_chans; //NESI(default="0",help="number of output channels")
     // uint32_t groups; NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
 
     u32_pt_t out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const;

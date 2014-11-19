@@ -171,9 +171,11 @@ namespace boda
 
   p_conv_pipe_t make_p_conv_pipe_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
+  // note: we only handle a (very) limited set of possible layers/networks here.
   p_conv_pipe_t get_pipe( p_Net_float net, string const & out_layer_name ) {
     p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
     vect_string const & layer_names = net->layer_names();
+    uint32_t last_out_chans = 0;
     for( uint32_t i = 0; i != layer_names.size(); ++i ) { 
       caffe::LayerParameter const & lp = net->layers()[i]->layer_param();
       p_conv_op_t conv_op;
@@ -181,9 +183,15 @@ namespace boda
       } else if( lp.has_convolution_param() ) {
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
 	conv_op = get_conv_op_from_param( cp );
+	conv_op->type = "conv";
+	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
+	conv_op->out_chans = cp.num_output();
+	last_out_chans = conv_op->out_chans;
       } else if( lp.has_pooling_param() ) {
 	caffe::PoolingParameter const & pp = lp.pooling_param();
 	conv_op = get_conv_op_from_param( pp );
+	conv_op->type = "pool";
+	conv_op->out_chans = last_out_chans; // assume unchanged from last conv layer 
       }
       if( conv_op ) { 
 	assert( lp.has_name() );
