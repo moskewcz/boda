@@ -285,6 +285,7 @@ namespace boda
     // FIXME: needs to use timer / subject to epoll() bug ...
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
     p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,out_layer_name=conv3)",help="cnet running options")
+    p_img_t in_img;
     p_img_t feat_img;
     p_asio_fd_t cap_afd;
     disp_win_t disp_win;
@@ -294,8 +295,9 @@ namespace boda
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
       capture->on_readable( 1 );
-
-      subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, capture->cap_img );
+      p_img_t ds_img = resample_to_size( capture->cap_img, run_cnet->in_sz.d[0], run_cnet->in_sz.d[1] );
+      in_img->share_pels_from( ds_img );
+      subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
       p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
       copy_batch_to_img( out_batch, 0, feat_img );
       disp_win.update_disp_imgs();
@@ -339,8 +341,10 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) { 
-      run_cnet->in_sz = capture->cap_res;
+      // note: run_cnet->in_sz not set here.
       run_cnet->setup_cnet(); 
+      in_img.reset( new img_t );
+      in_img->set_sz_and_alloc_pels( run_cnet->in_sz.d[0], run_cnet->in_sz.d[1] );
 
       conv_pipe = run_cnet->get_pipe();
       conv_pipe->dump_pipe( std::cout );
@@ -351,7 +355,7 @@ namespace boda
       feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
 
       capture->cap_start();
-      disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
+      disp_win.disp_setup( vect_p_img_t{feat_img,in_img} );
       register_lb_handler( disp_win, &capture_feats_t::on_lb, this );
 
       io_service_t & io = get_io( &disp_win );
