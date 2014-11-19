@@ -104,6 +104,15 @@ namespace boda
     lodepng::save_file(png_file_data, fn);
   }
 
+  // like a swap: no data copy *and* preserves img_t object identity. but, changes internal pixel data pointer
+  void img_t::share_pels_from( p_img_t o ) {
+    assert_st( o->depth == depth );
+    assert_st( o->w == w );
+    assert_st( o->h == h );
+    assert_st( o->row_pitch == row_pitch );
+    pels = o->pels;
+  }
+
   p_img_t transpose( img_t const * const src )
   {
     p_img_t ret( new img_t );

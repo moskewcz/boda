@@ -52,6 +52,7 @@ namespace boda
     uint32_t sz_raw_bytes( void ) const { return row_pitch*h; }
     uint32_t * get_row_pels_data( uint32_t const y ) { assert( y < h ); return ((uint32_t *)pels.get()) + row_pitch_pels*y; }
     string WxH_str( void );
+    void share_pels_from( p_img_t o );
   };
 
   inline uint32_t rgba_to_pel( uint8_t const r, uint8_t const g, uint8_t const b, int8_t const av = uint8_t_const_max ) { 
