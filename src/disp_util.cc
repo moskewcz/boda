@@ -68,17 +68,16 @@ namespace boda
 
   void img_to_YV12( YV12_buf_t const & YV12_buf, p_img_t const & img, uint32_t const out_x, uint32_t const out_y )
   {
-    uint32_t const w = img->w; assert( !(w&1) );
-    uint32_t const h = img->h; assert( !(h&1) );
+    uint32_t const w = img->w; 
+    uint32_t const h = img->h;
     uint8_t *out_Y, *out_V, *out_U;
     for( uint32_t y = 0; y < h; ++y ) {
       YV12_buf.YVUat( out_Y, out_V, out_U, out_x, out_y+y );
       uint32_t const * rgb = img->get_row_pels_data( y );
       for( uint32_t x = 0; x < w; ++x, ++rgb ) {
 	rgba2y( *rgb, *(out_Y++) );
-	if (x % 2 == 0 && y % 2 == 0) { rgba2uv( *rgb, *(out_U++), *(out_V++) ); }
+	if( !((x&1) || (y&1)) ) { rgba2uv( *rgb, *(out_U++), *(out_V++) ); }
       }
-      
     }
   }
 
