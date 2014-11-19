@@ -44,11 +44,14 @@ namespace boda
   typedef T_pt_t< uint32_t > u32_pt_t;
   typedef T_pt_t< int32_t  > i32_pt_t;
 
+  inline u32_pt_t floor_div_u32( u32_pt_t const &v, uint32_t const & d ) { return u32_pt_t( v.d[0] / d, v.d[1] / d ); }
+
   inline i32_pt_t u32_to_i32( u32_pt_t const & v ) {
     i32_pt_t const ret( v.d[0], v.d[1] );
     assert( ret.both_dims_ge_zero() ); // overflow check (hopefully: assumes unrep uint will wrap to neg)
     return ret;
   }
+  inline u32_pt_t i32_to_u32( i32_pt_t const & v ) { assert( v.both_dims_ge_zero() ); return u32_pt_t( v.d[0], v.d[1] ); }
 
   inline u32_pt_t ceil_div( u32_pt_t const &v, u32_pt_t const & d ) { 
     return u32_pt_t( u32_ceil_div(v.d[0],d.d[0]), u32_ceil_div(v.d[1],d.d[1]) ); }
@@ -153,6 +156,7 @@ namespace boda
     T sz( void ) const { return p[1] - p[0]; }
     T bnds_sum( void ) const { return p[0] + p[1]; }
     T_box_t scale_dims( T const & scale ) const { return T_box_t( p[0] * scale, p[1] * scale ); }    
+    T_box_t scale( typename T::value_type const & s ) const { return T_box_t( p[0].scale( s ), p[1].scale( s ) ); }    
 
     T center_ru( void ) const { return (bnds_sum() + T(1,1))/2; }
     T center_rd( void ) const { return bnds_sum()/2; }
