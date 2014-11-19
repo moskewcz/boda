@@ -26,5 +26,12 @@ namespace boda
   typedef vector< p_conv_io_t > vect_p_conv_io_t;
   typedef shared_ptr< vect_conv_io_t > p_vect_conv_io_t; 
 
+  // note: see conv_common.cc for details on the semantics of these functions
+  enum conv_mode_t : uint8_t { cm_valid = 0, cm_any_valid = 1, cm_core_valid = 2 };
+  void in_box_to_out_box( i32_box_t & out_box, u32_box_t const & in_box, conv_mode_t const mode, 
+			  conv_support_info_t const & csi );
+  void unchecked_out_box_to_in_box( i32_box_t & in_box, i32_box_t const & out_box, conv_mode_t const mode, 
+				    conv_support_info_t const & csi ); 
+
 }
 #endif /* _CONV_COMMON_H_ */
