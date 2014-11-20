@@ -322,17 +322,13 @@ namespace boda
     i32_pt_t const disp_sz{displayrect->w,displayrect->h}; // display window is of size displayrect w,h
     i32_pt_t const disp_off{displayrect->x,displayrect->y}; // display window x,y is the offset where the neg_corner of the texure will be drawn. 
     i32_pt_t const tex_sz = { YV12_buf->w, YV12_buf->h }; // the texture is always it is always drawn resized to the window size (regardless of offset)
+    double_pt_t const tex_to_disp_scale{ double(disp_sz.d[0])/tex_sz.d[0], double(disp_sz.d[1])/tex_sz.d[1] };
     uint32_t out_x = 0;
     for( uint32_t i = 0; i != imgs->size(); ++i ) { 
       p_img_t const & img = imgs->at(i);
       // calculate what region in the display window this image occupies
       // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
       i32_pt_t const img_nc = { out_x, YV12_buf->h - img->h };
-      i32_pt_t const disp_img_nc = (img_nc*disp_sz/tex_sz) + disp_off;
-      i32_pt_t const img_sz = { img->w, img->h };
-      i32_pt_t const disp_img_sz = img_sz*disp_sz/tex_sz;
-      //i32_box_t const disp_img_box = {disp_img_nc,disp_img_nc+disp_img_sz};
-      //printf( "disp_img_box=%s\n", str(disp_img_box).c_str() );
       out_x += imgs->at(i)->w;
       // draw annotations
       p_vect_anno_t const & annos = img_annos.at(i);
@@ -340,9 +336,11 @@ namespace boda
       for( vect_anno_t::const_iterator i = annos->begin(); i != annos->end(); ++i ) {
 	// render box
 	sdl_set_color_from_pel( renderer, i->box_color );
-	SDL_Rect anno_box = box_to_sdl( (i->box*disp_img_sz/img_sz) + disp_img_nc );
-	if( i->fill ) { SDL_RenderFillRect(renderer.get(), &anno_box ); } 
-	else { SDL_RenderDrawRect(renderer.get(), &anno_box ); }
+	i32_box_t const anno_box = (i->box+img_nc).scale_and_round(tex_to_disp_scale) + disp_off;
+	SDL_Rect sdl_anno_box = box_to_sdl( anno_box  );
+	//printf( "anno_box=%s\n", str(anno_box).c_str() );
+	if( i->fill ) { SDL_RenderFillRect(renderer.get(), &sdl_anno_box ); } 
+	else { SDL_RenderDrawRect(renderer.get(), &sdl_anno_box ); }
 	// render string
 	if( i->str.empty() ) { continue; } 
 	p_SDL_Texture str_tex;
@@ -362,7 +360,7 @@ namespace boda
 	if( !text ) { printf("text render failed\n"); }
         else { 
 	  //assert_st( text->w == anno_box.w );
-	  SDL_Rect text_box = anno_box; // for - corner
+	  SDL_Rect text_box = sdl_anno_box; // for - corner
 	  text_box.h = text->h; // may be +- height of anno_box
 	  text_box.w = text->w; // may be +- width of anno_box
 	  p_SDL_Surface text_shadow( SDL_CreateRGBSurface(SDL_SWSURFACE, text->w, text->h, 32,
