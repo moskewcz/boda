@@ -344,7 +344,7 @@ namespace boda
 	if( i->fill ) { SDL_RenderFillRect(renderer.get(), &anno_box ); } 
 	else { SDL_RenderDrawRect(renderer.get(), &anno_box ); }
 	// render string
-
+	if( i->str.empty() ) { continue; } 
 	p_SDL_Texture str_tex;
 	// note: we might use anno_box.w instead of a hard-coded 800
 	// here (or maybe disp_img_sz.d[0]) as the auto-wrapping size
