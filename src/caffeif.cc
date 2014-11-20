@@ -191,6 +191,8 @@ namespace boda
 	caffe::PoolingParameter const & pp = lp.pooling_param();
 	conv_op = get_conv_op_from_param( pp );
 	conv_op->type = "pool";
+	// global pooling iff kernel size is all zeros (we use as a special value)
+	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
 	conv_op->out_chans = last_out_chans; // assume unchanged from last conv layer 
       }
       if( conv_op ) { 

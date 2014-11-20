@@ -12,6 +12,7 @@ namespace boda
 {
 
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
+    if( kern_sz.is_zeros() ) { assert( type == "pool" ); return u32_pt_t{1,1}; } // global pooling special case
     u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum());
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
     if( type == "conv" ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
@@ -19,6 +20,11 @@ namespace boda
     else { rt_err("unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
+    if( kern_sz.is_zeros() ) { // global pooling special case
+      assert( type == "pool" ); 
+      if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
+      return u32_pt_t{0,0};  // special value means all input will be used ...
+    } 
     assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
     u32_pt_t const no_pad_in_sz =  kern_sz + (out_sz-u32_pt_t(1,1))*stride;
     if( ignore_padding ) { return no_pad_in_sz; }
@@ -45,10 +51,14 @@ namespace boda
     conv_sis.front().support_stride = u32_pt_t(1,1);
     for( uint32_t i = 0; i != convs->size(); ++i ) {
       conv_op_t const & cop = convs->at(i);
-      assert_st( cop.kern_sz.both_dims_non_zero() );
+      //assert_st( cop.kern_sz.both_dims_non_zero() );
       u32_pt_t const in_sz_1x1 = cop.out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding_for_support ); // == cop.kern_sz (if ign_pad)
-      assert_st( in_sz_1x1.both_dims_non_zero() );
-      conv_sis[i+1].support_sz = conv_sis[i].support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*conv_sis[i].support_stride;
+      if( in_sz_1x1.is_zeros() || conv_sis[i].support_sz.is_zeros() )  { // special values that means use all input
+	conv_sis[i+1].support_sz = u32_pt_t{};
+      } else {
+	assert_st( in_sz_1x1.both_dims_non_zero() );
+	conv_sis[i+1].support_sz = conv_sis[i].support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*conv_sis[i].support_stride;
+      }
       conv_sis[i+1].support_stride = conv_sis[i].support_stride*cop.stride;
     }
     // backward passes to calculate eff_tot_pad

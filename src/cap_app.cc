@@ -316,18 +316,37 @@ namespace boda
 	u32_pt_t const feat_xy = floor_div_u32( feat_img_xy, out_s );
 	assert_st( feat_xy.both_dims_lt( conv_ios->back().sz ) );
 	//printf( "feat_img_xy=%s feat_xy=%s\n", str(feat_img_xy).c_str(), str(feat_xy).c_str() );
+	// calculate chan ix
+	u32_pt_t const feat_chan_pt = feat_img_xy - feat_xy.scale( out_s );
+	uint32_t const feat_chan_ix = feat_chan_pt.d[1]*out_s + feat_chan_pt.d[0];
+	uint32_t const feat_val = feat_img->get_pel_chan( feat_img_xy.d[0], feat_img_xy.d[1], 0 );
+	printf( "feat_chan_ix=%s feat_val=%s\n", str(feat_chan_ix).c_str(), str(feat_val).c_str() );
 
 	// using feat_img_xy annotate the area of feat_img corresponding to it
 	u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
 	i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(out_s));
 	p_vect_anno_t annos( new vect_anno_t );
 	annos->push_back( anno_t{feat_img_pel_box, rgba_to_pel(170,40,40), 0, str(feat_xy), rgba_to_pel(220,220,255) } );
+	// annotate channel at each x,y
+	for( uint32_t fx = 0; fx != conv_ios->back().sz.d[0]; ++fx ) {
+	  for( uint32_t fy = 0; fy != conv_ios->back().sz.d[1]; ++fy ) {
+	    i32_pt_t const fcpt = u32_to_i32( u32_pt_t{out_s,out_s}*u32_pt_t{fx,fy}+feat_chan_pt );
+	    i32_box_t const fcb{ fcpt, fcpt+i32_pt_t{1,1} };
+	    annos->push_back( anno_t{fcb, rgba_to_pel(170,40,40), 0, "", rgba_to_pel(220,255,200) } );
+	  }
+	}
+
+
 	disp_win.update_img_annos( 0, annos );
 	
 	// calculate in_xy from feat_xy
-	i32_box_t valid_in_xy, core_valid_in_xy, any_valid_in_xy;
-	unchecked_out_box_to_in_box( valid_in_xy, u32_to_i32( feat_pel_box ), cm_valid, ol_csi );
-	unchecked_out_box_to_in_box( core_valid_in_xy, u32_to_i32( feat_pel_box ), cm_core_valid, ol_csi );
+	i32_box_t valid_in_xy, core_valid_in_xy;
+	if( !ol_csi.support_sz.is_zeros() ) {
+	  unchecked_out_box_to_in_box( valid_in_xy, u32_to_i32( feat_pel_box ), cm_valid, ol_csi );
+	  unchecked_out_box_to_in_box( core_valid_in_xy, u32_to_i32( feat_pel_box ), cm_core_valid, ol_csi );
+	} else {
+	  valid_in_xy = core_valid_in_xy = i32_box_t{{},u32_to_i32(run_cnet->in_sz)}; // whole image
+	}
 
 	// annotate region of input image corresponding to feat_xy
 	annos.reset( new vect_anno_t );
