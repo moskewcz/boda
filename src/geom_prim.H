@@ -16,6 +16,7 @@ namespace boda
     T dims_max( void ) const { return std::max(d[0],d[1]); }
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
     T_pt_t scale_and_round( double const & s ) const { return T_pt_t( round(d[0]*s), round(d[1]*s) ); }
+    T_pt_t scale_and_round( T_pt_t<double> const & s ) const { return T_pt_t( round(d[0]*s.d[0]), round(d[1]*s.d[1]) ); }
     T_pt_t scale( T const & o ) const { return T_pt_t( d[0] * o, d[1] * o ); }
 
     void operator += ( T_pt_t const & o ) { d[0] += o.d[0]; d[1] += o.d[1]; }
@@ -43,6 +44,7 @@ namespace boda
 
   typedef T_pt_t< uint32_t > u32_pt_t;
   typedef T_pt_t< int32_t  > i32_pt_t;
+  typedef T_pt_t< double  > double_pt_t;
 
   inline u32_pt_t floor_div_u32( u32_pt_t const &v, uint32_t const & d ) { return u32_pt_t( v.d[0] / d, v.d[1] / d ); }
 
@@ -157,6 +159,8 @@ namespace boda
     T bnds_sum( void ) const { return p[0] + p[1]; }
     T_box_t scale_dims( T const & scale ) const { return T_box_t( p[0] * scale, p[1] * scale ); }    
     T_box_t scale( typename T::value_type const & s ) const { return T_box_t( p[0].scale( s ), p[1].scale( s ) ); }    
+    T_box_t scale_and_round( double const & s ) const { return T_box_t( p[0].scale_and_round(s), p[1].scale_and_round(s) ); }
+    T_box_t scale_and_round( double_pt_t const & s ) const { return T_box_t( p[0].scale_and_round(s), p[1].scale_and_round(s) ); }
 
     T center_ru( void ) const { return (bnds_sum() + T(1,1))/2; }
     T center_rd( void ) const { return bnds_sum()/2; }
