@@ -315,6 +315,7 @@ namespace boda
 	break;
       }
     }
+    sdl_set_color_from_pel( renderer, 0 );
     SDL_RenderClear( renderer.get() );
     SDL_RenderCopy( renderer.get(), tex.get(), NULL, displayrect.get() );
 
