@@ -44,6 +44,8 @@ namespace boda {
     p_SDL_Texture tex;
 
     p_SDL_Rect displayrect;
+    i32_pt_t pan_pin;
+    i32_pt_t pan_orig_dr;
     bool paused;
     bool done;
     bool stop_io_on_quit;

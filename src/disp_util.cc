@@ -281,14 +281,15 @@ namespace boda
 	break;
       case SDL_MOUSEBUTTONDOWN:
 	if( event.button.button == SDL_BUTTON_RIGHT ) {
-	  displayrect->x = event.button.x - window_w / 2;
-	  displayrect->y = event.button.y - window_h / 2;
+	  pan_pin = i32_pt_t{event.button.x,event.button.y};
+	  pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
 	} else if( event.button.button == SDL_BUTTON_LEFT ) { on_lb( event.button.x, event.button.y ); }
 	break;
       case SDL_MOUSEMOTION:
 	if (event.motion.state&SDL_BUTTON(3)) {
-	  displayrect->x = event.motion.x - window_w / 2;
-	  displayrect->y = event.motion.y - window_h / 2;
+	  i32_pt_t const pan_to = pan_orig_dr + (i32_pt_t{event.motion.x,event.motion.y} - pan_pin);
+	  displayrect->x = pan_to.d[0];
+	  displayrect->y = pan_to.d[1];
 	}
 	break;
       case SDL_KEYDOWN:
