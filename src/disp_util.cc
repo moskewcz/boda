@@ -111,7 +111,7 @@ namespace boda
     }
   }
 
-  disp_win_t::disp_win_t( void ) : stop_io_on_quit(1), asio( new asio_t ) { }
+  disp_win_t::disp_win_t( void ) : zoom(0), stop_io_on_quit(1), asio( new asio_t ) { }
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
   // may not change after setup, but this is not checked.
@@ -268,6 +268,19 @@ namespace boda
     }
   }
 
+  void disp_win_t::update_dr_for_window_and_zoom( void ) {
+    i32_pt_t const win_sz = {window_w,window_h};
+    i32_pt_t const zoom_sz = win_sz.scale_and_round( pow( 1.3, zoom ) ); 
+    i32_pt_t const orig_dr_sz = i32_pt_t{displayrect->w,displayrect->h};
+    i32_pt_t const sz_delta = zoom_sz - orig_dr_sz; // new - old
+    displayrect->w = zoom_sz.d[0];
+    displayrect->h = zoom_sz.d[1];
+    // adjust dr nc to keep center point in center
+    i32_pt_t const nc_delta = (win_sz.scale_and_round(.5)-i32_pt_t{displayrect->x,displayrect->y})*sz_delta/orig_dr_sz;
+    displayrect->x -= nc_delta.d[0];
+    displayrect->y -= nc_delta.d[1];
+  }
+
   void disp_win_t::drain_sdl_events_and_redisplay( void ) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -275,8 +288,9 @@ namespace boda
       case SDL_WINDOWEVENT:
 	if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
 	  SDL_RenderSetViewport(renderer.get(), NULL);
-	  displayrect->w = window_w = event.window.data1;
-	  displayrect->h = window_h = event.window.data2;
+	  window_w = event.window.data1;
+	  window_h = event.window.data2;
+	  update_dr_for_window_and_zoom();
 	}
 	break;
       case SDL_MOUSEBUTTONDOWN:
@@ -291,6 +305,12 @@ namespace boda
 	  displayrect->x = pan_to.d[0];
 	  displayrect->y = pan_to.d[1];
 	}
+	break;
+      case SDL_MOUSEWHEEL:
+	zoom += event.wheel.y;
+	min_eq( zoom,  10 );
+	max_eq( zoom, -10 );
+	update_dr_for_window_and_zoom();
 	break;
       case SDL_KEYDOWN:
 	if( event.key.keysym.sym == SDLK_s ) {
