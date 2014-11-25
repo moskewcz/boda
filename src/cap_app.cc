@@ -304,12 +304,40 @@ namespace boda
       setup_capture_on_read( *cap_afd, &capture_feats_t::on_cap_read, this );
     }
 
-    void img_to_feat_anno( u32_pt_t const & feat_img_xy ) {
-      // TODO
-      //assert_st( feat_img_xy.both_dims_lt( u32_pt_t( feat_img->w, feat_img->h ) ) );
+    void img_to_feat_anno( u32_pt_t const & in_xy ) {
+      p_vect_anno_t annos;
+      conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
+      uint32_t const out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
+
+      assert_st( in_xy.both_dims_lt( in_img->sz ) );
+      u32_box_t const in_xy_pel_box{in_xy,in_xy+u32_pt_t{1,1}};
+      // annotate region of input image corresponding to in_xy
+      annos.reset( new vect_anno_t );
+      annos->push_back( anno_t{u32_to_i32(in_xy_pel_box), rgba_to_pel(170,40,40), 0, str(in_xy), rgba_to_pel(220,220,255) } );
+      disp_win.update_img_annos( 1, annos );
+
+      i32_box_t any_valid_feat_box;
+      if( !ol_csi.support_sz.is_zeros() ) {
+	in_box_to_out_box( any_valid_feat_box, in_xy_pel_box, cm_any_valid, ol_csi );
+      } else {
+	// global pooling, features should be 1x1
+	assert_st( (conv_ios->back().sz == u32_pt_t{1,1}) );
+	any_valid_feat_box = i32_box_t{{},u32_to_i32(conv_ios->back().sz)}; // all features
+      }
+      i32_box_t const feat_img_box = any_valid_feat_box.scale(out_s);
+
+      annos.reset( new vect_anno_t );
+      annos->push_back( anno_t{feat_img_box, rgba_to_pel(170,40,40), 0, str(any_valid_feat_box), rgba_to_pel(220,220,255) } );
+      disp_win.update_img_annos( 0, annos );
+
+      disp_win.update_disp_imgs();
+
+
+      printf( "any_valid_feat_box=%s\n", str(any_valid_feat_box).c_str() );
     }
 
     void feat_to_img_anno( u32_pt_t const & feat_img_xy ) {
+      p_vect_anno_t annos;
       assert_st( feat_img_xy.both_dims_lt( feat_img->sz ) );
       // calculate feat xy from feat_img xy (which is scaled up by ~sqrt(chans) from the feature xy)
       conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
@@ -327,7 +355,7 @@ namespace boda
       // using feat_img_xy annotate the area of feat_img corresponding to it
       u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
       i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(out_s));
-      p_vect_anno_t annos( new vect_anno_t );
+      annos.reset( new vect_anno_t );
       annos->push_back( anno_t{feat_img_pel_box, rgba_to_pel(170,40,40), 0, str(feat_xy), rgba_to_pel(220,220,255) } );
       // annotate channel at each x,y
       for( uint32_t fx = 0; fx != conv_ios->back().sz.d[0]; ++fx ) {
