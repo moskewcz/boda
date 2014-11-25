@@ -303,11 +303,13 @@ namespace boda
       disp_win.update_disp_imgs();
       setup_capture_on_read( *cap_afd, &capture_feats_t::on_cap_read, this );
     }
-    void on_lb( error_code const & ec ) { 
-      lb_event_t const & lbe = get_lb_event(&disp_win);
-      //printf( "lbe.img_ix=%s lbe.xy=%s\n", str(lbe.img_ix).c_str(), str(lbe.xy).c_str() );
-      if( lbe.img_ix == 0 ) { 
-	u32_pt_t const feat_img_xy = i32_to_u32( lbe.xy );
+
+    void img_to_feat_anno( u32_pt_t const & feat_img_xy ) {
+      // TODO
+      //assert_st( feat_img_xy.both_dims_lt( u32_pt_t( feat_img->w, feat_img->h ) ) );
+    }
+
+    void feat_to_img_anno( u32_pt_t const & feat_img_xy ) {
 	assert_st( feat_img_xy.both_dims_lt( u32_pt_t( feat_img->w, feat_img->h ) ) );
 	// calculate feat xy from feat_img xy (which is scaled up by ~sqrt(chans) from the feature xy)
 	conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
@@ -335,8 +337,6 @@ namespace boda
 	    annos->push_back( anno_t{fcb, rgba_to_pel(170,40,40), 0, "", rgba_to_pel(220,255,200) } );
 	  }
 	}
-
-
 	disp_win.update_img_annos( 0, annos );
 	
 	// calculate in_xy from feat_xy
@@ -347,7 +347,6 @@ namespace boda
 	} else {
 	  valid_in_xy = core_valid_in_xy = i32_box_t{{},u32_to_i32(run_cnet->in_sz)}; // whole image
 	}
-
 	// annotate region of input image corresponding to feat_xy
 	annos.reset( new vect_anno_t );
 	annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy), rgba_to_pel(220,220,255) } );
@@ -355,7 +354,12 @@ namespace boda
 	disp_win.update_img_annos( 1, annos );
 
 	disp_win.update_disp_imgs();
-      }
+    }
+    void on_lb( error_code const & ec ) { 
+      lb_event_t const & lbe = get_lb_event(&disp_win);
+      //printf( "lbe.img_ix=%s lbe.xy=%s\n", str(lbe.img_ix).c_str(), str(lbe.xy).c_str() );
+      if( lbe.img_ix == 0 ) { feat_to_img_anno( i32_to_u32( lbe.xy ) ); }
+      else if( lbe.img_ix == 1 ) { img_to_feat_anno( i32_to_u32( lbe.xy ) ); }
       register_lb_handler( disp_win, &capture_feats_t::on_lb, this );
     }
 
