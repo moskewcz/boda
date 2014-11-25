@@ -21,13 +21,13 @@ namespace boda
     dims_t const & ibd = in_batch->dims;
     assert_st( img_ix < ibd.dims(0) );
     assert_st( 3 == ibd.dims(1) );
-    assert_st( img->w == ibd.dims(3) );
-    assert_st( img->h == ibd.dims(2) );
+    assert_st( img->sz.d[0] == ibd.dims(3) );
+    assert_st( img->sz.d[1] == ibd.dims(2) );
     uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
 #pragma omp parallel for	  
     for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
       for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
-	uint32_t const pel = img->get_pel(x,y);
+	uint32_t const pel = img->get_pel({x,y});
 	for( uint32_t c = 0; c < 3; ++c ) {
 	  // note: RGB -> BGR swap via the '2-c' below
 	  in_batch->at4( img_ix, 2-c, y, x ) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
@@ -64,10 +64,10 @@ namespace boda
     //assert_st( out_min == 0.0f ); // shouldn't be any negative values
     //float const out_rng = out_max - out_min;
 
-    assert_st( u32_pt_t(img->w,img->h) == img_sz );
+    assert_st( img->sz == img_sz );
 
-    for( uint32_t y = 0; y < img->h; ++y ) {
-      for( uint32_t x = 0; x < img->w; ++x ) {
+    for( uint32_t y = 0; y < img->sz.d[1]; ++y ) {
+      for( uint32_t x = 0; x < img->sz.d[0]; ++x ) {
 	uint32_t const bx = x / sqrt_out_chan;
 	uint32_t const by = y / sqrt_out_chan;
 	uint32_t const bc = (y%sqrt_out_chan)*sqrt_out_chan + (x%sqrt_out_chan);
@@ -78,7 +78,7 @@ namespace boda
 	  gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * norm_val ) ) );
 	  //gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * (log(.01) - log(std::max(.01f,norm_val))) / (-log(.01)) )));
 	} else { gv = grey_to_pel( 0 ); }
-	img->set_pel( x, y, gv );
+	img->set_pel( {x, y}, gv );
       }
     }
   }
@@ -346,7 +346,7 @@ namespace boda
   };
 
   p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) {
-    p_img_t img_in_ds = resample_to_size( img_in, in_sz.d[0], in_sz.d[1] );
+    p_img_t img_in_ds = resample_to_size( img_in, in_sz );
     subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
     p_nda_float_t out_batch = run_one_blob_in_one_blob_out();
 
@@ -368,7 +368,7 @@ namespace boda
     }
 
     p_vect_anno_t annos( new vect_anno_t );
-    annos->push_back( anno_t{{{0,0},{img_in->w,img_in->h}}, rgba_to_pel(170,40,40), 0, "", rgba_to_pel(220,220,255) } );
+    annos->push_back( anno_t{{{0,0},u32_to_i32(img_in->sz)}, rgba_to_pel(170,40,40), 0, "", rgba_to_pel(220,220,255) } );
 
     if( print_to_terminal ) {
       printf("\033[2J\033[1;1H");

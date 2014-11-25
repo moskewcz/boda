@@ -146,7 +146,7 @@ namespace boda
 
   ppyo img_to_py( p_img_t img )
   {
-    npy_intp dims[3] = {img->h,img->w,img->depth};
+    npy_intp dims[3] = {img->sz.d[1],img->sz.d[0],img->depth};
 #if 0 // for reference, if we wanted to copy into a newly allocated numpy array
     ppyo npa( PyArray_SimpleNew( 3, dims, NPY_UINT8) );
     for( uint32_t y = 0; y < img->h; ++y ) {

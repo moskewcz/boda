@@ -306,12 +306,12 @@ namespace boda
   p_nda_double_t create_p_nda_double_from_img( p_img_t img ) {
     dims_t dims(3);
     dims.dims(0) = 3;
-    dims.dims(1) = img->w;
-    dims.dims(2) = img->h;
+    dims.dims(1) = img->sz.d[0];
+    dims.dims(2) = img->sz.d[1];
     p_nda_double_t ret( new nda_double_t );
     ret->set_dims( dims );
-    for( uint32_t y = 0; y < img->h; ++y ) {
-      for( uint32_t x = 0; x < img->w; ++x ) {
+    for( uint32_t y = 0; y < img->sz.d[1]; ++y ) {
+      for( uint32_t x = 0; x < img->sz.d[0]; ++x ) {
 	for( uint32_t c = 0; c < 3; ++c ) {
 	  ret->at3(c,x,y) = img->pels.get()[y*img->row_pitch + x*img->depth + c];
 	}
@@ -339,9 +339,9 @@ namespace boda
     dims_t const & dims = nda->dims;
     assert( dims.dims(0) == 3 ); // RGB
     p_img_t img( new img_t );
-    img->set_sz_and_alloc_pels( dims.dims(1), dims.dims(2) ); // w, h
-    for( uint32_t y = 0; y < img->h; ++y ) {
-      for( uint32_t x = 0; x < img->w; ++x ) {
+    img->set_sz_and_alloc_pels( {dims.dims(1), dims.dims(2)} );
+    for( uint32_t y = 0; y < img->sz.d[1]; ++y ) {
+      for( uint32_t x = 0; x < img->sz.d[0]; ++x ) {
 	for( uint32_t c = 0; c < 3; ++c ) {
 	  img->pels.get()[y*img->row_pitch + x*img->depth + c] = nda->at3(c,x,y);
 	}
@@ -395,10 +395,10 @@ namespace boda
   p_nda_double_t oct_img_resize( p_img_t img, double const scale )
   {
     //return;
-    dim_vector img_dv(img->h, img->w, 3);
+    dim_vector img_dv(img->sz.d[1], img->sz.d[0], 3);
     NDArray img_oct( img_dv );
-    for( uint32_t y = 0; y < img->h; ++y ) {
-      for( uint32_t x = 0; x < img->w; ++x ) {
+    for( uint32_t y = 0; y < img->sz.d[1]; ++y ) {
+      for( uint32_t x = 0; x < img->sz.d[0]; ++x ) {
 	for( uint32_t c = 0; c < 3; ++c ) {
 	  img_oct(y,x,c) = img->pels.get()[y*img->row_pitch + x*img->depth + c];
 	}
@@ -450,7 +450,7 @@ namespace boda
       uint32_t cur_scale = i;
       for( int32_t octave = 1; octave > -15; --octave )  { // scale = 2^octave, -15 bound is a sanity limit only
 	//uint32_t const ids_min_dim = min(ids_nda->dims.dims(1),ids_nda->dims.dims(2));
-	uint32_t const ids_min_dim = ids_img->min_dim();
+	uint32_t const ids_min_dim = ids_img->sz.dims_min();
 	uint32_t min_sz = (octave >= 0 ) ? (ids_min_dim << octave) : (ids_min_dim >> 1);
 	if( min_sz < min_pyra_isz ) { break; } // this octave/interval is too small.
 	double const scale = pow(2.0d, double(octave) - (double(i) / double(interval) ) );
@@ -546,7 +546,7 @@ namespace boda
 	p_img_t ds_img = downsample_up_to_2x( img, scale ); // note: input ids_img is released here	  
 	double h_scale = scale;
 	for( uint32_t h = 0; h < 5; ++h ) {
-	  if( ds_img->min_dim() < 2 ) { break; } // this octave/interval is too small.
+	  if( ds_img->sz.dims_min() < 2 ) { break; } // this octave/interval is too small.
 	  if( h ) {
 	    h_scale = h_scale / 2.0d;
 	    ds_img = downsample_2x( ds_img ); // note: input ids_img is released here	  
@@ -599,10 +599,10 @@ namespace boda
       vect_p_nda_double_t feats;
 
       oct_dfc_startup( dpm_fast_cascade_dir );
-      dim_vector img_dv(img->h, img->w, 3);
+      dim_vector img_dv(img->sz.d[1], img->sz.d[0], 3);
       NDArray img_oct( img_dv );
-      for( uint32_t y = 0; y < img->h; ++y ) {
-	for( uint32_t x = 0; x < img->w; ++x ) {
+      for( uint32_t y = 0; y < img->sz.d[1]; ++y ) {
+	for( uint32_t x = 0; x < img->sz.d[0]; ++x ) {
 	  for( uint32_t c = 0; c < 3; ++c ) {
 	    img_oct(y,x,c) = img->pels.get()[y*img->row_pitch + x*img->depth + c];
 	  }

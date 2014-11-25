@@ -42,9 +42,13 @@ namespace boda
     bool both_dims_ge( T_pt_t const & o ) const { return d[0] >= o.d[0] && d[1] >= o.d[1]; }
   };
 
+  template< typename T >
+  inline T_pt_t<T> min( T_pt_t<T> const &a, T_pt_t<T> const & b ) { return {std::min(a.d[0],b.d[0]),std::min(a.d[1],b.d[1])}; }
+
   typedef T_pt_t< uint32_t > u32_pt_t;
   typedef T_pt_t< int32_t  > i32_pt_t;
   typedef T_pt_t< double  > double_pt_t;
+
 
   inline u32_pt_t floor_div_u32( u32_pt_t const &v, uint32_t const & d ) { return u32_pt_t( v.d[0] / d, v.d[1] / d ); }
 
@@ -70,8 +74,6 @@ namespace boda
 
   std::ostream & operator <<(std::ostream & os, u32_pt_t const & v);
   std::ostream & operator <<(std::ostream & os, i32_pt_t const & v);
-
-  template< typename HAS_WH > u32_pt_t get_wh( HAS_WH const & o ) { return u32_pt_t( o.w, o.h ); }
 
   u32_pt_t const u32_pt_t_const_max{uint32_t_const_max,uint32_t_const_max};
   

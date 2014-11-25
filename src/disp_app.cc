@@ -55,7 +55,7 @@ namespace boda
       frame_timer->async_wait( bind( &display_pil_t::on_frame, this, _1 ) ); 
       if( cur_img_ix == all_imgs->size() ) { cur_img_ix = 0; }
       if( cur_img_ix < all_imgs->size() ) {
-	img_copy_to_clip( all_imgs->at(cur_img_ix).get(), disp_imgs->at(0).get(), 0, 0 );
+	img_copy_to_clip( all_imgs->at(cur_img_ix).get(), disp_imgs->at(0).get(), {} );
 	++cur_img_ix;
       }
       disp_win.update_disp_imgs();

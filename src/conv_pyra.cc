@@ -77,7 +77,7 @@ namespace boda
 
       feat_img.reset( new img_t );
       u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
-      feat_img->set_sz_and_alloc_pels( feat_img_sz.d[0], feat_img_sz.d[1] ); // w, h
+      feat_img->set_sz_and_alloc_pels( feat_img_sz );
       capture->cap_start();
       disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
 

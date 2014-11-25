@@ -49,9 +49,9 @@ namespace boda
     uint8_t * U;
 
     YV12_buf_t( void ) : w(0), h(0), sz(0), Y(0), V(0), U(0) { }
-    void set_sz_and_alloc( uint32_t const w_, uint32_t const h_ ) {
-      w = w_; assert_st( !(w&1) );
-      h = h_; assert_st( !(h&1) );
+    void set_sz_and_alloc( u32_pt_t const & sz_ ) {
+      w = sz_.d[0]; assert_st( !(w&1) );
+      h = sz_.d[1]; assert_st( !(h&1) );
       sz = w * ( h + (h/2) );
       d = ma_p_uint8_t( sz, 4096 );
       for( uint32_t i = 0; i < sz; ++i ) { d.get()[i] = 128; } // init to grey
@@ -66,14 +66,13 @@ namespace boda
     }
   };
 
-  void img_to_YV12( YV12_buf_t const & YV12_buf, p_img_t const & img, uint32_t const out_x, uint32_t const out_y )
-  {
-    uint32_t const w = img->w; 
-    uint32_t const h = img->h;
+  void img_to_YV12( YV12_buf_t const & YV12_buf, p_img_t const & img, uint32_t const out_x, uint32_t const out_y ) {
+    uint32_t const w = img->sz.d[0]; 
+    uint32_t const h = img->sz.d[1];
     uint8_t *out_Y, *out_V, *out_U;
     for( uint32_t y = 0; y < h; ++y ) {
       YV12_buf.YVUat( out_Y, out_V, out_U, out_x, out_y+y );
-      uint32_t const * rgb = img->get_row_pels_data( y );
+      uint32_t const * rgb = img->get_row_addr( y );
       for( uint32_t x = 0; x < w; ++x, ++rgb ) {
 	rgba2y( *rgb, *(out_Y++) );
 	if( !((x&1) || (y&1)) ) { rgba2uv( *rgb, *(out_U++), *(out_V++) ); }
@@ -132,7 +131,7 @@ namespace boda
     p_vect_p_img_t req_imgs( new vect_p_img_t );
     for( vect_u32_pt_t::const_iterator i = disp_img_szs.begin(); i != disp_img_szs.end(); ++i ) {
       p_img_t img( new img_t );
-      img->set_sz_and_alloc_pels( i->d[0], i->d[1] );
+      img->set_sz_and_alloc_pels( *i );
       img->fill_with_pel( grey_to_pel( 128 ) );
       req_imgs->push_back( img );
     }
@@ -172,13 +171,13 @@ namespace boda
       uint32_t img_w = 0;
       uint32_t img_h = 0;
       for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
-	img_w += (*i)->w;
-	max_eq( img_h, (*i)->h );
+	img_w += (*i)->sz.d[0];
+	max_eq( img_h, (*i)->sz.d[1] );
       }
       // make w/h even for simplicity of YUV UV (2x downsampled) planes
       if( img_w & 1 ) { ++img_w; }
       if( img_h & 1 ) { ++img_h; }
-      YV12_buf->set_sz_and_alloc( img_w, img_h );
+      YV12_buf->set_sz_and_alloc( {img_w, img_h} );
     }
 
     assert( !tex );
@@ -230,8 +229,8 @@ namespace boda
     if (!paused) {
       uint32_t out_x = 0;
       for( uint32_t i = 0; i != imgs->size(); ++i ) { 
-	img_to_YV12( *YV12_buf, imgs->at(i), out_x, YV12_buf->h - imgs->at(i)->h );
-	out_x += imgs->at(i)->w;
+	img_to_YV12( *YV12_buf, imgs->at(i), out_x, YV12_buf->h - imgs->at(i)->sz.d[1] );
+	out_x += imgs->at(i)->sz.d[0];
       }
       SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
     }
@@ -251,14 +250,14 @@ namespace boda
       p_img_t const & img = imgs->at(i);
       // calculate what region in the display window this image occupies
       // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
-      i32_pt_t const img_nc = { out_x, YV12_buf->h - img->h };
+      i32_pt_t const img_nc = { out_x, YV12_buf->h - img->sz.d[1] };
       i32_pt_t const disp_img_nc = (img_nc*disp_sz/tex_sz) + disp_off;
-      i32_pt_t const img_sz = { img->w, img->h };
+      i32_pt_t const img_sz = u32_to_i32( img->sz );
       i32_pt_t const disp_img_sz = img_sz*disp_sz/tex_sz;
       i32_box_t const disp_img_box = {disp_img_nc,disp_img_nc+disp_img_sz};
       //printf( "disp_img_box=%s\n", str(disp_img_box).c_str() );
       //printf( "img_sz=%s\n", str(img_sz).c_str() );
-      out_x += imgs->at(i)->w;
+      out_x += imgs->at(i)->sz.d[0];
       if( disp_img_box.contains( pel_to_box( i32_pt_t{x,y} ) ) ) {
 	i32_pt_t const img_xy = (xy - disp_img_nc)*img_sz/disp_img_sz;
 	//printf( "i=%s img_xy=%s\n", str(i).c_str(), str(img_xy).c_str() );
@@ -328,8 +327,8 @@ namespace boda
       p_img_t const & img = imgs->at(i);
       // calculate what region in the display window this image occupies
       // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
-      i32_pt_t const img_nc = { out_x, YV12_buf->h - img->h };
-      out_x += imgs->at(i)->w;
+      i32_pt_t const img_nc = { out_x, YV12_buf->h - img->sz.d[1] };
+      out_x += imgs->at(i)->sz.d[0];
       // draw annotations
       p_vect_anno_t const & annos = img_annos.at(i);
       if( !annos ) { continue; }

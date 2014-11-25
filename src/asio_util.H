@@ -123,7 +123,7 @@ namespace boda {
   template< typename STREAM > p_img_t make_and_share_p_img_t( STREAM & out, u32_pt_t const & sz ) {
     bwrite( out, sz );
     p_img_t img( new img_t );
-    img->set_sz( sz.d[0], sz.d[1] ); // w, h
+    img->set_sz( sz );
     img->pels = make_and_share_p_uint8_t( out, img->sz_raw_bytes() ); // FIXME: check img->row_align wrt map page sz?
     return img;
   }
@@ -132,7 +132,7 @@ namespace boda {
     p_img_t img( new img_t );
     u32_pt_t img_res;
     bread( stream, img_res );
-    img->set_sz( img_res.d[0], img_res.d[1] );
+    img->set_sz( img_res );
     img->pels = recv_shared_p_uint8_t( stream ); // FIXME: check img->row_align wrt map page sz?
     return img;
   }

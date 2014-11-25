@@ -140,7 +140,7 @@ namespace boda {
     void u32_box_t1_( void ) { u32_box_t1(); }
     void u32_box_t2_( void ) { u32_box_t2(); }
     void load_img_tst( void ) { img_t img; img.load_fn( cur_fn ); }
-    void za_img_tst( void ) { img_t img; img.set_sz_and_alloc_pels( 2, 0 ); }
+    void za_img_tst( void ) { img_t img; img.set_sz_and_alloc_pels( {2,0} ); }
     void xml_gr_tst( void ) { xml_document doc; xml_node xn = xml_file_get_root( doc, cur_fn ); 
       xml_must_decend( cur_fn, xn, "bar" ); }
     void lexp_unused_t1( void ) { p_lexp_t l = parse_lexp( "(foo=bar)" ); ++l->use_cnt; ++l->kids.front().v->use_cnt;

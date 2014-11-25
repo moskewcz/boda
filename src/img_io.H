@@ -3,6 +3,7 @@
 #define _IMG_IO_H_
 
 #include"boda_base.H"
+#include"geom_prim.H"
 
 namespace boda
 {
@@ -17,18 +18,17 @@ namespace boda
   struct img_t
   {
     uint8_t depth;
-    uint32_t w;
+    u32_pt_t sz;
     uint32_t row_align; // what power-of-2 alignement is ensured for all row starts
     uint32_t row_pitch; // bytes between rows
     uint32_t row_pitch_pels; // pixels between rows
-    uint32_t h;
     p_uint8_t pels; // raw pixel data    
-    img_t( void ) : depth(4), w(0), row_align(0), row_pitch(0), row_pitch_pels(0), h(0) {}
+    img_t( void ) : depth(4), row_align(0), row_pitch(0), row_pitch_pels(0) {}
     // if desired, call to set requested row alignment *before* loading
     void set_row_align( uint32_t const row_align_ ) { assert(!row_align); row_align = row_align_; }
-    void set_sz( uint32_t const w_, uint32_t const h_ );
+    void set_sz( u32_pt_t const & sz_ );
     void alloc_pels( void );
-    void set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ );
+    void set_sz_and_alloc_pels( u32_pt_t const & sz_ );
 
     void fill_with_pel( uint32_t const & v );
     void load_fn( std::string const & fn );
@@ -37,20 +37,19 @@ namespace boda
     void save_fn_png( std::string const & fn, bool const disable_compression = 0 );
 
     // always equivalent to y*row_pitch_pels + x (i.e get_pel_ix(0,0) will always == 0)
-    uint32_t get_pel_ix( uint32_t const & x, uint32_t const & y ) const { 
-      assert_st( x < w ); 
-      assert_st( y < h );
-      return y*row_pitch_pels + x; 
+    uint32_t get_pel_ix( u32_pt_t const & d ) const { 
+      assert_st( d.both_dims_lt( sz ) );
+      return d.d[1]*row_pitch_pels + d.d[0]; 
     }
-    uint32_t get_pel( uint32_t const & x, uint32_t const & y ) const { return ((uint32_t *)pels.get())[get_pel_ix(x,y)];}
-    void set_pel( uint32_t const & x, uint32_t const & y, uint32_t const & v ) { 
-      ((uint32_t *)pels.get())[get_pel_ix(x,y)] = v; }
-    uint8_t get_pel_chan( uint32_t const & x, uint32_t const & y, uint8_t const & c ) const { 
-      return (get_pel( x, y ) >> (c*8))&0xff;
+    uint32_t get_pel( u32_pt_t const & d ) const { return ((uint32_t *)pels.get())[get_pel_ix(d)];}
+    uint32_t * get_pel_addr( u32_pt_t const & d ) { return ((uint32_t *)pels.get()) + get_pel_ix(d);}
+    uint32_t const * get_pel_addr( u32_pt_t const & d ) const { return ((uint32_t const *)pels.get()) + get_pel_ix(d);}
+    void set_pel( u32_pt_t const & d, uint32_t const & v ) { *get_pel_addr(d) = v; }
+    uint8_t get_pel_chan( u32_pt_t const & d, uint8_t const & c ) const { 
+      return (get_pel(d) >> (c*8))&0xff;
     }
-    uint32_t min_dim( void ) { return std::min(w,h); }
-    uint32_t sz_raw_bytes( void ) const { return row_pitch*h; }
-    uint32_t * get_row_pels_data( uint32_t const y ) { assert( y < h ); return ((uint32_t *)pels.get()) + row_pitch_pels*y; }
+    uint32_t sz_raw_bytes( void ) const { return row_pitch*sz.d[1]; }
+    uint32_t * get_row_addr( uint32_t const y ) { return get_pel_addr({0,y}); }
     string WxH_str( void );
     void share_pels_from( p_img_t o );
   };
@@ -61,19 +60,18 @@ namespace boda
   inline uint8_t get_chan( uint8_t const c, uint32_t const v ) { return v >> (c*8); }
   inline uint64_t get_chan_64( uint8_t const c, uint32_t const v ) { return get_chan( c, v ); }
 
-  p_img_t resample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h );
-  p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h );
-  p_img_t downsample_up_to_2x_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ); // ds_w must be in [ceil(w/2),w]
-  p_img_t downsample_2x_to_size( p_img_t img, uint32_t ds_w, uint32_t ds_h );
+  p_img_t resample_to_size( p_img_t img, u32_pt_t const & ds );
+  p_img_t downsample_to_size( p_img_t img, u32_pt_t const & ds );
+  p_img_t downsample_up_to_2x_to_size( p_img_t img, u32_pt_t const & ds ); // ds_w must be in [ceil(w/2),w]
+  p_img_t downsample_2x_to_size( p_img_t img, u32_pt_t const & ds );
   p_img_t downsample_up_to_2x( p_img_t img, double const scale );
   p_img_t downsample_2x( p_img_t img ); // downsample by exactly 2X (special cased for speed, called by above when s=.5)
   p_img_t upsample_2x( p_img_t img ); // upsample by exactly 2X 
   void downsample_test( std::string const & fn );
 
-  void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy );
-  void img_copy_to_clip( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy );
-  void img_draw_pels( img_t * const dest, uint32_t const & dx, uint32_t const & dy, uint32_t const & num, 
-		      int32_t const & stride_x, int32_t const & stride_y, 
+  void img_copy_to( img_t const * const src, img_t * const dest, u32_pt_t const & d );
+  void img_copy_to_clip( img_t const * const src, img_t * const dest, u32_pt_t const & d );
+  void img_draw_pels( img_t * const dest, u32_pt_t const & d, uint32_t const & num, i32_pt_t const & stride,
 		      uint32_t const & ic, uint32_t const & ec );
 
   // from fourcc.org, YUYV->RGB conversion formula. 

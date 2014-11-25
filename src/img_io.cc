@@ -27,26 +27,26 @@ namespace boda
     if( tj_ret ) { rt_err( "failed to load image '"+fn+"': "  + err_tag + " failed:" + string(tjGetErrorStr()) ); } }
 
   // note: sets row_align to a default value if it is zero
-  void img_t::set_sz( uint32_t const w_, uint32_t const h_ ) {
-    w = w_; h = h_; 
-    if( (!w) || (!h) ) { 
-      rt_err( strprintf("can't create zero-area image. requests WxH was %sx%s",str(w).c_str(), str(h).c_str())); }
+  void img_t::set_sz( u32_pt_t const & sz_ ) {
+    sz = sz_;
+    if( !sz.both_dims_non_zero() ) {
+      rt_err( strprintf("can't create zero-area image. requests WxH was %sx%s",str(sz.d[0]).c_str(), str(sz.d[1]).c_str())); }
     if( !row_align ) { row_align = sizeof( void * ); } // minimum alignment for posix_memalign
-    uint32_t row_size =  depth * w; // 'unaligned' (maybe not mult of row_align) / raw / minimum
+    uint32_t row_size =  depth * sz.d[0]; // 'unaligned' (maybe not mult of row_align) / raw / minimum
     uint32_t const ceil_row_size_over_row_align = (row_size+row_align-1)/row_align;
     row_pitch = ceil_row_size_over_row_align * row_align; // multiple of row_align / padded
     row_pitch_pels = row_pitch / depth;
     assert_st( row_pitch_pels * depth == row_pitch ); // could relax?
   }
   void img_t::alloc_pels( void ) { pels = ma_p_uint8_t( sz_raw_bytes(), row_align ); }
-  void img_t::set_sz_and_alloc_pels( uint32_t const w_, uint32_t const h_ ) { set_sz( w_, h_ ); alloc_pels(); }
+  void img_t::set_sz_and_alloc_pels( u32_pt_t const & sz_ ) { set_sz( sz_ ); alloc_pels(); }
 
   void img_t::fill_with_pel( uint32_t const & v ) {
     uint64_t const vv = (uint64_t(v) << 32) + v;
     uint64_t * const dest_data = (uint64_t *) pels.get(); 
     assert_st( !(row_pitch_pels&1) );
 #pragma omp parallel for
-    for( uint32_t i = 0; i < (row_pitch_pels>>1)*h; ++i ) { dest_data[i] = vv; }
+    for( uint32_t i = 0; i < (row_pitch_pels>>1)*sz.d[1]; ++i ) { dest_data[i] = vv; }
   }
 
   void img_t::load_fn_jpeg( std::string const & fn )
@@ -60,8 +60,8 @@ namespace boda
     check_tj_ret( tj_ret, fn, "tjDecompressHeader2" );
     assert_st( (jw > 0) && ( jh > 0 ) ); // what to do with jss? seems unneeded.
     assert_st( tjPixelSize[ tj_pixel_format ] == depth );
-    set_sz_and_alloc_pels( jw, jh );
-    tj_ret = tjDecompress2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), pels.get(), w, row_pitch, h, 
+    set_sz_and_alloc_pels( {jw, jh} );
+    tj_ret = tjDecompress2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), pels.get(), sz.d[0], row_pitch, sz.d[1], 
 			    tj_pixel_format, 0 );
     check_tj_ret( tj_ret, fn, "tjDecompress2" );
     tj_ret = tjDestroy( tj_dec ); 
@@ -79,9 +79,10 @@ namespace boda
     if( ret ) { rt_err( strprintf( "failed to load image '%s': lodepng decoder error %s: %s", 
 				   fn.c_str(), str(ret).c_str(), lodepng_error_text(ret) ) ); }
     assert_st( (lp_w > 0) && ( lp_h > 0 ) );
-    set_sz_and_alloc_pels( lp_w, lp_h );
+    set_sz_and_alloc_pels( {lp_w, lp_h} );
     // copy packed data into our (maybe padded) rows
-    for( uint32_t i = 0; i < h; ++i ) { memcpy( pels.get() + i*row_pitch, (&lp_pels[0]) + i*w*lp_depth, w*lp_depth ); }
+    uint32_t const pack_rl = sz.d[0]*lp_depth;
+    for( uint32_t i = 0; i < sz.d[1]; ++i ) { memcpy( pels.get() + i*row_pitch, (&lp_pels[0]) + i*pack_rl, pack_rl ); }
   }
 
   void img_t::save_fn_png( std::string const & fn, bool const disable_compression )
@@ -91,14 +92,15 @@ namespace boda
     uint32_t const lp_depth = 4;
     assert( depth == lp_depth );
     vect_uint8_t lp_pels; // will contain packed RGBA (no padding)
-    lp_pels.resize( w*h*4 );
+    lp_pels.resize( sz.dims_prod()*4 );
     // copy our (maybe padded) rows into packed data
-    for( uint32_t i = 0; i < h; ++i ) { memcpy( (&lp_pels[0]) + i*w*lp_depth, pels.get() + i*row_pitch, w*lp_depth ); }
+    uint32_t const pack_rl = sz.d[0]*lp_depth;
+    for( uint32_t i = 0; i < sz.d[1]; ++i ) { memcpy( (&lp_pels[0]) + i*pack_rl, pels.get() + i*row_pitch, pack_rl ); }
     vect_uint8_t png_file_data;
     
     lodepng::State state;
     if( disable_compression ) { state.encoder.zlibsettings.btype=0; }
-    unsigned ret = lodepng::encode( png_file_data, lp_pels, w, h, state );
+    unsigned ret = lodepng::encode( png_file_data, lp_pels, sz.d[0], sz.d[1], state );
     if( ret ) { rt_err( strprintf( "failed to encode image '%s': lodepng decoder error %s: %s", 
 				   fn.c_str(), str(ret).c_str(), lodepng_error_text(ret) ) ); }
     lodepng::save_file(png_file_data, fn);
@@ -107,8 +109,7 @@ namespace boda
   // like a swap: no data copy *and* preserves img_t object identity. but, changes internal pixel data pointer
   void img_t::share_pels_from( p_img_t o ) {
     assert_st( o->depth == depth );
-    assert_st( o->w == w );
-    assert_st( o->h == h );
+    assert_st( o->sz == sz );
     assert_st( o->row_pitch == row_pitch );
     pels = o->pels;
   }
@@ -117,9 +118,9 @@ namespace boda
   {
     p_img_t ret( new img_t );
     ret->set_row_align( src->row_align ); // preserve alignment
-    ret->set_sz_and_alloc_pels( src->h, src->w );
-    for( uint32_t rx = 0; rx < ret->w; ++rx ) {
-      for( uint32_t ry = 0; ry < ret->h; ++ry ) {
+    ret->set_sz_and_alloc_pels( {src->sz.d[1], src->sz.d[0]} );
+    for( uint32_t rx = 0; rx < ret->sz.d[0]; ++rx ) {
+      for( uint32_t ry = 0; ry < ret->sz.d[1]; ++ry ) {
 	for( uint32_t c = 0; c < 4; ++c ) {
 	  uint32_t const sx = ry;
 	  uint32_t const sy = rx;
@@ -135,15 +136,15 @@ namespace boda
   {
     p_img_t ret( new img_t );
     ret->set_row_align( src->row_align ); // preserve alignment
-    ret->set_sz_and_alloc_pels( src->h, (src->w+1) >> 1 ); // downscale in w and transpose. 
-    // note: if src->w is odd, we will just copy the last input column
-    bool const src_w_odd = (src->w&1);
+    ret->set_sz_and_alloc_pels( {src->sz.d[1], (src->sz.d[0]+1) >> 1} ); // downscale in w and transpose. 
+    // note: if src->sz.d[0] is odd, we will just copy the last input column
+    bool const src_w_odd = (src->sz.d[0]&1);
     uint64_t const * src_data = (uint64_t const *) src->pels.get(); 
     uint32_t const max_alpha = 0xffu << (3*8);
 #pragma omp parallel for 
-    for( uint32_t ry = 0; ry < ret->h-src_w_odd; ++ry ) {
+    for( uint32_t ry = 0; ry < ret->sz.d[1]-src_w_odd; ++ry ) {
       uint32_t const sx = ry << 1;
-      for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+      for( uint32_t rx = 0; rx < ret->sz.d[0]; ++rx ) {
 	uint32_t const sy = rx;
 	uint64_t const src_data_1 = src_data[ (sy*src->row_pitch_pels + sx)>>1 ];
 	uint32_t const src_data_2 = src_data_1 >> 32;
@@ -158,10 +159,10 @@ namespace boda
       }
     }
     if( src_w_odd ) {
-      for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+      for( uint32_t rx = 0; rx < ret->sz.d[0]; ++rx ) {
 	uint32_t const sy = rx;
-	((uint32_t *)ret->pels.get())[ (ret->h-1)*ret->row_pitch_pels + rx ] =
-	  ((uint32_t *)src->pels.get())[ sy*src->row_pitch_pels + (src->w-1) ] | max_alpha;
+	((uint32_t *)ret->pels.get())[ (ret->sz.d[1]-1)*ret->row_pitch_pels + rx ] =
+	  ((uint32_t *)src->pels.get())[ sy*src->row_pitch_pels + (src->sz.d[0]-1) ] | max_alpha;
       }
     }
     return ret;
@@ -175,12 +176,13 @@ namespace boda
 
   // downsample by 2x in both dims as many times as possible without
   // yielding an image smaller than is desired.
-  p_img_t downsample_2x_to_size( p_img_t img, uint32_t ds_w, uint32_t ds_h ) {
+  p_img_t downsample_2x_to_size( p_img_t img, u32_pt_t const & ds ) {
     timer_t ds_timer("downsample_2x_to_size");
-    assert_st( ds_w && ds_h );
+    assert_st( ds.both_dims_non_zero() );
     while( 1 ) {
-      bool const do_x_ds = ((img->w+1) >> 1) >= ds_w;
-      bool const do_y_ds = ((img->h+1) >> 1) >= ds_h;
+      u32_pt_t const ds_sz = (img->sz + u32_pt_t{1,1}) >> 1; 
+      bool const do_x_ds = ds_sz.d[0] >= ds.d[0];
+      bool const do_y_ds = ds_sz.d[1] >= ds.d[1];
       if( !(do_x_ds || do_y_ds) ) { return img; }
       if( do_x_ds ) { img = downsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
       if( do_y_ds ) { img = downsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
@@ -192,26 +194,26 @@ namespace boda
   p_img_t downsample_w_transpose( img_t const * const src, uint32_t ds_w )
   {
     assert( ds_w );
-    assert( ds_w <= src->w ); // scaling must be <= 1
-    if( ds_w == src->w ) { return transpose( src ); } // special case for no scaling (i.e. 1x downsample)
-    assert( (ds_w<<1) >= src->w ); // scaling must be >= .5
-    if( (ds_w<<1) == src->w ) { return downsample_w_transpose_2x( src ); } // special case for 2x downsample
+    assert( ds_w <= src->sz.d[0] ); // scaling must be <= 1
+    if( ds_w == src->sz.d[0] ) { return transpose( src ); } // special case for no scaling (i.e. 1x downsample)
+    assert( (ds_w<<1) >= src->sz.d[0] ); // scaling must be >= .5
+    if( (ds_w<<1) == src->sz.d[0] ) { return downsample_w_transpose_2x( src ); } // special case for 2x downsample
     p_img_t ret( new img_t );
     ret->set_row_align( src->row_align ); // preserve alignment
-    ret->set_sz_and_alloc_pels( src->h, ds_w ); // downscale in w and transpose
-    uint16_t scale = (uint64_t(ds_w)<<16)/src->w; // 0.16 fixed point
+    ret->set_sz_and_alloc_pels( {src->sz.d[1], ds_w} ); // downscale in w and transpose
+    uint16_t scale = (uint64_t(ds_w)<<16)/src->sz.d[0]; // 0.16 fixed point
     uint32_t inv_scale = (uint64_t(1)<<46)/scale; // 2.30 fixed point, value (1,2]
     // for clamping sx2_fp, which (due to limitied precision of scale)
     // may exceed this value (which would cause sampling off the edge
     // of the src image). the dropped (impossible) sample should have
     // near-zero weight (again bounded by the precision of scale and
     // the input and output image sizes).
-    uint64_t const max_src_x = uint64_t(src->w)<<30; 
+    uint64_t const max_src_x = uint64_t(src->sz.d[0])<<30; 
     //printf( "scale=%s inv_scale=%s ((double)scale/double(1<<16))=%s ((double)inv_scale/double(1<<30))=%s\n", str(scale).c_str(), str(inv_scale).c_str(), str(((double)scale/double(1<<16))).c_str(), str(((double)inv_scale/double(1<<30))).c_str() );
     uint32_t const * src_data = (uint32_t const *) src->pels.get(); 
     assert( src->depth == 4 );
 #pragma omp parallel for
-    for( uint32_t ry = 0; ry < ret->h; ++ry ) {
+    for( uint32_t ry = 0; ry < ret->sz.d[1]; ++ry ) {
       uint64_t const sx1_fp = (uint64_t( ry ) * inv_scale); // img_sz_bits.30 fp
       uint32_t const sx1 = sx1_fp >> 30;
       uint64_t const sx2_fp = std::min( max_src_x, sx1_fp + inv_scale );
@@ -230,7 +232,7 @@ namespace boda
       printf( "(double(sx1_w)/double(1<<30))=%s\n", str((double(sx1_w)/double(1U<<30))).c_str() );
       printf( "(double(sx2_w)/double(1<<30))=%s\n", str((double(sx2_w)/double(1U<<30))).c_str() );
 #endif	
-      for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+      for( uint32_t rx = 0; rx < ret->sz.d[0]; ++rx ) {
 	uint32_t const src_data_1 = src_data[ rx*src->row_pitch_pels + sx1 ];
 	uint32_t const src_data_m = (span==1)?0:src_data[ rx*src->row_pitch_pels + (sx1+1) ];
 	uint32_t const src_data_2 = sx2_w ? src_data[ rx*src->row_pitch_pels + sx2 ] : 0;
@@ -250,7 +252,7 @@ namespace boda
 	  uint32_t r = ret->pels.get()[ ry*ret->row_pitch + rx*ret->depth + c ];
 	  printf( "p1=%s p2=%s p3=%s r=%s\n", str(p1).c_str(), str(p2).c_str(), str(p3).c_str(), str(r).c_str() );
 #endif
-	  assert( (!sx2_w) || (sx2 < src->w) );
+	  assert( (!sx2_w) || (sx2 < src->sz.d[0]) );
 	}
 	((uint32_t *)ret->pels.get())[ ry*ret->row_pitch_pels + rx ] = dest_val;
       }
@@ -258,14 +260,14 @@ namespace boda
     return ret;
   }
 
-  p_img_t downsample_up_to_2x_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) { // ds_w must be in [ceil(w/2),w]
+  p_img_t downsample_up_to_2x_to_size( p_img_t img, u32_pt_t const & ds ) { // ds_w must be in [ceil(w/2),w]
     timer_t ds_timer("downsample_up_to_2x_to_size");
-    assert( ds_w <= img->w );
-    assert( ds_w >= ((img->w+1)>>1) );
-    assert( ds_h <= img->h );
-    assert( ds_h >= ((img->h+1)>>1) );
-    p_img_t tmp_img = downsample_w_transpose( img.get(), ds_w );
-    return downsample_w_transpose( tmp_img.get(), ds_h );    
+    assert( ds.d[0] <= img->sz.d[0] );
+    assert( ds.d[0] >= ((img->sz.d[0]+1)>>1) );
+    assert( ds.d[1] <= img->sz.d[1] );
+    assert( ds.d[1] >= ((img->sz.d[1]+1)>>1) );
+    p_img_t tmp_img = downsample_w_transpose( img.get(), ds.d[0] );
+    return downsample_w_transpose( tmp_img.get(), ds.d[1] );    
   }
 
   p_img_t downsample_up_to_2x( p_img_t img, double const scale ) { 
@@ -273,15 +275,13 @@ namespace boda
     assert( scale <= 1 );
     assert( scale >= .5 );
     if( scale == 1 ) { return img; }
-    uint32_t const ds_w = round(img->w*scale);
-    uint32_t const ds_h = round(img->h*scale);
-    return downsample_up_to_2x_to_size( img, ds_w, ds_h );
+    return downsample_up_to_2x_to_size( img, img->sz.scale_and_round( scale ) );
   }
 
-  p_img_t downsample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) { 
-    return downsample_up_to_2x_to_size( downsample_2x_to_size( img, ds_w, ds_h ), ds_w, ds_h ); }
+  p_img_t downsample_to_size( p_img_t img, u32_pt_t const & ds ) { 
+    return downsample_up_to_2x_to_size( downsample_2x_to_size( img, ds ), ds ); }
 
-  string img_t::WxH_str( void ) { return strprintf( "%sx%s", str(w).c_str(), str(h).c_str()); }
+  string img_t::WxH_str( void ) { return strprintf( "%sx%s", str(sz.d[0]).c_str(), str(sz.d[1]).c_str()); }
 
   void downsample_test( string const & fn )
   {
@@ -295,7 +295,7 @@ namespace boda
 	timer_t t("py_img_show");
 	py_img_show( cur, "out/scale_" + str(s) + ".png" );
       }
-      if( (cur->w < 2) || (cur->h < 2) ) { break; }
+      if( (cur->sz.d[0] < 2) || (cur->sz.d[1] < 2) ) { break; }
       cur = downsample_2x( cur );
     }
   }
@@ -311,12 +311,12 @@ namespace boda
   {
     p_img_t ret( new img_t );
     ret->set_row_align( src->row_align ); // preserve alignment
-    ret->set_sz_and_alloc_pels( src->h, src->w << 1 ); // upscale in w and transpose. 
+    ret->set_sz_and_alloc_pels( {src->sz.d[1], src->sz.d[0] << 1} ); // upscale in w and transpose. 
     uint32_t const * src_data = (uint32_t const *)src->pels.get(); 
 #pragma omp parallel for
-    for( uint32_t sx = 0; sx < src->w; ++sx ) {
+    for( uint32_t sx = 0; sx < src->sz.d[0]; ++sx ) {
       uint32_t const ry = sx << 1;
-      for( uint32_t rx = 0; rx < ret->w; ++rx ) {
+      for( uint32_t rx = 0; rx < ret->sz.d[0]; ++rx ) {
 	uint32_t const sy = rx;
 	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
 	((uint32_t *)ret->pels.get())[ (ry+0)*ret->row_pitch_pels + rx ] = pel;
@@ -328,46 +328,44 @@ namespace boda
 
   // upsample by 2x in both dims as many times as needed until the
   // image is at least the requested size in each dim.
-  p_img_t upsample_2x_to_size( p_img_t img, uint32_t ds_w, uint32_t ds_h ) {
+  p_img_t upsample_2x_to_size( p_img_t img, u32_pt_t const & ds ) {
     timer_t ds_timer("upsample_2x_to_size");
-    assert_st( ds_w && ds_h );
+    assert_st( ds.both_dims_non_zero() );
     while( 1 ) {
-      bool const do_x_us = img->w < ds_w;
-      bool const do_y_us = img->h < ds_h;
+      bool const do_x_us = img->sz.d[0] < ds.d[0];
+      bool const do_y_us = img->sz.d[1] < ds.d[1];
       if( !(do_x_us || do_y_us) ) { return img; }
       if( do_x_us ) { img = upsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
       if( do_y_us ) { img = upsample_w_transpose_2x( img.get() ); } else { img = transpose( img.get() ); }
     }
   }
 
-  p_img_t resample_to_size( p_img_t img, uint32_t const ds_w, uint32_t const ds_h ) {
-    return downsample_to_size( upsample_2x_to_size( img, ds_w, ds_h ), ds_w, ds_h ); 
+  p_img_t resample_to_size( p_img_t img, u32_pt_t const & ds ) {
+    return downsample_to_size( upsample_2x_to_size( img, ds ), ds ); 
   }    
 
   // FIXME: dupe'd code ... 
-  void img_copy_to( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy ) {
+  void img_copy_to( img_t const * const src, img_t * const dest, u32_pt_t const & d ) {
     timer_t t("img_copy_to");
-    uint32_t * const dest_data = ((uint32_t *)dest->pels.get()) + dest->get_pel_ix( dx, dy ); 
-    uint32_t const * const src_data = (uint32_t const *)src->pels.get(); 
-    for( uint32_t sy = 0; sy < src->h; ++sy ) {
-      for( uint32_t sx = 0; sx < src->w; ++sx ) {
+    uint32_t * const dest_data = dest->get_pel_addr( d ); 
+    uint32_t const * const src_data = src->get_pel_addr( {} );
+    for( uint32_t sy = 0; sy < src->sz.d[1]; ++sy ) {
+      for( uint32_t sx = 0; sx < src->sz.d[0]; ++sx ) {
 	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
 	dest_data[ sy*dest->row_pitch_pels + sx ] = pel;
       }
     }
   }
-  void img_copy_to_clip( img_t const * const src, img_t * const dest, uint32_t const & dx, uint32_t const & dy ) {
+  void img_copy_to_clip( img_t const * const src, img_t * const dest, u32_pt_t const & d ) {
     timer_t t("img_copy_to");
-    assert_st( dx < dest->w );
-    assert_st( dy < dest->h );
-   
-    uint32_t const xl = std::min( (dest->w - dx), src->w );
-    uint32_t const yl = std::min( (dest->h - dy), src->h );
+    assert_st( d.both_dims_le( dest->sz ) );
+    
+    u32_pt_t const l_xy = min( dest->sz - d, src->sz );
 
-    uint32_t * const dest_data = ((uint32_t *)dest->pels.get()) + dest->get_pel_ix( dx, dy ); 
-    uint32_t const * const src_data = (uint32_t const *)src->pels.get(); 
-    for( uint32_t sy = 0; sy < yl; ++sy ) {
-      for( uint32_t sx = 0; sx < xl; ++sx ) {
+    uint32_t * const dest_data = dest->get_pel_addr( d ); 
+    uint32_t const * const src_data = src->get_pel_addr( {} );
+    for( uint32_t sy = 0; sy < l_xy.d[1]; ++sy ) {
+      for( uint32_t sx = 0; sx < l_xy.d[0]; ++sx ) {
 	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
 	dest_data[ sy*dest->row_pitch_pels + sx ] = pel;
       }
@@ -394,16 +392,15 @@ namespace boda
     return ret;
   }
   // note: draws num pels. first pel = ic. last pel = (ic + ec*(num-1))/num (i.e. almost ec, next pel would be ec)
-  void img_draw_pels( img_t * const dest, uint32_t const & dx, uint32_t const & dy, uint32_t const & num, 
-		      int32_t const & stride_x, int32_t const & stride_y, 
-		      uint32_t const & ic, uint32_t const & ec )
+  void img_draw_pels( img_t * const dest, u32_pt_t const & d, uint32_t const & num, 
+		      i32_pt_t const & stride, uint32_t const & ic, uint32_t const & ec )
   {
     assert_st( num ); // allow num == 0? if so, return here i guess ... or fix assumptions below
-    assert_st( dx+stride_x*(num-1) < dest->w );
-    assert_st( dy+stride_y*(num-1) < dest->h );
-    uint32_t * dest_data = ((uint32_t *)dest->pels.get()) + dest->get_pel_ix( dx, dy );
-    int32_t stride = stride_y*dest->row_pitch_pels + stride_x;
-    for( uint32_t i = 0; i < num; ++i ) { *dest_data = interp_pel(ic,ec,num,i); dest_data += stride; }
+    u32_pt_t const fin_pel = i32_to_u32( u32_to_i32(d) + stride.scale(num - 1) );
+    assert_st( fin_pel.both_dims_lt( dest->sz ) );
+    uint32_t * dest_data = dest->get_pel_addr( d );
+    int32_t const stride_pels = stride.d[1]*dest->row_pitch_pels + stride.d[0];
+    for( uint32_t i = 0; i < num; ++i ) { *dest_data = interp_pel(ic,ec,num,i); dest_data += stride_pels; }
   }
   
 #include"gen/img_io.cc.nesi_gen.cc"

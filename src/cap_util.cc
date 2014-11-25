@@ -36,7 +36,7 @@ namespace boda
   void capture_t::cap_start( void  ) { 
     if( !cap_img ) {
       cap_img.reset( new img_t );
-      cap_img->set_sz_and_alloc_pels( cap_res.d[0], cap_res.d[1] ); // w, h
+      cap_img->set_sz_and_alloc_pels( cap_res );
     }
     cap_fd = -1;
     open_device();
@@ -65,8 +65,8 @@ namespace boda
     assert_st( !(cap_res.d[0] & 1) );
     for( uint32_t i = 0; i != cap_res.d[1]; ++i ) {
       for( uint32_t j = 0; j != cap_res.d[0]; j += 2 ) {
-	img->set_pel( j+0, i, yuva2rgba(src[0],src[1],src[3]) );
-	img->set_pel( j+1, i, yuva2rgba(src[2],src[1],src[3]) );
+	img->set_pel( {j+0, i}, yuva2rgba(src[0],src[1],src[3]) );
+	img->set_pel( {j+1, i}, yuva2rgba(src[2],src[1],src[3]) );
 	src += 4;
       }
     }
