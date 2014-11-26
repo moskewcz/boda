@@ -146,12 +146,11 @@ namespace boda
     
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
 
-    window_w = 640;
-    window_h = 480;
+    window_sz = {640,480};
     assert( !window );
     window = make_p_SDL( SDL_CreateWindow( "boda display", 
 							SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-							window_w, window_h,
+							window_sz.d[0], window_sz.d[1],
 							SDL_WINDOW_RESIZABLE) );
     if( !window ) { rt_err( strprintf( "Couldn't set create window: %s\n", SDL_GetError() ) ); }
     assert( !renderer );
@@ -190,8 +189,8 @@ namespace boda
     displayrect.reset( new SDL_Rect );
     displayrect->x = 0;
     displayrect->y = 0;
-    displayrect->w = window_w;
-    displayrect->h = window_h;
+    displayrect->w = window_sz.d[0];
+    displayrect->h = window_sz.d[1];
 
 
     paused = 0;
@@ -268,17 +267,18 @@ namespace boda
     }
   }
 
-  void disp_win_t::update_dr_for_window_and_zoom( void ) {
-    i32_pt_t const win_sz = {window_w,window_h};
-    i32_pt_t const zoom_sz = win_sz.scale_and_round( pow( 1.3, zoom ) ); 
+  void disp_win_t::update_dr_for_window_and_zoom( u32_pt_t const & new_win_sz ) {
     i32_pt_t const orig_dr_sz = i32_pt_t{displayrect->w,displayrect->h};
-    i32_pt_t const sz_delta = zoom_sz - orig_dr_sz; // new - old
-    displayrect->w = zoom_sz.d[0];
-    displayrect->h = zoom_sz.d[1];
+    i32_pt_t const orig_dr_xy = i32_pt_t{displayrect->x,displayrect->y};
+    i32_pt_t const new_dr_sz = u32_to_i32(new_win_sz).scale_and_round( pow( 1.3, zoom ) ); 
+    displayrect->w = new_dr_sz.d[0];
+    displayrect->h = new_dr_sz.d[1];
     // adjust dr nc to keep center point in center
-    i32_pt_t const nc_delta = (win_sz.scale_and_round(.5)-i32_pt_t{displayrect->x,displayrect->y})*sz_delta/orig_dr_sz;
-    displayrect->x -= nc_delta.d[0];
-    displayrect->y -= nc_delta.d[1];
+    i32_pt_t const new_dr_xy = ( u32_to_i32(new_win_sz).scale_and_round(.5)*orig_dr_sz -
+				 (u32_to_i32(window_sz).scale_and_round(.5)-orig_dr_xy)*new_dr_sz )/orig_dr_sz;
+    displayrect->x = new_dr_xy.d[0];
+    displayrect->y = new_dr_xy.d[1];
+    window_sz = new_win_sz;
   }
 
   void disp_win_t::drain_sdl_events_and_redisplay( void ) {
@@ -288,9 +288,7 @@ namespace boda
       case SDL_WINDOWEVENT:
 	if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
 	  SDL_RenderSetViewport(renderer.get(), NULL);
-	  window_w = event.window.data1;
-	  window_h = event.window.data2;
-	  update_dr_for_window_and_zoom();
+	  update_dr_for_window_and_zoom({event.window.data1,event.window.data2});
 	}
 	break;
       case SDL_MOUSEBUTTONDOWN:
@@ -310,7 +308,7 @@ namespace boda
 	zoom += event.wheel.y;
 	min_eq( zoom,  10 );
 	max_eq( zoom, -10 );
-	update_dr_for_window_and_zoom();
+	update_dr_for_window_and_zoom( window_sz );
 	break;
       case SDL_KEYDOWN:
 	if( event.key.keysym.sym == SDLK_s ) {

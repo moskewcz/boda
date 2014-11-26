@@ -51,8 +51,7 @@ namespace boda {
     bool done;
     bool stop_io_on_quit;
 
-    uint32_t window_w;
-    uint32_t window_h;
+    u32_pt_t window_sz;
 
     p_YV12_buf_t YV12_buf;
     p_vect_p_img_t imgs;
@@ -70,7 +69,7 @@ namespace boda {
     void disp_setup( vect_p_img_t const & imgs_ ); // list of existing images 
     void disp_setup( p_img_t const & img ); // one existing image 
     p_vect_p_img_t disp_setup( vect_u32_pt_t const & disp_img_szs ); // create/usr/return a list of images of the given sizes
-    void update_dr_for_window_and_zoom( void );
+    void update_dr_for_window_and_zoom( u32_pt_t const & new_win_sz );
     void update_disp_imgs( void );
     void update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos );
     void drain_sdl_events_and_redisplay( void );
