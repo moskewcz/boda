@@ -15,9 +15,10 @@ namespace boda {
 			// bases=["load_imgs_from_pascal_classes_t","has_main_t"], type_id="test_dense")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-
-    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,"
-                           // "out_layer_name=conv3)",help="cnet running options")
+    string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
+    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda" 
+                           // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
+                           // ",out_layer_name=relu12)",help="CNN model params")
     p_img_t in_img;
     p_img_t feat_img;
 
