@@ -181,11 +181,21 @@ namespace boda
   };
   typedef shared_ptr< img_db_t > p_img_db_t;
 
-  // for testing/debugging
   void img_db_get_all_loaded_imgs( p_vect_p_img_t const & out, p_img_db_t img_db ) {
     for( vect_p_img_info_t::const_iterator i = img_db->img_infos.begin(); i != img_db->img_infos.end(); ++i ) {
       if( (*i)->img ) { out->push_back( (*i)->img ); }
     }
+  }
+
+  void load_imgs_from_pascal_classes_t::load_all_imgs( void ) {
+    p_vect_string classes = readlines_fn( pascal_classes_fn );
+    for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+      bool const is_first_class = (i == (*classes).begin());
+      read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
+				   true && is_first_class, !is_first_class );
+    }
+    all_imgs.reset( new vect_p_img_t );
+    img_db_get_all_loaded_imgs( all_imgs, img_db );
   }
 
   void img_db_show_dets( p_img_db_t img_db, p_vect_scored_det_t scored_dets, uint32_t img_ix )
@@ -291,7 +301,9 @@ namespace boda
     }
   };
 
-  struct run_dfc_t : virtual public nesi, public has_main_t // NESI(help="run dpm fast cascade over pascal-VOC-format image file list",bases=["has_main_t"], type_id="run_dfc")
+  struct run_dfc_t : virtual public nesi, public has_main_t // NESI(
+		     // help="run dpm fast cascade over pascal-VOC-format image file list",
+		     // bases=["has_main_t"], type_id="run_dfc")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
@@ -564,9 +576,7 @@ namespace boda
     }
   };
 
-  //p_vect_string readlines_fn( string const & fn ) {
-
-
+#include"gen/results_io.H.nesi_gen.cc"
 #include"gen/results_io.cc.nesi_gen.cc"
 
 }

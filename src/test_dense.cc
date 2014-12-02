@@ -10,17 +10,14 @@
 
 namespace boda {
 
-  struct test_dense_t : virtual public nesi, public has_main_t // NESI(help="test dense vs. sparse CNN eval",
-			// bases=["has_main_t"], type_id="test_dense")
+  struct test_dense_t : virtual public nesi, public load_imgs_from_pascal_classes_t, public has_main_t // NESI(
+			// help="test dense vs. sparse CNN eval",
+			// bases=["load_imgs_from_pascal_classes_t","has_main_t"], type_id="test_dense")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of classes to process")
-    p_img_db_t img_db; //NESI(default="()", help="image database")
-    filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
 
-    p_vect_p_img_t all_imgs;
-
-    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,out_layer_name=conv3)",help="cnet running options")
+    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,"
+                           // "out_layer_name=conv3)",help="cnet running options")
     p_img_t in_img;
     p_img_t feat_img;
 
@@ -28,15 +25,7 @@ namespace boda {
     p_vect_conv_io_t conv_ios;
 
     virtual void main( nesi_init_arg_t * nia ) {
-      p_vect_string classes = readlines_fn( pascal_classes_fn );
-      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	bool const is_first_class = (i == (*classes).begin());
-	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
-				     true && is_first_class, !is_first_class );
-      }
-      all_imgs.reset( new vect_p_img_t );
-      img_db_get_all_loaded_imgs( all_imgs, img_db );
-
+      load_all_imgs();
 
       run_cnet->setup_cnet(); 
       in_img.reset( new img_t );

@@ -31,17 +31,13 @@ namespace boda
     }
   };
 
-  struct display_pil_t : virtual public nesi, public has_main_t // NESI(help="display PASCAL VOC list of images in video window",
-		      // bases=["has_main_t"], type_id="display_pil")
+  struct display_pil_t : virtual public nesi, public load_imgs_from_pascal_classes_t, public has_main_t // NESI(
+			 // help="display PASCAL VOC list of images in video window",
+			 // bases=["load_imgs_from_pascal_classes_t","has_main_t"], type_id="display_pil")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
-    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of classes to process")
-    p_img_db_t img_db; //NESI(default="()", help="image database")
-    filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
-
     disp_win_t disp_win;
-    p_vect_p_img_t all_imgs;
     p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
     time_duration frame_dur;
@@ -63,14 +59,7 @@ namespace boda
     void on_quit( error_code const & ec ) { frame_timer->cancel(); }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      p_vect_string classes = readlines_fn( pascal_classes_fn );
-      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	bool const is_first_class = (i == (*classes).begin());
-	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
-				     true && is_first_class, !is_first_class );
-      }
-      all_imgs.reset( new vect_p_img_t );
-      img_db_get_all_loaded_imgs( all_imgs, img_db );
+      load_all_imgs();
 
       disp_imgs = disp_win.disp_setup( {{640,480}} );
       

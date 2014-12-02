@@ -78,5 +78,18 @@ namespace boda
 
   void img_db_get_all_loaded_imgs( p_vect_p_img_t const & out, p_img_db_t img_db );
 
+
+  struct load_imgs_from_pascal_classes_t : virtual public nesi // NESI(help="load PASCAL VOC images by classes" )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of pascal classes to load")
+    p_img_db_t img_db; //NESI(default="()", help="image database")
+    filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
+    p_vect_p_img_t all_imgs;
+
+    void load_all_imgs( void );
+  };
+
+
 }
 #endif // RESULTS_IO_H
