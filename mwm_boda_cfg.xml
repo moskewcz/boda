@@ -22,6 +22,7 @@
       dpm_fast_cascade_dir="/home/moskewcz/svn_work/dpm_fast_cascade"
       ffld_dir="/home/moskewcz/research/ffld"
       caffe_dir="/home/moskewcz/git_work/caffe_dev"
+      models_dir="/scratch/models"
 />
 <!-- note: if not set here, boda will automatically set:
      boda_dir="PATH_TO_BODA_EXE/.."
