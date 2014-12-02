@@ -1,3 +1,4 @@
+test_dense.o
 conv_common.o
 asio_util.o
 disp_app.o
