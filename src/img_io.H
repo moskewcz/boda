@@ -53,6 +53,9 @@ namespace boda
     string WxH_str( void );
     void share_pels_from( p_img_t o );
   };
+  
+  inline p_img_t make_p_img_t( u32_pt_t const & sz ) { 
+    p_img_t ret( new img_t ); ret->set_sz_and_alloc_pels( sz ); return ret; }
 
   inline uint32_t rgba_to_pel( uint8_t const r, uint8_t const g, uint8_t const b, int8_t const av = uint8_t_const_max ) { 
     return r + (g<<8) + (b<<16) + (av<<24); }
