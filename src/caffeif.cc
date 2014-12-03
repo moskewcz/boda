@@ -84,13 +84,17 @@ namespace boda
   }
 
   p_Net_float init_caffe( string const & param_str, string const & trained_fn ) {
-    timer_t t("caffe_init");
-    google::InitGoogleLogging("boda_caffe");
-    Caffe::set_phase(Caffe::TEST);
-    Caffe::set_mode(Caffe::GPU);
-    Caffe::SetDevice(0);
-    //Caffe::set_mode(Caffe::CPU);
-
+    static bool caffe_is_init = 0;
+    if( !caffe_is_init ) {
+      caffe_is_init = 1;
+      timer_t t("caffe_init");
+      google::InitGoogleLogging("boda_caffe");
+      Caffe::set_phase(Caffe::TEST);
+      Caffe::set_mode(Caffe::GPU);
+      Caffe::SetDevice(0);
+      //Caffe::set_mode(Caffe::CPU);
+    }
+    timer_t t("caffe_load_net");
     caffe::NetParameter param;
     bool const ret = google::protobuf::TextFormat::ParseFromString( param_str, &param );
     assert_st( ret );
