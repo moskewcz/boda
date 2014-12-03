@@ -20,6 +20,7 @@ namespace boda
     T_pt_t scale( T const & o ) const { return T_pt_t( d[0] * o, d[1] * o ); }
 
     void max_eq( T_pt_t const & o ) { boda::max_eq(d[0],o.d[0]); boda::max_eq(d[1],o.d[1]); }
+    void min_eq( T_pt_t const & o ) { boda::min_eq(d[0],o.d[0]); boda::min_eq(d[1],o.d[1]); }
     void operator += ( T_pt_t const & o ) { d[0] += o.d[0]; d[1] += o.d[1]; }
     void operator -= ( T_pt_t const & o ) { d[0] -= o.d[0]; d[1] -= o.d[1]; }
 
@@ -43,8 +44,10 @@ namespace boda
     bool both_dims_ge( T_pt_t const & o ) const { return d[0] >= o.d[0] && d[1] >= o.d[1]; }
   };
 
-  template< typename T >
-  inline T_pt_t<T> min( T_pt_t<T> const &a, T_pt_t<T> const & b ) { return {std::min(a.d[0],b.d[0]),std::min(a.d[1],b.d[1])}; }
+  template< typename T > inline T_pt_t<T> min( T_pt_t<T> const &a, T_pt_t<T> const & b ) { 
+    return {std::min(a.d[0],b.d[0]),std::min(a.d[1],b.d[1])}; }
+  template< typename T > inline T_pt_t<T> max( T_pt_t<T> const &a, T_pt_t<T> const & b ) { 
+    return {std::max(a.d[0],b.d[0]),std::max(a.d[1],b.d[1])}; }
 
   typedef T_pt_t< uint32_t > u32_pt_t;
   typedef T_pt_t< int32_t  > i32_pt_t;
