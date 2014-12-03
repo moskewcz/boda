@@ -13,9 +13,7 @@
 #include"caffeif.H"
 #include"pyif.H" // for py_boda_dir()
 #include"anno_util.H"
-
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int_distribution.hpp>
+#include"rand_util.H"
 
 // for capture_feats in<->out space testing
 #include"conv_common.H"
