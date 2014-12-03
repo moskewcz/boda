@@ -89,7 +89,7 @@ namespace boda
 
     void load_all_imgs( void );
   };
-
+  typedef shared_ptr< load_imgs_from_pascal_classes_t > p_load_imgs_from_pascal_classes_t; 
 
 }
 #endif // RESULTS_IO_H
