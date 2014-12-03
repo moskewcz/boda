@@ -19,6 +19,7 @@ namespace boda
     T_pt_t scale_and_round( T_pt_t<double> const & s ) const { return T_pt_t( round(d[0]*s.d[0]), round(d[1]*s.d[1]) ); }
     T_pt_t scale( T const & o ) const { return T_pt_t( d[0] * o, d[1] * o ); }
 
+    void max_eq( T_pt_t const & o ) { boda::max_eq(d[0],o.d[0]); boda::max_eq(d[1],o.d[1]); }
     void operator += ( T_pt_t const & o ) { d[0] += o.d[0]; d[1] += o.d[1]; }
     void operator -= ( T_pt_t const & o ) { d[0] -= o.d[0]; d[1] -= o.d[1]; }
 
