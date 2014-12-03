@@ -341,7 +341,7 @@ namespace boda
       uint32_t const bix = placements.at(pix).w;
       if( bix == uint32_t_const_max ) { continue; } // skip failed placements FIXME: diagnostic?
       u32_pt_t const dest = placements.at(pix);
-      img_copy_to( pyra_imgs.at(pix).get(), bin_imgs.at(bix).get(), dest );
+      img_copy_to_clip( pyra_imgs.at(pix).get(), bin_imgs.at(bix).get(), dest );
       //printf( "dest=%s sizes.at(pix)=%s pads.at(pix)=%s\n", str(dest).c_str(), str(sizes.at(pix)).c_str(), str(pads.at(pix)).c_str() );
       img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), inmc );
     }

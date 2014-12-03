@@ -344,26 +344,17 @@ namespace boda
     return downsample_to_size( upsample_2x_to_size( img, ds ), ds ); 
   }    
 
-  // FIXME: dupe'd code ... 
-  void img_copy_to( img_t const * const src, img_t * const dest, u32_pt_t const & d ) {
-    timer_t t("img_copy_to");
-    uint32_t * const dest_data = dest->get_pel_addr( d ); 
-    uint32_t const * const src_data = src->get_pel_addr( {} );
-    for( uint32_t sy = 0; sy < src->sz.d[1]; ++sy ) {
-      for( uint32_t sx = 0; sx < src->sz.d[0]; ++sx ) {
-	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];
-	dest_data[ sy*dest->row_pitch_pels + sx ] = pel;
-      }
-    }
-  }
-  void img_copy_to_clip( img_t const * const src, img_t * const dest, u32_pt_t const & d ) {
-    timer_t t("img_copy_to");
-    assert_st( d.both_dims_le( dest->sz ) );
-    
-    u32_pt_t const l_xy = min( dest->sz - d, src->sz );
+  // copy rectangular region from src to dest, starting from src_pt in src and being placed at
+  // dest_pt in dest. src_pt and dest_pt must be strictly less than thier respective image sizes
+  // (i.e. must be valid). the copied size will be as large as possible such that the src/dest
+  // rectangles do not go outside src/dest, but no larger than max_copy_sz.
 
-    uint32_t * const dest_data = dest->get_pel_addr( d ); 
-    uint32_t const * const src_data = src->get_pel_addr( {} );
+  void img_copy_to_clip( img_t const * const src, img_t * const dest, u32_pt_t const & dest_pt,
+			 u32_pt_t const & src_pt, u32_pt_t const & max_copy_sz ) {
+    timer_t t("img_copy_to");
+    uint32_t * const dest_data = dest->get_pel_addr( dest_pt ); 
+    uint32_t const * const src_data = src->get_pel_addr( src_pt );
+    u32_pt_t const l_xy = min( max_copy_sz, min( dest->sz - dest_pt, src->sz - src_pt ) );
     for( uint32_t sy = 0; sy < l_xy.d[1]; ++sy ) {
       for( uint32_t sx = 0; sx < l_xy.d[0]; ++sx ) {
 	uint32_t const pel = src_data[ sy*src->row_pitch_pels + sx ];

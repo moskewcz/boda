@@ -69,8 +69,8 @@ namespace boda
   p_img_t upsample_2x( p_img_t img ); // upsample by exactly 2X 
   void downsample_test( std::string const & fn );
 
-  void img_copy_to( img_t const * const src, img_t * const dest, u32_pt_t const & d );
-  void img_copy_to_clip( img_t const * const src, img_t * const dest, u32_pt_t const & d );
+  void img_copy_to_clip( img_t const * const src, img_t * const dest, u32_pt_t const & dest_pt = u32_pt_t{},
+			 u32_pt_t const & src_pt = u32_pt_t{}, u32_pt_t const & max_copy_sz = u32_pt_t_const_max );
   void img_draw_pels( img_t * const dest, u32_pt_t const & d, uint32_t const & num, i32_pt_t const & stride,
 		      uint32_t const & ic, uint32_t const & ec );
 

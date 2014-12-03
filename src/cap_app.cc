@@ -145,7 +145,7 @@ namespace boda
       assert_st( !ec );
       if( proc_done == 2 ) { return; } // quit command
       assert_st( proc_done == 0 );
-      img_copy_to( in_img.get(), out_img.get(), {} );
+      img_copy_to_clip( in_img.get(), out_img.get(), {} );
       bwrite( *alss, proc_done ); // report input image captured/saved
       boost::random::uniform_int_distribution<> ry(0, out_img->sz.d[1] - 1);
       boost::random::uniform_int_distribution<> rx(0, out_img->sz.d[0] - 2);
