@@ -10,9 +10,7 @@
 
 #include"asio_util.H"
 #include"anno_util.H"
-
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int_distribution.hpp>
+#include"rand_util.H"
 
 namespace boda 
 {
@@ -40,7 +38,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
-    uint32_t rand_winds; //NESI(default=0,help="if set, display 1/2 image size random windows instead of full image")
+    uint32_t rand_winds; //NESI(default=1,help="if set, display 1/2 image size random windows instead of full image")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
@@ -48,30 +46,29 @@ namespace boda
 
     uint32_t cur_img_ix;
     boost::random::mt19937 gen;
-
+    bool do_quit;
+    display_pil_t( void ) : do_quit(0) { }
     void on_frame( error_code const & ec ) {
-      if( ec == errc::operation_canceled ) { return; }
+      if( do_quit ) { return; }
       assert( !ec );
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_pil_t::on_frame, this, _1 ) ); 
       if( cur_img_ix == all_imgs->size() ) { cur_img_ix = 0; }
       if( cur_img_ix < all_imgs->size() ) {
 	p_img_t const & img = all_imgs->at(cur_img_ix);
-	u32_pt_t src_pt;
+	u32_pt_t src_pt, dest_pt;
 	u32_pt_t copy_sz{u32_pt_t_const_max};
 	if( rand_winds ) {
-	  copy_sz = img->sz >> 1;
-	  assert_st( copy_sz.both_dims_non_zero() ); // no 1x1 input images, please.
-	  boost::random::uniform_int_distribution<> nc_x( 0, copy_sz.d[0]-1 );
-	  boost::random::uniform_int_distribution<> nc_y( 0, copy_sz.d[1]-1 );
-	  src_pt = u32_pt_t{nc_x(gen),nc_y(gen)};
+	  copy_sz = ceil_div( img->sz, {2,2} );
+	  src_pt = random_pt( img->sz - copy_sz, gen );
+	  dest_pt = random_pt( disp_imgs->at(0)->sz - copy_sz, gen );
 	}
-	img_copy_to_clip( img.get(), disp_imgs->at(0).get(), {}, src_pt, copy_sz );
+	img_copy_to_clip( img.get(), disp_imgs->at(0).get(), dest_pt, src_pt, copy_sz );
 	++cur_img_ix;
       }
       disp_win.update_disp_imgs();
     }
-    void on_quit( error_code const & ec ) { frame_timer->cancel(); }
+    void on_quit( error_code const & ec ) { do_quit=1; frame_timer->cancel();  }
 
     virtual void main( nesi_init_arg_t * nia ) {
       load_all_imgs();
