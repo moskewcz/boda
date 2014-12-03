@@ -113,8 +113,11 @@ namespace boda
     for( uint32_t i = 0; ; ++i ) {
       conv_io_t const & cio = conv_ios->at(i);
       out << strprintf( "sz=%s -> ", str(cio.sz).c_str() );
+      string size_err;
       if( cio.sz != cio.used_sz ) { 
-	out << strprintf( "[DATA DISCARDED; used_sz=%s] -> ", str(cio.used_sz).c_str() );
+	if( (cio.used_sz.d[0] > cio.sz.d[0]) || (cio.used_sz.d[1] > cio.sz.d[1]) ) { size_err += "IMPLICIT PAD; "; }
+	if( (cio.used_sz.d[0] < cio.sz.d[0]) || (cio.used_sz.d[1] < cio.sz.d[1]) ) { size_err += "DATA DISCARDED; "; }
+	out << strprintf( "[%sused_sz=%s] -> ", size_err.c_str(), str(cio.used_sz).c_str() );
       }
       if( i == convs->size() ) { break; }
       out << convs->at(i).tag << " -> ";
