@@ -29,7 +29,8 @@ namespace boda
   void rt_err_errno( char const * const func_name ) { rt_err( strprintf( "%s failed with errno=%s (%s)", func_name, str(errno).c_str(),
 									 strerror(errno) ) ); }
 
-  string ssds_str( p_nda_double_t o1, p_nda_double_t o2 ) {
+  template< typename T >
+  string ssds_str( T const & o1, T const & o2 ) {
     double ssds = 0, sds = 0;
     sum_squared_diffs( ssds, sds, o1->elems, o2->elems );
     double const aad = sqrt(ssds / o1->elems.sz);
@@ -39,6 +40,10 @@ namespace boda
 		      str( ssds ).c_str(), str( aad ).c_str(),
 		      str( sds ).c_str(), str( ad ).c_str() );
   }
+
+  template string ssds_str< p_nda_float_t >( p_nda_float_t const & o1, p_nda_float_t const & o2 );
+  template string ssds_str< p_nda_double_t >( p_nda_double_t const & o1, p_nda_double_t const & o2 );
+  
 
   // questionably, we use (abuse?) the fact that we can mutate the
   // deleter to support mremap()ing the memory pointed to by the

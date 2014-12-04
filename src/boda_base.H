@@ -293,6 +293,12 @@ namespace boda
       dss = hunk_uint32_t( num_dims*2 ); 
       for( uint32_t ix = 0; ix != num_dims; ++ix ) { dims(ix) = 0; strides(ix) = 0; }
     }
+    dims_t operator - ( dims_t const & o ) const { 
+      assert_st( o.fits_in( *this ) );
+      dims_t ret( sz() );
+      for( uint32_t ix = 0; ix != sz(); ++ix ) { ret.dims(ix) = dims(ix) - o.dims(ix); } 
+      return ret;
+    }
     uint32_t sz( void ) const { return dss.sz>>1; }
     uint32_t & dims( uint32_t const ix ) { return dss[ix+sz()]; }
     void make_dims_vect( vect_uint32_t & dv ) const { 
@@ -496,7 +502,8 @@ namespace boda
   typedef shared_ptr< nda_double_t > p_nda_double_t; 
   typedef vector< p_nda_double_t > vect_p_nda_double_t;
 
-  string ssds_str( p_nda_double_t o1, p_nda_double_t o2 ); // get a string with info from sum_squared_diffs(o1,o2)
+  // get a string with info from sum_squared_diffs(o1,o2)
+  template< typename T > string ssds_str( T const & o1, T const & o2 );
 
   struct rt_exception : public std::exception
   {
