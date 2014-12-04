@@ -1,7 +1,7 @@
 // Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
 #include"conv_common.H"
-
+#include"str_util.H"
 namespace boda 
 {
 
@@ -72,10 +72,18 @@ namespace boda
       out_box.p[1] = floor_div( in_pel.p[1] - i32_pt_t(1,1) - support.p[0], csi.support_stride );
     } else if( mode == cm_valid || mode == cm_core_valid ) {
       i32_box_t const support = get_base_out_support( csi, ( mode == cm_core_valid ) );
-      out_box = floor_div( in_pel - support, csi.support_stride );
+      // note: zero area is okay. if denormalized, though, there will no output area (closed out_box
+      // will be denormal and the final open out_box will not be strictly normal.
+      i32_box_t const in_pel_shrunk = in_pel - support; 
+      out_box = i32_box_t{ ceil_div( in_pel_shrunk.p[0], csi.support_stride ), 
+			   floor_div( in_pel_shrunk.p[1], csi.support_stride ) }; // out_box is closed here
       // check that out_valid is correct: it is valid, and minimal/maximal (one less/more in either dim is not valid)
       i32_box_t const in_used_pel = support + ( out_box * u32_to_i32(csi.support_stride) );
-      assert_st( in_used_pel.is_strictly_normalized() );
+      //printf( "in_pel=%s support=%s in_used_pel=%s out_box=%s\n", 
+      //      str(in_pel).c_str(), str(support).c_str(), str(in_used_pel).c_str(), str(out_box).c_str() );
+      // FIXME: the first (and other?) assert fails (as one might expect) if out_box is not
+      // normalized ('negative'/no output area case). skip the asserts in that case?
+      assert_st( in_used_pel.is_strictly_normalized() ); 
       assert_st( in_pel.contains( in_used_pel ) ); // valid check
       assert_st( in_used_pel.p[0].both_dims_lt( in_pel.p[0] + u32_to_i32(csi.support_stride) ) ); // minimal check
       assert_st( in_used_pel.p[1].both_dims_gt( in_pel.p[1] - u32_to_i32(csi.support_stride) ) ); // maximal check
