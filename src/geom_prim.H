@@ -69,7 +69,7 @@ namespace boda
 
   inline i32_pt_t floor_div( i32_pt_t const &v, u32_pt_t const & d ) { 
     i32_pt_t const id = u32_to_i32( d );
-    return i32_pt_t( i32_floor_div(v.d[0],id.d[0]), i32_ceil_div(v.d[1],id.d[1]) ); 
+    return i32_pt_t( i32_floor_div(v.d[0],id.d[0]), i32_floor_div(v.d[1],id.d[1]) ); 
   }
   inline i32_pt_t ceil_div( i32_pt_t const &v, u32_pt_t const & d ) { 
     i32_pt_t const id = u32_to_i32( d );
