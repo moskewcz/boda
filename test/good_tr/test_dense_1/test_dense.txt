@@ -1,0 +1,311 @@
+== BEGIN CONV PIPE ==
+support_sz=1 1 support_stride=1 1 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=conv1,type=conv,in_pad=(0 0)(0 0),kern_sz=11 11,stride=4 4,out_chans=96) 
+support_sz=11 11 support_stride=4 4 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp1,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=96) 
+support_sz=11 11 support_stride=4 4 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp2,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=96) 
+support_sz=11 11 support_stride=4 4 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=pool0,type=pool,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,out_chans=96) 
+support_sz=19 19 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=conv2,type=conv,in_pad=(0 0)(0 0),kern_sz=5 5,out_chans=256) 
+support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp3,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=256) 
+support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp4,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=256) 
+support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=pool2,type=pool,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,out_chans=256) 
+support_sz=67 67 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=conv3,type=conv,in_pad=(0 0)(0 0),kern_sz=3 3,out_chans=384) 
+support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp5,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=384) 
+support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp6,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=384) 
+support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=pool3,type=pool,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,out_chans=384) 
+support_sz=131 131 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=conv4-1024,type=conv,in_pad=(0 0)(0 0),kern_sz=3 3,out_chans=1024) 
+support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp7-1024,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=1024) 
+support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp8-1024,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=1000) 
+support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+== END CONV PIPE ==
+CONV_IOS: sz=227 227 -> conv1 -> sz=55 55 -> cccp1 -> sz=55 55 -> cccp2 -> sz=55 55 -> pool0 -> sz=27 27 -> conv2 -> sz=23 23 -> cccp3 -> sz=23 23 -> cccp4 -> sz=23 23 -> pool2 -> sz=11 11 -> conv3 -> sz=9 9 -> cccp5 -> sz=9 9 -> cccp6 -> sz=9 9 -> pool3 -> sz=4 4 -> conv4-1024 -> sz=2 2 -> cccp7-1024 -> sz=2 2 -> cccp8-1024 -> sz=2 2 -> [DATA DISCARDED; used_sz=0 0] -> 
+== BEGIN CONV PIPE ==
+support_sz=1 1 support_stride=1 1 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=conv1,type=conv,in_pad=(0 0)(0 0),kern_sz=11 11,stride=4 4,out_chans=96) 
+support_sz=11 11 support_stride=4 4 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp1,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=96) 
+support_sz=11 11 support_stride=4 4 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp2,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=96) 
+support_sz=11 11 support_stride=4 4 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=pool0,type=pool,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,out_chans=96) 
+support_sz=19 19 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=conv2,type=conv,in_pad=(0 0)(0 0),kern_sz=5 5,out_chans=256) 
+support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp3,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=256) 
+support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp4,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=256) 
+support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=pool2,type=pool,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,out_chans=256) 
+support_sz=67 67 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=conv3,type=conv,in_pad=(0 0)(0 0),kern_sz=3 3,out_chans=384) 
+support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp5,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=384) 
+support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp6,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=384) 
+support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=pool3,type=pool,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,out_chans=384) 
+support_sz=131 131 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=conv4-1024,type=conv,in_pad=(0 0)(0 0),kern_sz=3 3,out_chans=1024) 
+support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp7-1024,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=1024) 
+support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=cccp8-1024,type=conv,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=1000) 
+support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+== END CONV PIPE ==
+CONV_IOS: sz=500 500 -> [DATA DISCARDED; used_sz=499 499] -> conv1 -> sz=123 123 -> cccp1 -> sz=123 123 -> cccp2 -> sz=123 123 -> pool0 -> sz=61 61 -> conv2 -> sz=57 57 -> cccp3 -> sz=57 57 -> cccp4 -> sz=57 57 -> pool2 -> sz=28 28 -> conv3 -> sz=26 26 -> cccp5 -> sz=26 26 -> cccp6 -> sz=26 26 -> [IMPLICIT PAD; used_sz=27 27] -> pool3 -> sz=13 13 -> conv4-1024 -> sz=11 11 -> cccp7-1024 -> sz=11 11 -> cccp8-1024 -> sz=11 11 -> [DATA DISCARDED; used_sz=0 0] -> 
+(*i)->sz=353 500
+feat_box_dense=(0 1)(2 3)
+ssds_str(from_dense,out_batch)=cnt=2717 sum_squared_diffs=4.78508e-08 avg_abs_diff=3.45871e-06 sum_diffs=0.00257915 avg_diff=6.44786e-07
+feat_box_dense=(2 7)(4 9)
+ssds_str(from_dense,out_batch)=cnt=3147 sum_squared_diffs=1.11743e-07 avg_abs_diff=5.28543e-06 sum_diffs=-0.000509285 avg_diff=-1.27321e-07
+feat_box_dense=(1 8)(3 10)
+ssds_str(from_dense,out_batch)=cnt=2933 sum_squared_diffs=9.5677e-08 avg_abs_diff=4.89073e-06 sum_diffs=0.0012552 avg_diff=3.13799e-07
+feat_box_dense=(0 8)(2 10)
+ssds_str(from_dense,out_batch)=cnt=2913 sum_squared_diffs=1.16196e-07 avg_abs_diff=5.38971e-06 sum_diffs=-0.0021625 avg_diff=-5.40626e-07
+feat_box_dense=(3 7)(5 9)
+ssds_str(from_dense,out_batch)=cnt=3017 sum_squared_diffs=8.53338e-08 avg_abs_diff=4.61882e-06 sum_diffs=-0.00198903 avg_diff=-4.97259e-07
+feat_box_dense=(2 0)(4 2)
+ssds_str(from_dense,out_batch)=cnt=2543 sum_squared_diffs=6.34443e-08 avg_abs_diff=3.9826e-06 sum_diffs=0.00176495 avg_diff=4.41236e-07
+feat_box_dense=(2 8)(4 10)
+ssds_str(from_dense,out_batch)=cnt=2933 sum_squared_diffs=6.91297e-08 avg_abs_diff=4.15721e-06 sum_diffs=0.00261829 avg_diff=6.54573e-07
+feat_box_dense=(0 8)(2 10)
+ssds_str(from_dense,out_batch)=cnt=2913 sum_squared_diffs=1.16196e-07 avg_abs_diff=5.38971e-06 sum_diffs=-0.0021625 avg_diff=-5.40626e-07
+feat_box_dense=(0 2)(2 4)
+ssds_str(from_dense,out_batch)=cnt=2627 sum_squared_diffs=5.18587e-08 avg_abs_diff=3.60065e-06 sum_diffs=0.00168832 avg_diff=4.22081e-07
+feat_box_dense=(1 0)(3 2)
+ssds_str(from_dense,out_batch)=cnt=2830 sum_squared_diffs=7.87718e-08 avg_abs_diff=4.43767e-06 sum_diffs=0.00315056 avg_diff=7.87641e-07
+feat_box_dense=(2 7)(4 9)
+ssds_str(from_dense,out_batch)=cnt=3147 sum_squared_diffs=1.11743e-07 avg_abs_diff=5.28543e-06 sum_diffs=-0.000509285 avg_diff=-1.27321e-07
+(*i)->sz=335 500
+feat_box_dense=(1 8)(3 10)
+ssds_str(from_dense,out_batch)=cnt=2820 sum_squared_diffs=1.04757e-07 avg_abs_diff=5.11754e-06 sum_diffs=-0.00112271 avg_diff=-2.80676e-07
+feat_box_dense=(1 7)(3 9)
+ssds_str(from_dense,out_batch)=cnt=2845 sum_squared_diffs=1.11882e-07 avg_abs_diff=5.28872e-06 sum_diffs=-0.00219633 avg_diff=-5.49084e-07
+feat_box_dense=(2 6)(4 8)
+ssds_str(from_dense,out_batch)=cnt=2859 sum_squared_diffs=1.52686e-07 avg_abs_diff=6.17831e-06 sum_diffs=0.000954032 avg_diff=2.38508e-07
+feat_box_dense=(3 0)(5 2)
+ssds_str(from_dense,out_batch)=cnt=2799 sum_squared_diffs=4.97229e-08 avg_abs_diff=3.52572e-06 sum_diffs=0.00198969 avg_diff=4.97422e-07
+feat_box_dense=(0 4)(2 6)
+ssds_str(from_dense,out_batch)=cnt=2718 sum_squared_diffs=9.12551e-08 avg_abs_diff=4.77638e-06 sum_diffs=0.00213368 avg_diff=5.33421e-07
+feat_box_dense=(2 0)(4 2)
+ssds_str(from_dense,out_batch)=cnt=2732 sum_squared_diffs=5.5398e-08 avg_abs_diff=3.72149e-06 sum_diffs=0.00349722 avg_diff=8.74306e-07
+feat_box_dense=(2 3)(4 5)
+ssds_str(from_dense,out_batch)=cnt=2656 sum_squared_diffs=9.28463e-08 avg_abs_diff=4.81784e-06 sum_diffs=0.00103247 avg_diff=2.58117e-07
+feat_box_dense=(0 0)(2 2)
+ssds_str(from_dense,out_batch)=cnt=2754 sum_squared_diffs=5.87694e-08 avg_abs_diff=3.83306e-06 sum_diffs=-0.00198329 avg_diff=-4.95822e-07
+feat_box_dense=(0 8)(2 10)
+ssds_str(from_dense,out_batch)=cnt=2880 sum_squared_diffs=9.41334e-08 avg_abs_diff=4.85112e-06 sum_diffs=-0.00257624 avg_diff=-6.4406e-07
+feat_box_dense=(1 3)(3 5)
+ssds_str(from_dense,out_batch)=cnt=2656 sum_squared_diffs=9.22186e-08 avg_abs_diff=4.80153e-06 sum_diffs=-0.000584722 avg_diff=-1.4618e-07
+(*i)->sz=500 375
+feat_box_dense=(5 1)(7 3)
+ssds_str(from_dense,out_batch)=cnt=2772 sum_squared_diffs=9.72173e-08 avg_abs_diff=4.92994e-06 sum_diffs=-0.00103778 avg_diff=-2.59445e-07
+feat_box_dense=(5 2)(7 4)
+ssds_str(from_dense,out_batch)=cnt=2875 sum_squared_diffs=4.89139e-08 avg_abs_diff=3.49692e-06 sum_diffs=-6.10854e-05 avg_diff=-1.52714e-08
+feat_box_dense=(5 3)(7 5)
+ssds_str(from_dense,out_batch)=cnt=2896 sum_squared_diffs=3.60643e-08 avg_abs_diff=3.00268e-06 sum_diffs=0.000301864 avg_diff=7.5466e-08
+feat_box_dense=(3 3)(5 5)
+ssds_str(from_dense,out_batch)=cnt=2789 sum_squared_diffs=3.47437e-08 avg_abs_diff=2.94719e-06 sum_diffs=0.0020102 avg_diff=5.02549e-07
+feat_box_dense=(7 3)(9 5)
+ssds_str(from_dense,out_batch)=cnt=2835 sum_squared_diffs=3.96712e-08 avg_abs_diff=3.14925e-06 sum_diffs=-0.00147307 avg_diff=-3.68268e-07
+feat_box_dense=(2 0)(4 2)
+ssds_str(from_dense,out_batch)=cnt=2651 sum_squared_diffs=8.38857e-08 avg_abs_diff=4.57946e-06 sum_diffs=0.000368394 avg_diff=9.20985e-08
+feat_box_dense=(1 2)(3 4)
+ssds_str(from_dense,out_batch)=cnt=2791 sum_squared_diffs=5.95073e-08 avg_abs_diff=3.85705e-06 sum_diffs=-0.00234377 avg_diff=-5.85942e-07
+feat_box_dense=(6 3)(8 5)
+ssds_str(from_dense,out_batch)=cnt=2883 sum_squared_diffs=4.5878e-08 avg_abs_diff=3.38666e-06 sum_diffs=-0.00127589 avg_diff=-3.18972e-07
+feat_box_dense=(0 4)(2 6)
+ssds_str(from_dense,out_batch)=cnt=2822 sum_squared_diffs=2.85385e-07 avg_abs_diff=8.44667e-06 sum_diffs=0.0141132 avg_diff=3.52829e-06
+feat_box_dense=(7 3)(9 5)
+ssds_str(from_dense,out_batch)=cnt=2835 sum_squared_diffs=3.96712e-08 avg_abs_diff=3.14925e-06 sum_diffs=-0.00147307 avg_diff=-3.68268e-07
+feat_box_dense=(4 0)(6 2)
+ssds_str(from_dense,out_batch)=cnt=2867 sum_squared_diffs=8.66828e-08 avg_abs_diff=4.65518e-06 sum_diffs=0.000304528 avg_diff=7.61319e-08
+feat_box_dense=(0 4)(2 6)
+ssds_str(from_dense,out_batch)=cnt=2822 sum_squared_diffs=2.85385e-07 avg_abs_diff=8.44667e-06 sum_diffs=0.0141132 avg_diff=3.52829e-06
+feat_box_dense=(7 1)(9 3)
+ssds_str(from_dense,out_batch)=cnt=2782 sum_squared_diffs=9.97653e-08 avg_abs_diff=4.99413e-06 sum_diffs=-0.00235226 avg_diff=-5.88065e-07
+feat_box_dense=(0 4)(2 6)
+ssds_str(from_dense,out_batch)=cnt=2822 sum_squared_diffs=2.85385e-07 avg_abs_diff=8.44667e-06 sum_diffs=0.0141132 avg_diff=3.52829e-06
+feat_box_dense=(2 2)(4 4)
+ssds_str(from_dense,out_batch)=cnt=2769 sum_squared_diffs=3.87962e-08 avg_abs_diff=3.11433e-06 sum_diffs=0.00216157 avg_diff=5.40393e-07
+feat_box_dense=(8 0)(10 2)
+ssds_str(from_dense,out_batch)=cnt=2912 sum_squared_diffs=8.02449e-08 avg_abs_diff=4.47898e-06 sum_diffs=0.00244568 avg_diff=6.11421e-07
+feat_box_dense=(2 1)(4 3)
+ssds_str(from_dense,out_batch)=cnt=2679 sum_squared_diffs=9.03249e-08 avg_abs_diff=4.75197e-06 sum_diffs=0.000910917 avg_diff=2.27729e-07
+(*i)->sz=500 406
+feat_box_dense=(2 5)(4 7)
+ssds_str(from_dense,out_batch)=cnt=2683 sum_squared_diffs=8.00699e-08 avg_abs_diff=4.47409e-06 sum_diffs=-0.00152501 avg_diff=-3.81254e-07
+feat_box_dense=(2 0)(4 2)
+ssds_str(from_dense,out_batch)=cnt=2709 sum_squared_diffs=1.48175e-07 avg_abs_diff=6.08637e-06 sum_diffs=0.0055021 avg_diff=1.37553e-06
+feat_box_dense=(1 2)(3 4)
+ssds_str(from_dense,out_batch)=cnt=2761 sum_squared_diffs=9.5163e-08 avg_abs_diff=4.87758e-06 sum_diffs=0.00397707 avg_diff=9.94267e-07
+feat_box_dense=(3 1)(5 3)
+ssds_str(from_dense,out_batch)=cnt=2570 sum_squared_diffs=1.22186e-07 avg_abs_diff=5.5269e-06 sum_diffs=0.00738861 avg_diff=1.84715e-06
+feat_box_dense=(2 4)(4 6)
+ssds_str(from_dense,out_batch)=cnt=2731 sum_squared_diffs=5.92545e-08 avg_abs_diff=3.84885e-06 sum_diffs=0.000353571 avg_diff=8.83928e-08
+feat_box_dense=(8 3)(10 5)
+ssds_str(from_dense,out_batch)=cnt=2558 sum_squared_diffs=2.58247e-08 avg_abs_diff=2.5409e-06 sum_diffs=0.00188961 avg_diff=4.72401e-07
+feat_box_dense=(4 1)(6 3)
+ssds_str(from_dense,out_batch)=cnt=2558 sum_squared_diffs=5.73552e-08 avg_abs_diff=3.78666e-06 sum_diffs=0.00316131 avg_diff=7.90327e-07
+feat_box_dense=(7 2)(9 4)
+ssds_str(from_dense,out_batch)=cnt=2591 sum_squared_diffs=4.07576e-08 avg_abs_diff=3.19209e-06 sum_diffs=0.00096228 avg_diff=2.4057e-07
+(*i)->sz=500 375
+feat_box_dense=(2 0)(4 2)
+ssds_str(from_dense,out_batch)=cnt=2852 sum_squared_diffs=2.91951e-08 avg_abs_diff=2.70162e-06 sum_diffs=-1.25542e-05 avg_diff=-3.13856e-09
+feat_box_dense=(8 3)(10 5)
+ssds_str(from_dense,out_batch)=cnt=2744 sum_squared_diffs=4.53679e-08 avg_abs_diff=3.36778e-06 sum_diffs=-0.000835963 avg_diff=-2.08991e-07
+feat_box_dense=(3 2)(5 4)
+ssds_str(from_dense,out_batch)=cnt=2958 sum_squared_diffs=2.198e-07 avg_abs_diff=7.41283e-06 sum_diffs=0.0121244 avg_diff=3.03109e-06
+feat_box_dense=(2 1)(4 3)
+ssds_str(from_dense,out_batch)=cnt=2942 sum_squared_diffs=8.75087e-08 avg_abs_diff=4.67731e-06 sum_diffs=0.00595865 avg_diff=1.48966e-06
+feat_box_dense=(3 3)(5 5)
+ssds_str(from_dense,out_batch)=cnt=3047 sum_squared_diffs=2.25989e-07 avg_abs_diff=7.51647e-06 sum_diffs=0.0123033 avg_diff=3.07582e-06
+feat_box_dense=(5 4)(7 6)
+ssds_str(from_dense,out_batch)=cnt=2769 sum_squared_diffs=6.96982e-08 avg_abs_diff=4.17427e-06 sum_diffs=0.00419419 avg_diff=1.04855e-06
+feat_box_dense=(4 2)(6 4)
+ssds_str(from_dense,out_batch)=cnt=2813 sum_squared_diffs=1.70589e-07 avg_abs_diff=6.53049e-06 sum_diffs=0.00395532 avg_diff=9.88829e-07
+feat_box_dense=(6 2)(8 4)
+ssds_str(from_dense,out_batch)=cnt=2740 sum_squared_diffs=9.80181e-08 avg_abs_diff=4.95021e-06 sum_diffs=0.00326643 avg_diff=8.16607e-07
+feat_box_dense=(4 0)(6 2)
+ssds_str(from_dense,out_batch)=cnt=2871 sum_squared_diffs=1.21739e-07 avg_abs_diff=5.51678e-06 sum_diffs=-0.00351474 avg_diff=-8.78684e-07
+feat_box_dense=(1 0)(3 2)
+ssds_str(from_dense,out_batch)=cnt=2685 sum_squared_diffs=6.03174e-08 avg_abs_diff=3.88321e-06 sum_diffs=0.00226138 avg_diff=5.65345e-07
+feat_box_dense=(6 2)(8 4)
+ssds_str(from_dense,out_batch)=cnt=2740 sum_squared_diffs=9.80181e-08 avg_abs_diff=4.95021e-06 sum_diffs=0.00326643 avg_diff=8.16607e-07
+feat_box_dense=(1 4)(3 6)
+ssds_str(from_dense,out_batch)=cnt=2722 sum_squared_diffs=4.82317e-08 avg_abs_diff=3.47245e-06 sum_diffs=-0.000777058 avg_diff=-1.94265e-07
+feat_box_dense=(2 1)(4 3)
+ssds_str(from_dense,out_batch)=cnt=2942 sum_squared_diffs=8.75087e-08 avg_abs_diff=4.67731e-06 sum_diffs=0.00595865 avg_diff=1.48966e-06
+feat_box_dense=(5 2)(7 4)
+ssds_str(from_dense,out_batch)=cnt=2785 sum_squared_diffs=1.33687e-07 avg_abs_diff=5.78115e-06 sum_diffs=0.00239445 avg_diff=5.98611e-07
+(*i)->sz=500 375
+feat_box_dense=(2 3)(4 5)
+ssds_str(from_dense,out_batch)=cnt=2846 sum_squared_diffs=1.15129e-07 avg_abs_diff=5.3649e-06 sum_diffs=-0.0009965 avg_diff=-2.49125e-07
+feat_box_dense=(7 4)(9 6)
+ssds_str(from_dense,out_batch)=cnt=2820 sum_squared_diffs=7.06776e-08 avg_abs_diff=4.2035e-06 sum_diffs=0.00079846 avg_diff=1.99615e-07
+feat_box_dense=(6 3)(8 5)
+ssds_str(from_dense,out_batch)=cnt=2878 sum_squared_diffs=1.44811e-07 avg_abs_diff=6.01688e-06 sum_diffs=4.26024e-05 avg_diff=1.06506e-08
+feat_box_dense=(2 4)(4 6)
+ssds_str(from_dense,out_batch)=cnt=2856 sum_squared_diffs=9.66298e-08 avg_abs_diff=4.91502e-06 sum_diffs=-0.00108524 avg_diff=-2.71311e-07
+feat_box_dense=(1 1)(3 3)
+ssds_str(from_dense,out_batch)=cnt=2891 sum_squared_diffs=1.59154e-07 avg_abs_diff=6.30782e-06 sum_diffs=-0.00573561 avg_diff=-1.4339e-06
+feat_box_dense=(8 4)(10 6)
+ssds_str(from_dense,out_batch)=cnt=2701 sum_squared_diffs=3.2739e-08 avg_abs_diff=2.8609e-06 sum_diffs=-0.000859935 avg_diff=-2.14984e-07
+feat_box_dense=(2 3)(4 5)
+ssds_str(from_dense,out_batch)=cnt=2846 sum_squared_diffs=1.15129e-07 avg_abs_diff=5.3649e-06 sum_diffs=-0.0009965 avg_diff=-2.49125e-07
+feat_box_dense=(1 2)(3 4)
+ssds_str(from_dense,out_batch)=cnt=2789 sum_squared_diffs=1.1438e-07 avg_abs_diff=5.34744e-06 sum_diffs=-0.00271781 avg_diff=-6.79452e-07
+feat_box_dense=(3 0)(5 2)
+ssds_str(from_dense,out_batch)=cnt=2944 sum_squared_diffs=1.36769e-07 avg_abs_diff=5.84741e-06 sum_diffs=-0.000507139 avg_diff=-1.26785e-07
+feat_box_dense=(7 1)(9 3)
+ssds_str(from_dense,out_batch)=cnt=2834 sum_squared_diffs=8.18173e-08 avg_abs_diff=4.52265e-06 sum_diffs=0.0013258 avg_diff=3.31449e-07
+feat_box_dense=(0 2)(2 4)
+ssds_str(from_dense,out_batch)=cnt=2741 sum_squared_diffs=2.147e-07 avg_abs_diff=7.32632e-06 sum_diffs=-0.00263371 avg_diff=-6.58427e-07
+feat_box_dense=(4 2)(6 4)
+ssds_str(from_dense,out_batch)=cnt=2969 sum_squared_diffs=1.5618e-07 avg_abs_diff=6.24859e-06 sum_diffs=0.00163095 avg_diff=4.07736e-07
+feat_box_dense=(4 3)(6 5)
+ssds_str(from_dense,out_batch)=cnt=2845 sum_squared_diffs=2.27454e-07 avg_abs_diff=7.54079e-06 sum_diffs=-0.00525836 avg_diff=-1.31459e-06
+(*i)->sz=354 480
+feat_box_dense=(3 6)(5 8)
+ssds_str(from_dense,out_batch)=cnt=3019 sum_squared_diffs=2.28035e-07 avg_abs_diff=7.55041e-06 sum_diffs=0.00147572 avg_diff=3.6893e-07
+feat_box_dense=(3 6)(5 8)
+ssds_str(from_dense,out_batch)=cnt=3019 sum_squared_diffs=2.28035e-07 avg_abs_diff=7.55041e-06 sum_diffs=0.00147572 avg_diff=3.6893e-07
+feat_box_dense=(1 4)(3 6)
+ssds_str(from_dense,out_batch)=cnt=2998 sum_squared_diffs=2.66899e-07 avg_abs_diff=8.16853e-06 sum_diffs=-0.000651698 avg_diff=-1.62924e-07
+feat_box_dense=(3 0)(5 2)
+ssds_str(from_dense,out_batch)=cnt=2987 sum_squared_diffs=1.93912e-07 avg_abs_diff=6.96262e-06 sum_diffs=-3.63626e-05 avg_diff=-9.09064e-09
+feat_box_dense=(3 4)(5 6)
+ssds_str(from_dense,out_batch)=cnt=3122 sum_squared_diffs=4.13534e-07 avg_abs_diff=1.01678e-05 sum_diffs=-0.00162397 avg_diff=-4.05993e-07
+feat_box_dense=(0 4)(2 6)
+ssds_str(from_dense,out_batch)=cnt=2942 sum_squared_diffs=1.73997e-07 avg_abs_diff=6.5954e-06 sum_diffs=-0.00472746 avg_diff=-1.18187e-06
+feat_box_dense=(3 7)(5 9)
+ssds_str(from_dense,out_batch)=cnt=2737 sum_squared_diffs=9.3841e-08 avg_abs_diff=4.84358e-06 sum_diffs=0.00153177 avg_diff=3.82943e-07
+feat_box_dense=(3 3)(5 5)
+ssds_str(from_dense,out_batch)=cnt=2949 sum_squared_diffs=3.05551e-07 avg_abs_diff=8.74e-06 sum_diffs=-0.00827859 avg_diff=-2.06965e-06
+feat_box_dense=(1 0)(3 2)
+ssds_str(from_dense,out_batch)=cnt=3047 sum_squared_diffs=1.10807e-07 avg_abs_diff=5.26325e-06 sum_diffs=0.00246046 avg_diff=6.15115e-07
+feat_box_dense=(2 6)(4 8)
+ssds_str(from_dense,out_batch)=cnt=3045 sum_squared_diffs=3.01041e-07 avg_abs_diff=8.67527e-06 sum_diffs=0.00502866 avg_diff=1.25716e-06
+feat_box_dense=(3 5)(5 7)
+ssds_str(from_dense,out_batch)=cnt=3164 sum_squared_diffs=3.65332e-07 avg_abs_diff=9.55684e-06 sum_diffs=0.00381988 avg_diff=9.54969e-07
+feat_box_dense=(0 6)(2 8)
+ssds_str(from_dense,out_batch)=cnt=3193 sum_squared_diffs=4.63528e-07 avg_abs_diff=1.07648e-05 sum_diffs=-0.00579078 avg_diff=-1.4477e-06
+feat_box_dense=(1 5)(3 7)
+ssds_str(from_dense,out_batch)=cnt=3036 sum_squared_diffs=4.12957e-07 avg_abs_diff=1.01607e-05 sum_diffs=-0.000861511 avg_diff=-2.15378e-07
+feat_box_dense=(1 4)(3 6)
+ssds_str(from_dense,out_batch)=cnt=2998 sum_squared_diffs=2.66899e-07 avg_abs_diff=8.16853e-06 sum_diffs=-0.000651698 avg_diff=-1.62924e-07
+feat_box_dense=(3 3)(5 5)
+ssds_str(from_dense,out_batch)=cnt=2949 sum_squared_diffs=3.05551e-07 avg_abs_diff=8.74e-06 sum_diffs=-0.00827859 avg_diff=-2.06965e-06
+(*i)->sz=500 324
+feat_box_dense=(3 1)(5 3)
+ssds_str(from_dense,out_batch)=cnt=2738 sum_squared_diffs=2.10655e-07 avg_abs_diff=7.25698e-06 sum_diffs=-0.00500818 avg_diff=-1.25205e-06
+feat_box_dense=(1 3)(3 5)
+ssds_str(from_dense,out_batch)=cnt=2871 sum_squared_diffs=1.17537e-07 avg_abs_diff=5.42072e-06 sum_diffs=0.00189242 avg_diff=4.73105e-07
+feat_box_dense=(1 3)(3 5)
+ssds_str(from_dense,out_batch)=cnt=2871 sum_squared_diffs=1.17537e-07 avg_abs_diff=5.42072e-06 sum_diffs=0.00189242 avg_diff=4.73105e-07
+feat_box_dense=(2 3)(4 5)
+ssds_str(from_dense,out_batch)=cnt=2714 sum_squared_diffs=1.3066e-07 avg_abs_diff=5.71532e-06 sum_diffs=0.000129927 avg_diff=3.24817e-08
+feat_box_dense=(1 0)(3 2)
+ssds_str(from_dense,out_batch)=cnt=3144 sum_squared_diffs=3.30336e-07 avg_abs_diff=9.08757e-06 sum_diffs=-0.00170644 avg_diff=-4.2661e-07
+feat_box_dense=(2 3)(4 5)
+ssds_str(from_dense,out_batch)=cnt=2714 sum_squared_diffs=1.3066e-07 avg_abs_diff=5.71532e-06 sum_diffs=0.000129927 avg_diff=3.24817e-08
+feat_box_dense=(7 2)(9 4)
+ssds_str(from_dense,out_batch)=cnt=2936 sum_squared_diffs=5.4159e-08 avg_abs_diff=3.67964e-06 sum_diffs=-0.00148727 avg_diff=-3.71817e-07
+feat_box_dense=(8 3)(10 5)
+ssds_str(from_dense,out_batch)=cnt=2958 sum_squared_diffs=5.29545e-08 avg_abs_diff=3.63849e-06 sum_diffs=-0.00317047 avg_diff=-7.92618e-07
+feat_box_dense=(0 0)(2 2)
+ssds_str(from_dense,out_batch)=cnt=3028 sum_squared_diffs=1.30177e-07 avg_abs_diff=5.70477e-06 sum_diffs=-0.00212203 avg_diff=-5.30506e-07
+feat_box_dense=(7 3)(9 5)
+ssds_str(from_dense,out_batch)=cnt=2933 sum_squared_diffs=8.30187e-08 avg_abs_diff=4.55573e-06 sum_diffs=-0.00255131 avg_diff=-6.37827e-07
+feat_box_dense=(7 2)(9 4)
+ssds_str(from_dense,out_batch)=cnt=2936 sum_squared_diffs=5.4159e-08 avg_abs_diff=3.67964e-06 sum_diffs=-0.00148727 avg_diff=-3.71817e-07
+feat_box_dense=(6 0)(8 2)
+ssds_str(from_dense,out_batch)=cnt=2822 sum_squared_diffs=7.34975e-08 avg_abs_diff=4.28653e-06 sum_diffs=-0.000922661 avg_diff=-2.30665e-07
+feat_box_dense=(2 2)(4 4)
+ssds_str(from_dense,out_batch)=cnt=2691 sum_squared_diffs=1.32985e-07 avg_abs_diff=5.76595e-06 sum_diffs=0.000202056 avg_diff=5.0514e-08
+feat_box_dense=(0 2)(2 4)
+ssds_str(from_dense,out_batch)=cnt=2887 sum_squared_diffs=9.67286e-08 avg_abs_diff=4.91754e-06 sum_diffs=0.00584995 avg_diff=1.46249e-06
+feat_box_dense=(1 3)(3 5)
+ssds_str(from_dense,out_batch)=cnt=2871 sum_squared_diffs=1.17537e-07 avg_abs_diff=5.42072e-06 sum_diffs=0.00189242 avg_diff=4.73105e-07
+feat_box_dense=(5 1)(7 3)
+ssds_str(from_dense,out_batch)=cnt=2667 sum_squared_diffs=1.63864e-07 avg_abs_diff=6.40047e-06 sum_diffs=-0.00367286 avg_diff=-9.18215e-07
+feat_box_dense=(3 0)(5 2)
+ssds_str(from_dense,out_batch)=cnt=3000 sum_squared_diffs=3.41948e-07 avg_abs_diff=9.24591e-06 sum_diffs=-0.00244333 avg_diff=-6.10833e-07
+feat_box_dense=(4 3)(6 5)
+ssds_str(from_dense,out_batch)=cnt=2769 sum_squared_diffs=1.72169e-07 avg_abs_diff=6.56066e-06 sum_diffs=0.00347212 avg_diff=8.6803e-07
+feat_box_dense=(1 3)(3 5)
+ssds_str(from_dense,out_batch)=cnt=2871 sum_squared_diffs=1.17537e-07 avg_abs_diff=5.42072e-06 sum_diffs=0.00189242 avg_diff=4.73105e-07
+(*i)->sz=500 375
+feat_box_dense=(3 2)(5 4)
+ssds_str(from_dense,out_batch)=cnt=2964 sum_squared_diffs=4.6861e-08 avg_abs_diff=3.42275e-06 sum_diffs=0.00113386 avg_diff=2.83464e-07
+feat_box_dense=(6 2)(8 4)
+ssds_str(from_dense,out_batch)=cnt=2624 sum_squared_diffs=3.74279e-07 avg_abs_diff=9.67315e-06 sum_diffs=0.00549989 avg_diff=1.37497e-06
+feat_box_dense=(3 2)(5 4)
+ssds_str(from_dense,out_batch)=cnt=2964 sum_squared_diffs=4.6861e-08 avg_abs_diff=3.42275e-06 sum_diffs=0.00113386 avg_diff=2.83464e-07
+feat_box_dense=(8 3)(10 5)
+ssds_str(from_dense,out_batch)=cnt=2709 sum_squared_diffs=8.26693e-07 avg_abs_diff=1.43761e-05 sum_diffs=-0.0124368 avg_diff=-3.1092e-06
+feat_box_dense=(8 0)(10 2)
+ssds_str(from_dense,out_batch)=cnt=2879 sum_squared_diffs=8.29028e-08 avg_abs_diff=4.55255e-06 sum_diffs=-0.000306848 avg_diff=-7.67121e-08
+feat_box_dense=(3 3)(5 5)
+ssds_str(from_dense,out_batch)=cnt=2941 sum_squared_diffs=4.04824e-08 avg_abs_diff=3.18129e-06 sum_diffs=-0.000818126 avg_diff=-2.04531e-07
+feat_box_dense=(0 3)(2 5)
+ssds_str(from_dense,out_batch)=cnt=3162 sum_squared_diffs=4.06674e-08 avg_abs_diff=3.18855e-06 sum_diffs=-0.00126701 avg_diff=-3.16753e-07
+feat_box_dense=(6 0)(8 2)
+ssds_str(from_dense,out_batch)=cnt=2659 sum_squared_diffs=4.77606e-08 avg_abs_diff=3.45545e-06 sum_diffs=-0.000622105 avg_diff=-1.55526e-07
+feat_box_dense=(1 1)(3 3)
+ssds_str(from_dense,out_batch)=cnt=3019 sum_squared_diffs=6.69553e-08 avg_abs_diff=4.09131e-06 sum_diffs=-0.000948671 avg_diff=-2.37168e-07
+feat_box_dense=(3 0)(5 2)
+ssds_str(from_dense,out_batch)=cnt=2869 sum_squared_diffs=3.11966e-08 avg_abs_diff=2.79269e-06 sum_diffs=-0.00210156 avg_diff=-5.25389e-07

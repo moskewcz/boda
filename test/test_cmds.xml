@@ -136,4 +136,6 @@
   </li>
 -->
 
+  <li test_name="test_dense_1"> <command mode="test_dense" model_name="nin_imagenet_nopad" wins_per_image="10000"/></li>
+
 </root>
