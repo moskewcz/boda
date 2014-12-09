@@ -15,7 +15,7 @@ namespace boda {
   uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
 
   template< typename T >
-  shared_ptr< nda_T< T > > copy_clip( shared_ptr< nda_T< T > > in, dims_t const & b, dims_t const & e ) {
+  shared_ptr< nda_T< T > > copy_clip( shared_ptr< nda_T< T > > const & in, dims_t const & b, dims_t const & e ) {
     shared_ptr< nda_T< T > > ret( new nda_T< T > );
     dims_t ret_dims = e - b;
     ret->set_dims( ret_dims );
@@ -28,8 +28,17 @@ namespace boda {
     }
     return ret;
   }
-    
 
+  p_nda_float_t feats_copy_clip( p_nda_float_t const & in, i32_box_t const & cbox ) {
+    dims_t b(4);
+    dims_t e = in->dims;
+    b.dims(2) = cbox.p[0].d[1];
+    e.dims(2) = cbox.p[1].d[1];
+    b.dims(3) = cbox.p[0].d[0];
+    e.dims(3) = cbox.p[1].d[0];
+    return copy_clip( in, b, e );
+  }
+    
   struct test_dense_t : virtual public nesi, public has_main_t // NESI( help="test dense vs. sparse CNN eval",
 			// bases=["has_main_t"], type_id="test_dense")
   {
@@ -64,6 +73,7 @@ namespace boda {
     p_ostream out;
     virtual void main( nesi_init_arg_t * nia ) {
       out = ofs_open( out_fn.exp );
+      //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       imgs->load_all_imgs();
       run_cnet->setup_cnet(); 
       for( vect_p_img_t::const_iterator i = imgs->all_imgs->begin(); i != imgs->all_imgs->end(); ++i ) {
@@ -92,27 +102,32 @@ namespace boda {
 	  timer_t t1("dense_cnn");
 	  out_batch_dense = run_cnet_dense->run_one_blob_in_one_blob_out();
 	}
-      
+
+	// figure out what part of output (if any) doesn't depend on padding
+	conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
+	i32_box_t feat_box;
+	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, ol_csi );
+
 	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
 	  u32_pt_t const samp_nc_max = (*i)->sz - run_cnet->in_sz;
 	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
 	  ++tot_wins;
-	  comp_win( out_batch_dense, (*i), samp_nc );
+	  comp_win( feat_box, out_batch_dense, (*i), samp_nc );
 	}
       }
     }
-    void comp_win( p_nda_float_t out_batch_dense, p_img_t const & img, u32_pt_t const & nc ) {
+    void comp_win( i32_box_t const & feat_box, p_nda_float_t out_batch_dense, p_img_t const & img, u32_pt_t const & nc ) {
       dims_t const & obd_dense = out_batch_dense->dims;
       assert( obd_dense.sz() == 4 );
       assert( obd_dense.dims(0) == 1 ); // one image
       //printf( "nc=%s\n", str(nc).c_str() );   
       u32_box_t in_box{ nc, nc + run_cnet->in_sz };
       conv_support_info_t const & ol_csi_dense = conv_pipe_dense->conv_sis.back();
+
       i32_box_t feat_box_dense;
       in_box_to_out_box( feat_box_dense, in_box, cm_valid, ol_csi_dense );
 
-      u32_pt_t const & feat_sz = conv_ios->back().sz;
-      if( i32_to_u32(feat_box_dense.sz()) != feat_sz ) { return; }
+      if( feat_box_dense.sz() != feat_box.sz() ) { return; }
       
       (*out) << strprintf( "feat_box_dense=%s\n", str(feat_box_dense).c_str() );
       // run net on just sample area
@@ -122,30 +137,9 @@ namespace boda {
       {
 	timer_t t1("sparse_cnn");
 	out_batch = run_cnet->run_one_blob_in_one_blob_out();
-	dims_t const & obd = out_batch->dims;
-	assert( obd.sz() == 4 );
-	assert( obd.dims(0) == 1 ); // one image
-	assert( obd.dims(1) == obd_dense.dims(1) ); // same chans
-
-	dims_t b(4);
-	dims_t e = obd_dense;
-	b.dims(2) = feat_box_dense.p[0].d[1];
-	b.dims(3) = feat_box_dense.p[0].d[0];
-	e.dims(2) = b.dims(2) + feat_sz.d[1];
-	e.dims(3) = b.dims(3) + feat_sz.d[0];
-	p_nda_float_t from_dense = copy_clip( out_batch_dense, b, e );
-	(*out) << strprintf( "ssds_str(from_dense,out_batch)=%s\n", str(ssds_str(from_dense,out_batch)).c_str() );
-#if 0	
-	for( uint32_t c = 0; c < obd.dims(1); ++c ) {
-	  for( uint32_t y = 0; y < feat_sz.d[1]; ++y ) {
-	    for( uint32_t x = 0; x < feat_sz.d[0]; ++x ) {
-	      float const v = out_batch->at4(0,c,y,x);
-	      float const vd = out_batch_dense->at4(0,c,y+feat_box_dense.p[0].d[1],x+feat_box_dense.p[0].d[0]);
-	      printf( "v=%s vd=%s\n", str(v).c_str(), str(vd).c_str() );
-	    }
-	  }
-	}
-#endif
+	p_nda_float_t feats = feats_copy_clip( out_batch, feat_box );
+	p_nda_float_t feats_dense = feats_copy_clip( out_batch_dense, feat_box_dense );
+	(*out) << strprintf( "ssds_str(from_dense,out_batch)=%s\n", str(ssds_str(feats_dense,feats)).c_str() );
       }
     }
   };
