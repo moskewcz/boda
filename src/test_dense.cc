@@ -34,6 +34,7 @@ namespace boda {
 			// bases=["has_main_t"], type_id="test_dense")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/test_dense.txt",help="output: text summary of differences between dense and sparse feature computation.")
     p_load_imgs_from_pascal_classes_t imgs;//NESI(default="()")
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda
@@ -55,12 +56,14 @@ namespace boda {
 
     void get_pipe_and_ios( p_run_cnet_t const & run_cnet, p_conv_pipe_t & conv_pipe, p_vect_conv_io_t & conv_ios ) {
       conv_pipe = run_cnet->get_pipe();
-      //conv_pipe->dump_pipe( std::cout );
+      conv_pipe->dump_pipe( *out );
       conv_ios = conv_pipe->calc_sizes_forward( run_cnet->in_sz, 0 ); 
-      conv_pipe->dump_ios( std::cout, conv_ios );
+      conv_pipe->dump_ios( *out, conv_ios );
     }
-
+    
+    p_ostream out;
     virtual void main( nesi_init_arg_t * nia ) {
+      out = ofs_open( out_fn.exp );
       imgs->load_all_imgs();
       run_cnet->setup_cnet(); 
       for( vect_p_img_t::const_iterator i = imgs->all_imgs->begin(); i != imgs->all_imgs->end(); ++i ) {
@@ -79,7 +82,7 @@ namespace boda {
       uint32_t tot_wins = 0;
       for( vect_p_img_t::const_iterator i = imgs->all_imgs->begin(); i != imgs->all_imgs->end(); ++i ) {
 	if( !(*i)->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
-	printf( "(*i)->sz=%s\n", str((*i)->sz).c_str() );
+	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->sz).c_str() );
 	// run net on entire input image
 	in_img_dense->fill_with_pel( inmc );
 	img_copy_to_clip( (*i).get(), in_img_dense.get() );
@@ -111,7 +114,7 @@ namespace boda {
       u32_pt_t const & feat_sz = conv_ios->back().sz;
       if( i32_to_u32(feat_box_dense.sz()) != feat_sz ) { return; }
       
-      printf( "feat_box_dense=%s\n", str(feat_box_dense).c_str() );
+      (*out) << strprintf( "feat_box_dense=%s\n", str(feat_box_dense).c_str() );
       // run net on just sample area
       img_copy_to_clip( img.get(), in_img.get(), {}, nc );
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
@@ -131,7 +134,7 @@ namespace boda {
 	e.dims(2) = b.dims(2) + feat_sz.d[1];
 	e.dims(3) = b.dims(3) + feat_sz.d[0];
 	p_nda_float_t from_dense = copy_clip( out_batch_dense, b, e );
-	printf( "ssds_str(from_dense,out_batch)=%s\n", str(ssds_str(from_dense,out_batch)).c_str() );
+	(*out) << strprintf( "ssds_str(from_dense,out_batch)=%s\n", str(ssds_str(from_dense,out_batch)).c_str() );
 #if 0	
 	for( uint32_t c = 0; c < obd.dims(1); ++c ) {
 	  for( uint32_t y = 0; y < feat_sz.d[1]; ++y ) {
