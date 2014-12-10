@@ -339,13 +339,13 @@ namespace boda
     setup_cnet();
   }
 
-  template< typename T > struct gt_indexed {
+  template< typename T > struct gt_filt_prob {
     vector< T > const & v;
-    gt_indexed( vector< T > const & v_ ) : v(v_) {}
+    gt_filt_prob( vector< T > const & v_ ) : v(v_) {}
     bool operator()( uint32_t const & ix1, uint32_t const & ix2 ) { 
       assert_st( ix1 < v.size() );
       assert_st( ix2 < v.size() );
-      return v[ix1] > v[ix2];
+      return v[ix1].filt_prob > v[ix2].filt_prob;
     }
   };
 
@@ -358,17 +358,23 @@ namespace boda
     assert( obd.sz() == 4 );
     assert( obd.dims(0) == 1 );
     assert( obd.dims(1) == out_labels->size() );
-    assert( obd.dims(2) == 1 );
-    assert( obd.dims(3) == 1 );
-
-    bool const init_filt_prob = filt_prob.empty();
-    if( init_filt_prob ) { filt_prob.resize( obd.dims(1) ); to_disp.resize( obd.dims(1), 0 ); }
-    for( uint32_t i = 0; i < obd.dims(1); ++i ) {
-      float const p = out_batch->at4(0,i,0,0);
-      if( init_filt_prob ) { filt_prob[i] = p; }
-      else { filt_prob[i] *= (1 - filt_rate); filt_prob[i] += p * filt_rate; }
-      if( filt_prob[i] >= filt_show_thresh ) { to_disp[i] = 1; }
-      else if( filt_prob[i] <= filt_drop_thresh ) { to_disp[i] = 0; }
+    //assert( obd.dims(2) == 1 );
+    //assert( obd.dims(3) == 1 );
+    bool const init_filt_prob = pred_state.empty();
+    if( init_filt_prob ) { pred_state.resize( obd.dims_prod() ); }
+    
+    {
+      uint32_t ix = 0;
+      for( dims_iter_t di( obd ) ; ; ++ix ) { 
+	float const p = out_batch->at(di.di);
+	pred_state_t & ps = pred_state[ix];
+	ps.cur_prob = p;
+	if( init_filt_prob ) { ps.filt_prob = p; ps.to_disp = 0; ps.label_ix = di.di[1]; }
+	else { ps.filt_prob *= (1 - filt_rate); ps.filt_prob += p * filt_rate; }
+	if( ps.filt_prob >= filt_show_thresh ) { ps.to_disp = 1; }
+	else if( ps.filt_prob <= filt_drop_thresh ) { ps.to_disp = 0; }
+	if( !di.next() ) { break; } 
+      }
     }
 
     p_vect_anno_t annos( new vect_anno_t );
@@ -379,14 +385,13 @@ namespace boda
       printf("---- frame -----\n");
     }
     vect_uint32_t disp_list;
-    for( uint32_t i = 0; i < to_disp.size(); ++i ) {  if( to_disp[i] ) { disp_list.push_back(i); } }
-    sort( disp_list.begin(), disp_list.end(), gt_indexed<float>( filt_prob ) );
+    for( uint32_t i = 0; i < pred_state.size(); ++i ) {  if( pred_state[i].to_disp ) { disp_list.push_back(i); } }
+    sort( disp_list.begin(), disp_list.end(), gt_filt_prob<pred_state_t>( pred_state ) );
     for( vect_uint32_t::const_iterator ii = disp_list.begin(); ii != disp_list.end(); ++ii ) {
-      uint32_t const i = *ii;
-      float const p = out_batch->at4(0,i,0,0);
-      string const anno_str = strprintf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(i).tag).c_str(), 
-					 str(filt_prob[i]).c_str(),
-					 str(p).c_str() );
+      pred_state_t const & ps = pred_state[*ii];
+      string const anno_str = strprintf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(ps.label_ix).tag).c_str(), 
+					 str(ps.filt_prob).c_str(),
+					 str(ps.cur_prob).c_str() );
       annos->back().str += anno_str;
       if( print_to_terminal ) { printstr( anno_str ); }
     }

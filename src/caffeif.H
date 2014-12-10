@@ -55,6 +55,14 @@ namespace boda
   typedef vector< anno_t > vect_anno_t; 
   typedef shared_ptr< vect_anno_t > p_vect_anno_t; 
 
+  struct pred_state_t {
+    float cur_prob;
+    float filt_prob;
+    bool to_disp;
+    uint32_t label_ix;
+  };
+  typedef vector< pred_state_t > vect_pred_state_t; 
+
   struct cnet_predict_t : virtual public nesi, public run_cnet_t // NESI(help="run a caffe net on a single input",
 		     // bases=["run_cnet_t"], type_id="cnet_predict")
   {
@@ -72,8 +80,7 @@ namespace boda
 
     p_vect_synset_elem_t out_labels;
 
-    vect_float filt_prob;
-    vect_uint8_t to_disp;
+    vect_pred_state_t pred_state;
 
     void setup_predict( void );
     p_vect_anno_t do_predict( p_img_t const & img_in_ds, bool const print_to_terminal );
