@@ -367,12 +367,7 @@ namespace boda
 	
       // calculate in_xy from feat_xy
       i32_box_t valid_in_xy, core_valid_in_xy;
-      if( !ol_csi.support_sz.is_zeros() ) {
-	unchecked_out_box_to_in_box( valid_in_xy, u32_to_i32( feat_pel_box ), cm_valid, ol_csi );
-	unchecked_out_box_to_in_box( core_valid_in_xy, u32_to_i32( feat_pel_box ), cm_core_valid, ol_csi );
-      } else {
-	valid_in_xy = core_valid_in_xy = i32_box_t{{},u32_to_i32(run_cnet->in_sz)}; // whole image
-      }
+      unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), ol_csi, run_cnet->in_sz );
       // annotate region of input image corresponding to feat_xy
       annos.reset( new vect_anno_t );
       annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy), rgba_to_pel(220,220,255) } );
