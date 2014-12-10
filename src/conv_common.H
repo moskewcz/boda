@@ -32,6 +32,9 @@ namespace boda
 			  conv_support_info_t const & csi );
   void unchecked_out_box_to_in_box( i32_box_t & in_box, i32_box_t const & out_box, conv_mode_t const mode, 
 				    conv_support_info_t const & csi ); 
+  void unchecked_out_box_to_in_boxes( i32_box_t & valid_in_box, i32_box_t & core_valid_in_box, 
+				      i32_box_t const & out_box, conv_support_info_t const & csi,
+				      u32_pt_t const & full_in_sz );
 
 }
 #endif /* _CONV_COMMON_H_ */

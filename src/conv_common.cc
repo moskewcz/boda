@@ -140,4 +140,18 @@ namespace boda
     in_box = in_box - u32_to_i32(csi.eff_tot_pad.p[0]); // adjust for padding
   }
 
-}  
+  // this wrapper: (1) includes a special case to handle when global pooling is involved, and thus must take the
+  // full input size so it can be returned in that case. (2) returns valid and core_valid boxes (in one call)
+  void unchecked_out_box_to_in_boxes( i32_box_t & valid_in_box, i32_box_t & core_valid_in_box, 
+				      i32_box_t const & out_box, conv_support_info_t const & csi,
+				      u32_pt_t const & full_in_sz ) 
+  { 
+    if( !csi.support_sz.is_zeros() ) {
+      unchecked_out_box_to_in_box( valid_in_box, out_box, cm_valid, csi );
+      unchecked_out_box_to_in_box( core_valid_in_box, out_box, cm_core_valid, csi );
+    } else {
+      valid_in_box = core_valid_in_box = i32_box_t{{},u32_to_i32(full_in_sz)}; // whole image
+    }
+  }  
+
+}
