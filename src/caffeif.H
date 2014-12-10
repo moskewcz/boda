@@ -76,6 +76,8 @@ namespace boda
     double filt_show_thresh;//NESI(default=".02",help="start display of labels above this filtered prob. should be < 1.0 and > filt_drop_thresh.")
     double filt_drop_thresh;//NESI(default=".005",help="drop display of labels below this filtered prob. should be < 1.0 and < filt_show_thresh.")
 
+    uint32_t max_num_disp; //NESI(default="10",help="max # of results to display (i.e. TOP_N)")
+
     virtual void main( nesi_init_arg_t * nia );
 
     p_vect_synset_elem_t out_labels;

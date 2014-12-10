@@ -387,13 +387,16 @@ namespace boda
     vect_uint32_t disp_list;
     for( uint32_t i = 0; i < pred_state.size(); ++i ) {  if( pred_state[i].to_disp ) { disp_list.push_back(i); } }
     sort( disp_list.begin(), disp_list.end(), gt_filt_prob<pred_state_t>( pred_state ) );
+    uint32_t num_disp = 0;
     for( vect_uint32_t::const_iterator ii = disp_list.begin(); ii != disp_list.end(); ++ii ) {
+      if( num_disp == max_num_disp ) { break; }
       pred_state_t const & ps = pred_state[*ii];
       string const anno_str = strprintf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(ps.label_ix).tag).c_str(), 
 					 str(ps.filt_prob).c_str(),
 					 str(ps.cur_prob).c_str() );
       annos->back().str += anno_str;
       if( print_to_terminal ) { printstr( anno_str ); }
+      ++num_disp;
     }
     if( print_to_terminal ) { printf("---- end frame -----\n"); }
     //printf( "obd=%s\n", str(obd).c_str() );
