@@ -175,44 +175,6 @@ namespace boda
 
   p_conv_pipe_t make_p_conv_pipe_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
-  // note: we only handle a (very) limited set of possible layers/networks here.
-  p_conv_pipe_t get_pipe( p_Net_float net, string const & out_layer_name ) {
-    p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
-    vect_string const & layer_names = net->layer_names();
-    uint32_t last_out_chans = 0;
-    for( uint32_t i = 0; i != layer_names.size(); ++i ) { 
-      caffe::LayerParameter const & lp = net->layers()[i]->layer_param();
-      p_conv_op_t conv_op;
-      if( 0 ) {
-      } else if( lp.has_convolution_param() ) {
-	caffe::ConvolutionParameter const & cp = lp.convolution_param();
-	conv_op = get_conv_op_from_param( cp );
-	conv_op->type = "conv";
-	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
-	conv_op->out_chans = cp.num_output();
-	last_out_chans = conv_op->out_chans;
-      } else if( lp.has_pooling_param() ) {
-	caffe::PoolingParameter const & pp = lp.pooling_param();
-	conv_op = get_conv_op_from_param( pp );
-	conv_op->type = "pool";
-	// global pooling iff kernel size is all zeros (we use as a special value)
-	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
-	conv_op->out_chans = last_out_chans; // assume unchanged from last conv layer 
-      }
-      if( conv_op ) { 
-	assert( lp.has_name() );
-	conv_op->tag = lp.name();
-	conv_pipe->convs->push_back( *conv_op ); 
-      }
-      if( out_layer_name == layer_names[i] ) { 
-	conv_pipe->calc_support_info();
-	return conv_pipe; 
-      }
-    }
-    rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
-  }
-
-
   void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top ) {
     timer_t t("caffe_copy_output_blob_data");
     uint32_t const out_layer_ix = get_layer_ix( net_, out_layer_name );
@@ -269,7 +231,41 @@ namespace boda
     // 'dummy' net with some semi-arbitrary input sizes here. but, for now, we can squeak around the
     // dependency in our current use cases ...
     assert_st( net ); // net must already be set up
-    return boda::get_pipe( net, out_layer_name ); 
+    // note: we only handle a (very) limited set of possible layers/networks here.
+    if( conv_pipe ) { return conv_pipe; } // already created
+    conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
+    vect_string const & layer_names = net->layer_names();
+    uint32_t last_out_chans = 0;
+    for( uint32_t i = 0; i != layer_names.size(); ++i ) { 
+      caffe::LayerParameter const & lp = net->layers()[i]->layer_param();
+      p_conv_op_t conv_op;
+      if( 0 ) {
+      } else if( lp.has_convolution_param() ) {
+	caffe::ConvolutionParameter const & cp = lp.convolution_param();
+	conv_op = get_conv_op_from_param( cp );
+	conv_op->type = "conv";
+	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
+	conv_op->out_chans = cp.num_output();
+	last_out_chans = conv_op->out_chans;
+      } else if( lp.has_pooling_param() ) {
+	caffe::PoolingParameter const & pp = lp.pooling_param();
+	conv_op = get_conv_op_from_param( pp );
+	conv_op->type = "pool";
+	// global pooling iff kernel size is all zeros (we use as a special value)
+	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
+	conv_op->out_chans = last_out_chans; // assume unchanged from last conv layer 
+      }
+      if( conv_op ) { 
+	assert( lp.has_name() );
+	conv_op->tag = lp.name();
+	conv_pipe->convs->push_back( *conv_op ); 
+      }
+      if( out_layer_name == layer_names[i] ) { 
+	conv_pipe->calc_support_info();
+	return conv_pipe; 
+      }
+    }
+    rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
   }
 
   struct synset_elem_t {
@@ -350,6 +346,7 @@ namespace boda
   };
 
   p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) {
+    conv_support_info_t const & ol_csi = get_pipe()->conv_sis.back();
     p_img_t img_in_ds = resample_to_size( img_in, in_sz );
     subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
     p_nda_float_t out_batch = run_one_blob_in_one_blob_out();
@@ -369,7 +366,16 @@ namespace boda
 	float const p = out_batch->at(di.di);
 	pred_state_t & ps = pred_state[ix];
 	ps.cur_prob = p;
-	if( init_filt_prob ) { ps.filt_prob = p; ps.to_disp = 0; ps.label_ix = di.di[1]; }
+	if( init_filt_prob ) { 
+	  ps.filt_prob = p; ps.to_disp = 0; ps.label_ix = di.di[1]; 
+	  u32_pt_t const feat_xy = {di.di[3],di.di[2]};
+	  u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
+
+	  i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
+	  unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
+					 ol_csi, in_sz );
+	  ps.img_box = valid_in_xy;
+	}
 	else { ps.filt_prob *= (1 - filt_rate); ps.filt_prob += p * filt_rate; }
 	if( ps.filt_prob >= filt_show_thresh ) { ps.to_disp = 1; }
 	else if( ps.filt_prob <= filt_drop_thresh ) { ps.to_disp = 0; }

@@ -47,6 +47,7 @@ namespace boda
     void setup_cnet( void );
     u32_pt_t get_one_blob_img_out_sz( void ); // note: assumes/includes chans_to_area conversion
     p_nda_float_t run_one_blob_in_one_blob_out( void );
+    p_conv_pipe_t conv_pipe; // cached in get_pipe(). don't access directly, call get_pipe()
     p_conv_pipe_t get_pipe( void );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
@@ -60,6 +61,7 @@ namespace boda
     float filt_prob;
     bool to_disp;
     uint32_t label_ix;
+    i32_box_t img_box;
   };
   typedef vector< pred_state_t > vect_pred_state_t; 
 
@@ -89,9 +91,6 @@ namespace boda
   };
 
   struct cnet_predict_t; typedef shared_ptr< cnet_predict_t > p_cnet_predict_t; 
-
-  p_conv_pipe_t get_pipe( p_Net_float net, string const & out_layer_name );
-
 
 }
 
