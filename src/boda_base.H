@@ -302,7 +302,12 @@ namespace boda
     uint32_t sz( void ) const { return dss.sz>>1; }
     uint32_t & dims( uint32_t const ix ) { return dss[ix+sz()]; }
     void make_dims_vect( vect_uint32_t & dv ) const { 
-      dv.resize(sz()); for( uint32_t ix = 0; ix != sz(); ++ix ) { dv[ix] = dims(ix); } 
+      dv.resize(sz()); for( uint32_t ix = 0; ix != sz(); ++ix ) { dv[ix] = dims(ix); } }
+    // aka 'number of elements' / size / count. 
+    // note: doesn't use strides(0)*dims(0) (which wouldn't be generally right).
+    uint32_t dims_prod( void ) const { 
+      uint32_t ret = 1; for( uint32_t ix = 0; ix != sz(); ++ix ) { ret *= dims(ix); } 
+      return ret; 
     }
 
     uint32_t & strides( uint32_t const ix ) { return dss[ix]; }
@@ -348,6 +353,7 @@ namespace boda
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2) + d3i*strides(3); }
   };
 
+  // note: iterates over last/fast dim innermost.
   struct dims_iter_t {
     vect_uint32_t b;
     vect_uint32_t e;
