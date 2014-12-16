@@ -144,6 +144,96 @@ namespace boda {
     }
   };
 
+  struct test_upsamp_t : virtual public nesi, public has_main_t // NESI( help="test img vs. filt upsamp",
+			// bases=["has_main_t"], type_id="test_upsamp")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/test_upsamp.txt",help="output: text summary of differences between net and img based-upsampling features computation.")
+    p_load_imgs_from_pascal_classes_t imgs;//NESI(default="()")
+    string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
+    p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda
+                           // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
+                           // ,out_layer_name=relu12)",help="CNN model params")
+    p_run_cnet_t run_cnet_upsamp; //NESI(default="(in_sz=258 258,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda" 
+                                 // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
+                                 // ",out_layer_name=relu12)",help="CNN model params")
+    uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
+
+    p_img_t in_img;
+    p_img_t in_img_upsamp;
+
+    p_conv_pipe_t conv_pipe;
+    p_vect_conv_io_t conv_ios;
+
+    p_conv_pipe_t conv_pipe_upsamp;
+    p_vect_conv_io_t conv_ios_upsamp;
+
+    void get_pipe_and_ios( p_run_cnet_t const & run_cnet, p_conv_pipe_t & conv_pipe, p_vect_conv_io_t & conv_ios ) {
+      conv_pipe = run_cnet->get_pipe();
+      conv_pipe->dump_pipe( *out );
+      conv_ios = conv_pipe->calc_sizes_forward( run_cnet->in_sz, 0 ); 
+      conv_pipe->dump_ios( *out, conv_ios );
+    }
+    
+    p_ostream out;
+    virtual void main( nesi_init_arg_t * nia ) {
+      //out = ofs_open( out_fn.exp );
+      out = p_ostream( &std::cout, null_deleter<std::ostream>() );
+      imgs->load_all_imgs();
+      run_cnet->setup_cnet(); 
+      run_cnet_upsamp->setup_cnet();
+
+      // FIXME/TODO/TESTING: dump dims of layer blobs ...
+      vect_p_nda_float_t ol_blobs;
+      copy_layer_blobs( run_cnet->net, run_cnet->out_layer_name, ol_blobs );
+
+      // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
+      in_img_upsamp = make_p_img_t( run_cnet_upsamp->in_sz );
+
+      get_pipe_and_ios( run_cnet, conv_pipe, conv_ios );
+      get_pipe_and_ios( run_cnet_upsamp, conv_pipe_upsamp, conv_ios_upsamp );
+      
+      boost::random::mt19937 gen;
+
+      uint32_t tot_wins = 0;
+      for( vect_p_img_t::const_iterator i = imgs->all_imgs->begin(); i != imgs->all_imgs->end(); ++i ) {
+	u32_pt_t const samp_sz = run_cnet_upsamp->in_sz;
+	if( !(*i)->sz.both_dims_ge( samp_sz ) ) { continue; } // img too small to sample. assert? warn?
+	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->sz).c_str() );
+
+	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
+	  u32_pt_t const samp_nc_max = (*i)->sz - run_cnet_upsamp->in_sz;
+	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
+	  ++tot_wins;
+	  comp_win( (*i), samp_nc );
+	}
+      }
+    }
+
+    void comp_win( p_img_t const & img, u32_pt_t const & nc ) {
+      // run both net on entire input image. first, use the net with built-in 2x upsampling
+      img_copy_to_clip( img.get(), in_img_upsamp.get(), {}, nc );
+      subtract_mean_and_copy_img_to_batch( run_cnet_upsamp->in_batch, 0, in_img_upsamp );
+      p_nda_float_t out_batch_upsamp;
+      {
+	timer_t t1("net_upsamp_cnn");
+	out_batch_upsamp = run_cnet_upsamp->run_one_blob_in_one_blob_out();
+      }
+      // next, upsample image an run using normal/stock net
+      in_img = upsample_2x( in_img_upsamp );
+      printf( "in_img->sz=%s run_cnet->sz=%s\n", str(in_img->sz).c_str(), str(run_cnet->in_sz).c_str() );
+      assert_st( in_img->sz == run_cnet->in_sz );
+      subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
+      p_nda_float_t out_batch;
+      {
+	timer_t t1("img_upsamp_cnn");
+	out_batch = run_cnet->run_one_blob_in_one_blob_out();
+      }
+      (*out) << strprintf( "ssds_str(out_batch_upsamp,out_batch)=%s\n", 
+			   str(ssds_str(out_batch_upsamp,out_batch)).c_str() );
+    }
+  };
+
 #include"gen/test_dense.cc.nesi_gen.cc"
   
 }
