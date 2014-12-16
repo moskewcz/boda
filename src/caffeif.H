@@ -59,8 +59,8 @@ namespace boda
   typedef shared_ptr< vect_anno_t > p_vect_anno_t; 
 
   struct pred_state_t {
-    float cur_prob;
-    float filt_prob;
+    double cur_prob;
+    double filt_prob;
     bool to_disp;
     uint32_t label_ix;
     i32_box_t img_box;
@@ -80,7 +80,7 @@ namespace boda
     double filt_show_thresh;//NESI(default=".02",help="start display of labels above this filtered prob. should be < 1.0 and > filt_drop_thresh.")
     double filt_drop_thresh;//NESI(default=".005",help="drop display of labels below this filtered prob. should be < 1.0 and < filt_show_thresh.")
 
-    uint32_t max_num_disp; //NESI(default="10",help="max # of results to display (i.e. TOP_N)")
+    uint32_t max_num_disp; //NESI(default="20",help="max # of results to display (i.e. TOP_N)")
 
     virtual void main( nesi_init_arg_t * nia );
 

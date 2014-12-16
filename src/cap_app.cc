@@ -257,17 +257,24 @@ namespace boda
     p_cnet_predict_t cnet_predict; //NESI(default="()",help="cnet running options")    
     p_asio_fd_t cap_afd;
     disp_win_t disp_win;
+    p_img_t in_img;
+
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
       capture->on_readable( 1 );
-      disp_win.update_img_annos( 0, cnet_predict->do_predict( capture->cap_img, 0 ) );
+      p_img_t ds_img = resample_to_size( capture->cap_img, cnet_predict->in_sz );
+      in_img->share_pels_from( ds_img );
+      disp_win.update_img_annos( 0, cnet_predict->do_predict( in_img, 0 ) );
       disp_win.update_disp_imgs();
       setup_capture_on_read( *cap_afd, &capture_classify_t::on_cap_read, this );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
       cnet_predict->setup_predict(); 
+      in_img.reset( new img_t );
+      in_img->set_sz_and_alloc_pels( cnet_predict->in_sz );
+
       capture->cap_start();
-      disp_win.disp_setup( capture->cap_img );
+      disp_win.disp_setup( in_img );
 
       io_service_t & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );

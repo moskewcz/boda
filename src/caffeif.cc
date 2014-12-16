@@ -309,6 +309,11 @@ namespace boda
 	// global pooling iff kernel size is all zeros (we use as a special value)
 	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
 	conv_op->out_chans = last_out_chans; // assume unchanged from last conv layer 
+      } else if( lp.has_inner_product_param() ) {
+	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
+	conv_op.reset( new conv_op_t );
+	conv_op->type = "pool";
+	conv_op->out_chans = ipp.num_output();
       }
       if( conv_op ) { 
 	assert( lp.has_name() );
@@ -400,6 +405,11 @@ namespace boda
     }
   };
 
+  typedef map< i32_box_t, anno_t > anno_map_t;
+
+  // example command line for testing/debugging detection code:
+  // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt.boda,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_layer_name=relu12)' --capture='(cap_res=640 480)'
+
   p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) {
     conv_support_info_t const & ol_csi = get_pipe()->conv_sis.back();
     p_img_t img_in_ds = resample_to_size( img_in, in_sz );
@@ -414,33 +424,67 @@ namespace boda
     //assert( obd.dims(3) == 1 );
     bool const init_filt_prob = pred_state.empty();
     if( init_filt_prob ) { pred_state.resize( obd.dims_prod() ); }
-    
-    {
-      uint32_t ix = 0;
-      for( dims_iter_t di( obd ) ; ; ++ix ) { 
-	float const p = out_batch->at(di.di);
-	pred_state_t & ps = pred_state[ix];
-	ps.cur_prob = p;
-	if( init_filt_prob ) { 
-	  ps.filt_prob = p; ps.to_disp = 0; ps.label_ix = di.di[1]; 
-	  u32_pt_t const feat_xy = {di.di[3],di.di[2]};
-	  u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
+    uint32_t const num_pels = obd.dims(2)*obd.dims(3);
+    vect_double pel_sums( num_pels, 0.0 );
+    vect_double pel_maxs( num_pels, 0.0 );
+    { uint32_t ix = 0; for( dims_iter_t di( obd ) ; ; ++ix ) { 
+	uint32_t pel_ix = obd.dims(3)*di.di[2] + di.di[3];
+	double p = out_batch->at(di.di);
+	max_eq( pel_maxs[pel_ix], p ) ;
+	pel_sums[pel_ix] += p;
+	if( !di.next() ) { break; } 
+      }}    
 
+    vect_uint32_t pel_is_pdf( num_pels, 0 );
+    uint32_t tot_num_pdf = 0;
+    // if the pel looks ~like a PDF, we leave it as is. otherwise, we apply a softmax
+    for( uint32_t i = 0; i != num_pels; ++i ) {
+      if( (fabs( pel_sums[i] - 1.0 ) < .01) && (pel_maxs[i] < 1.01)  ) { pel_is_pdf[i] = 1; ++tot_num_pdf; }
+      pel_sums[i] = 0; // reused below if pel_is_pdf is false
+    }
+    //printf( "num_pels=%s tot_num_pdf=%s\n", str(num_pels).c_str(), str(tot_num_pdf).c_str() );
+
+    { uint32_t ix = 0; for( dims_iter_t di( obd ) ; ; ++ix ) { 
+	uint32_t pel_ix = obd.dims(3)*di.di[2] + di.di[3];
+	double p = out_batch->at(di.di);
+	if( pel_is_pdf.at(pel_ix) ) {
+	  pred_state[ix].cur_prob = p;
+	} else { // if not already a PDF, apply a softmax
+	  double exp_p = exp(p - pel_maxs[pel_ix]);
+	  pred_state[ix].cur_prob = exp_p;
+	  pel_sums[pel_ix] += exp_p;
+	}
+	if( !di.next() ) { break; } 
+      }
+    }
+    //printf( "pel_sums=%s pel_maxs=%s\n", str(pel_sums).c_str(), str(pel_maxs).c_str() );
+    { uint32_t ix = 0; for( dims_iter_t di( obd ) ; ; ++ix ) { 
+	uint32_t pel_ix = obd.dims(3)*di.di[2] + di.di[3];
+	if( !pel_is_pdf.at(pel_ix) ) { pred_state[ix].cur_prob /= pel_sums[pel_ix]; } // rest of softmax
+	if( !di.next() ) { break; } 
+      }}    
+
+    { uint32_t ix = 0; for( dims_iter_t di( obd ) ; ; ++ix ) { 
+	u32_pt_t const feat_xy = {di.di[3],di.di[2]};
+	pred_state_t & ps = pred_state[ix];
+	if( init_filt_prob ) { 
+	  ps.filt_prob = ps.cur_prob; ps.to_disp = 0; ps.label_ix = di.di[1]; 
+	  u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
 	  i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
 	  unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
 					 ol_csi, in_sz );
 	  ps.img_box = valid_in_xy;
 	}
-	else { ps.filt_prob *= (1 - filt_rate); ps.filt_prob += p * filt_rate; }
+	else { ps.filt_prob *= (1 - filt_rate); ps.filt_prob += ps.cur_prob * filt_rate; }
+
 	if( ps.filt_prob >= filt_show_thresh ) { ps.to_disp = 1; }
 	else if( ps.filt_prob <= filt_drop_thresh ) { ps.to_disp = 0; }
+
 	if( !di.next() ) { break; } 
       }
     }
 
-    p_vect_anno_t annos( new vect_anno_t );
-    annos->push_back( anno_t{{{0,0},u32_to_i32(img_in->sz)}, rgba_to_pel(170,40,40), 0, "", rgba_to_pel(220,220,255) } );
-
+    anno_map_t annos;
     if( print_to_terminal ) {
       printf("\033[2J\033[1;1H");
       printf("---- frame -----\n");
@@ -452,17 +496,25 @@ namespace boda
     for( vect_uint32_t::const_iterator ii = disp_list.begin(); ii != disp_list.end(); ++ii ) {
       if( num_disp == max_num_disp ) { break; }
       pred_state_t const & ps = pred_state[*ii];
+      anno_t & anno = annos[ps.img_box];
       string const anno_str = strprintf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(ps.label_ix).tag).c_str(), 
 					 str(ps.filt_prob).c_str(),
 					 str(ps.cur_prob).c_str() );
-      annos->back().str += anno_str;
+      anno.str += anno_str;
       if( print_to_terminal ) { printstr( anno_str ); }
       ++num_disp;
     }
     if( print_to_terminal ) { printf("---- end frame -----\n"); }
     //printf( "obd=%s\n", str(obd).c_str() );
     //(*ofs_open( out_fn )) << out_pt_str;
-    return annos;
+    p_vect_anno_t ret_annos( new vect_anno_t );
+    for( anno_map_t::const_iterator i = annos.begin(); i != annos.end(); ++i ) { 
+      ret_annos->push_back( i->second ); 
+      anno_t & anno = ret_annos->back();
+      anno.box = i->first; 
+      anno.fill = 0; anno.box_color = rgba_to_pel(170,40,40); anno.str_color = rgba_to_pel(220,220,255);
+    }
+    return ret_annos;
   }
 
 #include"gen/caffeif.H.nesi_gen.cc"

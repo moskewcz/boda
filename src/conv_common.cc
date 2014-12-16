@@ -150,7 +150,8 @@ namespace boda
       unchecked_out_box_to_in_box( valid_in_box, out_box, cm_valid, csi );
       unchecked_out_box_to_in_box( core_valid_in_box, out_box, cm_core_valid, csi );
     } else {
-      valid_in_box = core_valid_in_box = i32_box_t{{},u32_to_i32(full_in_sz)}; // whole image
+      valid_in_box = core_valid_in_box = i32_box_t{u32_to_i32(csi.eff_tot_pad.p[0]).scale(-1),
+						   u32_to_i32(full_in_sz+csi.eff_tot_pad.p[1])}; // whole image
     }
   }  
 
