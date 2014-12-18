@@ -216,7 +216,6 @@ namespace boda
       blob_dims.dims(2) = layer_blob->height();
       blob_dims.dims(1) = layer_blob->channels();
       blob_dims.dims(0) = layer_blob->num();
-      printf( "blob_dims=%s\n", str(blob_dims).c_str() );
       p_nda_float_t blob( new nda_float_t );
       blob->set_dims( blob_dims );
       assert_st( blob->elems.sz == uint32_t(layer_blob->count()) );
@@ -245,7 +244,6 @@ namespace boda
       assert_st( blob_dims.dims(2) == (uint32_t)layer_blob->height() );
       assert_st( blob_dims.dims(1) == (uint32_t)layer_blob->channels() );
       assert_st( blob_dims.dims(0) == (uint32_t)layer_blob->num() );
-      printf( "set: blob_dims=%s\n", str(blob_dims).c_str() );
       assert_st( blob->elems.sz == uint32_t(layer_blob->count()) );
 
       const float * const data_ptr = &blob->elems[0];
