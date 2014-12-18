@@ -154,11 +154,13 @@ namespace boda {
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
                            // ,out_layer_name=relu12)",help="CNN model params")
-    p_run_cnet_t run_cnet_upsamp; //NESI(default="(in_sz=258 258,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda" 
+    p_run_cnet_t run_cnet_upsamp; //NESI(default="(in_sz=258 258,ptt_fn=%(models_dir)/%(model_name)/deploy-in-2X-us.prototxt.boda" 
                                  // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
                                  // ",out_layer_name=relu12)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
 
+    string upsamp_layer_name; //NESI(default="conv1",help="name of layer to downsample filters of into upsamp net")
+    
     p_img_t in_img;
     p_img_t in_img_upsamp;
 
@@ -168,24 +170,48 @@ namespace boda {
     p_conv_pipe_t conv_pipe_upsamp;
     p_vect_conv_io_t conv_ios_upsamp;
 
-    void get_pipe_and_ios( p_run_cnet_t const & run_cnet, p_conv_pipe_t & conv_pipe, p_vect_conv_io_t & conv_ios ) {
-      conv_pipe = run_cnet->get_pipe();
-      conv_pipe->dump_pipe( *out );
-      conv_ios = conv_pipe->calc_sizes_forward( run_cnet->in_sz, 0 ); 
-      conv_pipe->dump_ios( *out, conv_ios );
+    void get_pipe_and_ios( p_run_cnet_t const & rc, p_conv_pipe_t & conv_pipe, p_vect_conv_io_t & conv_ios ) {
+      conv_pipe = rc->get_pipe();
+      //conv_pipe->dump_pipe( *out );
+      conv_ios = conv_pipe->calc_sizes_forward( rc->in_sz, 0 ); 
+      //conv_pipe->dump_ios( *out, conv_ios );
     }
     
     p_ostream out;
     virtual void main( nesi_init_arg_t * nia ) {
-      //out = ofs_open( out_fn.exp );
-      out = p_ostream( &std::cout, null_deleter<std::ostream>() );
+      out = ofs_open( out_fn.exp );
+      //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       imgs->load_all_imgs();
       run_cnet->setup_cnet(); 
       run_cnet_upsamp->setup_cnet();
 
       // FIXME/TODO/TESTING: dump dims of layer blobs ...
-      vect_p_nda_float_t ol_blobs;
-      copy_layer_blobs( run_cnet->net, run_cnet->out_layer_name, ol_blobs );
+      vect_p_nda_float_t usl_blobs;
+      copy_layer_blobs( run_cnet->net, upsamp_layer_name, usl_blobs );
+
+      vect_p_nda_float_t usl_blobs_upsamp;
+      copy_layer_blobs( run_cnet_upsamp->net, upsamp_layer_name + "-in-2X-us", usl_blobs_upsamp );
+
+      assert_st( usl_blobs.size() == 2 ); // filters, biases
+      assert_st( usl_blobs_upsamp.size() == 2 ); // filters, biases
+      assert_st( usl_blobs[1]->dims == usl_blobs_upsamp[1]->dims ); // biases should be same shape (and same strides?)
+      usl_blobs_upsamp[1] = usl_blobs[1]; // use biases unchanged in upsamp net
+      assert_st( usl_blobs[0]->dims.dims(0) == usl_blobs_upsamp[0]->dims.dims(0) );
+      assert_st( usl_blobs[0]->dims.dims(1) == usl_blobs_upsamp[0]->dims.dims(1) );
+      assert_st( u32_ceil_div( usl_blobs[0]->dims.dims(2), 2 ) == usl_blobs_upsamp[0]->dims.dims(2) );
+      assert_st( u32_ceil_div( usl_blobs[0]->dims.dims(3), 2 ) == usl_blobs_upsamp[0]->dims.dims(3) );
+
+      for( dims_iter_t di( usl_blobs_upsamp[0]->dims ) ; ; ) { usl_blobs_upsamp[0]->at(di.di) = 0; 
+	if( !di.next() ) { break; } 
+      }
+
+      for( dims_iter_t di( usl_blobs[0]->dims ) ; ; ) { 
+	usl_blobs_upsamp[0]->at4(di.di[0],di.di[1],di.di[2]>>1,di.di[3]>>1) += usl_blobs[0]->at( di.di );
+	if( !di.next() ) { break; } 
+      }
+
+      set_layer_blobs( run_cnet_upsamp->net, upsamp_layer_name + "-in-2X-us", usl_blobs_upsamp );
+      
 
       // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
       in_img_upsamp = make_p_img_t( run_cnet_upsamp->in_sz );
@@ -221,7 +247,6 @@ namespace boda {
       }
       // next, upsample image an run using normal/stock net
       in_img = upsample_2x( in_img_upsamp );
-      printf( "in_img->sz=%s run_cnet->sz=%s\n", str(in_img->sz).c_str(), str(run_cnet->in_sz).c_str() );
       assert_st( in_img->sz == run_cnet->in_sz );
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
       p_nda_float_t out_batch;
