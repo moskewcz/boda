@@ -231,6 +231,34 @@ namespace boda
     }
   }
 
+  void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
+    timer_t t("caffe_set_layer_blob_data");
+    uint32_t const out_layer_ix = get_layer_ix( net_, layer_name );
+    caffe::Layer<float>* layer = net_->layers()[ out_layer_ix ].get();
+    const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
+    assert( blobs.size() == layer_blobs.size() );
+    for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
+      p_nda_float_t const & blob = blobs[bix];
+      Blob<float> * const layer_blob = layer_blobs[bix].get();
+      dims_t const & blob_dims = blob->dims;
+      assert_st( blob_dims.dims(3) == (uint32_t)layer_blob->width() );
+      assert_st( blob_dims.dims(2) == (uint32_t)layer_blob->height() );
+      assert_st( blob_dims.dims(1) == (uint32_t)layer_blob->channels() );
+      assert_st( blob_dims.dims(0) == (uint32_t)layer_blob->num() );
+      printf( "set: blob_dims=%s\n", str(blob_dims).c_str() );
+      assert_st( blob->elems.sz == uint32_t(layer_blob->count()) );
+
+      const float * const data_ptr = &blob->elems[0];
+      switch (Caffe::mode()) {
+      case Caffe::CPU: memcpy( layer_blob->mutable_cpu_data(), data_ptr, sizeof(float) * layer_blob->count()); break;
+      case Caffe::GPU: cudaMemcpy( layer_blob->mutable_gpu_data(), data_ptr,
+				   sizeof(float) * layer_blob->count(), cudaMemcpyHostToDevice); break;
+      default: rt_err( "Unknown Caffe mode." );
+      }  // switch (Caffe::mode())
+    }
+  }
+
+
   // note: assumes/includes chans_to_area conversion
   u32_pt_t run_cnet_t::get_one_blob_img_out_sz( void ) {
     assert_st( net );
