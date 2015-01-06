@@ -37,8 +37,8 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
-    filename_t ptt_fn; //NESI(default="%(boda_test_dir)/run_cnet_imagenet_deploy.prototxt",help="input net prototxt template filename")
-    filename_t trained_fn; //NESI(default="%(models_dir)/alexnet/alexnet_train_iter_470000_v1",help="input trained net from which to copy params")
+    filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet/deploy.prototxt.boda",help="input net prototxt template filename")
+    filename_t trained_fn; //NESI(default="%(models_dir)/alexnet/best.caffemodel",help="input trained net from which to copy params")
     u32_pt_t in_sz; //NESI(default="227 227",help="input size to use for caffe net")
     uint32_t in_num_imgs; //NESI(default="1",help="number of images to use for caffe net input layer/blob")
     uint32_t in_num_chans; //NESI(default="3",help="number of channels to use for caffe net input layer/blob")
