@@ -287,9 +287,9 @@ namespace boda
 			   // bases=["has_main_t"], type_id="capture_feats")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    // FIXME: needs to use timer / subject to epoll() bug ...
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
-    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt,out_layer_name=conv3)",help="cnet running options")
+    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(models_dir)/alexnet/deploy.conv_only.prototxt.boda,
+    //trained_fn=%(models_dir)/alexnet/best.caffemodel,out_layer_name=conv3)",help="cnet running options")
     p_img_t in_img;
     p_img_t feat_img;
     p_asio_fd_t cap_afd;
