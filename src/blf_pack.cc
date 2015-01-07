@@ -136,7 +136,8 @@ namespace boda
   // odd. any scales smaller than and including the first duplicate size will be removed. roughly
   // log2(min_dim(in_sz))*interval sizes will be returned.
   void create_pyra_sizes( vect_u32_pt_t & pyra, u32_pt_t const & in_sz, 
-			  uint32_t const num_upsamp_octaves, uint32_t const interval ) 
+			  uint32_t const num_upsamp_octaves, uint32_t const interval,
+			  u32_pt_t const & min_sz )
   {
     pyra.clear();
     assert_st( num_upsamp_octaves < 7 ); // sanity limit, maybe a little too strong?
@@ -160,9 +161,12 @@ namespace boda
 	cur_scale_ix += interval;
       }
     }
+    // remove all scales smaller than min_sz
+    while( (!pyra.empty()) && (!pyra.back().both_dims_ge(min_sz)) ) { pyra.pop_back(); }
     // remove all scales after and including first duplicate
     vect_u32_pt_t::iterator af = std::adjacent_find( pyra.begin(), pyra.end() );
     if( af != pyra.end() ) { pyra.erase( ++af, pyra.end() ); } 
+
   }
 
   void pyra_pack_t::do_place( conv_support_info_t const & csi ) {
@@ -202,7 +206,8 @@ namespace boda
     // increase - edge of bin padding so that (eff_tot_pad+bin_edge_pad) is a multiple of support_stride
     bin_edge_pad.p[0] = ceil_align( bin_edge_pad.p[0] + csi.eff_tot_pad.p[0], csi.support_stride ) - csi.eff_tot_pad.p[0];
 
-    create_pyra_sizes( sizes, in_sz, num_upsamp_octaves, interval );
+    u32_pt_t const min_sz = csi.support_sz.sub_sat_zero( csi.eff_tot_pad.bnds_sum() );
+    create_pyra_sizes( sizes, in_sz, num_upsamp_octaves, interval, min_sz );
     vect_u32_pt_t to_pack;
     for( vect_u32_pt_t::const_iterator i = sizes.begin(); i != sizes.end(); ++i ) {
       pads.push_back( pad_and_align_sz( *i, csi.support_stride, img_edge_pad ) );
