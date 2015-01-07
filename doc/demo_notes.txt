@@ -1,0 +1,10 @@
+# MODELS to choose from: alexnet, alexnet_conv, nin_imagenet, nin_imagenet_nopad
+
+# typical capture_feats command:
+MODEL=alexnet_conv; boda capture_feats --run_cnet="(in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt.boda,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_layer_name=conv2)" --capture='(cap_res=320 240)'
+
+# capture classify (alexnet classification, 227x227 input size)
+MODEL=alexnet_conv; boda capture_classify  --cnet_predict="(max_num_disp=10,in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt.boda,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_layer_name=prob)" --capture='(cap_res=320 240)'
+
+# capture detection (alexnet 8x8 detection, 451x451 input size)
+MODEL=alexnet_conv; boda capture_classify  --cnet_predict="(max_num_disp=30,in_sz=451 451,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt.boda,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_layer_name=prob)" --capture='(cap_res=640 480)'
