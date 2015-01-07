@@ -284,7 +284,7 @@ namespace boda
 	  int32_t const stride = e?1:-1;
 	  i32_pt_t const stride_xy = {d?stride:0,d?0:stride};
 	  uint32_t const ic = dest->get_pel( sp );
-	  img_draw_pels( dest, sp+i32_to_u32(stride_xy), min_edge_pad/*pad.p[e].d[d^1]*/, stride_xy, ic, ec ); 
+	  img_draw_pels( dest, i32_to_u32(u32_to_i32(sp)+stride_xy), min_edge_pad/*pad.p[e].d[d^1]*/, stride_xy, ic, ec ); 
 	}
       }
     }
