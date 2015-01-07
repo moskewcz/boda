@@ -9,11 +9,17 @@ namespace boda
   struct pyra_pack_t : virtual public nesi // NESI(help="pyramid packing")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t num_upsamp_octaves; //NESI(default=1,help="number of upsampled octaves")
-    uint32_t interval; //NESI(default=10,help="steps per octave (factor of 2)")
+    uint32_t num_upsamp_octaves; //NESI(default=0,help="number of upsampled octaves")
+    uint32_t interval; //NESI(default=5,help="steps per octave (factor of 2)")
     u32_pt_t bin_sz; //NESI(default="1200 1200", help="bin size for packing (as many bins needed will be used)")
     u32_pt_t in_sz; //NESI(default="0 0",help="input size to create pyramid for")
+    uint32_t pack_pad_mode; //NESI(default=2,help="padding mode: "
+    //" <default> 0=total isolation (support size)"
+    //" 1=support_sz/2 img_edge and bin edge padding (yields full support_sz halo around each scale. pad_interp=0 rec.)"
+    //" 2=eff_input_pad/2 img_edge padding and bin edge padding (yields eff_input_pad around each scale)")
     p_u32_pt_t force_img_edge_pad; //NESI(help="if specified, force image edge padding to this value.")
+    uint32_t pad_interp; //NESI(default=0,help="<default>0=padding is global mean value"
+    // " 1=interpolate from image edge to global mean value input")
 
     // outputs
     vect_u32_pt_t sizes;

@@ -25,7 +25,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
-    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(boda_test_dir)/conv_pyra_imagenet_deploy.prototxt)",help="cnet running options")
+    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt)",help="cnet running options")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="output filename.")
     
     //filename_t img_in_fn; //xNESI(default="%(boda_test_dir)/pascal/000001.jpg",help="input image filename")
@@ -65,9 +65,8 @@ namespace boda
       //p_img_t img_in( new img_t );
       //img_in->load_fn( img_in_fn.exp );
       //u32_pt_t const img_in_sz( img_in->w, img_in->h );
-      u32_pt_t const img_in_sz( capture->cap_res );
-      ipp->in_sz = img_in_sz;
-      run_cnet->in_sz = ipp->bin_sz;
+      ipp->in_sz = run_cnet->in_sz; // 'nominal' scale=1.0 desired image size ...
+      run_cnet->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
       run_cnet->in_num_imgs = 1;
       run_cnet->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
       run_cnet->setup_cnet();

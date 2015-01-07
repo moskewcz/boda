@@ -168,20 +168,36 @@ namespace boda
   void pyra_pack_t::do_place( conv_support_info_t const & csi ) {
     assert_st( sizes.empty() );
     timer_t t("pyra_pack_do_place");
-#if 0
-    // note: we if the padding between images is 'neutral', we could
-    // use ceil( support_sz / 2.0 ) padding on each image edge along
-    // with some bin_edge_pad.
-    u32_pt_t img_edge_pad = (csi.support_sz + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.support_sz
-    // note: we might - csi.eff_tot_pad from bin_edge_pad here to
-    // reduce wasted bin space. but. we choose not to because the
-    // eff_tot_pad generally isn't equivalent to our internal padding.
-    u32_box_t bin_edge_pad = {img_edge_pad,img_edge_pad};
-#else
-    // for now, we (conservatively) totally isolate each image. we don't need any bin_edge_pad in this case
-    u32_pt_t img_edge_pad = csi.support_sz;
+
+    u32_pt_t img_edge_pad;
     u32_box_t bin_edge_pad;
-#endif
+    if( 0 ) {
+    } else if ( pack_pad_mode == 0 ) {
+      // for now, we (conservatively) totally isolate each image. 
+      img_edge_pad = csi.support_sz;
+      // we don't need any bin_edge_pad in this case
+    } else if( pack_pad_mode == 1 ) {
+      // note: we if the padding between images is 'neutral', we could
+      // use ceil( support_sz / 2.0 ) padding on each image edge along
+      // with some bin_edge_pad.
+      img_edge_pad = (csi.support_sz + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.support_sz
+      // note: we might - csi.eff_tot_pad from bin_edge_pad here to
+      // reduce wasted bin space. but. we choose not to because the
+      // eff_tot_pad generally isn't equivalent to our internal padding.
+      bin_edge_pad = {img_edge_pad,img_edge_pad};
+    } else if( pack_pad_mode == 2 ) {
+      // similar to mode 1 above, but using eff_tot_pad instead of the
+      // support_sz. in particular good for network with no padding,
+      // as it won't add any padding at all.
+      img_edge_pad = (csi.eff_tot_pad.dim_wise_max() + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.eff_tot_pad
+      // in some sense, we already have too much bin_edge_pad in this
+      // case if we include the actual network padding. but, as above,
+      // we add extra padding for consistency, and thus 'waste' the
+      // actual padding of the network which possibly isn't equivalent
+      // to mean-pixel input padding.
+      bin_edge_pad = {img_edge_pad,img_edge_pad};
+    } else { rt_err( strprintf( "unknown pack_pad_mode=%s\n", str(pack_pad_mode).c_str() ) ); }
+
     if( force_img_edge_pad ) { img_edge_pad = *force_img_edge_pad; }
     // increase - edge of bin padding so that (eff_tot_pad+bin_edge_pad) is a multiple of support_stride
     bin_edge_pad.p[0] = ceil_align( bin_edge_pad.p[0] + csi.eff_tot_pad.p[0], csi.support_stride ) - csi.eff_tot_pad.p[0];
@@ -212,6 +228,7 @@ namespace boda
     }
     // adjust placements to be for the unpadded sizes
     for( uint32_t i = 0; i != sizes.size(); ++i ) { if( placements[i].w != uint32_t_const_max ) { placements[i] += pads[i].p[0];}}
+    printf( "num_bins=%s placements=%s\n", str(num_bins).c_str(), str(placements).c_str() );
 
   }
 
@@ -226,9 +243,11 @@ namespace boda
 
   void create_pyra_imgs( vect_p_img_t & pyra_imgs, p_img_t const & src_img, pyra_pack_t const & pyra ) {
     timer_t t("create_pyra_images");
+    assert_st( src_img->sz.both_dims_non_zero() );
+    p_img_t nominal_img = resample_to_size( src_img, pyra.in_sz );
+    assert_st( nominal_img->sz.both_dims_non_zero() );
 
     pyra_imgs.resize( pyra.sizes.size() );
-    assert_st( src_img->sz.both_dims_non_zero() );
     for( uint32_t i = 0; i < pyra.interval; ++i ) {
       if( i >= pyra.sizes.size() ) { break; } // < 1 octave in pyra, we're done
       u32_pt_t const i_max_sz = pyra.sizes[i];
@@ -237,14 +256,14 @@ namespace boda
 	rt_err( strprintf( "for interval step %s, i_max_sz=%s isn't evenly divisible by num_upsamp_octaves=%s.\n", 
 			   str(i).c_str(), str(i_max_sz).c_str(), str(pyra.num_upsamp_octaves).c_str() ) );
       }
-      p_img_t base_octave_img = src_img;
+      p_img_t base_octave_img = nominal_img;
       if( !i ) { 
-	if( base_octave_sz != src_img->sz ) {
-	  rt_err( strprintf( "pyramid scale=1 size of base_octave_sz=%s does not equal src_img_sz=%s (pyra/src_img mismatch)\n", 
-			     str(base_octave_sz).c_str(), str(src_img->sz).c_str() ) );
+	if( base_octave_sz != nominal_img->sz ) {
+	  rt_err( strprintf( "pyramid scale=1 size of base_octave_sz=%s does not equal src_img_sz=%s (pyra/nominal_img mismatch)\n", 
+			     str(base_octave_sz).c_str(), str(nominal_img->sz).c_str() ) );
 	} 
       } else {
-	base_octave_img = downsample_up_to_2x_to_size( src_img, base_octave_sz );
+	base_octave_img = downsample_up_to_2x_to_size( nominal_img, base_octave_sz );
       }
       p_img_t cur_octave_img = base_octave_img;
       // create base and (if any) upsampled octaves

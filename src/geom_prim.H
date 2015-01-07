@@ -170,6 +170,7 @@ namespace boda
 
     T center_ru( void ) const { return (bnds_sum() + T(1,1))/2; }
     T center_rd( void ) const { return bnds_sum()/2; }
+    T dim_wise_max( void ) const { return T( std::max(p[0].d[0],p[1].d[0]), std::max(p[0].d[1],p[1].d[1]) ); }
   };
 
   template< typename T > T_box_t<T> pel_to_box( T const & pel ) { return T_box_t<T>( pel, pel + T{1,1} ); }
