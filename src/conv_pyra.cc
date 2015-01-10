@@ -47,7 +47,7 @@ namespace boda
                            //   " output image bin files. %%s will replaced with the bin index.")
     string out_layer_name;//NESI(default="conv5",help="output layer name of which to output top blob of")
     //uint32_t write_output; //xNESI(default=0,help="if true, write output images/bins (slow)")
-    uint32_t disp_output; //NESI(default=1,help="if true, display output images/bins")
+    uint32_t disp_feats; //NESI(default=1,help="if true, display output feature images/bins")
     p_img_pyra_pack_t ipp; //NESI(default="()",help="pyramid packing options")
     p_capture_t capture; //NESI(default="()",help="capture from camera options")
 
@@ -67,7 +67,7 @@ namespace boda
       for( uint32_t bix = 0; bix != ipp->bin_imgs.size(); ++bix ) {
 	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, ipp->bin_imgs[bix] );
 	p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
-	if( (bix == 0) && disp_output ) {
+	if( disp_feats && (bix == 0) ) {
 	  timer_t t("conv_pyra_write_output");
 	  if( zero_trash ) {
 	    for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
@@ -76,16 +76,16 @@ namespace boda
 	    }
 	  }
 	  else { copy_batch_to_img( out_batch, 0, feat_img, u32_box_t{} ); }
-	  disp_win.update_disp_imgs();
 	}
       }
+      disp_win.update_disp_imgs();
       setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
     }
 
     void on_lb( error_code const & ec ) { 
       lb_event_t const & lbe = get_lb_event(&disp_win);
       //printf( "lbe.img_ix=%s lbe.xy=%s\n", str(lbe.img_ix).c_str(), str(lbe.xy).c_str() );
-      if( lbe.img_ix == 0 ) { feat_pyra_anno_for_xy( 0, i32_to_u32( lbe.xy ) ); }
+      if( disp_feats && (lbe.img_ix == 0) ) { feat_pyra_anno_for_xy( 0, i32_to_u32( lbe.xy ) ); }
       //else if( lbe.img_ix == 1 ) { img_to_feat_anno( i32_to_u32( lbe.xy ) ); }
       register_lb_handler( disp_win, &conv_pyra_t::on_lb, this );
     }
@@ -140,12 +140,17 @@ namespace boda
       conv_pipe = run_cnet->get_pipe();
       ipp->do_place_imgs( conv_pipe->conv_sis.back() );
 
-      feat_img.reset( new img_t );
-      u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
-      feat_img->set_sz_and_alloc_pels( feat_img_sz );
-      feat_img->fill_with_pel( grey_to_pel( 0 ) );
-      capture->cap_start();
-      disp_win.disp_setup( vect_p_img_t{feat_img,in_img} );
+
+      vect_p_img_t disp_imgs;
+      if( disp_feats ) { 
+	feat_img.reset( new img_t );
+	u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
+	feat_img->set_sz_and_alloc_pels( feat_img_sz );
+	feat_img->fill_with_pel( grey_to_pel( 0 ) );
+	disp_imgs.push_back( feat_img ); 
+      }
+      disp_imgs.push_back( in_img );
+      disp_win.disp_setup( disp_imgs );
       register_lb_handler( disp_win, &conv_pyra_t::on_lb, this );
 
       // cache these for various uses. better way to handle / better place to put?
@@ -158,6 +163,7 @@ namespace boda
       setup_annos();
 
       io_service_t & io = get_io( &disp_win );
+      capture->cap_start();
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
       setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
       io.run();
@@ -170,15 +176,16 @@ namespace boda
     void setup_annos( void ) {
       for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
 	assert_st( i->feat_box.is_strictly_normalized() );
-	if( i->bix == 0 ) { // only working on plane 0 for now
+	if( disp_feats && (i->bix == 0) ) { // only working on plane 0 for now
 	  feat_annos->push_back( anno_t{ i->feat_img_box, rgba_to_pel(170,40,40), 0, 
 		str(ipp->sizes.at(i->six)), rgba_to_pel(220,220,255) } );
 	} else {
 	  printf( "warning: unhanded bix=%s (>1 plane or scale didn't fit if bix=const_max)\n", str(i->bix).c_str() ); 
 	}
       }
-      disp_win.update_img_annos( 0, feat_annos );
-      disp_win.update_img_annos( 1, img_annos );
+      uint32_t diix = 0;
+      if( disp_feats ) { disp_win.update_img_annos( diix++, feat_annos ); }
+      disp_win.update_img_annos( diix++, img_annos );
     }
     void setup_scale_infos( void ) {
       conv_pipe->dump_pipe( std::cout );
