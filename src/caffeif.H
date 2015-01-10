@@ -64,8 +64,10 @@ namespace boda
     double cur_prob;
     double filt_prob;
     bool to_disp;
+    bool filt_prob_init;
     uint32_t label_ix;
     i32_box_t img_box;
+    pred_state_t( void ) : cur_prob(0), filt_prob(0), to_disp(0), filt_prob_init(0), label_ix(0) { }
   };
   typedef vector< pred_state_t > vect_pred_state_t; 
 
@@ -92,6 +94,8 @@ namespace boda
 
     void setup_predict( void );
     p_vect_anno_t do_predict( p_img_t const & img_in_ds, bool const print_to_terminal );
+    void do_predict_region( p_nda_float_t const & out_batch, dims_t const & obb, dims_t const & obe, 
+			    uint32_t const & psb );
   };
 
   struct cnet_predict_t; typedef shared_ptr< cnet_predict_t > p_cnet_predict_t; 

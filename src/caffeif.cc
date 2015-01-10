@@ -428,69 +428,24 @@ namespace boda
     assert( obd.sz() == 4 );
     assert( obd.dims(0) == 1 );
     assert( obd.dims(1) == out_labels->size() );
-    //assert( obd.dims(2) == 1 );
-    //assert( obd.dims(3) == 1 );
-    bool const init_filt_prob = pred_state.empty();
-    if( init_filt_prob ) { pred_state.resize( obd.dims_prod() ); }
-    uint32_t const num_pels = obd.dims(2)*obd.dims(3);
-    vect_double pel_sums( num_pels, 0.0 );
-    vect_double pel_maxs( num_pels, 0.0 );
-    { uint32_t ix = 0; for( dims_iter_t di( obd ) ; ; ++ix ) { 
-	uint32_t pel_ix = obd.dims(3)*di.di[2] + di.di[3];
-	double p = out_batch->at(di.di);
-	max_eq( pel_maxs[pel_ix], p ) ;
-	pel_sums[pel_ix] += p;
-	if( !di.next() ) { break; } 
-      }}    
 
-    vect_uint32_t pel_is_pdf( num_pels, 0 );
-    uint32_t tot_num_pdf = 0;
-    // if the pel looks ~like a PDF, we leave it as is. otherwise, we apply a softmax
-    for( uint32_t i = 0; i != num_pels; ++i ) {
-      if( (fabs( pel_sums[i] - 1.0 ) < .01) && (pel_maxs[i] < 1.01)  ) { pel_is_pdf[i] = 1; ++tot_num_pdf; }
-      pel_sums[i] = 0; // reused below if pel_is_pdf is false
-    }
-    //printf( "num_pels=%s tot_num_pdf=%s\n", str(num_pels).c_str(), str(tot_num_pdf).c_str() );
-
-    { uint32_t ix = 0; for( dims_iter_t di( obd ) ; ; ++ix ) { 
-	uint32_t pel_ix = obd.dims(3)*di.di[2] + di.di[3];
-	double p = out_batch->at(di.di);
-	if( pel_is_pdf.at(pel_ix) ) {
-	  pred_state[ix].cur_prob = p;
-	} else { // if not already a PDF, apply a softmax
-	  double exp_p = exp(p - pel_maxs[pel_ix]);
-	  pred_state[ix].cur_prob = exp_p;
-	  pel_sums[pel_ix] += exp_p;
-	}
-	if( !di.next() ) { break; } 
-      }
-    }
-    //printf( "pel_sums=%s pel_maxs=%s\n", str(pel_sums).c_str(), str(pel_maxs).c_str() );
-    { uint32_t ix = 0; for( dims_iter_t di( obd ) ; ; ++ix ) { 
-	uint32_t pel_ix = obd.dims(3)*di.di[2] + di.di[3];
-	if( !pel_is_pdf.at(pel_ix) ) { pred_state[ix].cur_prob /= pel_sums[pel_ix]; } // rest of softmax
-	if( !di.next() ) { break; } 
-      }}    
-
-    { uint32_t ix = 0; for( dims_iter_t di( obd ) ; ; ++ix ) { 
+    if( pred_state.empty() ) {
+      pred_state.resize( obd.dims_prod() );
+      uint32_t psix = 0;
+      for( dims_iter_t di( obd ) ; ; ++psix ) { 
+	pred_state_t & ps = pred_state[psix];
+	ps.label_ix = di.di[1]; 
 	u32_pt_t const feat_xy = {di.di[3],di.di[2]};
-	pred_state_t & ps = pred_state[ix];
-	if( init_filt_prob ) { 
-	  ps.filt_prob = ps.cur_prob; ps.to_disp = 0; ps.label_ix = di.di[1]; 
-	  u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
-	  i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
-	  unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
-					 ol_csi, in_sz );
-	  ps.img_box = valid_in_xy;
-	}
-	else { ps.filt_prob *= (1 - filt_rate); ps.filt_prob += ps.cur_prob * filt_rate; }
-
-	if( ps.filt_prob >= filt_show_thresh ) { ps.to_disp = 1; }
-	else if( ps.filt_prob <= filt_drop_thresh ) { ps.to_disp = 0; }
-
+	u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
+	i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
+	unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
+				       ol_csi, in_sz );
+	ps.img_box = valid_in_xy;
 	if( !di.next() ) { break; } 
       }
     }
+
+    do_predict_region( out_batch, dims_t{obd.sz()}, obd, 0 );
 
     anno_map_t annos;
     if( print_to_terminal ) {
@@ -523,6 +478,71 @@ namespace boda
       anno.fill = 0; anno.box_color = rgba_to_pel(170,40,40); anno.str_color = rgba_to_pel(220,220,255);
     }
     return ret_annos;
+  }
+
+  // fills in (part of) pred_state
+  void cnet_predict_t::do_predict_region( p_nda_float_t const & out_batch, dims_t const & obb, dims_t const & obe,
+					  uint32_t const & psb ) {
+    dims_t const ob_span = obe - obb;
+    assert( ob_span.sz() == 4 );
+    assert( ob_span.dims(0) == 1 );
+    assert( ob_span.dims(1) == out_labels->size() );
+
+    uint32_t const num_pred = ob_span.dims_prod();
+    assert_st( (psb+num_pred) <= pred_state.size() );
+    uint32_t const num_pels = ob_span.dims(2)*ob_span.dims(3);
+    vect_double pel_sums( num_pels, 0.0 );
+    vect_double pel_maxs( num_pels, 0.0 );
+
+    { uint32_t pel_ix = 0; uint32_t psix = psb; for( dims_iter_t di( obb, obe ) ; ; ++psix, ++pel_ix ) { 
+	if( pel_ix == num_pels ) { pel_ix = 0; }
+	double p = out_batch->at(di.di);
+	pred_state.at(psix).cur_prob = p;
+	max_eq( pel_maxs[pel_ix], p ) ;
+	pel_sums[pel_ix] += p;
+	if( !di.next() ) { break; } 
+      }
+    }    
+
+    vect_uint32_t pel_is_pdf( num_pels, 0 );
+    uint32_t tot_num_pdf = 0;
+    // if the pel looks ~like a PDF, we leave it as is. otherwise, we apply a softmax
+    for( uint32_t i = 0; i != num_pels; ++i ) {
+      if( (fabs( pel_sums[i] - 1.0 ) < .01) && (pel_maxs[i] < 1.01)  ) { pel_is_pdf[i] = 1; ++tot_num_pdf; }
+      pel_sums[i] = 0; // reused below if pel_is_pdf is false
+    }
+    //printf( "num_pels=%s tot_num_pdf=%s\n", str(num_pels).c_str(), str(tot_num_pdf).c_str() );
+
+    // FIXME: is it wrong/bad for is_pdf to ber per-pel? should it be all-or-none somehow?
+    { uint32_t pel_ix = 0; for( uint32_t psix = psb; psix != psb+num_pred; ++psix, ++pel_ix ) { 
+	if( pel_ix == num_pels ) { pel_ix = 0; }
+	if( !pel_is_pdf.at(pel_ix) ) { // if not already a PDF, apply a softmax
+	  double & p = pred_state[psix].cur_prob;
+	  double exp_p = exp(p - pel_maxs[pel_ix]);
+	  p = exp_p;
+	  pel_sums[pel_ix] += exp_p;
+	}
+      }
+    }
+    //printf( "pel_sums=%s pel_maxs=%s\n", str(pel_sums).c_str(), str(pel_maxs).c_str() );
+    { uint32_t pel_ix = 0; for( uint32_t psix = psb; psix != psb+num_pred; ++psix, ++pel_ix ) { 
+	if( pel_ix == num_pels ) { pel_ix = 0; }
+	if( !pel_is_pdf.at(pel_ix) ) { pred_state.at(psix).cur_prob /= pel_sums.at(pel_ix); } // rest of softmax
+      }
+    }    
+
+    // temportal filtering and setting to_disp
+    { uint32_t pel_ix = 0; for( uint32_t psix = psb; psix != psb+num_pred; ++psix, ++pel_ix ) { 
+	if( pel_ix == num_pels ) { pel_ix = 0; }
+	pred_state_t & ps = pred_state.at(psix);
+
+	if( !ps.filt_prob_init ) { ps.filt_prob_init = 1; ps.filt_prob = ps.cur_prob; }
+	else { ps.filt_prob *= (1 - filt_rate); ps.filt_prob += ps.cur_prob * filt_rate; }
+
+	if( ps.filt_prob >= filt_show_thresh ) { ps.to_disp = 1; }
+	else if( ps.filt_prob <= filt_drop_thresh ) { ps.to_disp = 0; }
+      }
+    }
   }
 
 #include"gen/caffeif.H.nesi_gen.cc"
