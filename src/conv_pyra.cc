@@ -21,6 +21,19 @@
 
 namespace boda 
 {
+  struct scale_info_t {
+    uint32_t six; // scale index
+    uint32_t bix; // plane index
+    i32_box_t feat_box;
+    i32_box_t feat_img_box; // currently always == feat scaled up by out_s
+  };
+
+  typedef vector< scale_info_t > vect_scale_info_t; 
+  std::ostream & operator <<(std::ostream & os, scale_info_t const & v ) { 
+    return os << strprintf( "bix=%s feat_box=%s feat_img_box=%s\n", 
+			    str(v.bix).c_str(), str(v.feat_box).c_str(), str(v.feat_img_box).c_str() ); 
+  }
+
   struct conv_pyra_t : virtual public nesi, public has_main_t // NESI(help="conv_ana / blf_pack integration test",
 		       // bases=["has_main_t"], type_id="conv_pyra" )
   {
@@ -37,95 +50,158 @@ namespace boda
     uint32_t disp_output; //NESI(default=1,help="if true, display output images/bins")
     p_img_pyra_pack_t ipp; //NESI(default="()",help="pyramid packing options")
     p_capture_t capture; //NESI(default="()",help="capture from camera options")
+
+    uint32_t zero_trash; //NESI(default=1,help="1=zero out trash features (not computed from valid per-scale data)")
     
+    p_img_t in_img;
     p_img_t feat_img; 
     p_asio_fd_t cap_afd;
     disp_win_t disp_win;
 
     void on_cap_read( error_code const & ec ) { 
-      if( ec == errc::operation_canceled ) { return; }
       assert_st( !ec );
       capture->on_readable( 1 );
-      ipp->scale_and_pack_img_into_bins( capture->cap_img );
+      p_img_t ds_img = resample_to_size( capture->cap_img, ipp->in_sz );
+      in_img->share_pels_from( ds_img );
+      ipp->scale_and_pack_img_into_bins( in_img );
       for( uint32_t bix = 0; bix != ipp->bin_imgs.size(); ++bix ) {
 	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, ipp->bin_imgs[bix] );
 	p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
 	if( (bix == 0) && disp_output ) {
 	  timer_t t("conv_pyra_write_output");
-	  copy_batch_to_img( out_batch, 0, feat_img );
+	  if( zero_trash ) {
+	    for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+	      if( i->bix != 0 ) { continue; } // wrong plane
+	      copy_batch_to_img( out_batch, i->bix, feat_img, i32_to_u32(i->feat_box) );
+	    }
+	  }
+	  else { copy_batch_to_img( out_batch, 0, feat_img, u32_box_t{} ); }
 	  disp_win.update_disp_imgs();
 	}
       }
       setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
     }
 
-    void on_quit( error_code const & ec ) { cap_afd->cancel(); }
-   
+    void on_lb( error_code const & ec ) { 
+      lb_event_t const & lbe = get_lb_event(&disp_win);
+      //printf( "lbe.img_ix=%s lbe.xy=%s\n", str(lbe.img_ix).c_str(), str(lbe.xy).c_str() );
+      if( lbe.img_ix == 0 ) { feat_pyra_anno_for_xy( 0, i32_to_u32( lbe.xy ) ); }
+      //else if( lbe.img_ix == 1 ) { img_to_feat_anno( i32_to_u32( lbe.xy ) ); }
+      register_lb_handler( disp_win, &conv_pyra_t::on_lb, this );
+    }
+
+    // FIXME: dup'd with cap_app.cc
+    void anno_feat_img_xy( u32_pt_t const & feat_xy ) {
+      u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
+      i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(out_s));
+      feat_annos->push_back( anno_t{feat_img_pel_box, rgba_to_pel(170,40,40), 0, 
+	    str(feat_xy), rgba_to_pel(220,220,255) } );
+    } 
+    
+    void feat_pyra_anno_for_xy( uint32_t const bix, u32_pt_t const & pyra_img_xy ) {
+      feat_annos->clear();
+      img_annos->clear();
+      u32_pt_t const pyra_xy = floor_div_u32( pyra_img_xy, out_s );
+      for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+	if( i->bix != bix ) { continue; } // wrong plane
+	if( i->feat_box.strictly_contains( u32_to_i32(pyra_xy) ) ) {
+	  printf( "(*i)=%s\n", str((*i)).c_str() );
+	  anno_feat_img_xy( pyra_xy );
+
+	  u32_box_t feat_pel_box{pyra_xy,pyra_xy+u32_pt_t{1,1}};	  
+	  i32_box_t valid_in_xy;
+	  unchecked_out_box_to_in_box( valid_in_xy, u32_to_i32( feat_pel_box ), cm_valid, *ol_csi );
+	  valid_in_xy -= u32_to_i32(ipp->placements.at(i->six)); // shift so image nc is at 0,0
+	  valid_in_xy = valid_in_xy * u32_to_i32(ipp->in_sz) / u32_to_i32(ipp->sizes.at(i->six)); // scale for scale
+	  img_annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy),rgba_to_pel(220,220,255)});
+
+	}
+      }
+      setup_annos();
+    }   
+    p_conv_pipe_t conv_pipe;
+    conv_support_info_t const * ol_csi;
+    uint32_t out_s;
+
+    conv_pyra_t( void ) : ol_csi(0), out_s(0) { }
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("conv_prya_top");
       //p_img_t img_in( new img_t );
       //img_in->load_fn( img_in_fn.exp );
       //u32_pt_t const img_in_sz( img_in->w, img_in->h );
       ipp->in_sz = run_cnet->in_sz; // 'nominal' scale=1.0 desired image size ...
+      in_img.reset( new img_t );
+      in_img->set_sz_and_alloc_pels( ipp->in_sz );
       run_cnet->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
       run_cnet->in_num_imgs = 1;
       run_cnet->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
       run_cnet->setup_cnet();
 
-      p_conv_pipe_t conv_pipe = run_cnet->get_pipe();
+      conv_pipe = run_cnet->get_pipe();
       ipp->do_place_imgs( conv_pipe->conv_sis.back() );
 
       feat_img.reset( new img_t );
       u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
       feat_img->set_sz_and_alloc_pels( feat_img_sz );
+      feat_img->fill_with_pel( grey_to_pel( 0 ) );
       capture->cap_start();
-      disp_win.disp_setup( vect_p_img_t{feat_img,capture->cap_img} );
+      disp_win.disp_setup( vect_p_img_t{feat_img,in_img} );
+      register_lb_handler( disp_win, &conv_pyra_t::on_lb, this );
 
+      // cache these for various uses. better way to handle / better place to put?
+      ol_csi = &conv_pipe->conv_sis.back();
+      out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
+
+      setup_scale_infos();
+      img_annos.reset( new vect_anno_t );
+      feat_annos.reset( new vect_anno_t );
       setup_annos();
 
       io_service_t & io = get_io( &disp_win );
       cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
       setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
-      register_quit_handler( disp_win, &conv_pyra_t::on_quit, this );
       io.run();
     }
 
+    vect_scale_info_t scale_infos;
+    p_vect_anno_t feat_annos;
+    p_vect_anno_t img_annos;
+    
     void setup_annos( void ) {
-      p_conv_pipe_t conv_pipe = run_cnet->get_pipe();
-      conv_pipe->dump_pipe( std::cout );
-      conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
-      uint32_t const out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
-      p_vect_anno_t annos( new vect_anno_t );
-      if( ol_csi.support_sz.is_zeros() ) {
-	annos->push_back( anno_t{ {{},u32_to_i32(feat_img->sz)}, rgba_to_pel(170,40,40), 0, 
-	    "global pooling and/or\n inner product layers \n+ trying to compute dense features\n = madness!", 
-								   rgba_to_pel(220,220,255) } );
-
-      } else {
-	for( uint32_t pix = 0; pix < ipp->sizes.size(); ++pix ) {
-	  uint32_t const bix = ipp->placements.at(pix).w;
-	  if( bix != 0 ) { // only working on plane 0 for now
-	    printf( "warning: unhanded bix=%s (>1 plane or scale didn't fit)\n", str(bix).c_str() ); 
-	    continue; 
-	  } 
-	  u32_pt_t const dest = ipp->placements.at(pix);
-	  u32_box_t per_scale_img_box{dest,dest+ipp->sizes.at(pix)};
-	  // assume we've ensured that there is eff_tot_pad around the scale_img
-	  per_scale_img_box.p[0] -= ol_csi.eff_tot_pad.p[0];
-	  per_scale_img_box.p[1] += ol_csi.eff_tot_pad.p[0];
-
-	  i32_box_t valid_feat_box;
-	  in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, ol_csi );	
-	  i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
-	  if( valid_feat_box.is_strictly_normalized() ) {
-	    annos->push_back( anno_t{ valid_feat_img_box, rgba_to_pel(170,40,40), 0, str(ipp->sizes.at(pix)), 
-		  rgba_to_pel(220,220,255) } );
-	  } else {
-	    printf( "warning: denormalized valid_feat_box=%s (scale too small?)\n", str(valid_feat_box).c_str() );
-	  }
+      for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+	assert_st( i->feat_box.is_strictly_normalized() );
+	if( i->bix == 0 ) { // only working on plane 0 for now
+	  feat_annos->push_back( anno_t{ i->feat_img_box, rgba_to_pel(170,40,40), 0, 
+		str(ipp->sizes.at(i->six)), rgba_to_pel(220,220,255) } );
+	} else {
+	  printf( "warning: unhanded bix=%s (>1 plane or scale didn't fit if bix=const_max)\n", str(i->bix).c_str() ); 
 	}
       }
-      disp_win.update_img_annos( 0, annos );
+      disp_win.update_img_annos( 0, feat_annos );
+      disp_win.update_img_annos( 1, img_annos );
+    }
+    void setup_scale_infos( void ) {
+      conv_pipe->dump_pipe( std::cout );
+      if( ol_csi->support_sz.is_zeros() ) {
+	rt_err( "global pooling and/or\n inner product layers + trying to "
+		"compute dense features = madness!" );
+      } 
+      for( uint32_t six = 0; six < ipp->sizes.size(); ++six ) {
+	uint32_t const bix = ipp->placements.at(six).w;
+	u32_pt_t const dest = ipp->placements.at(six);
+	u32_box_t per_scale_img_box{dest,dest+ipp->sizes.at(six)};
+	// assume we've ensured that there is eff_tot_pad around the scale_img
+	per_scale_img_box.p[0] -= ol_csi->eff_tot_pad.p[0];
+	per_scale_img_box.p[1] += ol_csi->eff_tot_pad.p[0];
+
+	i32_box_t valid_feat_box;
+	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, *ol_csi );
+	assert_st( valid_feat_box.is_strictly_normalized() );
+	i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
+	scale_infos.push_back( scale_info_t{six,bix,valid_feat_box,valid_feat_img_box} );
+	
+      }
+      printf( "scale_infos=%s\n", str(scale_infos).c_str() );
     }
 
   };  
