@@ -304,7 +304,7 @@ namespace boda
       in_img->share_pels_from( ds_img );
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
       p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
-      copy_batch_to_img( out_batch, 0, feat_img );
+      copy_batch_to_img( out_batch, 0, feat_img, u32_box_t{} );
       disp_win.update_disp_imgs();
       setup_capture_on_read( *cap_afd, &capture_feats_t::on_cap_read, this );
     }
