@@ -34,6 +34,8 @@ namespace boda
   struct img_t; typedef shared_ptr< img_t > p_img_t; 
   struct conv_pipe_t; typedef shared_ptr< conv_pipe_t > p_conv_pipe_t; 
 
+  struct conv_support_info_t;
+
   struct run_cnet_t : virtual public nesi, public has_main_t // NESI(help="run a caffe net on a single input",
 		     // bases=["has_main_t"], type_id="run_cnet")
   {
@@ -51,8 +53,13 @@ namespace boda
     void setup_cnet( void );
     u32_pt_t get_one_blob_img_out_sz( void ); // note: assumes/includes chans_to_area conversion
     p_nda_float_t run_one_blob_in_one_blob_out( void );
-    p_conv_pipe_t conv_pipe; // cached in get_pipe(). don't access directly, call get_pipe()
-    p_conv_pipe_t get_pipe( void );
+
+    p_conv_pipe_t conv_pipe; // cached in get_pipe().
+    conv_support_info_t const * ol_csi;
+    uint32_t out_s;
+    run_cnet_t( void ) : ol_csi(0), out_s(0) { }
+  private:
+    void cache_pipe( void );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 

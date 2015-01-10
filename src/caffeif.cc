@@ -287,7 +287,7 @@ namespace boda
   }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out( void ) { 
     return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch ); }
-  p_conv_pipe_t run_cnet_t::get_pipe( void ) { 
+  void run_cnet_t::cache_pipe( void ) { 
     // note; there is an unfortunate potential circular dependency here: we may need the pipe info
     // about the network before we have set it up if the desired size of the input image depends on
     // the net architeture (i.e. support size / padding / etc ). we could potentially create a
@@ -295,7 +295,7 @@ namespace boda
     // dependency in our current use cases ...
     assert_st( net ); // net must already be set up
     // note: we only handle a (very) limited set of possible layers/networks here.
-    if( conv_pipe ) { return conv_pipe; } // already created
+    assert_st( !conv_pipe ); // should only be called only in setup
     conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
     vect_string const & layer_names = net->layer_names();
     uint32_t last_out_chans = 0;
@@ -330,7 +330,9 @@ namespace boda
       }
       if( out_layer_name == layer_names[i] ) { 
 	conv_pipe->calc_support_info();
-	return conv_pipe; 
+	ol_csi = &conv_pipe->conv_sis.back();
+	out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
+	return;
       }
     }
     rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
@@ -387,9 +389,12 @@ namespace boda
     assert_st( !in_batch );
     in_batch.reset( new nda_float_t );
     in_batch->set_dims( in_batch_dims );
+
+    cache_pipe();
   }
 
   void cnet_predict_t::main( nesi_init_arg_t * nia ) { 
+    setup_cnet();
     setup_predict();
     p_img_t img_in( new img_t );
     img_in->load_fn( img_in_fn.exp );
@@ -400,7 +405,6 @@ namespace boda
     assert_st( !out_labels );
     out_labels.reset( new vect_synset_elem_t );
     read_synset( out_labels, out_labels_fn );
-    setup_cnet();
   }
 
   template< typename T > struct gt_filt_prob {
@@ -418,8 +422,9 @@ namespace boda
   // example command line for testing/debugging detection code:
   // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt.boda,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_layer_name=relu12)' --capture='(cap_res=640 480)'
 
+  //p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) { }
+
   p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) {
-    conv_support_info_t const & ol_csi = get_pipe()->conv_sis.back();
     p_img_t img_in_ds = resample_to_size( img_in, in_sz );
     subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
     p_nda_float_t out_batch = run_one_blob_in_one_blob_out();
@@ -439,7 +444,7 @@ namespace boda
 	u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
 	i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
 	unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
-				       ol_csi, in_sz );
+				       *ol_csi, in_sz );
 	ps.img_box = valid_in_xy;
 	if( !di.next() ) { break; } 
       }

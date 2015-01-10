@@ -64,7 +64,7 @@ namespace boda {
     p_vect_conv_io_t conv_ios_dense;
 
     void get_pipe_and_ios( p_run_cnet_t const & run_cnet, p_conv_pipe_t & conv_pipe, p_vect_conv_io_t & conv_ios ) {
-      conv_pipe = run_cnet->get_pipe();
+      conv_pipe = run_cnet->conv_pipe;
       conv_pipe->dump_pipe( *out );
       conv_ios = conv_pipe->calc_sizes_forward( run_cnet->in_sz, 0 ); 
       conv_pipe->dump_ios( *out, conv_ios );
@@ -171,7 +171,7 @@ namespace boda {
     p_vect_conv_io_t conv_ios_upsamp;
 
     void get_pipe_and_ios( p_run_cnet_t const & rc, p_conv_pipe_t & conv_pipe, p_vect_conv_io_t & conv_ios ) {
-      conv_pipe = rc->get_pipe();
+      conv_pipe = rc->conv_pipe;
       //conv_pipe->dump_pipe( *out );
       conv_ios = conv_pipe->calc_sizes_forward( rc->in_sz, 0 ); 
       //conv_pipe->dump_ios( *out, conv_ios );

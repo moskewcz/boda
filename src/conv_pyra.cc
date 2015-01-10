@@ -39,7 +39,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
-    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt)",help="cnet running options")
+    p_cnet_predict_t cnet_predict; //NESI(default="(ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt)",help="cnet running options")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="output filename.")
     
     //filename_t img_in_fn; //xNESI(default="%(boda_test_dir)/pascal/000001.jpg",help="input image filename")
@@ -65,8 +65,8 @@ namespace boda
       in_img->share_pels_from( ds_img );
       ipp->scale_and_pack_img_into_bins( in_img );
       for( uint32_t bix = 0; bix != ipp->bin_imgs.size(); ++bix ) {
-	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, ipp->bin_imgs[bix] );
-	p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
+	subtract_mean_and_copy_img_to_batch( cnet_predict->in_batch, 0, ipp->bin_imgs[bix] );
+	p_nda_float_t out_batch = cnet_predict->run_one_blob_in_one_blob_out();
 	if( disp_feats && (bix == 0) ) {
 	  timer_t t("conv_pyra_write_output");
 	  if( zero_trash ) {
@@ -93,7 +93,7 @@ namespace boda
     // FIXME: dup'd with cap_app.cc
     void anno_feat_img_xy( u32_pt_t const & feat_xy ) {
       u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
-      i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(out_s));
+      i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(cnet_predict->out_s));
       feat_annos->push_back( anno_t{feat_img_pel_box, rgba_to_pel(170,40,40), 0, 
 	    str(feat_xy), rgba_to_pel(220,220,255) } );
     } 
@@ -101,7 +101,7 @@ namespace boda
     void feat_pyra_anno_for_xy( uint32_t const bix, u32_pt_t const & pyra_img_xy ) {
       feat_annos->clear();
       img_annos->clear();
-      u32_pt_t const pyra_xy = floor_div_u32( pyra_img_xy, out_s );
+      u32_pt_t const pyra_xy = floor_div_u32( pyra_img_xy, cnet_predict->out_s );
       for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
 	if( i->bix != bix ) { continue; } // wrong plane
 	if( i->feat_box.strictly_contains( u32_to_i32(pyra_xy) ) ) {
@@ -110,7 +110,7 @@ namespace boda
 
 	  u32_box_t feat_pel_box{pyra_xy,pyra_xy+u32_pt_t{1,1}};	  
 	  i32_box_t valid_in_xy;
-	  unchecked_out_box_to_in_box( valid_in_xy, u32_to_i32( feat_pel_box ), cm_valid, *ol_csi );
+	  unchecked_out_box_to_in_box( valid_in_xy, u32_to_i32( feat_pel_box ), cm_valid, *cnet_predict->ol_csi );
 	  valid_in_xy -= u32_to_i32(ipp->placements.at(i->six)); // shift so image nc is at 0,0
 	  valid_in_xy = valid_in_xy * u32_to_i32(ipp->in_sz) / u32_to_i32(ipp->sizes.at(i->six)); // scale for scale
 	  img_annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy),rgba_to_pel(220,220,255)});
@@ -119,32 +119,27 @@ namespace boda
       }
       setup_annos();
     }   
-    p_conv_pipe_t conv_pipe;
-    conv_support_info_t const * ol_csi;
-    uint32_t out_s;
 
-    conv_pyra_t( void ) : ol_csi(0), out_s(0) { }
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("conv_prya_top");
       //p_img_t img_in( new img_t );
       //img_in->load_fn( img_in_fn.exp );
       //u32_pt_t const img_in_sz( img_in->w, img_in->h );
-      ipp->in_sz = run_cnet->in_sz; // 'nominal' scale=1.0 desired image size ...
+      ipp->in_sz = cnet_predict->in_sz; // 'nominal' scale=1.0 desired image size ...
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( ipp->in_sz );
-      run_cnet->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
-      run_cnet->in_num_imgs = 1;
-      run_cnet->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
-      run_cnet->setup_cnet();
+      cnet_predict->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
+      cnet_predict->in_num_imgs = 1;
+      cnet_predict->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
+      cnet_predict->setup_cnet();
 
-      conv_pipe = run_cnet->get_pipe();
-      ipp->do_place_imgs( conv_pipe->conv_sis.back() );
+      ipp->do_place_imgs( cnet_predict->conv_pipe->conv_sis.back() );
 
 
       vect_p_img_t disp_imgs;
       if( disp_feats ) { 
 	feat_img.reset( new img_t );
-	u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
+	u32_pt_t const feat_img_sz = cnet_predict->get_one_blob_img_out_sz();
 	feat_img->set_sz_and_alloc_pels( feat_img_sz );
 	feat_img->fill_with_pel( grey_to_pel( 0 ) );
 	disp_imgs.push_back( feat_img ); 
@@ -152,10 +147,6 @@ namespace boda
       disp_imgs.push_back( in_img );
       disp_win.disp_setup( disp_imgs );
       register_lb_handler( disp_win, &conv_pyra_t::on_lb, this );
-
-      // cache these for various uses. better way to handle / better place to put?
-      ol_csi = &conv_pipe->conv_sis.back();
-      out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
 
       setup_scale_infos();
       img_annos.reset( new vect_anno_t );
@@ -188,8 +179,8 @@ namespace boda
       disp_win.update_img_annos( diix++, img_annos );
     }
     void setup_scale_infos( void ) {
-      conv_pipe->dump_pipe( std::cout );
-      if( ol_csi->support_sz.is_zeros() ) {
+      cnet_predict->conv_pipe->dump_pipe( std::cout );
+      if( cnet_predict->ol_csi->support_sz.is_zeros() ) {
 	rt_err( "global pooling and/or\n inner product layers + trying to "
 		"compute dense features = madness!" );
       } 
@@ -198,13 +189,13 @@ namespace boda
 	u32_pt_t const dest = ipp->placements.at(six);
 	u32_box_t per_scale_img_box{dest,dest+ipp->sizes.at(six)};
 	// assume we've ensured that there is eff_tot_pad around the scale_img
-	per_scale_img_box.p[0] -= ol_csi->eff_tot_pad.p[0];
-	per_scale_img_box.p[1] += ol_csi->eff_tot_pad.p[0];
+	per_scale_img_box.p[0] -= cnet_predict->ol_csi->eff_tot_pad.p[0];
+	per_scale_img_box.p[1] += cnet_predict->ol_csi->eff_tot_pad.p[0];
 
 	i32_box_t valid_feat_box;
-	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, *ol_csi );
+	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, *cnet_predict->ol_csi );
 	assert_st( valid_feat_box.is_strictly_normalized() );
-	i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
+	i32_box_t const valid_feat_img_box = valid_feat_box.scale(cnet_predict->out_s);
 	scale_infos.push_back( scale_info_t{six,bix,valid_feat_box,valid_feat_img_box} );
 	
       }

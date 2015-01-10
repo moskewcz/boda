@@ -269,6 +269,7 @@ namespace boda
       setup_capture_on_read( *cap_afd, &capture_classify_t::on_cap_read, this );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
+      cnet_predict->setup_cnet();
       cnet_predict->setup_predict(); 
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( cnet_predict->in_sz );
@@ -397,7 +398,7 @@ namespace boda
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( run_cnet->in_sz );
 
-      conv_pipe = run_cnet->get_pipe();
+      conv_pipe = run_cnet->conv_pipe;
       conv_pipe->dump_pipe( std::cout );
       conv_ios = conv_pipe->calc_sizes_forward( run_cnet->in_sz, 0 ); 
       conv_pipe->dump_ios( std::cout, conv_ios );
