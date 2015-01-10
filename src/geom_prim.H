@@ -146,6 +146,7 @@ namespace boda
       return ret; //note: if !ret.is_strictly_normalized(), there was no overlap (assuming o/this is_strictly_normalized())
     }
     bool contains( T_box_t const & o ) const { return o.p[0].both_dims_ge( p[0] ) && o.p[1].both_dims_le( p[1] ); }
+    bool strictly_contains( T const & o ) const { return o.both_dims_ge( p[0] ) && o.both_dims_lt( p[1] ); }
     uint64_t get_area( void ) const { return uint64_t(p[1].d[0]-p[0].d[0])*(p[1].d[1]-p[0].d[1]); } 
 
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
@@ -155,6 +156,9 @@ namespace boda
     T_box_t operator + ( T_box_t const & o ) const { return T_box_t( p[0] + o.p[0], p[1] + o.p[1] ); }
     T_box_t operator - ( T_box_t const & o ) const { return T_box_t( p[0] - o.p[0], p[1] - o.p[1] ); }
     void operator += ( T_box_t const & o ) { p[0] += o.p[0]; p[1] += o.p[1]; }
+    void operator -= ( T_box_t const & o ) { p[0] -= o.p[0]; p[1] -= o.p[1]; }
+    void operator += ( T const & o ) { p[0] += o; p[1] += o; }
+    void operator -= ( T const & o ) { p[0] -= o; p[1] -= o; }
     T_box_t operator + ( T const & o ) const { return T_box_t( p[0] + o, p[1] + o ); }
     T_box_t operator - ( T const & o ) const { return T_box_t( p[0] - o, p[1] - o ); }
     T_box_t operator * ( T const & o ) const { return T_box_t( p[0] * o, p[1] * o ); }
@@ -184,6 +188,7 @@ namespace boda
     bool operator () ( u32_pt_t const & a, u32_pt_t const & b ) const { return a.dims_prod() > b.dims_prod(); }
   };
   inline i32_box_t u32_to_i32( u32_box_t const & v ) { return i32_box_t( u32_to_i32( v.p[0] ), u32_to_i32( v.p[1] ) ); }
+  inline u32_box_t i32_to_u32( i32_box_t const & v ) { return u32_box_t( i32_to_u32(v.p[0]), i32_to_u32(v.p[1] ) ); }
 
   inline i32_box_t floor_div( i32_box_t const &v, u32_pt_t const & d ) { 
     return i32_box_t( floor_div( v.p[0], d ), floor_div( v.p[1], d ) ); }
