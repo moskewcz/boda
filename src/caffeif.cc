@@ -15,6 +15,11 @@ namespace boda
 {
   using caffe::Caffe;
   using caffe::Blob;
+
+  std::ostream & operator <<(std::ostream & os, scale_info_t const & v ) { 
+    return os << strprintf( "bix=%s feat_box=%s feat_img_box=%s\n", 
+			    str(v.bix).c_str(), str(v.feat_box).c_str(), str(v.feat_img_box).c_str() ); 
+  }
   
   void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img ) {
     timer_t t("subtract_mean_and_copy_img_to_batch");
@@ -332,6 +337,7 @@ namespace boda
 	conv_pipe->calc_support_info();
 	ol_csi = &conv_pipe->conv_sis.back();
 	out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
+	conv_ios = conv_pipe->calc_sizes_forward( in_sz, 0 ); 
 	return;
       }
     }
@@ -405,6 +411,63 @@ namespace boda
     assert_st( !out_labels );
     out_labels.reset( new vect_synset_elem_t );
     read_synset( out_labels, out_labels_fn );
+
+    assert( pred_state.empty() );
+    if( scale_infos.empty() ) { setup_scale_infos(); } // if not specified, assume whole image / single scale 
+
+    uint32_t const out_chans = conv_pipe->convs->back().out_chans;
+
+    for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+      for( uint32_t bc = 0; bc < out_chans; ++bc ) {
+	for( int32_t by = i->feat_box.p[0].d[1]; by < i->feat_box.p[1].d[1]; ++by ) {
+	  for( int32_t bx = i->feat_box.p[0].d[0]; bx < i->feat_box.p[1].d[0]; ++bx ) {
+	    pred_state.push_back( pred_state_t{} );
+	    pred_state_t & ps = pred_state.back();
+	    ps.label_ix = bc; 
+	    u32_pt_t const feat_xy = {bx, by};
+	    u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
+	    i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
+	    unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
+					   *ol_csi, in_sz );
+	    ps.img_box = valid_in_xy;
+	  }
+	}
+      }
+    }
+  
+  }
+
+  // single scale case
+  void cnet_predict_t::setup_scale_infos( void ) {
+    u32_pt_t const & feat_sz = conv_ios->back().sz;
+    i32_box_t const valid_feat_box{{},u32_to_i32(feat_sz)};
+    assert_st( valid_feat_box.is_strictly_normalized() );
+    i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
+    scale_infos.push_back( scale_info_t{uint32_t_const_max,0,valid_feat_box,valid_feat_img_box} );
+  }
+
+  void cnet_predict_t::setup_scale_infos( vect_u32_pt_t const & sizes, vect_u32_pt_w_t const & placements ) {
+    conv_pipe->dump_pipe( std::cout );
+    if( ol_csi->support_sz.is_zeros() ) {
+      rt_err( "global pooling and/or\n inner product layers + trying to "
+	      "compute dense features = madness!" );
+    } 
+    for( uint32_t six = 0; six < sizes.size(); ++six ) {
+      uint32_t const bix = placements.at(six).w;
+      u32_pt_t const dest = placements.at(six);
+      u32_box_t per_scale_img_box{dest,dest+sizes.at(six)};
+      // assume we've ensured that there is eff_tot_pad around the scale_img
+      per_scale_img_box.p[0] -= ol_csi->eff_tot_pad.p[0];
+      per_scale_img_box.p[1] += ol_csi->eff_tot_pad.p[0];
+
+      i32_box_t valid_feat_box;
+      in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, *ol_csi );
+      assert_st( valid_feat_box.is_strictly_normalized() );
+      i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
+      scale_infos.push_back( scale_info_t{six,bix,valid_feat_box,valid_feat_img_box} );
+	
+    }
+    printf( "scale_infos=%s\n", str(scale_infos).c_str() );
   }
 
   template< typename T > struct gt_filt_prob {
@@ -433,22 +496,6 @@ namespace boda
     assert( obd.sz() == 4 );
     assert( obd.dims(0) == 1 );
     assert( obd.dims(1) == out_labels->size() );
-
-    if( pred_state.empty() ) {
-      pred_state.resize( obd.dims_prod() );
-      uint32_t psix = 0;
-      for( dims_iter_t di( obd ) ; ; ++psix ) { 
-	pred_state_t & ps = pred_state[psix];
-	ps.label_ix = di.di[1]; 
-	u32_pt_t const feat_xy = {di.di[3],di.di[2]};
-	u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
-	i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
-	unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
-				       *ol_csi, in_sz );
-	ps.img_box = valid_in_xy;
-	if( !di.next() ) { break; } 
-      }
-    }
 
     do_predict_region( out_batch, dims_t{obd.sz()}, obd, 0 );
 

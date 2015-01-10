@@ -295,8 +295,6 @@ namespace boda
     p_img_t feat_img;
     p_asio_fd_t cap_afd;
     disp_win_t disp_win;
-    p_conv_pipe_t conv_pipe;
-    p_vect_conv_io_t conv_ios;
 
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
@@ -312,8 +310,6 @@ namespace boda
 
     void img_to_feat_anno( u32_pt_t const & in_xy ) {
       p_vect_anno_t annos;
-      conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
-      uint32_t const out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
 
       assert_st( in_xy.both_dims_lt( in_img->sz ) );
       u32_box_t const in_xy_pel_box{in_xy,in_xy+u32_pt_t{1,1}};
@@ -323,14 +319,14 @@ namespace boda
       disp_win.update_img_annos( 1, annos );
 
       i32_box_t any_valid_feat_box;
-      if( !ol_csi.support_sz.is_zeros() ) {
-	in_box_to_out_box( any_valid_feat_box, in_xy_pel_box, cm_any_valid, ol_csi );
+      if( !run_cnet->ol_csi->support_sz.is_zeros() ) {
+	in_box_to_out_box( any_valid_feat_box, in_xy_pel_box, cm_any_valid, *run_cnet->ol_csi );
       } else {
 	// global pooling, features should be 1x1
-	assert_st( (conv_ios->back().sz == u32_pt_t{1,1}) );
-	any_valid_feat_box = i32_box_t{{},u32_to_i32(conv_ios->back().sz)}; // all features
+	assert_st( (run_cnet->conv_ios->back().sz == u32_pt_t{1,1}) );
+	any_valid_feat_box = i32_box_t{{},u32_to_i32(run_cnet->conv_ios->back().sz)}; // all features
       }
-      i32_box_t const feat_img_box = any_valid_feat_box.scale(out_s);
+      i32_box_t const feat_img_box = any_valid_feat_box.scale(run_cnet->out_s);
 
       annos.reset( new vect_anno_t );
       annos->push_back( anno_t{feat_img_box, rgba_to_pel(170,40,40), 0, str(any_valid_feat_box), rgba_to_pel(220,220,255) } );
@@ -346,27 +342,25 @@ namespace boda
       p_vect_anno_t annos;
       assert_st( feat_img_xy.both_dims_lt( feat_img->sz ) );
       // calculate feat xy from feat_img xy (which is scaled up by ~sqrt(chans) from the feature xy)
-      conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
-      uint32_t const out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
-      assert_st( out_s );
-      u32_pt_t const feat_xy = floor_div_u32( feat_img_xy, out_s );
-      assert_st( feat_xy.both_dims_lt( conv_ios->back().sz ) );
+      assert_st( run_cnet->out_s );
+      u32_pt_t const feat_xy = floor_div_u32( feat_img_xy, run_cnet->out_s );
+      assert_st( feat_xy.both_dims_lt( run_cnet->conv_ios->back().sz ) );
       //printf( "feat_img_xy=%s feat_xy=%s\n", str(feat_img_xy).c_str(), str(feat_xy).c_str() );
       // calculate chan ix
-      u32_pt_t const feat_chan_pt = feat_img_xy - feat_xy.scale( out_s );
-      uint32_t const feat_chan_ix = feat_chan_pt.d[1]*out_s + feat_chan_pt.d[0];
+      u32_pt_t const feat_chan_pt = feat_img_xy - feat_xy.scale( run_cnet->out_s );
+      uint32_t const feat_chan_ix = feat_chan_pt.d[1]*run_cnet->out_s + feat_chan_pt.d[0];
       uint32_t const feat_val = feat_img->get_pel_chan( feat_img_xy, 0 );
       printf( "feat_chan_ix=%s feat_val=%s\n", str(feat_chan_ix).c_str(), str(feat_val).c_str() );
 
       // using feat_img_xy annotate the area of feat_img corresponding to it
       u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
-      i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(out_s));
+      i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(run_cnet->out_s));
       annos.reset( new vect_anno_t );
       annos->push_back( anno_t{feat_img_pel_box, rgba_to_pel(170,40,40), 0, str(feat_xy), rgba_to_pel(220,220,255) } );
       // annotate channel at each x,y
-      for( uint32_t fx = 0; fx != conv_ios->back().sz.d[0]; ++fx ) {
-	for( uint32_t fy = 0; fy != conv_ios->back().sz.d[1]; ++fy ) {
-	  i32_pt_t const fcpt = u32_to_i32( u32_pt_t{out_s,out_s}*u32_pt_t{fx,fy}+feat_chan_pt );
+      for( uint32_t fx = 0; fx != run_cnet->conv_ios->back().sz.d[0]; ++fx ) {
+	for( uint32_t fy = 0; fy != run_cnet->conv_ios->back().sz.d[1]; ++fy ) {
+	  i32_pt_t const fcpt = u32_to_i32( u32_pt_t{run_cnet->out_s,run_cnet->out_s}*u32_pt_t{fx,fy}+feat_chan_pt );
 	  i32_box_t const fcb{ fcpt, fcpt+i32_pt_t{1,1} };
 	  annos->push_back( anno_t{fcb, rgba_to_pel(170,40,40), 0, "", rgba_to_pel(220,255,200) } );
 	}
@@ -375,7 +369,8 @@ namespace boda
 	
       // calculate in_xy from feat_xy
       i32_box_t valid_in_xy, core_valid_in_xy;
-      unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), ol_csi, run_cnet->in_sz );
+      unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
+				     *run_cnet->ol_csi, run_cnet->in_sz );
       // annotate region of input image corresponding to feat_xy
       annos.reset( new vect_anno_t );
       annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy), rgba_to_pel(220,220,255) } );
@@ -398,10 +393,9 @@ namespace boda
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( run_cnet->in_sz );
 
-      conv_pipe = run_cnet->conv_pipe;
-      conv_pipe->dump_pipe( std::cout );
-      conv_ios = conv_pipe->calc_sizes_forward( run_cnet->in_sz, 0 ); 
-      conv_pipe->dump_ios( std::cout, conv_ios );
+      run_cnet->conv_pipe->dump_pipe( std::cout );
+      run_cnet->conv_pipe->dump_ios( std::cout, run_cnet->conv_ios );
+
       feat_img.reset( new img_t );
       u32_pt_t const feat_img_sz = run_cnet->get_one_blob_img_out_sz();
       feat_img->set_sz_and_alloc_pels( feat_img_sz );

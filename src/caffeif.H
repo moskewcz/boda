@@ -36,6 +36,13 @@ namespace boda
 
   struct conv_support_info_t;
 
+  struct conv_io_t;
+  typedef vector< conv_io_t > vect_conv_io_t; 
+  typedef shared_ptr< conv_io_t > p_conv_io_t; 
+  typedef vector< p_conv_io_t > vect_p_conv_io_t;
+  typedef shared_ptr< vect_conv_io_t > p_vect_conv_io_t; 
+
+
   struct run_cnet_t : virtual public nesi, public has_main_t // NESI(help="run a caffe net on a single input",
 		     // bases=["has_main_t"], type_id="run_cnet")
   {
@@ -56,6 +63,7 @@ namespace boda
 
     p_conv_pipe_t conv_pipe; // cached in get_pipe().
     conv_support_info_t const * ol_csi;
+    p_vect_conv_io_t conv_ios;
     uint32_t out_s;
     run_cnet_t( void ) : ol_csi(0), out_s(0) { }
   private:
@@ -66,6 +74,15 @@ namespace boda
   struct anno_t;
   typedef vector< anno_t > vect_anno_t; 
   typedef shared_ptr< vect_anno_t > p_vect_anno_t; 
+
+  struct scale_info_t {
+    uint32_t six; // scale index
+    uint32_t bix; // plane index
+    i32_box_t feat_box;
+    i32_box_t feat_img_box; // currently always == feat scaled up by out_s
+  };
+  typedef vector< scale_info_t > vect_scale_info_t; 
+  std::ostream & operator <<(std::ostream & os, scale_info_t const & v ); 
 
   struct pred_state_t {
     double cur_prob;
@@ -96,10 +113,13 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia );
 
     p_vect_synset_elem_t out_labels;
-
+    vect_scale_info_t scale_infos;
     vect_pred_state_t pred_state;
 
     void setup_predict( void );
+    void setup_scale_infos( void );
+    void setup_scale_infos( vect_u32_pt_t const & sizes, vect_u32_pt_w_t const & placements );
+
     p_vect_anno_t do_predict( p_img_t const & img_in_ds, bool const print_to_terminal );
     void do_predict_region( p_nda_float_t const & out_batch, dims_t const & obb, dims_t const & obe, 
 			    uint32_t const & psb );

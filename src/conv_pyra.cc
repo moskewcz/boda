@@ -21,18 +21,6 @@
 
 namespace boda 
 {
-  struct scale_info_t {
-    uint32_t six; // scale index
-    uint32_t bix; // plane index
-    i32_box_t feat_box;
-    i32_box_t feat_img_box; // currently always == feat scaled up by out_s
-  };
-
-  typedef vector< scale_info_t > vect_scale_info_t; 
-  std::ostream & operator <<(std::ostream & os, scale_info_t const & v ) { 
-    return os << strprintf( "bix=%s feat_box=%s feat_img_box=%s\n", 
-			    str(v.bix).c_str(), str(v.feat_box).c_str(), str(v.feat_img_box).c_str() ); 
-  }
 
   struct conv_pyra_t : virtual public nesi, public has_main_t // NESI(help="conv_ana / blf_pack integration test",
 		       // bases=["has_main_t"], type_id="conv_pyra" )
@@ -70,7 +58,7 @@ namespace boda
 	if( disp_feats && (bix == 0) ) {
 	  timer_t t("conv_pyra_write_output");
 	  if( zero_trash ) {
-	    for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+	    for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); i != cnet_predict->scale_infos.end(); ++i ) {
 	      if( i->bix != 0 ) { continue; } // wrong plane
 	      copy_batch_to_img( out_batch, i->bix, feat_img, i32_to_u32(i->feat_box) );
 	    }
@@ -102,7 +90,7 @@ namespace boda
       feat_annos->clear();
       img_annos->clear();
       u32_pt_t const pyra_xy = floor_div_u32( pyra_img_xy, cnet_predict->out_s );
-      for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+      for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); i != cnet_predict->scale_infos.end(); ++i ) {
 	if( i->bix != bix ) { continue; } // wrong plane
 	if( i->feat_box.strictly_contains( u32_to_i32(pyra_xy) ) ) {
 	  printf( "(*i)=%s\n", str((*i)).c_str() );
@@ -148,7 +136,7 @@ namespace boda
       disp_win.disp_setup( disp_imgs );
       register_lb_handler( disp_win, &conv_pyra_t::on_lb, this );
 
-      setup_scale_infos();
+      cnet_predict->setup_scale_infos( ipp->sizes, ipp->placements );
       img_annos.reset( new vect_anno_t );
       feat_annos.reset( new vect_anno_t );
       setup_annos();
@@ -160,12 +148,12 @@ namespace boda
       io.run();
     }
 
-    vect_scale_info_t scale_infos;
     p_vect_anno_t feat_annos;
     p_vect_anno_t img_annos;
     
     void setup_annos( void ) {
-      for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+      for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); 
+	   i != cnet_predict->scale_infos.end(); ++i ) {
 	assert_st( i->feat_box.is_strictly_normalized() );
 	if( disp_feats && (i->bix == 0) ) { // only working on plane 0 for now
 	  feat_annos->push_back( anno_t{ i->feat_img_box, rgba_to_pel(170,40,40), 0, 
@@ -178,30 +166,7 @@ namespace boda
       if( disp_feats ) { disp_win.update_img_annos( diix++, feat_annos ); }
       disp_win.update_img_annos( diix++, img_annos );
     }
-    void setup_scale_infos( void ) {
-      cnet_predict->conv_pipe->dump_pipe( std::cout );
-      if( cnet_predict->ol_csi->support_sz.is_zeros() ) {
-	rt_err( "global pooling and/or\n inner product layers + trying to "
-		"compute dense features = madness!" );
-      } 
-      for( uint32_t six = 0; six < ipp->sizes.size(); ++six ) {
-	uint32_t const bix = ipp->placements.at(six).w;
-	u32_pt_t const dest = ipp->placements.at(six);
-	u32_box_t per_scale_img_box{dest,dest+ipp->sizes.at(six)};
-	// assume we've ensured that there is eff_tot_pad around the scale_img
-	per_scale_img_box.p[0] -= cnet_predict->ol_csi->eff_tot_pad.p[0];
-	per_scale_img_box.p[1] += cnet_predict->ol_csi->eff_tot_pad.p[0];
-
-	i32_box_t valid_feat_box;
-	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, *cnet_predict->ol_csi );
-	assert_st( valid_feat_box.is_strictly_normalized() );
-	i32_box_t const valid_feat_img_box = valid_feat_box.scale(cnet_predict->out_s);
-	scale_infos.push_back( scale_info_t{six,bix,valid_feat_box,valid_feat_img_box} );
-	
-      }
-      printf( "scale_infos=%s\n", str(scale_infos).c_str() );
-    }
-
+  
   };  
 #include"gen/conv_pyra.cc.nesi_gen.cc"
 }
