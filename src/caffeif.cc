@@ -41,8 +41,28 @@ namespace boda
     out_sz = in_sz.scale( out_s );
   }
 
-  void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img ) {
-    
+  void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region ) {
+    if( region == u32_box_t{} ) { region.p[1] = u32_pt_t{out_batch->dims.dims(3),out_batch->dims.dims(2)}; }    
+    // set up dim iterators that span only the image we want to process
+    dims_t img_e( out_batch->dims.sz() );
+    dims_t img_b( img_e.sz() );
+    img_b.dims(0) = img_ix;
+    img_e.dims(0) = img_ix + 1;
+    img_b.dims(1) = 0;
+    img_e.dims(1) = out_batch->dims.dims(1);
+    img_b.dims(2) = region.p[0].d[1];
+    img_e.dims(2) = region.p[1].d[1];
+    img_b.dims(3) = region.p[0].d[0];
+    img_e.dims(3) = region.p[1].d[0];
+    float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f, img_b, img_e ); // note clamp to 0
+    //float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f, img_b, img_e ); // note clamp to 0
+    //assert_st( out_min == 0.0f ); // shouldn't be any negative values
+    //float const out_rng = out_max - out_min;
+    copy_batch_to_img( out_batch, img_ix, img, region, out_max );
+  }
+  void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region, 
+			  float const & out_max ) {
+    if( region == u32_box_t{} ) { region.p[1] = u32_pt_t{out_batch->dims.dims(3),out_batch->dims.dims(2)}; }    
     dims_t const & obd = out_batch->dims;
     assert( obd.sz() == 4 );
     assert_st( img_ix < obd.dims(0) );
@@ -54,31 +74,19 @@ namespace boda
     assert( sqrt_out_chan );
     assert( (sqrt_out_chan*sqrt_out_chan) >= obd.dims(1) );
 
-    // set up dim iterators that span only the image we want to process
-    dims_t img_e = out_batch->dims;
-    dims_t img_b( img_e.sz() );
-    img_b.dims(0) = img_ix;
-    img_e.dims(0) = img_ix + 1;
-    float const out_max = nda_reduce( *out_batch, max_functor<float>(), 0.0f, img_b, img_e ); // note clamp to 0
-    //float const out_min = nda_reduce( *out_batch, min_functor<float>(), 0.0f, img_b, img_e ); // note clamp to 0
-    //assert_st( out_min == 0.0f ); // shouldn't be any negative values
-    //float const out_rng = out_max - out_min;
-
     assert_st( img->sz == img_sz );
 
-    for( uint32_t y = 0; y < img->sz.d[1]; ++y ) {
-      for( uint32_t x = 0; x < img->sz.d[0]; ++x ) {
-	uint32_t const bx = x / sqrt_out_chan;
-	uint32_t const by = y / sqrt_out_chan;
-	uint32_t const bc = (y%sqrt_out_chan)*sqrt_out_chan + (x%sqrt_out_chan);
-	uint32_t gv;
-	if( bc < obd.dims(1) ) {
+    for( uint32_t by = region.p[0].d[1]; by < region.p[1].d[1]; ++by ) {
+      for( uint32_t bx = region.p[0].d[0]; bx < region.p[1].d[0]; ++bx ) {
+	for( uint32_t bc = 0; bc < obd.dims(1); ++bc ) {
+	  uint32_t const x = bx*sqrt_out_chan + (bc%sqrt_out_chan);
+	  uint32_t const y = by*sqrt_out_chan + (bc/sqrt_out_chan);
 	  //float const norm_val = ((out_batch->at4(img_ix,bc,by,bx)-out_min) / out_rng );
 	  float const norm_val = ((out_batch->at4(img_ix,bc,by,bx)) / out_max );
-	  gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * norm_val ) ) );
-	  //gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * (log(.01) - log(std::max(.01f,norm_val))) / (-log(.01)) )));
-	} else { gv = grey_to_pel( 0 ); }
-	img->set_pel( {x, y}, gv );
+	  uint32_t const gv = grey_to_pel( uint8_t( std::min( 255.0, 255.0 * norm_val ) ) );
+	  //gv =grey_to_pel( uint8_t( std::min( 255.0, 255.0 * (log(.01) - log(std::max(.01f,norm_val))) / (-log(.01)) )));
+	  img->set_pel( {x, y}, gv );
+	}
       }
     }
   }

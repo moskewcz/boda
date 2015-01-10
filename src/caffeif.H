@@ -20,7 +20,9 @@ namespace boda
   void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top );
   p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in );
   void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img );
-  void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img );
+  void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region, 
+			  float const & out_max  );
+  void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region );
   void copy_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs );
   void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs );
 
