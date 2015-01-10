@@ -114,6 +114,7 @@ namespace boda
 			  conv_support_info_t const & csi ) 
   { 
     assert_st( out_box.is_strictly_normalized() );
+    assert_st( !csi.support_sz.is_zeros() );
     i32_box_t out_box_closed( out_box.p[0], out_box.p[1] - i32_pt_t(1,1) );
     if( mode == cm_any_valid ) {
       // for the 'any_valid' mode, the returned in_box is minimal: any smaller box would map to a
