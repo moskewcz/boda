@@ -11,6 +11,8 @@ namespace boda {
     bool fill;
     string str;
     uint32_t str_color;
+    uint32_t item_cnt;
+    set_uint32_t seen_label_ixs;
     //anno_t( void ) : box_color( uint32_t_const_max ), fill(0), str_color( uint32_t_const_max ) { }
   };
 
