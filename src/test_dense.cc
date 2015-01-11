@@ -154,19 +154,6 @@ namespace boda {
     
     p_img_t in_img;
     p_img_t in_img_upsamp;
-
-    p_conv_pipe_t conv_pipe;
-    p_vect_conv_io_t conv_ios;
-
-    p_conv_pipe_t conv_pipe_upsamp;
-    p_vect_conv_io_t conv_ios_upsamp;
-
-    void get_pipe_and_ios( p_run_cnet_t const & rc, p_conv_pipe_t & conv_pipe, p_vect_conv_io_t & conv_ios ) {
-      conv_pipe = rc->conv_pipe;
-      //conv_pipe->dump_pipe( *out );
-      conv_ios = conv_pipe->calc_sizes_forward( rc->in_sz, 0 ); 
-      //conv_pipe->dump_ios( *out, conv_ios );
-    }
     
     p_ostream out;
     virtual void main( nesi_init_arg_t * nia ) {
@@ -203,13 +190,9 @@ namespace boda {
 
       set_layer_blobs( run_cnet_upsamp->net, upsamp_layer_name + "-in-2X-us", usl_blobs_upsamp );
       
-
       // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
       in_img_upsamp = make_p_img_t( run_cnet_upsamp->in_sz );
 
-      get_pipe_and_ios( run_cnet, conv_pipe, conv_ios );
-      get_pipe_and_ios( run_cnet_upsamp, conv_pipe_upsamp, conv_ios_upsamp );
-      
       boost::random::mt19937 gen;
 
       uint32_t tot_wins = 0;
