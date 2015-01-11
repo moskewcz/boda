@@ -377,11 +377,28 @@ namespace boda
     assert_st( ret );
   }
 
+  // most clients call this. others might inline it to be able to call setup_cnet_adjust_in_num_imgs()
   void run_cnet_t::setup_cnet( void ) {
-    caffe::NetParameter net_param;
-    create_net_param( net_param );
+    setup_cnet_param_and_pipe();
+    // optionally, could call setup_cnet_adjust_in_num_imgs( ... ) here
+    setup_cnet_net_and_batch();
+  }
+
+  void run_cnet_t::setup_cnet_param_and_pipe( void ) {
+    assert( !net_param );
+    net_param.reset( new caffe::NetParameter );
+    create_net_param( *net_param );
+    cache_pipe( *net_param );
+  }
+  void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
+    assert_st( net_param && conv_pipe );
+    assert_st( net_param->input_dim_size() == 4 );
+    in_num_imgs = in_num_imgs_;
+    net_param->set_input_dim(0,in_num_imgs);
+  }
+  void run_cnet_t::setup_cnet_net_and_batch( void ) {
     assert_st( !net );
-    net = init_caffe( net_param, trained_fn.exp );      
+    net = init_caffe( *net_param, trained_fn.exp );      
 
     assert_st( !in_batch );
     dims_t in_batch_dims( 4 );
@@ -391,8 +408,6 @@ namespace boda
     in_batch_dims.dims(0) = in_num_imgs;
     in_batch.reset( new nda_float_t );
     in_batch->set_dims( in_batch_dims );
-
-    cache_pipe( net_param );
   }
 
   void cnet_predict_t::main( nesi_init_arg_t * nia ) { 

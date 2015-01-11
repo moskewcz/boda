@@ -16,6 +16,8 @@ namespace boda
 {
   typedef caffe::Net< float > Net_float;
   typedef shared_ptr< Net_float > p_Net_float;
+  typedef shared_ptr< caffe::NetParameter > p_net_param_t;
+
   p_Net_float init_caffe( caffe::NetParameter & net_param, string const & trained_fn );
   void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom );
   void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top );
@@ -64,6 +66,10 @@ namespace boda
     p_nda_float_t in_batch;
     p_Net_float net;
     void setup_cnet( void );
+    void setup_cnet_param_and_pipe( void );
+    void setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ );
+    void setup_cnet_net_and_batch( void );
+
     u32_pt_t get_one_blob_img_out_sz( void ); // note: assumes/includes chans_to_area conversion
     p_nda_float_t run_one_blob_in_one_blob_out( void );
 
@@ -73,6 +79,7 @@ namespace boda
     uint32_t out_s;
     run_cnet_t( void ) : ol_csi(0), out_s(0) { }
   private:
+    p_net_param_t net_param;
     void create_net_param( caffe::NetParameter & net_param );
     void cache_pipe( caffe::NetParameter & net_param );
   };
