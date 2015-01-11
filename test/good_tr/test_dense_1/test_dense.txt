@@ -309,3 +309,34 @@ feat_box_dense=(1 1)(3 3)
 ssds_str(from_dense,out_batch)=cnt=3019 sum_squared_diffs=6.69553e-08 avg_abs_diff=4.09131e-06 sum_diffs=-0.000948671 avg_diff=-2.37168e-07
 feat_box_dense=(3 0)(5 2)
 ssds_str(from_dense,out_batch)=cnt=2869 sum_squared_diffs=3.11966e-08 avg_abs_diff=2.79269e-06 sum_diffs=-0.00210156 avg_diff=-5.25389e-07
+feat_box_dense=(0 0)(2 2)
+ssds_str(from_dense,out_batch)=cnt=2909 sum_squared_diffs=6.32347e-08 avg_abs_diff=3.97601e-06 sum_diffs=-0.00145352 avg_diff=-3.63381e-07
+feat_box_dense=(4 4)(6 6)
+ssds_str(from_dense,out_batch)=cnt=2828 sum_squared_diffs=2.30108e-08 avg_abs_diff=2.39848e-06 sum_diffs=0.000215612 avg_diff=5.39031e-08
+feat_box_dense=(5 1)(7 3)
+ssds_str(from_dense,out_batch)=cnt=2604 sum_squared_diffs=1.01213e-07 avg_abs_diff=5.03023e-06 sum_diffs=-0.000296432 avg_diff=-7.4108e-08
+(*i)->sz=500 333
+feat_box_dense=(5 2)(7 4)
+ssds_str(from_dense,out_batch)=cnt=2610 sum_squared_diffs=7.83135e-08 avg_abs_diff=4.42474e-06 sum_diffs=0.000595484 avg_diff=1.48871e-07
+feat_box_dense=(4 3)(6 5)
+ssds_str(from_dense,out_batch)=cnt=2667 sum_squared_diffs=1.60755e-07 avg_abs_diff=6.33946e-06 sum_diffs=-0.00559738 avg_diff=-1.39935e-06
+feat_box_dense=(5 0)(7 2)
+ssds_str(from_dense,out_batch)=cnt=2642 sum_squared_diffs=5.32157e-08 avg_abs_diff=3.64745e-06 sum_diffs=0.000736831 avg_diff=1.84208e-07
+feat_box_dense=(4 3)(6 5)
+ssds_str(from_dense,out_batch)=cnt=2667 sum_squared_diffs=1.60755e-07 avg_abs_diff=6.33946e-06 sum_diffs=-0.00559738 avg_diff=-1.39935e-06
+feat_box_dense=(5 2)(7 4)
+ssds_str(from_dense,out_batch)=cnt=2610 sum_squared_diffs=7.83135e-08 avg_abs_diff=4.42474e-06 sum_diffs=0.000595484 avg_diff=1.48871e-07
+feat_box_dense=(6 2)(8 4)
+ssds_str(from_dense,out_batch)=cnt=2613 sum_squared_diffs=8.42212e-08 avg_abs_diff=4.58861e-06 sum_diffs=0.002589 avg_diff=6.4725e-07
+feat_box_dense=(8 1)(10 3)
+ssds_str(from_dense,out_batch)=cnt=2711 sum_squared_diffs=6.75493e-08 avg_abs_diff=4.10942e-06 sum_diffs=-0.00298748 avg_diff=-7.4687e-07
+feat_box_dense=(0 3)(2 5)
+ssds_str(from_dense,out_batch)=cnt=2906 sum_squared_diffs=5.77862e-08 avg_abs_diff=3.80086e-06 sum_diffs=-0.00135527 avg_diff=-3.38817e-07
+feat_box_dense=(1 1)(3 3)
+ssds_str(from_dense,out_batch)=cnt=2703 sum_squared_diffs=7.67341e-08 avg_abs_diff=4.3799e-06 sum_diffs=0.00184619 avg_diff=4.61548e-07
+feat_box_dense=(4 0)(6 2)
+ssds_str(from_dense,out_batch)=cnt=2635 sum_squared_diffs=3.85034e-08 avg_abs_diff=3.10255e-06 sum_diffs=0.00168262 avg_diff=4.20656e-07
+feat_box_dense=(1 2)(3 4)
+ssds_str(from_dense,out_batch)=cnt=2818 sum_squared_diffs=7.47894e-08 avg_abs_diff=4.32404e-06 sum_diffs=0.00262782 avg_diff=6.56954e-07
+feat_box_dense=(5 2)(7 4)
+ssds_str(from_dense,out_batch)=cnt=2610 sum_squared_diffs=7.83135e-08 avg_abs_diff=4.42474e-06 sum_diffs=0.000595484 avg_diff=1.48871e-07
