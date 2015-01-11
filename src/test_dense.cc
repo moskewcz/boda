@@ -57,19 +57,11 @@ namespace boda {
     p_img_t in_img;
     p_img_t in_img_dense;
 
-    p_conv_pipe_t conv_pipe;
-    p_vect_conv_io_t conv_ios;
-
-    p_conv_pipe_t conv_pipe_dense;
-    p_vect_conv_io_t conv_ios_dense;
-
-    void get_pipe_and_ios( p_run_cnet_t const & run_cnet, p_conv_pipe_t & conv_pipe, p_vect_conv_io_t & conv_ios ) {
-      conv_pipe = run_cnet->conv_pipe;
-      conv_pipe->dump_pipe( *out );
-      conv_ios = conv_pipe->calc_sizes_forward( run_cnet->in_sz, 0 ); 
-      conv_pipe->dump_ios( *out, conv_ios );
+    void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
+      rc->conv_pipe->dump_pipe( *out );
+      rc->conv_pipe->dump_ios( *out, rc->conv_ios );
     }
-    
+
     p_ostream out;
     virtual void main( nesi_init_arg_t * nia ) {
       out = ofs_open( out_fn.exp );
@@ -84,9 +76,9 @@ namespace boda {
       in_img = make_p_img_t( run_cnet->in_sz );
       in_img_dense = make_p_img_t( run_cnet_dense->in_sz );
 
-      get_pipe_and_ios( run_cnet, conv_pipe, conv_ios );
-      get_pipe_and_ios( run_cnet_dense, conv_pipe_dense, conv_ios_dense );
-      
+      dump_pipe_and_ios( run_cnet );
+      dump_pipe_and_ios( run_cnet_dense );
+
       boost::random::mt19937 gen;
 
       uint32_t tot_wins = 0;
@@ -104,9 +96,8 @@ namespace boda {
 	}
 
 	// figure out what part of output (if any) doesn't depend on padding
-	conv_support_info_t const & ol_csi = conv_pipe->conv_sis.back();
 	i32_box_t feat_box;
-	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, ol_csi );
+	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, *run_cnet->ol_csi );
 
 	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
 	  u32_pt_t const samp_nc_max = (*i)->sz - run_cnet->in_sz;
@@ -123,10 +114,9 @@ namespace boda {
       assert( obd_dense.dims(0) == 1 ); // one image
       //printf( "nc=%s\n", str(nc).c_str() );   
       u32_box_t in_box{ nc, nc + run_cnet->in_sz };
-      conv_support_info_t const & ol_csi_dense = conv_pipe_dense->conv_sis.back();
 
       i32_box_t feat_box_dense;
-      in_box_to_out_box( feat_box_dense, in_box, cm_valid, ol_csi_dense );
+      in_box_to_out_box( feat_box_dense, in_box, cm_valid, *run_cnet_dense->ol_csi );
 
       if( feat_box_dense.sz() != feat_box.sz() ) { return; }
       
