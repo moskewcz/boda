@@ -117,13 +117,13 @@ namespace boda
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( ipp->in_sz );
       cnet_predict->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
-      // FIXME: we need to place the images to know this, but we need
-      // to setup_cnet() to know that? see FIXME in cache_pipe().
-      cnet_predict->in_num_imgs = 1; 
-      cnet_predict->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
-      cnet_predict->setup_cnet();
 
+      cnet_predict->in_num_imgs = 1; // temporary value, will be reset one we know how many planes we need
+      cnet_predict->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
+      cnet_predict->setup_cnet_param_and_pipe();
       ipp->do_place_imgs( cnet_predict->conv_pipe->conv_sis.back() );
+      cnet_predict->setup_cnet_adjust_in_num_imgs( ipp->num_bins );
+      cnet_predict->setup_cnet_net_and_batch();
 
 
       vect_p_img_t disp_imgs;
