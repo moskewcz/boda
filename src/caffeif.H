@@ -57,7 +57,7 @@ namespace boda
     uint32_t in_num_imgs; //NESI(default="1",help="number of images to use for caffe net input layer/blob")
     uint32_t in_num_chans; //NESI(default="3",help="number of channels to use for caffe net input layer/blob")
     string out_layer_name;//NESI(default="prob",help="output layer name of which to output top blob of")
-    uint32_t anno_mode; //NESI(default=0,help="annotation string mode: "
+    uint32_t anno_mode; //NESI(default=1,help="annotation string mode: "
     //" <default>0=label plus probs"
     //" 1=label only"
     //" 2=label plus sz")
@@ -119,6 +119,8 @@ namespace boda
   };
   typedef vector< pred_state_t > vect_pred_state_t; 
 
+  typedef map_i32_pt_t_to_i32_box_t nms_grid_t;
+
   struct cnet_predict_t : virtual public nesi, public run_cnet_t // NESI(help="run a caffe net on a single input",
 		     // bases=["run_cnet_t"], type_id="cnet_predict")
   {
@@ -128,11 +130,15 @@ namespace boda
     filename_t img_in_fn; //NESI(default="%(boda_test_dir)/pascal/000001.jpg",help="input image filename")
 
     filename_t out_labels_fn; //NESI(default="%(caffe_dir)/data/ilsvrc12/synset_words.txt",help="list of labels in net output layer channel order")
-    double filt_rate;//NESI(default=".02",help="filter rate cooef labels display. should be < 1.0.")
+    double filt_rate;//NESI(default=".2",help="filter rate cooef labels display. should be < 1.0.")
     double filt_show_thresh;//NESI(default=".02",help="start display of labels above this filtered prob. should be < 1.0 and > filt_drop_thresh.")
     double filt_drop_thresh;//NESI(default=".005",help="drop display of labels below this filtered prob. should be < 1.0 and < filt_show_thresh.")
 
-    uint32_t max_num_disp; //NESI(default="20",help="max # of results to display (i.e. TOP_N)")
+    uint32_t max_num_disp; //NESI(default="20",help="max # of results to display total (i.e. TOP_N)")
+    uint32_t max_labels_per_anno; //NESI(default="5",help="max # of labels to display per-anno (i.e. TOP_N)")
+    u32_pt_t nms_grid_pels; //NESI(default="25 25",help="nms coverage grid precision")
+    double nms_core_rat; //NESI(default=".75",help="multiply box by this factor to determine nms converage area")
+
 
     virtual void main( nesi_init_arg_t * nia );
 
@@ -151,6 +157,9 @@ namespace boda
     void do_predict_region( p_nda_float_t const & out_batch, dims_t const & obb, dims_t const & obe, 
 			    uint32_t const & psb );
     p_vect_anno_t pred_state_to_annos( bool const print_to_terminal );
+  private:
+    nms_grid_t nms_grid;
+    i32_box_t nms_grid_op( bool const & do_set, i32_box_t const & img_box );
   };
 
   struct cnet_predict_t; typedef shared_ptr< cnet_predict_t > p_cnet_predict_t; 

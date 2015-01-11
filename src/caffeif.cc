@@ -359,6 +359,12 @@ namespace boda
       out->push_back( t );
     }
     //printf( "out=%s\n", str(out).c_str() );
+#if 0
+    p_ofstream tags = ofs_open("tags.txt");
+    for( vect_synset_elem_t::const_iterator i = out->begin(); i != out->end(); ++i ) {
+      (*tags) << ( i->tag + "\n" );
+    }
+#endif
   }
 
 
@@ -541,6 +547,37 @@ namespace boda
     return pred_state_to_annos( print_to_terminal );
   }
 
+
+  i32_box_t cnet_predict_t::nms_grid_op( bool const & do_set, i32_box_t const & img_box ) {
+    uint32_t tot_pel = 0;
+    uint32_t over_pel = 0;
+
+    i32_box_t shrunk_quant_img_box = floor_div( img_box.scale_and_round( nms_core_rat ), nms_grid_pels );
+
+    nms_grid_t::iterator ci = nms_grid.find( shrunk_quant_img_box.center_rd() );
+    i32_box_t center_match;
+    if( ci != nms_grid.end() ) { center_match = ci->second; }
+    uint32_t center_match_cnt = 0;
+
+    for( int32_t by = shrunk_quant_img_box.p[0].d[1]; by < shrunk_quant_img_box.p[1].d[1]; ++by ) {
+      for( int32_t bx = shrunk_quant_img_box.p[0].d[0]; bx < shrunk_quant_img_box.p[1].d[0]; ++bx ) {
+	i32_pt_t const pel{bx,by};
+	if( do_set ) { nms_grid[pel] = img_box; }
+	else {
+	  ++tot_pel;
+	  nms_grid_t::iterator i = nms_grid.find( pel );
+	  if( i != nms_grid.end() ) { ++over_pel; if( i->second == center_match ) { ++center_match_cnt; } }
+	}
+      }
+    }
+    if( center_match_cnt * 4 > tot_pel * 3 ) {  // mostly covers an existing match, so maybe add anno to that match
+      assert_st( over_pel );
+      return center_match;
+    } else if( over_pel ) {
+      return i32_box_t{};
+    } else { return img_box; } // doesn't overlap
+  }
+
   p_vect_anno_t cnet_predict_t::pred_state_to_annos( bool const print_to_terminal ) {
     anno_map_t annos;
     if( print_to_terminal ) {
@@ -551,11 +588,25 @@ namespace boda
     for( uint32_t i = 0; i < pred_state.size(); ++i ) {  if( pred_state[i].to_disp ) { disp_list.push_back(i); } }
     sort( disp_list.begin(), disp_list.end(), gt_filt_prob<pred_state_t>( pred_state ) );
     uint32_t num_disp = 0;
+    nms_grid.clear();
     for( vect_uint32_t::const_iterator ii = disp_list.begin(); ii != disp_list.end(); ++ii ) {
       if( num_disp == max_num_disp ) { break; }
       pred_state_t const & ps = pred_state[*ii];
-      anno_t & anno = annos[ps.img_box];
+      // check nms
+      i32_box_t const nms_box = nms_grid_op( 0, ps.img_box );
+      if( nms_box == i32_box_t{} ) { continue; } //nms suppression condition: overlaps other core and no close-center-match
+      anno_map_t::iterator ami = annos.find( nms_box ); // either ps.img_box or a close-matching overlap
+      // nms supression condition: existing-anno-full 
+      if( (ami != annos.end()) && (ami->second.item_cnt >= max_labels_per_anno) ) { continue; } 
       
+      anno_t & anno = annos[nms_box];
+      if( ami == annos.end() ) { // was new, init
+	assert( nms_box == ps.img_box );
+	anno.item_cnt = 0;
+	nms_grid_op( 1, ps.img_box );
+      } 
+      bool const did_ins = anno.seen_label_ixs.insert( ps.label_ix ).second;
+      if( !did_ins ) { continue; } // ignore dup labels 
       string anno_str;
       if( anno_mode == 0 ) {
 	anno_str = strprintf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(ps.label_ix).tag).c_str(), 
@@ -569,6 +620,7 @@ namespace boda
       }
 
       anno.str += anno_str;
+      ++anno.item_cnt;
       if( print_to_terminal ) { printstr( anno_str ); }
       ++num_disp;
     }
