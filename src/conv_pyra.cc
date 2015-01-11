@@ -96,12 +96,9 @@ namespace boda
 	  printf( "(*i)=%s\n", str((*i)).c_str() );
 	  anno_feat_img_xy( pyra_xy );
 
-	  u32_box_t feat_pel_box{pyra_xy,pyra_xy+u32_pt_t{1,1}};	  
-	  i32_box_t valid_in_xy;
-	  unchecked_out_box_to_in_box( valid_in_xy, u32_to_i32( feat_pel_box ), cm_valid, *cnet_predict->ol_csi );
-	  valid_in_xy -= u32_to_i32(ipp->placements.at(i->six)); // shift so image nc is at 0,0
-	  valid_in_xy = valid_in_xy * u32_to_i32(ipp->in_sz) / u32_to_i32(ipp->sizes.at(i->six)); // scale for scale
-	  img_annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy),rgba_to_pel(220,220,255)});
+	  // FIXME: use correct chan? doesn't matter?
+	  i32_box_t const & img_box = cnet_predict->pred_state.at( i->get_psix( 0, pyra_xy ) ).img_box; 
+	  img_annos->push_back( anno_t{img_box, rgba_to_pel(170,40,40), 0, str(img_box),rgba_to_pel(220,220,255)});
 
 	}
       }
@@ -136,7 +133,8 @@ namespace boda
       disp_win.disp_setup( disp_imgs );
       register_lb_handler( disp_win, &conv_pyra_t::on_lb, this );
 
-      cnet_predict->setup_scale_infos( ipp->sizes, ipp->placements );
+      cnet_predict->setup_scale_infos( ipp->sizes, ipp->placements, ipp->in_sz );
+      cnet_predict->setup_predict();
       img_annos.reset( new vect_anno_t );
       feat_annos.reset( new vect_anno_t );
       setup_annos();
@@ -155,11 +153,13 @@ namespace boda
       for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); 
 	   i != cnet_predict->scale_infos.end(); ++i ) {
 	assert_st( i->feat_box.is_strictly_normalized() );
-	if( disp_feats && (i->bix == 0) ) { // only working on plane 0 for now
-	  feat_annos->push_back( anno_t{ i->feat_img_box, rgba_to_pel(170,40,40), 0, 
-		str(ipp->sizes.at(i->six)), rgba_to_pel(220,220,255) } );
-	} else {
-	  printf( "warning: unhanded bix=%s (>1 plane or scale didn't fit if bix=const_max)\n", str(i->bix).c_str() ); 
+	if( disp_feats ) {
+	  if (i->bix == 0) { // only working on plane 0 for now
+	    feat_annos->push_back( anno_t{ i->feat_img_box, rgba_to_pel(170,40,40), 0, 
+		  str(i->img_sz), rgba_to_pel(220,220,255) } );
+	  } else {
+	    printf( "warning: unhanded bix=%s (>1 plane or scale didn't fit if bix=const_max)\n", str(i->bix).c_str() ); 
+	  }
 	}
       }
       uint32_t diix = 0;

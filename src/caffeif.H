@@ -76,11 +76,21 @@ namespace boda
   typedef shared_ptr< vect_anno_t > p_vect_anno_t; 
 
   struct scale_info_t {
-    uint32_t six; // scale index
+    u32_pt_t img_sz; // for this scale. often used as (some_box * nominal_in_sz / img_sz) for scaling
+
     uint32_t bix; // plane index
+    u32_pt_t place; // offset of nc of scaled img inside plane
+
     i32_box_t feat_box;
     i32_box_t feat_img_box; // currently always == feat scaled up by out_s
+
+    uint32_t psb; // starting index into pred_state. then index by chan,y,x (as per out_batch order)
+    uint32_t get_psix( uint32_t const & c, u32_pt_t const & xy ) const { // xy in in place space
+      assert_st( feat_box.strictly_contains( u32_to_i32(xy) ) );
+      u32_pt_t const off = xy - i32_to_u32(feat_box.p[0]);
+      return psb + c*feat_box.sz().dims_prod() + off.d[1]*feat_box.sz().d[0] + off.d[0]; }
   };
+
   typedef vector< scale_info_t > vect_scale_info_t; 
   std::ostream & operator <<(std::ostream & os, scale_info_t const & v ); 
 
@@ -114,11 +124,13 @@ namespace boda
 
     p_vect_synset_elem_t out_labels;
     vect_scale_info_t scale_infos;
+    u32_pt_t nominal_in_sz;
     vect_pred_state_t pred_state;
 
     void setup_predict( void );
     void setup_scale_infos( void );
-    void setup_scale_infos( vect_u32_pt_t const & sizes, vect_u32_pt_w_t const & placements );
+    void setup_scale_infos( vect_u32_pt_t const & sizes, vect_u32_pt_w_t const & placements, 
+			    u32_pt_t const & nominal_in_sz_ );
 
     p_vect_anno_t do_predict( p_img_t const & img_in_ds, bool const print_to_terminal );
     void do_predict_region( p_nda_float_t const & out_batch, dims_t const & obb, dims_t const & obe, 

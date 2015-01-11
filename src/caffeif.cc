@@ -417,7 +417,15 @@ namespace boda
 
     uint32_t const out_chans = conv_pipe->convs->back().out_chans;
 
-    for( vect_scale_info_t::const_iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+    if( ol_csi->support_sz.is_zeros() ) { // only sensible in single-scale case 
+      assert_st( scale_infos.size() == 1 );
+      assert_st( scale_infos.back().img_sz == nominal_in_sz );
+      assert_st( scale_infos.back().place.is_zeros() );
+      assert_st( scale_infos.back().bix == 1 );
+    }
+
+    for( vect_scale_info_t::iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+      i->psb = pred_state.size();
       for( uint32_t bc = 0; bc < out_chans; ++bc ) {
 	for( int32_t by = i->feat_box.p[0].d[1]; by < i->feat_box.p[1].d[1]; ++by ) {
 	  for( int32_t bx = i->feat_box.p[0].d[0]; bx < i->feat_box.p[1].d[0]; ++bx ) {
@@ -428,7 +436,9 @@ namespace boda
 	    u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
 	    i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
 	    unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
-					   *ol_csi, in_sz );
+					   *ol_csi, i->img_sz );
+	    valid_in_xy -= u32_to_i32(i->place); // shift so image nc is at 0,0
+	    valid_in_xy = valid_in_xy * u32_to_i32(nominal_in_sz) / u32_to_i32(i->img_sz); // scale for scale
 	    ps.img_box = valid_in_xy;
 	  }
 	}
@@ -443,10 +453,13 @@ namespace boda
     i32_box_t const valid_feat_box{{},u32_to_i32(feat_sz)};
     assert_st( valid_feat_box.is_strictly_normalized() );
     i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
-    scale_infos.push_back( scale_info_t{uint32_t_const_max,0,valid_feat_box,valid_feat_img_box} );
+    nominal_in_sz = in_sz;
+    scale_infos.push_back( scale_info_t{nominal_in_sz,0,{},valid_feat_box,valid_feat_img_box} );
   }
 
-  void cnet_predict_t::setup_scale_infos( vect_u32_pt_t const & sizes, vect_u32_pt_w_t const & placements ) {
+  void cnet_predict_t::setup_scale_infos( vect_u32_pt_t const & sizes, vect_u32_pt_w_t const & placements,
+					  u32_pt_t const & nominal_in_sz_ ) {
+    nominal_in_sz = nominal_in_sz_;
     conv_pipe->dump_pipe( std::cout );
     if( ol_csi->support_sz.is_zeros() ) {
       rt_err( "global pooling and/or\n inner product layers + trying to "
@@ -455,7 +468,8 @@ namespace boda
     for( uint32_t six = 0; six < sizes.size(); ++six ) {
       uint32_t const bix = placements.at(six).w;
       u32_pt_t const dest = placements.at(six);
-      u32_box_t per_scale_img_box{dest,dest+sizes.at(six)};
+      u32_pt_t const sz = sizes.at(six);
+      u32_box_t per_scale_img_box{dest,dest+sz};
       // assume we've ensured that there is eff_tot_pad around the scale_img
       per_scale_img_box.p[0] -= ol_csi->eff_tot_pad.p[0];
       per_scale_img_box.p[1] += ol_csi->eff_tot_pad.p[0];
@@ -464,8 +478,7 @@ namespace boda
       in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, *ol_csi );
       assert_st( valid_feat_box.is_strictly_normalized() );
       i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
-      scale_infos.push_back( scale_info_t{six,bix,valid_feat_box,valid_feat_img_box} );
-	
+      scale_infos.push_back( scale_info_t{sz,bix,dest,valid_feat_box,valid_feat_img_box} );	
     }
     printf( "scale_infos=%s\n", str(scale_infos).c_str() );
   }
