@@ -53,21 +53,21 @@ namespace boda
       in_img->share_pels_from( ds_img );
       ipp->scale_and_pack_img_into_bins( in_img );
       for( uint32_t bix = 0; bix != ipp->bin_imgs.size(); ++bix ) {
-	subtract_mean_and_copy_img_to_batch( cnet_predict->in_batch, 0, ipp->bin_imgs[bix] );
-	p_nda_float_t out_batch = cnet_predict->run_one_blob_in_one_blob_out();
-	feat_annos->clear();
-	img_annos = cnet_predict->do_predict( out_batch, 0 );
-	setup_annos();
-	if( disp_feats && (bix == 0) ) {
-	  timer_t t("conv_pyra_write_output");
-	  if( zero_trash ) {
-	    for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); i != cnet_predict->scale_infos.end(); ++i ) {
-	      if( i->bix != 0 ) { continue; } // wrong plane
-	      copy_batch_to_img( out_batch, i->bix, feat_img, i32_to_u32(i->feat_box) );
-	    }
+	subtract_mean_and_copy_img_to_batch( cnet_predict->in_batch, bix, ipp->bin_imgs[bix] );
+      }
+      p_nda_float_t out_batch = cnet_predict->run_one_blob_in_one_blob_out();
+      feat_annos->clear();
+      img_annos = cnet_predict->do_predict( out_batch, 0 );
+      setup_annos();
+      if( disp_feats ) {
+	timer_t t("conv_pyra_write_output");
+	if( zero_trash ) {
+	  for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); i != cnet_predict->scale_infos.end(); ++i ) {
+	    if( i->bix != 0 ) { continue; } // wrong plane
+	    copy_batch_to_img( out_batch, i->bix, feat_img, i32_to_u32(i->feat_box) );
 	  }
-	  else { copy_batch_to_img( out_batch, 0, feat_img, u32_box_t{} ); }
 	}
+	else { copy_batch_to_img( out_batch, 0, feat_img, u32_box_t{} ); }
       }
       disp_win.update_disp_imgs();
       setup_capture_on_read( *cap_afd, &conv_pyra_t::on_cap_read, this );
@@ -117,7 +117,9 @@ namespace boda
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( ipp->in_sz );
       cnet_predict->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
-      cnet_predict->in_num_imgs = 1;
+      // FIXME: we need to place the images to know this, but we need
+      // to setup_cnet() to know that? see FIXME in cache_pipe().
+      cnet_predict->in_num_imgs = 1; 
       cnet_predict->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
       cnet_predict->setup_cnet();
 
