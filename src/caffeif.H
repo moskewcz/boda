@@ -60,7 +60,8 @@ namespace boda
     uint32_t anno_mode; //NESI(default=1,help="annotation string mode: "
     //" <default>0=label plus probs"
     //" 1=label only"
-    //" 2=label plus sz")
+    //" 2=label plus sz"
+    //" 3=label plus rank")
 
     virtual void main( nesi_init_arg_t * nia );
     p_nda_float_t in_batch;

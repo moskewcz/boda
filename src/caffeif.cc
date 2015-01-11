@@ -614,6 +614,8 @@ namespace boda
 			      str(ps.cur_prob).c_str() );
       } else if ( anno_mode == 1 ) {
 	anno_str = strprintf( "%s\n", str(out_labels->at(ps.label_ix).tag).c_str() ); 
+      } else if ( anno_mode == 3 ) {
+	anno_str = strprintf( "%-4s %s\n", str(ii - disp_list.begin() + 1).c_str(), str(out_labels->at(ps.label_ix).tag).c_str() ); 
       } else if ( anno_mode == 2 ) {
 	anno_str = strprintf( "%-20s -- sz=%s\n", 
 			      str(out_labels->at(ps.label_ix).tag).c_str(), str(ps.img_box.sz()).c_str() ); 
