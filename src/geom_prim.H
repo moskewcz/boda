@@ -173,8 +173,8 @@ namespace boda
     T_box_t scale_and_round( double const & s ) const { return T_box_t( p[0].scale_and_round(s), p[1].scale_and_round(s) ); }
     T_box_t scale_and_round( double_pt_t const & s ) const { return T_box_t( p[0].scale_and_round(s), p[1].scale_and_round(s) ); }
 
-    T center_ru( void ) const { return (bnds_sum() + T(1,1))/2; }
-    T center_rd( void ) const { return bnds_sum()/2; }
+    T center_ru( void ) const { return ceil_div( bnds_sum(), u32_pt_t{2,2} ); }
+    T center_rd( void ) const { return floor_div( bnds_sum(), u32_pt_t{2,2} ); }
     T dim_wise_max( void ) const { return T( std::max(p[0].d[0],p[1].d[0]), std::max(p[0].d[1],p[1].d[1]) ); }
   };
 
@@ -195,8 +195,14 @@ namespace boda
   inline i32_box_t ceil_div( i32_box_t const &v, u32_pt_t const & d ) { 
     return i32_box_t( ceil_div( v.p[0], d ), ceil_div( v.p[1], d ) ); }
     
+  typedef set< i32_pt_t > set_i32_pt_t;
+  typedef map< i32_pt_t, uint32_t > map_i32_pt_t_to_uint32_t;
+  typedef map< i32_pt_t, i32_box_t > map_i32_pt_t_to_i32_box_t;
+  typedef set< u32_pt_t > set_u32_pt_t;
+
   typedef vector< u32_box_t > vect_u32_box_t; 
   typedef set< u32_box_t > set_u32_box_t;
+  typedef set< i32_box_t > set_i32_box_t;
   typedef shared_ptr< u32_box_t > p_u32_box_t; 
   typedef vector< p_u32_box_t > vect_p_u32_box_t;
   typedef shared_ptr< vect_u32_box_t > p_vect_u32_box_t; 

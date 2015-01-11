@@ -85,6 +85,7 @@ namespace boda
   typedef shared_ptr< string > p_string;
   typedef shared_ptr< vect_string > p_vect_string;
   typedef set< string > set_string;
+  typedef set< uint32_t > set_uint32_t;
 
   typedef map< string, zi_uint32_t > map_str_ziu32_t;
 
