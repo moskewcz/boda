@@ -135,6 +135,8 @@ namespace boda
     p_vect_anno_t do_predict( p_img_t const & img_in_ds, bool const print_to_terminal );
     void do_predict_region( p_nda_float_t const & out_batch, dims_t const & obb, dims_t const & obe, 
 			    uint32_t const & psb );
+    p_vect_anno_t pred_state_to_annos( bool const print_to_terminal );
+
   };
 
   struct cnet_predict_t; typedef shared_ptr< cnet_predict_t > p_cnet_predict_t; 

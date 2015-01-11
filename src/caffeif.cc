@@ -507,11 +507,27 @@ namespace boda
 
     dims_t const & obd = out_batch->dims;
     assert( obd.sz() == 4 );
-    assert( obd.dims(0) == 1 );
     assert( obd.dims(1) == out_labels->size() );
 
-    do_predict_region( out_batch, dims_t{obd.sz()}, obd, 0 );
+    for( vect_scale_info_t::iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
+      dims_t img_e( out_batch->dims.sz() );
+      dims_t img_b( img_e.sz() );
+      img_b.dims(0) = i->bix;
+      img_e.dims(0) = i->bix + 1;
+      img_b.dims(1) = 0;
+      img_e.dims(1) = obd.dims(1);
+      img_b.dims(2) = i->feat_box.p[0].d[1];
+      img_e.dims(2) = i->feat_box.p[1].d[1];
+      img_b.dims(3) = i->feat_box.p[0].d[0];
+      img_e.dims(3) = i->feat_box.p[1].d[0];
+      assert_st( img_e.fits_in( obd ) );
+      assert_st( img_b.fits_in( img_e ) );
+      do_predict_region( out_batch, img_b, img_e, i->psb );
+    }
+    return pred_state_to_annos( print_to_terminal );
+  }
 
+  p_vect_anno_t cnet_predict_t::pred_state_to_annos( bool const print_to_terminal ) {
     anno_map_t annos;
     if( print_to_terminal ) {
       printf("\033[2J\033[1;1H");
