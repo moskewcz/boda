@@ -96,7 +96,7 @@ namespace boda
     }
   }
 
-  p_Net_float init_caffe( string const & param_str, string const & trained_fn ) {
+  p_Net_float init_caffe( caffe::NetParameter & net_param, string const & trained_fn ) {
     static bool caffe_is_init = 0;
     if( !caffe_is_init ) {
       caffe_is_init = 1;
@@ -107,27 +107,10 @@ namespace boda
       Caffe::SetDevice(0);
       //Caffe::set_mode(Caffe::CPU);
     }
-    timer_t t("caffe_load_net");
-    caffe::NetParameter param;
-    bool const ret = google::protobuf::TextFormat::ParseFromString( param_str, &param );
-    assert_st( ret );
 
-    p_Net_float net( new Net_float( param ) );
+    p_Net_float net( new Net_float( net_param ) );
     net->CopyTrainedLayersFrom( trained_fn );
 
-#if 0
-    int total_iter = 10; // atoi(argv[3]);
-    LOG(ERROR) << "Running " << total_iter << " iterations.";
-
-    double test_accuracy = 0;
-    for (int i = 0; i < total_iter; ++i) {
-      const vector<Blob<float>*>& result = net->ForwardPrefilled();
-      test_accuracy += result[0]->cpu_data()[0];
-      LOG(ERROR) << "Batch " << i << ", accuracy: " << result[0]->cpu_data()[0];
-    }
-    test_accuracy /= total_iter;
-    LOG(ERROR) << "Test accuracy: " << test_accuracy;
-#endif
     return net;
   }
 
@@ -292,20 +275,29 @@ namespace boda
   }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out( void ) { 
     return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch ); }
-  void run_cnet_t::cache_pipe( void ) { 
-    // note; there is an unfortunate potential circular dependency here: we may need the pipe info
-    // about the network before we have set it up if the desired size of the input image depends on
-    // the net architeture (i.e. support size / padding / etc ). we could potentially create a
-    // 'dummy' net with some semi-arbitrary input sizes here. but, for now, we can squeak around the
-    // dependency in our current use cases ...
-    assert_st( net ); // net must already be set up
+  void run_cnet_t::cache_pipe( caffe::NetParameter & net_param ) { 
+    // note; there is an unfortunate potential circular dependency
+    // here: we may need the pipe info about the network before we
+    // have set it up if the desired size of the input image depends
+    // on the net architeture (i.e. support size / padding / etc ).
+    // currently, the only thing we need the pipe for before setup is
+    // the number of images. this is determined by the blf_pack code
+    // which needs the supports sizes and padding info from the
+    // pipe. but, since the pipe doesn't care about the the number of
+    // input images (note: it does currently use in_sz to create the
+    // conv_ios here, but that could be delayed), we can get away with
+    // creating the net_param first, then the pipe, then altering
+    // num_input_images input_dim field of the net_param, then setting
+    // up the net. hmm.
+
     // note: we only handle a (very) limited set of possible layers/networks here.
     assert_st( !conv_pipe ); // should only be called only in setup
     conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
-    vect_string const & layer_names = net->layer_names();
+    //vect_string const & layer_names = net->layer_names();
     uint32_t last_out_chans = 0;
-    for( uint32_t i = 0; i != layer_names.size(); ++i ) { 
-      caffe::LayerParameter const & lp = net->layers()[i]->layer_param();
+    for( int32_t i = 0; i != net_param.layers_size(); ++i ) { 
+      caffe::LayerParameter const & lp = net_param.layers(i);
+      assert_st( lp.has_name() );
       p_conv_op_t conv_op;
       if( 0 ) {
       } else if( lp.has_convolution_param() ) {
@@ -329,11 +321,10 @@ namespace boda
 	conv_op->out_chans = ipp.num_output();
       }
       if( conv_op ) { 
-	assert( lp.has_name() );
 	conv_op->tag = lp.name();
 	conv_pipe->convs->push_back( *conv_op ); 
       }
-      if( out_layer_name == layer_names[i] ) { 
+      if( out_layer_name == lp.name() ) { 
 	conv_pipe->calc_support_info();
 	ol_csi = &conv_pipe->conv_sis.back();
 	out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
@@ -375,28 +366,33 @@ namespace boda
     setup_cnet();
   }
 
-  void run_cnet_t::setup_cnet( void ) {
+  void run_cnet_t::create_net_param( caffe::NetParameter &net_param ) {
     p_string ptt_str = read_whole_fn( ptt_fn );
     string out_pt_str;
+    str_format_from_nvm_str( out_pt_str, *ptt_str, 
+			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
+					str(in_sz.d[0]).c_str(), str(in_sz.d[1]).c_str(), 
+					str(in_num_imgs).c_str(), str(in_num_chans).c_str() ) );
+    bool const ret = google::protobuf::TextFormat::ParseFromString( out_pt_str, &net_param );
+    assert_st( ret );
+  }
 
+  void run_cnet_t::setup_cnet( void ) {
+    caffe::NetParameter net_param;
+    create_net_param( net_param );
+    assert_st( !net );
+    net = init_caffe( net_param, trained_fn.exp );      
+
+    assert_st( !in_batch );
     dims_t in_batch_dims( 4 );
     in_batch_dims.dims(3) = in_sz.d[0];
     in_batch_dims.dims(2) = in_sz.d[1];
     in_batch_dims.dims(1) = in_num_chans; 
     in_batch_dims.dims(0) = in_num_imgs;
-
-    str_format_from_nvm_str( out_pt_str, *ptt_str, 
-			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
-					str(in_batch_dims.dims(3)).c_str(), str(in_batch_dims.dims(2)).c_str(), 
-					str(in_batch_dims.dims(0)).c_str(), str(in_batch_dims.dims(1)).c_str() ) );
-    assert_st( !net );
-    net = init_caffe( out_pt_str, trained_fn.exp );      
-
-    assert_st( !in_batch );
     in_batch.reset( new nda_float_t );
     in_batch->set_dims( in_batch_dims );
 
-    cache_pipe();
+    cache_pipe( net_param );
   }
 
   void cnet_predict_t::main( nesi_init_arg_t * nia ) { 
