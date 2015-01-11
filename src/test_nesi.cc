@@ -402,8 +402,10 @@ namespace boda
 	d.composeUnifiedHunks(); 
 	d.printUnifiedFormat();
 	return 1;
+      } else { 
+	assert_st( good_lines.size() == test_lines.size() );
+	return 0; 
       }
-      else { return 0; }
     } else if( endswith( fn, ".png" ) || endswith( fn, ".jpg" ) ) { // image diff
       if( !( good_range == test_range ) ) { // if not binary identical
 	img_t good_img;
@@ -474,6 +476,7 @@ namespace boda
       try {
 	cmd->command->base_setup(); // note: sets command->boda_output_dir *and* creates it
 	cmd->command->main( nia );	
+	cmd->command.reset(); // destory command. might matter if it's holding open output files or the like
 	no_error = 1;
       } catch( rt_exception const & rte ) {
 	assert_st( !no_error );
@@ -498,12 +501,12 @@ namespace boda
       return do_diff;
     }
 
-    void diff_command( p_cmd_test_t cmd, path const & gen_test_out_dir ) {
+    void diff_command( p_cmd_test_t cmd, path const & test_out_dir, path const & gen_test_out_dir ) {
       timer_t t( "diff_command" );
       path good_dir = path(boda_test_dir.exp) / "good_tr";
       ensure_is_dir( good_dir.string(), 1 );
       // note: test_out_dir should equivalent to gen_test_out_dir (but not ==). we check that:
-      path const test_out_dir( cmd->command->boda_output_dir.exp );
+      // path const test_out_dir( cmd->command->boda_output_dir.exp ); // test_out_dir is cached from this
       assert_st( equivalent( test_out_dir, gen_test_out_dir ) );
       if( !exists( test_out_dir ) ) { // test must create its output dir
 	rt_err( strprintf( "test '%s' did not create its expected output directory '%s'.", 
@@ -589,10 +592,12 @@ namespace boda
 	  path gen_test_out_dir = path(boda_output_dir.exp) / cmd_test->test_name;
 	  maybe_remove_dir( gen_test_out_dir );
 	  // FIXME: it is non-trival to construct the proper nia here ...
+	  // command will be reset() in run_command, so cache this here.
+	  path const test_out_dir( cmd_test->command->boda_output_dir.exp ); 
 	  bool const do_diff = run_command( cmd_test, nia);
 	  if( do_diff ) { 
 	    if( no_diff ) { printf("NO_DIFF: not checking results of test %s.\n",cmd_test->test_name.c_str()); }
-	    else { diff_command( cmd_test, gen_test_out_dir ); }
+	    else { diff_command( cmd_test, test_out_dir, gen_test_out_dir ); }
 	  }
 	}
 	++tix;
