@@ -54,6 +54,11 @@ namespace boda
     uint32_t in_num_imgs; //NESI(default="1",help="number of images to use for caffe net input layer/blob")
     uint32_t in_num_chans; //NESI(default="3",help="number of channels to use for caffe net input layer/blob")
     string out_layer_name;//NESI(default="prob",help="output layer name of which to output top blob of")
+    uint32_t anno_mode; //NESI(default=0,help="annotation string mode: "
+    //" <default>0=label plus probs"
+    //" 1=label only"
+    //" 2=label plus sz")
+
     virtual void main( nesi_init_arg_t * nia );
     p_nda_float_t in_batch;
     p_Net_float net;
@@ -133,10 +138,10 @@ namespace boda
 			    u32_pt_t const & nominal_in_sz_ );
 
     p_vect_anno_t do_predict( p_img_t const & img_in_ds, bool const print_to_terminal );
+    p_vect_anno_t do_predict( p_nda_float_t const & out_batch, bool const print_to_terminal );
     void do_predict_region( p_nda_float_t const & out_batch, dims_t const & obb, dims_t const & obe, 
 			    uint32_t const & psb );
     p_vect_anno_t pred_state_to_annos( bool const print_to_terminal );
-
   };
 
   struct cnet_predict_t; typedef shared_ptr< cnet_predict_t > p_cnet_predict_t; 

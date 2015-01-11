@@ -504,7 +504,10 @@ namespace boda
     p_img_t img_in_ds = resample_to_size( img_in, in_sz );
     subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
     p_nda_float_t out_batch = run_one_blob_in_one_blob_out();
+    return do_predict( out_batch, print_to_terminal );
+  }
 
+  p_vect_anno_t cnet_predict_t::do_predict( p_nda_float_t const & out_batch, bool const print_to_terminal ) {
     dims_t const & obd = out_batch->dims;
     assert( obd.sz() == 4 );
     assert( obd.dims(1) == out_labels->size() );
@@ -541,9 +544,19 @@ namespace boda
       if( num_disp == max_num_disp ) { break; }
       pred_state_t const & ps = pred_state[*ii];
       anno_t & anno = annos[ps.img_box];
-      string const anno_str = strprintf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(ps.label_ix).tag).c_str(), 
-					 str(ps.filt_prob).c_str(),
-					 str(ps.cur_prob).c_str() );
+      
+      string anno_str;
+      if( anno_mode == 0 ) {
+	anno_str = strprintf( "%-20s -- filt_p=%-10s p=%-10s\n", str(out_labels->at(ps.label_ix).tag).c_str(), 
+			      str(ps.filt_prob).c_str(),
+			      str(ps.cur_prob).c_str() );
+      } else if ( anno_mode == 1 ) {
+	anno_str = strprintf( "%s\n", str(out_labels->at(ps.label_ix).tag).c_str() ); 
+      } else if ( anno_mode == 2 ) {
+	anno_str = strprintf( "%-20s -- sz=%s\n", 
+			      str(out_labels->at(ps.label_ix).tag).c_str(), str(ps.img_box.sz()).c_str() ); 
+      }
+
       anno.str += anno_str;
       if( print_to_terminal ) { printstr( anno_str ); }
       ++num_disp;
