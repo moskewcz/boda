@@ -115,6 +115,7 @@ namespace boda {
 	  comp_win( feat_box, out_batch_dense, (*i), samp_nc );
 	}
       }
+      out.reset();
     }
     void comp_win( i32_box_t const & feat_box, p_nda_float_t out_batch_dense, p_img_t const & img, u32_pt_t const & nc ) {
       dims_t const & obd_dense = out_batch_dense->dims;
@@ -234,6 +235,7 @@ namespace boda {
 	  comp_win( (*i), samp_nc );
 	}
       }
+      out.reset();
     }
 
     void comp_win( p_img_t const & img, u32_pt_t const & nc ) {
