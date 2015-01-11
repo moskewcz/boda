@@ -56,9 +56,11 @@ namespace boda
 	subtract_mean_and_copy_img_to_batch( cnet_predict->in_batch, bix, ipp->bin_imgs[bix] );
       }
       p_nda_float_t out_batch = cnet_predict->run_one_blob_in_one_blob_out();
-      feat_annos->clear();
-      img_annos = cnet_predict->do_predict( out_batch, 0 );
-      setup_annos();
+      if( !disp_feats ) {
+	feat_annos->clear();
+	img_annos = cnet_predict->do_predict( out_batch, 0 );
+	setup_annos();
+      }
       if( disp_feats ) {
 	timer_t t("conv_pyra_write_output");
 	if( zero_trash ) {
