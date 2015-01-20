@@ -17,3 +17,7 @@ MODEL=alexnet_conv; boda conv_pyra --cnet_predict="(in_sz=451 451,ptt_fn=%(model
 
 # conv_pyra alexnet_conv detection (WIP)
 MODEL=alexnet_conv; time boda conv_pyra --cnet_predict="(in_sz=451 451,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt.boda,trained_fn=%(models_dir)/${MODEL}/best.caffemodel)" --capture='(cap_res=640 480)' --out_layer_name=prob --ipp="(bin_sz=1500 1500,num_upsamp_octaves=1)" --disp-feats=0 
+
+
+# big nin features
+MODEL=nin_imagenet_nopad; boda conv_pyra --cnet_predict="(in_sz=419 419,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt.boda,trained_fn=%(models_dir)/${MODEL}/best.caffemodel)" --capture='(cap_res=640 480)' --out_layer_name=relu12 --ipp="(bin_sz=2000 2000,num_upsamp_octaves=1)"
