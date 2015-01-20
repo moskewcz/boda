@@ -374,6 +374,9 @@ namespace boda
 
   void run_cnet_t::create_net_param( caffe::NetParameter &net_param ) {
     p_string ptt_str = read_whole_fn( ptt_fn );
+#if 0 
+    // method one: use special boda template prototxt, format it to
+    // fill in the fields we want, then create the net_param from that
     string out_pt_str;
     str_format_from_nvm_str( out_pt_str, *ptt_str, 
 			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
@@ -381,6 +384,17 @@ namespace boda
 					str(in_num_imgs).c_str(), str(in_num_chans).c_str() ) );
     bool const ret = google::protobuf::TextFormat::ParseFromString( out_pt_str, &net_param );
     assert_st( ret );
+#else
+    // method two: use the 'stock' deploy prototxt, and then override
+    // the input dims using knowledge of the protobuf format.
+    bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, &net_param );
+    assert_st( ret );
+    assert_st( net_param.input_dim_size() == 4 );
+    net_param.set_input_dim(0,in_num_imgs);
+    net_param.set_input_dim(1,in_num_chans);
+    net_param.set_input_dim(2,in_sz.d[1]);
+    net_param.set_input_dim(3,in_sz.d[0]);
+#endif
   }
 
   // most clients call this. others might inline it to be able to call setup_cnet_adjust_in_num_imgs()
@@ -513,7 +527,7 @@ namespace boda
   typedef map< i32_box_t, anno_t > anno_map_t;
 
   // example command line for testing/debugging detection code:
-  // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt.boda,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_layer_name=relu12)' --capture='(cap_res=640 480)'
+  // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_layer_name=relu12)' --capture='(cap_res=640 480)'
 
   //p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) { }
 

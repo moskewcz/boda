@@ -46,10 +46,10 @@ namespace boda {
     filename_t out_fn; //NESI(default="%(boda_output_dir)/test_dense.txt",help="output: text summary of differences between dense and sparse feature computation.")
     p_load_imgs_from_pascal_classes_t imgs;//NESI(default="()")
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
-    p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda
+    p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
                            // ,out_layer_name=relu12)",help="CNN model params")
-    p_run_cnet_t run_cnet_dense; //NESI(default="(in_sz=0 0,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda" 
+    p_run_cnet_t run_cnet_dense; //NESI(default="(in_sz=0 0,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt" 
                                  // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
                                  // ",out_layer_name=relu12)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
@@ -142,10 +142,10 @@ namespace boda {
     filename_t out_fn; //NESI(default="%(boda_output_dir)/test_upsamp.txt",help="output: text summary of differences between net and img based-upsampling features computation.")
     p_load_imgs_from_pascal_classes_t imgs;//NESI(default="()")
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
-    p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt.boda
+    p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
                            // ,out_layer_name=relu12)",help="CNN model params")
-    p_run_cnet_t run_cnet_upsamp; //NESI(default="(in_sz=258 258,ptt_fn=%(models_dir)/%(model_name)/deploy-in-2X-us.prototxt.boda" 
+    p_run_cnet_t run_cnet_upsamp; //NESI(default="(in_sz=258 258,ptt_fn=%(models_dir)/%(model_name)/deploy-in-2X-us.prototxt" 
                                  // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
                                  // ",out_layer_name=relu12)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
