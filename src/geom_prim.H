@@ -33,6 +33,7 @@ namespace boda
     T_pt_t operator << ( uint32_t const & o ) const { return T_pt_t( d[0] << o, d[1] << o ); }
     T_pt_t operator >> ( uint32_t const & o ) const { return T_pt_t( d[0] >> o, d[1] >> o ); }
     bool is_zeros( void ) const { return (!d[0])&&(!d[1]); }
+    bool dims_are_same( void ) const { return d[0]==d[1]; }
     bool both_dims_non_zero( void ) const { return d[0]&&d[1]; }
     bool both_dims_ge_zero( void ) const { return (d[0]>=0)&&(d[1]>=0); }
     bool operator == ( T_pt_t const & o ) const { return d[0] == o.d[0] && d[1] == o.d[1]; }
@@ -168,6 +169,7 @@ namespace boda
     bool operator <  ( T_box_t const & o ) const { return (p[0] != o.p[0]) ? (p[0] < o.p[0]) : (p[1] < o.p[1]); }
     T sz( void ) const { return p[1] - p[0]; }
     T bnds_sum( void ) const { return p[0] + p[1]; }
+    bool bnds_are_same( void ) const { return p[0]==p[1]; }
     T_box_t scale_dims( T const & scale ) const { return T_box_t( p[0] * scale, p[1] * scale ); }    
     T_box_t scale( typename T::value_type const & s ) const { return T_box_t( p[0].scale( s ), p[1].scale( s ) ); }    
     T_box_t scale_and_round( double const & s ) const { return T_box_t( p[0].scale_and_round(s), p[1].scale_and_round(s) ); }
