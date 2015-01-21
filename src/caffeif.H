@@ -62,10 +62,12 @@ namespace boda
     //" 1=label only"
     //" 2=label plus sz"
     //" 3=label plus rank")
+    uint32_t enable_upsamp_net; //NESI(default=0,help="if 1, create an extra internal net with internal 2X input upsampling.")
 
     virtual void main( nesi_init_arg_t * nia );
     p_nda_float_t in_batch;
     p_Net_float net;
+    p_Net_float upsamp_net;
     void setup_cnet( void );
     void setup_cnet_param_and_pipe( void );
     void setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ );
@@ -81,7 +83,10 @@ namespace boda
     run_cnet_t( void ) : ol_csi(0), out_s(0) { }
   private:
     p_net_param_t net_param;
-    void create_net_param( caffe::NetParameter & net_param );
+    p_net_param_t upsamp_net_param;
+    void create_upsamp_layer_0_weights( void );
+
+    void create_net_param( void );
     void cache_pipe( caffe::NetParameter & net_param );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 

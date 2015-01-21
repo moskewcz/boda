@@ -114,7 +114,6 @@ namespace boda
     return net;
   }
 
-
   void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom ) {
     timer_t t("caffe_forward");
     vector<caffe::Blob<float>*>& input_blobs = net_->input_blobs();
@@ -146,6 +145,24 @@ namespace boda
   }
   
   p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
+  template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op ) {
+    // TODO/NOTE: non-square (_w/_h) handling is untested
+    // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
+    cp.clear_pad_w(); cp.clear_pad_h(); cp.clear_pad();
+    assert_st( conv_op->in_pad.bnds_are_same() ); // caffe can't handle different padding on +- edges
+    u32_pt_t const & pad = conv_op->in_pad.p[0];
+    if( pad.dims_are_same() ) { cp.set_pad( pad.d[0] ); }
+    else { cp.set_pad_w( pad.d[0] ); cp.set_pad_h( pad.d[1] ); }
+
+    cp.clear_kernel_w(); cp.clear_kernel_h(); cp.clear_kernel_size();
+    if( conv_op->kern_sz.dims_are_same() ) { cp.set_kernel_size( conv_op->kern_sz.d[0] ); }
+    else { cp.set_kernel_w( conv_op->kern_sz.d[0] ); cp.set_kernel_h( conv_op->kern_sz.d[1] ); }
+
+    cp.clear_stride_w(); cp.clear_stride_h(); cp.clear_stride();
+    if( conv_op->stride.dims_are_same() ) { cp.set_stride( conv_op->stride.d[0] ); }
+    else { cp.set_stride_w( conv_op->stride.d[0] ); cp.set_stride_h( conv_op->stride.d[1] ); }
+  }
 
   template< typename CP > p_conv_op_t get_conv_op_from_param( CP const & cp ) {
     p_conv_op_t conv_op( new conv_op_t );
@@ -199,10 +216,9 @@ namespace boda
   }
 
 
-  void copy_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
+  void copy_layer_blobs( p_Net_float net_, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_copy_layer_blob_data");
-    uint32_t const out_layer_ix = get_layer_ix( net_, layer_name );
-    caffe::Layer<float>* layer = net_->layers()[ out_layer_ix ].get();
+    caffe::Layer<float>* layer = net_->layers()[ layer_ix ].get();
     const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     blobs.clear();
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
@@ -225,11 +241,14 @@ namespace boda
       }  // switch (Caffe::mode())
     }
   }
+  void copy_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
+    uint32_t const layer_ix = get_layer_ix( net_, layer_name );
+    copy_layer_blobs( net_, layer_ix, blobs );
+  }
 
-  void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
+  void set_layer_blobs( p_Net_float net_, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_set_layer_blob_data");
-    uint32_t const out_layer_ix = get_layer_ix( net_, layer_name );
-    caffe::Layer<float>* layer = net_->layers()[ out_layer_ix ].get();
+    caffe::Layer<float>* layer = net_->layers()[ layer_ix ].get();
     const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     assert( blobs.size() == layer_blobs.size() );
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
@@ -250,6 +269,10 @@ namespace boda
       default: rt_err( "Unknown Caffe mode." );
       }  // switch (Caffe::mode())
     }
+  }
+  void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
+    uint32_t const layer_ix = get_layer_ix( net_, layer_name );
+    set_layer_blobs( net_, layer_ix, blobs );
   }
 
 
@@ -372,29 +395,56 @@ namespace boda
     setup_cnet();
   }
 
-  void run_cnet_t::create_net_param( caffe::NetParameter &net_param ) {
+  void run_cnet_t::create_net_param( void ) {
     p_string ptt_str = read_whole_fn( ptt_fn );
+    net_param.reset( new caffe::NetParameter );
 #if 0 
-    // method one: use special boda template prototxt, format it to
+    // old method: use special boda template prototxt, format it to
     // fill in the fields we want, then create the net_param from that
     string out_pt_str;
     str_format_from_nvm_str( out_pt_str, *ptt_str, 
 			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
 					str(in_sz.d[0]).c_str(), str(in_sz.d[1]).c_str(), 
 					str(in_num_imgs).c_str(), str(in_num_chans).c_str() ) );
-    bool const ret = google::protobuf::TextFormat::ParseFromString( out_pt_str, &net_param );
+    bool const ret = google::protobuf::TextFormat::ParseFromString( out_pt_str, net_param.get() );
     assert_st( ret );
-#else
-    // method two: use the 'stock' deploy prototxt, and then override
-    // the input dims using knowledge of the protobuf format.
-    bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, &net_param );
-    assert_st( ret );
-    assert_st( net_param.input_dim_size() == 4 );
-    net_param.set_input_dim(0,in_num_imgs);
-    net_param.set_input_dim(1,in_num_chans);
-    net_param.set_input_dim(2,in_sz.d[1]);
-    net_param.set_input_dim(3,in_sz.d[0]);
+    // FIXME: old method incomplete/unmaintained
 #endif
+
+    // read the 'stock' deploy prototxt, and then override
+    // the input dims using knowledge of the protobuf format.
+    bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, net_param.get() );
+    assert_st( ret );
+    assert_st( net_param->input_dim_size() == 4 );
+    net_param->set_input_dim(0,in_num_imgs);
+    net_param->set_input_dim(1,in_num_chans);
+    net_param->set_input_dim(2,in_sz.d[1]);
+    net_param->set_input_dim(3,in_sz.d[0]);
+    if( enable_upsamp_net ) {
+      upsamp_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
+      // for simplicity, only handle even input sizes
+      assert_st( (!(in_sz.d[0]&1)) && (!(in_sz.d[1]&1)) );
+      upsamp_net_param->set_input_dim(2,in_sz.d[1]>>1);
+      upsamp_net_param->set_input_dim(3,in_sz.d[0]>>1);
+      // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
+      assert_st( upsamp_net_param->layers_size() ); // better have at least one layer
+      caffe::LayerParameter * lp = upsamp_net_param->mutable_layers(0);
+      if( !lp->has_convolution_param() ) { rt_err( "first layer of net not conv layer; don't know how to create upsampled network"); }
+      caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
+      p_conv_op_t conv_op = get_conv_op_from_param( *cp );
+      // FIXME: we probably need to deal with padding better here?
+      conv_op->kern_sz = ceil_div( conv_op->kern_sz, u32_pt_t{2,2} );
+      assert_st( conv_op->in_pad.bnds_are_same() );
+      conv_op->in_pad.p[0] = ceil_div( conv_op->in_pad.p[0], u32_pt_t{2,2} );
+      conv_op->in_pad.p[1] = conv_op->in_pad.p[0];
+      for( uint32_t i = 0; i != 2; ++i ) {
+	if( (conv_op->stride.d[i]&1) ) { rt_err( "first conv layer has odd stride; don't know how to create upsampled network" ); }
+	conv_op->stride.d[i] /= 2;
+      }
+      set_param_from_conv_op( *cp, conv_op );
+      assert_st( lp->has_name() );
+      lp->set_name( lp->name() + "-in-2X-us" );
+    }
   }
 
   // most clients call this. others might inline it to be able to call setup_cnet_adjust_in_num_imgs()
@@ -406,8 +456,7 @@ namespace boda
 
   void run_cnet_t::setup_cnet_param_and_pipe( void ) {
     assert( !net_param );
-    net_param.reset( new caffe::NetParameter );
-    create_net_param( *net_param );
+    create_net_param();
     cache_pipe( *net_param );
   }
   void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
@@ -416,9 +465,80 @@ namespace boda
     in_num_imgs = in_num_imgs_;
     net_param->set_input_dim(0,in_num_imgs);
   }
+
+#if 0 // untested/unused example code for weight manipulation
+  void create_identity_weights( p_Net_float net ) {
+    vect_p_nda_float_t blobs;
+    copy_layer_blobs( net, 0, blobs );
+    assert_st( blobs.size() == 2 ); // filters, biases
+    p_nda_float_t biases = blobs[1];
+    for( dims_iter_t di( biases->dims ) ; ; ) { biases->at(di.di) = 0; if( !di.next() ) { break; } } // all biases 0
+    p_nda_float_t filts = blobs[0];
+
+    uint32_t const width = filts->dims.dims(3);
+    uint32_t const height = filts->dims.dims(2); 
+    uint32_t const channels = filts->dims.dims(1);
+    uint32_t const num = filts->dims.dims(0);
+
+    assert_st( channels == num ); // for now, only handling case where input chans == output chans
+
+    // it's unclear how to handle even width/height, depending on padding in particular
+    assert_st( width & 1 );
+    assert_st( height & 1 );
+
+    //for( uint32_t i = 0; i != num; ++i ) { filts->at4( i, i, (h+1)/2, (w+1)/2 ) = 1; }
+
+    for( dims_iter_t di( filts->dims ) ; ; ) { 
+      float val = 0; // FIXME: add noise here
+      if( (di.di[2] == ((height+1)/2)) && // center y pel in filt
+	  (di.di[3] == ((width+1)/2)) && // center x pel in filt
+	  (di.di[0] == di.di[1]) ) // in_chan == out_chan
+      { val += 1; }
+
+      filts->at(di.di) = val;
+      if( !di.next() ) { break; } 
+    }    
+
+    set_layer_blobs( net, 0, blobs );
+  }
+#endif
+
+
+  void run_cnet_t::create_upsamp_layer_0_weights( void ) {
+    vect_p_nda_float_t usl_blobs;
+    copy_layer_blobs( net, 0, usl_blobs );
+
+    vect_p_nda_float_t usl_blobs_upsamp;
+    copy_layer_blobs( upsamp_net, 0, usl_blobs_upsamp );
+
+    assert_st( usl_blobs.size() == 2 ); // filters, biases
+    assert_st( usl_blobs_upsamp.size() == 2 ); // filters, biases
+    assert_st( usl_blobs[1]->dims == usl_blobs_upsamp[1]->dims ); // biases should be same shape (and same strides?)
+    usl_blobs_upsamp[1] = usl_blobs[1]; // use biases unchanged in upsamp net
+    assert_st( usl_blobs[0]->dims.dims(0) == usl_blobs_upsamp[0]->dims.dims(0) );
+    assert_st( usl_blobs[0]->dims.dims(1) == usl_blobs_upsamp[0]->dims.dims(1) );
+    assert_st( u32_ceil_div( usl_blobs[0]->dims.dims(2), 2 ) == usl_blobs_upsamp[0]->dims.dims(2) );
+    assert_st( u32_ceil_div( usl_blobs[0]->dims.dims(3), 2 ) == usl_blobs_upsamp[0]->dims.dims(3) );
+
+    for( dims_iter_t di( usl_blobs_upsamp[0]->dims ) ; ; ) { usl_blobs_upsamp[0]->at(di.di) = 0; 
+      if( !di.next() ) { break; } 
+    }
+
+    for( dims_iter_t di( usl_blobs[0]->dims ) ; ; ) { 
+      usl_blobs_upsamp[0]->at4(di.di[0],di.di[1],di.di[2]>>1,di.di[3]>>1) += usl_blobs[0]->at( di.di );
+      if( !di.next() ) { break; } 
+    }
+
+    set_layer_blobs( upsamp_net, 0, usl_blobs_upsamp );
+  }
+
   void run_cnet_t::setup_cnet_net_and_batch( void ) {
     assert_st( !net );
     net = init_caffe( *net_param, trained_fn.exp );      
+    if( enable_upsamp_net ) { 
+      upsamp_net = init_caffe( *upsamp_net_param, trained_fn.exp ); 
+      create_upsamp_layer_0_weights();
+    }
 
     assert_st( !in_batch );
     dims_t in_batch_dims( 4 );
@@ -428,6 +548,8 @@ namespace boda
     in_batch_dims.dims(0) = in_num_imgs;
     in_batch.reset( new nda_float_t );
     in_batch->set_dims( in_batch_dims );
+
+
   }
 
   void cnet_predict_t::main( nesi_init_arg_t * nia ) { 
