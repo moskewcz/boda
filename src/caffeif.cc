@@ -574,7 +574,7 @@ namespace boda
       assert_st( scale_infos.size() == 1 );
       assert_st( scale_infos.back().img_sz == nominal_in_sz );
       assert_st( scale_infos.back().place.is_zeros() );
-      assert_st( scale_infos.back().bix == 1 );
+      assert_st( scale_infos.back().bix == 0 );
     }
 
     for( vect_scale_info_t::iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
