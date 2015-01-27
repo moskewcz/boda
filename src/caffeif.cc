@@ -96,7 +96,7 @@ namespace boda
     }
   }
 
-  p_Net_float init_caffe( caffe::NetParameter & net_param, string const & trained_fn ) {
+  void init_caffe( uint32_t const gpu_id ) {
     static bool caffe_is_init = 0;
     if( !caffe_is_init ) {
       caffe_is_init = 1;
@@ -104,13 +104,14 @@ namespace boda
       google::InitGoogleLogging("boda_caffe");
       Caffe::set_phase(Caffe::TEST);
       Caffe::set_mode(Caffe::GPU);
-      Caffe::SetDevice(0);
+      Caffe::SetDevice(gpu_id);
       //Caffe::set_mode(Caffe::CPU);
     }
+  }
 
+  p_Net_float caffe_create_net( caffe::NetParameter & net_param, string const & trained_fn ) {
     p_Net_float net( new Net_float( net_param ) );
     net->CopyTrainedLayersFrom( trained_fn );
-
     return net;
   }
 
@@ -536,9 +537,10 @@ namespace boda
 
   void run_cnet_t::setup_cnet_net_and_batch( void ) {
     assert_st( !net );
-    net = init_caffe( *net_param, trained_fn.exp );      
+    init_caffe( gpu_id ); // FIXME/note: only does something on first call
+    net = caffe_create_net( *net_param, trained_fn.exp );      
     if( enable_upsamp_net ) { 
-      upsamp_net = init_caffe( *upsamp_net_param, trained_fn.exp ); 
+      upsamp_net = caffe_create_net( *upsamp_net_param, trained_fn.exp ); 
       create_upsamp_layer_0_weights();
     }
 

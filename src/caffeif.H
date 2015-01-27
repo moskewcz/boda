@@ -51,6 +51,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
+    uint32_t gpu_id; //NESI(default=0,help="id of gpu to use, passed to caffe::SetDevice() and in turn to CUDA.")
     filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet/deploy.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/alexnet/best.caffemodel",help="input trained net from which to copy params")
     u32_pt_t in_sz; //NESI(default="227 227",help="input size to use for caffe net")
