@@ -217,7 +217,9 @@ namespace boda {
       assert_st( feat_box_upsamp.sz() == feat_box.sz() );
 
       p_nda_float_t feats_upsamp = feats_copy_clip( out_batch_upsamp, feat_box_upsamp );
-      p_nda_float_t feats = out_batch; // no need to clip, use all features
+      // note: if there is no padding, there is be no need to clip, use we could just all features
+      // p_nda_float_t feats = out_batch; 
+      p_nda_float_t feats = feats_copy_clip( out_batch, feat_box );
 
       (*out) << strprintf( "ssds_str(out_batch_upsamp,out_batch)=%s\n", 
 			   str(ssds_str(feats_upsamp,feats)).c_str() );
