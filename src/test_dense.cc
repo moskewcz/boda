@@ -145,11 +145,6 @@ namespace boda {
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,enable_upsamp_net=1,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
                            // ,out_layer_name=relu12)",help="CNN model params")
-#if 0
-    p_run_cnet_t run_cnet_upsamp; //xNESI(default="(in_sz=516 516,ptt_fn=%(models_dir)/%(model_name)/deploy-in-2X-us.prototxt" 
-                                 // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
-                                 // ",out_layer_name=relu12)",help="CNN model params")
-#endif
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
 
     string upsamp_layer_name; //NESI(default="conv1",help="name of layer to downsample filters of into upsamp net")
@@ -163,37 +158,6 @@ namespace boda {
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       imgs->load_all_imgs();
       run_cnet->setup_cnet(); 
-#if 0
-      run_cnet_upsamp->setup_cnet();
-
-      // FIXME/TODO/TESTING: dump dims of layer blobs ...
-      vect_p_nda_float_t usl_blobs;
-      copy_layer_blobs( run_cnet->net, upsamp_layer_name, usl_blobs );
-
-      vect_p_nda_float_t usl_blobs_upsamp;
-      copy_layer_blobs( run_cnet_upsamp->net, upsamp_layer_name + "-in-2X-us", usl_blobs_upsamp );
-
-      assert_st( usl_blobs.size() == 2 ); // filters, biases
-      assert_st( usl_blobs_upsamp.size() == 2 ); // filters, biases
-      assert_st( usl_blobs[1]->dims == usl_blobs_upsamp[1]->dims ); // biases should be same shape (and same strides?)
-      usl_blobs_upsamp[1] = usl_blobs[1]; // use biases unchanged in upsamp net
-      assert_st( usl_blobs[0]->dims.dims(0) == usl_blobs_upsamp[0]->dims.dims(0) );
-      assert_st( usl_blobs[0]->dims.dims(1) == usl_blobs_upsamp[0]->dims.dims(1) );
-      assert_st( u32_ceil_div( usl_blobs[0]->dims.dims(2), 2 ) == usl_blobs_upsamp[0]->dims.dims(2) );
-      assert_st( u32_ceil_div( usl_blobs[0]->dims.dims(3), 2 ) == usl_blobs_upsamp[0]->dims.dims(3) );
-
-      for( dims_iter_t di( usl_blobs_upsamp[0]->dims ) ; ; ) { usl_blobs_upsamp[0]->at(di.di) = 0; 
-	if( !di.next() ) { break; } 
-      }
-
-      for( dims_iter_t di( usl_blobs[0]->dims ) ; ; ) { 
-	usl_blobs_upsamp[0]->at4(di.di[0],di.di[1],di.di[2]>>1,di.di[3]>>1) += usl_blobs[0]->at( di.di );
-	if( !di.next() ) { break; } 
-      }
-
-      set_layer_blobs( run_cnet_upsamp->net, upsamp_layer_name + "-in-2X-us", usl_blobs_upsamp );
-#endif
- 
 
       boost::random::mt19937 gen;
 
@@ -240,7 +204,7 @@ namespace boda {
 	timer_t t1("img_upsamp_cnn");
 	out_batch = run_cnet->run_one_blob_in_one_blob_out();
       }
-      printf( "out_batch->dims=%s out_batch_upsamp->dims=%s\n", str(out_batch->dims).c_str(), str(out_batch_upsamp->dims).c_str() );
+      //printf( "out_batch->dims=%s out_batch_upsamp->dims=%s\n", str(out_batch->dims).c_str(), str(out_batch_upsamp->dims).c_str() );
       // bear in mind that nets which use padding may complicate this comparison
       u32_box_t in_box{ {}, samp_sz };
       i32_box_t feat_box_upsamp;
@@ -249,7 +213,7 @@ namespace boda {
       i32_box_t feat_box;
       in_box_to_out_box( feat_box, u32_box_t{{},run_cnet->in_sz}, cm_valid, *run_cnet->ol_csi );
       
-      printf( "feat_box=%s feat_box_upsamp=%s\n", str(feat_box).c_str(), str(feat_box_upsamp).c_str() );
+      //printf( "feat_box=%s feat_box_upsamp=%s\n", str(feat_box).c_str(), str(feat_box_upsamp).c_str() );
       assert_st( feat_box_upsamp.sz() == feat_box.sz() );
 
       p_nda_float_t feats_upsamp = feats_copy_clip( out_batch_upsamp, feat_box_upsamp );
