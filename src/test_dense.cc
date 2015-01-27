@@ -145,7 +145,7 @@ namespace boda {
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,enable_upsamp_net=1,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
                            // ,out_layer_name=relu12)",help="CNN model params")
-    p_run_cnet_t run_cnet_upsamp; //NESI(default="(in_sz=258 258,ptt_fn=%(models_dir)/%(model_name)/deploy-in-2X-us.prototxt" 
+    p_run_cnet_t run_cnet_upsamp; //NESI(default="(in_sz=516 516,ptt_fn=%(models_dir)/%(model_name)/deploy-in-2X-us.prototxt" 
                                  // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
                                  // ",out_layer_name=relu12)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
@@ -190,30 +190,35 @@ namespace boda {
 
       set_layer_blobs( run_cnet_upsamp->net, upsamp_layer_name + "-in-2X-us", usl_blobs_upsamp );
       
-      // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
-      in_img_upsamp = make_p_img_t( run_cnet_upsamp->in_sz );
 
       boost::random::mt19937 gen;
 
       uint32_t tot_wins = 0;
+      u32_pt_t const samp_sz = run_cnet_upsamp->in_sz >> 1;
+      // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
+      in_img_upsamp = make_p_img_t( run_cnet_upsamp->in_sz );
+      in_img_upsamp->fill_with_pel( inmc );
       for( vect_p_img_t::const_iterator i = imgs->all_imgs->begin(); i != imgs->all_imgs->end(); ++i ) {
-	u32_pt_t const samp_sz = run_cnet_upsamp->in_sz;
 	if( !(*i)->sz.both_dims_ge( samp_sz ) ) { continue; } // img too small to sample. assert? warn?
 	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->sz).c_str() );
-
 	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
-	  u32_pt_t const samp_nc_max = (*i)->sz - run_cnet_upsamp->in_sz;
+	  u32_pt_t const samp_nc_max = (*i)->sz - samp_sz;
 	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
 	  ++tot_wins;
-	  comp_win( (*i), samp_nc );
+	  comp_win( samp_sz, (*i), samp_nc );
 	}
       }
       out.reset();
     }
 
-    void comp_win( p_img_t const & img, u32_pt_t const & nc ) {
-      // run both net on entire input image. first, use the net with built-in 2x upsampling
-      img_copy_to_clip( img.get(), in_img_upsamp.get(), {}, nc );
+    void comp_win( u32_pt_t const & samp_sz, p_img_t const & img, u32_pt_t const & nc ) {
+      // run both net on entire input image. first, use the net with
+      // built-in 2x upsampling note that 3/4 of the input image is
+      // empty here. this is not really needed/sensible, but it allows
+      // this testing usage of upsampling to match the 'normal' usage
+      // where the same input image is used for the regular and
+      // upsampled nets.
+      img_copy_to_clip( img.get(), in_img_upsamp.get(), {}, nc, samp_sz );
       subtract_mean_and_copy_img_to_batch( run_cnet_upsamp->in_batch, 0, in_img_upsamp );
       p_nda_float_t out_batch_upsamp;
       {
@@ -221,7 +226,9 @@ namespace boda {
 	out_batch_upsamp = run_cnet_upsamp->run_one_blob_in_one_blob_out();
       }
       // next, upsample image an run using normal/stock net
-      in_img = upsample_2x( in_img_upsamp );
+      in_img = make_p_img_t( samp_sz );
+      img_copy_to_clip( img.get(), in_img.get(), {}, nc );
+      in_img = upsample_2x( in_img );
       assert_st( in_img->sz == run_cnet->in_sz );
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
       p_nda_float_t out_batch;
@@ -229,8 +236,22 @@ namespace boda {
 	timer_t t1("img_upsamp_cnn");
 	out_batch = run_cnet->run_one_blob_in_one_blob_out();
       }
+
+      // bear in mind that nets which use padding may complicate this comparison
+      u32_box_t in_box{ {}, samp_sz };
+      i32_box_t feat_box_upsamp;
+      in_box_to_out_box( feat_box_upsamp, in_box, cm_valid, *run_cnet_upsamp->ol_csi );
+
+      i32_box_t feat_box;
+      in_box_to_out_box( feat_box, u32_box_t{{},run_cnet->in_sz}, cm_valid, *run_cnet->ol_csi );
+      //printf( "feat_box=%s feat_box_upsamp=%s\n", str(feat_box).c_str(), str(feat_box_upsamp).c_str() );
+      assert_st( feat_box_upsamp.sz() == feat_box.sz() );
+
+      p_nda_float_t feats_upsamp = feats_copy_clip( out_batch_upsamp, feat_box_upsamp );
+      p_nda_float_t feats = out_batch; // no need to clip, use all features
+
       (*out) << strprintf( "ssds_str(out_batch_upsamp,out_batch)=%s\n", 
-			   str(ssds_str(out_batch_upsamp,out_batch)).c_str() );
+			   str(ssds_str(feats_upsamp,feats)).c_str() );
     }
   };
 
