@@ -75,8 +75,11 @@ namespace boda
 
     u32_pt_t get_one_blob_img_out_sz( void ); // note: assumes/includes chans_to_area conversion
     p_nda_float_t run_one_blob_in_one_blob_out( void );
+    p_nda_float_t run_one_blob_in_one_blob_out_upsamp( void );
 
-    p_conv_pipe_t conv_pipe; // cached in get_pipe().
+    // created/cached using cache_pipe().
+    p_conv_pipe_t conv_pipe;
+    p_conv_pipe_t conv_pipe_upsamp;
     conv_support_info_t const * ol_csi;
     p_vect_conv_io_t conv_ios;
     uint32_t out_s;
@@ -87,7 +90,7 @@ namespace boda
     void create_upsamp_layer_0_weights( void );
 
     void create_net_param( void );
-    void cache_pipe( caffe::NetParameter & net_param );
+    p_conv_pipe_t cache_pipe( caffe::NetParameter & net_param );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 

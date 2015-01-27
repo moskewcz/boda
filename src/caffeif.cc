@@ -288,6 +288,7 @@ namespace boda
 
 
   p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in ) {
+    assert_st( net );
     vect_p_nda_float_t in_data; 
     in_data.push_back( in ); // assume single input blob
     raw_do_forward( net, in_data );
@@ -298,7 +299,9 @@ namespace boda
   }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out( void ) { 
     return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch ); }
-  void run_cnet_t::cache_pipe( caffe::NetParameter & net_param ) { 
+  p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out_upsamp( void ) { 
+    return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch ); }
+  p_conv_pipe_t run_cnet_t::cache_pipe( caffe::NetParameter & net_param ) { 
     // note; there is an unfortunate potential circular dependency
     // here: we may need the pipe info about the network before we
     // have set it up if the desired size of the input image depends
@@ -314,8 +317,7 @@ namespace boda
     // up the net. hmm.
 
     // note: we only handle a (very) limited set of possible layers/networks here.
-    assert_st( !conv_pipe ); // should only be called only in setup
-    conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
+    p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
     //vect_string const & layer_names = net->layer_names();
     uint32_t last_out_chans = 0;
     for( int32_t i = 0; i != net_param.layers_size(); ++i ) { 
@@ -349,10 +351,7 @@ namespace boda
       }
       if( out_layer_name == lp.name() ) { 
 	conv_pipe->calc_support_info();
-	ol_csi = &conv_pipe->conv_sis.back();
-	out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
-	conv_ios = conv_pipe->calc_sizes_forward( in_sz, 0 ); 
-	return;
+	return conv_pipe;
       }
     }
     rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
@@ -422,10 +421,6 @@ namespace boda
     net_param->set_input_dim(3,in_sz.d[0]);
     if( enable_upsamp_net ) {
       upsamp_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
-      // for simplicity, only handle even input sizes
-      assert_st( (!(in_sz.d[0]&1)) && (!(in_sz.d[1]&1)) );
-      upsamp_net_param->set_input_dim(2,in_sz.d[1]>>1);
-      upsamp_net_param->set_input_dim(3,in_sz.d[0]>>1);
       // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
       assert_st( upsamp_net_param->layers_size() ); // better have at least one layer
       caffe::LayerParameter * lp = upsamp_net_param->mutable_layers(0);
@@ -457,13 +452,20 @@ namespace boda
   void run_cnet_t::setup_cnet_param_and_pipe( void ) {
     assert( !net_param );
     create_net_param();
-    cache_pipe( *net_param );
+    conv_pipe = cache_pipe( *net_param );
+    // FIXME: only for non-upsamp net
+    ol_csi = &conv_pipe->conv_sis.back();
+    out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
+    conv_ios = conv_pipe->calc_sizes_forward( in_sz, 0 ); 
+
+    if( enable_upsamp_net ) { conv_pipe_upsamp = cache_pipe( *upsamp_net_param ); }
   }
   void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
     assert_st( net_param && conv_pipe );
     assert_st( net_param->input_dim_size() == 4 );
     in_num_imgs = in_num_imgs_;
     net_param->set_input_dim(0,in_num_imgs);
+    if( enable_upsamp_net ) { assert_st(0); } // FIXME/TODO
   }
 
 #if 0 // untested/unused example code for weight manipulation
