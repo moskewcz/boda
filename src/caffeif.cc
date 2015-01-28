@@ -17,8 +17,9 @@ namespace boda
   using caffe::Blob;
 
   std::ostream & operator <<(std::ostream & os, scale_info_t const & v ) { 
-    return os << strprintf( "bix=%s feat_box=%s feat_img_box=%s\n", 
-			    str(v.bix).c_str(), str(v.feat_box).c_str(), str(v.feat_img_box).c_str() ); 
+    return os << strprintf( "from_upsamp_net=%s bix=%s feat_box=%s feat_img_box=%s\n", 
+			    str(v.from_upsamp_net).c_str(), str(v.bix).c_str(), str(v.feat_box).c_str(), 
+			    str(v.feat_img_box).c_str() ); 
   }
   
   void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img ) {
@@ -450,23 +451,31 @@ namespace boda
     setup_cnet_net_and_batch();
   }
 
+  conv_support_info_t const & run_cnet_t::get_ol_csi( bool const & from_upsamp_net ) {
+    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); return conv_pipe_upsamp->conv_sis.back(); }
+    return conv_pipe->conv_sis.back();
+  }
+
   void run_cnet_t::setup_cnet_param_and_pipe( void ) {
     assert( !net_param );
     create_net_param();
     conv_pipe = cache_pipe( *net_param );
-    // FIXME: only for non-upsamp net
-    ol_csi = &conv_pipe->conv_sis.back();
     out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
+    if( enable_upsamp_net ) { 
+      conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
+      assert_st( out_s == u32_ceil_sqrt( conv_pipe_upsamp->convs->back().out_chans ) ); // FIXME: too strong?
+    }
+    // FIXME: only for non-upsamp net
     conv_ios = conv_pipe->calc_sizes_forward( in_sz, 0 ); 
 
-    if( enable_upsamp_net ) { conv_pipe_upsamp = cache_pipe( *upsamp_net_param ); }
   }
   void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
     assert_st( net_param && conv_pipe );
     assert_st( net_param->input_dim_size() == 4 );
     in_num_imgs = in_num_imgs_;
     net_param->set_input_dim(0,in_num_imgs);
-    if( enable_upsamp_net ) { assert_st(0); } // FIXME/TODO
+    if( enable_upsamp_net ) { 
+      upsamp_net_param->set_input_dim(0,in_num_imgs); } // FIXME/TODO: for now, run upsamp on all planes
   }
 
 #if 0 // untested/unused example code for weight manipulation
@@ -574,11 +583,12 @@ namespace boda
 
     uint32_t const out_chans = conv_pipe->convs->back().out_chans;
 
-    if( ol_csi->support_sz.is_zeros() ) { // only sensible in single-scale case 
+    if( get_ol_csi(0).support_sz.is_zeros() ) { // only sensible in single-scale case 
       assert_st( scale_infos.size() == 1 );
       assert_st( scale_infos.back().img_sz == nominal_in_sz );
       assert_st( scale_infos.back().place.is_zeros() );
       assert_st( scale_infos.back().bix == 0 );
+      //assert_st( enable_upsamp_net == 0 ); // too strong?
     }
 
     for( vect_scale_info_t::iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
@@ -593,7 +603,7 @@ namespace boda
 	    u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
 	    i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
 	    unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
-					   *ol_csi, i->img_sz );
+					   get_ol_csi(i->from_upsamp_net), i->img_sz );
 	    valid_in_xy -= u32_to_i32(i->place); // shift so image nc is at 0,0
 	    valid_in_xy = valid_in_xy * u32_to_i32(nominal_in_sz) / u32_to_i32(i->img_sz); // scale for scale
 	    ps.img_box = valid_in_xy;
@@ -611,32 +621,59 @@ namespace boda
     assert_st( valid_feat_box.is_strictly_normalized() );
     i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
     nominal_in_sz = in_sz;
-    scale_infos.push_back( scale_info_t{nominal_in_sz,0,{},valid_feat_box,valid_feat_img_box} );
+    scale_infos.push_back( scale_info_t{nominal_in_sz,0,0,{},valid_feat_box,valid_feat_img_box} );
+    assert_st( !enable_upsamp_net ); // unhandled(/nonsensical?)
   }
 
-  void cnet_predict_t::setup_scale_infos( vect_u32_pt_t const & sizes, vect_u32_pt_w_t const & placements,
+  void cnet_predict_t::setup_scale_infos( uint32_t const & interval, vect_u32_pt_t const & sizes, 
+					  vect_u32_pt_w_t const & placements,
 					  u32_pt_t const & nominal_in_sz_ ) {
     nominal_in_sz = nominal_in_sz_;
     conv_pipe->dump_pipe( std::cout );
-    if( ol_csi->support_sz.is_zeros() ) {
+    if( get_ol_csi(0).support_sz.is_zeros() ) {
       rt_err( "global pooling and/or\n inner product layers + trying to "
 	      "compute dense features = madness!" );
     } 
+    assert( scale_infos.empty() );
+
+    if( enable_upsamp_net ) {
+      // should be at least one octave for using upsampling net to make sense
+      assert_st( sizes.size() >= interval ); 
+      scale_infos.resize( interval ); // preallocate space for the upsampled octave sizes
+    }
+
     for( uint32_t six = 0; six < sizes.size(); ++six ) {
       uint32_t const bix = placements.at(six).w;
       u32_pt_t const dest = placements.at(six);
       u32_pt_t const sz = sizes.at(six);
+
       u32_box_t per_scale_img_box{dest,dest+sz};
       // assume we've ensured that there is eff_tot_pad around the scale_img
-      per_scale_img_box.p[0] -= ol_csi->eff_tot_pad.p[0];
-      per_scale_img_box.p[1] += ol_csi->eff_tot_pad.p[0];
-
+      per_scale_img_box.p[0] -= get_ol_csi(0).eff_tot_pad.p[0];
+      per_scale_img_box.p[1] += get_ol_csi(0).eff_tot_pad.p[1];
       i32_box_t valid_feat_box;
-      in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, *ol_csi );
-      assert_st( valid_feat_box.is_strictly_normalized() );
-      i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
-      scale_infos.push_back( scale_info_t{sz,bix,dest,valid_feat_box,valid_feat_img_box} );	
+      in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_ol_csi(0) );
+      assert_st( valid_feat_box.is_strictly_normalized() );      
+      i32_box_t valid_feat_img_box = valid_feat_box.scale(out_s);
+      scale_infos.push_back( scale_info_t{sz,0,bix,dest,valid_feat_box,valid_feat_img_box} ); // note: from_upsamp_net=0
+
+      // if we're in the first placed octave, and the upsampling net
+      // is enabled, add scale_infos for the in-net-upsampled octave
+      // here.
+      if( enable_upsamp_net && (six < interval) ) { 
+	per_scale_img_box = u32_box_t{dest,dest+sz};
+	// assume we've ensured that there is eff_tot_pad around the scale_img
+	per_scale_img_box.p[0] -= get_ol_csi(1).eff_tot_pad.p[0];
+	per_scale_img_box.p[1] += get_ol_csi(1).eff_tot_pad.p[1];
+
+	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_ol_csi(1) );
+	assert_st( valid_feat_box.is_strictly_normalized() );
+	valid_feat_img_box = valid_feat_box.scale(out_s); // FIXME: sort-of-not-right (wrong net out_s)
+	scale_infos[six] = scale_info_t{sz,1,bix,dest,valid_feat_box,valid_feat_img_box}; // note: from_upsamp_net=1
+      }
     }
+    
+
     printf( "scale_infos=%s\n", str(scale_infos).c_str() );
   }
 
@@ -661,28 +698,33 @@ namespace boda
     p_img_t img_in_ds = resample_to_size( img_in, in_sz );
     subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
     p_nda_float_t out_batch = run_one_blob_in_one_blob_out();
-    return do_predict( out_batch, print_to_terminal );
+    p_nda_float_t out_batch_upsamp;
+    if( enable_upsamp_net ) { out_batch_upsamp = run_one_blob_in_one_blob_out_upsamp(); }
+    return do_predict( out_batch, out_batch_upsamp, print_to_terminal );
   }
 
-  p_vect_anno_t cnet_predict_t::do_predict( p_nda_float_t const & out_batch, bool const print_to_terminal ) {
-    dims_t const & obd = out_batch->dims;
-    assert( obd.sz() == 4 );
-    assert( obd.dims(1) == out_labels->size() );
+  p_vect_anno_t cnet_predict_t::do_predict( p_nda_float_t const & out_batch, p_nda_float_t const & out_batch_upsamp, 
+					    bool const print_to_terminal ) {
 
     for( vect_scale_info_t::iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
-      dims_t img_e( out_batch->dims.sz() );
+      p_nda_float_t scale_batch = i->from_upsamp_net ? out_batch_upsamp : out_batch;
+      dims_t const & sbd = scale_batch->dims;
+      assert( sbd.sz() == 4 );
+      assert( sbd.dims(1) == out_labels->size() );
+
+      dims_t img_e( scale_batch->dims.sz() );
       dims_t img_b( img_e.sz() );
       img_b.dims(0) = i->bix;
       img_e.dims(0) = i->bix + 1;
       img_b.dims(1) = 0;
-      img_e.dims(1) = obd.dims(1);
+      img_e.dims(1) = sbd.dims(1);
       img_b.dims(2) = i->feat_box.p[0].d[1];
       img_e.dims(2) = i->feat_box.p[1].d[1];
       img_b.dims(3) = i->feat_box.p[0].d[0];
       img_e.dims(3) = i->feat_box.p[1].d[0];
-      assert_st( img_e.fits_in( obd ) );
+      assert_st( img_e.fits_in( sbd ) );
       assert_st( img_b.fits_in( img_e ) );
-      do_predict_region( out_batch, img_b, img_e, i->psb );
+      do_predict_region( scale_batch, img_b, img_e, i->psb );
     }
     return pred_state_to_annos( print_to_terminal );
   }

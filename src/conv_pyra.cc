@@ -56,16 +56,18 @@ namespace boda
 	subtract_mean_and_copy_img_to_batch( cnet_predict->in_batch, bix, ipp->bin_imgs[bix] );
       }
       p_nda_float_t out_batch = cnet_predict->run_one_blob_in_one_blob_out();
+      p_nda_float_t out_batch_upsamp;
+      if( cnet_predict->enable_upsamp_net ) { out_batch_upsamp = cnet_predict->run_one_blob_in_one_blob_out_upsamp(); }
       if( !disp_feats ) {
 	feat_annos->clear();
-	img_annos = cnet_predict->do_predict( out_batch, 0 );
+	img_annos = cnet_predict->do_predict( out_batch, out_batch_upsamp, 0 );
 	setup_annos();
       }
       if( disp_feats ) {
 	timer_t t("conv_pyra_write_output");
 	if( zero_trash ) {
 	  for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); i != cnet_predict->scale_infos.end(); ++i ) {
-	    if( i->bix != 0 ) { continue; } // wrong plane
+	    if( (i->from_upsamp_net) || (i->bix != 0) ) { continue; } // wrong plane or net
 	    copy_batch_to_img( out_batch, i->bix, feat_img, i32_to_u32(i->feat_box) );
 	  }
 	}
@@ -96,6 +98,7 @@ namespace boda
       img_annos->clear();
       u32_pt_t const pyra_xy = floor_div_u32( pyra_img_xy, cnet_predict->out_s );
       for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); i != cnet_predict->scale_infos.end(); ++i ) {
+	if( i->from_upsamp_net ) { continue; } // wrong net
 	if( i->bix != bix ) { continue; } // wrong plane
 	if( i->feat_box.strictly_contains( u32_to_i32(pyra_xy) ) ) {
 	  printf( "(*i)=%s\n", str((*i)).c_str() );
@@ -140,7 +143,7 @@ namespace boda
       disp_win.disp_setup( disp_imgs );
       register_lb_handler( disp_win, &conv_pyra_t::on_lb, this );
 
-      cnet_predict->setup_scale_infos( ipp->sizes, ipp->placements, ipp->in_sz );
+      cnet_predict->setup_scale_infos( ipp->interval, ipp->sizes, ipp->placements, ipp->in_sz );
       cnet_predict->setup_predict();
       img_annos.reset( new vect_anno_t );
       feat_annos.reset( new vect_anno_t );
@@ -161,7 +164,7 @@ namespace boda
 	   i != cnet_predict->scale_infos.end(); ++i ) {
 	assert_st( i->feat_box.is_strictly_normalized() );
 	if( disp_feats ) {
-	  if (i->bix == 0) { // only working on plane 0 for now
+	  if( (i->bix == 0) && (!i->from_upsamp_net) ) { // only working on plane 0 for now
 	    feat_annos->push_back( anno_t{ i->feat_img_box, rgba_to_pel(170,40,40), 0, 
 		  str(i->img_sz), rgba_to_pel(220,220,255) } );
 	  } else {

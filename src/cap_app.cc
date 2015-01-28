@@ -319,8 +319,8 @@ namespace boda
       disp_win.update_img_annos( 1, annos );
 
       i32_box_t any_valid_feat_box;
-      if( !run_cnet->ol_csi->support_sz.is_zeros() ) {
-	in_box_to_out_box( any_valid_feat_box, in_xy_pel_box, cm_any_valid, *run_cnet->ol_csi );
+      if( !run_cnet->get_ol_csi(0).support_sz.is_zeros() ) {
+	in_box_to_out_box( any_valid_feat_box, in_xy_pel_box, cm_any_valid, run_cnet->get_ol_csi(0) );
       } else {
 	// global pooling, features should be 1x1
 	assert_st( (run_cnet->conv_ios->back().sz == u32_pt_t{1,1}) );
@@ -370,7 +370,7 @@ namespace boda
       // calculate in_xy from feat_xy
       i32_box_t valid_in_xy, core_valid_in_xy;
       unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
-				     *run_cnet->ol_csi, run_cnet->in_sz );
+				     run_cnet->get_ol_csi(0), run_cnet->in_sz );
       // annotate region of input image corresponding to feat_xy
       annos.reset( new vect_anno_t );
       annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy), rgba_to_pel(220,220,255) } );

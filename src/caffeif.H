@@ -81,10 +81,10 @@ namespace boda
     // created/cached using cache_pipe().
     p_conv_pipe_t conv_pipe;
     p_conv_pipe_t conv_pipe_upsamp;
-    conv_support_info_t const * ol_csi;
+    conv_support_info_t const & get_ol_csi( bool const & from_upsamp_net );
     p_vect_conv_io_t conv_ios;
     uint32_t out_s;
-    run_cnet_t( void ) : ol_csi(0), out_s(0) { }
+    run_cnet_t( void ) : out_s(0) { }
   private:
     p_net_param_t net_param;
     p_net_param_t upsamp_net_param;
@@ -102,6 +102,7 @@ namespace boda
   struct scale_info_t {
     u32_pt_t img_sz; // for this scale. often used as (some_box * nominal_in_sz / img_sz) for scaling
 
+    bool from_upsamp_net; // if true, use output of upsampled net
     uint32_t bix; // plane index
     u32_pt_t place; // offset of nc of scaled img inside plane
 
@@ -159,11 +160,12 @@ namespace boda
 
     void setup_predict( void );
     void setup_scale_infos( void );
-    void setup_scale_infos( vect_u32_pt_t const & sizes, vect_u32_pt_w_t const & placements, 
-			    u32_pt_t const & nominal_in_sz_ );
+    void setup_scale_infos( uint32_t const & interval, vect_u32_pt_t const & sizes, 
+			    vect_u32_pt_w_t const & placements, u32_pt_t const & nominal_in_sz_ );
 
     p_vect_anno_t do_predict( p_img_t const & img_in_ds, bool const print_to_terminal );
-    p_vect_anno_t do_predict( p_nda_float_t const & out_batch, bool const print_to_terminal );
+    p_vect_anno_t do_predict( p_nda_float_t const & out_batch, p_nda_float_t const & out_batch_upsamp, 
+			      bool const print_to_terminal );
     void do_predict_region( p_nda_float_t const & out_batch, dims_t const & obb, dims_t const & obe, 
 			    uint32_t const & psb );
     p_vect_anno_t pred_state_to_annos( bool const print_to_terminal );

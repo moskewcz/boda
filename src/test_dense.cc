@@ -97,7 +97,7 @@ namespace boda {
 
 	// figure out what part of output (if any) doesn't depend on padding
 	i32_box_t feat_box;
-	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, *run_cnet->ol_csi );
+	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, run_cnet->get_ol_csi(0) );
 
 	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
 	  u32_pt_t const samp_nc_max = (*i)->sz - run_cnet->in_sz;
@@ -116,7 +116,7 @@ namespace boda {
       u32_box_t in_box{ nc, nc + run_cnet->in_sz };
 
       i32_box_t feat_box_dense;
-      in_box_to_out_box( feat_box_dense, in_box, cm_valid, *run_cnet_dense->ol_csi );
+      in_box_to_out_box( feat_box_dense, in_box, cm_valid, run_cnet_dense->get_ol_csi(0) );
 
       if( feat_box_dense.sz() != feat_box.sz() ) { return; }
       
@@ -208,10 +208,10 @@ namespace boda {
       // bear in mind that nets which use padding may complicate this comparison
       u32_box_t in_box{ {}, samp_sz };
       i32_box_t feat_box_upsamp;
-      in_box_to_out_box( feat_box_upsamp, in_box, cm_valid, run_cnet->conv_pipe_upsamp->conv_sis.back() );
+      in_box_to_out_box( feat_box_upsamp, in_box, cm_valid, run_cnet->get_ol_csi(1) );
 
       i32_box_t feat_box;
-      in_box_to_out_box( feat_box, u32_box_t{{},run_cnet->in_sz}, cm_valid, *run_cnet->ol_csi );
+      in_box_to_out_box( feat_box, u32_box_t{{},run_cnet->in_sz}, cm_valid, run_cnet->get_ol_csi(0) );
       
       //printf( "feat_box=%s feat_box_upsamp=%s\n", str(feat_box).c_str(), str(feat_box_upsamp).c_str() );
       assert_st( feat_box_upsamp.sz() == feat_box.sz() );
