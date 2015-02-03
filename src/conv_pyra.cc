@@ -40,6 +40,7 @@ namespace boda
     p_capture_t capture; //NESI(default="()",help="capture from camera options")
 
     uint32_t zero_trash; //NESI(default=1,help="1=zero out trash features (not computed from valid per-scale data)")
+    uint32_t num_frames; //NESI(default=0,help="if non-zero, run only num_frames frames and then quit.")
     
     p_img_t in_img;
     p_img_t feat_img; 
@@ -47,6 +48,8 @@ namespace boda
     disp_win_t disp_win;
 
     void on_cap_read( error_code const & ec ) { 
+      timer_t t("conv_pyra_frame_proc");
+      if( num_frames ) { --num_frames; if( !num_frames ) { disp_win.done = 1; } }
       assert_st( !ec );
       capture->on_readable( 1 );
       p_img_t ds_img = resample_to_size( capture->cap_img, ipp->in_sz );
