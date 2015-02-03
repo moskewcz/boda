@@ -43,36 +43,11 @@ namespace boda
   struct scored_det_t_comp_by_inv_score_t { 
     bool operator () ( scored_det_t const & a, scored_det_t const & b ) const { return a.score > b.score; } };
   
-  struct gt_det_t : public u32_box_t
-  {
-    uint32_t truncated;
-    uint32_t difficult;    
-    gt_det_t( void ) : truncated(0), difficult(0) { }
-  };
 
   std::ostream & operator <<(std::ostream & os, const gt_det_t & v) {
     return os << ((u32_box_t &)v) << ":T" << v.truncated << "D" << v.difficult; }
-  struct vect_gt_det_t : public vector< gt_det_t >
-  {
-    zi_uint32_t num_non_difficult;
-  };
-  typedef map< string, vect_gt_det_t > name_vect_gt_det_map_t;
 
-  struct img_info_t
-  {
-    string id;
-    string full_fn;
-    uint32_t ix;
-    u32_pt_t size;
-    uint32_t depth;
-    name_vect_gt_det_map_t gt_dets;
 
-    p_img_t img;
-    img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ), depth(0) { }
-  };
-  typedef shared_ptr< img_info_t > p_img_info_t;
-  typedef map< string, p_img_info_t > id_to_img_info_map_t;
-  typedef vector< p_img_info_t > vect_p_img_info_t;
 
   void read_pascal_image_for_id( p_img_info_t img_info, path const & img_dir )
   {
@@ -114,72 +89,40 @@ namespace boda
     }
   }
 
-  typedef map< string, zi_uint32_t > class_infos_t;
 
-  struct match_res_t
+
+  string img_db_t::get_id_for_img_ix( uint32_t const img_ix ) {
+    assert( img_ix < img_infos.size() );
+    return img_infos[img_ix]->id;
+  }
+  uint32_t img_db_t::get_ix_for_img_id( string const & img_id ) {
+    id_to_img_info_map_t::iterator img_info = id_to_img_info_map.find(img_id);
+    if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
+    return img_info->second->ix;
+  }
+  void img_db_t::load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only )
   {
-    bool is_pos;
-    bool is_diff;
-    match_res_t( bool const is_pos_, bool const is_diff_ ) : is_pos(is_pos_), is_diff(is_diff_) { }
-  };
-
-
-  struct img_db_t : virtual public nesi // NESI(help="store images and detections")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t pascal_ann_dir; // NESI(default="%(pascal_data_dir)/Annotations",help="pascal annotations directory")
-    filename_t pascal_img_dir; // NESI(default="%(pascal_data_dir)/JPEGImages",help="pascal images directory")
-    id_to_img_info_map_t id_to_img_info_map;
-    vect_p_img_info_t img_infos;
-    class_infos_t class_infos;
-
-    // note: expects that only a single image list will be loaded
-    // (with check_ix_only=0), and that any subsequent lists loaded
-    // (with check_ix_only=1) will have the same images in the same
-    // order. this strictness is primarily for error checking can be
-    // relaxed as needed.
-    void load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only )
-    {
-      p_img_info_t & img_info = id_to_img_info_map[img_id];
-      if( check_ix_only ) {
-	if( !img_info ) { rt_err( "expected image to already be loaded but it was not" ); }
-	if( img_info->ix != in_file_ix ) { rt_err( strprintf( "already-loaded image had ix=%s, but expected %s",
-							      str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
-	return;
-      }
-      if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
-      img_info.reset( new img_info_t( img_id ) );
-      read_pascal_annotations_for_id( img_info, pascal_ann_dir.exp, img_id ); 
-      if( load_img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
-
-      img_info->ix = img_infos.size();
-      if( img_info->ix != in_file_ix ) { rt_err( strprintf( "newly-loaded image had ix=%s, but expected %s",
+    p_img_info_t & img_info = id_to_img_info_map[img_id];
+    if( check_ix_only ) {
+      if( !img_info ) { rt_err( "expected image to already be loaded but it was not" ); }
+      if( img_info->ix != in_file_ix ) { rt_err( strprintf( "already-loaded image had ix=%s, but expected %s",
 							    str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
-      img_infos.push_back( img_info );
-      for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )
-      {
-	class_infos[i->first].v += i->second.num_non_difficult.v;
-      }
+      return;
     }
-    string get_id_for_img_ix( uint32_t const img_ix )
-    {
-      assert( img_ix < img_infos.size() );
-      return img_infos[img_ix]->id;
-    }
-    uint32_t get_ix_for_img_id( string const & img_id )
-    {
-      id_to_img_info_map_t::iterator img_info = id_to_img_info_map.find(img_id);
-      if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
-      return img_info->second->ix;
-    }
-    match_res_t try_match( string const & class_name, p_vect_scored_det_t scored_dets, scored_det_t const & sd );
-    void score_results_for_class( p_vect_scored_det_t name_scored_dets, 
-				  string const & prc_txt_fn, string const & prc_png_fn );
-    void score_results( p_vect_p_vect_scored_det_t name_scored_dets_map, 
-			string const & prc_fn, string const & plot_base_fn );
+    if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
+    img_info.reset( new img_info_t( img_id ) );
+    read_pascal_annotations_for_id( img_info, pascal_ann_dir.exp, img_id ); 
+    if( load_img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
 
-  };
-  typedef shared_ptr< img_db_t > p_img_db_t;
+    img_info->ix = img_infos.size();
+    if( img_info->ix != in_file_ix ) { rt_err( strprintf( "newly-loaded image had ix=%s, but expected %s",
+							  str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
+    img_infos.push_back( img_info );
+    for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )
+    {
+      class_infos[i->first].v += i->second.num_non_difficult.v;
+    }
+  }
 
   void img_db_get_all_loaded_imgs( p_vect_p_img_t const & out, p_img_db_t img_db ) {
     for( vect_p_img_info_t::const_iterator i = img_db->img_infos.begin(); i != img_db->img_infos.end(); ++i ) {

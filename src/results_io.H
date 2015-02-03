@@ -45,6 +45,33 @@ namespace boda
   typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
   typedef vector< p_vect_scored_det_t > vect_p_vect_scored_det_t;
   typedef shared_ptr< vect_p_vect_scored_det_t > p_vect_p_vect_scored_det_t; 
+
+  struct gt_det_t : public u32_box_t
+  {
+    uint32_t truncated;
+    uint32_t difficult;    
+    gt_det_t( void ) : truncated(0), difficult(0) { }
+  };
+  struct vect_gt_det_t : public vector< gt_det_t >
+  {
+    zi_uint32_t num_non_difficult;
+  };
+  typedef map< string, vect_gt_det_t > name_vect_gt_det_map_t;
+  struct img_info_t
+  {
+    string id;
+    string full_fn;
+    uint32_t ix;
+    u32_pt_t size;
+    uint32_t depth;
+    name_vect_gt_det_map_t gt_dets;
+
+    p_img_t img;
+    img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ), depth(0) { }
+  };
+  typedef shared_ptr< img_info_t > p_img_info_t;
+  typedef map< string, p_img_info_t > id_to_img_info_map_t;
+  typedef vector< p_img_info_t > vect_p_img_info_t;
   
   // currently internal use only, but maybe can/should be exported
   //p_vect_scored_det_t read_results_file( p_img_db_t img_db, std::string const & fn );
@@ -76,7 +103,42 @@ namespace boda
   typedef vector< p_img_t > vect_p_img_t; 
   typedef shared_ptr< vect_p_img_t > p_vect_p_img_t; 
 
+  typedef map< string, zi_uint32_t > class_infos_t;
+
+  struct match_res_t
+  {
+    bool is_pos;
+    bool is_diff;
+    match_res_t( bool const is_pos_, bool const is_diff_ ) : is_pos(is_pos_), is_diff(is_diff_) { }
+  };
+
   void img_db_get_all_loaded_imgs( p_vect_p_img_t const & out, p_img_db_t img_db );
+
+  struct img_db_t : virtual public nesi // NESI(help="store images and detections")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t pascal_ann_dir; // NESI(default="%(pascal_data_dir)/Annotations",help="pascal annotations directory")
+    filename_t pascal_img_dir; // NESI(default="%(pascal_data_dir)/JPEGImages",help="pascal images directory")
+    id_to_img_info_map_t id_to_img_info_map;
+    vect_p_img_info_t img_infos;
+    class_infos_t class_infos;
+
+    // note: expects that only a single image list will be loaded
+    // (with check_ix_only=0), and that any subsequent lists loaded
+    // (with check_ix_only=1) will have the same images in the same
+    // order. this strictness is primarily for error checking can be
+    // relaxed as needed.
+    void load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only );
+    string get_id_for_img_ix( uint32_t const img_ix );
+    uint32_t get_ix_for_img_id( string const & img_id );
+    match_res_t try_match( string const & class_name, p_vect_scored_det_t scored_dets, scored_det_t const & sd );
+    void score_results_for_class( p_vect_scored_det_t name_scored_dets, 
+				  string const & prc_txt_fn, string const & prc_png_fn );
+    void score_results( p_vect_p_vect_scored_det_t name_scored_dets_map, 
+			string const & prc_fn, string const & plot_base_fn );
+
+  };
+  typedef shared_ptr< img_db_t > p_img_db_t;
 
 
   struct load_imgs_from_pascal_classes_t : virtual public nesi // NESI(help="load PASCAL VOC images by classes" )
@@ -90,6 +152,7 @@ namespace boda
     void load_all_imgs( void );
   };
   typedef shared_ptr< load_imgs_from_pascal_classes_t > p_load_imgs_from_pascal_classes_t; 
+
 
 }
 #endif // RESULTS_IO_H
