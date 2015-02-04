@@ -64,6 +64,18 @@ namespace boda
 	  dest_pt = random_pt( disp_imgs->at(0)->sz - copy_sz, gen );
 	}
 	img_copy_to_clip( img.get(), disp_imgs->at(0).get(), dest_pt, src_pt, copy_sz );
+	// annotate GTs
+	assert_st( cur_img_ix < img_db->img_infos.size() );
+	p_img_info_t img_info = img_db->img_infos[cur_img_ix];
+	p_vect_anno_t annos( new vect_anno_t );
+	for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i ) {
+	  vect_gt_det_t const & gt_dets = i->second; // note: may be created here (i.e. may be empty)
+	  string const & cn = i->first;
+	  for( vect_gt_det_t::const_iterator i = gt_dets.begin(); i != gt_dets.end(); ++i ) {
+	    annos->push_back( anno_t{u32_to_i32(*i), rgba_to_pel(170,40,40), 0, cn, rgba_to_pel(220,220,255) } );
+	  }
+	}
+	disp_win.update_img_annos( 0, annos );
 	++cur_img_ix;
       }
       disp_win.update_disp_imgs();
