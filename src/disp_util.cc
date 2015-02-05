@@ -245,6 +245,7 @@ namespace boda
     i32_pt_t const disp_off{displayrect->x,displayrect->y}; // display window x,y is the offset where the neg_corner of the texure will be drawn. 
     i32_pt_t const tex_sz = { YV12_buf->w, YV12_buf->h }; // the texture is always it is always drawn resized to the window size (regardless of offset)
     uint32_t out_x = 0;
+    asio->lb_event.img_ix = uint32_t_const_max; // default: not inside any image
     for( uint32_t i = 0; i != imgs->size(); ++i ) { 
       p_img_t const & img = imgs->at(i);
       // calculate what region in the display window this image occupies
@@ -260,11 +261,12 @@ namespace boda
       if( disp_img_box.contains( pel_to_box( i32_pt_t{x,y} ) ) ) {
 	i32_pt_t const img_xy = (xy - disp_img_nc)*img_sz/disp_img_sz;
 	//printf( "i=%s img_xy=%s\n", str(i).c_str(), str(img_xy).c_str() );
+	assert_st( asio->lb_event.img_ix == uint32_t_const_max ); // shouldn't be inside multiple images
 	asio->lb_event.img_ix = i;
 	asio->lb_event.xy = img_xy;
-	asio->lb_event.cancel();
       }
     }
+    asio->lb_event.cancel();
   }
 
   void disp_win_t::update_dr_for_window_and_zoom( u32_pt_t const & new_win_sz ) {
@@ -295,7 +297,7 @@ namespace boda
 	if( event.button.button == SDL_BUTTON_RIGHT ) {
 	  pan_pin = i32_pt_t{event.button.x,event.button.y};
 	  pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
-	} else if( event.button.button == SDL_BUTTON_LEFT ) { on_lb( event.button.x, event.button.y ); }
+	} else if( event.button.button == SDL_BUTTON_LEFT ) { asio->lb_event.set_is_lb(); on_lb( event.button.x, event.button.y ); }
 	break;
       case SDL_MOUSEMOTION:
 	if (event.motion.state&SDL_BUTTON(3)) {
@@ -311,6 +313,10 @@ namespace boda
 	update_dr_for_window_and_zoom( window_sz );
 	break;
       case SDL_KEYDOWN:
+	if( 1 ) { // generate/forward keydown event to disp_util parent/user/client
+	  int mx,my; SDL_GetMouseState( &mx, &my );
+	  asio->lb_event.set_is_key( event.key.keysym.sym ); on_lb( mx, my );
+	}
 	if( event.key.keysym.sym == SDLK_s ) {
 	  for( uint32_t i = 0; i != imgs->size(); ++i ) {
 	    imgs->at(i)->save_fn_png( strprintf( "ss_%s.png", str(i).c_str() ) );

@@ -42,8 +42,13 @@ namespace boda {
 
   struct lb_event_t : public deadline_timer_t {
     lb_event_t( io_service_t & io ) : deadline_timer_t(io) { }
-    uint32_t img_ix;
-    i32_pt_t xy;
+    uint32_t img_ix; // image event was inside or uint32_t_const_max if event not in an image
+    i32_pt_t xy; // if img_ix is valid, coord withing image for event
+    bool is_lb; // if event was left mouse button down
+    bool is_key; // if event was key down
+    int32_t keycode; // actually an SDL keycode from event.key.keysym.sym
+    void set_is_lb( void ) { is_lb = 1; is_key = 0; }
+    void set_is_key( int32_t const keycode_ ) { is_lb = 0; is_key = 1; keycode = keycode_; }
   };
   lb_event_t & get_lb_event( disp_win_t * const dw );
 
