@@ -88,15 +88,23 @@ namespace boda
     void on_quit( error_code const & ec ) { get_io( &disp_win ).stop(); }
 
     void on_lb( error_code const & ec ) { 
+      register_lb_handler( disp_win, &display_pil_t::on_lb, this ); // re-register handler for next event
       lb_event_t const & lbe = get_lb_event(&disp_win);
       //printf( "lbe.is_key=%s lbe.keycode=%s\n", str(lbe.is_key).c_str(), str(lbe.keycode).c_str() );
-      if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, all_imgs->size(),  1 ); auto_adv=0; }
-      if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, all_imgs->size(), -1 ); auto_adv=0; }
-      if( lbe.is_key && (lbe.keycode == 'p') ) { auto_adv ^= 1; }
-      register_lb_handler( disp_win, &display_pil_t::on_lb, this );
-      frame_timer->cancel();
-      frame_timer->expires_from_now( time_duration() );
-      frame_timer->async_wait( bind( &display_pil_t::on_frame, this, _1 ) ); 
+      bool unknown_command = 0;
+      if( 0 ) { }
+      else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, all_imgs->size(),  1 ); auto_adv=0; }
+      else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, all_imgs->size(), -1 ); auto_adv=0; }
+      else if( lbe.is_key && (lbe.keycode == 'p') ) { auto_adv ^= 1; }
+      else if( lbe.is_key ) { // unknown command handlers
+	unknown_command = 1; 
+	printf("unknown/unhandled UI key event with keycode = %s\n", str(lbe.keycode).c_str() ); } 
+      else { unknown_command = 1; printf("unknown/unhandled UI event\n"); } // unknown command
+      if( !unknown_command ) { // if known command, force redisplay now
+	frame_timer->cancel();
+	frame_timer->expires_from_now( time_duration() );
+	frame_timer->async_wait( bind( &display_pil_t::on_frame, this, _1 ) ); 
+      }
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
