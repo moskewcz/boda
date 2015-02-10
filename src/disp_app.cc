@@ -45,7 +45,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
-    uint32_t rand_winds; //NESI(default=1,help="if set, display 1/2 image size random windows instead of full image")
+    uint32_t rand_winds; //NESI(default=0,help="if set, display 1/2 image size random windows instead of full image")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
