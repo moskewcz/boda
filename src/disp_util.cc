@@ -225,17 +225,19 @@ namespace boda
 
   // call when changes to imgs should be reflected/copied onto the display texture
   void disp_win_t::update_disp_imgs( void ) {
-    if (!paused) {
-      uint32_t out_x = 0;
-      for( uint32_t i = 0; i != imgs->size(); ++i ) { 
-	img_to_YV12( *YV12_buf, imgs->at(i), out_x, YV12_buf->h - imgs->at(i)->sz.d[1] );
-	out_x += imgs->at(i)->sz.d[0];
-      }
-      SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
+    if( paused ) { return; }
+    uint32_t out_x = 0;
+    for( uint32_t i = 0; i != imgs->size(); ++i ) { 
+      img_to_YV12( *YV12_buf, imgs->at(i), out_x, YV12_buf->h - imgs->at(i)->sz.d[1] );
+      out_x += imgs->at(i)->sz.d[0];
     }
+    SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
   }
 
-  void disp_win_t::update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos ) { img_annos.at(img_ix) = annos; }
+  void disp_win_t::update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos ) { 
+    if( paused ) { return; }
+    img_annos.at(img_ix) = annos; 
+  }
 
   void disp_win_t::on_lb( int32_t const x, int32_t const y ) { 
     //printf( "x=%s y=%s\n", str(x).c_str(), str(y).c_str() );
