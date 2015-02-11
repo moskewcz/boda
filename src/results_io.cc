@@ -223,8 +223,14 @@ namespace boda
 	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
 			   pil_fn.in.c_str(), pn.c_str() ) );
       }
-      img_db->load_pascal_data_for_id( id, load_imgs, in_file_ix, check_ix_only );
+      img_db->load_pascal_data_for_id( id, false, in_file_ix, check_ix_only );
       ++in_file_ix;
+    }
+    if( load_imgs ) {
+#pragma omp parallel for
+      for( uint32_t i = 0; i < img_db->img_infos.size(); ++i ) {
+	read_pascal_image_for_id( img_db->img_infos[i], img_db->pascal_img_dir.exp ); 
+      }
     }
   }
   
