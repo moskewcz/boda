@@ -26,8 +26,9 @@ def get_build_info_c_str():
     # FIXME: if we want to support both svn and git, we should autodetect here?
     rev_str = git_get_rev_str();
     build_host = socket.gethostname()
-    ret = ""
-    ret += 'char const * const build_rev = "%s";\n' % rev_str 
-    ret += 'char const * const build_host = "%s";\n' % build_host
+    ret = "namespace boda\n{\n"
+    ret += '  char const * get_build_rev( void ) { return "%s"; }\n' % rev_str 
+    ret += '  char const * get_build_host( void ) { return "%s"; }\n' % build_host
+    ret += "}\n"
     return ret
 

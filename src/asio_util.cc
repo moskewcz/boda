@@ -1,11 +1,11 @@
 #include"boda_tu_base.H"
 #include"asio_util.H"
+#include"build_info.H"
 
 namespace boda 
 {
 
-#include"gen/build_info.cc"
-  string get_boda_shm_filename( void ) { return strprintf( "/boda-rev-%s-pid-%s-top.shm", build_rev, 
+  string get_boda_shm_filename( void ) { return strprintf( "/boda-rev-%s-pid-%s-top.shm", get_build_rev(), 
 							   str(getpid()).c_str() ); }
 
   void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args ) {
