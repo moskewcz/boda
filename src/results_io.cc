@@ -131,7 +131,7 @@ namespace boda
   }
 
   void load_imgs_from_pascal_classes_t::load_all_imgs( void ) {
-    p_vect_string classes = readlines_fn( pascal_classes_fn );
+    classes = readlines_fn( pascal_classes_fn );
     for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
       bool const is_first_class = (i == (*classes).begin());
       read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
@@ -330,7 +330,7 @@ namespace boda
     return match_res_t(1,best_difficult);
   }
   
-  void print_prc_line( p_ostream out, prc_elem_t const & prc_elem, uint32_t const tot_num_class, double const & map )
+  void print_prc_line( p_ostream const & out, prc_elem_t const & prc_elem, uint32_t const tot_num_class, double const & map )
   {
     (*out) << strprintf( "num_pos=%s num_test=%s score=%.6lf p=%s r=%s map=%s\n", 
 			 str(prc_elem.num_pos).c_str(), str(prc_elem.num_test).c_str(), 
@@ -346,6 +346,7 @@ namespace boda
   {
     timer_t t("score_results_for_class");
     string const & class_name = name_scored_dets->class_name;
+    printf( "class_name=%s\n", str(class_name).c_str() );
     assert_st( !class_name.empty() );
     p_ostream prc_out = ofs_open( prc_txt_fn + class_name + ".txt" );
     sort( name_scored_dets->begin(), name_scored_dets->end(), scored_det_t_comp_by_inv_score_t() );
@@ -381,7 +382,8 @@ namespace boda
       }
     }
     map /= tot_num_class;
-    if( next_print != (num_pos+print_skip) ) { print_prc_line( prc_out, prc_elems.back(), tot_num_class, map ); }
+    if( (next_print != (num_pos+print_skip)) && (!prc_elems.empty()) ) {
+      print_prc_line( prc_out, prc_elems.back(), tot_num_class, map ); }
     (*prc_out ) << strprintf( "---END--- class_name=%s tot_num=%s num_pos=%s num_test=%s num_neg=%s final_map=%s\n", 
 			      str(class_name).c_str(),
 			      str(tot_num_class).c_str(), 

@@ -149,6 +149,7 @@ namespace boda
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
     p_vect_p_img_t all_imgs;
 
+    p_vect_string classes;
     void load_all_imgs( void );
   };
   typedef shared_ptr< load_imgs_from_pascal_classes_t > p_load_imgs_from_pascal_classes_t; 
