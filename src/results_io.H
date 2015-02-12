@@ -21,25 +21,41 @@ namespace boda
   typedef vector< name_vect_gt_match_map_t > vect_name_vect_gt_match_map_t;
   typedef vector< vect_gt_match_t > vect_vect_gt_match_t;
 
-  struct scored_det_t : public u32_box_t
+  struct base_scored_det_t : public u32_box_t
   {
     double score;
-    uint32_t img_ix;
-    scored_det_t( void ) : score(0), img_ix(0) { }
+    base_scored_det_t( void ) : score(0) {}
+    base_scored_det_t( u32_box_t const & b_, double const & score_ ) : u32_box_t(b_), score(score_) {}
   };
+  typedef vector< base_scored_det_t > vect_base_scored_det_t;
+  typedef vector< vect_base_scored_det_t > vect_vect_base_scored_det_t;
+
+  struct scored_det_t : public base_scored_det_t
+  {
+    uint32_t img_ix;
+    scored_det_t( void ) : img_ix(0) {}
+    scored_det_t( base_scored_det_t const & v_, uint32_t const & img_ix_ ) : base_scored_det_t(v_), img_ix(img_ix_) {}
+  };
+
   std::ostream & operator <<(std::ostream & os, const scored_det_t & v);
-  struct vect_scored_det_t : public std::vector< scored_det_t >
+  struct vect_scored_det_t : public std::vector< scored_det_t > // vector of scored dets with metadata
   {
     vect_scored_det_t( string const & class_name_ ) : class_name( class_name_ ) { }
     string class_name;
     vect_vect_gt_match_t gt_matches;
+    vect_vect_base_scored_det_t per_img_sds; // per-image detections
     void clear_matches( void ) { gt_matches.clear(); }
-    vect_gt_match_t & get_gtms( uint32_t const img_ix, uint32_t const img_num_gts ) {
+    void merge_per_img_sds( void );
+    vect_gt_match_t & get_gtms( uint32_t const img_ix, uint32_t const img_num_gts ) { 
       if( img_ix >= gt_matches.size() ) { gt_matches.resize( img_ix + 1 ); }
       vect_gt_match_t & ret = gt_matches[img_ix];
       if( ret.empty() ) { ret.resize( img_num_gts ); }
       assert_st( ret.size() == img_num_gts );
       return ret;
+    }
+    vect_base_scored_det_t & get_per_img_sds( uint32_t const img_ix ) {
+      if( img_ix >= per_img_sds.size() ) { per_img_sds.resize( img_ix + 1 ); }
+      return per_img_sds[img_ix];
     }
   };
   typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;

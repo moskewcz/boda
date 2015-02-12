@@ -47,6 +47,15 @@ namespace boda
   std::ostream & operator <<(std::ostream & os, const gt_det_t & v) {
     return os << ((u32_box_t &)v) << ":T" << v.truncated << "D" << v.difficult; }
 
+  void vect_scored_det_t::merge_per_img_sds( void ) {
+    for( uint32_t i = 0; i != per_img_sds.size(); ++i ) {
+      vect_base_scored_det_t const & sds = per_img_sds[i];
+      for( vect_base_scored_det_t::const_iterator j = sds.begin(); j != sds.end(); ++j ) {
+	push_back( scored_det_t{*j,i} );
+      }
+    }
+  }
+
 
 
   void read_pascal_image_for_id( p_img_info_t img_info, path const & img_dir )
