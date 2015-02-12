@@ -283,6 +283,7 @@ namespace boda
       //printf( "ev.events=%s\n", str(ev.events).c_str() );
       if( read_frame( cap_img, 1 ) ) { ++i; printstr("."); } // got a frame
       else { printstr("-"); }
+      fflush( stdout );
     }
     printstr("\n");
     // note: the following should be zero. but, due to bug, =9 on my 3.2 kernel ...
