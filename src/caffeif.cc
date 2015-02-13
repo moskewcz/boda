@@ -590,7 +590,8 @@ namespace boda
       assert_st( scale_infos.back().bix == 0 );
       //assert_st( enable_upsamp_net == 0 ); // too strong?
     }
-
+    p_ofstream rps;
+    if( dump_rps ) { rps = ofs_open("rps.txt"); }
     for( vect_scale_info_t::iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
       i->psb = pred_state.size();
       for( uint32_t bc = 0; bc < out_chans; ++bc ) {
@@ -607,6 +608,7 @@ namespace boda
 	    valid_in_xy -= u32_to_i32(i->place); // shift so image nc is at 0,0
 	    valid_in_xy = valid_in_xy * u32_to_i32(nominal_in_sz) / u32_to_i32(i->img_sz); // scale for scale
 	    ps.img_box = valid_in_xy;
+	    if( rps && (bc==0) ) { (*rps) << ps.img_box.parts_str() << "\n"; }
 	  }
 	}
       }

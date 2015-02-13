@@ -149,7 +149,7 @@ namespace boda
     bool contains( T_box_t const & o ) const { return o.p[0].both_dims_ge( p[0] ) && o.p[1].both_dims_le( p[1] ); }
     bool strictly_contains( T const & o ) const { return o.both_dims_ge( p[0] ) && o.both_dims_lt( p[1] ); }
     uint64_t get_area( void ) const { return uint64_t(p[1].d[0]-p[0].d[0])*(p[1].d[1]-p[0].d[1]); } 
-
+    string parts_str( void ) { return str( p[0] ) + " " + str( p[1] ); }
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
     void from_pascal_coord_adjust( void );
     void to_pascal_coord_adjust( void );
