@@ -29,6 +29,8 @@ namespace boda
   };
   typedef vector< base_scored_det_t > vect_base_scored_det_t;
   typedef vector< vect_base_scored_det_t > vect_vect_base_scored_det_t;
+  typedef shared_ptr< vect_base_scored_det_t > p_vect_base_scored_det_t;
+  typedef vector< p_vect_base_scored_det_t > vect_p_vect_base_scored_det_t;
 
   struct scored_det_t : public base_scored_det_t
   {
@@ -43,7 +45,7 @@ namespace boda
     vect_scored_det_t( string const & class_name_ ) : class_name( class_name_ ) { }
     string class_name;
     vect_vect_gt_match_t gt_matches;
-    vect_vect_base_scored_det_t per_img_sds; // per-image detections
+    vect_p_vect_base_scored_det_t per_img_sds; // per-image detections
     void clear_matches( void ) { gt_matches.clear(); }
     void merge_per_img_sds( void );
     vect_gt_match_t & get_gtms( uint32_t const img_ix, uint32_t const img_num_gts ) { 
@@ -53,7 +55,7 @@ namespace boda
       assert_st( ret.size() == img_num_gts );
       return ret;
     }
-    vect_base_scored_det_t & get_per_img_sds( uint32_t const img_ix ) {
+    p_vect_base_scored_det_t & get_per_img_sds( uint32_t const img_ix ) {
       if( img_ix >= per_img_sds.size() ) { per_img_sds.resize( img_ix + 1 ); }
       return per_img_sds[img_ix];
     }
@@ -151,7 +153,7 @@ namespace boda
     void score_results_for_class( p_vect_scored_det_t name_scored_dets, 
 				  string const & prc_txt_fn, string const & prc_png_fn );
     void score_results( p_vect_p_vect_scored_det_t name_scored_dets_map, 
-			string const & prc_fn, string const & plot_base_fn );
+			string const & prc_fn, string const & plot_base_fn, bool const pre_merge_post_clear );
 
   };
   typedef shared_ptr< img_db_t > p_img_db_t;

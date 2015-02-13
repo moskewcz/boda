@@ -11,6 +11,7 @@
 #include"asio_util.H"
 #include"anno_util.H"
 #include"rand_util.H"
+#include"io_util.H"
 
 namespace boda 
 {
@@ -51,6 +52,7 @@ namespace boda
     uint32_t rand_winds; //NESI(default=0,help="if set, display 1/2 image size random windows instead of full image")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t do_score; //NESI(default=1,help="if set, run scoring. if == 2, quit after scoring.")
+    uint32_t show_mum; //NESI(default=1,help="1 == show matched, 0 == show unmatched")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
@@ -64,13 +66,22 @@ namespace boda
     filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
     p_vect_p_vect_scored_det_t scored_dets;
 
+    vect_u32_box_t rp_boxes;
+    filename_t rp_boxes_fn; //NESI(default="rps.txt",help="input: region proposal boxes")
+
+
     void score_img( p_img_info_t const & img_info ) {
+      p_vect_base_scored_det_t img_sds( new vect_base_scored_det_t );
+      for( vect_u32_box_t::const_iterator i = rp_boxes.begin(); i != rp_boxes.end(); ++i ) {
+	img_sds->push_back( base_scored_det_t{*i,1} );
+      }
+
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	p_vect_scored_det_t const & sds = scored_dets->at( i - classes->begin() );
-	vect_base_scored_det_t & img_sds = sds->get_per_img_sds( img_info->ix );
-	p_img_t const & img = img_info->img;
-	
-	img_sds.push_back( base_scored_det_t{u32_box_t{img->sz.scale_and_round(0.14),img->sz.scale_and_round(1.0 - 0.14)},10.4} );
+	//p_vect_base_scored_det_t & img_sds = sds->get_per_img_sds( img_info->ix );
+	sds->get_per_img_sds( img_info->ix ) = img_sds;
+	//p_img_t const & img = img_info->img;
+	//img_sds.push_back( base_scored_det_t{u32_box_t{img->sz.scale_and_round(0.14),img->sz.scale_and_round(1.0 - 0.14)},10.4} );
 	//oct_dfc( cout, dpm_fast_cascade_dir.exp, scored_dets->back(), img_info->full_fn, img_info->ix );
       }
     }
@@ -80,6 +91,7 @@ namespace boda
       assert( !ec );
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_pil_t::on_frame, this, _1 ) ); 
+      uint32_t const start_img = cur_img_ix;
       while( 1 ) {
 	bool skip_img = 0;
 	assert( cur_img_ix < all_imgs->size() );
@@ -104,9 +116,10 @@ namespace boda
 	    p_vect_scored_det_t const & sds = scored_dets->at( i - classes->begin() );
 	    gtms = &sds->get_gtms( img_info->ix, gt_dets.size() );
 	  
-	    vect_base_scored_det_t & img_sds = sds->get_per_img_sds( img_info->ix );
-	    for( vect_base_scored_det_t::const_iterator i = img_sds.begin(); i != img_sds.end(); ++i ) {
-	      annos->push_back( anno_t{u32_to_i32(*i), rgba_to_pel(40,40,170), 0, cn + "=" + str(i->score), rgba_to_pel(220,220,255) } );
+	    p_vect_base_scored_det_t const & img_sds = sds->get_per_img_sds( img_info->ix );
+	    assert( img_sds );
+	    for( vect_base_scored_det_t::const_iterator i = img_sds->begin(); i != img_sds->end(); ++i ) {
+	      //annos->push_back( anno_t{u32_to_i32(*i), rgba_to_pel(40,40,170), 0, cn + "=" + str(i->score), rgba_to_pel(220,220,255) } );
 	    }	
 	  }
 
@@ -116,10 +129,13 @@ namespace boda
 	    bool const is_matched = (!gtms) || gtms->at(i).matched;
 	    uint32_t gt_color = is_matched ? rgba_to_pel(40,170,40) : rgba_to_pel(170,40,40);
 	    annos->push_back( anno_t{u32_to_i32(gt_dets[i]), gt_color, 0, cn, rgba_to_pel(220,220,255) } );
-	    if( gtms && is_matched ) { skip_img = 1; }
+	    if( gtms && (is_matched^show_mum) ) { skip_img = 1; }
 	  }
 	}
-	if( skip_img ) { mod_adj( cur_img_ix, all_imgs->size(), 1 ); }
+	if( skip_img ) { 
+	  mod_adj( cur_img_ix, all_imgs->size(), 1 ); 
+	  if( cur_img_ix == start_img ) { printf("no images to show.\n"); break; } 
+	}
 	else {
 	  disp_win.update_img_annos( 0, annos );
 	  if( auto_adv ) { mod_adj( cur_img_ix, all_imgs->size(), 1 ); }
@@ -155,6 +171,7 @@ namespace boda
 
       if( do_score ) {
 	// setup scored_dets
+	read_text_file( rp_boxes, rp_boxes_fn.exp );
 	scored_dets.reset( new vect_p_vect_scored_det_t );
 	for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	  scored_dets->push_back( p_vect_scored_det_t( new vect_scored_det_t( *i ) ) );
@@ -163,10 +180,9 @@ namespace boda
 	  p_img_info_t img_info = img_db->img_infos[ix];
 	  score_img( img_info );
 	}	
-	for( vect_p_vect_scored_det_t::iterator i = scored_dets->begin(); i != scored_dets->end(); ++i ) { 
-	  (*i)->merge_per_img_sds(); }
-	img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp );
-	if( do_score == 2 ) { return; }
+	bool const quit_after_score = (do_score == 2);
+	img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, quit_after_score );
+	if( quit_after_score ) { return; }
       }
 
       disp_imgs = disp_win.disp_setup( {{640,480}} );

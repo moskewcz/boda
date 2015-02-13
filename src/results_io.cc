@@ -49,7 +49,7 @@ namespace boda
 
   void vect_scored_det_t::merge_per_img_sds( void ) {
     for( uint32_t i = 0; i != per_img_sds.size(); ++i ) {
-      vect_base_scored_det_t const & sds = per_img_sds[i];
+      vect_base_scored_det_t const & sds = *per_img_sds[i];
       for( vect_base_scored_det_t::const_iterator j = sds.begin(); j != sds.end(); ++j ) {
 	push_back( scored_det_t{*j,i} );
       }
@@ -292,7 +292,7 @@ namespace boda
 	string c_res_fn = strprintf( res_fn.exp.c_str(), (*i).c_str() );
 	write_results_file( img_db, c_res_fn, scored_dets->back() );
       }
-      img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp );
+      img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, 0 );
 
     }
   };
@@ -408,10 +408,13 @@ namespace boda
   }
 
   void img_db_t::score_results( p_vect_p_vect_scored_det_t name_scored_dets_map,
-				string const & prc_fn, string const & plot_base_fn ) {
+				string const & prc_fn, string const & plot_base_fn,
+				bool const pre_merge_post_clear ) {
     timer_t t("score_results");
     for( vect_p_vect_scored_det_t::iterator i = name_scored_dets_map->begin(); i != name_scored_dets_map->end(); ++i ) {
+      if( 1 || pre_merge_post_clear ) { (*i)->merge_per_img_sds(); } // FIXME: okay to always to this?
       score_results_for_class( *i, prc_fn, plot_base_fn );
+      if( pre_merge_post_clear ) { (*i).reset(); }
     }
   }
 
@@ -474,8 +477,8 @@ namespace boda
 	dpm_scored_dets->push_back( read_results_file( img_db, strprintf( dpm_fn.exp.c_str(), (*i).c_str() ), *i ) );
 	printf( "(*i)=%s (DPM)\n", str((*i)).c_str() );
       }
-      img_db->score_results( hamming_scored_dets, prc_txt_fn.exp + "ham_", prc_png_fn.exp + "ham_" );
-      img_db->score_results( dpm_scored_dets, prc_txt_fn.exp + "dpm_", prc_png_fn.exp + "dpm_" );
+      img_db->score_results( hamming_scored_dets, prc_txt_fn.exp + "ham_", prc_png_fn.exp + "ham_", 0);
+      img_db->score_results( dpm_scored_dets, prc_txt_fn.exp + "dpm_", prc_png_fn.exp + "dpm_", 0 );
 #if 1      
       p_ofstream summ_out = ofs_open( score_diff_summary_fn.exp );  
       (*summ_out) << strprintf( "class_name,num_tot,ham_only,dpm_only,num_ham,num_dpm,num_both,num_either,num_neither,\n");
