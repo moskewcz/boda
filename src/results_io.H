@@ -40,9 +40,9 @@ namespace boda
   };
 
   std::ostream & operator <<(std::ostream & os, const scored_det_t & v);
-  struct vect_scored_det_t : public std::vector< scored_det_t > // vector of scored dets with metadata
+  struct per_class_scored_dets_t : public std::vector< scored_det_t > // vector of scored dets with metadata
   {
-    vect_scored_det_t( string const & class_name_ ) : class_name( class_name_ ) { }
+    per_class_scored_dets_t( string const & class_name_ ) : class_name( class_name_ ) { }
     string class_name;
     vect_vect_gt_match_t gt_matches;
     vect_p_vect_base_scored_det_t per_img_sds; // per-image detections
@@ -60,9 +60,9 @@ namespace boda
       return per_img_sds[img_ix];
     }
   };
-  typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
-  typedef vector< p_vect_scored_det_t > vect_p_vect_scored_det_t;
-  typedef shared_ptr< vect_p_vect_scored_det_t > p_vect_p_vect_scored_det_t; 
+  typedef shared_ptr< per_class_scored_dets_t > p_per_class_scored_dets_t;
+  typedef vector< p_per_class_scored_dets_t > vect_p_per_class_scored_dets_t;
+  typedef shared_ptr< vect_p_per_class_scored_dets_t > p_vect_p_per_class_scored_dets_t; 
 
   struct gt_det_t : public u32_box_t
   {
@@ -92,7 +92,7 @@ namespace boda
   typedef vector< p_img_info_t > vect_p_img_info_t;
   
   // currently internal use only, but maybe can/should be exported
-  //p_vect_scored_det_t read_results_file( p_img_db_t img_db, std::string const & fn );
+  //p_per_class_scored_dets_t read_results_file( p_img_db_t img_db, std::string const & fn );
 
   struct prc_elem_t
   {
@@ -113,8 +113,8 @@ namespace boda
   typedef shared_ptr< img_db_t > p_img_db_t;
   void read_pascal_image_list_file( p_img_db_t img_db, filename_t const & pil_fn, bool const load_imgs, 
 				    bool const check_ix_only );
-  void write_results_file( p_img_db_t img_db, string const & fn, p_vect_scored_det_t scored_dets );
-  void img_db_show_dets( p_img_db_t img_db, p_vect_scored_det_t scored_dets, uint32_t img_ix );
+  void write_results_file( p_img_db_t img_db, string const & fn, p_per_class_scored_dets_t scored_dets );
+  void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix );
 
   struct img_t; 
   typedef shared_ptr< img_t > p_img_t; 
@@ -149,10 +149,10 @@ namespace boda
     void load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only );
     string get_id_for_img_ix( uint32_t const img_ix );
     uint32_t get_ix_for_img_id( string const & img_id );
-    match_res_t try_match( string const & class_name, p_vect_scored_det_t scored_dets, scored_det_t const & sd );
-    void score_results_for_class( p_vect_scored_det_t name_scored_dets, 
+    match_res_t try_match( string const & class_name, p_per_class_scored_dets_t scored_dets, scored_det_t const & sd );
+    void score_results_for_class( p_per_class_scored_dets_t name_scored_dets, 
 				  string const & prc_txt_fn, string const & prc_png_fn );
-    void score_results( p_vect_p_vect_scored_det_t name_scored_dets_map, 
+    void score_results( p_vect_p_per_class_scored_dets_t name_scored_dets_map, 
 			string const & prc_fn, string const & plot_base_fn, bool const pre_merge_post_clear );
 
   };

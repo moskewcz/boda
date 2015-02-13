@@ -15,10 +15,10 @@ namespace boda
   struct img_t; typedef shared_ptr< img_t > p_img_t;
   void py_img_show( p_img_t img, std::string const & save_as_filename );
 
-  struct vect_scored_det_t;
-  typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
+  struct per_class_scored_dets_t;
+  typedef shared_ptr< per_class_scored_dets_t > p_per_class_scored_dets_t;
 
-  void show_dets( p_img_t img, p_vect_scored_det_t scored_dets );
+  void show_dets( p_img_t img, p_per_class_scored_dets_t scored_dets );
   std::string const & py_boda_dir( void );
   std::string const & py_boda_test_dir( void );
 

@@ -8,10 +8,10 @@ namespace boda
   void oct_exit( int const retval );
   void test_oct( void );
 
-  struct vect_scored_det_t;
-  typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
+  struct per_class_scored_dets_t;
+  typedef shared_ptr< per_class_scored_dets_t > p_per_class_scored_dets_t;
 
-  void oct_dfc( std::ostream & out, std::string const & dpm_fast_cascade_dir, p_vect_scored_det_t scored_dets, 
+  void oct_dfc( std::ostream & out, std::string const & dpm_fast_cascade_dir, p_per_class_scored_dets_t scored_dets, 
 		std::string const & image_fn, uint32_t const img_ix );
 }
 

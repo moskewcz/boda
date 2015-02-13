@@ -64,7 +64,7 @@ namespace boda
 
     filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
     filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
-    p_vect_p_vect_scored_det_t scored_dets;
+    p_vect_p_per_class_scored_dets_t scored_dets;
 
     vect_u32_box_t rp_boxes;
     filename_t rp_boxes_fn; //NESI(default="rps.txt",help="input: region proposal boxes")
@@ -77,7 +77,7 @@ namespace boda
       }
 
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	p_vect_scored_det_t const & sds = scored_dets->at( i - classes->begin() );
+	p_per_class_scored_dets_t const & sds = scored_dets->at( i - classes->begin() );
 	//p_vect_base_scored_det_t & img_sds = sds->get_per_img_sds( img_info->ix );
 	sds->get_per_img_sds( img_info->ix ) = img_sds;
 	//p_img_t const & img = img_info->img;
@@ -113,7 +113,7 @@ namespace boda
 	  vect_gt_match_t * gtms = 0;
 	  // annotate SDs
 	  if( do_score ) {
-	    p_vect_scored_det_t const & sds = scored_dets->at( i - classes->begin() );
+	    p_per_class_scored_dets_t const & sds = scored_dets->at( i - classes->begin() );
 	    gtms = &sds->get_gtms( img_info->ix, gt_dets.size() );
 	  
 	    p_vect_base_scored_det_t const & img_sds = sds->get_per_img_sds( img_info->ix );
@@ -172,9 +172,9 @@ namespace boda
       if( do_score ) {
 	// setup scored_dets
 	read_text_file( rp_boxes, rp_boxes_fn.exp );
-	scored_dets.reset( new vect_p_vect_scored_det_t );
+	scored_dets.reset( new vect_p_per_class_scored_dets_t );
 	for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	  scored_dets->push_back( p_vect_scored_det_t( new vect_scored_det_t( *i ) ) );
+	  scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
 	}
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
 	  p_img_info_t img_info = img_db->img_infos[ix];

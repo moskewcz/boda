@@ -152,7 +152,7 @@ namespace boda
     }
   };
 
-  void bs_matrix_to_dets( NDArray & det_boxes, uint32_t const img_ix, p_vect_scored_det_t scored_dets )
+  void bs_matrix_to_dets( NDArray & det_boxes, uint32_t const img_ix, p_per_class_scored_dets_t scored_dets )
   {
     for( octave_idx_type i = 0; i < det_boxes.dim1(); ++i ) {
       assert( det_boxes.dim2() >= 5 ); // should have at least 4 columns to form detection bbox + 1 for score
@@ -170,7 +170,7 @@ namespace boda
     }
   }
 
-  void oct_dfc( ostream & out, string const & dpm_fast_cascade_dir, p_vect_scored_det_t scored_dets, 
+  void oct_dfc( ostream & out, string const & dpm_fast_cascade_dir, p_per_class_scored_dets_t scored_dets, 
 		string const & image_fn, uint32_t const img_ix ) {
 
     oct_dfc_startup( dpm_fast_cascade_dir );
@@ -231,10 +231,10 @@ namespace boda
     string class_name; //NESI(help="name of object class",req=1)
     uint32_t img_ix; //NESI(default=0,help="internal use only: img_ix to put in results placed in results vector")
     string dpm_fast_cascade_dir; // NESI(help="dpm_fast_cascade base src dir, usually /parent/dirs/svn_work/dpm_fast_cascade",req=1)
-    p_vect_scored_det_t scored_dets; // output
+    p_per_class_scored_dets_t scored_dets; // output
 
     virtual void main( nesi_init_arg_t * nia ) {
-      scored_dets.reset( new vect_scored_det_t( class_name ) );
+      scored_dets.reset( new per_class_scored_dets_t( class_name ) );
       oct_dfc( cout, dpm_fast_cascade_dir, scored_dets, image_fn, img_ix );
     }
   };
@@ -261,7 +261,7 @@ namespace boda
 
     void convert_class( string const & class_name, bool const check_ix_only ) {
       read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, class_name.c_str() ), 0, check_ix_only );
-      p_vect_scored_det_t scored_dets( new vect_scored_det_t( class_name ) );
+      p_per_class_scored_dets_t scored_dets( new per_class_scored_dets_t( class_name ) );
       octave_value_list in;
       
       string c_mat_bs_fn = strprintf( mat_bs_fn.exp.c_str(), class_name.c_str() );

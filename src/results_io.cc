@@ -47,7 +47,7 @@ namespace boda
   std::ostream & operator <<(std::ostream & os, const gt_det_t & v) {
     return os << ((u32_box_t &)v) << ":T" << v.truncated << "D" << v.difficult; }
 
-  void vect_scored_det_t::merge_per_img_sds( void ) {
+  void per_class_scored_dets_t::merge_per_img_sds( void ) {
     for( uint32_t i = 0; i != per_img_sds.size(); ++i ) {
       vect_base_scored_det_t const & sds = *per_img_sds[i];
       for( vect_base_scored_det_t::const_iterator j = sds.begin(); j != sds.end(); ++j ) {
@@ -150,7 +150,7 @@ namespace boda
     img_db_get_all_loaded_imgs( all_imgs, img_db );
   }
 
-  void img_db_show_dets( p_img_db_t img_db, p_vect_scored_det_t scored_dets, uint32_t img_ix )
+  void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix )
   {
     assert_st( img_ix < img_db->img_infos.size() );
     p_img_info_t img_info = img_db->img_infos[img_ix];
@@ -158,12 +158,12 @@ namespace boda
     show_dets( img_info->img, scored_dets );
   }
 
-  p_vect_scored_det_t read_results_file( p_img_db_t img_db, string const & fn, string const & class_name )
+  p_per_class_scored_dets_t read_results_file( p_img_db_t img_db, string const & fn, string const & class_name )
   {
     timer_t t("read_results_file");
     p_ifstream in = ifs_open( fn );  
     string line;
-    p_vect_scored_det_t scored_dets( new vect_scored_det_t( class_name ) );
+    p_per_class_scored_dets_t scored_dets( new per_class_scored_dets_t( class_name ) );
     while( !ifs_getline( fn, in, line ) )
     {
       vect_string parts;
@@ -185,10 +185,10 @@ namespace boda
     return scored_dets;
   }
 
-  void write_results_file( p_img_db_t img_db, string const & fn, p_vect_scored_det_t scored_dets )
+  void write_results_file( p_img_db_t img_db, string const & fn, p_per_class_scored_dets_t scored_dets )
   {
     p_ofstream out = ofs_open( fn );  
-    for (vect_scored_det_t::const_iterator i = scored_dets->begin(); i != scored_dets->end(); ++i)
+    for (per_class_scored_dets_t::const_iterator i = scored_dets->begin(); i != scored_dets->end(); ++i)
     {
       string const img_id = img_db->get_id_for_img_ix(i->img_ix);
       (*out) << strprintf( "%s %s %s\n", str(img_id).c_str(), str(i->score).c_str(), i->pascal_str().c_str() );
@@ -254,7 +254,7 @@ namespace boda
     p_img_db_t img_db; //NESI(default="()", help="image database")
     virtual void main( nesi_init_arg_t * nia ) {
       read_pascal_image_list_file( img_db, pil_fn, false, 0 );
-      p_vect_scored_det_t scored_dets = read_results_file( img_db, res_fn.exp, class_name );
+      p_per_class_scored_dets_t scored_dets = read_results_file( img_db, res_fn.exp, class_name );
       img_db->score_results_for_class( scored_dets, prc_txt_fn.exp, prc_png_fn.exp );
     }
   };
@@ -277,14 +277,14 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) {
       p_vect_string classes = readlines_fn( pascal_classes_fn );
-      p_vect_p_vect_scored_det_t scored_dets( new vect_p_vect_scored_det_t );      
+      p_vect_p_per_class_scored_dets_t scored_dets( new vect_p_per_class_scored_dets_t );      
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
 				     true, (i != (*classes).begin()) ); 	
       }
 
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	scored_dets->push_back( p_vect_scored_det_t( new vect_scored_det_t( *i ) ) );
+	scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
 	  p_img_info_t img_info = img_db->img_infos[ix];
 	  oct_dfc( cout, dpm_fast_cascade_dir.exp, scored_dets->back(), img_info->full_fn, img_info->ix );
@@ -302,7 +302,7 @@ namespace boda
   // sometimes valid when matched=false (i.e. if the match is false
   // due to being a duplicate, the difficult bit indicates if the
   // higher-scoring-matched gt detection was marked difficult).
-  match_res_t img_db_t::try_match( string const & class_name, p_vect_scored_det_t scored_dets, scored_det_t const & sd )
+  match_res_t img_db_t::try_match( string const & class_name, p_per_class_scored_dets_t scored_dets, scored_det_t const & sd )
   {
     assert_st( sd.img_ix < img_infos.size() );
     p_img_info_t img_info = img_infos[sd.img_ix];
@@ -350,7 +350,7 @@ namespace boda
   }
 
 
-  void img_db_t::score_results_for_class( p_vect_scored_det_t name_scored_dets,
+  void img_db_t::score_results_for_class( p_per_class_scored_dets_t name_scored_dets,
 					  string const & prc_txt_fn, string const & prc_png_fn )
   {
     timer_t t("score_results_for_class");
@@ -367,7 +367,7 @@ namespace boda
     uint32_t print_skip = 1 + (tot_num_class / 20); // print about 20 steps in recall
     uint32_t next_print = 1;
     (*prc_out ) << strprintf( "---BEGIN--- class_name=%s tot_num_class=%s name_scored_dets->size()=%s\n", str(class_name).c_str(), str(tot_num_class).c_str(), str(name_scored_dets->size()).c_str() );
-    for( vect_scored_det_t::const_iterator i = name_scored_dets->begin(); i != name_scored_dets->end(); )
+    for( per_class_scored_dets_t::const_iterator i = name_scored_dets->begin(); i != name_scored_dets->end(); )
     {
       uint32_t const orig_num_pos = num_pos;
       double const cur_score = i->score;
@@ -407,11 +407,11 @@ namespace boda
 
   }
 
-  void img_db_t::score_results( p_vect_p_vect_scored_det_t name_scored_dets_map,
+  void img_db_t::score_results( p_vect_p_per_class_scored_dets_t name_scored_dets_map,
 				string const & prc_fn, string const & plot_base_fn,
 				bool const pre_merge_post_clear ) {
     timer_t t("score_results");
-    for( vect_p_vect_scored_det_t::iterator i = name_scored_dets_map->begin(); i != name_scored_dets_map->end(); ++i ) {
+    for( vect_p_per_class_scored_dets_t::iterator i = name_scored_dets_map->begin(); i != name_scored_dets_map->end(); ++i ) {
       if( 1 || pre_merge_post_clear ) { (*i)->merge_per_img_sds(); } // FIXME: okay to always to this?
       score_results_for_class( *i, prc_fn, plot_base_fn );
       if( pre_merge_post_clear ) { (*i).reset(); }
@@ -420,7 +420,7 @@ namespace boda
 
   struct is_comma { bool operator()( char const & c ) const { return c == ','; } };
 
-  void read_hamming_csv_file( p_vect_scored_det_t scored_dets, string const & fn, uint32_t const img_ix )
+  void read_hamming_csv_file( p_per_class_scored_dets_t scored_dets, string const & fn, uint32_t const img_ix )
   {
     p_ifstream in = ifs_open( fn );  
     string line;
@@ -460,15 +460,15 @@ namespace boda
     
     virtual void main( nesi_init_arg_t * nia ) { 
       p_vect_string classes = readlines_fn( pascal_classes_fn );
-      p_vect_p_vect_scored_det_t hamming_scored_dets( new vect_p_vect_scored_det_t );
-      p_vect_p_vect_scored_det_t dpm_scored_dets( new vect_p_vect_scored_det_t );
+      p_vect_p_per_class_scored_dets_t hamming_scored_dets( new vect_p_per_class_scored_dets_t );
+      p_vect_p_per_class_scored_dets_t dpm_scored_dets( new vect_p_per_class_scored_dets_t );
       
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
 				     false, (i != (*classes).begin()) ); 	
       }
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	hamming_scored_dets->push_back( p_vect_scored_det_t( new vect_scored_det_t( *i ) ) );
+	hamming_scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
 	  read_hamming_csv_file( hamming_scored_dets->back(), 
 				 strprintf( ham_fn.exp.c_str(), (*i).c_str(), str(ix+1).c_str() ), ix );
@@ -484,8 +484,8 @@ namespace boda
       (*summ_out) << strprintf( "class_name,num_tot,ham_only,dpm_only,num_ham,num_dpm,num_both,num_either,num_neither,\n");
       for( uint32_t cix = 0; cix != classes->size(); ++cix ) {
 	string const & class_name = classes->at(cix);;
-	p_vect_scored_det_t ham_sds = hamming_scored_dets->at(cix);
-	p_vect_scored_det_t dpm_sds = dpm_scored_dets->at(cix);
+	p_per_class_scored_dets_t ham_sds = hamming_scored_dets->at(cix);
+	p_per_class_scored_dets_t dpm_sds = dpm_scored_dets->at(cix);
 	uint32_t ham_only = 0;
 	uint32_t dpm_only = 0;
 	uint32_t num_ham = 0;
@@ -521,8 +521,8 @@ namespace boda
 	  }
 	  bool const show_mismatch_img = 0;
 	  if( unmatched && show_mismatch_img ) {
-	    p_vect_scored_det_t img_scored_dets( new vect_scored_det_t( class_name ) );
-	    for (vect_scored_det_t::const_iterator i = ham_sds->begin(); i != ham_sds->end(); ++i) {
+	    p_per_class_scored_dets_t img_scored_dets( new per_class_scored_dets_t( class_name ) );
+	    for (per_class_scored_dets_t::const_iterator i = ham_sds->begin(); i != ham_sds->end(); ++i) {
 	      if( i->img_ix == ix ) { img_scored_dets->push_back( *i ); }
 	    }
 	    img_db_show_dets( img_db, img_scored_dets, ix );
