@@ -166,7 +166,7 @@ namespace boda
       det.score = det_boxes(i,det_boxes.dim2()-1);
       det.from_pascal_coord_adjust();
       //printf( "det=%s\n", str(det).c_str() );
-      scored_dets->push_back( det );
+      scored_dets->add_det( det );
     }
   }
 

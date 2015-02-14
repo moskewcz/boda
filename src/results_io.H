@@ -38,16 +38,16 @@ namespace boda
     scored_det_t( void ) : img_ix(0) {}
     scored_det_t( base_scored_det_t const & v_, uint32_t const & img_ix_ ) : base_scored_det_t(v_), img_ix(img_ix_) {}
   };
-
+  typedef vector< scored_det_t > vect_scored_det_t;
+  typedef shared_ptr< vect_scored_det_t > p_vect_scored_det_t;
+  
   std::ostream & operator <<(std::ostream & os, const scored_det_t & v);
-  struct per_class_scored_dets_t : public std::vector< scored_det_t > // vector of scored dets with metadata
+  struct per_class_scored_dets_t
   {
     per_class_scored_dets_t( string const & class_name_ ) : class_name( class_name_ ) { }
     string class_name;
-    vect_vect_gt_match_t gt_matches;
-    vect_p_vect_base_scored_det_t per_img_sds; // per-image detections
-    void clear_matches( void ) { gt_matches.clear(); }
-    void merge_per_img_sds( void );
+    vect_p_vect_base_scored_det_t per_img_sds; // per_img_sds[ix] is all detections for image ix
+    vect_vect_gt_match_t gt_matches; // gt_matches[ix] is matched bits for all class_name GT boxes for image ix
     vect_gt_match_t & get_gtms( uint32_t const img_ix, uint32_t const img_num_gts ) { 
       if( img_ix >= gt_matches.size() ) { gt_matches.resize( img_ix + 1 ); }
       vect_gt_match_t & ret = gt_matches[img_ix];
@@ -55,10 +55,14 @@ namespace boda
       assert_st( ret.size() == img_num_gts );
       return ret;
     }
-    p_vect_base_scored_det_t & get_per_img_sds( uint32_t const img_ix ) {
+    p_vect_base_scored_det_t & get_per_img_sds( uint32_t const & img_ix, bool const & alloc_if_null ) {
       if( img_ix >= per_img_sds.size() ) { per_img_sds.resize( img_ix + 1 ); }
-      return per_img_sds[img_ix];
+      p_vect_base_scored_det_t & ret = per_img_sds[img_ix];
+      if( alloc_if_null && !ret ) { ret.reset( new vect_base_scored_det_t ); }
+      return ret;
     }
+    void add_det( scored_det_t const & sd ) { get_per_img_sds(sd.img_ix,1)->push_back( sd ); }
+    p_vect_scored_det_t get_merged_all_imgs_sds( void );
   };
   typedef shared_ptr< per_class_scored_dets_t > p_per_class_scored_dets_t;
   typedef vector< p_per_class_scored_dets_t > vect_p_per_class_scored_dets_t;

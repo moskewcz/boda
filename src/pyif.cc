@@ -168,13 +168,13 @@ namespace boda
     bplot_call( "img_show", img_to_py( img ), ppyo(PyString_FromString(save_as_filename.c_str())) );
   }
 
-  void show_dets( p_img_t img, p_per_class_scored_dets_t scored_dets )
-  {
-    npy_intp dims[2] = {scored_dets->size(),4};
+
+  void show_dets( p_img_t img, vect_base_scored_det_t const & scored_dets ) {
+    npy_intp dims[2] = {scored_dets.size(),4};
     ppyo npa( PyArray_SimpleNew( 2, dims, NPY_UINT32) );
-    for( per_class_scored_dets_t::const_iterator i = scored_dets->begin(); i != scored_dets->end(); ++i ) {
+    for( vect_base_scored_det_t::const_iterator i = scored_dets.begin(); i != scored_dets.end(); ++i ) {
       for( uint32_t d = 0; d < 4; ++d ) {
-	*((uint32_t *)PyArray_GETPTR2( npa.get(), i-scored_dets->begin(), d )) = i->p[d>>1].d[d&1];
+	*((uint32_t *)PyArray_GETPTR2( npa.get(), i-scored_dets.begin(), d )) = i->p[d>>1].d[d&1];
       }
     }
     bplot_call( "show_dets", img_to_py(img), npa );

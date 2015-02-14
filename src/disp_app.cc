@@ -79,7 +79,7 @@ namespace boda
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	p_per_class_scored_dets_t const & sds = scored_dets->at( i - classes->begin() );
 	//p_vect_base_scored_det_t & img_sds = sds->get_per_img_sds( img_info->ix );
-	sds->get_per_img_sds( img_info->ix ) = img_sds;
+	sds->get_per_img_sds( img_info->ix, 0 ) = img_sds;
 	//p_img_t const & img = img_info->img;
 	//img_sds.push_back( base_scored_det_t{u32_box_t{img->sz.scale_and_round(0.14),img->sz.scale_and_round(1.0 - 0.14)},10.4} );
 	//oct_dfc( cout, dpm_fast_cascade_dir.exp, scored_dets->back(), img_info->full_fn, img_info->ix );
@@ -116,7 +116,7 @@ namespace boda
 	    p_per_class_scored_dets_t const & sds = scored_dets->at( i - classes->begin() );
 	    gtms = &sds->get_gtms( img_info->ix, gt_dets.size() );
 	  
-	    p_vect_base_scored_det_t const & img_sds = sds->get_per_img_sds( img_info->ix );
+	    p_vect_base_scored_det_t const & img_sds = sds->get_per_img_sds( img_info->ix, 0 );
 	    assert( img_sds );
 	    for( vect_base_scored_det_t::const_iterator i = img_sds->begin(); i != img_sds->end(); ++i ) {
 	      //annos->push_back( anno_t{u32_to_i32(*i), rgba_to_pel(40,40,170), 0, cn + "=" + str(i->score), rgba_to_pel(220,220,255) } );
