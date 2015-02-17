@@ -888,6 +888,61 @@ namespace boda
     }
   }
 
+
+  struct cnet_util_t : virtual public nesi, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["has_main_t"], type_id="cnet_util")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet_nogroups/train_val.prototxt",help="input net prototxt template filename")
+    filename_t trained_fn; //NESI(default="%(models_dir)/alexnet_nogroups/best.caffemodel",help="input trained net from which to copy params")
+
+    void main( nesi_init_arg_t * nia ) { 
+
+      p_net_param_t net_param;
+      p_net_param_t mod_net_param;
+
+      p_string ptt_str = read_whole_fn( ptt_fn );
+      net_param.reset( new caffe::NetParameter );
+
+      bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, net_param.get() );
+      assert_st( ret );
+
+      mod_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
+
+      // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
+      assert_st( mod_net_param->layers_size() ); // better have at least one layer
+      caffe::LayerParameter * lp = mod_net_param->mutable_layers(2);
+      if( !lp->has_convolution_param() ) { rt_err( "first layer of net not conv layer; don't know how to create upsampled network"); }
+      caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
+      p_conv_op_t conv_op = get_conv_op_from_param( *cp );
+      // FIXME: we probably need to deal with padding better here?
+      //conv_op->kern_sz = ceil_div( conv_op->kern_sz, u32_pt_t{2,2} );
+      assert_st( conv_op->in_pad.bnds_are_same() );
+      //conv_op->in_pad.p[0] = ceil_div( conv_op->in_pad.p[0], u32_pt_t{2,2} );
+      //conv_op->in_pad.p[1] = conv_op->in_pad.p[0];
+      for( uint32_t i = 0; i != 2; ++i ) {
+	if( (conv_op->stride.d[i]&1) ) { rt_err( "first conv layer has odd stride; don't know how to create upsampled network" ); }
+	//conv_op->stride.d[i] /= 2;
+      }
+      set_param_from_conv_op( *cp, conv_op );
+      assert_st( lp->has_name() );
+      lp->set_name( lp->name() + "-in-2X-us" );
+
+      // TODO: write out mod prototxt
+
+      p_Net_float net;
+      p_Net_float mod_net;
+
+      net = caffe_create_net( *net_param, trained_fn.exp );      
+      mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
+      //create_upsamp_layer_0_weights(); // FIXME: add identity layer weights
+      // TODO: write out mod net
+
+    }
+  };
+
+
 #include"gen/caffeif.H.nesi_gen.cc"
+#include"gen/caffeif.cc.nesi_gen.cc"
 }
 
