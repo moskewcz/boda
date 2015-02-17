@@ -896,6 +896,9 @@ namespace boda
     filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet_nogroups/train_val.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/alexnet_nogroups/best.caffemodel",help="input trained net from which to copy params")
 
+    filename_t mod_fn; //NESI(default="train_val.mod.prototxt",help="output net prototxt template filename")
+    filename_t mod_weights_fn; //NESI(default="mod.caffemodel",help="output net weights binary prototxt template filename")
+
     void main( nesi_init_arg_t * nia ) { 
 
       p_net_param_t net_param;
@@ -928,16 +931,22 @@ namespace boda
       assert_st( lp->has_name() );
       lp->set_name( lp->name() + "-in-2X-us" );
 
-      // TODO: write out mod prototxt
+      string mod_str;
+      bool const pts_ret = google::protobuf::TextFormat::PrintToString( *mod_net_param, &mod_str );
+      assert_st( pts_ret );
+      write_whole_fn( mod_fn, mod_str );
 
       p_Net_float net;
       p_Net_float mod_net;
 
       net = caffe_create_net( *net_param, trained_fn.exp );      
       mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
-      //create_upsamp_layer_0_weights(); // FIXME: add identity layer weights
-      // TODO: write out mod net
+      //create_upsamp_layer_0_weights(); // TODO: add identity layer weights
 
+      p_net_param_t mod_net_param_with_weights;
+      mod_net_param_with_weights.reset( new caffe::NetParameter );
+      mod_net->ToProto( mod_net_param_with_weights.get(), false );
+      WriteProtoToBinaryFile( *mod_net_param_with_weights, mod_weights_fn.exp );
     }
   };
 
