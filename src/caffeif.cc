@@ -877,8 +877,8 @@ namespace boda
 
     for( dims_iter_t di( filts->dims ) ; ; ) { 
       float val = 0; // FIXME: add noise here
-      if( (di.di[2] == ((height+1)/2)) && // center y pel in filt
-	  (di.di[3] == ((width+1)/2)) && // center x pel in filt
+      if( (di.di[2] == (height/2)) && // center y pel in filt
+	  (di.di[3] == (width/2)) && // center x pel in filt
 	  (di.di[0] == di.di[1]) ) // in_chan == out_chan
       { val += 1; }
 
