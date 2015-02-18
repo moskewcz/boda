@@ -145,7 +145,11 @@ namespace boda
     for( uint32_t i = 0; i != layer_names.size(); ++i ) { if( out_layer_name == layer_names[i] ) { return i; } }
     rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
   }
-  
+  uint32_t get_layer_ix( caffe::NetParameter const & net_param, string const & layer_name ) {
+    for( int i = 0; i != net_param.layers_size(); ++i ) { if( net_param.layers(i).name() == layer_name ) { return i; } }
+    rt_err( strprintf("layer layer_name=%s not found in network\n",str(layer_name).c_str() )); 
+  }
+
   p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op ) {
@@ -220,7 +224,7 @@ namespace boda
 
   void copy_layer_blobs( p_Net_float net_, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_copy_layer_blob_data");
-    caffe::Layer<float>* layer = net_->layers()[ layer_ix ].get();
+    caffe::Layer<float>* layer = net_->layers().at( layer_ix ).get();
     const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     blobs.clear();
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
@@ -477,44 +481,6 @@ namespace boda
     if( enable_upsamp_net ) { 
       upsamp_net_param->set_input_dim(0,in_num_imgs); } // FIXME/TODO: for now, run upsamp on all planes
   }
-
-#if 0 // untested/unused example code for weight manipulation
-  void create_identity_weights( p_Net_float net ) {
-    vect_p_nda_float_t blobs;
-    copy_layer_blobs( net, 0, blobs );
-    assert_st( blobs.size() == 2 ); // filters, biases
-    p_nda_float_t biases = blobs[1];
-    for( dims_iter_t di( biases->dims ) ; ; ) { biases->at(di.di) = 0; if( !di.next() ) { break; } } // all biases 0
-    p_nda_float_t filts = blobs[0];
-
-    uint32_t const width = filts->dims.dims(3);
-    uint32_t const height = filts->dims.dims(2); 
-    uint32_t const channels = filts->dims.dims(1);
-    uint32_t const num = filts->dims.dims(0);
-
-    assert_st( channels == num ); // for now, only handling case where input chans == output chans
-
-    // it's unclear how to handle even width/height, depending on padding in particular
-    assert_st( width & 1 );
-    assert_st( height & 1 );
-
-    //for( uint32_t i = 0; i != num; ++i ) { filts->at4( i, i, (h+1)/2, (w+1)/2 ) = 1; }
-
-    for( dims_iter_t di( filts->dims ) ; ; ) { 
-      float val = 0; // FIXME: add noise here
-      if( (di.di[2] == ((height+1)/2)) && // center y pel in filt
-	  (di.di[3] == ((width+1)/2)) && // center x pel in filt
-	  (di.di[0] == di.di[1]) ) // in_chan == out_chan
-      { val += 1; }
-
-      filts->at(di.di) = val;
-      if( !di.next() ) { break; } 
-    }    
-
-    set_layer_blobs( net, 0, blobs );
-  }
-#endif
-
 
   void run_cnet_t::create_upsamp_layer_0_weights( void ) {
     vect_p_nda_float_t usl_blobs;
@@ -888,6 +854,41 @@ namespace boda
     }
   }
 
+  void create_identity_weights( p_Net_float net, string const & layer_name ) {
+    vect_p_nda_float_t blobs;
+    copy_layer_blobs( net, layer_name, blobs );
+    assert_st( blobs.size() == 2 ); // filters, biases
+    p_nda_float_t biases = blobs[1];
+    for( dims_iter_t di( biases->dims ) ; ; ) { biases->at(di.di) = 0; if( !di.next() ) { break; } } // all biases 0
+    p_nda_float_t filts = blobs[0];
+
+    uint32_t const width = filts->dims.dims(3);
+    uint32_t const height = filts->dims.dims(2); 
+    uint32_t const channels = filts->dims.dims(1);
+    uint32_t const num = filts->dims.dims(0);
+
+    assert_st( channels == num ); // for now, only handling case where input chans == output chans
+
+    // it's unclear how to handle even width/height, depending on padding in particular
+    assert_st( width & 1 );
+    assert_st( height & 1 );
+
+    //for( uint32_t i = 0; i != num; ++i ) { filts->at4( i, i, (h+1)/2, (w+1)/2 ) = 1; }
+
+    for( dims_iter_t di( filts->dims ) ; ; ) { 
+      float val = 0; // FIXME: add noise here
+      if( (di.di[2] == ((height+1)/2)) && // center y pel in filt
+	  (di.di[3] == ((width+1)/2)) && // center x pel in filt
+	  (di.di[0] == di.di[1]) ) // in_chan == out_chan
+      { val += 1; }
+
+      filts->at(di.di) = val;
+      if( !di.next() ) { break; } 
+    }    
+
+    set_layer_blobs( net, layer_name, blobs );
+  }
+
 
   struct cnet_util_t : virtual public nesi, public has_main_t // NESI(help="utility to modify caffe nets",
 		       // bases=["has_main_t"], type_id="cnet_util")
@@ -896,8 +897,10 @@ namespace boda
     filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet_nogroups/train_val.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/alexnet_nogroups/best.caffemodel",help="input trained net from which to copy params")
 
-    filename_t mod_fn; //NESI(default="train_val.mod.prototxt",help="output net prototxt template filename")
-    filename_t mod_weights_fn; //NESI(default="mod.caffemodel",help="output net weights binary prototxt template filename")
+    filename_t mod_fn; //NESI(default="%(models_dir)/alexnet_nogroups_mod/train_val.prototxt",help="output net prototxt template filename")
+    filename_t mod_weights_fn; //NESI(default="%(models_dir)/alexnet_nogroups_mod/best.caffemodel",help="output net weights binary prototxt template filename")
+
+    string add_before_ln;//NESI(default="conv4",help="name of layer before which to add identity layer")
 
     void main( nesi_init_arg_t * nia ) { 
 
@@ -909,39 +912,59 @@ namespace boda
 
       bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, net_param.get() );
       assert_st( ret );
+      uint32_t const add_before_ix = get_layer_ix( *net_param, add_before_ln );
 
       mod_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
+      mod_net_param->clear_layers(); // remove all layers
+      for( uint32_t i = 0; i != add_before_ix; ++i ) { *mod_net_param->add_layers() = net_param->layers(i); }
+      if( add_before_ix < 2 ) { rt_err( "unhandled: expecting at least 2 layers prior to add_before_ln"); }
+      caffe::LayerParameter const & pre_relu_layer = mod_net_param->layers( add_before_ix - 1 );
+      if( pre_relu_layer.type() != caffe::LayerParameter_LayerType_RELU ) { 
+	rt_err( "unhandled: layer prior to add_before_ln is not RELU"); }
+      caffe::LayerParameter const & pre_layer = mod_net_param->layers( add_before_ix - 2 );
+      if( !pre_layer.top_size() == 1) { rt_err( "unhandled: pre_layer->top_size() != 1"); }
+      string const pre_layer_top = pre_layer.top(0);
+      if( !pre_layer.has_convolution_param() ) { rt_err( "unhandled: layer two layers before add_before_ln is not a conv layer."); }
+      caffe::ConvolutionParameter const & pre_conv_layer = pre_layer.convolution_param();
+      uint32_t const pcl_num_output = pre_conv_layer.num_output();
+      // add new conv layer
+      string const new_layer_name = "pre_" + add_before_ln;
+      caffe::LayerParameter * new_conv_layer = mod_net_param->add_layers();
+      *new_conv_layer = net_param->layers(add_before_ix); // start with clone of conv layer we're adding before
+      new_conv_layer->set_name( new_layer_name );
+      new_conv_layer->clear_bottom(); new_conv_layer->add_bottom( pre_layer_top );
+      new_conv_layer->clear_top(); new_conv_layer->add_top( new_layer_name );
+      new_conv_layer->mutable_convolution_param()->set_num_output( pcl_num_output );
+      // add new relu layer
+      caffe::LayerParameter * new_relu_layer = mod_net_param->add_layers();
+      *new_relu_layer = pre_relu_layer; // start with clone of RELU from prior to layer we're adding before
+      new_relu_layer->set_name( "relu_" + new_layer_name );
+      new_relu_layer->clear_bottom(); new_relu_layer->add_bottom( new_layer_name );
+      new_relu_layer->clear_top(); new_relu_layer->add_top( new_layer_name );
 
-      // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
-      assert_st( mod_net_param->layers_size() ); // better have at least one layer
-      caffe::LayerParameter * lp = mod_net_param->mutable_layers(2);
-      if( !lp->has_convolution_param() ) { rt_err( "first layer of net not conv layer; don't know how to create upsampled network"); }
-      caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
-      p_conv_op_t conv_op = get_conv_op_from_param( *cp );
-      // FIXME: we probably need to deal with padding better here?
-      //conv_op->kern_sz = ceil_div( conv_op->kern_sz, u32_pt_t{2,2} );
-      assert_st( conv_op->in_pad.bnds_are_same() );
-      //conv_op->in_pad.p[0] = ceil_div( conv_op->in_pad.p[0], u32_pt_t{2,2} );
-      //conv_op->in_pad.p[1] = conv_op->in_pad.p[0];
-      for( uint32_t i = 0; i != 2; ++i ) {
-	if( (conv_op->stride.d[i]&1) ) { rt_err( "first conv layer has odd stride; don't know how to create upsampled network" ); }
-	//conv_op->stride.d[i] /= 2;
+      for( uint32_t i = add_before_ix; i != (uint32_t)net_param->layers_size(); ++i ) { 
+	caffe::LayerParameter * nl = mod_net_param->add_layers();
+	*nl = net_param->layers(i); 
+	if( i == add_before_ix ) { // adjust bottom for layer we added a layer before
+	  if( !nl->bottom_size() == 1) { rt_err( "unhandled: add_before_layer->bottom_size() != 1"); }
+	  nl->clear_bottom();
+	  nl->add_bottom( new_layer_name );
+	}
       }
-      set_param_from_conv_op( *cp, conv_op );
-      assert_st( lp->has_name() );
-      lp->set_name( lp->name() + "-in-2X-us" );
-
+      
       string mod_str;
       bool const pts_ret = google::protobuf::TextFormat::PrintToString( *mod_net_param, &mod_str );
       assert_st( pts_ret );
       write_whole_fn( mod_fn, mod_str );
 
+      //return; // for testing, skip weights processing
       p_Net_float net;
       p_Net_float mod_net;
 
       net = caffe_create_net( *net_param, trained_fn.exp );      
       mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
-      //create_upsamp_layer_0_weights(); // TODO: add identity layer weights
+
+      create_identity_weights( mod_net, new_layer_name );
 
       p_net_param_t mod_net_param_with_weights;
       mod_net_param_with_weights.reset( new caffe::NetParameter );
