@@ -10,6 +10,7 @@
 #include<google/protobuf/text_format.h>
 #include"caffe/caffe.hpp"
 #include"anno_util.H"
+#include"rand_util.H"
 
 namespace boda 
 {
@@ -854,7 +855,8 @@ namespace boda
     }
   }
 
-  void create_identity_weights( p_Net_float net, string const & layer_name ) {
+  void create_identity_weights( p_Net_float net, string const & layer_name, uint32_t const noise_mode ) {
+    if( noise_mode >= 2 ) { rt_err( strprintf( "unsupported noise_mode=%s\n", str(noise_mode).c_str() ) ); }
     vect_p_nda_float_t blobs;
     copy_layer_blobs( net, layer_name, blobs );
     assert_st( blobs.size() == 2 ); // filters, biases
@@ -874,9 +876,13 @@ namespace boda
     assert_st( height & 1 );
 
     //for( uint32_t i = 0; i != num; ++i ) { filts->at4( i, i, (h+1)/2, (w+1)/2 ) = 1; }
-
+    uint32_t const num_inputs = width*height*channels; // for adding xavier noise
+    float const xavier_noise_mag = 3.0l / double( num_inputs );
+    boost::random::mt19937 rand_gen;
+    boost::random::uniform_real_distribution<> const xavier_noise_dist( -xavier_noise_mag, xavier_noise_mag );
     for( dims_iter_t di( filts->dims ) ; ; ) { 
-      float val = 0; // FIXME: add noise here
+      float val = 0; 
+      if( noise_mode == 1 ) { val += xavier_noise_dist(rand_gen); }
       if( (di.di[2] == (height/2)) && // center y pel in filt
 	  (di.di[3] == (width/2)) && // center x pel in filt
 	  (di.di[0] == di.di[1]) ) // in_chan == out_chan
@@ -894,13 +900,16 @@ namespace boda
 		       // bases=["has_main_t"], type_id="cnet_util")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet_nogroups/train_val.prototxt",help="input net prototxt template filename")
-    filename_t trained_fn; //NESI(default="%(models_dir)/alexnet_nogroups/best.caffemodel",help="input trained net from which to copy params")
+    filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
+    filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
 
-    filename_t mod_fn; //NESI(default="%(models_dir)/alexnet_nogroups_mod/train_val.prototxt",help="output net prototxt template filename")
-    filename_t mod_weights_fn; //NESI(default="%(models_dir)/alexnet_nogroups_mod/best.caffemodel",help="output net weights binary prototxt template filename")
+    filename_t mod_fn; //NESI(default="%(models_dir)/%(out_model)/train_val.prototxt",help="output net prototxt template filename")
+    filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/best.caffemodel",help="output net weights binary prototxt template filename")
 
     string add_before_ln;//NESI(default="conv4",help="name of layer before which to add identity layer")
+    
+    uint32_t noise_mode; //NESI(default=0,help="type of noise: 0==no noise, 1==xavier")
+
 
     void main( nesi_init_arg_t * nia ) { 
 
@@ -964,7 +973,7 @@ namespace boda
       net = caffe_create_net( *net_param, trained_fn.exp );      
       mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
 
-      create_identity_weights( mod_net, new_layer_name );
+      create_identity_weights( mod_net, new_layer_name, noise_mode );
 
       p_net_param_t mod_net_param_with_weights;
       mod_net_param_with_weights.reset( new caffe::NetParameter );
