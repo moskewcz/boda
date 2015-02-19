@@ -1,19 +1,13 @@
 # Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 from nesi_gen import nesi_gen
-import os
+from boda_make_util import DepFileProc
 
-nesi_gen()
+nesi_gen() # NESI c++ reflection system code generation
+DepFileProc() # post-processing for gcc/makefile generated .d dependency files
 
-class DepFileProc( object ):
-    def __init__( self ):
-        for root, dirs, fns in os.walk( "." ):
-            for fn in fns:
-                if fn.endswith(".d"): self.proc_d_fn( fn )
-            dirs[:] = []
-    def proc_d_fn( self, fn ):
-        lines = open(fn).readlines()
-        #print lines
-
-DepFileProc()
-open( "prebuild.okay", "w" ).close()
+# if we get here, we assume prebuild is done and good, and write an
+# empty marker file that make can check for. the makefileremoves the
+# file *before* running prebuild.py, and will abort if it is not
+# present *after* running prebuild.py
+open( "prebuild.okay", "w" ).close() 
 
