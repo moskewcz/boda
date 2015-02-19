@@ -38,3 +38,10 @@ class DepFileProc( object ):
         assert parts[0].endswith('.o:') # maybe too strong, but should end with ':' for sure (or we're parsing wrong)
         # parts[1] should be the source file, not checked (or checkable?)
         for header_fn in parts[1:]: self.all_header_fns.add( header_fn )
+
+
+class GenObjList( object ):
+    def __init__( self ):    
+        self.gen_objs = []
+        self.gen_objs.append( 'build_info.o' )
+        open('gen_objs','w').write( ''.join( gen_obj + '\n' for gen_obj in self.gen_objs ) )

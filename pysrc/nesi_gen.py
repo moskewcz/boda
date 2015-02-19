@@ -191,7 +191,6 @@ class nesi_gen( object ):
         # present but not generated inside gen_dir will be removed.
         self.src_dir = join('..','src')
         self.gen_dir = join(self.src_dir,'gen')
-        self.gen_objs = []
         self.gen_fns = set()
 
         # codegen data
@@ -292,8 +291,6 @@ class nesi_gen( object ):
         
             
         self.update_file_if_different( 'build_info.cc', get_build_info_c_str() )
-        self.gen_objs.append( 'build_info.o' )
-        self.update_file_if_different( 'gen_objs', ''.join( gen_obj + '\n' for gen_obj in self.gen_objs ) )
 
         self.remove_stale_files()
         print "wrappers up to date."

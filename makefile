@@ -27,7 +27,7 @@ LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe 
 # --- makefile header section ends --- 
 # generally, there is no need to alter the makefile below this line
 VPATH := ../src ../src/gen ../src/ext
-OBJS := $(shell cat ../src/obj_list | grep -v ^\#) $(shell cat ../src/gen/gen_objs | grep -v ^\#)
+OBJS := $(shell cat ../src/obj_list | grep -v ^\#) $(shell cat gen_objs)
 .SUFFIXES:
 %.o : %.cc
 	$(CPP) $(CPPFLAGS) -MMD -c $<
