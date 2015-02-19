@@ -40,8 +40,18 @@ class DepFileProc( object ):
         for header_fn in parts[1:]: self.all_header_fns.add( header_fn )
 
 
+ospj = os.path.join
+
 class GenObjList( object ):
     def __init__( self ):    
         self.gen_objs = []
+        self.src_dir = ospj('..','src')
+        ol_fn = ospj(self.src_dir,"obj_list")
+        ol_lines = open( ol_fn ).readlines()
+        if not ol_lines: raise ValueError( "empty obj_list file at: " + ol_fn )
+        for ol_line in ol_lines:
+            ol_parts = ol_line.split()
+            if ol_parts: self.gen_objs.append( ol_parts[0] )
+            
         self.gen_objs.append( 'build_info.o' )
         open('gen_objs','w').write( ''.join( gen_obj + '\n' for gen_obj in self.gen_objs ) )
