@@ -50,8 +50,18 @@ class GenObjList( object ):
         ol_lines = open( ol_fn ).readlines()
         if not ol_lines: raise ValueError( "empty obj_list file at: " + ol_fn )
         for ol_line in ol_lines:
+            comment_char_idx = ol_line.find('#')
+            if comment_char_idx != -1: ol_line = ol_line[:comment_char_idx] # remove comment if any
             ol_parts = ol_line.split()
-            if ol_parts: self.gen_objs.append( ol_parts[0] )
+            if not ol_parts: continue # skip blank lines
+            self.gen_objs.append( ol_parts[0] )
             
-        self.gen_objs.append( 'build_info.o' )
-        open('gen_objs','w').write( ''.join( gen_obj + '\n' for gen_obj in self.gen_objs ) )
+        # add in any generated c++ file that need top-level compilation. FIXME: probably this shouldn't be hard-coded here.
+        self.gen_objs.append( 'build_info.o' ) 
+        gen_objs = open('gen_objs','w')
+        gen_objs.write( ''.join( gen_obj + '\n' for gen_obj in self.gen_objs ) )
+        gen_objs.close()
+
+        dep_make = open('dependencies.make','w')
+
+        dep_make.close();
