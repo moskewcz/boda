@@ -82,11 +82,13 @@ class GenObjList( object ):
             assert parts
             disable = False
             for dep_name in parts[1:]:
+                neg_dep = dep_name[0] == '-'
+                if neg_dep: dep_name = dep_name[1:] # strip neg if present
                 if not dep_name in self.deps: 
                     self.parse_error( "unknonwn dep name %r for object (note: dep section must preceed usage)" % (dep_name,) )
                 dep = self.deps[dep_name]
-                if dep.disable: disable = True
-                else: dep.use_cnt += 1
+                if dep.disable ^ neg_dep: disable = True
+                elif not neg_dep: dep.use_cnt += 1
             if not disable:
                 self.gen_objs.append( parts[0] )
             self.next_line();
@@ -131,7 +133,7 @@ class GenObjList( object ):
         dep_make = open('dependencies.make','w')
         for dep_name, dep in self.deps.iteritems():
             dep_make.write( "# generated make lines for dependency: %s use_cnt=%s\n" % (dep_name,dep.use_cnt) )
-            if dep.disable: dep_make.write( "# disabled, skipping\n" ); assert dep.use_cnt == 0; continue
-            if dep.use_cnt == 0: dep_make.write( "# no uses, skipping\n" ); continue
+            if dep.disable: dep_make.write( "# disabled, skipping.\n" ); assert dep.use_cnt == 0; continue
+            if dep.use_cnt == 0: dep_make.write( "# no uses, skipping.\n" ); continue
             for line in dep.lines: dep_make.write( line + "\n" )
         dep_make.close();
