@@ -39,7 +39,7 @@ has_main.o
 nesi.o
 lexp.o 
 img_io.o 
-model.o 
+model.o octave
 results_io.o  
 pyif.o 
 octif.o octave

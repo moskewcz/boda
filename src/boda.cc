@@ -148,7 +148,9 @@ namespace boda
     boda_asserts();
     assert_st( argc > 0 );
     py_init( argv[0] );
+#ifdef BODA_OCTAVE
     oct_init();
+#endif
     int const ret = boda_main_arg_proc( std::cout, argc, argv ); // split out for unit testing
     global_timer_log_finalize();
     py_finalize();
@@ -167,6 +169,9 @@ namespace boda
 
 int main( int argc, char **argv ) { 
   int const retval = boda::boda_main_wrap( argc, argv ); 
-  //return retval;
+#ifdef BODA_OCTAVE
   boda::oct_exit( retval ); // gee, who doesn't want octave to terminate the process for them in some unknown way?
+#else
+  return retval;
+#endif
 }
