@@ -23,9 +23,9 @@ conv_common.o
 asio_util.o
 disp_app.o
 cap_app.o
-caffeif.o
+caffeif.o caffe_and_cuda
 cap_util.o
-disp_util.o
+disp_util.o SDL2
 conv_pyra.o
 conv_util.o
 blf_pack.o
@@ -42,7 +42,7 @@ img_io.o
 model.o 
 results_io.o  
 pyif.o 
-octif.o 
+octif.o octave
 boda.o  
 str_util.o 
 geom_prim.o

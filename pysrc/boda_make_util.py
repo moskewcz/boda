@@ -42,6 +42,9 @@ class DepFileProc( object ):
 
 ospj = os.path.join
 
+class DepInfo( object ): 
+    def __init__( self ): self.use_cnt = 0; self.lines = []
+
 class GenObjList( object ):
 
     def next_line( self ):
@@ -75,16 +78,22 @@ class GenObjList( object ):
 
     def parse_objs( self ):
         while not self.at_section_start_or_eof():
-            self.gen_objs.append( self.cur_line )
+            parts = self.cur_line.split()
+            assert parts
+            self.gen_objs.append( parts[0] )
+            for dep_name in parts[1:]:
+                if not dep_name in self.deps: 
+                    self.parse_error( "unknonwn dep name %r for object (note: dep section must preceed usage)" % (dep_name,) )
+                self.deps[dep_name].use_cnt += 1
             self.next_line();
     
     def parse_dep( self, dep_name ):
         if dep_name in self.deps: self.parse_error( "duplicate dep section" )
-        dep_lines = []
+        new_dep = DepInfo()
         while not self.at_section_start_or_eof():
-            dep_lines.append( self.cur_line )
+            new_dep.lines.append( self.cur_line )
             self.next_line();
-        self.deps[dep_name] = dep_lines
+        self.deps[dep_name] = new_dep
 
     def __init__( self ):    
         self.deps = {}
@@ -112,7 +121,8 @@ class GenObjList( object ):
         gen_objs.close()
 
         dep_make = open('dependencies.make','w')
-        for dep_name,dep_lines in self.deps.iteritems():
-            dep_make.write( "# generated make lines for dependency: " + dep_name + "\n" )
-            for line in dep_lines: dep_make.write( line + "\n" )
+        for dep_name, dep in self.deps.iteritems():
+            dep_make.write( "# generated make lines for dependency: %s use_cnt=%s\n" % (dep_name,dep.use_cnt) )
+            if dep.use_cnt == 0: dep_make.write( "# no uses, skipping\n" ); continue
+            for line in dep.lines: dep_make.write( line + "\n" )
         dep_make.close();
