@@ -148,9 +148,7 @@ namespace boda
     boda_asserts();
     assert_st( argc > 0 );
     py_init( argv[0] );
-#ifdef BODA_OCTAVE
     oct_init();
-#endif
     int const ret = boda_main_arg_proc( std::cout, argc, argv ); // split out for unit testing
     global_timer_log_finalize();
     py_finalize();
