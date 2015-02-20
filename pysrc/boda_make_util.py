@@ -97,6 +97,7 @@ class GenObjList( object ):
         new_dep = DepInfo()
         for opt in sec_start[1:]:
             if opt == "disable": new_dep.disable = 1
+            else: self.parse_error( "unknown dep section option %r" % (opt,) )
         while not self.at_section_start_or_eof():
             new_dep.lines.append( self.cur_line )
             self.next_line();
