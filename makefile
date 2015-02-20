@@ -44,7 +44,7 @@ OBJS := $(shell cat gen_objs)
 	rm -f $(@:.d=.o)
 DEPENDENCIES = $(OBJS:.o=.d)
 all : $(TARGET) # $(LIBTARGET)
-$(TARGET): $(OBJS) ../src/obj_list
+$(TARGET): $(OBJS) ../obj_list
 	$(CPP) $(CPPFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
 $(LIBTARGET): $(OBJS)
 	$(CPP) -shared $(CPPFLAGS) -o $(LIBTARGET) $(OBJS) $(LDFLAGS)

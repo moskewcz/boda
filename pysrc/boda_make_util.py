@@ -108,8 +108,8 @@ class GenObjList( object ):
     def __init__( self ):    
         self.deps = {}
         self.gen_objs = []
-        self.src_dir = ospj('..','src')
-        ol_fn = ospj(self.src_dir,"obj_list")
+        self.proj_root_dir = '..'
+        ol_fn = ospj(self.proj_root_dir,"obj_list")
         self.ol_lines = open( ol_fn ).readlines()
         if not self.ol_lines: raise ValueError( "empty obj_list file at: " + ol_fn )
         self.next_ol_line = 0
