@@ -570,6 +570,7 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia ) {
       num_fail = 0;
       set_string seen_test_names;
+      set_string failed_modes;
       seen_test_names.insert( "good" ); // reserved sub-dir to hold known good results
       regex filt_regex( filt );
       // note: cmd tests should not fail nesi init (otherwise they should be nesi init tests).
@@ -580,7 +581,18 @@ namespace boda
 	lexp_name_val_map_t nvm( parse_lexp_list_xml( xn_i, xml_fn.exp ), nia );
 	nvm.insert_leaf( "boda_output_dir", "%(test_name)", 1 ); // unused is okay --> inc_use_cnt = 1
 	p_cmd_test_t cmd_test;
-	nesi_init_and_check_unused_from_nia( &nvm, &tinfo_p_cmd_test_t, &cmd_test ); 
+
+	bool test_init_failed = 0;
+	try { nesi_init_and_check_unused_from_nia( &nvm, &tinfo_p_cmd_test_t, &cmd_test ); }
+	catch( rt_exception const & rte ) { 
+	  test_init_failed = 1; 
+	  p_lexp_t mode = nvm.l->get_kid_by_name("command")->get_kid_by_name("mode");
+	  assert_st( mode->leaf_val.exists() );
+	  string const & mode_str = mode->leaf_val.str();
+	  failed_modes.insert( mode_str );
+	}
+	if( test_init_failed ) { continue; }
+
 	cur_test = cmd_test; // needed by test_print()
 	bool const seen_test_name = !seen_test_names.insert( cmd_test->test_name ).second;
 	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + cmd_test->test_name ); }
@@ -603,7 +615,14 @@ namespace boda
 	++tix;
       }
       if( num_fail ) { printf( "test_cmds num_fail=%s\n", str(num_fail).c_str() ); }
-      
+      if( !failed_modes.empty() ) {
+	printf( "WARNING: test_cmds: some modes had test commands that failed to initialize. perhaps these modes aren't enabled?\n");
+	printf( "  FAILING MODES:" );
+	for( set_string::const_iterator i = failed_modes.begin(); i != failed_modes.end(); ++i ) {
+	  printstr( " " + *i );
+	}
+	printf( "\n" );
+      }
     }
   };
 
