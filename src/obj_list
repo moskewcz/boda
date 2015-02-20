@@ -1,3 +1,4 @@
+[objs]  
 test_dense.o
 conv_common.o
 asio_util.o
