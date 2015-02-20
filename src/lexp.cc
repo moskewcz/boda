@@ -87,6 +87,14 @@ namespace boda {
     }
   }
 
+  // note: slow: linear in # kids, plus extra string copies
+  p_lexp_t lexp_t::get_kid_by_name( char const * const n ) {
+    for( vect_lexp_nv_t::iterator i = kids.begin(); i != kids.end(); ++i ) {
+      if( i->n.str() == n ) { return i->v; }
+    }
+    rt_err( strprintf( "no kid with name %s", n ) );
+  }
+
 #if 0 // unused
   void lexp_t::deep_inc_use_cnt( void ) {
     ++use_cnt;

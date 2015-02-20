@@ -71,6 +71,7 @@ namespace boda {
     uint32_t use_cnt; // scratch integer for client validation usage. after use, nodes with use_cn=0 generate errors.
     lexp_t( sstr_t const & src_ ) : src(src_), use_cnt(0) { }
     void get_stats( lexp_stats_t & lex_stats );
+    p_lexp_t get_kid_by_name( char const * const n );
     void add_key_val( std::string const & k, std::string const & v );
     void add_key_lexp_val( std::string const & k, p_lexp_t const & v );
 #if 0 // unused   
