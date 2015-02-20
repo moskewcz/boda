@@ -26,7 +26,7 @@ TARGET := ../lib/boda
 #LIBTARGET=../lib/libboda.so # currently unused/broken for boda, enabling may be usefull for pre-debugging/testing shared-lib building 
 CPP := g++
 CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall 
-LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lpython2.7  -fopenmp -lturbojpeg
+LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lpython2.7 -fopenmp 
 include dependencies.make
 # --- makefile header section ends --- 
 # --- makefile generic c++ compilation, linking, and dependency handling rules and reciepies section begins --- 
