@@ -659,6 +659,43 @@ namespace boda
     }
   };
 
+  struct run_dfc_t : virtual public nesi, public has_main_t // NESI(
+		     // help="run dpm fast cascade over pascal-VOC-format image file list",
+		     // bases=["has_main_t"], type_id="run_dfc")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_100/pascal_classes.txt",help="file with list of classes to process")
+    filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_100/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
+    p_img_db_t img_db; //NESI(default="()", help="image database")
+    filename_t dpm_fast_cascade_dir; //NESI(default="%(dpm_fast_cascade_dir)",help="dpm_fast_cascade base dir")
+
+    filename_t res_fn; //NESI(default="%(boda_output_dir)/%%s.txt",help="output: format for filenames of pascal-VOC format detection results file to write")
+    filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
+    filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
+
+
+    virtual void main( nesi_init_arg_t * nia ) {
+      p_vect_string classes = readlines_fn( pascal_classes_fn );
+      p_vect_p_per_class_scored_dets_t scored_dets( new vect_p_per_class_scored_dets_t );      
+      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
+				     true, (i != (*classes).begin()) ); 	
+      }
+
+      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+	scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
+	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
+	  p_img_info_t img_info = img_db->img_infos[ix];
+	  oct_dfc( cout, dpm_fast_cascade_dir.exp, scored_dets->back(), img_info->full_fn, img_info->ix );
+	}
+	string c_res_fn = strprintf( res_fn.exp.c_str(), (*i).c_str() );
+	write_results_file( img_db, c_res_fn, scored_dets->back() );
+      }
+      img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, 0 );
+    }
+  };
+
 
 
 #include"gen/octif.cc.nesi_gen.cc"
