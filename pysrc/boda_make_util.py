@@ -43,7 +43,7 @@ class DepFileProc( object ):
 ospj = os.path.join
 
 class DepInfo( object ): 
-    def __init__( self ): self.use_cnt = 0; self.lines = []
+    def __init__( self ): self.use_cnt = 0; self.disable = 0; self.lines = []
 
 class GenObjList( object ):
 
@@ -70,7 +70,7 @@ class GenObjList( object ):
         if self.cur_line is None: return None
         sec_re_match = re.match( '\[\s*(.+)\s*\]$', self.cur_line )
         if not sec_re_match: return None
-        return sec_re_match.group(1)
+        return sec_re_match.group(1).split()
 
     def at_section_start_or_eof( self ):
         if self.cur_line is None: return True
@@ -80,16 +80,23 @@ class GenObjList( object ):
         while not self.at_section_start_or_eof():
             parts = self.cur_line.split()
             assert parts
-            self.gen_objs.append( parts[0] )
+            disable = False
             for dep_name in parts[1:]:
                 if not dep_name in self.deps: 
                     self.parse_error( "unknonwn dep name %r for object (note: dep section must preceed usage)" % (dep_name,) )
-                self.deps[dep_name].use_cnt += 1
+                dep = self.deps[dep_name]
+                if dep.disable: disable = True
+                else: dep.use_cnt += 1
+            if not disable:
+                self.gen_objs.append( parts[0] )
             self.next_line();
     
-    def parse_dep( self, dep_name ):
+    def parse_dep( self, sec_start ):
+        dep_name = sec_start[0]
         if dep_name in self.deps: self.parse_error( "duplicate dep section" )
         new_dep = DepInfo()
+        for opt in sec_start[1:]:
+            if opt == "disable": new_dep.disable = 1
         while not self.at_section_start_or_eof():
             new_dep.lines.append( self.cur_line )
             self.next_line();
@@ -106,11 +113,11 @@ class GenObjList( object ):
         self.next_line()
 
         while self.cur_line is not None:
-            sec_name = self.get_section_start()
-            if sec_name is None: self.parse_error( "expecting start of section" )
+            sec_start = self.get_section_start()
+            if sec_start is None: self.parse_error( "expecting start of section" )
             self.next_line() # consume section start line
-            if sec_name == "objs": self.parse_objs()
-            else: self.parse_dep( sec_name )
+            if sec_start[0] == "objs": self.parse_objs()
+            else: self.parse_dep( sec_start )
         
         if not self.gen_objs: raise ValueError( "obj_list error: [objs] section missing or empty" )
             
@@ -123,6 +130,7 @@ class GenObjList( object ):
         dep_make = open('dependencies.make','w')
         for dep_name, dep in self.deps.iteritems():
             dep_make.write( "# generated make lines for dependency: %s use_cnt=%s\n" % (dep_name,dep.use_cnt) )
+            if dep.disable: dep_make.write( "# disabled, skipping\n" ); assert dep.use_cnt == 0; continue
             if dep.use_cnt == 0: dep_make.write( "# no uses, skipping\n" ); continue
             for line in dep.lines: dep_make.write( line + "\n" )
         dep_make.close();
