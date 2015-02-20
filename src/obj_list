@@ -18,11 +18,11 @@ CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src -I/usr
 LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe -lcudart -lcublas -lcurand -lprotobuf
 
 [objs]  
-test_dense.o
+test_dense.o caffe_and_cuda
 conv_common.o
 asio_util.o
 disp_app.o SDL2
-cap_app.o SDL2
+cap_app.o SDL2 caffe_and_cuda
 caffeif.o caffe_and_cuda
 cap_util.o
 disp_util.o SDL2
