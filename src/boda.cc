@@ -169,9 +169,10 @@ namespace boda
 
 int main( int argc, char **argv ) { 
   int const retval = boda::boda_main_wrap( argc, argv ); 
-#ifdef BODA_OCTAVE
-  boda::oct_exit( retval ); // gee, who doesn't want octave to terminate the process for them in some unknown way?
-#else
+  // gee, who doesn't want octave to terminate the process for them in
+  // some unknown way? note: if octave support is disabled, the stub
+  // version of this function does nothing and we fall through to the
+  // return below.
+  boda::oct_exit( retval ); 
   return retval;
-#endif
 }
