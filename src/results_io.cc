@@ -321,7 +321,7 @@ namespace boda
   {
     timer_t t("score_results_for_class");
     string const & class_name = name_scored_dets->class_name;
-    printf( "class_name=%s\n", str(class_name).c_str() );
+    //printf( "class_name=%s\n", str(class_name).c_str() );
     assert_st( !class_name.empty() );
     p_ostream prc_out = ofs_open( prc_txt_fn + class_name + ".txt" );
     p_vect_scored_det_t all_sds = name_scored_dets->get_merged_all_imgs_sds();
