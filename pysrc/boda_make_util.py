@@ -112,5 +112,7 @@ class GenObjList( object ):
         gen_objs.close()
 
         dep_make = open('dependencies.make','w')
-
+        for dep_name,dep_lines in self.deps.iteritems():
+            dep_make.write( "# generated make lines for dependency: " + dep_name + "\n" )
+            for line in dep_lines: dep_make.write( line + "\n" )
         dep_make.close();

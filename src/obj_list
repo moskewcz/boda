@@ -1,3 +1,22 @@
+# note: editing this file is similar to editing the makefile.  in
+# particular (like after editing the makefile), after editing this
+# file, currently built objects might differ or fail to build after a
+# make clean. however, in many cases, this may be acceptable /
+# ignorable ... user beware.
+
+[octave]
+CPPFLAGS := $(CPPFLAGS) -I/usr/include/python2.7 -I/usr/include/octave-3.8.1 -I/usr/include/octave-3.8.1/octave -DBODA_OCTAVE=1
+LDFLAGS := $(LDFLAGS) -loctave -loctinterp
+
+[SDL2]
+CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2 -DBODA_SDL2=1
+LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf
+
+[caffe_and_cuda]
+CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
+CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src -I/usr/local/cuda/include -DBODA_CAFFE_AND_CUDA=1
+LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe -lcudart -lcublas -lcurand -lprotobuf
+
 [objs]  
 test_dense.o
 conv_common.o
