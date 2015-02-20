@@ -185,7 +185,8 @@ class cinfo_t( object ):
 
 class nesi_gen( object ):
 
-    def __init__( self ):
+    def __init__( self, gen_obj_list ):
+        self.gen_obj_list = gen_obj_list
         # note: gen dir should contain only generated files, so that stale
         # generated files can be detected/removed. that is, any file
         # present but not generated inside gen_dir will be removed.
@@ -304,6 +305,14 @@ class nesi_gen( object ):
     def proc_fn( self, fn ):
         if not ( fn.endswith(".cc") or fn.endswith(".H") ):
             return # skip file if it's not a boda source or header file. note that this skips the lodepng/pugixml src.
+        obj_fn = os.path.splitext( fn )[0] + ".o"
+        if not obj_fn in self.gen_obj_list.gen_objs:
+            # skip file if it's associated with an object file we will
+            # not be building. this assumes the generated code for
+            # any/all .H files is always included in the .cc with the
+            # same base name.
+            return 
+
         fn_path = join( self.src_dir, fn )
         fn_lines = file( fn_path ).readlines()
         # for now, any lines matching this re are considered NESI command lines. this is certainly not perfect/complete.
