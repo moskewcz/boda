@@ -21,12 +21,12 @@ LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe 
 test_dense.o
 conv_common.o
 asio_util.o
-disp_app.o
-cap_app.o
+disp_app.o SDL2
+cap_app.o SDL2
 caffeif.o caffe_and_cuda
 cap_util.o
 disp_util.o SDL2
-conv_pyra.o
+conv_pyra.o SDL2
 conv_util.o
 blf_pack.o
 vr5_mex_feats.o
