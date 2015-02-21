@@ -9,6 +9,7 @@
 #include<glog/logging.h>
 #include<google/protobuf/text_format.h>
 #include"caffe/caffe.hpp"
+#include"caffe/util/upgrade_proto.hpp"
 #include"anno_util.H"
 #include"rand_util.H"
 
@@ -104,7 +105,6 @@ namespace boda
       caffe_is_init = 1;
       timer_t t("caffe_init");
       google::InitGoogleLogging("boda_caffe");
-      Caffe::set_phase(Caffe::TEST);
       Caffe::set_mode(Caffe::GPU);
       Caffe::SetDevice(gpu_id);
       //Caffe::set_mode(Caffe::CPU);
@@ -112,6 +112,10 @@ namespace boda
   }
 
   p_Net_float caffe_create_net( caffe::NetParameter & net_param, string const & trained_fn ) {
+    // for now, we mimic the behavior of the caffe Net ctor that takes
+    // a phase and 'force' the phase in the passed net. hey, it is
+    // passed by non-const ref, right?
+    net_param.mutable_state()->set_phase(caffe::TEST);
     p_Net_float net( new Net_float( net_param ) );
     net->CopyTrainedLayersFrom( trained_fn );
     return net;
@@ -119,7 +123,7 @@ namespace boda
 
   void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom ) {
     timer_t t("caffe_forward");
-    vector<caffe::Blob<float>*>& input_blobs = net_->input_blobs();
+    vector<caffe::Blob<float>*> const & input_blobs = net_->input_blobs();
     assert_st( bottom.size() == input_blobs.size() );
     for (unsigned int i = 0; i < input_blobs.size(); ++i) {
       assert_st( bottom[i]->elems.sz == uint32_t(input_blobs[i]->count()) );
@@ -147,7 +151,7 @@ namespace boda
     rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
   }
   uint32_t get_layer_ix( caffe::NetParameter const & net_param, string const & layer_name ) {
-    for( int i = 0; i != net_param.layers_size(); ++i ) { if( net_param.layers(i).name() == layer_name ) { return i; } }
+    for( int i = 0; i != net_param.layer_size(); ++i ) { if( net_param.layer(i).name() == layer_name ) { return i; } }
     rt_err( strprintf("layer layer_name=%s not found in network\n",str(layer_name).c_str() )); 
   }
 
@@ -327,8 +331,8 @@ namespace boda
     p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
     //vect_string const & layer_names = net->layer_names();
     uint32_t last_out_chans = 0;
-    for( int32_t i = 0; i != net_param.layers_size(); ++i ) { 
-      caffe::LayerParameter const & lp = net_param.layers(i);
+    for( int32_t i = 0; i != net_param.layer_size(); ++i ) { 
+      caffe::LayerParameter const & lp = net_param.layer(i);
       assert_st( lp.has_name() );
       p_conv_op_t conv_op;
       if( 0 ) {
@@ -401,26 +405,19 @@ namespace boda
     setup_cnet();
   }
 
-  void run_cnet_t::create_net_param( void ) {
+  p_net_param_t parse_and_upgrade_net_param_from_text_file( filename_t const & ptt_fn ) {
     p_string ptt_str = read_whole_fn( ptt_fn );
-    net_param.reset( new caffe::NetParameter );
-#if 0 
-    // old method: use special boda template prototxt, format it to
-    // fill in the fields we want, then create the net_param from that
-    string out_pt_str;
-    str_format_from_nvm_str( out_pt_str, *ptt_str, 
-			     strprintf( "(xsize=%s,ysize=%s,num=%s,chan=%s)", 
-					str(in_sz.d[0]).c_str(), str(in_sz.d[1]).c_str(), 
-					str(in_num_imgs).c_str(), str(in_num_chans).c_str() ) );
-    bool const ret = google::protobuf::TextFormat::ParseFromString( out_pt_str, net_param.get() );
-    assert_st( ret );
-    // FIXME: old method incomplete/unmaintained
-#endif
-
-    // read the 'stock' deploy prototxt, and then override
-    // the input dims using knowledge of the protobuf format.
+    p_net_param_t net_param( new caffe::NetParameter );
     bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, net_param.get() );
     assert_st( ret );
+    UpgradeNetAsNeeded( ptt_fn.exp, net_param.get() );
+    return net_param;
+  }
+
+  void run_cnet_t::create_net_param( void ) {
+    // read the 'stock' deploy prototxt, and then override
+    // the input dims using knowledge of the protobuf format.
+    net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
     assert_st( net_param->input_dim_size() == 4 );
     net_param->set_input_dim(0,in_num_imgs);
     net_param->set_input_dim(1,in_num_chans);
@@ -429,8 +426,8 @@ namespace boda
     if( enable_upsamp_net ) {
       upsamp_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
       // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
-      assert_st( upsamp_net_param->layers_size() ); // better have at least one layer
-      caffe::LayerParameter * lp = upsamp_net_param->mutable_layers(0);
+      assert_st( upsamp_net_param->layer_size() ); // better have at least one layer
+      caffe::LayerParameter * lp = upsamp_net_param->mutable_layer(0);
       if( !lp->has_convolution_param() ) { rt_err( "first layer of net not conv layer; don't know how to create upsampled network"); }
       caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
       p_conv_op_t conv_op = get_conv_op_from_param( *cp );
@@ -916,21 +913,18 @@ namespace boda
       p_net_param_t net_param;
       p_net_param_t mod_net_param;
 
-      p_string ptt_str = read_whole_fn( ptt_fn );
-      net_param.reset( new caffe::NetParameter );
+      net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
 
-      bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, net_param.get() );
-      assert_st( ret );
       uint32_t const add_before_ix = get_layer_ix( *net_param, add_before_ln );
 
       mod_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
-      mod_net_param->clear_layers(); // remove all layers
-      for( uint32_t i = 0; i != add_before_ix; ++i ) { *mod_net_param->add_layers() = net_param->layers(i); }
+      mod_net_param->clear_layer(); // remove all layers
+      for( uint32_t i = 0; i != add_before_ix; ++i ) { *mod_net_param->add_layer() = net_param->layer(i); }
       if( add_before_ix < 2 ) { rt_err( "unhandled: expecting at least 2 layers prior to add_before_ln"); }
-      caffe::LayerParameter const & pre_relu_layer = mod_net_param->layers( add_before_ix - 1 );
-      if( pre_relu_layer.type() != caffe::LayerParameter_LayerType_RELU ) { 
+      caffe::LayerParameter const & pre_relu_layer = mod_net_param->layer( add_before_ix - 1 );
+      if( pre_relu_layer.type() != "ReLU" ) { 
 	rt_err( "unhandled: layer prior to add_before_ln is not RELU"); }
-      caffe::LayerParameter const & pre_layer = mod_net_param->layers( add_before_ix - 2 );
+      caffe::LayerParameter const & pre_layer = mod_net_param->layer( add_before_ix - 2 );
       if( !pre_layer.top_size() == 1) { rt_err( "unhandled: pre_layer->top_size() != 1"); }
       string const pre_layer_top = pre_layer.top(0);
       if( !pre_layer.has_convolution_param() ) { rt_err( "unhandled: layer two layers before add_before_ln is not a conv layer."); }
@@ -938,22 +932,22 @@ namespace boda
       uint32_t const pcl_num_output = pre_conv_layer.num_output();
       // add new conv layer
       string const new_layer_name = "pre_" + add_before_ln;
-      caffe::LayerParameter * new_conv_layer = mod_net_param->add_layers();
-      *new_conv_layer = net_param->layers(add_before_ix); // start with clone of conv layer we're adding before
+      caffe::LayerParameter * new_conv_layer = mod_net_param->add_layer();
+      *new_conv_layer = net_param->layer(add_before_ix); // start with clone of conv layer we're adding before
       new_conv_layer->set_name( new_layer_name );
       new_conv_layer->clear_bottom(); new_conv_layer->add_bottom( pre_layer_top );
       new_conv_layer->clear_top(); new_conv_layer->add_top( new_layer_name );
       new_conv_layer->mutable_convolution_param()->set_num_output( pcl_num_output );
       // add new relu layer
-      caffe::LayerParameter * new_relu_layer = mod_net_param->add_layers();
+      caffe::LayerParameter * new_relu_layer = mod_net_param->add_layer();
       *new_relu_layer = pre_relu_layer; // start with clone of RELU from prior to layer we're adding before
       new_relu_layer->set_name( "relu_" + new_layer_name );
       new_relu_layer->clear_bottom(); new_relu_layer->add_bottom( new_layer_name );
       new_relu_layer->clear_top(); new_relu_layer->add_top( new_layer_name );
 
-      for( uint32_t i = add_before_ix; i != (uint32_t)net_param->layers_size(); ++i ) { 
-	caffe::LayerParameter * nl = mod_net_param->add_layers();
-	*nl = net_param->layers(i); 
+      for( uint32_t i = add_before_ix; i != (uint32_t)net_param->layer_size(); ++i ) { 
+	caffe::LayerParameter * nl = mod_net_param->add_layer();
+	*nl = net_param->layer(i); 
 	if( i == add_before_ix ) { // adjust bottom for layer we added a layer before
 	  if( !nl->bottom_size() == 1) { rt_err( "unhandled: add_before_layer->bottom_size() != 1"); }
 	  nl->clear_bottom();
