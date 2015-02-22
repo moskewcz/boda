@@ -916,36 +916,50 @@ namespace boda
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
 
       uint32_t const add_before_ix = get_layer_ix( *net_param, add_before_ln );
-
+      uint32_t const orig_num_layers = (uint32_t)net_param->layer_size();
+  
       mod_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
       mod_net_param->clear_layer(); // remove all layers
       for( uint32_t i = 0; i != add_before_ix; ++i ) { *mod_net_param->add_layer() = net_param->layer(i); }
-      if( add_before_ix < 2 ) { rt_err( "unhandled: expecting at least 2 layers prior to add_before_ln"); }
-      caffe::LayerParameter const & pre_relu_layer = mod_net_param->layer( add_before_ix - 1 );
-      if( pre_relu_layer.type() != "ReLU" ) { 
+      if( add_before_ix+1 > orig_num_layers ) {
+	rt_err( "unhandled: expecting at least 1 layer (a ReLU) after add_before_ln"); }
+      caffe::LayerParameter const & post_relu_layer = net_param->layer( add_before_ix + 1 );
+      if( post_relu_layer.type() != "ReLU" ) {
 	rt_err( "unhandled: layer prior to add_before_ln is not RELU"); }
-      caffe::LayerParameter const & pre_layer = mod_net_param->layer( add_before_ix - 2 );
-      if( !pre_layer.top_size() == 1) { rt_err( "unhandled: pre_layer->top_size() != 1"); }
-      string const pre_layer_top = pre_layer.top(0);
-      if( !pre_layer.has_convolution_param() ) { rt_err( "unhandled: layer two layers before add_before_ln is not a conv layer."); }
-      caffe::ConvolutionParameter const & pre_conv_layer = pre_layer.convolution_param();
-      uint32_t const pcl_num_output = pre_conv_layer.num_output();
-      // add new conv layer
+
+      if( add_before_ix < 2 ) { rt_err( "unhandled: expecting at least 2 layers prior to add_before_ln"); }
+
+      caffe::LayerParameter const * pre_conv_layer = 0;
+      uint32_t pcl_num_output = 0;
+      for( uint32_t i = add_before_ix; i != 0; --i ) {
+	pre_conv_layer = &net_param->layer( i - 1 );
+	if( pre_conv_layer->has_convolution_param() ) {
+	  pcl_num_output = pre_conv_layer->convolution_param().num_output();
+	  break;
+	}
+	pre_conv_layer = 0;
+      }
+      if( !pre_conv_layer ) {
+	rt_err( "unhandled: no conv layer prior to add_before_ln (need it for new layer num_outputs)."); }
+      caffe::LayerParameter const * const pre_layer = &net_param->layer( add_before_ix - 1 );
+      if( !pre_layer->top_size() == 1) { rt_err( "unhandled: pre_layer->top_size() != 1"); }
+      string const pre_layer_top = pre_layer->top(0);
+      // add new layer
       string const new_layer_name = "pre_" + add_before_ln;
       caffe::LayerParameter * new_conv_layer = mod_net_param->add_layer();
-      *new_conv_layer = net_param->layer(add_before_ix); // start with clone of conv layer we're adding before
+      *new_conv_layer = net_param->layer(add_before_ix); // start with clone of layer we're adding before
       new_conv_layer->set_name( new_layer_name );
       new_conv_layer->clear_bottom(); new_conv_layer->add_bottom( pre_layer_top );
       new_conv_layer->clear_top(); new_conv_layer->add_top( new_layer_name );
       new_conv_layer->mutable_convolution_param()->set_num_output( pcl_num_output );
-      // add new relu layer
+      // add new relu layer (FIXME: too strong to require ReLU for this layer?
       caffe::LayerParameter * new_relu_layer = mod_net_param->add_layer();
-      *new_relu_layer = pre_relu_layer; // start with clone of RELU from prior to layer we're adding before
+      *new_relu_layer = post_relu_layer; // start with clone of RELU from after layer we're adding before
       new_relu_layer->set_name( "relu_" + new_layer_name );
       new_relu_layer->clear_bottom(); new_relu_layer->add_bottom( new_layer_name );
       new_relu_layer->clear_top(); new_relu_layer->add_top( new_layer_name );
 
-      for( uint32_t i = add_before_ix; i != (uint32_t)net_param->layer_size(); ++i ) { 
+      for( uint32_t i = add_before_ix; i != orig_num_layers; ++i ) { 
 	caffe::LayerParameter * nl = mod_net_param->add_layer();
 	*nl = net_param->layer(i); 
 	if( i == add_before_ix ) { // adjust bottom for layer we added a layer before
