@@ -119,6 +119,7 @@ namespace boda
     if( tlog ) { tlog->log_timer( this ); }
     //printf( "(double(dur)/(1000*1000))=%s\n", str((double(dur)/(1000*1000))).c_str() ); }
   }
+  uint64_t timer_t::cur( void ) const { return get_cur_time() - bt; }
   timer_t::~timer_t( void ) { if( !ended ) { stop(); } } 
 
 }
