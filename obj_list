@@ -11,6 +11,9 @@
 # may be empty. however, it will still function in order to disable
 # particular object files from being built if desired.
 
+[lmdb]
+# assume system defaults include needed include/lib dirs
+
 [octave]
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/python2.7 -I/usr/include/octave-3.8.1 -I/usr/include/octave-3.8.1/octave
 LDFLAGS := $(LDFLAGS) -loctave -loctinterp
@@ -42,6 +45,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # that some dependencies may not usefully be disable-able.
 
 [objs]  
+lmdbif.o lmdb
 test_dense.o caffe_and_cuda
 conv_common.o
 asio_util.o
