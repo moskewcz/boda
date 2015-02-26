@@ -43,9 +43,9 @@ namespace boda
   // scoring experiments example command lines:
   // ../../lib/boda display_pil --pil-fn="%(pascal_data_dir)/ImageSets/Main/%%s_test.txt" --pascal-classes-fn="%(boda_test_dir)/pascal_classes.txt" --rand-winds=0 --fps=1000 --prc-png-fn="" --do-score=1
 
-  struct display_pil_t : virtual public nesi, public load_imgs_from_pascal_classes_t, public has_main_t // NESI(
+  struct display_pil_t : virtual public nesi, public load_pil_t // NESI(
 			 // help="display PASCAL VOC list of images in video window",
-			 // bases=["load_imgs_from_pascal_classes_t","has_main_t"], type_id="display_pil")
+			 // bases=["load_pil_t"], type_id="display_pil")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
@@ -94,8 +94,9 @@ namespace boda
       uint32_t const start_img = cur_img_ix;
       while( 1 ) {
 	bool skip_img = 0;
-	assert( cur_img_ix < all_imgs->size() );
-	p_img_t const & img = all_imgs->at(cur_img_ix);
+	assert_st( cur_img_ix < img_db->img_infos.size() );
+	p_img_info_t img_info = img_db->img_infos[cur_img_ix];
+	p_img_t const & img = img_info->img;
 	u32_pt_t src_pt, dest_pt;
 	u32_pt_t copy_sz{u32_pt_t_const_max};
 	if( rand_winds ) {
@@ -104,8 +105,6 @@ namespace boda
 	  dest_pt = random_pt( disp_imgs->at(0)->sz - copy_sz, gen );
 	}
 	img_copy_to_clip( img.get(), disp_imgs->at(0).get(), dest_pt, src_pt, copy_sz );
-	assert_st( cur_img_ix < img_db->img_infos.size() );
-	p_img_info_t img_info = img_db->img_infos[cur_img_ix];
 	p_vect_anno_t annos( new vect_anno_t );
 	for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	  string const & cn = *i;
@@ -133,12 +132,12 @@ namespace boda
 	  }
 	}
 	if( skip_img ) { 
-	  mod_adj( cur_img_ix, all_imgs->size(), 1 ); 
+	  mod_adj( cur_img_ix, img_db->img_infos.size(), 1 ); 
 	  if( cur_img_ix == start_img ) { printf("no images to show.\n"); break; } 
 	}
 	else {
 	  disp_win.update_img_annos( 0, annos );
-	  if( auto_adv ) { mod_adj( cur_img_ix, all_imgs->size(), 1 ); }
+	  if( auto_adv ) { mod_adj( cur_img_ix, img_db->img_infos.size(), 1 ); }
 	  disp_win.update_disp_imgs();
 	  break;
 	}
@@ -152,8 +151,8 @@ namespace boda
       //printf( "lbe.is_key=%s lbe.keycode=%s\n", str(lbe.is_key).c_str(), str(lbe.keycode).c_str() );
       bool unknown_command = 0;
       if( 0 ) { }
-      else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, all_imgs->size(),  1 ); auto_adv=0; }
-      else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, all_imgs->size(), -1 ); auto_adv=0; }
+      else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
+      else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
       else if( lbe.is_key && (lbe.keycode == 'p') ) { auto_adv ^= 1; }
       else if( lbe.is_key ) { // unknown command handlers
 	unknown_command = 1; 

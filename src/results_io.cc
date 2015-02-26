@@ -17,6 +17,7 @@
 
 namespace boda 
 {
+
   using boost::algorithm::is_space;
   using boost::algorithm::token_compress_on;
   using boost::filesystem::path;
@@ -135,21 +136,9 @@ namespace boda
     }
   }
 
-  void img_db_get_all_loaded_imgs( p_vect_p_img_t const & out, p_img_db_t img_db ) {
-    for( vect_p_img_info_t::const_iterator i = img_db->img_infos.begin(); i != img_db->img_infos.end(); ++i ) {
-      if( (*i)->img ) { out->push_back( (*i)->img ); }
-    }
-  }
-
-  void load_imgs_from_pascal_classes_t::load_all_imgs( void ) {
+  void load_pil_t::load_all_imgs( void ) {
     classes = readlines_fn( pascal_classes_fn );
-    for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-      bool const is_first_class = (i == (*classes).begin());
-      read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
-				   true && is_first_class, !is_first_class );
-    }
-    all_imgs.reset( new vect_p_img_t );
-    img_db_get_all_loaded_imgs( all_imgs, img_db );
+    read_pascal_image_list_files( img_db, pil_fn, *classes, true );
   }
 
   void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix )
@@ -200,21 +189,6 @@ namespace boda
     out->close();
   }
 
-  struct read_pascal_image_list_file_t : virtual public nesi, public has_main_t // NESI(help="read a pascal-VOC-format image list file",bases=["has_main_t"], type_id="load_pil")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t pil_fn; //NESI(help="name of pascal-VOC format image list file",req=1)
-    vect_filename_t check_pil_fns; //NESI(help="name of pascal-VOC format image list files to check image-set agreement (same images in same order) against the primary one")
-    uint32_t load_imgs; //NESI(default=0,help="if true, load images referenced by the file")
-    p_img_db_t img_db; //NESI(default="()", help="image database")
-    virtual void main( nesi_init_arg_t * nia ) { 
-      read_pascal_image_list_file( img_db, pil_fn, false, 0 ); 
-      for( vect_filename_t::const_iterator i = check_pil_fns.begin(); i != check_pil_fns.end(); ++i ) {
-	read_pascal_image_list_file( img_db, *i, false, 1 );
-      }
-    }
-  };
-
   void read_pascal_image_list_file( p_img_db_t img_db, filename_t const & pil_fn, bool const load_imgs, 
 				    bool const check_ix_only )
   {
@@ -247,6 +221,20 @@ namespace boda
     }
   }
   
+  // note: this assumes (and checks) that all the per-class file lists
+  // are identical. thus, it loads all images and annotations from the
+  // first class's image list file, and then just verifies that the
+  // other class image list files have the same set (or at least a
+  // subset) of image ids of the first file.
+  void read_pascal_image_list_files( p_img_db_t img_db, filename_t const & pil_fn_template,
+				     vect_string const & classes, bool const load_imgs ) {
+    for( vect_string::const_iterator i = classes.begin(); i != classes.end(); ++i ) {
+      bool const is_first_class = (i == classes.begin());
+      read_pascal_image_list_file( img_db, filename_t_printf( pil_fn_template, (*i).c_str() ), 
+				   load_imgs && is_first_class, !is_first_class );
+    }
+  }
+
   struct score_results_file_t : virtual public nesi, public has_main_t // NESI(help="score a pascal-VOC-format results file",bases=["has_main_t"], type_id="score")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -257,7 +245,9 @@ namespace boda
     string class_name; //NESI(help="name of object class",req=1)
     p_img_db_t img_db; //NESI(default="()", help="image database")
     virtual void main( nesi_init_arg_t * nia ) {
-      read_pascal_image_list_file( img_db, pil_fn, false, 0 );
+      vect_string classes;
+      classes.push_back( class_name );
+      read_pascal_image_list_files( img_db, pil_fn, classes, false );
       p_per_class_scored_dets_t scored_dets = read_results_file( img_db, res_fn.exp, class_name );
       img_db->score_results_for_class( scored_dets, prc_txt_fn.exp, prc_png_fn.exp );
     }
@@ -429,10 +419,8 @@ namespace boda
       p_vect_p_per_class_scored_dets_t hamming_scored_dets( new vect_p_per_class_scored_dets_t );
       p_vect_p_per_class_scored_dets_t dpm_scored_dets( new vect_p_per_class_scored_dets_t );
       
-      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
-				     false, (i != (*classes).begin()) ); 	
-      }
+      read_pascal_image_list_files( img_db, pil_fn, *classes, false );
+
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	hamming_scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {

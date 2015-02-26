@@ -254,13 +254,11 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) {
       p_vect_string classes = readlines_fn( pascal_classes_fn );
-      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	convert_class( *i, i != (*classes).begin() );
-      }
+      read_pascal_image_list_files( img_db, pil_fn, *classes, false );
+      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) { convert_class( *i ); }
     }
 
-    void convert_class( string const & class_name, bool const check_ix_only ) {
-      read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, class_name.c_str() ), 0, check_ix_only );
+    void convert_class( string const & class_name ) {
       p_per_class_scored_dets_t scored_dets( new per_class_scored_dets_t( class_name ) );
       octave_value_list in;
       
@@ -678,11 +676,7 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia ) {
       p_vect_string classes = readlines_fn( pascal_classes_fn );
       p_vect_p_per_class_scored_dets_t scored_dets( new vect_p_per_class_scored_dets_t );      
-      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	read_pascal_image_list_file( img_db, filename_t_printf( pil_fn, (*i).c_str() ), 
-				     true, (i != (*classes).begin()) ); 	
-      }
-
+      read_pascal_image_list_files( img_db, pil_fn, *classes, true );
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {

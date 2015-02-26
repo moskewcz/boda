@@ -115,8 +115,9 @@ namespace boda
 
   class img_db_t;
   typedef shared_ptr< img_db_t > p_img_db_t;
-  void read_pascal_image_list_file( p_img_db_t img_db, filename_t const & pil_fn, bool const load_imgs, 
-				    bool const check_ix_only );
+  void read_pascal_image_list_files( p_img_db_t img_db, filename_t const & pil_fn_template,
+				     vect_string const & classes, bool const load_imgs );
+
   void write_results_file( p_img_db_t img_db, string const & fn, p_per_class_scored_dets_t scored_dets );
   void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix );
 
@@ -163,18 +164,19 @@ namespace boda
   typedef shared_ptr< img_db_t > p_img_db_t;
 
 
-  struct load_imgs_from_pascal_classes_t : virtual public nesi // NESI(help="load PASCAL VOC images by classes" )
+  struct load_pil_t : virtual public nesi, public has_main_t // NESI(help="load PASCAL VOC images by classes",
+		      // bases=["has_main_t"], type_id="load_pil")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of pascal classes to load")
     p_img_db_t img_db; //NESI(default="()", help="image database")
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
-    p_vect_p_img_t all_imgs;
 
     p_vect_string classes;
     void load_all_imgs( void );
+    virtual void main( nesi_init_arg_t * nia ) { load_all_imgs(); }
   };
-  typedef shared_ptr< load_imgs_from_pascal_classes_t > p_load_imgs_from_pascal_classes_t; 
+  typedef shared_ptr< load_pil_t > p_load_pil_t; 
 
 
 }

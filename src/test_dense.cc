@@ -44,7 +44,7 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/test_dense.txt",help="output: text summary of differences between dense and sparse feature computation.")
-    p_load_imgs_from_pascal_classes_t imgs;//NESI(default="()")
+    p_load_pil_t imgs;//NESI(default="()")
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
@@ -68,8 +68,8 @@ namespace boda {
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       imgs->load_all_imgs();
       run_cnet->setup_cnet(); 
-      for( vect_p_img_t::const_iterator i = imgs->all_imgs->begin(); i != imgs->all_imgs->end(); ++i ) {
-	run_cnet_dense->in_sz.max_eq( (*i)->sz );
+      for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
+	run_cnet_dense->in_sz.max_eq( (*i)->img->sz );
       }
       run_cnet_dense->setup_cnet();
 
@@ -82,12 +82,12 @@ namespace boda {
       boost::random::mt19937 gen;
 
       uint32_t tot_wins = 0;
-      for( vect_p_img_t::const_iterator i = imgs->all_imgs->begin(); i != imgs->all_imgs->end(); ++i ) {
-	if( !(*i)->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
-	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->sz).c_str() );
+      for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
+	if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
+	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
 	// run net on entire input image
 	in_img_dense->fill_with_pel( inmc );
-	img_copy_to_clip( (*i).get(), in_img_dense.get() );
+	img_copy_to_clip( (*i)->img.get(), in_img_dense.get() );
 	subtract_mean_and_copy_img_to_batch( run_cnet_dense->in_batch, 0, in_img_dense );
 	p_nda_float_t out_batch_dense;
 	{
@@ -100,10 +100,10 @@ namespace boda {
 	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, run_cnet->get_ol_csi(0) );
 
 	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
-	  u32_pt_t const samp_nc_max = (*i)->sz - run_cnet->in_sz;
+	  u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
 	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
 	  ++tot_wins;
-	  comp_win( feat_box, out_batch_dense, (*i), samp_nc );
+	  comp_win( feat_box, out_batch_dense, (*i)->img, samp_nc );
 	}
       }
       out.reset();
@@ -140,7 +140,7 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/test_upsamp.txt",help="output: text summary of differences between net and img based-upsampling features computation.")
-    p_load_imgs_from_pascal_classes_t imgs;//NESI(default="()")
+    p_load_pil_t imgs;//NESI(default="()")
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,enable_upsamp_net=1,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
@@ -166,14 +166,14 @@ namespace boda {
       // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
       in_img_upsamp = make_p_img_t( run_cnet->in_sz );
       in_img_upsamp->fill_with_pel( inmc );
-      for( vect_p_img_t::const_iterator i = imgs->all_imgs->begin(); i != imgs->all_imgs->end(); ++i ) {
-	if( !(*i)->sz.both_dims_ge( samp_sz ) ) { continue; } // img too small to sample. assert? warn?
-	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->sz).c_str() );
+      for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
+	if( !(*i)->img->sz.both_dims_ge( samp_sz ) ) { continue; } // img too small to sample. assert? warn?
+	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
 	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
-	  u32_pt_t const samp_nc_max = (*i)->sz - samp_sz;
+	  u32_pt_t const samp_nc_max = (*i)->img->sz - samp_sz;
 	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
 	  ++tot_wins;
-	  comp_win( samp_sz, (*i), samp_nc );
+	  comp_win( samp_sz, (*i)->img, samp_nc );
 	}
       }
       out.reset();
