@@ -115,9 +115,6 @@ namespace boda
 
   class img_db_t;
   typedef shared_ptr< img_db_t > p_img_db_t;
-  void read_pascal_image_list_files( p_img_db_t img_db, filename_t const & pil_fn_template,
-				     vect_string const & classes, bool const load_imgs );
-
   void write_results_file( p_img_db_t img_db, string const & fn, p_per_class_scored_dets_t scored_dets );
   void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix );
 
@@ -173,8 +170,8 @@ namespace boda
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
 
     p_vect_string classes;
-    void load_all_imgs( void );
-    virtual void main( nesi_init_arg_t * nia ) { load_all_imgs(); }
+    void load_img_db( bool const load_imgs );
+    virtual void main( nesi_init_arg_t * nia ) { load_img_db( 1 ); }
   };
   typedef shared_ptr< load_pil_t > p_load_pil_t; 
 

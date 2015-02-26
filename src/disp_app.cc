@@ -166,7 +166,7 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      load_all_imgs();
+      load_img_db( 1 );
 
       if( do_score ) {
 	// setup scored_dets

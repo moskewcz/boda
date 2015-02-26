@@ -66,7 +66,7 @@ namespace boda {
     virtual void main( nesi_init_arg_t * nia ) {
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
-      imgs->load_all_imgs();
+      imgs->load_img_db( 1 );
       run_cnet->setup_cnet(); 
       for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
 	run_cnet_dense->in_sz.max_eq( (*i)->img->sz );
@@ -156,7 +156,7 @@ namespace boda {
     virtual void main( nesi_init_arg_t * nia ) {
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
-      imgs->load_all_imgs();
+      imgs->load_img_db( 1 );
       run_cnet->setup_cnet(); 
 
       boost::random::mt19937 gen;

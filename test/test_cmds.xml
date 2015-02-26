@@ -21,20 +21,20 @@
     <command mode="score" 
 	     pil_fn="%(pascal_data_dir)/ImageSets/Main/bicycle_test.txt" 
 	     res_fn="%(ffld_dir)/build/ffld_VOC2007_bicycle_test_out.txt" 
-	     class_name="bicycle"
+	     pascal_classes_fn="%(boda_test_dir)/pascal/head_1/pascal_classes.txt"
 	     /></li>
   <li test_name="score_2" err="error: tried to get ix for unloaded img_id '006237'">
     <command mode="score" 
 	     pil_fn="%(boda_test_dir)/pascal/bicycle_10.txt"
 	     res_fn="%(boda_test_dir)/pascal/bicycle_out_10.txt"
-	     class_name="bicycle"
+	     pascal_classes_fn="%(boda_test_dir)/pascal/head_1/pascal_classes.txt"
 	     /></li>
   <li test_name="score_3">
     <command mode="score" 
 	     pil_fn="%(boda_test_dir)/pascal/bicycle_100.txt"
 	     res_fn="%(boda_test_dir)/pascal/bicycle_out_100.txt"
 	     prc_png_fn=""
-	     class_name="bicycle"
+	     pascal_classes_fn="%(boda_test_dir)/pascal/head_1/pascal_classes.txt"
 	     /></li>
   <li test_name="run_dfc_1" slow="1"> 
     <command mode="run_dfc" 

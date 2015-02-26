@@ -51,8 +51,9 @@ namespace boda
   p_vect_scored_det_t per_class_scored_dets_t::get_merged_all_imgs_sds( void ) {
     p_vect_scored_det_t ret( new vect_scored_det_t );
     for( uint32_t i = 0; i != per_img_sds.size(); ++i ) {
-      vect_base_scored_det_t const & img_sds = *per_img_sds[i];
-      for( vect_base_scored_det_t::const_iterator j = img_sds.begin(); j != img_sds.end(); ++j ) {
+      p_vect_base_scored_det_t const & img_sds = per_img_sds[i];
+      if( !img_sds ) { continue; }
+      for( vect_base_scored_det_t::const_iterator j = img_sds->begin(); j != img_sds->end(); ++j ) {
 	ret->push_back( scored_det_t{*j,i} );
       }
     }
@@ -134,11 +135,6 @@ namespace boda
     {
       class_infos[i->first].v += i->second.num_non_difficult.v;
     }
-  }
-
-  void load_pil_t::load_all_imgs( void ) {
-    classes = readlines_fn( pascal_classes_fn );
-    read_pascal_image_list_files( img_db, pil_fn, *classes, true );
   }
 
   void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix )
@@ -235,20 +231,21 @@ namespace boda
     }
   }
 
-  struct score_results_file_t : virtual public nesi, public has_main_t // NESI(help="score a pascal-VOC-format results file",bases=["has_main_t"], type_id="score")
+  void load_pil_t::load_img_db( bool const load_imgs ) {
+    classes = readlines_fn( pascal_classes_fn );
+    read_pascal_image_list_files( img_db, pil_fn, *classes, load_imgs );
+  }
+
+  struct score_results_file_t : virtual public nesi, public load_pil_t // NESI(help="score a pascal-VOC-format results file",bases=["load_pil_t"], type_id="score")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t pil_fn; //NESI(help="input: name of pascal-VOC format image list file",req=1)
     filename_t res_fn; //NESI(help="input: name of pascal-VOC format detection results file to read",req=1)
     filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
     filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
-    string class_name; //NESI(help="name of object class",req=1)
-    p_img_db_t img_db; //NESI(default="()", help="image database")
     virtual void main( nesi_init_arg_t * nia ) {
-      vect_string classes;
-      classes.push_back( class_name );
-      read_pascal_image_list_files( img_db, pil_fn, classes, false );
-      p_per_class_scored_dets_t scored_dets = read_results_file( img_db, res_fn.exp, class_name );
+      load_img_db( 0 );
+      assert_st( classes->size() == 1 ); // FIXME: only expects/handled single class
+      p_per_class_scored_dets_t scored_dets = read_results_file( img_db, res_fn.exp, classes->front() );
       img_db->score_results_for_class( scored_dets, prc_txt_fn.exp, prc_png_fn.exp );
     }
   };
@@ -401,12 +398,9 @@ namespace boda
   }
 
 
-  struct hamming_analysis_t : virtual public nesi, public has_main_t // NESI(help="hamming first-level cascade boxes analysis",bases=["has_main_t"], type_id="ham_ana")
+  struct hamming_analysis_t : virtual public nesi, public load_pil_t // NESI(help="hamming first-level cascade boxes analysis",bases=["load_pil_t"], type_id="ham_ana")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal_classes.txt",help="file with list of classes to process")
-    p_img_db_t img_db; //NESI(default="()", help="image database")
-    filename_t pil_fn; //NESI(default="%(pascal_data_dir)/ImageSets/Main/%%s_test.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
     filename_t ham_fn; //NESI(default="%(bench_dir)/hamming/voc-release5-hamming_top1000boxes/2007/%%s_boxes_test__hamming_imgNo%%s.csv",help="format for base filenames of hamming boxes. %%s, %%s will be replaced with the class name, img index")
     filename_t dpm_fn; //NESI(default="%(bench_dir)/hamming/pf_shog/%%s_test.txt",help="format for filenames of pascal-VOC format DPM detection results files. %%s will be replaced with the class name")
     filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
@@ -415,12 +409,10 @@ namespace boda
     filename_t score_diff_summary_fn; //NESI(default="%(boda_output_dir)/diff_summ.csv",help="output: text summary of differences between two scored sets.")
     
     virtual void main( nesi_init_arg_t * nia ) { 
-      p_vect_string classes = readlines_fn( pascal_classes_fn );
+      load_img_db( 0 );
       p_vect_p_per_class_scored_dets_t hamming_scored_dets( new vect_p_per_class_scored_dets_t );
       p_vect_p_per_class_scored_dets_t dpm_scored_dets( new vect_p_per_class_scored_dets_t );
       
-      read_pascal_image_list_files( img_db, pil_fn, *classes, false );
-
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	hamming_scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {

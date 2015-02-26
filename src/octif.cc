@@ -243,18 +243,14 @@ namespace boda
   // for cn in `cat ../../test/pascal_classes.txt`; do ../../lib/boda score --pil-fn=%(pascal_data_dir)/ImageSets/Main/${cn}_test.txt --res-fn=${cn}_hamming.txt --class-name=${cn}; done
   // for cn in `cat ../test/pascal_classes.txt`; do ../lib/boda mat_bs_to_pascal --mat-bs-fn=/home/moskewcz/bench/hamming/hamming_toplevel_bboxes_pascal2007/${cn}_boxes_test__hamming.mat --res-fn=${cn}_hamming.txt --class-name=${cn} --pil-fn=%(pascal_data_dir)/ImageSets/Main/${cn}_test.txt ; done
 
-  struct convert_matlab_res_t : virtual public nesi, public has_main_t // NESI(help="convert matlab 'ds' results to pascal format",bases=["has_main_t"], type_id="mat_bs_to_pascal")
+  struct convert_matlab_res_t : virtual public nesi, public load_pil_t // NESI(help="convert matlab 'ds' results to pascal format",bases=["load_pil_t"], type_id="mat_bs_to_pascal")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal_classes.txt",help="file with list of classes to process")
     filename_t mat_bs_fn; //NESI(default="%(bench_dir)/hamming/voc-release5_simpleHog_no_sqrt_11-27-13/2007/%%s_boxes_test_simpleHog.mat", help="input: format for filenames of matlab file with ds var with results: %%s will be replaced with the class name")
-    filename_t pil_fn; //NESI(default="%(pascal_data_dir)/ImageSets/Main/%%s_test.txt",help="format for filenames of pascal image list files. %%s will be replaced with the class name.")
     filename_t res_fn; //NESI(default="%(bench_dir)/hamming/pf_shog/%%s_test.txt",help="output: format for filenames of pascal-VOC format detection results file to write")
-    p_img_db_t img_db; //NESI(default="()", help="image database")
 
     virtual void main( nesi_init_arg_t * nia ) {
-      p_vect_string classes = readlines_fn( pascal_classes_fn );
-      read_pascal_image_list_files( img_db, pil_fn, *classes, false );
+      load_img_db( false );
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) { convert_class( *i ); }
     }
 
@@ -657,15 +653,12 @@ namespace boda
     }
   };
 
-  struct run_dfc_t : virtual public nesi, public has_main_t // NESI(
+  struct run_dfc_t : virtual public nesi, public load_pil_t // NESI(
 		     // help="run dpm fast cascade over pascal-VOC-format image file list",
-		     // bases=["has_main_t"], type_id="run_dfc")
+		     // bases=["load_pil_t"], type_id="run_dfc")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
-    filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_100/pascal_classes.txt",help="file with list of classes to process")
-    filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_100/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
-    p_img_db_t img_db; //NESI(default="()", help="image database")
     filename_t dpm_fast_cascade_dir; //NESI(default="%(dpm_fast_cascade_dir)",help="dpm_fast_cascade base dir")
 
     filename_t res_fn; //NESI(default="%(boda_output_dir)/%%s.txt",help="output: format for filenames of pascal-VOC format detection results file to write")
@@ -674,9 +667,8 @@ namespace boda
 
 
     virtual void main( nesi_init_arg_t * nia ) {
-      p_vect_string classes = readlines_fn( pascal_classes_fn );
+      load_img_db( 1 );
       p_vect_p_per_class_scored_dets_t scored_dets( new vect_p_per_class_scored_dets_t );      
-      read_pascal_image_list_files( img_db, pil_fn, *classes, true );
       for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
 	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
