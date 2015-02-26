@@ -364,8 +364,10 @@ class nesi_gen( object ):
     def proc_sdecl( self, src_fn, cname, **kwargs ):
         if cname in self.cinfos:
             raise RuntimeError( "duplicate NESI struct declaration for %r" % cname )
+        disable = kwargs.pop("disable",0)
         self.cur_sdecl = cinfo_t( cname, src_fn, **kwargs )
-        self.cinfos[cname] = self.cur_sdecl
+        if not disable: 
+            self.cinfos[cname] = self.cur_sdecl
         
     def proc_vdecl( self, **kwargs ):
         if self.cur_sdecl is None:
