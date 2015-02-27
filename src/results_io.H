@@ -84,12 +84,14 @@ namespace boda
     string id;
     string full_fn;
     uint32_t ix;
+#if 0 // note: not currently needed
     u32_pt_t size;
     uint32_t depth;
+#endif
     name_vect_gt_det_map_t gt_dets;
 
     p_img_t img;
-    img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ), depth(0) { }
+    img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ) /*, depth(0)*/ { }
   };
   typedef shared_ptr< img_info_t > p_img_info_t;
   typedef map< string, p_img_info_t > id_to_img_info_map_t;
@@ -158,7 +160,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t pascal_ann_dir; // NESI(default="%(pascal_data_dir)/Annotations",help="pascal annotations directory")
-    filename_t pascal_img_dir; // NESI(default="%(pascal_data_dir)/JPEGImages",help="pascal images directory")
+    filename_t pascal_img_fn; // NESI(default="%(pascal_data_dir)/JPEGImages/%%s.jpg",help="pascal image filename template")
     filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of pascal classes to load")
     p_img_db_t img_db; //NESI(default="()", help="image database")
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
@@ -171,6 +173,7 @@ namespace boda
   private:
     void read_pascal_image_list_file( filename_t const & class_pil_fn, bool const load_imgs, bool const check_ix_only );
     void load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only );
+    void read_pascal_image_for_id( p_img_info_t img_info );
   };
   typedef shared_ptr< load_pil_t > p_load_pil_t; 
 

@@ -60,34 +60,40 @@ namespace boda
     return ret;
   }
 
-
-
-  void read_pascal_image_for_id( p_img_info_t img_info, path const & img_dir )
-  {
-    ensure_is_dir( img_dir.string() );
-    img_info->full_fn = string( (img_dir / (img_info->id + ".jpg")).c_str() );
-    img_info->img.reset( new img_t );
-    img_info->img->load_fn( img_info->full_fn.c_str() );
-  }
+//#define PASCAL_LAX_PARSE
 
   void read_pascal_annotations_for_id( p_img_info_t img_info, path const & ann_dir, string const & id )
   {
     ensure_is_dir( ann_dir.string() );
     path const ann_path = ann_dir / (id + ".xml");
+#ifdef PASCAL_LAX_PARSE // allow skipping non-existant annotations
+    bool const is_reg_file = boost::filesystem3::is_regular_file( ann_path ); 
+    if( !is_reg_file ) { return; }
+#endif
     ensure_is_regular_file( ann_path.string() );
     char const * const ann_fn = ann_path.c_str();
     xml_document doc;
     xml_node ann = xml_file_get_root( doc, ann_fn );
     // assert_st( ann.name() == string("annotation") ); // true, but we don't really care?
+#if 0 // note: not currently needed
     xml_node ann_size = xml_must_decend( ann_fn, ann, "size" );
     img_info->size.d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "width" ).child_value() );
     img_info->size.d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "height" ).child_value() );
     img_info->depth = lc_str_u32( xml_must_decend( ann_fn, ann_size, "depth" ).child_value() );
+#endif
 
     for( xml_node ann_obj = ann.child("object"); ann_obj; ann_obj = ann_obj.next_sibling("object") ) {
       gt_det_t gt_det;
+#ifdef PASCAL_LAX_PARSE
+      gt_det.truncated = 0;
+      if( ann_obj.child("truncated") ) { lc_str_u32( xml_must_decend( ann_fn, ann_obj, "truncated" ).child_value() ); }
+      gt_det.difficult = 0;
+      if( ann_obj.child("difficult") ) { lc_str_u32( xml_must_decend( ann_fn, ann_obj, "difficult" ).child_value() ); }
+#else
       gt_det.truncated = lc_str_u32( xml_must_decend( ann_fn, ann_obj, "truncated" ).child_value() );
       gt_det.difficult = lc_str_u32( xml_must_decend( ann_fn, ann_obj, "difficult" ).child_value() );
+#endif
+
       xml_node ann_obj_bb = xml_must_decend( ann_fn, ann_obj, "bndbox" );
       gt_det.p[0].d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "xmin" ).child_value() );
       gt_det.p[0].d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "ymin" ).child_value() );
@@ -95,7 +101,10 @@ namespace boda
       gt_det.p[1].d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_obj_bb, "ymax" ).child_value() );
       gt_det.from_pascal_coord_adjust();
       assert_st( gt_det.is_strictly_normalized() );
-      string const ann_obj_name( xml_must_decend( ann_fn, ann_obj, "name" ).child_value() );
+      string ann_obj_name( xml_must_decend( ann_fn, ann_obj, "name" ).child_value() );
+#ifdef PASCAL_LAX_PARSE
+      boost::algorithm::trim( ann_obj_name );
+#endif
       vect_gt_det_t & gt_dets = img_info->gt_dets[ann_obj_name];
       gt_dets.push_back(gt_det);
       if( !gt_det.difficult ) { ++gt_dets.num_non_difficult.v; } 
@@ -166,7 +175,7 @@ namespace boda
     if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
     img_info.reset( new img_info_t( img_id ) );
     read_pascal_annotations_for_id( img_info, pascal_ann_dir.exp, img_id ); 
-    if( load_img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
+    if( load_img ) { read_pascal_image_for_id( img_info ); }
 
     img_info->ix = img_db->img_infos.size();
     if( img_info->ix != in_file_ix ) { rt_err( strprintf( "newly-loaded image had ix=%s, but expected %s",
@@ -203,7 +212,7 @@ namespace boda
     if( load_imgs ) {
 #pragma omp parallel for
       for( uint32_t i = 0; i < img_db->img_infos.size(); ++i ) {
-	read_pascal_image_for_id( img_db->img_infos[i], pascal_img_dir.exp ); 
+	read_pascal_image_for_id( img_db->img_infos[i] ); 
       }
     }
   }
@@ -224,8 +233,14 @@ namespace boda
   void load_pil_t::show_dets( p_per_class_scored_dets_t scored_dets, uint32_t img_ix ) {
     assert_st( img_ix < img_db->img_infos.size() );
     p_img_info_t img_info = img_db->img_infos[img_ix];
-    if( !img_info->img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
+    if( !img_info->img ) { read_pascal_image_for_id( img_info ); }
     boda::show_dets( img_info->img, *scored_dets->get_per_img_sds( img_ix, 1 ) ); // FIXME: rename boda::show_dets?
+  }
+
+  void load_pil_t::read_pascal_image_for_id( p_img_info_t img_info ) {
+    img_info->full_fn = filename_t_printf( pascal_img_fn, img_info->id.c_str() ).exp;
+    img_info->img.reset( new img_t );
+    img_info->img->load_fn( img_info->full_fn.c_str() );
   }
 
   struct score_results_file_t : virtual public nesi, public load_pil_t // NESI(help="score a pascal-VOC-format results file",bases=["load_pil_t"], type_id="score")
