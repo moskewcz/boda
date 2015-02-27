@@ -15,7 +15,7 @@
 # assume system defaults include needed include/lib dirs
 
 [octave]
-CPPFLAGS := $(CPPFLAGS) -I/usr/include/python2.7 -I/usr/include/octave-3.8.1 -I/usr/include/octave-3.8.1/octave
+CPPFLAGS := $(CPPFLAGS) -I/usr/include/octave-3.8.1 -I/usr/include/octave-3.8.1/octave
 LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 
 [SDL2]
@@ -30,6 +30,9 @@ LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe 
 [turbojpeg] # not disable-able, due to unmarked indirect dependencies. we mark only the direct dependencies below.
 LDFLAGS := $(LDFLAGS) -lturbojpeg
 
+[python] # not disable-able, due to unmarked indirect dependencies. we mark only the direct dependencies below.
+CPPFLAGS := $(CPPFLAGS) -I/usr/include/python2.7 
+LDFLAGS := $(LDFLAGS) -lpython2.7
 
 # list of object files to compile. at least the objects that are
 # direct dependencies of the above sections should be marked by adding
@@ -69,7 +72,7 @@ lexp.o
 img_io.o turbojpeg
 model.o octave
 results_io.o  
-pyif.o 
+pyif.o python
 octif.o octave
 octif-no-octave-stub.o -octave
 boda.o  
