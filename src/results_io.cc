@@ -113,37 +113,6 @@ namespace boda
     if( img_info == id_to_img_info_map.end() ) { rt_err("tried to get ix for unloaded img_id '"+img_id+"'"); }
     return img_info->second->ix;
   }
-  void img_db_t::load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only )
-  {
-    p_img_info_t & img_info = id_to_img_info_map[img_id];
-    if( check_ix_only ) {
-      if( !img_info ) { rt_err( "expected image to already be loaded but it was not" ); }
-      if( img_info->ix != in_file_ix ) { rt_err( strprintf( "already-loaded image had ix=%s, but expected %s",
-							    str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
-      return;
-    }
-    if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
-    img_info.reset( new img_info_t( img_id ) );
-    read_pascal_annotations_for_id( img_info, pascal_ann_dir.exp, img_id ); 
-    if( load_img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
-
-    img_info->ix = img_infos.size();
-    if( img_info->ix != in_file_ix ) { rt_err( strprintf( "newly-loaded image had ix=%s, but expected %s",
-							  str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
-    img_infos.push_back( img_info );
-    for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )
-    {
-      class_infos[i->first].v += i->second.num_non_difficult.v;
-    }
-  }
-
-  void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix )
-  {
-    assert_st( img_ix < img_db->img_infos.size() );
-    p_img_info_t img_info = img_db->img_infos[img_ix];
-    if( !img_info->img ) { read_pascal_image_for_id( img_info, img_db->pascal_img_dir.exp ); }
-    show_dets( img_info->img, *scored_dets->get_per_img_sds( img_ix, 1 ) );
-  }
 
   p_per_class_scored_dets_t read_results_file( p_img_db_t img_db, string const & fn, string const & class_name )
   {
@@ -185,34 +154,56 @@ namespace boda
     out->close();
   }
 
-  void read_pascal_image_list_file( p_img_db_t img_db, filename_t const & pil_fn, bool const load_imgs, 
-				    bool const check_ix_only )
+  void load_pil_t::load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only )
   {
+    p_img_info_t & img_info = img_db->id_to_img_info_map[img_id];
+    if( check_ix_only ) {
+      if( !img_info ) { rt_err( "expected image to already be loaded but it was not" ); }
+      if( img_info->ix != in_file_ix ) { rt_err( strprintf( "already-loaded image had ix=%s, but expected %s",
+							    str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
+      return;
+    }
+    if( img_info ) { rt_err( "tried to load annotations multiple times for id '"+img_id+"'"); }
+    img_info.reset( new img_info_t( img_id ) );
+    read_pascal_annotations_for_id( img_info, pascal_ann_dir.exp, img_id ); 
+    if( load_img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
+
+    img_info->ix = img_db->img_infos.size();
+    if( img_info->ix != in_file_ix ) { rt_err( strprintf( "newly-loaded image had ix=%s, but expected %s",
+							  str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
+    img_db->img_infos.push_back( img_info );
+    for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )
+    {
+      img_db->class_infos[i->first].v += i->second.num_non_difficult.v;
+    }
+  }
+
+  void load_pil_t::read_pascal_image_list_file( filename_t const & class_pil_fn, bool const load_imgs, bool const check_ix_only ) {
     timer_t t("read_pascal_image_list_file");
-    p_ifstream in = ifs_open( pil_fn );  
+    p_ifstream in = ifs_open( class_pil_fn );  
     string line;
     uint32_t in_file_ix = 0; // almost (0 based) line number, but only for non-blank lines
-    while( !ifs_getline( pil_fn.in, in, line ) )
+    while( !ifs_getline( class_pil_fn.in, in, line ) )
     {
       vect_string parts;
       split( parts, line, is_space(), token_compress_on );
       if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
       if( parts.size() != 2 ) { 
 	rt_err( strprintf( "invalid line in image list file '%s': num of parts != 2 after space "
-			   "splitting. line was:\n%s", pil_fn.in.c_str(), line.c_str() ) ); }
+			   "splitting. line was:\n%s", class_pil_fn.in.c_str(), line.c_str() ) ); }
       string const id = parts[0];
       string const pn = parts[1];
       if( (pn != "1") && (pn != "-1") && (pn != "0") ) {
 	rt_err( strprintf( "invalid type string in image list file '%s': saw '%s', expected '1', '-1', or '0'.",
-			   pil_fn.in.c_str(), pn.c_str() ) );
+			   class_pil_fn.in.c_str(), pn.c_str() ) );
       }
-      img_db->load_pascal_data_for_id( id, false, in_file_ix, check_ix_only );
+      load_pascal_data_for_id( id, false, in_file_ix, check_ix_only );
       ++in_file_ix;
     }
     if( load_imgs ) {
 #pragma omp parallel for
       for( uint32_t i = 0; i < img_db->img_infos.size(); ++i ) {
-	read_pascal_image_for_id( img_db->img_infos[i], img_db->pascal_img_dir.exp ); 
+	read_pascal_image_for_id( img_db->img_infos[i], pascal_img_dir.exp ); 
       }
     }
   }
@@ -222,18 +213,19 @@ namespace boda
   // first class's image list file, and then just verifies that the
   // other class image list files have the same set (or at least a
   // subset) of image ids of the first file.
-  void read_pascal_image_list_files( p_img_db_t img_db, filename_t const & pil_fn_template,
-				     vect_string const & classes, bool const load_imgs ) {
-    for( vect_string::const_iterator i = classes.begin(); i != classes.end(); ++i ) {
-      bool const is_first_class = (i == classes.begin());
-      read_pascal_image_list_file( img_db, filename_t_printf( pil_fn_template, (*i).c_str() ), 
-				   load_imgs && is_first_class, !is_first_class );
+  void load_pil_t::load_img_db( bool const load_imgs ) {
+    classes = readlines_fn( pascal_classes_fn );
+    for( vect_string::const_iterator i = classes->begin(); i != classes->end(); ++i ) {
+      bool const is_first_class = (i == classes->begin());
+      read_pascal_image_list_file( filename_t_printf( pil_fn, (*i).c_str() ), load_imgs && is_first_class, !is_first_class );
     }
   }
 
-  void load_pil_t::load_img_db( bool const load_imgs ) {
-    classes = readlines_fn( pascal_classes_fn );
-    read_pascal_image_list_files( img_db, pil_fn, *classes, load_imgs );
+  void load_pil_t::show_dets( p_per_class_scored_dets_t scored_dets, uint32_t img_ix ) {
+    assert_st( img_ix < img_db->img_infos.size() );
+    p_img_info_t img_info = img_db->img_infos[img_ix];
+    if( !img_info->img ) { read_pascal_image_for_id( img_info, pascal_img_dir.exp ); }
+    boda::show_dets( img_info->img, *scored_dets->get_per_img_sds( img_ix, 1 ) ); // FIXME: rename boda::show_dets?
   }
 
   struct score_results_file_t : virtual public nesi, public load_pil_t // NESI(help="score a pascal-VOC-format results file",bases=["load_pil_t"], type_id="score")
@@ -466,7 +458,7 @@ namespace boda
 	    }
 	  }
 	  bool const show_mismatch_img = 0;
-	  if( unmatched && show_mismatch_img ) { img_db_show_dets( img_db, ham_sds, ix ); }
+	  if( unmatched && show_mismatch_img ) { show_dets( ham_sds, ix ); }
 	}
 	assert_st( (num_ham+dpm_only) == (num_dpm+ham_only) );
 	assert_st( (num_ham+dpm_only) == (num_dpm+ham_only) );

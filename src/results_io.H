@@ -137,18 +137,10 @@ namespace boda
   struct img_db_t : virtual public nesi // NESI(help="store images and detections")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t pascal_ann_dir; // NESI(default="%(pascal_data_dir)/Annotations",help="pascal annotations directory")
-    filename_t pascal_img_dir; // NESI(default="%(pascal_data_dir)/JPEGImages",help="pascal images directory")
     id_to_img_info_map_t id_to_img_info_map;
     vect_p_img_info_t img_infos;
     class_infos_t class_infos;
 
-    // note: expects that only a single image list will be loaded
-    // (with check_ix_only=0), and that any subsequent lists loaded
-    // (with check_ix_only=1) will have the same images in the same
-    // order. this strictness is primarily for error checking can be
-    // relaxed as needed.
-    void load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only );
     string get_id_for_img_ix( uint32_t const img_ix );
     uint32_t get_ix_for_img_id( string const & img_id );
     match_res_t try_match( string const & class_name, p_per_class_scored_dets_t scored_dets, scored_det_t const & sd );
@@ -165,6 +157,8 @@ namespace boda
 		      // bases=["has_main_t"], type_id="load_pil")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t pascal_ann_dir; // NESI(default="%(pascal_data_dir)/Annotations",help="pascal annotations directory")
+    filename_t pascal_img_dir; // NESI(default="%(pascal_data_dir)/JPEGImages",help="pascal images directory")
     filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of pascal classes to load")
     p_img_db_t img_db; //NESI(default="()", help="image database")
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
@@ -172,6 +166,11 @@ namespace boda
     p_vect_string classes;
     void load_img_db( bool const load_imgs );
     virtual void main( nesi_init_arg_t * nia ) { load_img_db( 1 ); }
+    void show_dets( p_per_class_scored_dets_t scored_dets, uint32_t img_ix );
+
+  private:
+    void read_pascal_image_list_file( filename_t const & class_pil_fn, bool const load_imgs, bool const check_ix_only );
+    void load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only );
   };
   typedef shared_ptr< load_pil_t > p_load_pil_t; 
 
