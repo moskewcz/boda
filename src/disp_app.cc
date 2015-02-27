@@ -93,7 +93,7 @@ namespace boda
       frame_timer->async_wait( bind( &display_pil_t::on_frame, this, _1 ) ); 
       uint32_t const start_img = cur_img_ix;
       while( 1 ) {
-	bool skip_img = 0;
+	bool keep_img = 0;
 	assert_st( cur_img_ix < img_db->img_infos.size() );
 	p_img_info_t img_info = img_db->img_infos[cur_img_ix];
 	p_img_t const & img = img_info->img;
@@ -108,13 +108,12 @@ namespace boda
 	p_vect_anno_t annos( new vect_anno_t );
 	for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	  string const & cn = *i;
-	  vect_gt_det_t const & gt_dets = img_info->gt_dets[cn];	
+	  vect_gt_det_t const & gt_dets = img_info->gt_dets[cn];
 	  vect_gt_match_t * gtms = 0;
 	  // annotate SDs
 	  if( do_score ) {
 	    p_per_class_scored_dets_t const & sds = scored_dets->at( i - classes->begin() );
 	    gtms = &sds->get_gtms( img_info->ix, gt_dets.size() );
-	  
 	    p_vect_base_scored_det_t const & img_sds = sds->get_per_img_sds( img_info->ix, 0 );
 	    assert( img_sds );
 	    for( vect_base_scored_det_t::const_iterator i = img_sds->begin(); i != img_sds->end(); ++i ) {
@@ -123,15 +122,15 @@ namespace boda
 	  }
 
 	  // annotate GTs
-	  skip_img = gt_dets.empty(); // skip if no gts
+	  keep_img |= (!gt_dets.empty()); // keep if any gts
 	  for( uint32_t i = 0; i != gt_dets.size(); ++i ) {
 	    bool const is_matched = (!gtms) || gtms->at(i).matched;
 	    uint32_t gt_color = is_matched ? rgba_to_pel(40,170,40) : rgba_to_pel(170,40,40);
 	    annos->push_back( anno_t{u32_to_i32(gt_dets[i]), gt_color, 0, cn, rgba_to_pel(220,220,255) } );
-	    if( gtms && (is_matched^show_mum) ) { skip_img = 1; }
+	    if( !gtms || (is_matched==show_mum) ) { keep_img |= 1; }
 	  }
 	}
-	if( skip_img ) { 
+	if( !keep_img ) { 
 	  mod_adj( cur_img_ix, img_db->img_infos.size(), 1 ); 
 	  if( cur_img_ix == start_img ) { printf("no images to show.\n"); break; } 
 	}
