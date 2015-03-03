@@ -84,14 +84,14 @@ namespace boda
     string id;
     string full_fn;
     uint32_t ix;
-#if 0 // note: not currently needed
+#if 1 // note: not currently needed
     u32_pt_t size;
     uint32_t depth;
 #endif
     name_vect_gt_det_map_t gt_dets;
 
     p_img_t img;
-    img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ) /*, depth(0)*/ { }
+    img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ), depth(0) { }
   };
   typedef shared_ptr< img_info_t > p_img_info_t;
   typedef map< string, p_img_info_t > id_to_img_info_map_t;

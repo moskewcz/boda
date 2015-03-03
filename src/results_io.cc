@@ -75,7 +75,7 @@ namespace boda
     xml_document doc;
     xml_node ann = xml_file_get_root( doc, ann_fn );
     // assert_st( ann.name() == string("annotation") ); // true, but we don't really care?
-#if 0 // note: not currently needed
+#if 1 // note: not currently needed
     xml_node ann_size = xml_must_decend( ann_fn, ann, "size" );
     img_info->size.d[0] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "width" ).child_value() );
     img_info->size.d[1] = lc_str_u32( xml_must_decend( ann_fn, ann_size, "height" ).child_value() );
