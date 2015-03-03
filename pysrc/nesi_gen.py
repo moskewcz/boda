@@ -4,6 +4,16 @@ from get_build_info import get_build_info_c_str
 from operator import attrgetter
 join = os.path.join
 
+def cstr_lit( s ):
+    ret = ""
+    for c in s:
+        co = ord(c)
+        if (co < ord(' ')) or (co > ord('~')) or (c == '"') or (c == '\\'): 
+            ret += "\\%03o" % co
+        else: 
+            ret += c
+    return ret
+
 def check_dir_writable( dir_name ):
     if not os.path.isdir( dir_name ) or not os.access( dir_name, os.W_OK ) :
         raise RuntimeError( "dir %r is not a writable directory." % (dir_name,) )
@@ -60,9 +70,9 @@ class vinfo_t( object ):
     def gen_vinfo( self ):
         default_val = "0"
         if self.default is not None:
-            default_val = '"%s"' % (self.default)
+            default_val = '"%s"' % (cstr_lit(str(self.default)))
         return '{ "%s", %s, %s, "%s", &tinfo_%s, %s },\n' % ( 
-            self.help, default_val, self.req, self.vname, self.tname, self.hide )
+            cstr_lit(self.help), default_val, self.req, self.vname, self.tname, self.hide )
 
 class cinfo_t( object ):
     def __init__( self, cname, src_fn, help, bases=[], type_id=None, is_abstract=None, tid_vn=None, hide=0 ):
@@ -179,7 +189,7 @@ class cinfo_t( object ):
 
 
 """
-        return gen_template % {'cname':self.cname, 'help':self.help, 'num_vars':len(self.vars),
+        return gen_template % {'cname':self.cname, 'help':cstr_lit(self.help), 'num_vars':len(self.vars),
                                'tid_vix':tid_vix, 'tid_str':tid_str, 'hide':self.hide }
 
 
