@@ -937,15 +937,20 @@ namespace boda
       create_net_params();
       net = caffe_create_net( *net_param, trained_fn.exp ); // we need to load the original weights 'early' to infer input dims
 
-      vect_uint32_t converted_layer_ixs;
+      vect_string converted_layer_names;
       uint32_t const numl = (uint32_t)mod_net_param->layer_size();
       // find and rename all fc layers
       for( uint32_t i = 0; i != numl; ++i ) {
 	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
 	if( lp->type() != "InnerProduct" ) { continue; }
+	vect_p_nda_float_t blobs;
+	copy_layer_blobs( net, lp->name(), blobs );
+
+	caffe::InnerProductParameter * ipp = lp->mutable_inner_product_param();
+	converted_layer_names.push_back( lp->name() );
 	lp->set_name( lp->name() + "-conv" );
 	lp->set_type( "Convolution" );
-	caffe::InnerProductParameter * ipp = lp->mutable_inner_product_param();
+
 	caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
 	assert_st( ipp->has_num_output() );
 	if( ipp->has_num_output() ) { cp->set_num_output( ipp->num_output() ); }
@@ -953,10 +958,10 @@ namespace boda
 	if( ipp->has_weight_filler() ) { *cp->mutable_weight_filler() = ipp->weight_filler(); }
 	if( ipp->has_bias_filler() ) { *cp->mutable_bias_filler() = ipp->bias_filler(); }
 
-	vect_p_nda_float_t blobs;
-	copy_layer_blobs( net, i, blobs );
-
 	assert_st( blobs.size() == 2 ); // filters, biases
+	//printf( "lp->name()=%s\n", str(lp->name()).c_str() );
+	//printf( "net_param->mutable_layer(i)->name()=%s\n", str(net_param->mutable_layer(i)->name()).c_str() );
+	//printf( "blobs[0]->dims=%s\n", str(blobs[0]->dims).c_str() );
 	assert_st( blobs[0]->dims.dims(0) == 1 );
 	assert_st( blobs[0]->dims.dims(1) == 1 );
 	assert_st( blobs[0]->dims.dims(2) == ipp->num_output() );
@@ -974,22 +979,21 @@ namespace boda
 	assert_st( kern_sz*kern_sz*num_in_chan == num_w );
 	cp->set_kernel_size( kern_sz );
 	lp->clear_inner_product_param();
-	converted_layer_ixs.push_back( i );
       }
       write_mod_pt();
       mod_net = caffe_create_net( *mod_net_param, trained_fn.exp );
-      for( vect_uint32_t::const_iterator i = converted_layer_ixs.begin(); i != converted_layer_ixs.end(); ++i ) {
+      for( vect_string::const_iterator i = converted_layer_names.begin(); i != converted_layer_names.end(); ++i ) {
 	fc_weights_to_conv_weights( *i );
       }
       write_mod_net();
     }
 
-    void fc_weights_to_conv_weights( uint32_t const & layer_ix ) {
+    void fc_weights_to_conv_weights( string const & layer_name ) {
       vect_p_nda_float_t blobs;
-      copy_layer_blobs( net, layer_ix, blobs );
+      copy_layer_blobs( net, layer_name, blobs );
 
       vect_p_nda_float_t blobs_mod;
-      copy_layer_blobs( mod_net, layer_ix, blobs_mod );
+      copy_layer_blobs( mod_net, layer_name + "-conv", blobs_mod );
 
       assert_st( blobs.size() == 2 ); // filters, biases
       assert_st( blobs_mod.size() == 2 ); // filters, biases
@@ -1000,7 +1004,7 @@ namespace boda
       assert( blobs_mod[0]->elems.sz == blobs[0]->elems.sz );
       blobs_mod[0]->elems = blobs[0]->elems; // reshape
 
-      set_layer_blobs( mod_net, layer_ix, blobs_mod );
+      set_layer_blobs( mod_net, layer_name + "-conv", blobs_mod );
     }
 
   };
@@ -1072,14 +1076,14 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string to_resize_ln;//NESI(default="conv1",help="name of conv layer to resize ")    
-    u32_pt_t targ_sz; //NESI(default="3 3",help="kernel size for resized layer")
+    u32_pt_t targ_sz; //NESI(default="5 5",help="kernel size for resized layer")
 
-    void resize_conv_weights( uint32_t const & to_resize_ix ) {
+    void resize_conv_weights( string const & to_resize_name ) {
       vect_p_nda_float_t blobs;
-      copy_layer_blobs( net, to_resize_ix, blobs );
+      copy_layer_blobs( net, to_resize_name, blobs );
 
       vect_p_nda_float_t blobs_mod;
-      copy_layer_blobs( mod_net, to_resize_ix, blobs_mod );
+      copy_layer_blobs( mod_net, to_resize_name + "-resized", blobs_mod );
 
       assert_st( blobs.size() == 2 ); // filters, biases
       assert_st( blobs_mod.size() == 2 ); // filters, biases
@@ -1090,7 +1094,7 @@ namespace boda
       assert_st( targ_sz.d[1] == blobs_mod[0]->dims.dims(2) );
       assert_st( targ_sz.d[0] == blobs_mod[0]->dims.dims(3) );
       resize_kernel( blobs[0], blobs_mod[0] );
-      set_layer_blobs( mod_net, to_resize_ix, blobs_mod );
+      set_layer_blobs( mod_net, to_resize_name + "-resized", blobs_mod );
     }
 
     void main( nesi_init_arg_t * nia ) { 
@@ -1123,13 +1127,14 @@ namespace boda
 	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
 	if( lp->type() == "InnerProduct" ) {
 	  // FIXME: convert to conv layer. for now, just rename.
+	  printf("WARNING: renaming fc/InnerProduct %s layer to avoid size mismatch when loading weights. note that the renamed layer in the output model will *not* get any copied weights from the input model!\n",lp->name().c_str()); 
 	  lp->set_name( lp->name() + "-renamed-due-to-resize" );
 	} 
       }
 
       write_mod_pt();
       load_nets();
-      resize_conv_weights( to_resize_ix );
+      resize_conv_weights( to_resize_ln );
       write_mod_net();
     }
   };
