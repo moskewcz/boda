@@ -927,6 +927,83 @@ namespace boda
     }
   };
 
+  struct cnet_fc_to_conv_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
+			     // bases=["cnet_mod_t","has_main_t"], type_id="cnet_fc_to_conv")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    void main( nesi_init_arg_t * nia ) { 
+      init_caffe( 0 );
+      create_net_params();
+      net = caffe_create_net( *net_param, trained_fn.exp ); // we need to load the original weights 'early' to infer input dims
+
+      vect_uint32_t converted_layer_ixs;
+      uint32_t const numl = (uint32_t)mod_net_param->layer_size();
+      // find and rename all fc layers
+      for( uint32_t i = 0; i != numl; ++i ) {
+	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
+	if( lp->type() != "InnerProduct" ) { continue; }
+	lp->set_name( lp->name() + "-conv" );
+	lp->set_type( "Convolution" );
+	caffe::InnerProductParameter * ipp = lp->mutable_inner_product_param();
+	caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
+	assert_st( ipp->has_num_output() );
+	if( ipp->has_num_output() ) { cp->set_num_output( ipp->num_output() ); }
+	if( ipp->has_bias_term() ) { cp->set_bias_term( ipp->bias_term() ); }
+	if( ipp->has_weight_filler() ) { *cp->mutable_weight_filler() = ipp->weight_filler(); }
+	if( ipp->has_bias_filler() ) { *cp->mutable_bias_filler() = ipp->bias_filler(); }
+
+	vect_p_nda_float_t blobs;
+	copy_layer_blobs( net, i, blobs );
+
+	assert_st( blobs.size() == 2 ); // filters, biases
+	assert_st( blobs[0]->dims.dims(0) == 1 );
+	assert_st( blobs[0]->dims.dims(1) == 1 );
+	assert_st( blobs[0]->dims.dims(2) == ipp->num_output() );
+	uint32_t num_w = blobs[0]->dims.dims(3);
+
+	// get number of input chans
+	if( lp->bottom_size() != 1) { rt_err( "unhandled: bottom_size() != 1"); }
+	string const bot_bn = lp->bottom(0);
+	assert_st( net->has_blob( bot_bn ) );
+	uint32_t const num_in_chan = net->blob_by_name( bot_bn )->channels();
+
+	// FIXME: we assume input is spactially square, which may not be true
+	assert_st( !(num_w % num_in_chan) );
+	uint32_t kern_sz = sqrt(num_w / num_in_chan);
+	assert_st( kern_sz*kern_sz*num_in_chan == num_w );
+	cp->set_kernel_size( kern_sz );
+	lp->clear_inner_product_param();
+	converted_layer_ixs.push_back( i );
+      }
+      write_mod_pt();
+      mod_net = caffe_create_net( *mod_net_param, trained_fn.exp );
+      for( vect_uint32_t::const_iterator i = converted_layer_ixs.begin(); i != converted_layer_ixs.end(); ++i ) {
+	fc_weights_to_conv_weights( *i );
+      }
+      write_mod_net();
+    }
+
+    void fc_weights_to_conv_weights( uint32_t const & layer_ix ) {
+      vect_p_nda_float_t blobs;
+      copy_layer_blobs( net, layer_ix, blobs );
+
+      vect_p_nda_float_t blobs_mod;
+      copy_layer_blobs( mod_net, layer_ix, blobs_mod );
+
+      assert_st( blobs.size() == 2 ); // filters, biases
+      assert_st( blobs_mod.size() == 2 ); // filters, biases
+      assert_st( blobs[1]->dims == blobs_mod[1]->dims ); // biases should be same shape (and same strides?)
+      blobs_mod[1] = blobs[1]; // use biases unchanged in upsamp net
+
+      assert( blobs_mod[0]->dims.dims_prod() == blobs[0]->dims.dims_prod() );
+      assert( blobs_mod[0]->elems.sz == blobs[0]->elems.sz );
+      blobs_mod[0]->elems = blobs[0]->elems; // reshape
+
+      set_layer_blobs( mod_net, layer_ix, blobs_mod );
+    }
+
+  };
 
   void resize_1d( float const * const in, uint32_t const & in_sz, float * const out, uint32_t const & out_sz ) {
     for( uint32_t i = 0; i != out_sz; ++i ) { out[i] = 0.0; }
@@ -1094,7 +1171,7 @@ namespace boda
       if( !pre_conv_layer ) {
 	rt_err( "unhandled: no conv layer prior to add_before_ln (need it for new layer num_outputs)."); }
       caffe::LayerParameter const * const pre_layer = &net_param->layer( add_before_ix - 1 );
-      if( !pre_layer->top_size() == 1) { rt_err( "unhandled: pre_layer->top_size() != 1"); }
+      if( pre_layer->top_size() != 1) { rt_err( "unhandled: pre_layer->top_size() != 1"); }
       string const pre_layer_top = pre_layer->top(0);
       // add new layer
       string const new_layer_name = "pre_" + add_before_ln;
@@ -1115,7 +1192,7 @@ namespace boda
 	caffe::LayerParameter * nl = mod_net_param->add_layer();
 	*nl = net_param->layer(i); 
 	if( i == add_before_ix ) { // adjust bottom for layer we added a layer before
-	  if( !nl->bottom_size() == 1) { rt_err( "unhandled: add_before_layer->bottom_size() != 1"); }
+	  if( nl->bottom_size() != 1) { rt_err( "unhandled: add_before_layer->bottom_size() != 1"); }
 	  nl->clear_bottom();
 	  nl->add_bottom( new_layer_name );
 	}
