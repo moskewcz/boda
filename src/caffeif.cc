@@ -892,33 +892,185 @@ namespace boda
     set_layer_blobs( net, layer_name, blobs );
   }
 
-
-  struct cnet_util_t : virtual public nesi, public has_main_t // NESI(help="utility to modify caffe nets",
-		       // bases=["has_main_t"], type_id="cnet_util")
+  struct cnet_mod_t : virtual public nesi // NESI(help="base class for utilities to modify caffe nets" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
-
     filename_t mod_fn; //NESI(default="%(models_dir)/%(out_model)/train_val.prototxt",help="output net prototxt template filename")
     filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/best.caffemodel",help="output net weights binary prototxt template filename")
 
-    string add_before_ln;//NESI(default="conv4",help="name of layer before which to add identity layer")
-    
-    uint32_t noise_mode; //NESI(default=0,help="type of noise: 0==no noise, 1==xavier")
+    p_net_param_t net_param;
+    p_net_param_t mod_net_param;
 
+    void create_net_params( void ) {
+      net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
+      mod_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
+    }
+    void write_mod_pt( void ) {
+      string mod_str;
+      bool const pts_ret = google::protobuf::TextFormat::PrintToString( *mod_net_param, &mod_str );
+      assert_st( pts_ret );
+      write_whole_fn( mod_fn, mod_str );
+    }
+    p_Net_float net;
+    p_Net_float mod_net;
+    void load_nets( void ) {
+      net = caffe_create_net( *net_param, trained_fn.exp );      
+      mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
+    }
+    void write_mod_net( void ) {
+      p_net_param_t mod_net_param_with_weights;
+      mod_net_param_with_weights.reset( new caffe::NetParameter );
+      mod_net->ToProto( mod_net_param_with_weights.get(), false );
+      WriteProtoToBinaryFile( *mod_net_param_with_weights, mod_weights_fn.exp );
+    }
+  };
+
+
+  void resize_1d( float const * const in, uint32_t const & in_sz, float * const out, uint32_t const & out_sz ) {
+    for( uint32_t i = 0; i != out_sz; ++i ) { out[i] = 0.0; }
+    double const scale = double(out_sz) / in_sz;
+    for( uint32_t i = 0; i != in_sz; ++i ) {
+      float const v = in[i];
+      // calc range of out for in_sz
+      double const ob = double(out_sz) * i / in_sz;
+      double const oe = double(out_sz) * (i+1) / in_sz;
+      for( uint32_t o = floor(ob); o != ceil(oe); ++o ) {
+	double const span = 1.0 - ((o<ob)?(ob - o):0) - ((oe<(o+1))?(o + 1 - oe):0);
+	assert(o < out_sz);
+	out[o] += v*span/scale;
+      }
+    }
+  }
+
+  void print_kernel( p_nda_float_t const & in, uint32_t const i, uint32_t const j ) {
+    u32_pt_t const in_ksz = {in->dims.dims(3),in->dims.dims(2)};
+    printf("kernel\n");
+    float * kernel = &in->at2(i,j);
+    for( uint32_t y = 0; y != in_ksz.d[1]; ++y ) { 
+      for( uint32_t x = 0; x != in_ksz.d[0]; ++x ) { 
+	printf("  % 02.3f", kernel[y*in_ksz.d[0]+x] );
+      }
+      printf("\n");
+    }
+    printf("\n");
+    
+  }
+
+  void resize_kernel( p_nda_float_t const & in, p_nda_float_t const & out ) {
+    
+    // coiterate over outer dims
+    assert_st( in->dims.dims(0) == out->dims.dims(0) );
+    assert_st( in->dims.dims(1) == out->dims.dims(1) );
+    u32_pt_t const in_ksz = {in->dims.dims(3),in->dims.dims(2)};
+    u32_pt_t const out_ksz = {out->dims.dims(3),out->dims.dims(2)};
+
+    printf( "in_ksz=%s out_ksz=%s\n", str(in_ksz).c_str(), str(out_ksz).c_str() );
+
+    vect_float kbuf;
+    kbuf.resize( in_ksz.d[1]*out_ksz.d[0] );
+    vect_float kbuf2;
+    kbuf2.resize( in_ksz.d[1] );
+    vect_float kbuf3;
+    kbuf3.resize( out_ksz.d[1], 0 );
+    
+    for( uint32_t i = 0; i != in->dims.dims(0); ++i ) {
+      for( uint32_t j = 0; j != in->dims.dims(1); ++j ) {
+	//print_kernel( in, i, j );
+	for( uint32_t y = 0; y != in_ksz.d[1]; ++y ) { resize_1d( &in->at3(i,j,y), in_ksz.d[0], &kbuf[y*out_ksz.d[0]], out_ksz.d[0] ); }
+	for( uint32_t x = 0; x != out_ksz.d[0]; ++x ) { 
+	  for( uint32_t y = 0; y != in_ksz.d[1]; ++y ) { kbuf2[y] = kbuf[y*out_ksz.d[0] + x]; }
+	  resize_1d( &kbuf2[0], in_ksz.d[1], &kbuf3[0], out_ksz.d[1] );
+	  for( uint32_t y = 0; y != out_ksz.d[1]; ++y ) { out->at4(i,j,y,x) = kbuf3[y]; }
+	}
+	//print_kernel( out, i, j );
+      }
+    }
+  } 
+
+
+  struct cnet_resize_conv_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_t","has_main_t"], type_id="cnet_resize_conv")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string to_resize_ln;//NESI(default="conv1",help="name of conv layer to resize ")    
+    u32_pt_t targ_sz; //NESI(default="3 3",help="kernel size for resized layer")
+
+    void resize_conv_weights( uint32_t const & to_resize_ix ) {
+      vect_p_nda_float_t blobs;
+      copy_layer_blobs( net, to_resize_ix, blobs );
+
+      vect_p_nda_float_t blobs_mod;
+      copy_layer_blobs( mod_net, to_resize_ix, blobs_mod );
+
+      assert_st( blobs.size() == 2 ); // filters, biases
+      assert_st( blobs_mod.size() == 2 ); // filters, biases
+      assert_st( blobs[1]->dims == blobs_mod[1]->dims ); // biases should be same shape (and same strides?)
+      blobs_mod[1] = blobs[1]; // use biases unchanged in upsamp net
+      assert_st( blobs[0]->dims.dims(0) == blobs_mod[0]->dims.dims(0) );
+      assert_st( blobs[0]->dims.dims(1) == blobs_mod[0]->dims.dims(1) );
+      assert_st( targ_sz.d[1] == blobs_mod[0]->dims.dims(2) );
+      assert_st( targ_sz.d[0] == blobs_mod[0]->dims.dims(3) );
+      resize_kernel( blobs[0], blobs_mod[0] );
+      set_layer_blobs( mod_net, to_resize_ix, blobs_mod );
+    }
 
     void main( nesi_init_arg_t * nia ) { 
+      init_caffe(0);
+      create_net_params();
 
-      p_net_param_t net_param;
-      p_net_param_t mod_net_param;
+#if 0
+      vect_float in1 = {0,1,5};
+      vect_float out1 = {3,4,5,6,7};
+      resize_1d( &in1[0], in1.size(), &out1[0], out1.size() );
+      printf( "in1=%s out1=%s\n", str(in1).c_str(), str(out1).c_str() );
+      return;
+#endif
 
-      net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
+      uint32_t const to_resize_ix = get_layer_ix( *net_param, to_resize_ln );
+      caffe::LayerParameter * lp = mod_net_param->mutable_layer(to_resize_ix);
+      if( !lp->has_convolution_param() ) { 
+	rt_err( strprintf("layer %s of net not conv layer; don't know how to resize",to_resize_ln.c_str())); }
+      caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
+      p_conv_op_t conv_op = get_conv_op_from_param( *cp );
+      conv_op->kern_sz = targ_sz;
+
+      set_param_from_conv_op( *cp, conv_op );
+      assert_st( lp->has_name() );
+      lp->set_name( lp->name() + "-resized" );
+
+      uint32_t const numl = (uint32_t)mod_net_param->layer_size();
+      // find and rename all fc layers
+      for( uint32_t i = to_resize_ix + 1; i != numl; ++i ) {
+	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
+	if( lp->type() == "InnerProduct" ) {
+	  // FIXME: convert to conv layer. for now, just rename.
+	  lp->set_name( lp->name() + "-renamed-due-to-resize" );
+	} 
+      }
+
+      write_mod_pt();
+      load_nets();
+      resize_conv_weights( to_resize_ix );
+      write_mod_net();
+    }
+  };
+
+  struct cnet_util_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_t","has_main_t"], type_id="cnet_util")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string add_before_ln;//NESI(default="conv4",help="name of layer before which to add identity layer")    
+    uint32_t noise_mode; //NESI(default=0,help="type of noise: 0==no noise, 1==xavier")
+
+    void main( nesi_init_arg_t * nia ) { 
+      init_caffe( 0 );
+      create_net_params();
 
       uint32_t const add_before_ix = get_layer_ix( *net_param, add_before_ln );
       uint32_t const orig_num_layers = (uint32_t)net_param->layer_size();
-  
-      mod_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
+
       mod_net_param->clear_layer(); // remove all layers
       for( uint32_t i = 0; i != add_before_ix; ++i ) { *mod_net_param->add_layer() = net_param->layer(i); }
       if( add_before_ix+1 > orig_num_layers ) {
@@ -969,24 +1121,13 @@ namespace boda
 	}
       }
       
-      string mod_str;
-      bool const pts_ret = google::protobuf::TextFormat::PrintToString( *mod_net_param, &mod_str );
-      assert_st( pts_ret );
-      write_whole_fn( mod_fn, mod_str );
-
+      write_mod_pt();
       //return; // for testing, skip weights processing
-      p_Net_float net;
-      p_Net_float mod_net;
-
-      net = caffe_create_net( *net_param, trained_fn.exp );      
-      mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
-
+      
+      load_nets();
       create_identity_weights( mod_net, new_layer_name, noise_mode );
 
-      p_net_param_t mod_net_param_with_weights;
-      mod_net_param_with_weights.reset( new caffe::NetParameter );
-      mod_net->ToProto( mod_net_param_with_weights.get(), false );
-      WriteProtoToBinaryFile( *mod_net_param_with_weights, mod_weights_fn.exp );
+      write_mod_net();
     }
   };
 
