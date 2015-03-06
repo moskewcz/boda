@@ -898,7 +898,7 @@ namespace boda
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
     filename_t mod_fn; //NESI(default="%(models_dir)/%(out_model)/train_val.prototxt",help="output net prototxt template filename")
-    filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/best.caffemodel",help="output net weights binary prototxt template filename")
+    filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/boda_gen.caffemodel",help="output net weights binary prototxt template filename")
 
     p_net_param_t net_param;
     p_net_param_t mod_net_param;
