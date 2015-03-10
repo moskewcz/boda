@@ -14,6 +14,8 @@
 #include"img_io.H"
 #include"octif.H"
 #include"timers.H"
+#include"lexp.H"
+#include"nesi.H"
 
 namespace boda 
 {
@@ -27,6 +29,21 @@ namespace boda
 
   typedef vector< string > vect_string;
   typedef map< string, uint32_t > str_uint32_t_map_t;
+
+  void img_info_load_img( p_img_info_t img_info, string const & img_fn ) {
+    img_info->full_fn = img_fn;
+    img_info->img.reset( new img_t );
+    img_info->img->load_fn( img_info->full_fn.c_str() );
+  }
+
+  u32_pt_t img_db_t::get_max_img_sz( void ) const {
+    u32_pt_t ret;
+    for( vect_p_img_info_t::const_iterator i = img_infos.begin(); i != img_infos.end(); ++i ) {
+      if( (*i) && (*i)->img ) { ret.max_eq( (*i)->img->sz ); }
+    }
+    return ret;
+  }
+
   string id_from_image_fn( string const & image )
   {
     size_t const last_dot = image.find_last_of('.');	
@@ -103,7 +120,7 @@ namespace boda
       assert_st( gt_det.is_strictly_normalized() );
       string ann_obj_name( xml_must_decend( ann_fn, ann_obj, "name" ).child_value() );
 #ifdef PASCAL_LAX_PARSE
-      boost::algorithm::trim( ann_obj_name );
+      boost::algorithm::trim( ann_obj_name ); // trim/remove whitespace/strip_ws 
 #endif
       vect_gt_det_t & gt_dets = img_info->gt_dets[ann_obj_name];
       gt_dets.push_back(gt_det);
@@ -181,8 +198,7 @@ namespace boda
     if( img_info->ix != in_file_ix ) { rt_err( strprintf( "newly-loaded image had ix=%s, but expected %s",
 							  str(img_info->ix).c_str(), str(in_file_ix).c_str() ) ); }
     img_db->img_infos.push_back( img_info );
-    for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i )
-    {
+    for( name_vect_gt_det_map_t::const_iterator i = img_info->gt_dets.begin(); i != img_info->gt_dets.end(); ++i ) {
       img_db->class_infos[i->first].v += i->second.num_non_difficult.v;
     }
   }
@@ -217,16 +233,79 @@ namespace boda
     }
   }
   
-  // note: this assumes (and checks) that all the per-class file lists
-  // are identical. thus, it loads all images and annotations from the
-  // first class's image list file, and then just verifies that the
-  // other class image list files have the same set (or at least a
-  // subset) of image ids of the first file.
   void load_pil_t::load_img_db( bool const load_imgs ) {
-    classes = readlines_fn( pascal_classes_fn );
-    for( vect_string::const_iterator i = classes->begin(); i != classes->end(); ++i ) {
-      bool const is_first_class = (i == classes->begin());
-      read_pascal_image_list_file( filename_t_printf( pil_fn, (*i).c_str() ), load_imgs && is_first_class, !is_first_class );
+    if( fl_load ) { // flickr logos load
+      p_vect_string fl_list_lines = readlines_fn( fl_list );
+      set_string classes_set;
+      classes.reset( new vect_string );
+      for( vect_string::iterator i = fl_list_lines->begin(); i != fl_list_lines->end(); ++i ) {
+	boost::algorithm::trim( *i ); // not ideal, but removes trailing newlines at least (and CRs if present)
+	vect_string parts = split(*i,',');
+	if( parts.size() != 2 ) { rt_err("failed to parse line in FlickrLogos-style image list. expected exactly 1 ',', had:" + *i ); }
+	string const & cn = parts[0];
+	string const & fn = parts[1];
+	bool did_ins = classes_set.insert( cn ).second;
+	if( did_ins ) { classes->push_back( cn ); }
+	lexp_name_val_map_t fmt{ p_lexp_t() };
+	fmt.insert_leaf( "cn", cn.c_str(), 0 ); 
+	fmt.insert_leaf( "fn", fn.c_str(), 0 );
+	string const img_fn = nesi_filename_t_expand( &fmt, fl_img.exp );
+	string const bboxes_fn = nesi_filename_t_expand( &fmt, fl_bbox.exp );
+
+	string const & img_id = img_fn; // for this mode, use fn as id
+	p_img_info_t & img_info = img_db->id_to_img_info_map[img_id];
+
+	if( img_info ) { rt_err( "FlickrLogos-style img_db load: tried to image multiple times: '"+img_id+"'"); }
+	img_info.reset( new img_info_t( img_id ) );
+	//read_pascal_annotations_for_id( img_info, pascal_ann_dir.exp, img_id ); 
+	img_info->full_fn = img_fn;
+	img_info->ix = img_db->img_infos.size();
+	img_db->img_infos.push_back( img_info );
+
+	// read gts / bboxes (if they exist)
+	if( !boost::filesystem3::is_regular_file( bboxes_fn ) ) { 
+	  if( cn == "no-logo" ) { continue; } // for no_logo, can skip loading gts / bboxes if no file
+	  printf( "for class cn=%s, missing bboxes file:\n", str(cn).c_str() );
+	}
+	p_vect_string bboxes_lines = readlines_fn( bboxes_fn );
+	vect_gt_det_t & gt_dets = img_info->gt_dets[cn];
+	for( vect_string::iterator i = bboxes_lines->begin(); i != bboxes_lines->end(); ++i ) {
+	  boost::algorithm::trim( *i ); // not ideal, but removes trailing newlines at least (and CRs if present)
+	  gt_det_t gt_det;
+	  gt_det.truncated = 0;
+	  gt_det.difficult = 0;
+	  vect_string box_parts;
+	  split( box_parts, *i, is_space(), token_compress_on );
+	  if( (box_parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
+	  assert( box_parts.size() == 4 );
+	  if( box_parts[0] == "x" ) { continue; } // skip header
+	  gt_det.p[0].read_from_line_parts( box_parts, 0 ); gt_det.p[0] -= u32_pt_t{1,1}; // 1-based, so adjust
+	  gt_det.p[1].read_from_line_parts( box_parts, 2 ); gt_det.p[1] += gt_det.p[0]; // read as size, so add nc to make pc	  
+	  assert_st( gt_det.is_strictly_normalized() );
+	  gt_dets.push_back(gt_det);
+	  if( !gt_det.difficult ) { ++gt_dets.num_non_difficult.v; } 
+	}
+	img_db->class_infos[cn].v += gt_dets.num_non_difficult.v;
+      }
+      if( load_imgs ) {
+#pragma omp parallel for
+	for( uint32_t i = 0; i < img_db->img_infos.size(); ++i ) { 
+	  p_img_info_t const & img_info = img_db->img_infos[i];
+	  img_info_load_img( img_info, img_info->full_fn );
+	}
+      }
+      printf( "(*classes)=%s\n", str((*classes)).c_str() );
+    } else { // pascal load
+      // note: this assumes (and checks) that all the per-class file lists
+      // are identical. thus, it loads all images and annotations from the
+      // first class's image list file, and then just verifies that the
+      // other class image list files have the same set (or at least a
+      // subset) of image ids of the first file.
+      classes = readlines_fn( pascal_classes_fn );
+      for( vect_string::const_iterator i = classes->begin(); i != classes->end(); ++i ) {
+	bool const is_first_class = (i == classes->begin());
+	read_pascal_image_list_file( filename_t_printf( pil_fn, (*i).c_str() ), load_imgs && is_first_class, !is_first_class );
+      }
     }
   }
 
@@ -237,11 +316,10 @@ namespace boda
     boda::show_dets( img_info->img, *scored_dets->get_per_img_sds( img_ix, 1 ) ); // FIXME: rename boda::show_dets?
   }
 
-  void load_pil_t::read_pascal_image_for_id( p_img_info_t img_info ) {
-    img_info->full_fn = filename_t_printf( pascal_img_fn, img_info->id.c_str() ).exp;
-    img_info->img.reset( new img_t );
-    img_info->img->load_fn( img_info->full_fn.c_str() );
+  void load_pil_t::read_pascal_image_for_id( p_img_info_t img_info ) { 
+    img_info_load_img( img_info, filename_t_printf( pascal_img_fn, img_info->id.c_str() ).exp );
   }
+
 
   struct score_results_file_t : virtual public nesi, public load_pil_t // NESI(help="score a pascal-VOC-format results file",bases=["load_pil_t"], type_id="score")
   {

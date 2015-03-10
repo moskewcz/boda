@@ -52,7 +52,7 @@ namespace boda
     uint32_t rand_winds; //NESI(default=0,help="if set, display 1/2 image size random windows instead of full image")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t do_score; //NESI(default=1,help="if set, run scoring. if == 2, quit after scoring.")
-    uint32_t show_mum; //NESI(default=1,help="1 == show matched, 0 == show unmatched")
+    uint32_t show_filt; //NESI(default=0,help="0 == show_all, 1 == show matched, 2 == show unmatched")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
@@ -104,6 +104,7 @@ namespace boda
 	  src_pt = random_pt( img->sz - copy_sz, gen );
 	  dest_pt = random_pt( disp_imgs->at(0)->sz - copy_sz, gen );
 	}
+	if( !rand_winds ) { disp_imgs->at(0)->fill_with_pel( grey_to_pel( 128 ) ); }
 	img_copy_to_clip( img.get(), disp_imgs->at(0).get(), dest_pt, src_pt, copy_sz );
 	p_vect_anno_t annos( new vect_anno_t );
 	for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
@@ -122,12 +123,16 @@ namespace boda
 	  }
 
 	  // annotate GTs
+	  keep_img |= (show_filt == 0); // always keep if show_filt==0
 	  keep_img |= (!gt_dets.empty()); // keep if any gts
 	  for( uint32_t i = 0; i != gt_dets.size(); ++i ) {
 	    bool const is_matched = (!gtms) || gtms->at(i).matched;
 	    uint32_t gt_color = is_matched ? rgba_to_pel(40,170,40) : rgba_to_pel(170,40,40);
 	    annos->push_back( anno_t{u32_to_i32(gt_dets[i]), gt_color, 0, cn, rgba_to_pel(220,220,255) } );
-	    if( !gtms || (is_matched==show_mum) ) { keep_img |= 1; }
+	    if( show_filt != 0 ) {
+	      if( !gtms ) { keep_img |= 1; } // always keep if no scoring done
+	      else if( is_matched ? (show_filt==1) : (show_filt==2) ) { keep_img |= 1; }
+	    }
 	  }
 	}
 	if( !keep_img ) { 
@@ -166,6 +171,7 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) {
       load_img_db( 1 );
+      if( img_db->img_infos.empty() ) { rt_err( "no images loaded. check loading options/files?" ); }
 
       if( do_score ) {
 	// setup scored_dets
@@ -183,7 +189,7 @@ namespace boda
 	if( quit_after_score ) { return; }
       }
 
-      disp_imgs = disp_win.disp_setup( {{640,480}} );
+      disp_imgs = disp_win.disp_setup( {img_db->get_max_img_sz()} );
       
       cur_img_ix = 0;
       io_service_t & io = get_io( &disp_win );

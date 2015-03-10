@@ -151,6 +151,7 @@ namespace boda
     void score_results( p_vect_p_per_class_scored_dets_t name_scored_dets_map, 
 			string const & prc_fn, string const & plot_base_fn, bool const pre_merge_post_clear );
 
+    u32_pt_t get_max_img_sz( void ) const;
   };
   typedef shared_ptr< img_db_t > p_img_db_t;
 
@@ -164,6 +165,11 @@ namespace boda
     filename_t pascal_classes_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/pascal_classes.txt",help="file with list of pascal classes to load")
     p_img_db_t img_db; //NESI(default="()", help="image database")
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
+
+    uint32_t fl_load; //NESI(default=0,help="if 1, load a FlickrLogos-style image dataset. (note: disables pascal loading)")
+    filename_t fl_bbox; //NESI(default="%(datasets_dir)/flickrlogos/all_bboxes/%%(fn).bboxes.txt",help="format for filenames of per-image bbox files. %%(fn) will be replaced with the image filename (e.g. 01032234.jpg), %%(cn) will be replaced with the category")
+    filename_t fl_img; //NESI(default="%(datasets_dir)/flickrlogos/all_images/%%(fn)",help="format for filenames of per-image bbox files. %%(fn) will be replaced with the image filename (e.g. 01032234.jpg), %%(cn) will be replaced with the category")
+    filename_t fl_list; //NESI(default="%(datasets_dir)/flickrlogos/all.txt",help="path to FlickrLogos-style list of images")
 
     p_vect_string classes;
     void load_img_db( bool const load_imgs );
