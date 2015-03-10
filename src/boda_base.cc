@@ -167,6 +167,7 @@ namespace boda
     }
   }
 
+
   p_vect_string readlines_fn( filename_t const & fn ) {
     p_ifstream in = ifs_open( fn );
     p_vect_string ret( new vect_string );
@@ -174,6 +175,7 @@ namespace boda
     while( !ifs_getline( fn.in, in, line ) ) { ret->push_back( line ); }
     return ret;
   }
+  p_vect_string readlines_fn( string const & fn ) { return readlines_fn( filename_t{fn,fn} ); }
 
   // opens a ofstream. note: this function itself will raise if the open() fails.
   p_ofstream ofs_open( filename_t const & fn )

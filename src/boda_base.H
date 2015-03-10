@@ -103,7 +103,7 @@ namespace boda
   void write_whole_fn( filename_t const & fn, std::string const & data );
 
   p_vect_string readlines_fn( filename_t const & fn );
-  //p_vect_string readlines_fn( string const & fn );
+  p_vect_string readlines_fn( string const & fn );
 
   void neg_one_fail( int const & ret, char const * const func_name );
   void fork_and_exec_self( vect_string const & args );
