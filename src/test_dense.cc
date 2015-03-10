@@ -68,9 +68,7 @@ namespace boda {
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       imgs->load_img_db( 1 );
       run_cnet->setup_cnet(); 
-      for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
-	run_cnet_dense->in_sz.max_eq( (*i)->img->sz );
-      }
+      run_cnet_dense->in_sz = imgs->img_db->get_max_img_sz();
       run_cnet_dense->setup_cnet();
 
       in_img = make_p_img_t( run_cnet->in_sz );
