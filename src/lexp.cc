@@ -133,7 +133,7 @@ namespace boda {
     sstr_t ss_n;
     ss_n.set_from_cstr( n );
     bool const did_ins = nvm.insert( std::make_pair( ss_n, parse_lexp_leaf_str( v ) ) ).second;
-    if( did_ins ) { // put new value in l as well
+    if( did_ins && l ) { // put new value in l as well (if it exists)
       lexp_nv_t kid;
       kid.n.set_from_cstr( n );
       kid.v = parse_lexp_leaf_str( v );
@@ -144,6 +144,7 @@ namespace boda {
   }
 
   void lexp_name_val_map_t::init_nvm( void ) {
+    if( !l ) { nvm_init = 1; return; } // trivial/null init for no-lexp use-case
     assert_st( l );
     if( l->leaf_val.exists() ) { // should not be a leaf
       rt_err( "invalid attempt to use string as name/value list. string was:" + str(*l) );
