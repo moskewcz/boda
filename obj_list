@@ -47,7 +47,8 @@ LDFLAGS := $(LDFLAGS) -lpython2.7
 # to be updated when trying to disable a particular dependency. note
 # that some dependencies may not usefully be disable-able.
 
-[objs]  
+[objs]
+caffepb.o
 lmdbif.o lmdb
 test_dense.o caffe_and_cuda
 conv_common.o
