@@ -10,6 +10,7 @@
 
 namespace boda 
 {
+
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op ) {
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
@@ -56,6 +57,8 @@ namespace boda
   p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
   p_conv_pipe_t make_p_conv_pipe_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
+#define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
+
   p_conv_pipe_t create_pipe_from_param( caffe::NetParameter & net_param, string const & out_layer_name ) { 
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
@@ -88,7 +91,9 @@ namespace boda
       }
       if( conv_op ) { 
 	conv_op->tag = lp.name();
-	conv_pipe->convs->push_back( *conv_op ); 
+	RF_TO_VEC( conv_op->bots, lp.bottom );
+	RF_TO_VEC( conv_op->tops, lp.top );
+	conv_pipe->convs->push_back( *conv_op );
       }
       if( out_layer_name == lp.name() ) { 
 	conv_pipe->calc_support_info();

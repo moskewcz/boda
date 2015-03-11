@@ -19,6 +19,7 @@ namespace boda
   struct conv_io_t {
     u32_pt_t sz;
     u32_pt_t used_sz;
+    uint32_t chans;
   };
   
   typedef vector< conv_io_t > vect_conv_io_t; 

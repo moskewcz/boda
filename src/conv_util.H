@@ -18,6 +18,9 @@ namespace boda
     uint32_t out_chans; //NESI(default="0",help="number of output channels")
     // uint32_t groups; NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
 
+    vect_string tops; // inputs (by node/blob name)
+    vect_string bots; // outputs (by node/blob name)
+
     u32_pt_t out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const;
     u32_pt_t in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const;
   };
@@ -37,7 +40,7 @@ namespace boda
     void zero_conv_ios( vect_conv_io_t & conv_ios );
     void calc_support_info( void );
     p_vect_conv_io_t calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );
-    p_vect_conv_io_t calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding );
+    p_vect_conv_io_t calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding );
     void dump_pipe( std::ostream & out );
     void dump_ios( std::ostream & out, p_vect_conv_io_t const & conv_ios );
   };

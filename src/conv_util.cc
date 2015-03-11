@@ -48,7 +48,7 @@ namespace boda
     conv_ios.clear();
     conv_ios.resize( convs->size() + 1 );
     for( vect_conv_io_t::iterator i = conv_ios.begin(); i != conv_ios.end(); ++i ) {
-      i->sz = u32_pt_t(); i->used_sz = u32_pt_t();
+      i->sz = u32_pt_t(); i->used_sz = u32_pt_t(); i->chans = 0;
     }
   }
 
@@ -93,14 +93,18 @@ namespace boda
     }
     return conv_ios;
   }
-  p_vect_conv_io_t conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding ) {
+  p_vect_conv_io_t conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding ) {
     p_vect_conv_io_t conv_ios( new vect_conv_io_t( convs->size() + 1 ) );
     conv_ios->front().sz = in_sz;
+    conv_ios->front().chans = in_chans;
     for( uint32_t i = 0; i != convs->size(); ++i ) {
       conv_ios->at(i+1).sz = convs->at(i).in_sz_to_out_sz( conv_ios->at(i).sz, ignore_padding );
       if( conv_ios->at(i+1).sz.both_dims_non_zero() ) { 
 	conv_ios->at(i).used_sz = convs->at(i).out_sz_to_in_sz( conv_ios->at(i+1).sz, ignore_padding );
       } // else if there's no output, we used no input (used_sz left at zero)
+      // reset or propogate num_chans
+      uint32_t const & out_chans = convs->at(i).out_chans; 
+      conv_ios->at(i+1).chans = out_chans ? out_chans : conv_ios->at(i).chans;
     }
     return conv_ios;
   }
@@ -133,13 +137,13 @@ namespace boda
     out << "\n";
   }
 
-
   struct conv_ana_t : virtual public nesi, public conv_pipe_t, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["conv_pipe_t","has_main_t"], type_id="conv_ana")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
     // filename_t convs_fn; NESI(help="input: filename for list of convs",req=1)
     p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
+    uint32_t in_chans; //NESI(default=3,help="number of input chans (used only to properly print number of input chans)")
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -154,7 +158,7 @@ namespace boda
       }
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	p_vect_conv_io_t conv_ios = calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
+	p_vect_conv_io_t conv_ios = calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
 	dump_ios( *out, conv_ios ); 
       }
     }

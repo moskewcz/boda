@@ -382,7 +382,7 @@ namespace boda
       assert_st( out_s == u32_ceil_sqrt( conv_pipe_upsamp->convs->back().out_chans ) ); // FIXME: too strong?
     }
     // FIXME: only for non-upsamp net
-    conv_ios = conv_pipe->calc_sizes_forward( in_sz, 0 ); 
+    conv_ios = conv_pipe->calc_sizes_forward( in_sz, 3, 0 ); 
 
   }
   void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
