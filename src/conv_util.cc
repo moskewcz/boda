@@ -12,7 +12,11 @@ namespace boda
 {
 
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
-    if( kern_sz.is_zeros() ) { assert( type == "pool" ); return u32_pt_t{1,1}; } // global pooling special case
+    if( kern_sz.is_zeros() ) { // handle non-conv cases
+      assert( type != "conv" ); 
+      if( (type == "pool") || (type == "ip") ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
+      return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu)
+    }
     u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum());
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
     if( type == "conv" ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
@@ -20,10 +24,14 @@ namespace boda
     else { rt_err("unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
-    if( kern_sz.is_zeros() ) { // global pooling special case
-      assert( type == "pool" ); 
-      if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
-      return u32_pt_t{0,0};  // special value means all input will be used ...
+    if( kern_sz.is_zeros() ) { // handle non-conv cases
+      assert( type != "conv" );
+      if( (type == "pool") || (type == "ip") ) { // inner product and global pooling special cases
+	if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
+	return u32_pt_t{0,0};  // special value means all input will be used ...
+      } else { // otherwise, assume no effect on spatial dims (e.g. relu)
+        return out_sz;
+      }
     } 
     assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
     u32_pt_t const no_pad_in_sz =  kern_sz + (out_sz-u32_pt_t(1,1))*stride;

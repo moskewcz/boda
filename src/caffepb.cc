@@ -83,7 +83,7 @@ namespace boda
       } else if( lp.has_inner_product_param() ) {
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
 	conv_op.reset( new conv_op_t );
-	conv_op->type = "pool";
+	conv_op->type = "ip";
 	conv_op->out_chans = ipp.num_output();
       }
       if( conv_op ) { 
