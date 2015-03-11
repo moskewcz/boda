@@ -136,16 +136,25 @@ namespace boda
     }
     out << "\n";
   }
-
+  void print_blob_decl( vect_string const & bns, conv_io_t const & cio ) {
+    assert_st( bns.size() == 1 );
+    string const & bn = bns[0];
+    printf( "%s = NDA(num_img,%s,%s,%s) # num,chan,y,x\n", 
+	    bn.c_str(), str(cio.chans).c_str(), str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str() );
+  }
   void conv_pipe_t::dump_ops( std::ostream & out, p_vect_conv_io_t const & conv_ios ) const {
     assert_st( conv_ios && (conv_ios->size() == convs->size()+1) );
     out << strprintf( "== BEGIN OPS ==\n" );
-    
     for( uint32_t i = 0; i != convs->size(); ++i ) {
       conv_op_t const & conv_op = convs->at(i);
       conv_io_t const & cio_in = conv_ios->at(i);
       conv_io_t const & cio_out = conv_ios->at(i+1);
-      printf( "cio_in.sz=%s conv_op.tag=%s cio_out.sz=%s\n", str(cio_in.sz).c_str(), str(conv_op.tag).c_str(), str(cio_out.sz).c_str() );    }
+      if( i == 0 ) { print_blob_decl( conv_op.bots, cio_in ); }
+      print_blob_decl( conv_op.tops, cio_out );
+      printf( "%s = %s(%s,%s_params) # %s\n",
+	      conv_op.tops[0].c_str(), conv_op.type.c_str(), conv_op.bots[0].c_str(), 
+	      conv_op.tag.c_str(), conv_op.tag.c_str() );
+    }
     out << strprintf( "== END OPS ==\n" );
   }
 
