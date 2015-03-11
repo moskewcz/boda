@@ -41,8 +41,9 @@ namespace boda
     void calc_support_info( void );
     p_vect_conv_io_t calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );
     p_vect_conv_io_t calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding );
-    void dump_pipe( std::ostream & out );
-    void dump_ios( std::ostream & out, p_vect_conv_io_t const & conv_ios );
+    void dump_pipe( std::ostream & out ) const;
+    void dump_ios( std::ostream & out, p_vect_conv_io_t const & conv_ios ) const;
+    void dump_ops( std::ostream & out, p_vect_conv_io_t const & conv_ios ) const;
   };
 
   typedef vector< conv_pipe_t > vect_conv_pipe_t; 

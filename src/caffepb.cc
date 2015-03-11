@@ -64,6 +64,7 @@ namespace boda
     p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
     //vect_string const & layer_names = net->layer_names();
     uint32_t last_out_chans = 0;
+    bool found_layer = out_layer_name.empty(); // if no layer name input, don't try to find a 'stopping/end' layer
     for( int32_t i = 0; i != net_param.layer_size(); ++i ) { 
       caffe::LayerParameter const & lp = net_param.layer(i);
       assert_st( lp.has_name() );
@@ -95,11 +96,10 @@ namespace boda
 	RF_TO_VEC( conv_op->tops, lp.top );
 	conv_pipe->convs->push_back( *conv_op );
       }
-      if( out_layer_name == lp.name() ) { 
-	conv_pipe->calc_support_info();
-	return conv_pipe;
-      }
+      if( (!found_layer) && (out_layer_name == lp.name()) ) { found_layer = 1; break; }
     }
-    rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
+    if( !found_layer ) { rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); }
+    conv_pipe->calc_support_info();
+    return conv_pipe;
   }
 }
