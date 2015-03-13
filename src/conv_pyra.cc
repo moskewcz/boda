@@ -129,7 +129,7 @@ namespace boda
       cnet_predict->in_num_imgs = 1; // temporary value, will be reset one we know how many planes we need
       cnet_predict->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
       cnet_predict->setup_cnet_param_and_pipe();
-      ipp->do_place_imgs( cnet_predict->conv_pipe->conv_sis.back() );
+      ipp->do_place_imgs( cnet_predict->get_out_csi(0) );
       cnet_predict->setup_cnet_adjust_in_num_imgs( ipp->num_bins );
       cnet_predict->setup_cnet_net_and_batch();
 

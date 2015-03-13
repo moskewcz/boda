@@ -13,23 +13,23 @@ namespace boda
 
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
     if( kern_sz.is_zeros() ) { // handle non-conv cases
-      assert( type != "conv" ); 
-      if( (type == "pool") || (type == "ip") ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
-      return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu)
+      assert( type != "Convolution" ); 
+      if( (type == "Pooling") || (type == "InnerProduct") ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
+      return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
     }
     u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum());
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
-    if( type == "conv" ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
-    else if( type == "pool" ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
+    if( type == "Convolution" ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
+    else if( type == "Pooling" ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
     else { rt_err("unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
     if( kern_sz.is_zeros() ) { // handle non-conv cases
-      assert( type != "conv" );
-      if( (type == "pool") || (type == "ip") ) { // inner product and global pooling special cases
+      assert( type != "Convolution" );
+      if( (type == "Pooling") || (type == "InnerProduct") ) { // inner product and global pooling special cases
 	if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
 	return u32_pt_t{0,0};  // special value means all input will be used ...
-      } else { // otherwise, assume no effect on spatial dims (e.g. relu)
+      } else { // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
         return out_sz;
       }
     } 
@@ -44,6 +44,89 @@ namespace boda
     return no_pad_in_sz - in_pad.bnds_sum();
   }
 
+  // this returns the single unique input node of the net or throws an error
+  p_conv_node_t conv_pipe_t::get_single_bot_node( void ) const {
+    p_conv_node_t ret;
+    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
+      p_conv_node_t const & in = i->second;
+      if( in->top_for.empty() ) { 
+	if( ret ) { rt_err( strprintf( "multiple source/input nodes found in net; can't process. two examples:'%s','%s'", 
+				       ret->name.c_str(), in->name.c_str() ) ); }
+	ret = in;
+      }
+    }
+    if( !ret ) { rt_err( "no source/input nodes found in net; can't process. perhaps this is an invalid circular net?" ); }
+    return ret;
+  }
+
+  p_conv_node_t conv_pipe_t::get_single_top_node( void ) const {
+    p_conv_node_t ret;
+    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
+      p_conv_node_t const & in = i->second;
+      if( in->bot_for.empty() ) { 
+	if( ret ) { rt_err( strprintf( "multiple sink/output nodes found in net; can't process. two examples:'%s','%s'", 
+				       ret->name.c_str(), in->name.c_str() ) ); }
+	ret = in;
+      }
+    }
+    if( !ret ) { rt_err( "no sink/output nodes found in net; can't process. perhaps this is an invalid circular net?" ); }
+    return ret;
+  }
+  
+  p_conv_node_t conv_pipe_t::get_or_make_node( string const & name ) {
+    p_conv_node_t & ret = (*nodes)[name];
+    if( !ret ) { ret.reset( new conv_node_t{name} ); }
+    return ret;
+  }
+  p_conv_node_t conv_pipe_t::must_get_node( string const & name ) const {
+    map_str_p_conv_node_t::const_iterator i = nodes->find( name );
+    assert_st( i != nodes->end() );
+    return i->second;
+  }
+  p_conv_op_t conv_pipe_t::get_op( string const & name ) const {
+    map_str_p_conv_op_t::const_iterator i = convs->find( name );
+    assert_st( i != convs->end() );
+    return i->second;
+  }
+  void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
+    bool did_ins = convs->insert( make_pair( conv->tag, conv ) ).second;
+    if( !did_ins ) { rt_err( strprintf( "duplicate conv op '%s' seen; can't process net", conv->tag.c_str() ) ); }
+    for( vect_string::const_iterator i = conv->tops.begin(); i != conv->tops.end(); ++i ) {
+      get_or_make_node( *i )->top_for.push_back( conv->tag );
+    }
+    for( vect_string::const_iterator i = conv->bots.begin(); i != conv->bots.end(); ++i ) {
+      get_or_make_node( *i )->bot_for.push_back( conv->tag );
+    }
+  }
+
+  // if the node has one top_for (a single writer), return it. if it has no writers, return null.
+  // otherwise, throw an error.
+  p_conv_op_t conv_pipe_t::maybe_get_single_writer( p_conv_node_t const & node ) const {
+    if( node->top_for.empty() ) { return p_conv_op_t(); }
+    if( node->top_for.size() != 1 ) { 
+      rt_err( "unhandled multiple writers for node: " + node->name ); 
+    }
+    return get_op( node->top_for[0] );
+  }
+  p_conv_op_t conv_pipe_t::maybe_get_single_reader( p_conv_node_t const & node ) const {
+    if( node->bot_for.empty() ) { return p_conv_op_t(); }
+    if( node->bot_for.size() != 1 ) { 
+      printstr( "WARNING: unhandled multiple readers for node: " + node->name + "\n" ); 
+      //rt_err( "unhandled multiple readers for node: " + node->name ); 
+    }
+    return get_op( node->bot_for[0] );
+  }
+  // if the op has one input, return maybe_get_single_writer() for than
+  // input. otherwise throw an error.
+  p_conv_op_t conv_pipe_t::maybe_get_single_parent( p_conv_op_t const & cop ) const {
+    assert_st( !cop->bots.empty() );
+    if( cop->bots.size() != 1 ) {
+      printf( "WARNING: unhandled multi-input op in support calc, using first input. cop->bots=%s\n", str(cop->bots).c_str() );
+    }
+    return maybe_get_single_writer( must_get_node(cop->bots[0]) );
+  }
+
+
   void conv_pipe_t::zero_conv_ios( vect_conv_io_t & conv_ios ) {
     conv_ios.clear();
     conv_ios.resize( convs->size() + 1 );
@@ -52,78 +135,151 @@ namespace boda
     }
   }
 
-  // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
-  void conv_pipe_t::calc_support_info( void ) {
-    conv_sis.resize( convs->size() + 1 );
-    conv_sis.front().support_sz = u32_pt_t(1,1);
-    conv_sis.front().support_stride = u32_pt_t(1,1);
-    for( uint32_t i = 0; i != convs->size(); ++i ) {
-      conv_op_t const & cop = convs->at(i);
-      //assert_st( cop.kern_sz.both_dims_non_zero() );
-      u32_pt_t const in_sz_1x1 = cop.out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding_for_support ); // == cop.kern_sz (if ign_pad)
-      if( in_sz_1x1.is_zeros() || conv_sis[i].support_sz.is_zeros() )  { // special values that means use all input
-	conv_sis[i+1].support_sz = u32_pt_t{};
+  void conv_pipe_t::calc_support_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding ) {
+    conv_support_info_t const & csi_in = node_in->csi;
+    // propogate support info forward from node to all ops that it feeds and thier outputs
+    for( vect_string::const_iterator i = node_in->bot_for.begin(); i != node_in->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      assert_st( cop->has_one_top() );
+      p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
+      conv_support_info_t & csi_out = node_out->csi;
+      if( csi_out.valid() ) { rt_err( "unhandled: node with multiple writers:"+node_out->name ); }
+      u32_pt_t const in_sz_1x1 = cop->out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
+      if( in_sz_1x1.is_zeros() || csi_in.support_sz.is_zeros() )  { // special values that means use all input
+	csi_out.support_sz = u32_pt_t{};
       } else {
 	assert_st( in_sz_1x1.both_dims_non_zero() );
-	conv_sis[i+1].support_sz = conv_sis[i].support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*conv_sis[i].support_stride;
+	csi_out.support_sz = csi_in.support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*csi_in.support_stride;
       }
-      conv_sis[i+1].support_stride = conv_sis[i].support_stride*cop.stride;
-    }
-    // backward passes to calculate eff_tot_pad
-    for( uint32_t j = 0; j != conv_sis.size(); ++j ) {
-      for( uint32_t i = j; i; --i ) {
-	conv_op_t const & cop = convs->at(i - 1);
-	conv_sis[j].eff_tot_pad = cop.in_pad + conv_sis[j].eff_tot_pad.scale_dims( cop.stride );	
+      assert_st( cop->stride.both_dims_non_zero() );
+      csi_out.support_stride = csi_in.support_stride*cop->stride;
+      // traverse backward to root to calculate eff_tot_pad
+      for( p_conv_op_t cop_back = cop; cop_back; cop_back = maybe_get_single_parent(cop_back) ) {
+	csi_out.eff_tot_pad = cop_back->in_pad + csi_out.eff_tot_pad.scale_dims( cop_back->stride );	
       }
+      calc_support_forward_rec( node_out, ignore_padding ); // depth-first recursive processing for any outputs
     }
   }
 
-  p_vect_conv_io_t conv_pipe_t::calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding ) {
-    p_vect_conv_io_t conv_ios( new vect_conv_io_t( convs->size() + 1 ) );
-    conv_ios->back().sz = out_sz;
-    for( uint32_t i = convs->size(); i; --i ) {
-      conv_op_t const & cop = convs->at(i-1);
-      if( !conv_ios->at(i).sz.both_dims_non_zero() ) {
-	rt_err( strprintf( "calc_sizes_back(): unhandled/questionable case: pipeline stage %s output is zero-area.",
-			   cop.tag.c_str() ) );
+  // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
+  void conv_pipe_t::calc_support_info( bool const ignore_padding ) {
+    // initialize support info for single root input
+    p_conv_node_t const & node = get_single_bot_node();
+    conv_support_info_t & csi = node->csi;
+    assert( !csi.valid() );
+    csi.support_sz = u32_pt_t(1,1);
+    csi.support_stride = u32_pt_t(1,1);
+    clear_seen();
+    calc_support_forward_rec( node, ignore_padding ); // calculate support
+  }
+
+  
+  void conv_pipe_t::clear_sizes( void ) {
+    for( map_str_p_conv_node_t::iterator i = nodes->begin(); i != nodes->end(); ++i ) { i->second->cio = conv_io_t(); }
+  }
+  void conv_pipe_t::clear_seen( void ) {
+    for( map_str_p_conv_op_t::iterator i = convs->begin(); i != convs->end(); ++i ) { i->second->bots_seen = 0; }
+  }
+
+  void conv_pipe_t::calc_sizes_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding ) {
+    // propogate support info forward from node to all ops that it feeds and thier outputs
+    for( vect_string::const_iterator i = node_in->bot_for.begin(); i != node_in->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      assert_st( cop->has_one_top() );
+      p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
+      conv_io_t & cio_out = node_out->cio;
+      if( cio_out.valid() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
+
+      // FIXME: move to own func
+      uint32_t const & out_chans = cop->out_chans; 
+      if( (cop->bots.size() != 1) && (cop->type != "Concat") ) { 
+	rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+      for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
+	conv_io_t & cio_in = must_get_node(*j)->cio; // note: non-const since cio_in.used_sz is updated
+	if( j == cop->bots.begin() ) { // first input 
+	  cio_out.sz = cop->in_sz_to_out_sz( cio_in.sz, ignore_padding );
+	  if( cio_out.sz.both_dims_non_zero() ) { 
+	    cio_in.used_sz.max_eq( cop->out_sz_to_in_sz( cio_out.sz, ignore_padding ) );
+	  } // else if there's no output, we used no input (used_sz left at zero)
+	  // reset or propogate num_chans
+	  cio_out.chans = out_chans ? out_chans : cio_in.chans;
+	} else { // handle multiple inputs for concat layer (only!)
+	  assert( cop->type == "Concat" );
+	  assert( !out_chans );
+	  // x/y dims must agree across all inputs
+	  u32_pt_t const out_sz = cop->in_sz_to_out_sz( cio_in.sz, ignore_padding );
+	  assert_st( out_sz == cio_out.sz );
+	  // sum chans across all inputs
+	  cio_out.chans += cio_in.chans;
+	}
       }
-      conv_ios->at(i-1).sz = cop.out_sz_to_in_sz( conv_ios->at(i).sz, ignore_padding );
-      conv_ios->at(i-1).used_sz = conv_ios->at(i-1).sz; // by semantics of out_sz_to_in_sz (but checked below)
-      assert_st( conv_ios->at(i).sz == cop.in_sz_to_out_sz( conv_ios->at(i-1).sz, ignore_padding ) );
+      calc_sizes_forward_rec( node_out, ignore_padding ); // depth-first recursive processing for any outputs
     }
-    return conv_ios;
   }
-  p_vect_conv_io_t conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding ) {
-    p_vect_conv_io_t conv_ios( new vect_conv_io_t( convs->size() + 1 ) );
-    conv_ios->front().sz = in_sz;
-    conv_ios->front().chans = in_chans;
-    for( uint32_t i = 0; i != convs->size(); ++i ) {
-      conv_ios->at(i+1).sz = convs->at(i).in_sz_to_out_sz( conv_ios->at(i).sz, ignore_padding );
-      if( conv_ios->at(i+1).sz.both_dims_non_zero() ) { 
-	conv_ios->at(i).used_sz = convs->at(i).out_sz_to_in_sz( conv_ios->at(i+1).sz, ignore_padding );
-      } // else if there's no output, we used no input (used_sz left at zero)
-      // reset or propogate num_chans
-      uint32_t const & out_chans = convs->at(i).out_chans; 
-      conv_ios->at(i+1).chans = out_chans ? out_chans : conv_ios->at(i).chans;
+  void conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding ) {
+    // initialize support info for single root input
+    p_conv_node_t const & node = get_single_bot_node();
+    conv_io_t & cio = node->cio;
+    assert( !cio.valid() );
+    cio.sz = in_sz;
+    cio.chans = in_chans;
+    clear_seen();
+    calc_sizes_forward_rec( node, ignore_padding ); // calculate support
+  }
+
+  // note: recursively sturctured, but only works for chains currently. it's unclear what the
+  // extention to non-chains would be exactly, but it would seem to depend on handling some
+  // particular type of conv_op with >1 input.
+  void conv_pipe_t::calc_sizes_back_rec( p_conv_node_t const & node_out, bool const ignore_padding ) {
+    conv_io_t const & cio_out = node_out->cio;
+    p_conv_op_t cop = maybe_get_single_writer( node_out );
+    if( !cop ) { return; } // reached source, done
+    assert_st( cop->has_one_top_one_bot() );
+    p_conv_node_t const & node_in = must_get_node(cop->bots[0]);
+    conv_io_t & cio_in = node_in->cio;
+    if( cio_in.valid() ) { rt_err( "internal error: cio_in.valid() in calc_sizes_back_rec() at node:"+node_out->name ); }
+    if( !cio_out.sz.both_dims_non_zero() ) {
+      rt_err( strprintf( "calc_sizes_back(): unhandled/questionable case: pipeline stage %s output is zero-area.",
+			 cop->tag.c_str() ) );
     }
-    return conv_ios;
+    cio_in.sz = cop->out_sz_to_in_sz( cio_out.sz, ignore_padding );
+    cio_in.used_sz = cio_in.sz; // by semantics of out_sz_to_in_sz (but checked below)
+    cio_in.chans = 1; // FIXME: just to mark as valid
+    assert_st( cio_out.sz == cop->in_sz_to_out_sz( cio_in.sz, ignore_padding ) );
+    calc_sizes_back_rec( node_in, ignore_padding ); // depth-first recursive processing for the input
   }
+
+  void conv_pipe_t::calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding ) {
+    // initialize support info for single output
+    p_conv_node_t const & node = get_single_top_node();
+    conv_io_t & cio = node->cio;
+    assert( !cio.valid() );
+    cio.sz = out_sz;
+    cio.chans = 1; // FIMXE: allow specification? meaningful?
+    calc_sizes_back_rec( node, ignore_padding ); // calculate support
+  }
+
   void conv_pipe_t::dump_pipe( std::ostream & out ) const {
     out << strprintf( "== BEGIN CONV PIPE ==\n" );
-    for( uint32_t i = 0; ; ++i ) {
-      conv_support_info_t const & csi = conv_sis.at(i);
+    for( p_conv_node_t node = get_single_bot_node(); node; ) {
+      conv_support_info_t const & csi = node->csi;
       out << strprintf( "support_sz=%s support_stride=%s eff_tot_pad=%s\n", 
 			str(csi.support_sz).c_str(), 
 			str(csi.support_stride).c_str(), str(csi.eff_tot_pad).c_str() );
-      if( i == convs->size() ) { break; }
-      out << strprintf( "    ----  conv=%s \n", str(convs->at(i)).c_str() );
+      p_conv_op_t cop = maybe_get_single_reader( node );
+      if( !cop ) { break; }
+      assert_st( cop->has_one_top() );
+      out << strprintf( "    ----  conv=%s \n", str(*cop).c_str() );
+      node = must_get_node( cop->tops[0] );
     }
     out << strprintf( "== END CONV PIPE ==\n" );
   }
-  void conv_pipe_t::dump_ios( std::ostream & out, p_vect_conv_io_t const & conv_ios ) const {
+  void conv_pipe_t::dump_ios( std::ostream & out ) const {
     out << "CONV_IOS: ";
-    for( uint32_t i = 0; ; ++i ) {
-      conv_io_t const & cio = conv_ios->at(i);
+    for( p_conv_node_t node = get_single_bot_node(); node; ) {
+      conv_io_t const & cio = node->cio;
       out << strprintf( "sz=%s -> ", str(cio.sz).c_str() );
       string size_err;
       if( cio.sz != cio.used_sz ) { 
@@ -131,36 +287,55 @@ namespace boda
 	if( (cio.used_sz.d[0] < cio.sz.d[0]) || (cio.used_sz.d[1] < cio.sz.d[1]) ) { size_err += "DATA DISCARDED; "; }
 	out << strprintf( "[%sused_sz=%s] -> ", size_err.c_str(), str(cio.used_sz).c_str() );
       }
-      if( i == convs->size() ) { break; }
-      out << convs->at(i).tag << " -> ";
+      p_conv_op_t cop = maybe_get_single_reader( node );
+      if( !cop ) { break; }
+      assert_st( cop->has_one_top() );
+      out << cop->tag << " -> ";
+      node = must_get_node( cop->tops[0] );
     }
     out << "\n";
   }
-  void print_blob_decl( vect_string const & bns, conv_io_t const & cio ) {
-    assert_st( bns.size() == 1 );
-    string const & bn = bns[0];
-    printf( "%s = NDA(num_img,%s,%s,%s) # num,chan,y,x\n", 
-	    bn.c_str(), str(cio.chans).c_str(), str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str() );
-  }
-  void conv_pipe_t::dump_ops( std::ostream & out, p_vect_conv_io_t const & conv_ios ) const {
-    assert_st( conv_ios && (conv_ios->size() == convs->size()+1) );
-    out << strprintf( "== BEGIN OPS ==\n" );
-    for( uint32_t i = 0; i != convs->size(); ++i ) {
-      conv_op_t const & conv_op = convs->at(i);
-      conv_io_t const & cio_in = conv_ios->at(i);
-      conv_io_t const & cio_out = conv_ios->at(i+1);
-      if( i == 0 ) { print_blob_decl( conv_op.bots, cio_in ); }
-      print_blob_decl( conv_op.tops, cio_out );
-      printf( "%s = %s(%s,%s_params) # %s\n",
-	      conv_op.tops[0].c_str(), conv_op.type.c_str(), conv_op.bots[0].c_str(), 
-	      conv_op.tag.c_str(), conv_op.tag.c_str() );
-    }
-    out << strprintf( "== END OPS ==\n" );
+  void print_blob_decl( string const & bn, p_conv_node_t const & node ) {
+    string isss;
+    if( node->top_for.empty() ) { isss += " SOURCE"; }
+    if( node->bot_for.empty() ) { isss += " SINK"; }
+    conv_io_t & cio = node->cio;
+    printf( "%s = NDA(num_img,%s,%s,%s) #%s num,chan,y,x\n", 
+	    bn.c_str(), str(cio.chans).c_str(), str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), isss.c_str() );
   }
 
-  struct conv_ana_t : virtual public nesi, public conv_pipe_t, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["conv_pipe_t","has_main_t"], type_id="conv_ana")
+  void print_op_decl( conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
+    string extra_params;
+    if( cop->type == "Convolution" || cop->type == "InnerProduct" ) {
+      char const * const tag = cop->tag.c_str();
+      assert_st( cop->bots.size() == 1 );
+      conv_io_t & cio = pipe->must_get_node( cop->bots[0] )->cio;
+      u32_pt_t kern_sz = cop->kern_sz;
+      if( kern_sz.is_zeros() ) { kern_sz = cio.sz; }
+      printf( "%s_filts = NDA(1,%s,%s,%s) # SOURCE 1,chan,y,x\n", 
+	      tag, str(cop->out_chans).c_str(), str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
+      printf( "%s_biases = NDA(1,%s,1,1) # SOURCE 1,chan,1,1\n", 
+	      tag, str(cop->out_chans).c_str() );
+      extra_params = strprintf( ",%s_filts,%s_biases", tag, tag );
+    }
+
+    printf( "%s(bots=%s,tops=%s%s,in_pad=%s,stride=%s) # %s\n", 
+	    cop->type.c_str(), str(cop->bots).c_str(), str(cop->tops).c_str(),
+	    extra_params.c_str(),
+	    str(cop->in_pad).c_str(), str(cop->stride).c_str(),
+	    cop->tag.c_str() );
+  }
+  void conv_pipe_t::dump_ops( std::ostream & out ) const {
+    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
+      print_blob_decl( i->first, i->second ); }
+    for( map_str_p_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) { 
+      print_op_decl( this, i->second ); }
+  }
+
+  struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["has_main_t"], type_id="conv_ana")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    p_vect_conv_op_t convs; //NESI(default="()",help="set of conv-ish ops")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
     // filename_t convs_fn; NESI(help="input: filename for list of convs",req=1)
     p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
@@ -168,26 +343,38 @@ namespace boda
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
     uint32_t print_ops; //NESI(default=0,help="if non-zero, print ops. note: requires in_sz to be set.")
+    uint32_t ignore_padding_for_support; //NESI(default=1,help="if 1, ignore any padding specified when calculating the support_size for a single pel for each layer")
     
     virtual void main( nesi_init_arg_t * nia ) { 
+      // convert 'legacy' conv_ana linear pipe input to general net
+      p_conv_pipe_t conv_pipe( new conv_pipe_t ); 
+      string cur_node_name = "input";
+      for( vect_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) {
+	p_conv_op_t cop( new conv_op_t( *i ) );
+	assert_st( cop->tops.empty() && cop->bots.empty() );
+	cop->bots.push_back( cur_node_name );
+	cur_node_name = cop->tag + "_out";
+	cop->tops.push_back( cur_node_name );
+	conv_pipe->add_conv( cop );
+      }
+
       p_ofstream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";
-      calc_support_info();
-      dump_pipe( *out ); 
+      conv_pipe->calc_support_info( ignore_padding_for_support );
+      conv_pipe->dump_pipe( *out ); 
       if( out_sz ) { 
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
-	p_vect_conv_io_t conv_ios = calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
-	dump_ios( *out, conv_ios ); 
+	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
+	conv_pipe->dump_ios( *out ); 
+	conv_pipe->clear_sizes();
       }
       p_vect_conv_io_t conv_ios;
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	conv_ios = calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
-	dump_ios( *out, conv_ios ); 
-      }
-      if( print_ops ) {
-	if( !conv_ios ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
-	dump_ops( *out, conv_ios );
+	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
+	conv_pipe->dump_ios( *out ); 
+	if( print_ops ) { conv_pipe->dump_ops( *out ); }
+	conv_pipe->clear_sizes();	
       }
     }
   };

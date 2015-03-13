@@ -23,28 +23,69 @@ namespace boda
 
     u32_pt_t out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const;
     u32_pt_t in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const;
+
+    uint32_t bots_seen;
+    bool on_seen_bot( void ) { ++bots_seen; assert_st( bots_seen <= bots.size() ); return bots_seen == bots.size(); }
+    bool has_one_top( void ) const { return tops.size() == 1; }
+    bool has_one_top_one_bot( void ) const { return (tops.size() == 1) && (bots.size() == 1); }
   };
 
   typedef vector< conv_op_t > vect_conv_op_t; 
   typedef shared_ptr< conv_op_t > p_conv_op_t; 
   typedef vector< p_conv_op_t > vect_p_conv_op_t;
   typedef shared_ptr< vect_conv_op_t > p_vect_conv_op_t; 
+  typedef shared_ptr< vect_p_conv_op_t > p_vect_p_conv_op_t; 
 
+  typedef map< string, p_conv_op_t > map_str_p_conv_op_t;
+  typedef shared_ptr< map_str_p_conv_op_t > p_map_str_p_conv_op_t;
 
-  struct conv_pipe_t : virtual public nesi // NESI(help="pipeline of convolution-ish opa with strides, padding, and kernel sizes. ")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    p_vect_conv_op_t convs; //NESI(default="()",help="set of conv-ish ops")
-    uint32_t ignore_padding_for_support; //NESI(default=1,help="if 1, ignore any padding specified when calculating the support_size for a single pel for each layer")
-    vect_conv_support_info_t conv_sis; // note: conv_sis.size() == ( convs.size() + 1 )
-    void zero_conv_ios( vect_conv_io_t & conv_ios );
-    void calc_support_info( void );
-    p_vect_conv_io_t calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );
-    p_vect_conv_io_t calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding );
-    void dump_pipe( std::ostream & out ) const;
-    void dump_ios( std::ostream & out, p_vect_conv_io_t const & conv_ios ) const;
-    void dump_ops( std::ostream & out, p_vect_conv_io_t const & conv_ios ) const;
+  struct conv_node_t {
+    std::string name;
+    vect_string bot_for;
+    vect_string top_for;
+    conv_support_info_t csi;
+    conv_io_t cio;
+   conv_node_t( std::string const & name_ ) : name(name_) { }
   };
+
+  typedef vector< conv_node_t > vect_conv_node_t; 
+  typedef shared_ptr< conv_node_t > p_conv_node_t; 
+  typedef vector< p_conv_node_t > vect_p_conv_node_t;
+  typedef map< string, p_conv_node_t > map_str_p_conv_node_t;
+  typedef shared_ptr< map_str_p_conv_node_t > p_map_str_p_conv_node_t;
+
+  struct conv_pipe_t {
+    p_map_str_p_conv_op_t convs;
+    p_map_str_p_conv_node_t nodes;
+
+    conv_pipe_t( void ) : convs( new map_str_p_conv_op_t ), nodes( new map_str_p_conv_node_t ) { }
+
+    p_conv_node_t get_or_make_node( std::string const & name );
+    p_conv_node_t must_get_node( std::string const & name ) const;
+    p_conv_op_t get_op( string const & name ) const;
+    p_conv_node_t get_single_bot_node( void ) const;
+    p_conv_node_t get_single_top_node( void ) const;
+    p_conv_op_t maybe_get_single_writer( p_conv_node_t const & node ) const;
+    p_conv_op_t maybe_get_single_reader( p_conv_node_t const & node ) const;
+    p_conv_op_t maybe_get_single_parent( p_conv_op_t const & cop ) const;
+
+    void add_conv( p_conv_op_t const & conv );
+    void zero_conv_ios( vect_conv_io_t & conv_ios );
+    void calc_support_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding );
+    void calc_support_info( bool const ignore_padding );
+
+    void clear_seen( void );
+    void clear_sizes( void );
+    void calc_sizes_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding );
+    void calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding );
+    void calc_sizes_back_rec( p_conv_node_t const & node_out, bool const ignore_padding );
+    void calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );
+
+    void dump_pipe( std::ostream & out ) const;
+    void dump_ios( std::ostream & out ) const;
+    void dump_ops( std::ostream & out ) const;
+  };
+
 
   typedef vector< conv_pipe_t > vect_conv_pipe_t; 
   typedef shared_ptr< conv_pipe_t > p_conv_pipe_t; 

@@ -15,12 +15,12 @@ namespace boda {
   uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
 
   template< typename T >
-  shared_ptr< nda_T< T > > copy_clip( shared_ptr< nda_T< T > > const & in, dims_t const & b, dims_t const & e ) {
-    shared_ptr< nda_T< T > > ret( new nda_T< T > );
+  shared_ptr< nda_T< T > > copy_clip( shared_ptr< nda_T< T > > const & in, dims_t const & b, dims_t const & e ) { 
+    assert_st( b.fits_in( in->dims ) );
+    assert_st( e.fits_in( in->dims ) );
     dims_t ret_dims = e - b;
-    ret->set_dims( ret_dims );
+    shared_ptr< nda_T< T > > ret( new nda_T< T >( ret_dims ) );
     dims_iter_t rdi( ret_dims );
-    //printf( "dims=%s in->dims=%s\n", str(dims).c_str(), str(in->dims).c_str() );
     for( dims_iter_t di( b, e ) ; ; ) { 
       ret->at(rdi.di) = in->at(di.di); 
       if( !di.next() ) { break; } 
@@ -59,7 +59,7 @@ namespace boda {
 
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
-      rc->conv_pipe->dump_ios( *out, rc->conv_ios );
+      rc->conv_pipe->dump_ios( *out );
     }
 
     p_ostream out;
@@ -95,7 +95,7 @@ namespace boda {
 
 	// figure out what part of output (if any) doesn't depend on padding
 	i32_box_t feat_box;
-	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, run_cnet->get_ol_csi(0) );
+	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, run_cnet->get_out_csi(0) );
 
 	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
 	  u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
@@ -114,7 +114,7 @@ namespace boda {
       u32_box_t in_box{ nc, nc + run_cnet->in_sz };
 
       i32_box_t feat_box_dense;
-      in_box_to_out_box( feat_box_dense, in_box, cm_valid, run_cnet_dense->get_ol_csi(0) );
+      in_box_to_out_box( feat_box_dense, in_box, cm_valid, run_cnet_dense->get_out_csi(0) );
 
       if( feat_box_dense.sz() != feat_box.sz() ) { return; }
       
@@ -206,10 +206,10 @@ namespace boda {
       // bear in mind that nets which use padding may complicate this comparison
       u32_box_t in_box{ {}, samp_sz };
       i32_box_t feat_box_upsamp;
-      in_box_to_out_box( feat_box_upsamp, in_box, cm_valid, run_cnet->get_ol_csi(1) );
+      in_box_to_out_box( feat_box_upsamp, in_box, cm_valid, run_cnet->get_out_csi(1) );
 
       i32_box_t feat_box;
-      in_box_to_out_box( feat_box, u32_box_t{{},run_cnet->in_sz}, cm_valid, run_cnet->get_ol_csi(0) );
+      in_box_to_out_box( feat_box, u32_box_t{{},run_cnet->in_sz}, cm_valid, run_cnet->get_out_csi(0) );
       
       //printf( "feat_box=%s feat_box_upsamp=%s\n", str(feat_box).c_str(), str(feat_box_upsamp).c_str() );
       assert_st( feat_box_upsamp.sz() == feat_box.sz() );

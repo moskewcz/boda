@@ -86,8 +86,7 @@ namespace boda {
     out_dims.dims(0) = 27 + 4 + 1;
     out_dims.dims(1) = max(blocks[1]-2, 0);
     out_dims.dims(2) = max(blocks[0]-2, 0);
-    p_nda_double_t mxfeat( new nda_double_t );
-    mxfeat->set_dims( out_dims );
+    p_nda_double_t mxfeat( new nda_double_t( out_dims ) );
     double *feat = &mxfeat->cm_at1(0);
 
     vector< int > out = {out_dims.dims(2), out_dims.dims(1), out_dims.dims(0)};

@@ -282,8 +282,9 @@ namespace boda
   // using less than the full # of dims uses a prefix (or suffix for the cm_ variants) of the dims
   struct dims_t {
     hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
-    //dims_t clone( void ) const { dims_t ret; ret.dss = dss.clone(); return ret; } // not a good idea?
-    
+    dims_t clone( void ) const { dims_t ret; ret.dss = dss.clone(); return ret; }
+    void copy_from( dims_t const & o ) { dss = o.dss.clone(); }
+
     bool operator == ( dims_t const & o ) const { return dss == o.dss; }
     bool fits_in( dims_t const & o ) const { 
       if( sz() != o.sz() ) { return 0; }
@@ -292,6 +293,9 @@ namespace boda
     }
     dims_t( void ) { }
     dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
+    dims_t( dims_t const & o ) { copy_from(o); }
+    void operator = ( dims_t const & o ) { copy_from(o); }
+
     void resize_and_zero( uint32_t const num_dims ) { 
       dss = hunk_uint32_t( num_dims*2 ); 
       for( uint32_t ix = 0; ix != num_dims; ++ix ) { dims(ix) = 0; strides(ix) = 0; }
@@ -394,10 +398,13 @@ namespace boda
   template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { bread( in, o.dss ); }
 
   template< typename T > struct nda_T {
+    nda_T( void ) { }
+    nda_T( dims_t const & dims_ ) { set_dims( dims_ ); }
     hunk_T< T > elems; 
     dims_t dims;
+  private:
     void set_dims( dims_t const & dims_ ) { 
-      dims = dims_; 
+      dims.copy_from( dims_ );
       uint32_t strides_sz = 0;
       if( !dims.strides(0) ) { strides_sz = dims.calc_strides(); } 
       else { strides_sz = (dims.dims(0) * dims.strides(0)); }
@@ -407,6 +414,7 @@ namespace boda
 	elems = hunk_T< T >( strides_sz );
       }
     }
+  public:
     uint64_t serial_sz( void ) const { return dims.serial_sz() + elems.serial_sz(); }
 
     T & cm_at1( uint32_t const d0i ) { 

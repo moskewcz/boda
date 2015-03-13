@@ -55,51 +55,74 @@ namespace boda
   template p_conv_op_t get_conv_op_from_param< caffe::PoolingParameter >( caffe::PoolingParameter const & cp );
 
   p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
-  p_conv_pipe_t make_p_conv_pipe_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
 #define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
 
   p_conv_pipe_t create_pipe_from_param( caffe::NetParameter & net_param, string const & out_layer_name ) { 
     // note: we only handle a (very) limited set of possible layers/networks here.
-    p_conv_pipe_t conv_pipe = make_p_conv_pipe_t_init_and_check_unused_from_lexp( parse_lexp("()"), 0 );
+    p_conv_pipe_t conv_pipe( new conv_pipe_t );
     //vect_string const & layer_names = net->layer_names();
-    uint32_t last_out_chans = 0;
     bool found_layer = out_layer_name.empty(); // if no layer name input, don't try to find a 'stopping/end' layer
     for( int32_t i = 0; i != net_param.layer_size(); ++i ) { 
       caffe::LayerParameter const & lp = net_param.layer(i);
       assert_st( lp.has_name() );
+      assert_st( lp.has_type() );
       p_conv_op_t conv_op;
       if( 0 ) {
-      } else if( lp.has_convolution_param() ) {
+      } else if( lp.type() == "Convolution" ) {
+	assert_st( lp.has_convolution_param() );
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
 	conv_op = get_conv_op_from_param( cp );
-	conv_op->type = "conv";
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
 	conv_op->out_chans = cp.num_output();
-	last_out_chans = conv_op->out_chans;
-      } else if( lp.has_pooling_param() ) {
+      } else if( (lp.type() == "ReLU") || (lp.type() == "Dropout") ) {
+	// in-place layers to mostly-ignore
+	conv_op.reset( new conv_op_t );
+	conv_op->stride = {1,1}; // sensible, but currently unused
+	conv_op->out_chans = 0; // no effect on chans
+      } else if( lp.type() == "LRN" ) {
+	//assert_st( lp.has_lrn_param() );
+	//caffe::LRNParameter const & p = lp.lrn_param();	
+	conv_op.reset( new conv_op_t );
+	conv_op->stride = {1,1};
+	conv_op->out_chans = 0; // no effect on chans
+      } else if( lp.type() == "Pooling" ) {
+	assert_st( lp.has_pooling_param() );
 	caffe::PoolingParameter const & pp = lp.pooling_param();
 	conv_op = get_conv_op_from_param( pp );
-	conv_op->type = "pool";
+	conv_op->out_chans = 0; // no effect on chans
 	// global pooling iff kernel size is all zeros (we use as a special value)
 	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
-	conv_op->out_chans = last_out_chans; // assume unchanged from last conv layer 
-      } else if( lp.has_inner_product_param() ) {
+      } else if( lp.type() == "InnerProduct" ) {
+	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
 	conv_op.reset( new conv_op_t );
-	conv_op->type = "ip";
+	conv_op->stride = {1,1};
 	conv_op->out_chans = ipp.num_output();
+      } else if( (lp.type() == "Data") || (lp.type() == "SoftmaxWithLoss") || (lp.type() == "Accuracy") ) {
+	// for now, just silently ignore data, softmax, acc layers. we'd need to handle phase issues to deal with them anyway
+      } else if( lp.type() == "Concat" ) {
+	conv_op.reset( new conv_op_t );
+	conv_op->stride = {1,1};
+	conv_op->out_chans = 0; // no effect on chans
+      } else {
+	printf( "warning: ignoring layer with lp.type()=%s\n", str(lp.type()).c_str() );
       }
       if( conv_op ) { 
 	conv_op->tag = lp.name();
+	conv_op->type = lp.type();
 	RF_TO_VEC( conv_op->bots, lp.bottom );
 	RF_TO_VEC( conv_op->tops, lp.top );
-	conv_pipe->convs->push_back( *conv_op );
+	// FIXME: handle ReLU / Dropout. for now, just check that they are one-in-one-out inplace
+	if( (conv_op->type == "ReLU") || (conv_op->type == "Dropout") ) { 
+	  assert_st( conv_op->bots.size() == 1 ); assert_st( conv_op->tops == conv_op->bots );
+	}
+	else { conv_pipe->add_conv( conv_op ); }
       }
       if( (!found_layer) && (out_layer_name == lp.name()) ) { found_layer = 1; break; }
     }
     if( !found_layer ) { rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); }
-    conv_pipe->calc_support_info();
+    conv_pipe->calc_support_info(1);
     return conv_pipe;
   }
 }

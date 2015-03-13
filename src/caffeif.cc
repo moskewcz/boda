@@ -169,8 +169,7 @@ namespace boda
       out_batch_dims.dims(2) = output_blob->height();
       out_batch_dims.dims(1) = output_blob->channels();
       out_batch_dims.dims(0) = output_blob->num();
-      p_nda_float_t out_batch( new nda_float_t );
-      out_batch->set_dims( out_batch_dims );
+      p_nda_float_t out_batch( new nda_float_t( out_batch_dims ) );
       assert_st( out_batch->elems.sz == uint32_t(output_blob->count()) );
       top.push_back( out_batch );
       
@@ -197,8 +196,7 @@ namespace boda
       blob_dims.dims(2) = layer_blob->height();
       blob_dims.dims(1) = layer_blob->channels();
       blob_dims.dims(0) = layer_blob->num();
-      p_nda_float_t blob( new nda_float_t );
-      blob->set_dims( blob_dims );
+      p_nda_float_t blob( new nda_float_t( blob_dims ) );
       assert_st( blob->elems.sz == uint32_t(layer_blob->count()) );
       blobs.push_back( blob );
       float * const dest = &blob->elems[0];
@@ -367,23 +365,30 @@ namespace boda
     setup_cnet_net_and_batch();
   }
 
-  conv_support_info_t const & run_cnet_t::get_ol_csi( bool const & from_upsamp_net ) {
-    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); return conv_pipe_upsamp->conv_sis.back(); }
-    return conv_pipe->conv_sis.back();
+  conv_support_info_t const & run_cnet_t::get_out_csi( bool const & from_upsamp_net ) {
+    p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
+    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
+    assert_st( from_pipe );
+    return from_pipe->get_single_top_node()->csi;
+  }
+  conv_io_t const & run_cnet_t::get_out_cio( bool const & from_upsamp_net ) {
+    p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
+    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
+    assert_st( from_pipe );
+    return from_pipe->get_single_top_node()->cio;
   }
 
   void run_cnet_t::setup_cnet_param_and_pipe( void ) {
     assert( !net_param );
     create_net_param();
     conv_pipe = cache_pipe( *net_param );
-    out_s = u32_ceil_sqrt( conv_pipe->convs->back().out_chans );
+    out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
-      assert_st( out_s == u32_ceil_sqrt( conv_pipe_upsamp->convs->back().out_chans ) ); // FIXME: too strong?
+      assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
     }
-    // FIXME: only for non-upsamp net
-    conv_ios = conv_pipe->calc_sizes_forward( in_sz, 3, 0 ); 
-
+    conv_pipe->calc_sizes_forward( in_sz, 3, 0 ); 
+    if( enable_upsamp_net ) { conv_pipe_upsamp->calc_sizes_forward( in_sz, 3, 0 ); }
   }
   void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
     assert_st( net_param && conv_pipe );
@@ -437,10 +442,7 @@ namespace boda
     in_batch_dims.dims(2) = in_sz.d[1];
     in_batch_dims.dims(1) = in_num_chans; 
     in_batch_dims.dims(0) = in_num_imgs;
-    in_batch.reset( new nda_float_t );
-    in_batch->set_dims( in_batch_dims );
-
-
+    in_batch.reset( new nda_float_t( in_batch_dims ) );
   }
 
   void cnet_predict_t::main( nesi_init_arg_t * nia ) { 
@@ -459,9 +461,9 @@ namespace boda
     assert( pred_state.empty() );
     if( scale_infos.empty() ) { setup_scale_infos(); } // if not specified, assume whole image / single scale 
 
-    uint32_t const out_chans = conv_pipe->convs->back().out_chans;
+    uint32_t const out_chans = get_out_cio(0).chans;
 
-    if( get_ol_csi(0).support_sz.is_zeros() ) { // only sensible in single-scale case 
+    if( get_out_csi(0).support_sz.is_zeros() ) { // only sensible in single-scale case 
       assert_st( scale_infos.size() == 1 );
       assert_st( scale_infos.back().img_sz == nominal_in_sz );
       assert_st( scale_infos.back().place.is_zeros() );
@@ -482,7 +484,7 @@ namespace boda
 	    u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
 	    i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
 	    unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
-					   get_ol_csi(i->from_upsamp_net), i->img_sz );
+					   get_out_csi(i->from_upsamp_net), i->img_sz );
 	    valid_in_xy -= u32_to_i32(i->place); // shift so image nc is at 0,0
 	    valid_in_xy = valid_in_xy * u32_to_i32(nominal_in_sz) / u32_to_i32(i->img_sz); // scale for scale
 	    ps.img_box = valid_in_xy;
@@ -496,7 +498,7 @@ namespace boda
 
   // single scale case
   void cnet_predict_t::setup_scale_infos( void ) {
-    u32_pt_t const & feat_sz = conv_ios->back().sz;
+    u32_pt_t const & feat_sz = get_out_cio(0).sz;
     i32_box_t const valid_feat_box{{},u32_to_i32(feat_sz)};
     assert_st( valid_feat_box.is_strictly_normalized() );
     i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
@@ -510,7 +512,7 @@ namespace boda
 					  u32_pt_t const & nominal_in_sz_ ) {
     nominal_in_sz = nominal_in_sz_;
     conv_pipe->dump_pipe( std::cout );
-    if( get_ol_csi(0).support_sz.is_zeros() ) {
+    if( get_out_csi(0).support_sz.is_zeros() ) {
       rt_err( "global pooling and/or\n inner product layers + trying to "
 	      "compute dense features = madness!" );
     } 
@@ -529,10 +531,10 @@ namespace boda
 
       u32_box_t per_scale_img_box{dest,dest+sz};
       // assume we've ensured that there is eff_tot_pad around the scale_img
-      per_scale_img_box.p[0] -= get_ol_csi(0).eff_tot_pad.p[0];
-      per_scale_img_box.p[1] += get_ol_csi(0).eff_tot_pad.p[1];
+      per_scale_img_box.p[0] -= get_out_csi(0).eff_tot_pad.p[0];
+      per_scale_img_box.p[1] += get_out_csi(0).eff_tot_pad.p[1];
       i32_box_t valid_feat_box;
-      in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_ol_csi(0) );
+      in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_out_csi(0) );
       assert_st( valid_feat_box.is_strictly_normalized() );      
       i32_box_t valid_feat_img_box = valid_feat_box.scale(out_s);
       scale_infos.push_back( scale_info_t{sz,0,bix,dest,valid_feat_box,valid_feat_img_box} ); // note: from_upsamp_net=0
@@ -543,10 +545,10 @@ namespace boda
       if( enable_upsamp_net && (six < interval) ) { 
 	per_scale_img_box = u32_box_t{dest,dest+sz};
 	// assume we've ensured that there is eff_tot_pad around the scale_img
-	per_scale_img_box.p[0] -= get_ol_csi(1).eff_tot_pad.p[0];
-	per_scale_img_box.p[1] += get_ol_csi(1).eff_tot_pad.p[1];
+	per_scale_img_box.p[0] -= get_out_csi(1).eff_tot_pad.p[0];
+	per_scale_img_box.p[1] += get_out_csi(1).eff_tot_pad.p[1];
 
-	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_ol_csi(1) );
+	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_out_csi(1) );
 	assert_st( valid_feat_box.is_strictly_normalized() );
 	valid_feat_img_box = valid_feat_box.scale(out_s); // FIXME: sort-of-not-right (wrong net out_s)
 	scale_infos[six] = scale_info_t{sz,1,bix,dest,valid_feat_box,valid_feat_img_box}; // note: from_upsamp_net=1
@@ -826,17 +828,15 @@ namespace boda
       p_conv_pipe_t conv_pipe = create_pipe_from_param( *net_param, "" );
 
       //(*out) << convs << "\n";
-      conv_pipe->calc_support_info();
       conv_pipe->dump_pipe( *out ); 
-      p_vect_conv_io_t conv_ios;
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	conv_ios = conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
-	conv_pipe->dump_ios( *out, conv_ios ); 
+	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
+	conv_pipe->dump_ios( *out ); 
       }
       if( print_ops ) {
-	if( !conv_ios ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
-	conv_pipe->dump_ops( *out, conv_ios );
+	//if( !conv_ios ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
+	conv_pipe->dump_ops( *out );
       }
     }
   };

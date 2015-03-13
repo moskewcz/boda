@@ -82,8 +82,8 @@ namespace boda
     // created/cached using cache_pipe().
     p_conv_pipe_t conv_pipe;
     p_conv_pipe_t conv_pipe_upsamp;
-    conv_support_info_t const & get_ol_csi( bool const & from_upsamp_net );
-    p_vect_conv_io_t conv_ios;
+    conv_support_info_t const & get_out_csi( bool const & from_upsamp_net );
+    conv_io_t const & get_out_cio( bool const & from_upsamp_net );
     uint32_t out_s;
     run_cnet_t( void ) : out_s(0) { }
   private:

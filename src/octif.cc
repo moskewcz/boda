@@ -33,8 +33,7 @@ namespace boda
     assert( pad_p.size() == in->dims.sz() );
     dims_t ret_dims( in->dims.sz() );
     for( uint32_t i = 0; i < ret_dims.sz(); ++i ) { ret_dims.dims(i) = in->dims.dims(i) + pad_n[i] + pad_p[i]; }
-    p_nda_double_t ret( new nda_double_t );    
-    ret->set_dims( ret_dims );
+    p_nda_double_t ret( new nda_double_t( ret_dims ) );    
     for( uint32_t i = 0; i < ret->elems.sz; ++i ) { ret->elems[i] = v; } //  init
     for( dims_iter_t di( in->dims ) ; ; ) { ret->at(di.di,pad_n) = in->at(di.di);  if( !di.next() ) { break; } }
     return ret;
@@ -302,8 +301,7 @@ namespace boda
     dims.dims(0) = 3;
     dims.dims(1) = img->sz.d[0];
     dims.dims(2) = img->sz.d[1];
-    p_nda_double_t ret( new nda_double_t );
-    ret->set_dims( dims );
+    p_nda_double_t ret( new nda_double_t( dims ) );
     for( uint32_t y = 0; y < img->sz.d[1]; ++y ) {
       for( uint32_t x = 0; x < img->sz.d[0]; ++x ) {
 	for( uint32_t c = 0; c < 3; ++c ) {
@@ -319,8 +317,7 @@ namespace boda
     dim_vector const & dv = nda.dims();
     dims_t dims( dv.length() ); // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
     for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims(i) = dv.elem(dv.length()-1-i); }
-    p_nda_double_t ret( new nda_double_t );
-    ret->set_dims( dims );
+    p_nda_double_t ret( new nda_double_t( dims ) );
     assert_st( ret->elems.sz == (uint32_t)nda.numel() );
     double const * oct_data = nda.fortran_vec();
     double * data = &ret->elems[0]; // our data layout is now an exact match to the octave one ...
@@ -348,11 +345,10 @@ namespace boda
   
   void write_scales_and_feats( p_ostream out, p_nda_double_t & scales, vect_p_nda_double_t & feats ) {
 #if 0
-    scales.reset( new nda_double_t );
     dims_t dims( 2 );
     dims.dims(1) = 20;
     dims.dims(0) = 1;
-    scales->set_dims( dims );
+    scales.reset( new nda_double_t( dims ) );
     for( uint32_t i = 0; i < scales->elems.sz; ++i ) { scales->elems[i]  = 1.1; }
 #endif
     bwrite( *out, boda_magic );
@@ -418,8 +414,7 @@ namespace boda
   }
 
   p_nda_double_t clone_from_corner( dims_t const & dims, p_nda_double_t in ) {
-    p_nda_double_t ret( new nda_double_t );
-    ret->set_dims( dims );
+    p_nda_double_t ret( new nda_double_t( dims ) );
     //printf( "dims=%s in->dims=%s\n", str(dims).c_str(), str(in->dims).c_str() );
     for( dims_iter_t di( dims ) ; ; ) { ret->at(di.di) = in->at(di.di);  if( !di.next() ) { break; } }
     return ret;
@@ -497,8 +492,7 @@ namespace boda
     dims_t scales_dims( 2 );
     scales_dims.dims(0) = 1;
     scales_dims.dims(1) = scales.size();
-    p_nda_double_t scales_out( new nda_double_t );
-    scales_out->set_dims( scales_dims );
+    p_nda_double_t scales_out( new nda_double_t( scales_dims ) );
     for( uint32_t i = 0; i < scales.size(); ++i ) { scales_out->cm_at1(i) = scales[i]; }
     return scales_out;
   }

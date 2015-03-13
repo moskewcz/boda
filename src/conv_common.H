@@ -9,6 +9,7 @@ namespace boda
     u32_pt_t support_sz;
     u32_pt_t support_stride;
     u32_box_t eff_tot_pad;
+    bool valid( void ) const { return support_stride != u32_pt_t{}; }
   };
 
   typedef vector< conv_support_info_t > vect_conv_support_info_t; 
@@ -20,6 +21,8 @@ namespace boda
     u32_pt_t sz;
     u32_pt_t used_sz;
     uint32_t chans;
+    conv_io_t( void ) : chans( uint32_t_const_max ) {}
+    bool valid( void ) const { return chans != uint32_t_const_max; }
   };
   
   typedef vector< conv_io_t > vect_conv_io_t; 
