@@ -5,6 +5,7 @@
 #include"conv_util.H"
 #include"lexp.H"
 #include"nesi.H"
+#include"caffepb.H"
 #include"caffe/proto/caffe.pb.h"
 //#include<google/protobuf/text_format.h> // unused, would make sense to include here
 
@@ -69,39 +70,39 @@ namespace boda
       assert_st( lp.has_type() );
       p_conv_op_t conv_op;
       if( 0 ) {
-      } else if( lp.type() == "Convolution" ) {
+      } else if( lp.type() == Convolution_str ) {
 	assert_st( lp.has_convolution_param() );
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
 	conv_op = get_conv_op_from_param( cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
 	conv_op->out_chans = cp.num_output();
-      } else if( (lp.type() == "ReLU") || (lp.type() == "Dropout") ) {
+      } else if( (lp.type() == ReLU_str) || (lp.type() == Dropout_str) ) {
 	// in-place layers to mostly-ignore
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1}; // sensible, but currently unused
 	conv_op->out_chans = 0; // no effect on chans
-      } else if( lp.type() == "LRN" ) {
+      } else if( lp.type() == LRN_str ) {
 	//assert_st( lp.has_lrn_param() );
 	//caffe::LRNParameter const & p = lp.lrn_param();	
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
-      } else if( lp.type() == "Pooling" ) {
+      } else if( lp.type() == Pooling_str ) {
 	assert_st( lp.has_pooling_param() );
 	caffe::PoolingParameter const & pp = lp.pooling_param();
 	conv_op = get_conv_op_from_param( pp );
 	conv_op->out_chans = 0; // no effect on chans
 	// global pooling iff kernel size is all zeros (we use as a special value)
 	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
-      } else if( lp.type() == "InnerProduct" ) {
+      } else if( lp.type() == InnerProduct_str ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = ipp.num_output();
-      } else if( (lp.type() == "Data") || (lp.type() == "SoftmaxWithLoss") || (lp.type() == "Accuracy") ) {
+      } else if( (lp.type() == Data_str) || (lp.type() == SoftmaxWithLoss_str) || (lp.type() == Accuracy_str) ) {
 	// for now, just silently ignore data, softmax, acc layers. we'd need to handle phase issues to deal with them anyway
-      } else if( lp.type() == "Concat" ) {
+      } else if( lp.type() == Concat_str ) {
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans

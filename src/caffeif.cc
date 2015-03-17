@@ -892,14 +892,14 @@ namespace boda
       // find and rename all fc layers
       for( uint32_t i = 0; i != numl; ++i ) {
 	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
-	if( lp->type() != "InnerProduct" ) { continue; }
+	if( lp->type() != InnerProduct_str ) { continue; }
 	vect_p_nda_float_t blobs;
 	copy_layer_blobs( net, lp->name(), blobs );
 
 	caffe::InnerProductParameter * ipp = lp->mutable_inner_product_param();
 	converted_layer_names.push_back( lp->name() );
 	lp->set_name( lp->name() + "-conv" );
-	lp->set_type( "Convolution" );
+	lp->set_type( Convolution_str );
 
 	caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
 	assert_st( ipp->has_num_output() );
@@ -1075,7 +1075,7 @@ namespace boda
       // find and rename all fc layers
       for( uint32_t i = to_resize_ix + 1; i != numl; ++i ) {
 	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
-	if( lp->type() == "InnerProduct" ) {
+	if( lp->type() == InnerProduct_str ) {
 	  // FIXME: convert to conv layer. for now, just rename.
 	  printf("WARNING: renaming fc/InnerProduct %s layer to avoid size mismatch when loading weights. note that the renamed layer in the output model will *not* get any copied weights from the input model!\n",lp->name().c_str()); 
 	  lp->set_name( lp->name() + "-renamed-due-to-resize" );
@@ -1108,7 +1108,7 @@ namespace boda
       if( add_before_ix+1 > orig_num_layers ) {
 	rt_err( "unhandled: expecting at least 1 layer (a ReLU) after add_before_ln"); }
       caffe::LayerParameter const & post_relu_layer = net_param->layer( add_before_ix + 1 );
-      if( post_relu_layer.type() != "ReLU" ) {
+      if( post_relu_layer.type() != ReLU_str ) {
 	rt_err( "unhandled: layer prior to add_before_ln is not RELU"); }
 
       if( add_before_ix < 2 ) { rt_err( "unhandled: expecting at least 2 layers prior to add_before_ln"); }

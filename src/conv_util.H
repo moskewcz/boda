@@ -5,6 +5,19 @@
 
 namespace boda 
 {
+  // caffe-compatible layer type strings
+  // raw list: Pooling Convolution ReLU Dropout LRN Accuracy SoftmaxWithLoss Data Concat InnerProduct
+  std::string const Pooling_str = "Pooling";
+  std::string const Convolution_str = "Convolution";
+  std::string const ReLU_str = "ReLU";
+  std::string const Dropout_str = "Dropout";
+  std::string const LRN_str = "LRN";
+  std::string const Accuracy_str = "Accuracy";
+  std::string const SoftmaxWithLoss_str = "SoftmaxWithLoss";
+  std::string const Data_str = "Data";
+  std::string const Concat_str = "Concat";
+  std::string const InnerProduct_str = "InnerProduct";
+
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support

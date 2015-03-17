@@ -7,26 +7,27 @@
 #include"has_main.H"
 #include"io_util.H"
 #include"nesi.H"
+#include"caffepb.H"
 
 namespace boda 
 {
 
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
     if( kern_sz.is_zeros() ) { // handle non-conv cases
-      assert( type != "Convolution" ); 
-      if( (type == "Pooling") || (type == "InnerProduct") ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
+      assert( type != Convolution_str ); 
+      if( (type == Pooling_str) || (type == InnerProduct_str) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
     }
     u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum());
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
-    if( type == "Convolution" ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
-    else if( type == "Pooling" ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
+    if( type == Convolution_str ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
+    else if( type == Pooling_str ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
     else { rt_err("unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
     if( kern_sz.is_zeros() ) { // handle non-conv cases
-      assert( type != "Convolution" );
-      if( (type == "Pooling") || (type == "InnerProduct") ) { // inner product and global pooling special cases
+      assert( type != Convolution_str );
+      if( (type == Pooling_str) || (type == InnerProduct_str) ) { // inner product and global pooling special cases
 	if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
 	return u32_pt_t{0,0};  // special value means all input will be used ...
       } else { // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
