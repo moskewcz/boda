@@ -122,14 +122,6 @@ namespace boda
     }
     return get_op( node->top_for[0] );
   }
-  p_conv_op_t conv_pipe_t::maybe_get_single_reader( p_conv_node_t const & node ) const {
-    if( node->bot_for.empty() ) { return p_conv_op_t(); }
-    if( node->bot_for.size() != 1 ) { 
-      printstr( "WARNING: unhandled multiple readers for node: " + node->name + "\n" ); 
-      //rt_err( "unhandled multiple readers for node: " + node->name ); 
-    }
-    return get_op( node->bot_for[0] );
-  }
   // if the op has one input, return maybe_get_single_writer() for than
   // input. otherwise throw an error.
   p_conv_op_t conv_pipe_t::maybe_get_single_parent( p_conv_op_t const & cop ) const {

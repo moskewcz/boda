@@ -83,7 +83,6 @@ namespace boda
     p_conv_node_t get_single_bot_node( void ) const;
     p_conv_node_t get_single_top_node( void ) const;
     p_conv_op_t maybe_get_single_writer( p_conv_node_t const & node ) const;
-    p_conv_op_t maybe_get_single_reader( p_conv_node_t const & node ) const;
     p_conv_op_t maybe_get_single_parent( p_conv_op_t const & cop ) const;
 
     void add_conv( p_conv_op_t const & conv );
