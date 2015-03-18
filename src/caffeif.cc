@@ -815,6 +815,7 @@ namespace boda
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
     p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
+    p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
     uint32_t in_chans; //NESI(default=3,help="number of input chans (used only to properly print number of input chans)")
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
     uint32_t print_ops; //NESI(default=0,help="if non-zero, print ops. note: requires in_sz to be set.")
@@ -829,6 +830,12 @@ namespace boda
 
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
+      if( out_sz ) { 
+	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
+	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
+	conv_pipe->dump_ios( *out ); 
+	conv_pipe->clear_sizes();
+      }
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
 	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
@@ -838,6 +845,7 @@ namespace boda
 	//if( !conv_ios ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
 	conv_pipe->dump_ops( *out );
       }
+
     }
   };
 
