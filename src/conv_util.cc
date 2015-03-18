@@ -45,6 +45,18 @@ namespace boda
     return no_pad_in_sz - in_pad.bnds_sum();
   }
 
+  void conv_pipe_t::finalize( void ) {
+    assert_st( !finalized ); // could relax
+    assert_st( tops.empty() );
+    assert_st( bots.empty() );
+    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
+      p_conv_node_t const & in = i->second;
+      if( in->top_for.empty() ) { bots.push_back( in->name ); }
+      if( in->bot_for.empty() ) { tops.push_back( in->name ); }
+    }
+    finalized = 1;
+  }
+
   // this returns the single unique input node of the net or throws an error
   p_conv_node_t conv_pipe_t::get_single_bot_node( void ) const {
     p_conv_node_t ret;
@@ -90,6 +102,7 @@ namespace boda
     return i->second;
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
+    assert_st( !finalized );
     bool did_ins = convs->insert( make_pair( conv->tag, conv ) ).second;
     if( !did_ins ) { rt_err( strprintf( "duplicate conv op '%s' seen; can't process net", conv->tag.c_str() ) ); }
     for( vect_string::const_iterator i = conv->tops.begin(); i != conv->tops.end(); ++i ) {
@@ -171,7 +184,7 @@ namespace boda
     assert( !csi.valid() );
     csi.support_sz = u32_pt_t(1,1);
     csi.support_stride = u32_pt_t(1,1);
-    clear_seen();
+    topo_visit_setup();
     calc_support_forward_rec( node, ignore_padding ); // calculate support
   }
 
@@ -179,7 +192,7 @@ namespace boda
   void conv_pipe_t::clear_sizes( void ) {
     for( map_str_p_conv_node_t::iterator i = nodes->begin(); i != nodes->end(); ++i ) { i->second->cio = conv_io_t(); }
   }
-  void conv_pipe_t::clear_seen( void ) {
+  void conv_pipe_t::topo_visit_setup( void ) {
     for( map_str_p_conv_op_t::iterator i = convs->begin(); i != convs->end(); ++i ) { i->second->bots_seen = 0; }
   }
 
@@ -226,7 +239,7 @@ namespace boda
     assert( !cio.valid() );
     cio.sz = in_sz;
     cio.chans = in_chans;
-    clear_seen();
+    topo_visit_setup();
     calc_sizes_forward_rec( node, ignore_padding ); // calculate support
   }
 
@@ -262,22 +275,36 @@ namespace boda
     calc_sizes_back_rec( node, ignore_padding ); // calculate support
   }
 
-  void conv_pipe_t::dump_pipe( std::ostream & out ) const {
-    out << strprintf( "== BEGIN CONV PIPE ==\n" );
-    for( p_conv_node_t node = get_single_bot_node(); node; ) {
-      conv_support_info_t const & csi = node->csi;
-      out << strprintf( "support_sz=%s support_stride=%s eff_tot_pad=%s\n", 
-			str(csi.support_sz).c_str(), 
-			str(csi.support_stride).c_str(), str(csi.eff_tot_pad).c_str() );
-      p_conv_op_t cop = maybe_get_single_reader( node );
-      if( !cop ) { break; }
-      assert_st( cop->has_one_top() );
-      out << strprintf( "    ----  conv=%s \n", str(*cop).c_str() );
-      node = must_get_node( cop->tops[0] );
+
+  void conv_pipe_t::dump_pipe_rec( std::ostream & out, string const & node_name ) {
+    p_conv_node_t node = must_get_node( node_name );
+    if( node->bot_for.size() > 1 ) { 
+      out << strprintf("node used by multiple ops:" ); 
+      for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) { out << " " << *i; }
+      out << strprintf("\n");
     }
+    conv_support_info_t const & csi = node->csi;
+    out << strprintf( "support_sz=%s support_stride=%s eff_tot_pad=%s\n", 
+		      str(csi.support_sz).c_str(), 
+		      str(csi.support_stride).c_str(), str(csi.eff_tot_pad).c_str() );
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      out << strprintf( "    ----  conv=%s \n", str(*cop).c_str() );
+
+      assert_st( cop->has_one_top() );
+      dump_pipe_rec( out, cop->tops[0] );
+    }
+  }
+
+  void conv_pipe_t::dump_pipe( std::ostream & out ) {
+    assert_st( finalized );
+    out << strprintf( "== BEGIN CONV PIPE ==\n" );
+    topo_visit_setup();
+    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_pipe_rec( out, *i ); }
     out << strprintf( "== END CONV PIPE ==\n" );
   }
-  void conv_pipe_t::dump_ios( std::ostream & out ) const {
+  void conv_pipe_t::dump_ios( std::ostream & out ) {
     out << "CONV_IOS: ";
     for( p_conv_node_t node = get_single_bot_node(); node; ) {
       conv_io_t const & cio = node->cio;
@@ -326,7 +353,7 @@ namespace boda
 	    str(cop->in_pad).c_str(), str(cop->stride).c_str(),
 	    cop->tag.c_str() );
   }
-  void conv_pipe_t::dump_ops( std::ostream & out ) const {
+  void conv_pipe_t::dump_ops( std::ostream & out ) {
     for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
       print_blob_decl( i->first, i->second ); }
     for( map_str_p_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) { 
@@ -358,6 +385,7 @@ namespace boda
 	cop->tops.push_back( cur_node_name );
 	conv_pipe->add_conv( cop );
       }
+      conv_pipe->finalize();
 
       p_ofstream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";

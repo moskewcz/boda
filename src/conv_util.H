@@ -70,9 +70,13 @@ namespace boda
   struct conv_pipe_t {
     p_map_str_p_conv_op_t convs;
     p_map_str_p_conv_node_t nodes;
+    bool finalized;
+    // global top and bottom sets of nodes (sources and sinks of whole network)
+    vect_string tops;
+    vect_string bots;
 
-    conv_pipe_t( void ) : convs( new map_str_p_conv_op_t ), nodes( new map_str_p_conv_node_t ) { }
-
+    conv_pipe_t( void ) : convs( new map_str_p_conv_op_t ), nodes( new map_str_p_conv_node_t ), finalized(0) { }
+    void finalize( void ); // call when finished building network
     p_conv_node_t get_or_make_node( std::string const & name );
     p_conv_node_t must_get_node( std::string const & name ) const;
     p_conv_op_t get_op( string const & name ) const;
@@ -87,16 +91,18 @@ namespace boda
     void calc_support_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding );
     void calc_support_info( bool const ignore_padding );
 
-    void clear_seen( void );
+    void topo_visit_setup( void );
+
     void clear_sizes( void );
     void calc_sizes_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding );
     void calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding );
     void calc_sizes_back_rec( p_conv_node_t const & node_out, bool const ignore_padding );
     void calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );
 
-    void dump_pipe( std::ostream & out ) const;
-    void dump_ios( std::ostream & out ) const;
-    void dump_ops( std::ostream & out ) const;
+    void dump_pipe_rec( std::ostream & out, string const & node_name );
+    void dump_pipe( std::ostream & out );
+    void dump_ios( std::ostream & out );
+    void dump_ops( std::ostream & out );
   };
 
 

@@ -123,6 +123,7 @@ namespace boda
       if( (!found_layer) && (out_layer_name == lp.name()) ) { found_layer = 1; break; }
     }
     if( !found_layer ) { rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); }
+    conv_pipe->finalize();
     conv_pipe->calc_support_info(1);
     return conv_pipe;
   }
