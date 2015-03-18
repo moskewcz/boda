@@ -142,7 +142,6 @@ namespace boda
   }
 
   void conv_pipe_t::calc_support_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding ) {
-    conv_support_info_t const & csi_in = node_in->csi;
     // propogate support info forward from node to all ops that it feeds and thier outputs
     for( vect_string::const_iterator i = node_in->bot_for.begin(); i != node_in->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
@@ -151,19 +150,43 @@ namespace boda
       p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
       conv_support_info_t & csi_out = node_out->csi;
       if( csi_out.valid() ) { rt_err( "unhandled: node with multiple writers:"+node_out->name ); }
-      u32_pt_t const in_sz_1x1 = cop->out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
-      if( in_sz_1x1.is_zeros() || csi_in.support_sz.is_zeros() )  { // special values that means use all input
-	csi_out.support_sz = u32_pt_t{};
-      } else {
-	assert_st( in_sz_1x1.both_dims_non_zero() );
-	csi_out.support_sz = csi_in.support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*csi_in.support_stride;
+      // FIXME: move to own func
+      for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
+	conv_support_info_t const & csi_in = must_get_node(*j)->csi;
+	if( cop->type == Concat_str ) {
+	  if( (j == cop->bots.begin()) || (csi_in.support_stride.dims_max() > csi_out.support_stride.dims_max()) ) { // first input or bigger stride
+	    if( j != cop->bots.begin() ) { 
+	      printf( "WARNING: unhandled Concat layer '%s' with different strided inputs. "
+		      "Note: support will be max size over inputs with largest stride in any dim.\n", str(cop->bots).c_str() );
+	    }
+	    csi_out.support_stride = csi_in.support_stride;
+	    csi_out.support_sz = csi_in.support_sz;
+	  } else { 
+	    if( csi_in.support_stride == csi_out.support_stride ) { csi_out.support_sz.max_eq( csi_in.support_sz ); }
+	  }
+	  csi_out.eff_tot_pad.max_eq( csi_in.eff_tot_pad );
+	} else {
+	  if( j == cop->bots.begin() ) {
+	    u32_pt_t const in_sz_1x1 = cop->out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
+	    if( in_sz_1x1.is_zeros() || csi_in.support_sz.is_zeros() )  { // special values that means use all input
+	      csi_out.support_sz = u32_pt_t{};
+	    } else {
+	      assert_st( in_sz_1x1.both_dims_non_zero() );
+	      csi_out.support_sz = csi_in.support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*csi_in.support_stride;
+	    }
+	    assert_st( cop->stride.both_dims_non_zero() );
+	    csi_out.support_stride = csi_in.support_stride*cop->stride;
+	    csi_out.eff_tot_pad = csi_in.eff_tot_pad + cop->in_pad.scale_dims( csi_in.support_stride );
+	  } else { rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+	}
       }
-      assert_st( cop->stride.both_dims_non_zero() );
-      csi_out.support_stride = csi_in.support_stride*cop->stride;
+
+#if 0
       // traverse backward to root to calculate eff_tot_pad
       for( p_conv_op_t cop_back = cop; cop_back; cop_back = maybe_get_single_parent(cop_back) ) {
 	csi_out.eff_tot_pad = cop_back->in_pad + csi_out.eff_tot_pad.scale_dims( cop_back->stride );	
       }
+#endif
       calc_support_forward_rec( node_out, ignore_padding ); // depth-first recursive processing for any outputs
     }
   }
@@ -200,7 +223,7 @@ namespace boda
 
       // FIXME: move to own func
       uint32_t const & out_chans = cop->out_chans; 
-      if( (cop->bots.size() != 1) && (cop->type != "Concat") ) { 
+      if( (cop->bots.size() != 1) && (cop->type != Concat_str) ) { 
 	rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
 	conv_io_t & cio_in = must_get_node(*j)->cio; // note: non-const since cio_in.used_sz is updated
@@ -212,7 +235,7 @@ namespace boda
 	  // reset or propogate num_chans
 	  cio_out.chans = out_chans ? out_chans : cio_in.chans;
 	} else { // handle multiple inputs for concat layer (only!)
-	  assert( cop->type == "Concat" );
+	  assert( cop->type == Concat_str );
 	  assert( !out_chans );
 	  // x/y dims must agree across all inputs
 	  u32_pt_t const out_sz = cop->in_sz_to_out_sz( cio_in.sz, ignore_padding );
