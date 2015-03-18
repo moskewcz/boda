@@ -156,6 +156,8 @@ namespace boda
     std::string pascal_str( void ) const;
     T_box_t operator + ( T_box_t const & o ) const { return T_box_t( p[0] + o.p[0], p[1] + o.p[1] ); }
     T_box_t operator - ( T_box_t const & o ) const { return T_box_t( p[0] - o.p[0], p[1] - o.p[1] ); }
+    void max_eq( T_box_t const & o ) { p[0].max_eq(o.p[0]); p[1].max_eq(o.p[1]); }
+    void min_eq( T_box_t const & o ) { p[0].min_eq(o.p[0]); p[1].min_eq(o.p[1]); }
     void operator += ( T_box_t const & o ) { p[0] += o.p[0]; p[1] += o.p[1]; }
     void operator -= ( T_box_t const & o ) { p[0] -= o.p[0]; p[1] -= o.p[1]; }
     void operator += ( T const & o ) { p[0] += o; p[1] += o; }
