@@ -304,25 +304,38 @@ namespace boda
     for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_pipe_rec( out, *i ); }
     out << strprintf( "== END CONV PIPE ==\n" );
   }
-  void conv_pipe_t::dump_ios( std::ostream & out ) {
-    out << "CONV_IOS: ";
-    for( p_conv_node_t node = get_single_bot_node(); node; ) {
-      conv_io_t const & cio = node->cio;
-      out << strprintf( "sz=%s -> ", str(cio.sz).c_str() );
-      string size_err;
-      if( cio.sz != cio.used_sz ) { 
-	if( (cio.used_sz.d[0] > cio.sz.d[0]) || (cio.used_sz.d[1] > cio.sz.d[1]) ) { size_err += "IMPLICIT PAD; "; }
-	if( (cio.used_sz.d[0] < cio.sz.d[0]) || (cio.used_sz.d[1] < cio.sz.d[1]) ) { size_err += "DATA DISCARDED; "; }
-	out << strprintf( "[%sused_sz=%s] -> ", size_err.c_str(), str(cio.used_sz).c_str() );
-      }
-      p_conv_op_t cop = maybe_get_single_reader( node );
-      if( !cop ) { break; }
-      assert_st( cop->has_one_top() );
-      out << cop->tag << " -> ";
-      node = must_get_node( cop->tops[0] );
+
+  void conv_pipe_t::dump_ios_rec( std::ostream & out, string const & node_name ) {
+    p_conv_node_t node = must_get_node( node_name );
+    if( node->bot_for.size() > 1 ) { 
+      out << strprintf("(-->" ); 
+      for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) { out << " " << *i; }
+      out << strprintf(")");
     }
+    conv_io_t const & cio = node->cio;
+    out << strprintf( "sz=%s -> ", str(cio.sz).c_str() );
+    string size_err;
+    if( cio.sz != cio.used_sz ) { 
+      if( (cio.used_sz.d[0] > cio.sz.d[0]) || (cio.used_sz.d[1] > cio.sz.d[1]) ) { size_err += "IMPLICIT PAD; "; }
+      if( (cio.used_sz.d[0] < cio.sz.d[0]) || (cio.used_sz.d[1] < cio.sz.d[1]) ) { size_err += "DATA DISCARDED; "; }
+      out << strprintf( "[%sused_sz=%s] -> ", size_err.c_str(), str(cio.used_sz).c_str() );
+    }
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      out << cop->tag << " -> ";
+      assert_st( cop->has_one_top() );
+      dump_ios_rec( out, cop->tops[0] );
+    }
+  }
+  void conv_pipe_t::dump_ios( std::ostream & out ) {
+    assert_st( finalized );
+    out << "CONV_IOS: ";
+    topo_visit_setup();
+    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ios_rec( out, *i ); }
     out << "\n";
   }
+
   void print_blob_decl( string const & bn, p_conv_node_t const & node ) {
     string isss;
     if( node->top_for.empty() ) { isss += " SOURCE"; }
@@ -353,11 +366,23 @@ namespace boda
 	    str(cop->in_pad).c_str(), str(cop->stride).c_str(),
 	    cop->tag.c_str() );
   }
+
+  void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
+    p_conv_node_t node = must_get_node( node_name );
+    print_blob_decl( node_name, node );
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      print_op_decl( this, cop );
+      assert_st( cop->has_one_top() );
+      dump_ops_rec( out, cop->tops[0] );
+    }
+  }
+
   void conv_pipe_t::dump_ops( std::ostream & out ) {
-    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
-      print_blob_decl( i->first, i->second ); }
-    for( map_str_p_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) { 
-      print_op_decl( this, i->second ); }
+    assert_st( finalized );
+    topo_visit_setup();
+    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i ); }
   }
 
   struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["has_main_t"], type_id="conv_ana")
