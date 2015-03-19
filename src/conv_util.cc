@@ -355,6 +355,7 @@ namespace boda
     string isss;
     if( node->top_for.empty() ) { isss += " SOURCE"; }
     if( node->bot_for.empty() ) { isss += " SINK"; }
+    if( !node->in_place_ops.empty() ) { isss += " IN_PLACE_OPS(" + str(node->in_place_ops) + ")"; }
     conv_io_t & cio = node->cio;
     printf( "%s = NDA(num_img,%s,%s,%s) #%s num,chan,y,x\n", 
 	    bn.c_str(), str(cio.chans).c_str(), str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), isss.c_str() );

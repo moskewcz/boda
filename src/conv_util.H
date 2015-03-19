@@ -58,6 +58,7 @@ namespace boda
     vect_string top_for;
     conv_support_info_t csi;
     conv_io_t cio;
+    vect_string in_place_ops;
    conv_node_t( std::string const & name_ ) : name(name_) { }
   };
 

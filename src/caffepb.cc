@@ -117,6 +117,7 @@ namespace boda
 	// FIXME: handle ReLU / Dropout. for now, just check that they are one-in-one-out inplace
 	if( (conv_op->type == "ReLU") || (conv_op->type == "Dropout") ) { 
 	  assert_st( conv_op->bots.size() == 1 ); assert_st( conv_op->tops == conv_op->bots );
+	  conv_pipe->get_or_make_node(conv_op->bots[0])->in_place_ops.push_back( conv_op->type );
 	}
 	else { conv_pipe->add_conv( conv_op ); }
       }
