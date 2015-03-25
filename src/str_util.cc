@@ -31,6 +31,7 @@ namespace boda
     }
     return ret;
   }
+  string as_pylist( vect_string const & vs ) { return "[ " + join(vs,", ") + " ]"; }
 
   // size of return value is always 1 + (count of sep in s)
   vect_string split( std::string const & s, char const sep ) {
