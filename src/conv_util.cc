@@ -378,10 +378,10 @@ namespace boda
       extra_params = strprintf( ",%s_filts,%s_biases", tag, tag );
     }
 
-    printf( "%s(bots=%s,tops=%s%s,\n\tin_pad=%s,stride=%s) # %s\n", 
-	    cop->type.c_str(), str(cop->bots).c_str(), str(cop->tops).c_str(),
+    printf( "%s(bots=%s,tops=%s%s,\n\tin_pad=\"%s\",stride=\"%s\") # %s\n", 
+	    cop->type.c_str(), as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
 	    extra_params.c_str(),
-	    str(cop->in_pad).c_str(), str(cop->stride).c_str(),
+	    cop->in_pad.parts_str().c_str(), str(cop->stride).c_str(),
 	    cop->tag.c_str() );
   }
 
