@@ -358,24 +358,27 @@ namespace boda
     if( !node->in_place_ops.empty() ) { isss += " IN_PLACE_OPS(" + str(node->in_place_ops) + ")"; }
     conv_io_t & cio = node->cio;
     printf( "%s = NDA(num_img,%s,%s,%s) #%s num,chan,y,x\n", 
-	    bn.c_str(), str(cio.chans).c_str(), str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), isss.c_str() );
+	    as_pyid(bn).c_str(), str(cio.chans).c_str(), 
+	    str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), isss.c_str() );
   }
 
   void print_op_decl( conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     string extra_params;
+    string const tag_id_str = as_pyid( cop->tag );
+    char const * const tag_id = tag_id_str.c_str();
+
     if( cop->type == "Convolution" || cop->type == "InnerProduct" ) {
-      char const * const tag = cop->tag.c_str();
       assert_st( cop->bots.size() == 1 );
       conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
       u32_pt_t kern_sz = cop->kern_sz;
       if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
 
       printf( "%s_filts = NDA(%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
-	      tag, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
+	      tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
 	      str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
       printf( "%s_biases = NDA(%s,1,1,1) # SOURCE out_chan,1,1,1\n", 
-	      tag, str(cop->out_chans).c_str() );
-      extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag, tag );
+	      tag_id, str(cop->out_chans).c_str() );
+      extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag_id, tag_id );
     }
     // print decls for all of this ops output nodes here
     for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
@@ -386,7 +389,7 @@ namespace boda
 	    cop->type.c_str(), as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
 	    extra_params.c_str(),
 	    cop->in_pad.parts_str().c_str(), str(cop->stride).c_str(),
-	    cop->tag.c_str() );
+	    tag_id );
   }
 
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
