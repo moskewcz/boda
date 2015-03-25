@@ -375,9 +375,13 @@ namespace boda
 	      str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
       printf( "%s_biases = NDA(%s,1,1,1) # SOURCE out_chan,1,1,1\n", 
 	      tag, str(cop->out_chans).c_str() );
-      extra_params = strprintf( ",%s_filts,%s_biases", tag, tag );
+      extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag, tag );
     }
-
+    // print decls for all of this ops output nodes here
+    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
+      print_blob_decl( *i, pipe->must_get_node(*i) ); 
+    }
+    // print acutal op
     printf( "%s(bots=%s,tops=%s%s,\n\tin_pad=\"%s\",stride=\"%s\") # %s\n", 
 	    cop->type.c_str(), as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
 	    extra_params.c_str(),
@@ -387,7 +391,9 @@ namespace boda
 
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
-    print_blob_decl( node_name, node );
+    // print source nodes here, otherwise print with thier writing op
+    if( node->top_for.empty() ) { print_blob_decl( node_name, node ); }
+    else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
