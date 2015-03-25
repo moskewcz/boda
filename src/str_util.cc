@@ -31,7 +31,22 @@ namespace boda
     }
     return ret;
   }
-  string as_pylist( vect_string const & vs ) { return "[ " + join(vs,", ") + " ]"; }
+
+  string as_pyid( string const & s ) {
+    string ret;
+    for (string::const_iterator i = s.begin(); i != s.end(); ++i) {
+      switch (*i) {
+      case '-': ret += "_"; break;
+      default: ret.push_back( *i );
+      }
+    }
+    return ret;
+  }
+  string as_pylist( vect_string const & vs ) { 
+    vect_string vs_id;
+    for( vect_string::const_iterator i = vs.begin(); i != vs.end(); ++i ) { vs_id.push_back( as_pyid(*i) ); }
+    return "[ " + join(vs_id,", ") + " ]"; 
+  }
 
   // size of return value is always 1 + (count of sep in s)
   vect_string split( std::string const & s, char const sep ) {

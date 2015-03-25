@@ -60,6 +60,7 @@ namespace boda
 
   std::string join( vect_string const & vs, std::string const & sep );
   std::string as_pylist( vect_string const & vs );
+  std::string as_pyid( string const & s );
   vect_string split( std::string const & s, char const sep );
 
   inline void strip_prefixes( std::string & s, std::string const & prefix )
