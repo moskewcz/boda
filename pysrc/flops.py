@@ -23,6 +23,7 @@ class NDA( object ):
         self.x = x
     def dims_prod( self ): return self.num*self.chan*self.y*self.x
 
+tot_forward_flops = 0
 class Convolution( object ): 
     def __init__( self, name, bots, tops, filts, biases, in_pad, stride ): 
         # note: ignores in_pad and stride, but they sort-of aren't
@@ -48,12 +49,21 @@ class Convolution( object ):
 
         print name," FORWARD",pp_flops(forward_flops)," --- BACK_GRAD",pp_flops(back_grad_flops),
         print " --- BACK_DIFF",pp_flops(back_diff_flops)
+        global tot_forward_flops
+        tot_forward_flops += forward_flops
+
+InnerProduct=Convolution
 
 class Pooling( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
 class LRN( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
+class Concat( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
 
 # set num_img and source cnet decl
-num_img = 1 
+import sys
+num_img = int(sys.argv[1])
 execfile( "out.py" )
+
+print "\nTOTAL_FORWARD",pp_flops(tot_forward_flops)
