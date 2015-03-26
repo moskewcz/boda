@@ -23,7 +23,18 @@ class NDA( object ):
         self.x = x
     def dims_prod( self ): return self.num*self.chan*self.y*self.x
 
-tot_forward_flops = 0
+class Net( object ):
+    def __init__( self ):
+        self.tot_forward_flops = 0
+        self.tot_backward_flops = 0
+    def print_stats( self ):
+        print ""
+        print "TOTAL_FORWARD",pp_flops(self.tot_forward_flops)
+        print "TOTAL_BACKWARD",pp_flops(self.tot_backward_flops)
+        print "TOTAL_FOREWARD + TOTAL_BACKWARD",pp_flops(self.tot_forward_flops + self.tot_backward_flops)
+    
+net = Net()
+
 class Convolution( object ): 
     def __init__( self, name, bots, tops, filts, biases, in_pad, stride ): 
         # note: ignores in_pad and stride, but they sort-of aren't
@@ -49,10 +60,14 @@ class Convolution( object ):
 
         print name," FORWARD",pp_flops(forward_flops)," --- BACK_GRAD",pp_flops(back_grad_flops),
         print " --- BACK_DIFF",pp_flops(back_diff_flops)
-        global tot_forward_flops
-        tot_forward_flops += forward_flops
+        global net
+        net.tot_forward_flops += forward_flops
+        net.tot_backward_flops += back_diff_flops + back_grad_flops
 
-InnerProduct=Convolution
+# FIXME: in boda output, the ops/nodes of IP layers are printed out as if it
+# they were conv layers ... not ideal, since NDAs don't match caffe iface
+# for innerproduct. hmm.
+InnerProduct=Convolution 
 
 class Pooling( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
@@ -66,4 +81,4 @@ import sys
 num_img = int(sys.argv[1])
 execfile( "out.py" )
 
-print "\nTOTAL_FORWARD",pp_flops(tot_forward_flops)
+net.print_stats()
