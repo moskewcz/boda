@@ -1,13 +1,23 @@
 // Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
+#include"has_main.H"
 #include"timers.H"
 #include"str_util.H"
 #include"conv_util.H"
 #include"lexp.H"
 #include"nesi.H"
 #include"caffepb.H"
-#include"caffe/proto/caffe.pb.h"
-//#include<google/protobuf/text_format.h> // unused, would make sense to include here
+#include<google/protobuf/text_format.h> 
+// our local copy of caffe.proto, which better be identical to the caffe version if we're compiling with caffe support.
+#include"gen/caffe.pb.h" 
+
+// we get this function from our hacked-up version of
+// upgrade_proto.cpp, so we can upgrade NetParameters from V1->V2 the
+// code for V0->V1 is still in there and could be made to work with a
+// bit of effort to rewrite the error handling a bit. note that in
+// general we're a little stricter and less verbose than the original
+// code.
+namespace boda_caffe { bool UpgradeNetAsNeeded(const std::string& param_file, caffe::NetParameter* param); }
 
 namespace boda 
 {
@@ -128,4 +138,57 @@ namespace boda
     conv_pipe->calc_support_info(1);
     return conv_pipe;
   }
+
+  p_net_param_t parse_and_upgrade_net_param_from_text_file( filename_t const & ptt_fn ) {
+    p_string ptt_str = read_whole_fn( ptt_fn );
+    p_net_param_t net_param( new caffe::NetParameter );
+    bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, net_param.get() );
+    assert_st( ret );
+    boda_caffe::UpgradeNetAsNeeded( ptt_fn.exp, net_param.get() );
+    return net_param;
+  }
+
+
+  struct cnet_ana_t : virtual public nesi, public has_main_t // NESI(help="show info from caffe prototxt net. ",bases=["has_main_t"], type_id="cnet_ana")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
+    p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
+    p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
+    uint32_t in_chans; //NESI(default=3,help="number of input chans (used only to properly print number of input chans)")
+    uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
+    uint32_t print_ops; //NESI(default=0,help="if non-zero, write ops to file with fn given by print_opts_fn. note: requires in_sz to be set.")
+    filename_t print_ops_fn; //NESI(default="%(boda_output_dir)/out.py",help="print_opts output filename")
+
+    p_net_param_t net_param;
+    
+    virtual void main( nesi_init_arg_t * nia ) { 
+      p_ofstream out = ofs_open( out_fn.exp );
+
+      net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
+      p_conv_pipe_t conv_pipe = create_pipe_from_param( *net_param, "" );
+
+      //(*out) << convs << "\n";
+      conv_pipe->dump_pipe( *out ); 
+      if( out_sz ) { 
+	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
+	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
+	conv_pipe->dump_ios( *out ); 
+	conv_pipe->clear_sizes();
+      }
+      if( in_sz ) { 
+	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
+	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
+	conv_pipe->dump_ios( *out ); 
+      }
+      if( print_ops ) {
+	if( !in_sz ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
+	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ) );
+      }
+
+    }
+  };
+#include"gen/caffepb.cc.nesi_gen.cc"
+
 }

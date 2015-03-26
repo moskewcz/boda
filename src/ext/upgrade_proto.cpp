@@ -6,7 +6,7 @@
 using boda::rt_err;
 using boda::strprintf;
 using boda::str;
-#include "caffe.pb.h"
+#include "../gen/caffe.pb.h"
 #include <map>
 #include <string>
 

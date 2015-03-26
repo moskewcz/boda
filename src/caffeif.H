@@ -5,18 +5,14 @@
 #include"boda_base.H"
 #include"has_main.H"
 #include"geom_prim.H"
+#include"caffepb.H"
 
-namespace caffe
-{
-  template< typename T > struct Net;
-  struct NetParameter;
-}
+namespace caffe { template< typename T > struct Net; }
 
 namespace boda 
 {
   typedef caffe::Net< float > Net_float;
   typedef shared_ptr< Net_float > p_Net_float;
-  typedef shared_ptr< caffe::NetParameter > p_net_param_t;
 
   p_Net_float init_caffe( caffe::NetParameter & net_param, string const & trained_fn );
   void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom );
