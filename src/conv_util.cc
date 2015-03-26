@@ -385,11 +385,9 @@ namespace boda
       print_blob_decl( *i, pipe->must_get_node(*i) ); 
     }
     // print acutal op
-    printf( "%s(bots=%s,tops=%s%s,\n\tin_pad=\"%s\",stride=\"%s\") # %s\n", 
-	    cop->type.c_str(), as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
-	    extra_params.c_str(),
-	    cop->in_pad.parts_str().c_str(), str(cop->stride).c_str(),
-	    tag_id );
+    printf( "%s(name=\"%s\",bots=%s,tops=%s%s,\n\tin_pad=\"%s\",stride=\"%s\")\n", 
+	    cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
+	    extra_params.c_str(), cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
   }
 
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
