@@ -818,7 +818,8 @@ namespace boda
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
     uint32_t in_chans; //NESI(default=3,help="number of input chans (used only to properly print number of input chans)")
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
-    uint32_t print_ops; //NESI(default=0,help="if non-zero, print ops. note: requires in_sz to be set.")
+    uint32_t print_ops; //NESI(default=0,help="if non-zero, write ops to file with fn given by print_opts_fn. note: requires in_sz to be set.")
+    filename_t print_ops_fn; //NESI(default="%(boda_output_dir)/out.py",help="print_opts output filename")
 
     p_net_param_t net_param;
     
@@ -842,8 +843,8 @@ namespace boda
 	conv_pipe->dump_ios( *out ); 
       }
       if( print_ops ) {
-	//if( !conv_ios ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
-	conv_pipe->dump_ops( *out );
+	if( !in_sz ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
+	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ) );
       }
 
     }

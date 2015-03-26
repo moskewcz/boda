@@ -351,18 +351,18 @@ namespace boda
     out << "\n";
   }
 
-  void print_blob_decl( string const & bn, p_conv_node_t const & node ) {
+  void print_blob_decl( std::ostream & out, string const & bn, p_conv_node_t const & node ) {
     string isss;
     if( node->top_for.empty() ) { isss += " SOURCE"; }
     if( node->bot_for.empty() ) { isss += " SINK"; }
     if( !node->in_place_ops.empty() ) { isss += " IN_PLACE_OPS(" + str(node->in_place_ops) + ")"; }
     conv_io_t & cio = node->cio;
-    printf( "%s = NDA(num_img,%s,%s,%s) #%s num,chan,y,x\n", 
-	    as_pyid(bn).c_str(), str(cio.chans).c_str(), 
-	    str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), isss.c_str() );
+    out << strprintf( "%s = NDA(num_img,%s,%s,%s) #%s num,chan,y,x\n", 
+		      as_pyid(bn).c_str(), str(cio.chans).c_str(), 
+		      str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), isss.c_str() );
   }
 
-  void print_op_decl( conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
+  void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     string extra_params;
     string const tag_id_str = as_pyid( cop->tag );
     char const * const tag_id = tag_id_str.c_str();
@@ -373,32 +373,32 @@ namespace boda
       u32_pt_t kern_sz = cop->kern_sz;
       if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
 
-      printf( "%s_filts = NDA(%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
-	      tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
-	      str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
-      printf( "%s_biases = NDA(%s,1,1,1) # SOURCE out_chan,1,1,1\n", 
-	      tag_id, str(cop->out_chans).c_str() );
+      out << strprintf( "%s_filts = NDA(%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
+			tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
+			str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
+      out << strprintf( "%s_biases = NDA(%s,1,1,1) # SOURCE out_chan,1,1,1\n", 
+			tag_id, str(cop->out_chans).c_str() );
       extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag_id, tag_id );
     }
     // print decls for all of this ops output nodes here
     for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
-      print_blob_decl( *i, pipe->must_get_node(*i) ); 
+      print_blob_decl( out, *i, pipe->must_get_node(*i) ); 
     }
     // print acutal op
-    printf( "%s(name=\"%s\",bots=%s,tops=%s%s,\n\tin_pad=\"%s\",stride=\"%s\")\n", 
-	    cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
-	    extra_params.c_str(), cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
+    out << strprintf( "%s(name=\"%s\",bots=%s,tops=%s%s,\n\tin_pad=\"%s\",stride=\"%s\")\n", 
+		      cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
+		      extra_params.c_str(), cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
   }
 
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
     // print source nodes here, otherwise print with thier writing op
-    if( node->top_for.empty() ) { print_blob_decl( node_name, node ); }
+    if( node->top_for.empty() ) { print_blob_decl( out, node_name, node ); }
     else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      print_op_decl( this, cop );
+      print_op_decl( out, this, cop );
       assert_st( cop->has_one_top() );
       dump_ops_rec( out, cop->tops[0] );
     }
