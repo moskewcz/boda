@@ -14,7 +14,7 @@ namespace boda
   typedef caffe::Net< float > Net_float;
   typedef shared_ptr< Net_float > p_Net_float;
 
-  p_Net_float init_caffe( caffe::NetParameter & net_param, string const & trained_fn );
+  p_Net_float init_caffe( net_param_t & net_param, string const & trained_fn );
   void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom );
   void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top );
   p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in );
@@ -88,7 +88,7 @@ namespace boda
     void create_upsamp_layer_0_weights( void );
 
     void create_net_param( void );
-    p_conv_pipe_t cache_pipe( caffe::NetParameter & net_param );
+    p_conv_pipe_t cache_pipe( net_param_t & net_param );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 

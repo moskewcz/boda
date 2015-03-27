@@ -8,6 +8,7 @@
 #include"nesi.H"
 #include"caffepb.H"
 #include<google/protobuf/text_format.h> 
+#include<google/protobuf/io/zero_copy_stream_impl.h>
 // our local copy of caffe.proto, which better be identical to the caffe version if we're compiling with caffe support.
 #include"gen/caffe.pb.h" 
 
@@ -17,7 +18,7 @@
 // bit of effort to rewrite the error handling a bit. note that in
 // general we're a little stricter and less verbose than the original
 // code.
-namespace boda_caffe { bool UpgradeNetAsNeeded(const std::string& param_file, caffe::NetParameter* param); }
+namespace boda_caffe { bool UpgradeNetAsNeeded(const std::string& param_file, boda::net_param_t* param); }
 
 namespace boda 
 {
@@ -69,7 +70,7 @@ namespace boda
 
 #define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
 
-  p_conv_pipe_t create_pipe_from_param( caffe::NetParameter & net_param, string const & out_layer_name ) { 
+  p_conv_pipe_t create_pipe_from_param( net_param_t & net_param, string const & out_layer_name ) { 
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     //vect_string const & layer_names = net->layer_names();
@@ -141,7 +142,7 @@ namespace boda
 
   p_net_param_t parse_and_upgrade_net_param_from_text_file( filename_t const & ptt_fn ) {
     p_string ptt_str = read_whole_fn( ptt_fn );
-    p_net_param_t net_param( new caffe::NetParameter );
+    p_net_param_t net_param( new net_param_t );
     bool const ret = google::protobuf::TextFormat::ParseFromString( *ptt_str, net_param.get() );
     assert_st( ret );
     boda_caffe::UpgradeNetAsNeeded( ptt_fn.exp, net_param.get() );
@@ -189,6 +190,134 @@ namespace boda
 
     }
   };
+
+
+  p_net_param_t must_read_binary_proto(  filename_t const & fn ) {
+    p_net_param_t net( new net_param_t );
+    p_istream is = ifs_open(fn);
+    google::protobuf::io::IstreamInputStream iis( is.get() );
+    google::protobuf::io::CodedInputStream cis( &iis );
+    cis.SetTotalBytesLimit( int32_t_const_max, 536870912 );
+    bool const ret = net->ParseFromCodedStream( &cis );
+    if( !ret ) { rt_err( strprintf( "failed to parse Netparamter from binary prototxt file %s", str(fn.exp).c_str() ) ); }
+    boda_caffe::UpgradeNetAsNeeded( fn.exp, net.get() );
+    return net;
+  }
+
+  uint32_t maybe_get_layer_ix( net_param_t const & net_param, string const & layer_name ) {
+    for( int i = 0; i != net_param.layer_size(); ++i ) { if( net_param.layer(i).name() == layer_name ) { return i; } }
+    return uint32_t_const_max;
+  }
+  uint32_t get_layer_ix( net_param_t const & net_param, string const & layer_name ) {
+    uint32_t const ret = maybe_get_layer_ix( net_param, layer_name );
+    if( ret == uint32_t_const_max ) { rt_err( strprintf("layer layer_name=%s not found in network\n",str(layer_name).c_str() )); }
+    return ret;
+  }
+
+  // we iterate of dest, and for every layer with a matching name found in src, we copy the blobs from src->dest
+  void copy_matching_layer_blobs_from_param_to_param( p_net_param_t const & src, p_net_param_t const & dest ) {
+    for( int i = 0; i != dest->layer_size(); ++i ) { 
+      caffe::LayerParameter & dest_lp = *dest->mutable_layer(i);
+      uint32_t const src_lix = maybe_get_layer_ix( *src, dest_lp.name() );
+      if( src_lix == uint32_t_const_max ) { continue; } // layer not found in src
+      caffe::LayerParameter const & src_lp = src->layer(src_lix);
+      dest_lp.clear_blobs();
+      for( int j = 0; j != src_lp.blobs_size(); ++j ) { *dest_lp.add_blobs() = src_lp.blobs(j); }
+    }
+  }
+
+
+  void copy_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
+    timer_t t("caffe_copy_layer_blob_data");
+    assert_st( layer_ix < (uint32_t)net->layer_size() );
+    caffe::LayerParameter const & dest_lp = net->layer( layer_ix );
+    blobs.clear();
+    for( uint32_t bix = 0; bix < (uint32_t)dest_lp.blobs_size(); ++bix ) {
+      caffe::BlobProto const & lbp = dest_lp.blobs( bix );
+      dims_t blob_dims;
+      if( lbp.has_num() || lbp.has_channels() || lbp.has_height() || lbp.has_width() ) {
+	blob_dims.resize_and_zero( 4 );
+	blob_dims.dims(3) = lbp.width();
+	blob_dims.dims(2) = lbp.height();
+	blob_dims.dims(1) = lbp.channels();
+	blob_dims.dims(0) = lbp.num();
+      } else {
+	uint32_t const num_dims = lbp.shape().dim_size();
+	blob_dims.resize_and_zero( num_dims );
+	for( uint32_t i = 0; i != num_dims; ++i ) { blob_dims.dims(i) = lbp.shape().dim(i); }
+      }
+      p_nda_float_t blob( new nda_float_t( blob_dims ) );
+      assert_st( blob->elems.sz == uint32_t(lbp.data_size()) );
+      float * const dest = &blob->elems[0];
+      float const * const src = lbp.data().data();
+      for( uint32_t i = 0; i != blob->elems.sz ; ++i ) { dest[i] = src[i]; }
+      blobs.push_back( blob );
+    }
+  }
+  void copy_layer_blobs( p_net_param_t const & net, string const & layer_name, vect_p_nda_float_t & blobs ) {
+    uint32_t const layer_ix = get_layer_ix( *net, layer_name );
+    copy_layer_blobs( net, layer_ix, blobs );
+  }
+
+  struct cnet_mod_pb_t : virtual public nesi // NESI(help="base class for utilities to modify caffe nets" )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
+    filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
+    filename_t mod_fn; //NESI(default="%(models_dir)/%(out_model)/train_val.prototxt",help="output net prototxt template filename")
+    filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/boda_gen.caffemodel",help="output net weights binary prototxt template filename")
+
+    p_net_param_t net_param;
+    p_net_param_t mod_net_param;
+
+    void create_net_params( void ) {
+      net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
+      mod_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
+    }
+    void write_mod_pt( void ) {
+      string mod_str;
+      bool const pts_ret = google::protobuf::TextFormat::PrintToString( *mod_net_param, &mod_str );
+      assert_st( pts_ret );
+      write_whole_fn( mod_fn, mod_str );
+    }
+    p_net_param_t trained_net;
+    void load_nets( void ) {
+#if 0
+      net = caffe_create_net( *net_param, trained_fn.exp );      
+      mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
+#else
+      trained_net = must_read_binary_proto( trained_fn );
+      copy_matching_layer_blobs_from_param_to_param( trained_net, net_param );
+      copy_matching_layer_blobs_from_param_to_param( trained_net, mod_net_param );
+#endif
+    }
+    void write_mod_net( void ) {
+#if 0
+      p_net_param_t mod_net_param_with_weights;
+      mod_net_param_with_weights.reset( new net_param_t );
+      mod_net->ToProto( mod_net_param_with_weights.get(), false );
+      caffe::WriteProtoToBinaryFile( *mod_net_param_with_weights, mod_weights_fn.exp );
+#else
+      bool const ret = mod_net_param->SerializeToOstream( ofs_open( mod_weights_fn ).get() );
+      if( !ret ) { rt_err( strprintf( "failed to write NetParamter to binary prototxt file %s", str(mod_weights_fn.exp).c_str() ) ); }
+#endif
+    }
+  };
+
+  struct cnet_copy_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_copy")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    void main( nesi_init_arg_t * nia ) { 
+      create_net_params();
+      write_mod_pt();
+      load_nets();
+      write_mod_net();
+    }
+  };
+
+
 #include"gen/caffepb.cc.nesi_gen.cc"
 
 }

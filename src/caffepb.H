@@ -13,11 +13,13 @@
 namespace caffe { struct NetParameter; }
 
 namespace boda {
-  typedef shared_ptr< caffe::NetParameter > p_net_param_t;
-  p_conv_pipe_t create_pipe_from_param( caffe::NetParameter & net_param, std::string const & out_layer_name );
+  typedef caffe::NetParameter net_param_t;
+  typedef shared_ptr< net_param_t > p_net_param_t;
+  p_conv_pipe_t create_pipe_from_param( net_param_t & net_param, std::string const & out_layer_name );
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op );
   template< typename CP > p_conv_op_t get_conv_op_from_param( CP const & cp );
   p_net_param_t parse_and_upgrade_net_param_from_text_file( filename_t const & ptt_fn );
+  uint32_t get_layer_ix( net_param_t const & net_param, std::string const & layer_name );
 
 }
 

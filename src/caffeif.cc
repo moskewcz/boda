@@ -112,7 +112,7 @@ namespace boda
     }
   }
 
-  p_Net_float caffe_create_net( caffe::NetParameter & net_param, string const & trained_fn ) {
+  p_Net_float caffe_create_net( net_param_t & net_param, string const & trained_fn ) {
     // for now, we mimic the behavior of the caffe Net ctor that takes
     // a phase and 'force' the phase in the passed net. hey, it is
     // passed by non-const ref, right?
@@ -151,11 +151,6 @@ namespace boda
     for( uint32_t i = 0; i != layer_names.size(); ++i ) { if( out_layer_name == layer_names[i] ) { return i; } }
     rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
   }
-  uint32_t get_layer_ix( caffe::NetParameter const & net_param, string const & layer_name ) {
-    for( int i = 0; i != net_param.layer_size(); ++i ) { if( net_param.layer(i).name() == layer_name ) { return i; } }
-    rt_err( strprintf("layer layer_name=%s not found in network\n",str(layer_name).c_str() )); 
-  }
-
 
   void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top ) {
     timer_t t("caffe_copy_output_blob_data");
@@ -278,7 +273,7 @@ namespace boda
   // here, but that could be delayed), we can get away with creating the net_param first, then the
   // pipe, then altering num_input_images input_dim field of the net_param, then setting up the
   // net. hmm.
-  p_conv_pipe_t run_cnet_t::cache_pipe( caffe::NetParameter & net_param ) {return create_pipe_from_param( net_param, out_layer_name ); }
+  p_conv_pipe_t run_cnet_t::cache_pipe( net_param_t & net_param ) {return create_pipe_from_param( net_param, out_layer_name ); }
 
   struct synset_elem_t {
     string id;
@@ -327,7 +322,7 @@ namespace boda
     net_param->set_input_dim(2,in_sz.d[1]);
     net_param->set_input_dim(3,in_sz.d[0]);
     if( enable_upsamp_net ) {
-      upsamp_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
+      upsamp_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
       // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
       assert_st( upsamp_net_param->layer_size() ); // better have at least one layer
       caffe::LayerParameter * lp = upsamp_net_param->mutable_layer(0);
@@ -812,7 +807,7 @@ namespace boda
 
     void create_net_params( void ) {
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      mod_net_param.reset( new caffe::NetParameter( *net_param ) ); // start with copy of net_param
+      mod_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
     }
     void write_mod_pt( void ) {
       string mod_str;
@@ -828,7 +823,7 @@ namespace boda
     }
     void write_mod_net( void ) {
       p_net_param_t mod_net_param_with_weights;
-      mod_net_param_with_weights.reset( new caffe::NetParameter );
+      mod_net_param_with_weights.reset( new net_param_t );
       mod_net->ToProto( mod_net_param_with_weights.get(), false );
       caffe::WriteProtoToBinaryFile( *mod_net_param_with_weights, mod_weights_fn.exp );
     }
