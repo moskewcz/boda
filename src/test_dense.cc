@@ -128,6 +128,9 @@ namespace boda {
 	out_batch = run_cnet->run_one_blob_in_one_blob_out();
 	p_nda_float_t feats = feats_copy_clip( out_batch, feat_box );
 	p_nda_float_t feats_dense = feats_copy_clip( out_batch_dense, feat_box_dense );
+	//float const sum_f = nda_reduce( *feats, sum_functor<float>(), 0.0f );
+	//float const sum_fd = nda_reduce( *feats_dense, sum_functor<float>(), 0.0f );
+	//(*out) << strprintf( "sum_f=%s sum_fd=%s\n", str(sum_f).c_str(), str(sum_fd).c_str() );
 	(*out) << strprintf( "ssds_str(from_dense,out_batch)=%s\n", str(ssds_str(feats_dense,feats)).c_str() );
       }
     }

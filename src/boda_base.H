@@ -484,6 +484,10 @@ namespace boda
     typedef T Result; 
     T operator()( T const & a, T const & b ) const { return std::min(a,b); } 
   };
+  template< typename T > struct sum_functor { 
+    typedef T Result; 
+    T operator()( T const & a, T const & b ) const { return a+b; } 
+  };
   
   template< typename VT, typename BF > typename BF::Result nda_reduce( VT const & vt, BF const & bf, 
 								       typename BF::Result const & iv ) {
