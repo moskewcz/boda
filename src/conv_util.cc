@@ -348,7 +348,6 @@ namespace boda
     string isss;
     if( node->top_for.empty() ) { isss += " SOURCE"; }
     if( node->bot_for.empty() ) { isss += " SINK"; }
-    if( !node->in_place_ops.empty() ) { isss += " IN_PLACE_OPS(" + str(node->in_place_ops) + ")"; }
     conv_io_t & cio = node->cio;
     out << strprintf( "%s = NDA(num_img,%s,%s,%s) #%s num,chan,y,x\n", 
 		      as_pyid(bn).c_str(), str(cio.chans).c_str(), 
@@ -369,7 +368,7 @@ namespace boda
       out << strprintf( "%s_filts = NDA(%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
 			tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
 			str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
-      out << strprintf( "%s_biases = NDA(1,1,1,%s) # SOURCE 1,1,1,out_chan\n", 
+      out << strprintf( "%s_biases = NDA(%s) # SOURCE out_chan\n", 
 			tag_id, str(cop->out_chans).c_str() );
       extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag_id, tag_id );
     }
@@ -381,6 +380,15 @@ namespace boda
     out << strprintf( "%s(name=\"%s\",bots=%s,tops=%s%s,\n\tin_pad=\"%s\",stride=\"%s\")\n", 
 		      cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
 		      extra_params.c_str(), cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
+    // print any in-place ops for any of the output nodes
+    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
+      p_conv_node_t const & out_node = pipe->must_get_node(*i);
+      for( vect_p_conv_op_t::const_iterator j = out_node->in_place_ops.begin(); j != out_node->in_place_ops.end(); ++j ) {
+	p_conv_op_t const & ip_cop = *j;
+	out << strprintf( "%s(name=\"%s\",in_place=[%s])\n", 
+			  ip_cop->type.c_str(), as_pyid(ip_cop->tag).c_str(), as_pyid(out_node->name).c_str() );
+      }
+    }
   }
 
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {

@@ -16,11 +16,14 @@ def pp_flops( flops ): return pp_val( flops ) + " FLOPS" # pretty-print flops
 
 # cnet flop-calculating ops classes
 class NDA( object ): 
-    def __init__( self, num, chan, y, x ): 
-        self.num = num
-        self.chan = chan
-        self.y = y
-        self.x = x
+    def __init__( self, *args ):
+        if len(args) == 4:
+            self.num = args[0]
+            self.chan = args[1]
+            self.y = args[2]
+            self.x = args[3]
+        else:
+            self.dims = args
     def dims_prod( self ): return self.num*self.chan*self.y*self.x
 
 class Net( object ):
@@ -75,6 +78,11 @@ class LRN( object ):
     def __init__( self, **kwargs ): self.opts = kwargs
 class Concat( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
+class ReLU( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
+class Dropout( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
+
 
 # set num_img and source cnet decl
 import sys
