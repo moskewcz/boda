@@ -914,67 +914,7 @@ namespace boda
 
   };
 
-  void resize_1d( float const * const in, uint32_t const & in_sz, float * const out, uint32_t const & out_sz ) {
-    for( uint32_t i = 0; i != out_sz; ++i ) { out[i] = 0.0; }
-    double const scale = double(out_sz) / in_sz;
-    for( uint32_t i = 0; i != in_sz; ++i ) {
-      float const v = in[i];
-      // calc range of out for in_sz
-      double const ob = double(out_sz) * i / in_sz;
-      double const oe = double(out_sz) * (i+1) / in_sz;
-      for( uint32_t o = floor(ob); o != ceil(oe); ++o ) {
-	double const span = 1.0 - ((o<ob)?(ob - o):0) - ((oe<(o+1))?(o + 1 - oe):0);
-	assert(o < out_sz);
-	out[o] += v*span/scale;
-      }
-    }
-  }
-
-  void print_kernel( p_nda_float_t const & in, uint32_t const i, uint32_t const j ) {
-    u32_pt_t const in_ksz = {in->dims.dims(3),in->dims.dims(2)};
-    printf("kernel\n");
-    float * kernel = &in->at2(i,j);
-    for( uint32_t y = 0; y != in_ksz.d[1]; ++y ) { 
-      for( uint32_t x = 0; x != in_ksz.d[0]; ++x ) { 
-	printf("  % 02.3f", kernel[y*in_ksz.d[0]+x] );
-      }
-      printf("\n");
-    }
-    printf("\n");
-    
-  }
-
-  void resize_kernel( p_nda_float_t const & in, p_nda_float_t const & out ) {
-    
-    // coiterate over outer dims
-    assert_st( in->dims.dims(0) == out->dims.dims(0) );
-    assert_st( in->dims.dims(1) == out->dims.dims(1) );
-    u32_pt_t const in_ksz = {in->dims.dims(3),in->dims.dims(2)};
-    u32_pt_t const out_ksz = {out->dims.dims(3),out->dims.dims(2)};
-
-    printf( "in_ksz=%s out_ksz=%s\n", str(in_ksz).c_str(), str(out_ksz).c_str() );
-
-    vect_float kbuf;
-    kbuf.resize( in_ksz.d[1]*out_ksz.d[0] );
-    vect_float kbuf2;
-    kbuf2.resize( in_ksz.d[1] );
-    vect_float kbuf3;
-    kbuf3.resize( out_ksz.d[1], 0 );
-    
-    for( uint32_t i = 0; i != in->dims.dims(0); ++i ) {
-      for( uint32_t j = 0; j != in->dims.dims(1); ++j ) {
-	//print_kernel( in, i, j );
-	for( uint32_t y = 0; y != in_ksz.d[1]; ++y ) { resize_1d( &in->at3(i,j,y), in_ksz.d[0], &kbuf[y*out_ksz.d[0]], out_ksz.d[0] ); }
-	for( uint32_t x = 0; x != out_ksz.d[0]; ++x ) { 
-	  for( uint32_t y = 0; y != in_ksz.d[1]; ++y ) { kbuf2[y] = kbuf[y*out_ksz.d[0] + x]; }
-	  resize_1d( &kbuf2[0], in_ksz.d[1], &kbuf3[0], out_ksz.d[1] );
-	  for( uint32_t y = 0; y != out_ksz.d[1]; ++y ) { out->at4(i,j,y,x) = kbuf3[y]; }
-	}
-	//print_kernel( out, i, j );
-      }
-    }
-  } 
-
+  void resize_kernel( p_nda_float_t const & in, p_nda_float_t const & out );
 
   struct cnet_resize_conv_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
 		       // bases=["cnet_mod_t","has_main_t"], type_id="cnet_resize_conv")
