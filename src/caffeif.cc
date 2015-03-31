@@ -5,6 +5,7 @@
 #include"str_util.H"
 #include"img_io.H"
 #include"lexp.H"
+#include"nesi.H"
 #include"conv_util.H"
 #include"caffeif.H"
 //#include<glog/logging.h>
@@ -805,6 +806,7 @@ namespace boda
     p_net_param_t net_param;
     p_net_param_t mod_net_param;
 
+    void ensure_out_dir( nesi_init_arg_t * const nia ) { ensure_is_dir( nesi_filename_t_expand( nia, "%(models_dir)/%(out_model)" ), 1 ); }
     void create_net_params( void ) {
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
       mod_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
@@ -882,6 +884,7 @@ namespace boda
 	cp->set_kernel_size( kern_sz );
 	lp->clear_inner_product_param();
       }
+      ensure_out_dir( nia );
       write_mod_pt();
       mod_net = caffe_create_net( *mod_net_param, trained_fn.exp );
       for( vect_string::const_iterator i = converted_layer_names.begin(); i != converted_layer_names.end(); ++i ) {
@@ -1033,7 +1036,7 @@ namespace boda
 	  lp->set_name( lp->name() + "-renamed-due-to-resize" );
 	} 
       }
-
+      ensure_out_dir( nia );
       write_mod_pt();
       load_nets();
       resize_conv_weights( to_resize_ln );
@@ -1104,7 +1107,7 @@ namespace boda
 	  nl->add_bottom( new_layer_name );
 	}
       }
-      
+      ensure_out_dir( nia );
       write_mod_pt();
       //return; // for testing, skip weights processing
       

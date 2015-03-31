@@ -11,6 +11,7 @@
 #include<google/protobuf/io/zero_copy_stream_impl.h>
 // our local copy of caffe.proto, which better be identical to the caffe version if we're compiling with caffe support.
 #include"gen/caffe.pb.h" 
+#include"rand_util.H"
 
 // we get this function from our hacked-up version of
 // upgrade_proto.cpp, so we can upgrade NetParameters from V1->V2 the
@@ -226,7 +227,6 @@ namespace boda
     }
   }
 
-
   void copy_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_copy_layer_blob_data");
     assert_st( layer_ix < (uint32_t)net->layer_size() );
@@ -259,6 +259,69 @@ namespace boda
     copy_layer_blobs( net, layer_ix, blobs );
   }
 
+  void set_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
+    timer_t t("caffe_set_layer_blob_data");
+    assert_st( layer_ix < (uint32_t)net->layer_size() );
+    caffe::LayerParameter & dest_lp = *net->mutable_layer(layer_ix);
+    dest_lp.clear_blobs();
+    for( uint32_t bix = 0; bix < blobs.size(); ++bix ) {
+      p_nda_float_t const & blob = blobs[bix];
+      dims_t const & blob_dims = blob->dims;
+      caffe::BlobProto & lbp = *dest_lp.add_blobs();
+      caffe::BlobShape & lbp_shape = *lbp.mutable_shape();
+      assert( lbp_shape.dim_size() == 0 );
+      for( uint32_t i = 0; i != blob_dims.sz(); ++i ) { lbp_shape.add_dim( blob_dims.dims(i) ); }
+      assert( lbp.data_size() == 0 );
+      const float * const src = &blob->elems[0];
+      for( uint32_t i = 0; i != blob->elems.sz ; ++i ) { lbp.add_data( src[i] ); }
+    }
+  }
+  void set_layer_blobs( p_net_param_t const & net, string const & layer_name, vect_p_nda_float_t & blobs ) {
+    uint32_t const layer_ix = get_layer_ix( *net, layer_name );
+    set_layer_blobs( net, layer_ix, blobs );
+  }
+
+  void create_identity_weights( p_net_param_t net, string const & layer_name, uint32_t const noise_mode ) {
+    if( noise_mode >= 2 ) { rt_err( strprintf( "unsupported noise_mode=%s\n", str(noise_mode).c_str() ) ); }
+    vect_p_nda_float_t blobs;
+    copy_layer_blobs( net, layer_name, blobs );
+    assert_st( blobs.size() == 2 ); // filters, biases
+    p_nda_float_t biases = blobs[1];
+    for( dims_iter_t di( biases->dims ) ; ; ) { biases->at(di.di) = 0; if( !di.next() ) { break; } } // all biases 0
+    p_nda_float_t filts = blobs[0];
+
+    uint32_t const width = filts->dims.dims(3);
+    uint32_t const height = filts->dims.dims(2); 
+    uint32_t const channels = filts->dims.dims(1);
+    uint32_t const num = filts->dims.dims(0);
+
+    assert_st( channels == num ); // for now, only handling case where input chans == output chans
+
+    // it's unclear how to handle even width/height, depending on padding in particular
+    assert_st( width & 1 );
+    assert_st( height & 1 );
+
+    //for( uint32_t i = 0; i != num; ++i ) { filts->at4( i, i, (h+1)/2, (w+1)/2 ) = 1; }
+    uint32_t const num_inputs = width*height*channels; // for adding xavier noise
+    float const xavier_noise_mag = 3.0l / double( num_inputs );
+    boost::random::mt19937 rand_gen;
+    boost::random::uniform_real_distribution<> const xavier_noise_dist( -xavier_noise_mag, xavier_noise_mag );
+    for( dims_iter_t di( filts->dims ) ; ; ) { 
+      float val = 0; 
+      if( noise_mode == 1 ) { val += xavier_noise_dist(rand_gen); }
+      if( (di.di[2] == (height/2)) && // center y pel in filt
+	  (di.di[3] == (width/2)) && // center x pel in filt
+	  (di.di[0] == di.di[1]) ) // in_chan == out_chan
+      { val += 1; }
+
+      filts->at(di.di) = val;
+      if( !di.next() ) { break; } 
+    }    
+
+    set_layer_blobs( net, layer_name, blobs );
+  }
+
+
   struct cnet_mod_pb_t : virtual public nesi // NESI(help="base class for utilities to modify caffe nets" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -270,6 +333,7 @@ namespace boda
     p_net_param_t net_param;
     p_net_param_t mod_net_param;
 
+    void ensure_out_dir( nesi_init_arg_t * const nia ) { ensure_is_dir( nesi_filename_t_expand( nia, "%(models_dir)/%(out_model)" ), 1 ); }
     void create_net_params( void ) {
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
       mod_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
@@ -311,11 +375,85 @@ namespace boda
 
     void main( nesi_init_arg_t * nia ) { 
       create_net_params();
+      ensure_out_dir( nia );
       write_mod_pt();
       load_nets();
       write_mod_net();
     }
   };
+
+
+  struct cnet_util_pb_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_util_pb")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string add_before_ln;//NESI(default="conv4",help="name of layer before which to add identity layer")    
+    uint32_t noise_mode; //NESI(default=0,help="type of noise: 0==no noise, 1==xavier")
+
+    void main( nesi_init_arg_t * nia ) { 
+      create_net_params();
+
+      uint32_t const add_before_ix = get_layer_ix( *net_param, add_before_ln );
+      uint32_t const orig_num_layers = (uint32_t)net_param->layer_size();
+
+      mod_net_param->clear_layer(); // remove all layers
+      for( uint32_t i = 0; i != add_before_ix; ++i ) { *mod_net_param->add_layer() = net_param->layer(i); }
+      if( add_before_ix+1 > orig_num_layers ) {
+	rt_err( "unhandled: expecting at least 1 layer (a ReLU) after add_before_ln"); }
+      caffe::LayerParameter const & post_relu_layer = net_param->layer( add_before_ix + 1 );
+      if( post_relu_layer.type() != ReLU_str ) {
+	rt_err( "unhandled: layer prior to add_before_ln is not RELU"); }
+
+      if( add_before_ix < 2 ) { rt_err( "unhandled: expecting at least 2 layers prior to add_before_ln"); }
+
+      caffe::LayerParameter const * pre_conv_layer = 0;
+      uint32_t pcl_num_output = 0;
+      for( uint32_t i = add_before_ix; i != 0; --i ) {
+	pre_conv_layer = &net_param->layer( i - 1 );
+	if( pre_conv_layer->has_convolution_param() ) {
+	  pcl_num_output = pre_conv_layer->convolution_param().num_output();
+	  break;
+	}
+	pre_conv_layer = 0;
+      }
+      if( !pre_conv_layer ) {
+	rt_err( "unhandled: no conv layer prior to add_before_ln (need it for new layer num_outputs)."); }
+      caffe::LayerParameter const * const pre_layer = &net_param->layer( add_before_ix - 1 );
+      if( pre_layer->top_size() != 1) { rt_err( "unhandled: pre_layer->top_size() != 1"); }
+      string const pre_layer_top = pre_layer->top(0);
+      // add new layer
+      string const new_layer_name = "pre_" + add_before_ln;
+      caffe::LayerParameter * new_conv_layer = mod_net_param->add_layer();
+      *new_conv_layer = net_param->layer(add_before_ix); // start with clone of layer we're adding before
+      new_conv_layer->set_name( new_layer_name );
+      new_conv_layer->clear_bottom(); new_conv_layer->add_bottom( pre_layer_top );
+      new_conv_layer->clear_top(); new_conv_layer->add_top( new_layer_name );
+      new_conv_layer->mutable_convolution_param()->set_num_output( pcl_num_output );
+      // add new relu layer (FIXME: too strong to require ReLU for this layer?
+      caffe::LayerParameter * new_relu_layer = mod_net_param->add_layer();
+      *new_relu_layer = post_relu_layer; // start with clone of RELU from after layer we're adding before
+      new_relu_layer->set_name( "relu_" + new_layer_name );
+      new_relu_layer->clear_bottom(); new_relu_layer->add_bottom( new_layer_name );
+      new_relu_layer->clear_top(); new_relu_layer->add_top( new_layer_name );
+
+      for( uint32_t i = add_before_ix; i != orig_num_layers; ++i ) { 
+	caffe::LayerParameter * nl = mod_net_param->add_layer();
+	*nl = net_param->layer(i); 
+	if( i == add_before_ix ) { // adjust bottom for layer we added a layer before
+	  if( nl->bottom_size() != 1) { rt_err( "unhandled: add_before_layer->bottom_size() != 1"); }
+	  nl->clear_bottom();
+	  nl->add_bottom( new_layer_name );
+	}
+      }
+      ensure_out_dir( nia );
+      write_mod_pt();
+      //return; // for testing, skip weights processing
+      load_nets();
+      create_identity_weights( mod_net_param, new_layer_name, noise_mode );
+      write_mod_net();
+    }
+  };
+
 
 
 #include"gen/caffepb.cc.nesi_gen.cc"
