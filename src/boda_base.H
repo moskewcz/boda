@@ -293,6 +293,10 @@ namespace boda
     }
     dims_t( void ) { }
     dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
+    dims_t( vect_uint32_t const dims_ ) { 
+      resize_and_zero( dims_.size() ); 
+      for( uint32_t i = 0; i != dims_.size(); ++i ) { dims(i) = dims_[i]; }
+    }
     dims_t( dims_t const & o ) { copy_from(o); }
     void operator = ( dims_t const & o ) { copy_from(o); }
 
