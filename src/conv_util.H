@@ -87,15 +87,14 @@ namespace boda
     p_conv_op_t maybe_get_single_parent( p_conv_op_t const & cop ) const;
 
     void add_conv( p_conv_op_t const & conv );
-    void zero_conv_ios( vect_conv_io_t & conv_ios );
     void calc_support_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding );
-    void calc_support_info( bool const ignore_padding );
+    void calc_support_info( bool const ignore_padding, uint32_t const & in_chans );
 
     void topo_visit_setup( void );
 
     void clear_sizes( void );
     void calc_sizes_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding );
-    void calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding );
+    void calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding );
     void calc_sizes_back_rec( p_conv_node_t const & node_out, bool const ignore_padding );
     void calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );
 

@@ -71,7 +71,7 @@ namespace boda
 
 #define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
 
-  p_conv_pipe_t create_pipe_from_param( net_param_t & net_param, string const & out_layer_name ) { 
+  p_conv_pipe_t create_pipe_from_param( net_param_t & net_param, uint32_t const & in_chans, string const & out_layer_name ) { 
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     //vect_string const & layer_names = net->layer_names();
@@ -137,7 +137,7 @@ namespace boda
     }
     if( !found_layer ) { rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); }
     conv_pipe->finalize();
-    conv_pipe->calc_support_info(1);
+    conv_pipe->calc_support_info( 1, in_chans );
     return conv_pipe;
   }
 
@@ -169,7 +169,7 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
 
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      p_conv_pipe_t conv_pipe = create_pipe_from_param( *net_param, "" );
+      p_conv_pipe_t conv_pipe = create_pipe_from_param( *net_param, in_chans, "" );
 
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
@@ -181,7 +181,7 @@ namespace boda
       }
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
+	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
       }
       if( print_ops ) {

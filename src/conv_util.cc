@@ -132,15 +132,6 @@ namespace boda
     return maybe_get_single_writer( must_get_node(cop->bots[0]) );
   }
 
-
-  void conv_pipe_t::zero_conv_ios( vect_conv_io_t & conv_ios ) {
-    conv_ios.clear();
-    conv_ios.resize( convs->size() + 1 );
-    for( vect_conv_io_t::iterator i = conv_ios.begin(); i != conv_ios.end(); ++i ) {
-      i->sz = u32_pt_t(); i->used_sz = u32_pt_t(); i->chans = 0;
-    }
-  }
-
   void conv_pipe_t::calc_support_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding ) {
     // propogate support info forward from node to all ops that it feeds and thier outputs
     for( vect_string::const_iterator i = node_in->bot_for.begin(); i != node_in->bot_for.end(); ++i ) {
@@ -149,10 +140,16 @@ namespace boda
       assert_st( cop->has_one_top() );
       p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
       conv_support_info_t & csi_out = node_out->csi;
+      conv_io_t & cio_out = node_out->cio;
       if( csi_out.valid() ) { rt_err( "unhandled: node with multiple writers:"+node_out->name ); }
+      assert_st( cio_out.chans == uint32_t_const_max ); // should not be set yet
+      cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
       // FIXME: move to own func
+      uint32_t const & out_chans = cop->out_chans; 
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
-	conv_support_info_t const & csi_in = must_get_node(*j)->csi;
+	p_conv_node_t const & j_node = must_get_node(*j);
+	conv_support_info_t const & csi_in = j_node->csi;
+	conv_io_t const & cio_in = j_node->cio;
 	if( cop->type == Concat_str ) {
 	  if( (j == cop->bots.begin()) || (csi_in.support_stride.dims_max() > csi_out.support_stride.dims_max()) ) { // first input or bigger stride
 	    if( j != cop->bots.begin() ) { 
@@ -165,6 +162,8 @@ namespace boda
 	    if( csi_in.support_stride == csi_out.support_stride ) { csi_out.support_sz.max_eq( csi_in.support_sz ); }
 	  }
 	  csi_out.eff_tot_pad.max_eq( csi_in.eff_tot_pad );
+	  assert( !out_chans ); // concat shouldn't have a # of output chans specified
+	  cio_out.chans += cio_in.chans; // sum chans across all inputs
 	} else {
 	  if( j == cop->bots.begin() ) {
 	    u32_pt_t const in_sz_1x1 = cop->out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
@@ -177,6 +176,8 @@ namespace boda
 	    assert_st( cop->stride.both_dims_non_zero() );
 	    csi_out.support_stride = csi_in.support_stride*cop->stride;
 	    csi_out.eff_tot_pad = csi_in.eff_tot_pad + cop->in_pad.scale_dims( csi_in.support_stride );
+	    cio_out.chans = out_chans ? out_chans : cio_in.chans; // reset or propogate num_chans
+
 	  } else { rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
 	}
       }
@@ -192,13 +193,14 @@ namespace boda
   }
 
   // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
-  void conv_pipe_t::calc_support_info( bool const ignore_padding ) {
+  void conv_pipe_t::calc_support_info( bool const ignore_padding, uint32_t const & in_chans ) {
     // initialize support info for single root input
     p_conv_node_t const & node = get_single_bot_node();
     conv_support_info_t & csi = node->csi;
     assert( !csi.valid() );
     csi.support_sz = u32_pt_t(1,1);
     csi.support_stride = u32_pt_t(1,1);
+    node->cio.chans = in_chans;
     topo_visit_setup();
     calc_support_forward_rec( node, ignore_padding ); // calculate support
   }
@@ -219,10 +221,9 @@ namespace boda
       assert_st( cop->has_one_top() );
       p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
       conv_io_t & cio_out = node_out->cio;
-      if( cio_out.valid() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
+      if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 
       // FIXME: move to own func
-      uint32_t const & out_chans = cop->out_chans; 
       if( (cop->bots.size() != 1) && (cop->type != Concat_str) ) { 
 	rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
@@ -232,28 +233,22 @@ namespace boda
 	  if( cio_out.sz.both_dims_non_zero() ) { 
 	    cio_in.used_sz.max_eq( cop->out_sz_to_in_sz( cio_out.sz, ignore_padding ) );
 	  } // else if there's no output, we used no input (used_sz left at zero)
-	  // reset or propogate num_chans
-	  cio_out.chans = out_chans ? out_chans : cio_in.chans;
 	} else { // handle multiple inputs for concat layer (only!)
 	  assert( cop->type == Concat_str );
-	  assert( !out_chans );
 	  // x/y dims must agree across all inputs
 	  u32_pt_t const out_sz = cop->in_sz_to_out_sz( cio_in.sz, ignore_padding );
 	  assert_st( out_sz == cio_out.sz );
-	  // sum chans across all inputs
-	  cio_out.chans += cio_in.chans;
 	}
       }
       calc_sizes_forward_rec( node_out, ignore_padding ); // depth-first recursive processing for any outputs
     }
   }
-  void conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, uint32_t const & in_chans, bool const ignore_padding ) {
+  void conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding ) {
     // initialize support info for single root input
     p_conv_node_t const & node = get_single_bot_node();
     conv_io_t & cio = node->cio;
-    assert( !cio.valid() );
+    assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
     cio.sz = in_sz;
-    cio.chans = in_chans;
     topo_visit_setup();
     calc_sizes_forward_rec( node, ignore_padding ); // calculate support
   }
@@ -268,14 +263,13 @@ namespace boda
     assert_st( cop->has_one_top_one_bot() );
     p_conv_node_t const & node_in = must_get_node(cop->bots[0]);
     conv_io_t & cio_in = node_in->cio;
-    if( cio_in.valid() ) { rt_err( "internal error: cio_in.valid() in calc_sizes_back_rec() at node:"+node_out->name ); }
+    if( !cio_in.sz.is_zeros() ) { rt_err( "internal error: cio_in.valid() in calc_sizes_back_rec() at node:"+node_out->name ); }
     if( !cio_out.sz.both_dims_non_zero() ) {
       rt_err( strprintf( "calc_sizes_back(): unhandled/questionable case: pipeline stage %s output is zero-area.",
 			 cop->tag.c_str() ) );
     }
     cio_in.sz = cop->out_sz_to_in_sz( cio_out.sz, ignore_padding );
     cio_in.used_sz = cio_in.sz; // by semantics of out_sz_to_in_sz (but checked below)
-    cio_in.chans = 1; // FIXME: just to mark as valid
     assert_st( cio_out.sz == cop->in_sz_to_out_sz( cio_in.sz, ignore_padding ) );
     calc_sizes_back_rec( node_in, ignore_padding ); // depth-first recursive processing for the input
   }
@@ -284,9 +278,8 @@ namespace boda
     // initialize support info for single output
     p_conv_node_t const & node = get_single_top_node();
     conv_io_t & cio = node->cio;
-    assert( !cio.valid() );
+    assert( cio.sz.is_zeros() );
     cio.sz = out_sz;
-    cio.chans = 1; // FIMXE: allow specification? meaningful?
     calc_sizes_back_rec( node, ignore_padding ); // calculate support
   }
 
@@ -439,7 +432,7 @@ namespace boda
 
       p_ofstream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";
-      conv_pipe->calc_support_info( ignore_padding_for_support );
+      conv_pipe->calc_support_info( ignore_padding_for_support, in_chans );
       conv_pipe->dump_pipe( *out ); 
       if( out_sz ) { 
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
@@ -450,7 +443,7 @@ namespace boda
       p_vect_conv_io_t conv_ios;
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), in_chans, ignore_padding_for_sz ); 
+	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
 	if( print_ops ) { conv_pipe->dump_ops( *out ); }
 	conv_pipe->clear_sizes();	

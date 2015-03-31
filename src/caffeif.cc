@@ -274,7 +274,7 @@ namespace boda
   // here, but that could be delayed), we can get away with creating the net_param first, then the
   // pipe, then altering num_input_images input_dim field of the net_param, then setting up the
   // net. hmm.
-  p_conv_pipe_t run_cnet_t::cache_pipe( net_param_t & net_param ) {return create_pipe_from_param( net_param, out_layer_name ); }
+  p_conv_pipe_t run_cnet_t::cache_pipe( net_param_t & net_param ) {return create_pipe_from_param( net_param, in_num_chans, out_layer_name ); }
 
   struct synset_elem_t {
     string id;
@@ -374,8 +374,8 @@ namespace boda
       conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
       assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
     }
-    conv_pipe->calc_sizes_forward( in_sz, 3, 0 ); 
-    if( enable_upsamp_net ) { conv_pipe_upsamp->calc_sizes_forward( in_sz, 3, 0 ); }
+    conv_pipe->calc_sizes_forward( in_sz, 0 ); 
+    if( enable_upsamp_net ) { conv_pipe_upsamp->calc_sizes_forward( in_sz, 0 ); }
   }
   void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
     assert_st( net_param && conv_pipe );
