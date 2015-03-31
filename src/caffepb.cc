@@ -227,6 +227,23 @@ namespace boda
     }
   }
 
+  void alloc_layer_blobs( p_conv_pipe_t const & pipe, string const & layer_name, vect_p_nda_float_t & blobs ) {
+    p_conv_op_t const & cop = pipe->get_op( layer_name );
+    if( cop->type == Convolution_str ) { 
+      assert_st( cop->bots.size() == 1 );
+      conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
+      u32_pt_t kern_sz = cop->kern_sz;
+      if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
+      dims_t filt_dims( vect_uint32_t{ cop->out_chans, cio_in.chans, kern_sz.d[1], kern_sz.d[0] } );
+      blobs.push_back( p_nda_float_t( new nda_float_t( filt_dims ) ) );
+      dims_t bias_dims( vect_uint32_t{ cop->out_chans } );
+      blobs.push_back( p_nda_float_t( new nda_float_t( bias_dims ) ) );
+    } else {
+      rt_err( "don't know how to alloc blobs for layer of type" + cop->type );
+    }
+
+  }
+
   void copy_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_copy_layer_blob_data");
     assert_st( layer_ix < (uint32_t)net->layer_size() );
@@ -281,15 +298,18 @@ namespace boda
     set_layer_blobs( net, layer_ix, blobs );
   }
 
-  void create_identity_weights( p_net_param_t net, string const & layer_name, uint32_t const noise_mode ) {
+  void create_identity_weights( p_net_param_t net, p_conv_pipe_t pipe, string const & layer_name, uint32_t const noise_mode ) {
     if( noise_mode >= 2 ) { rt_err( strprintf( "unsupported noise_mode=%s\n", str(noise_mode).c_str() ) ); }
     vect_p_nda_float_t blobs;
-    copy_layer_blobs( net, layer_name, blobs );
+
+    alloc_layer_blobs( pipe, layer_name, blobs );
+    //copy_layer_blobs( net, layer_name, blobs );
     assert_st( blobs.size() == 2 ); // filters, biases
     p_nda_float_t biases = blobs[1];
     for( dims_iter_t di( biases->dims ) ; ; ) { biases->at(di.di) = 0; if( !di.next() ) { break; } } // all biases 0
     p_nda_float_t filts = blobs[0];
 
+    assert_st( filts->dims.sz() == 4 );
     uint32_t const width = filts->dims.dims(3);
     uint32_t const height = filts->dims.dims(2); 
     uint32_t const channels = filts->dims.dims(1);
@@ -321,6 +341,32 @@ namespace boda
     set_layer_blobs( net, layer_name, blobs );
   }
 
+  struct cnet_bpt_dump_t : virtual public nesi, public has_main_t // NESI(help="base class for utilities to modify caffe nets",
+			   // bases=["has_main_t"], type_id="cnet_bpt_dump" )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
+    p_net_param_t trained_net;
+
+    void main( nesi_init_arg_t * nia ) { 
+      trained_net = must_read_binary_proto( trained_fn );
+
+      uint32_t const numl = (uint32_t)trained_net->layer_size();
+      // delete all blob data
+      for( uint32_t i = 0; i != numl; ++i ) {
+	caffe::LayerParameter & lp = *trained_net->mutable_layer(i);
+	for( int j = 0; j != lp.blobs_size(); ++j ) { 
+	  caffe::BlobProto & lbp = *lp.mutable_blobs( j );
+	  lbp.clear_data();
+	}
+      }
+      // dump to string
+      string trained_str;
+      bool const pts_ret = google::protobuf::TextFormat::PrintToString( *trained_net, &trained_str );
+      assert_st( pts_ret );
+      printstr( trained_str );
+    }
+  };
 
   struct cnet_mod_pb_t : virtual public nesi // NESI(help="base class for utilities to modify caffe nets" )
   {
@@ -329,9 +375,11 @@ namespace boda
     filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
     filename_t mod_fn; //NESI(default="%(models_dir)/%(out_model)/train_val.prototxt",help="output net prototxt template filename")
     filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/boda_gen.caffemodel",help="output net weights binary prototxt template filename")
-
+    uint32_t in_chans; //NESI(default=3,help="number of input chans (correct value only needed when adding initial layers)")
     p_net_param_t net_param;
     p_net_param_t mod_net_param;
+    p_conv_pipe_t mod_net_pipe;
+    p_net_param_t trained_net;
 
     void ensure_out_dir( nesi_init_arg_t * const nia ) { ensure_is_dir( nesi_filename_t_expand( nia, "%(models_dir)/%(out_model)" ), 1 ); }
     void create_net_params( void ) {
@@ -343,8 +391,9 @@ namespace boda
       bool const pts_ret = google::protobuf::TextFormat::PrintToString( *mod_net_param, &mod_str );
       assert_st( pts_ret );
       write_whole_fn( mod_fn, mod_str );
+      // assuming the mod net pt is now finalized, create the pipe for it
+      mod_net_pipe = create_pipe_from_param( *mod_net_param, in_chans, "" );
     }
-    p_net_param_t trained_net;
     void load_nets( void ) {
 #if 0
       net = caffe_create_net( *net_param, trained_fn.exp );      
@@ -449,7 +498,7 @@ namespace boda
       write_mod_pt();
       //return; // for testing, skip weights processing
       load_nets();
-      create_identity_weights( mod_net_param, new_layer_name, noise_mode );
+      create_identity_weights( mod_net_param, mod_net_pipe, new_layer_name, noise_mode );
       write_mod_net();
     }
   };

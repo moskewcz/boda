@@ -360,7 +360,7 @@ namespace boda
     string const tag_id_str = as_pyid( cop->tag );
     char const * const tag_id = tag_id_str.c_str();
 
-    if( cop->type == "Convolution" || cop->type == "InnerProduct" ) {
+    if( cop->type == Convolution_str || cop->type == InnerProduct_str ) {
       assert_st( cop->bots.size() == 1 );
       conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
       u32_pt_t kern_sz = cop->kern_sz;
@@ -369,7 +369,7 @@ namespace boda
       out << strprintf( "%s_filts = NDA(%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
 			tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
 			str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
-      out << strprintf( "%s_biases = NDA(%s,1,1,1) # SOURCE out_chan,1,1,1\n", 
+      out << strprintf( "%s_biases = NDA(1,1,1,%s) # SOURCE 1,1,1,out_chan\n", 
 			tag_id, str(cop->out_chans).c_str() );
       extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag_id, tag_id );
     }
