@@ -23,7 +23,7 @@ LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2
 LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf
 
-[caffe_pb]
+[caffe_pb gen_fn=caffe.pb.cc gen_fn=caffe.pb.h]
 LDFLAGS := $(LDFLAGS) -lprotobuf
 # manually add deps, since we can create this particular header, which
 # is unusual and otherwise unhandled by the header deps system.
@@ -34,10 +34,18 @@ upgrade_proto.o : ../src/gen/caffe.pb.h
 	protoc -I../src/ext --cpp_out=../src/gen ../src/ext/caffe.proto
 
 
-[caffe_and_cuda]
+[cuda]
+CPPFLAGS := $(CPPFLAGS) -I/usr/local/cuda/include
+LDFLAGS := $(LDFLAGS) -L/usr/local/cuda/lib64 -lcudart -lcublas -lcurand
+
+[caffe needs=cuda needs=caffe_pb]
 CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
-CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src -I/usr/local/cuda/include
-LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -L/usr/local/cuda/lib64 -lcaffe -lcudart -lcublas -lcurand -lprotobuf
+CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src
+LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -lcaffe
+ifneq ($(shell diff -wq ../src/ext/caffe.proto ${CAFFE_HOME}/src/caffe/proto/caffe.proto ; echo $$? ),0)
+$(error "building with caffe support, but diff of boda copy of caffe.proto with caffe version failed (because the content diffed, a file was not found, etc). run diff manually for details and/or update boda version of caffe.proto. aborting make.")
+endif
+
 
 [turbojpeg] # not disable-able, due to unmarked indirect dependencies. we mark only the direct dependencies below.
 LDFLAGS := $(LDFLAGS) -lturbojpeg
@@ -62,26 +70,33 @@ LDFLAGS := $(LDFLAGS) -lpython2.7
 [objs]
 # we have our hacked-up version of the upgrade net func. we
 # (questionably) use it even when compiling with full caffe support.
-upgrade_proto.o caffe_pb 
-# we don't need/want our copy of the caffe protobuf wrapper code if
-# we're compiling caffe, so we mark it -caffe_and_cuda.  FIXME: we
-# should really also the caffe version of the protobuf header when
-# we're compiling with full caffe support (or at least check it is the
-# same as our copy), but that's trickier to do.
-caffe.pb.o caffe_pb -caffe_and_cuda 
+
+upgrade_proto.o caffe_pb
+
+# we don't need/want our copy of the caffe
+# protobuf wrapper code if we're compiling caffe, so we mark it
+# -caffe.  FIXME: we should really also the caffe version of the
+# protobuf header when we're compiling with full caffe support, but
+# that seems tricky to do. we settle for checking if our version of
+# caffe.proto is the same as the caffe version.
+
+caffe.pb.o caffe_pb -caffe 
+
 # caffe-related functionality that only needs the caffe protobuf
 # headers (and generated code).
+
 caffepb.o caffe_pb
+
 lmdbif.o lmdb
-test_dense.o caffe_and_cuda
+test_dense.o caffe
 conv_common.o
 asio_util.o
 disp_app.o SDL2
-cap_app.o SDL2 caffe_and_cuda
-caffeif.o caffe_and_cuda
+cap_app.o SDL2 caffe
+caffeif.o caffe_pb caffe
 cap_util.o
 disp_util.o SDL2
-conv_pyra.o SDL2 caffe_and_cuda
+conv_pyra.o SDL2 caffe
 conv_util.o
 blf_pack.o
 vr5_mex_feats.o
