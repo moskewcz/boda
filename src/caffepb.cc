@@ -408,18 +408,21 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
+    uint32_t remove_data; //NESI(default=1,help="if non-zero, remove data fields from blobs")
+
     p_net_param_t trained_net;
 
     void main( nesi_init_arg_t * nia ) { 
       trained_net = must_read_binary_proto( trained_fn );
 
       uint32_t const numl = (uint32_t)trained_net->layer_size();
-      // delete all blob data
-      for( uint32_t i = 0; i != numl; ++i ) {
-	caffe::LayerParameter & lp = *trained_net->mutable_layer(i);
-	for( int j = 0; j != lp.blobs_size(); ++j ) { 
-	  caffe::BlobProto & lbp = *lp.mutable_blobs( j );
-	  lbp.clear_data();
+      if( remove_data ) { // if requested, delete all blob data
+	for( uint32_t i = 0; i != numl; ++i ) {
+	  caffe::LayerParameter & lp = *trained_net->mutable_layer(i);
+	  for( int j = 0; j != lp.blobs_size(); ++j ) { 
+	    caffe::BlobProto & lbp = *lp.mutable_blobs( j );
+	    lbp.clear_data();
+	  }
 	}
       }
       // dump to string
