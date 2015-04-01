@@ -1,7 +1,4 @@
-// from the caffe framework, BSD licenced, see https://github.com/BVLC/caffe -- copied 2015.03.26
-// modifications Copyright (c) 2015, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 syntax = "proto2";
-
 
 package caffe;
 
