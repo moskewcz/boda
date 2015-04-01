@@ -53,13 +53,13 @@ class Convolution( object ):
         assert bot.chan == filts.chan # filt.chan is (or should be) input chans
         assert top.chan == filts.num # filt.num is (or should be) output chans
         # note: top.{x,y} should be = ( bot.{x,y} + pad ) / stride   (ceild/floord correctly)
-        forward_flops = out_pels * filts.x * filts.y * filts.chan
+        forward_flops = out_pels * filts.x * filts.y * filts.chan * 2
         grad_inner_dim = out_pels / filts.num # aka number of input patches
         assert grad_inner_dim == top.num*top.x*top.y
-        back_grad_flops = filts.dims_prod() * grad_inner_dim # grad is same size as filts
+        back_grad_flops = filts.dims_prod() * grad_inner_dim * 2 # grad is same size as filts
         diff_inner_dim = filts.num
         # diff ends up as the same size as input but is reduced from a temp of size im2col(input).
-        back_diff_flops = (filts.chan*filts.x*filts.y)*diff_inner_dim*grad_inner_dim  # as: (M) * N * K
+        back_diff_flops = (filts.chan*filts.x*filts.y)*diff_inner_dim*grad_inner_dim * 2  # as: (M) * N * K
 
         print name," FORWARD",pp_flops(forward_flops)," --- BACK_GRAD",pp_flops(back_grad_flops),
         print " --- BACK_DIFF",pp_flops(back_diff_flops)
