@@ -24,7 +24,8 @@ import operator
 
 # cnet flop-calculating ops classes
 class NDA( object ): 
-    def __init__( self, *args ):
+    def __init__( self, name, *args ):
+        self.name = name
         if len(args) == 4:
             self.num = args[0]
             self.chan = args[1]

@@ -349,9 +349,10 @@ namespace boda
     if( node->top_for.empty() ) { isss += " SOURCE"; }
     if( node->bot_for.empty() ) { isss += " SINK"; }
     conv_io_t & cio = node->cio;
-    out << strprintf( "%s = NDA(num_img,%s,%s,%s) #%s num,chan,y,x\n", 
-		      as_pyid(bn).c_str(), str(cio.chans).c_str(), 
-		      str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), isss.c_str() );
+    out << strprintf( "%s = NDA(\"%s\",num_img,%s,%s,%s) #%s num,chan,y,x\n", 
+		      as_pyid(bn).c_str(), as_pyid(bn).c_str(), str(cio.chans).c_str(), 
+		      str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), 
+		      isss.c_str() );
   }
 
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
@@ -365,11 +366,11 @@ namespace boda
       u32_pt_t kern_sz = cop->kern_sz;
       if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
 
-      out << strprintf( "%s_filts = NDA(%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
-			tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
+      out << strprintf( "%s_filts = NDA(\"%s_filts\",%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
+			tag_id, tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
 			str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
-      out << strprintf( "%s_biases = NDA(%s) # SOURCE out_chan\n", 
-			tag_id, str(cop->out_chans).c_str() );
+      out << strprintf( "%s_biases = NDA(\"%s_biases\",%s) # SOURCE out_chan\n", 
+			tag_id, tag_id, str(cop->out_chans).c_str() );
       extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag_id, tag_id );
     }
     // print decls for all of this ops output nodes here
