@@ -162,6 +162,7 @@ namespace boda
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
     uint32_t print_ops; //NESI(default=0,help="if non-zero, write ops to file with fn given by print_opts_fn. note: requires in_sz to be set.")
     filename_t print_ops_fn; //NESI(default="%(boda_output_dir)/out.py",help="print_opts output filename")
+    uint32_t expand_ops; //NESI(default=0,help="if non-zero, write ops in expanded/elaborated form when possible.")
 
     p_net_param_t net_param;
     
@@ -186,7 +187,7 @@ namespace boda
       }
       if( print_ops ) {
 	if( !in_sz ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
-	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ) );
+	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ), expand_ops );
       }
 
     }

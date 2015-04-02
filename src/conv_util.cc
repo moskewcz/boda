@@ -354,12 +354,30 @@ namespace boda
 		      str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), 
 		      isss.c_str() );
   }
+  
 
-  void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
+
+  string get_conv_as_sgemm( string const & top_name, string const & bot_name, string const & filts_name,
+			    uint32_t const M, uint32_t const N, uint32_t const K, string const & extra_params ) {
+    string const buf_name = bot_name + "_one_row_per_patch_buf";
+    string ret;
+    ret += strprintf( "%s = NDA(\"%s\",%u,%u)\n",buf_name.c_str(),buf_name.c_str(),M,N);
+    ret += strprintf( "for i in range(0,num_img):\n" );
+    ret += strprintf( "  patches_to_rows( src=%s[i,:,:,:], dest=%s, %s ) # one copy per output elem\n",
+		      bot_name.c_str(),buf_name.c_str(), extra_params.c_str() );
+    ret += strprintf( "  %s = %s * transpose(reshape(%s,%u,%u)) # sgemm: MxNxK == %ux%ux%u\n", top_name.c_str(),buf_name.c_str(), 
+		      filts_name.c_str(),K,N,M,N,K );
+    return ret;
+  }
+
+  void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop, bool const expanded_ops ) {
     string extra_params;
+    string expanded_op;
     string const tag_id_str = as_pyid( cop->tag );
     char const * const tag_id = tag_id_str.c_str();
-
+    
+    string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
+    uint32_t M = 0, N = 0, K = 0;
     if( cop->type == Convolution_str || cop->type == InnerProduct_str ) {
       assert_st( cop->bots.size() == 1 );
       conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
@@ -372,15 +390,28 @@ namespace boda
       out << strprintf( "%s_biases = NDA(\"%s_biases\",%s) # SOURCE out_chan\n", 
 			tag_id, tag_id, str(cop->out_chans).c_str() );
       extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag_id, tag_id );
+
+      assert_st( cop->tops.size() == 1 );
+      conv_io_t & cio_out = pipe->must_get_node( cop->tops[0] )->cio;
+      M = cio_out.sz.d[0] * cio_out.sz.d[1];
+      N = kern_sz.d[0]*kern_sz.d[1]*cio_in.chans;
+      K = cop->out_chans;
+
+      // get expanded op 
+      expanded_op = get_conv_as_sgemm(cop->tops[0],cop->bots[0],tag_id_str+"_filts",M,N,K,pad_and_stride);
     }
     // print decls for all of this ops output nodes here
     for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
       print_blob_decl( out, *i, pipe->must_get_node(*i) ); 
     }
     // print acutal op
-    out << strprintf( "%s(name=\"%s\",bots=%s,tops=%s%s,\n\tin_pad=\"%s\",stride=\"%s\")\n", 
-		      cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
-		      extra_params.c_str(), cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
+    if( expanded_ops && !expanded_op.empty() ) { out << expanded_op; }
+    else {
+      out << strprintf( "%s(name=\"%s\",bots=%s,tops=%s%s,\n\t%s)\n", 
+			cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
+			extra_params.c_str(), pad_and_stride.c_str() );
+    }
+    
     // print any in-place ops for any of the output nodes
     for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
       p_conv_node_t const & out_node = pipe->must_get_node(*i);
@@ -392,7 +423,7 @@ namespace boda
     }
   }
 
-  void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
+  void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name, bool const & expand_ops ) {
     p_conv_node_t node = must_get_node( node_name );
     // print source nodes here, otherwise print with thier writing op
     if( node->top_for.empty() ) { print_blob_decl( out, node_name, node ); }
@@ -400,16 +431,16 @@ namespace boda
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      print_op_decl( out, this, cop );
+      print_op_decl( out, this, cop, expand_ops );
       assert_st( cop->has_one_top() );
-      dump_ops_rec( out, cop->tops[0] );
+      dump_ops_rec( out, cop->tops[0], expand_ops );
     }
   }
 
-  void conv_pipe_t::dump_ops( std::ostream & out ) {
+  void conv_pipe_t::dump_ops( std::ostream & out, bool const & expand_ops ) {
     assert_st( finalized );
     topo_visit_setup();
-    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i ); }
+    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i, expand_ops ); }
   }
 
   struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["has_main_t"], type_id="conv_ana")
@@ -454,7 +485,7 @@ namespace boda
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
 	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
-	if( print_ops ) { conv_pipe->dump_ops( *out ); }
+	if( print_ops ) { conv_pipe->dump_ops( *out, 0 ); }
 	conv_pipe->clear_sizes();	
       }
     }

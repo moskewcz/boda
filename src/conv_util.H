@@ -102,8 +102,8 @@ namespace boda
     void dump_pipe( std::ostream & out );
     void dump_ios_rec( std::ostream & out, string const & node_name );
     void dump_ios( std::ostream & out );
-    void dump_ops_rec( std::ostream & out, string const & node_name );
-    void dump_ops( std::ostream & out );
+    void dump_ops_rec( std::ostream & out, string const & node_name, bool const & expand_ops );
+    void dump_ops( std::ostream & out, bool const & expand_ops );
   };
 
 

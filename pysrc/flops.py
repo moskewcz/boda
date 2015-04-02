@@ -36,6 +36,12 @@ class NDA( object ):
     def dims_prod( self ): 
         if hasattr(self,"dims"): return reduce(operator.mul, self.dims, 1)
         return self.num*self.chan*self.y*self.x
+    def __getitem__( self, *args, **kwargs ):
+        return self
+    def __mul__( self, o ):
+        #if hasattr(self,"dims"): print len(self.dims)
+        #else: print "4"
+        return self
 
 class Net( object ):
     def __init__( self ):
@@ -79,8 +85,20 @@ class Convolution( object ):
         assert len(tops) == 1
         bot = bots[0]
         top = tops[0]
+
         in_pels = bot.dims_prod()
         out_pels = top.dims_prod()
+
+        if 0:
+            buf_name = bot.name + "_one_row_per_patch_buf"
+            M = top.x*top.y
+            N = filts.chan*filts.x*filts.y
+            K = filts.num
+            print "%s = NDA(%s,%s,%s)" % (buf_name,buf_name,M,N)
+            print "for i in range(0,num_img):"
+            print "  patches_to_rows( in=%s[i,:,:,:], out=%s )" % (bot.name,buf_name)
+            print "  %s = %s * transpose(reshape(%s,%s,%s)) # sgemm: MxNxK == %sx%sx%s" % (top.name,buf_name,filts.name,K,N,M,N,K)
+
         forward_bytes = (in_pels + out_pels + filts.dims_prod() + biases.dims_prod()) * 4
         backward_bytes = (in_pels*2 + out_pels + filts.dims_prod()*2 + biases.dims_prod()*2) * 4
 
@@ -117,6 +135,7 @@ class Convolution( object ):
 # for innerproduct. hmm.
 InnerProduct=Convolution 
 
+# stubs to ignore for now
 class Pooling( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
 class LRN( object ): 
@@ -127,6 +146,10 @@ class ReLU( object ):
     def __init__( self, **kwargs ): self.opts = kwargs
 class Dropout( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
+def patches_to_rows( **kwargs ):
+    pass
+def transpose( A ): return A
+def reshape( A, *args ): return A
 
 import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
