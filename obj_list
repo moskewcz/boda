@@ -30,7 +30,7 @@ LDFLAGS := $(LDFLAGS) -lprotobuf
 caffepb.o : ../src/gen/caffe.pb.h 
 upgrade_proto.o : ../src/gen/caffe.pb.h 
 # note: it may be possible to not rebuild caffe.pb.h / caffe.pb.cc in some cases
-../src/gen/caffe.pb.h : ../src/ext/caffe.proto
+../src/gen/caffe.pb.cc ../src/gen/caffe.pb.h : ../src/ext/caffe.proto
 	protoc -I../src/ext --cpp_out=../src/gen ../src/ext/caffe.proto
 
 
