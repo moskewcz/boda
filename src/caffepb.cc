@@ -9,6 +9,7 @@
 #include"caffepb.H"
 #include<google/protobuf/text_format.h> 
 #include<google/protobuf/io/zero_copy_stream_impl.h>
+#include<google/protobuf/io/coded_stream.h>
 // our local copy of caffe.proto, which better be identical to the caffe version if we're compiling with caffe support.
 #include"gen/caffe.pb.h" 
 #include"rand_util.H"

@@ -267,7 +267,7 @@ namespace boda
     cap_start(); 
     int epfd = -1;
     neg_one_fail( epfd = epoll_create( 1 ), "epoll_create" );
-    int const all_ev = EPOLLIN|EPOLLPRI|EPOLLOUT|EPOLLERR|EPOLLHUP|EPOLLET;
+    uint32_t const all_ev = EPOLLIN|EPOLLPRI|EPOLLOUT|EPOLLERR|EPOLLHUP|EPOLLET;
     epoll_event ev{ all_ev }; // EPOLLIN|EPOLLET };
     ev.data.fd = cap_fd;
     neg_one_fail( epoll_ctl( epfd, EPOLL_CTL_ADD, cap_fd, &ev ), "epoll_ctl" );

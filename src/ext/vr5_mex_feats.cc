@@ -68,7 +68,7 @@ namespace boda {
     double *im = &mximage->cm_at1(0);
 
     dims_t const & dims_ = mximage->dims;
-    vector< int > dims = {dims_.dims(2), dims_.dims(1), dims_.dims(0)};
+    vector< int > dims = {(int)dims_.dims(2), (int)dims_.dims(1), (int)dims_.dims(0)};
     if( dims.size() != 3 || dims[2] != 3 ) {
       rt_err( "invalid input" );
     }
@@ -89,7 +89,7 @@ namespace boda {
     p_nda_double_t mxfeat( new nda_double_t( out_dims ) );
     double *feat = &mxfeat->cm_at1(0);
 
-    vector< int > out = {out_dims.dims(2), out_dims.dims(1), out_dims.dims(0)};
+    vector< int > out = {(int)out_dims.dims(2), (int)out_dims.dims(1), (int)out_dims.dims(0)};
   
     int visible[2];
     visible[0] = blocks[0]*sbin;

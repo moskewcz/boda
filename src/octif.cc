@@ -110,7 +110,7 @@ namespace boda
     clean_up_and_exit( retval ); 
   }
 
-  using boost::filesystem3::path;
+  using boost::filesystem::path;
   void test_oct( ostream & out, string const & mat_fn )
   {
     octave_value_list in;

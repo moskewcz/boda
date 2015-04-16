@@ -60,7 +60,7 @@ namespace boda
     check_tj_ret( tj_ret, fn, "tjDecompressHeader2" );
     assert_st( (jw > 0) && ( jh > 0 ) ); // what to do with jss? seems unneeded.
     assert_st( tjPixelSize[ tj_pixel_format ] == depth );
-    set_sz_and_alloc_pels( {jw, jh} );
+    set_sz_and_alloc_pels( i32_to_u32(i32_pt_t{jw, jh}) );
     tj_ret = tjDecompress2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), pels.get(), sz.d[0], row_pitch, sz.d[1], 
 			    tj_pixel_format, 0 );
     check_tj_ret( tj_ret, fn, "tjDecompress2" );

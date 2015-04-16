@@ -22,9 +22,6 @@
 
 
 namespace boost {
-  namespace filesystem3 {
-    struct path;
-  }
   namespace iostreams {
     struct mapped_file;
     struct mapped_file_source;

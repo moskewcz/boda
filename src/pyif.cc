@@ -5,6 +5,7 @@
 // for numpy, if we wish to include numpy in other TUs (.cc files / objects), we need to do some magic: all other files must #define the same PY_ARRAY_UNIQUE_SYMBOL, and all but this one (that calls _import_array(), must #define NO_IMPORT_ARRAY
 #include<Python.h>
 #include"boda_tu_base.H"
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #define PY_ARRAY_UNIQUE_SYMBOL boda_numpy_unique_symbol_yo
 #include<numpy/arrayobject.h>
 #include"pyif.H"
@@ -129,14 +130,16 @@ namespace boda
   void prc_plot( std::string const & plt_fn, uint32_t const tot_num_class, vect_prc_elem_t const & prc_elems,
 		 std::string const & plt_title )
   {
-    npy_intp dims[2] = {3,prc_elems.size()};
-    ppyo npa( PyArray_SimpleNew( 2, dims, NPY_DOUBLE) );
+    npy_intp dims[2] = {3,(npy_intp)prc_elems.size()};
+    PyArrayObject * raw_npa = (PyArrayObject*)PyArray_SimpleNew( 2, dims, NPY_DOUBLE);
+    ppyo npa( (PyObject*)raw_npa );
+    
     uint32_t ix = 0;
     for ( vect_prc_elem_t::const_iterator i = prc_elems.begin(); i != prc_elems.end(); ++i)
     {
-      *((double *)PyArray_GETPTR2( npa.get(), 0, ix )) = i->get_recall( tot_num_class );
-      *((double *)PyArray_GETPTR2( npa.get(), 1, ix )) = i->get_precision();
-      *((double *)PyArray_GETPTR2( npa.get(), 2, ix )) = i->score;
+      *((double *)PyArray_GETPTR2( raw_npa, 0, ix )) = i->get_recall( tot_num_class );
+      *((double *)PyArray_GETPTR2( raw_npa, 1, ix )) = i->get_precision();
+      *((double *)PyArray_GETPTR2( raw_npa, 2, ix )) = i->score;
       ++ix;
     }
     ppyo ret = bplot_call( "plot_stuff", ppyo(PyString_FromString(plt_fn.c_str())), npa,
@@ -170,11 +173,11 @@ namespace boda
 
 
   void show_dets( p_img_t img, vect_base_scored_det_t const & scored_dets ) {
-    npy_intp dims[2] = {scored_dets.size(),4};
+    npy_intp dims[2] = {(npy_intp)scored_dets.size(),4};
     ppyo npa( PyArray_SimpleNew( 2, dims, NPY_UINT32) );
     for( vect_base_scored_det_t::const_iterator i = scored_dets.begin(); i != scored_dets.end(); ++i ) {
       for( uint32_t d = 0; d < 4; ++d ) {
-	*((uint32_t *)PyArray_GETPTR2( npa.get(), i-scored_dets.begin(), d )) = i->p[d>>1].d[d&1];
+	*((uint32_t *)PyArray_GETPTR2( (PyArrayObject*)npa.get(), i-scored_dets.begin(), d )) = i->p[d>>1].d[d&1];
       }
     }
     bplot_call( "show_dets", img_to_py(img), npa );

@@ -3,7 +3,10 @@
 #include"timers.H"
 #include"str_util.H"
 #include<time.h>
-#include<sparsehash/dense_hash_map>
+// NOTE: we use pre-2.0 sparsehash include path for compatiblity with
+// ubuntu 14.04 (which ships sparsehash 1.10) for now, but this should
+// eventually become <sparsehash/dense_hash_map>.
+#include<google/dense_hash_map> 
 
 namespace boda
 {

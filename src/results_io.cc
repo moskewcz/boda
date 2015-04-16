@@ -84,7 +84,7 @@ namespace boda
     ensure_is_dir( ann_dir.string() );
     path const ann_path = ann_dir / (id + ".xml");
 #ifdef PASCAL_LAX_PARSE // allow skipping non-existant annotations
-    bool const is_reg_file = boost::filesystem3::is_regular_file( ann_path ); 
+    bool const is_reg_file = boost::filesystem::is_regular_file( ann_path ); 
     if( !is_reg_file ) { return; }
 #endif
     ensure_is_regular_file( ann_path.string() );
@@ -263,7 +263,7 @@ namespace boda
 	img_db->img_infos.push_back( img_info );
 
 	// read gts / bboxes (if they exist)
-	if( !boost::filesystem3::is_regular_file( bboxes_fn ) ) { 
+	if( !boost::filesystem::is_regular_file( bboxes_fn ) ) { 
 	  if( cn == "no-logo" ) { continue; } // for no_logo, can skip loading gts / bboxes if no file
 	  printf( "for class cn=%s, missing bboxes file:\n", str(cn).c_str() );
 	}

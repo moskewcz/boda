@@ -23,7 +23,7 @@ namespace boda {
       assert(base); return std::string( base.get()+b, base.get()+e ); } // get copy as std::string
     uint32_t sz( void ) const { assert(base); assert( e >= b ); return e - b; }
     uint32_t end_off( void ) const { assert(base); return e; } 
-    bool exists( void ) const { return base; }
+    bool exists( void ) const { return base != 0; }
     void shrink_end_off( uint32_t const new_e )
     {
       assert( new_e >= b ); // must yield sz >= 0
