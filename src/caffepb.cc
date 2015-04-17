@@ -499,8 +499,8 @@ namespace boda
   };
 
 
-  struct cnet_util_pb_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
-		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_util_pb")
+  struct cnet_util_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_util")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string add_before_ln;//NESI(default="conv4",help="name of layer before which to add identity layer")    
