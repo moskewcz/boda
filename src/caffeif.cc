@@ -755,44 +755,7 @@ namespace boda
     }
   }
 
-  struct cnet_mod_t : virtual public nesi // NESI(help="base class for utilities to modify caffe nets" )
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
-    filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
-    filename_t mod_fn; //NESI(default="%(models_dir)/%(out_model)/train_val.prototxt",help="output net prototxt template filename")
-    filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/boda_gen.caffemodel",help="output net weights binary prototxt template filename")
-
-    p_net_param_t net_param;
-    p_net_param_t mod_net_param;
-
-    void ensure_out_dir( nesi_init_arg_t * const nia ) { ensure_is_dir( nesi_filename_t_expand( nia, "%(models_dir)/%(out_model)" ), 1 ); }
-    void create_net_params( void ) {
-      net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      mod_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
-    }
-    void write_mod_pt( void ) {
-      string mod_str;
-      bool const pts_ret = google::protobuf::TextFormat::PrintToString( *mod_net_param, &mod_str );
-      assert_st( pts_ret );
-      write_whole_fn( mod_fn, mod_str );
-    }
-    p_Net_float net;
-    p_Net_float mod_net;
-    void load_nets( void ) {
-      net = caffe_create_net( *net_param, trained_fn.exp );      
-      mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
-    }
-    void write_mod_net( void ) {
-      p_net_param_t mod_net_param_with_weights;
-      mod_net_param_with_weights.reset( new net_param_t );
-      mod_net->ToProto( mod_net_param_with_weights.get(), false );
-      caffe::WriteProtoToBinaryFile( *mod_net_param_with_weights, mod_weights_fn.exp );
-    }
-  };
-
-
 #include"gen/caffeif.H.nesi_gen.cc"
-#include"gen/caffeif.cc.nesi_gen.cc"
+
 }
 
