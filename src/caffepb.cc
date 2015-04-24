@@ -435,7 +435,7 @@ namespace boda
     }
   };
 
-  struct cnet_mod_pb_t : virtual public nesi // NESI(help="base class for utilities to modify caffe nets" )
+  struct cnet_mod_t : virtual public nesi // NESI(help="base class for utilities to modify caffe nets" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
@@ -476,8 +476,8 @@ namespace boda
     }
   };
 
-  struct cnet_copy_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
-		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_copy")
+  struct cnet_copy_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_t","has_main_t"], type_id="cnet_copy")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
@@ -491,8 +491,8 @@ namespace boda
   };
 
 
-  struct cnet_resize_conv_pb_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
-		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_resize_conv_pb")
+  struct cnet_resize_conv_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_t","has_main_t"], type_id="cnet_resize_conv")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string to_resize_ln;//NESI(default="conv1",help="name of conv layer to resize ")    
@@ -552,8 +552,8 @@ namespace boda
     }
   };
 
-  struct cnet_fc_to_conv_pb_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
-			     // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_fc_to_conv_pb")
+  struct cnet_fc_to_conv_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
+			     // bases=["cnet_mod_t","has_main_t"], type_id="cnet_fc_to_conv")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
@@ -648,8 +648,8 @@ namespace boda
 
   };
 
-  struct cnet_util_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
-		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_util")
+  struct cnet_util_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_t","has_main_t"], type_id="cnet_util")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string add_before_ln;//NESI(default="conv4",help="name of layer before which to add identity layer")    
