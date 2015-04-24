@@ -444,6 +444,8 @@ namespace boda
     filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/boda_gen.caffemodel",help="output net weights binary prototxt template filename")
     uint32_t in_chans; //NESI(default=3,help="number of input chans (correct value only needed when adding initial layers)")
     p_net_param_t net_param;
+    p_conv_pipe_t net_pipe;
+
     p_net_param_t mod_net_param;
     p_conv_pipe_t mod_net_pipe;
     p_net_param_t trained_net;
@@ -451,6 +453,7 @@ namespace boda
     void ensure_out_dir( nesi_init_arg_t * const nia ) { ensure_is_dir( nesi_filename_t_expand( nia, "%(models_dir)/%(out_model)" ), 1 ); }
     void create_net_params( void ) {
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
+      net_pipe = create_pipe_from_param( *net_param, in_chans, "" );
       mod_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
     }
     void write_mod_pt( void ) {
@@ -462,25 +465,14 @@ namespace boda
       mod_net_pipe = create_pipe_from_param( *mod_net_param, in_chans, "" );
     }
     void load_nets( void ) {
-#if 0
-      net = caffe_create_net( *net_param, trained_fn.exp );      
-      mod_net = caffe_create_net( *mod_net_param, trained_fn.exp ); 
-#else
       trained_net = must_read_binary_proto( trained_fn );
       copy_matching_layer_blobs_from_param_to_param( trained_net, net_param );
       copy_matching_layer_blobs_from_param_to_param( trained_net, mod_net_param );
-#endif
     }
     void write_mod_net( void ) {
-#if 0
-      p_net_param_t mod_net_param_with_weights;
-      mod_net_param_with_weights.reset( new net_param_t );
-      mod_net->ToProto( mod_net_param_with_weights.get(), false );
-      caffe::WriteProtoToBinaryFile( *mod_net_param_with_weights, mod_weights_fn.exp );
-#else
       bool const ret = mod_net_param->SerializeToOstream( ofs_open( mod_weights_fn ).get() );
-      if( !ret ) { rt_err( strprintf( "failed to write NetParamter to binary prototxt file %s", str(mod_weights_fn.exp).c_str() ) ); }
-#endif
+      if( !ret ) { rt_err( strprintf( "failed to write NetParamter to binary prototxt file %s", 
+				      str(mod_weights_fn.exp).c_str() ) ); }
     }
   };
 
@@ -498,6 +490,102 @@ namespace boda
     }
   };
 
+
+  struct cnet_fc_to_conv_pb_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
+			     // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_fc_to_conv_pb")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    void main( nesi_init_arg_t * nia ) { 
+      create_net_params();
+      trained_net = must_read_binary_proto( trained_fn ); // we need to load the original weights 'early' to infer input dims
+
+      vect_string converted_layer_names;
+      uint32_t const numl = (uint32_t)mod_net_param->layer_size();
+      // find and rename all fc layers
+      for( uint32_t i = 0; i != numl; ++i ) {
+	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
+	if( lp->type() != InnerProduct_str ) { continue; }
+	vect_p_nda_float_t blobs;
+	copy_layer_blobs( trained_net, lp->name(), blobs );
+
+	caffe::InnerProductParameter * ipp = lp->mutable_inner_product_param();
+	converted_layer_names.push_back( lp->name() );
+	lp->set_name( lp->name() + "-conv" );
+	lp->set_type( Convolution_str );
+
+	caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
+	assert_st( ipp->has_num_output() );
+	if( ipp->has_num_output() ) { cp->set_num_output( ipp->num_output() ); }
+	if( ipp->has_bias_term() ) { cp->set_bias_term( ipp->bias_term() ); }
+	if( ipp->has_weight_filler() ) { *cp->mutable_weight_filler() = ipp->weight_filler(); }
+	if( ipp->has_bias_filler() ) { *cp->mutable_bias_filler() = ipp->bias_filler(); }
+
+	assert_st( blobs.size() == 2 ); // filters, biases
+	//printf( "lp->name()=%s\n", str(lp->name()).c_str() );
+	//printf( "net_param->mutable_layer(i)->name()=%s\n", str(net_param->mutable_layer(i)->name()).c_str() );
+	printf( "blobs[0]->dims=%s\n", str(blobs[0]->dims).c_str() );
+	// FIXME: it's not clear what versions of blob format are possible here or which we want to support ...
+	assert_st( blobs[0]->dims.sz() == 4 );
+	uint32_t num_w = 0;
+	if( blobs[0]->dims.dims(0) == ipp->num_output() ) {
+	  assert_st( blobs[0]->dims.dims(0) == ipp->num_output() );
+	  num_w = blobs[0]->dims.dims(1);
+	  assert_st( blobs[0]->dims.dims(2) == 1 );
+	  assert_st( blobs[0]->dims.dims(3) == 1 );
+	} else if ( blobs[0]->dims.dims(2) == ipp->num_output() ) {
+	  assert_st( blobs[0]->dims.dims(0) == 1 );
+	  assert_st( blobs[0]->dims.dims(1) == 1 );
+	  assert_st( blobs[0]->dims.dims(2) == ipp->num_output() );
+	  num_w = blobs[0]->dims.dims(3);
+	} else {
+	  rt_err( strprintf( "unknown IP blobs dim layout: blobs[0]->dims=%s\n", str(blobs[0]->dims).c_str() ).c_str() );
+	}
+
+	// get number of input chans
+	if( lp->bottom_size() != 1) { rt_err( "unhandled: bottom_size() != 1"); }
+	string const bot_bn = lp->bottom(0);
+	uint32_t const num_in_chan = net_pipe->must_get_node( bot_bn )->cio.chans;
+
+	// FIXME: we assume input is spactially square, which may not be true
+	assert_st( !(num_w % num_in_chan) );
+	uint32_t kern_sz = sqrt(num_w / num_in_chan);
+	assert_st( kern_sz*kern_sz*num_in_chan == num_w );
+	cp->set_kernel_size( kern_sz );
+	lp->clear_inner_product_param();
+      }
+      ensure_out_dir( nia );
+      write_mod_pt();
+      copy_matching_layer_blobs_from_param_to_param( trained_net, mod_net_param );
+      //mod_net = caffe_create_net( *mod_net_param, trained_fn.exp );
+      for( vect_string::const_iterator i = converted_layer_names.begin(); i != converted_layer_names.end(); ++i ) {
+	fc_weights_to_conv_weights( *i );
+      }
+      write_mod_net();
+    }
+
+    void fc_weights_to_conv_weights( string const & layer_name ) {
+      vect_p_nda_float_t blobs;
+      copy_layer_blobs( trained_net, layer_name, blobs );
+
+      vect_p_nda_float_t blobs_mod;
+      alloc_layer_blobs( mod_net_pipe, layer_name + "-conv", blobs_mod );
+
+      assert_st( blobs.size() == 2 ); // filters, biases
+      assert_st( blobs_mod.size() == 2 ); // filters, biases
+      printf( "blobs[1]->dims=%s blobs_mod[1]->dims=%s\n", str(blobs[1]->dims).c_str(), str(blobs_mod[1]->dims).c_str() );
+      // assert_st( blobs[1]->dims == blobs_mod[1]->dims ); // biases should be same shape (and same strides?) too strong
+      assert_st( blobs[1]->dims.dims_prod() == blobs_mod[1]->dims.dims_prod() );
+      blobs_mod[1]->elems = blobs[1]->elems; // reshape
+
+      assert( blobs_mod[0]->dims.dims_prod() == blobs[0]->dims.dims_prod() );
+      assert( blobs_mod[0]->elems.sz == blobs[0]->elems.sz );
+      blobs_mod[0]->elems = blobs[0]->elems; // reshape
+
+      set_layer_blobs( mod_net_param, layer_name + "-conv", blobs_mod );
+    }
+
+  };
 
   struct cnet_util_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
 		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_util")

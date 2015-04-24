@@ -826,10 +826,11 @@ namespace boda
 	//printf( "lp->name()=%s\n", str(lp->name()).c_str() );
 	//printf( "net_param->mutable_layer(i)->name()=%s\n", str(net_param->mutable_layer(i)->name()).c_str() );
 	//printf( "blobs[0]->dims=%s\n", str(blobs[0]->dims).c_str() );
-	assert_st( blobs[0]->dims.dims(0) == 1 );
-	assert_st( blobs[0]->dims.dims(1) == 1 );
-	assert_st( blobs[0]->dims.dims(2) == ipp->num_output() );
-	uint32_t num_w = blobs[0]->dims.dims(3);
+	assert_st( blobs[0]->dims.sz() == 4 );
+	assert_st( blobs[0]->dims.dims(0) == ipp->num_output() );
+	uint32_t num_w = blobs[0]->dims.dims(1);
+	assert_st( blobs[0]->dims.dims(2) == 1 );
+	assert_st( blobs[0]->dims.dims(3) == 1 );
 
 	// get number of input chans
 	if( lp->bottom_size() != 1) { rt_err( "unhandled: bottom_size() != 1"); }
