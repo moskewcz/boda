@@ -491,6 +491,67 @@ namespace boda
   };
 
 
+  struct cnet_resize_conv_pb_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
+		       // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_resize_conv_pb")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string to_resize_ln;//NESI(default="conv1",help="name of conv layer to resize ")    
+    u32_pt_t targ_sz; //NESI(default="5 5",help="kernel size for resized layer")
+
+    void resize_conv_weights( string const & to_resize_name ) {
+      vect_p_nda_float_t blobs;
+      copy_layer_blobs( net_param, to_resize_name, blobs );
+
+      vect_p_nda_float_t blobs_mod;
+      alloc_layer_blobs( mod_net_pipe, to_resize_name + "-resized", blobs_mod );
+
+      assert_st( blobs.size() == 2 ); // filters, biases
+      assert_st( blobs_mod.size() == 2 ); // filters, biases
+      // assert_st( blobs[1]->dims == blobs_mod[1]->dims ); // biases should be same shape (and same strides?) too strong
+      assert_st( blobs[1]->dims.dims_prod() == blobs_mod[1]->dims.dims_prod() );
+      blobs_mod[1]->elems = blobs[1]->elems; // reshape
+
+      assert_st( blobs[0]->dims.dims(0) == blobs_mod[0]->dims.dims(0) );
+      assert_st( blobs[0]->dims.dims(1) == blobs_mod[0]->dims.dims(1) );
+      assert_st( targ_sz.d[1] == blobs_mod[0]->dims.dims(2) );
+      assert_st( targ_sz.d[0] == blobs_mod[0]->dims.dims(3) );
+      resize_kernel( blobs[0], blobs_mod[0] );
+      set_layer_blobs( mod_net_param, to_resize_name + "-resized", blobs_mod );
+    }
+
+    void main( nesi_init_arg_t * nia ) { 
+      create_net_params();
+
+      uint32_t const to_resize_ix = get_layer_ix( *net_param, to_resize_ln );
+      caffe::LayerParameter * lp = mod_net_param->mutable_layer(to_resize_ix);
+      if( !lp->has_convolution_param() ) { 
+	rt_err( strprintf("layer %s of net not conv layer; don't know how to resize",to_resize_ln.c_str())); }
+      caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
+      p_conv_op_t conv_op = get_conv_op_from_param( *cp );
+      conv_op->kern_sz = targ_sz;
+
+      set_param_from_conv_op( *cp, conv_op );
+      assert_st( lp->has_name() );
+      lp->set_name( lp->name() + "-resized" );
+
+      uint32_t const numl = (uint32_t)mod_net_param->layer_size();
+      // find and rename all fc layers
+      for( uint32_t i = to_resize_ix + 1; i != numl; ++i ) {
+	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
+	if( lp->type() == InnerProduct_str ) {
+	  // FIXME: convert to conv layer. for now, just rename.
+	  printf("WARNING: renaming fc/InnerProduct %s layer to avoid size mismatch when loading weights. note that the renamed layer in the output model will *not* get any copied weights from the input model!\n",lp->name().c_str()); 
+	  lp->set_name( lp->name() + "-renamed-due-to-resize" );
+	} 
+      }
+      ensure_out_dir( nia );
+      write_mod_pt();
+      load_nets();
+      resize_conv_weights( to_resize_ln );
+      write_mod_net();
+    }
+  };
+
   struct cnet_fc_to_conv_pb_t : virtual public nesi, public cnet_mod_pb_t, public has_main_t // NESI(help="utility to modify caffe nets",
 			     // bases=["cnet_mod_pb_t","has_main_t"], type_id="cnet_fc_to_conv_pb")
   {
