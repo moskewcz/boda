@@ -7,6 +7,7 @@
 #include"io_util.H"
 #include"img_io.H"
 #include"blf_pack.H"
+#include"imagenet_util.H"
 
 namespace boda 
 {
@@ -353,8 +354,6 @@ namespace boda
     }
   }
 
-  uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
-
   void img_pyra_pack_t::scale_and_pack_img_into_bins( p_img_t img_in ) {
     create_pyra_imgs( pyra_imgs, img_in, *this );
 #pragma omp parallel for 
@@ -367,7 +366,7 @@ namespace boda
       u32_pt_t const dest = placements.at(pix);
       img_copy_to_clip( pyra_imgs.at(pix).get(), bin_imgs.at(bix).get(), dest );
       //printf( "dest=%s sizes.at(pix)=%s pads.at(pix)=%s\n", str(dest).c_str(), str(sizes.at(pix)).c_str(), str(pads.at(pix)).c_str() );
-      img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), inmc );
+      img_draw_box_pad( bin_imgs.at(bix).get(), u32_box_t( dest, dest + sizes.at(pix) ), pads.at(pix), u32_rgba_inmc );
     }
   }
 
@@ -381,7 +380,7 @@ namespace boda
       for( uint32_t bix = 0; bix != num_bins; ++bix ) {
 	bin_imgs.push_back( p_img_t( new img_t ) );
 	bin_imgs.back()->set_sz_and_alloc_pels( bin_sz );
-	bin_imgs.back()->fill_with_pel( inmc );
+	bin_imgs.back()->fill_with_pel( u32_rgba_inmc );
       }
     }
   }

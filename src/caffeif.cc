@@ -14,6 +14,7 @@
 #include"caffe/caffe.hpp"
 #include"anno_util.H"
 #include"rand_util.H"
+#include"imagenet_util.H"
 
 namespace boda 
 {
@@ -33,14 +34,13 @@ namespace boda
     assert_st( 3 == ibd.dims(1) );
     assert_st( img->sz.d[0] == ibd.dims(3) );
     assert_st( img->sz.d[1] == ibd.dims(2) );
-    uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
 #pragma omp parallel for	  
     for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
       for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
 	uint32_t const pel = img->get_pel({x,y});
 	for( uint32_t c = 0; c < 3; ++c ) {
 	  // note: RGB -> BGR swap via the '2-c' below
-	  in_batch->at4( img_ix, 2-c, y, x ) = get_chan(c,pel) - float(uint8_t(inmc >> (c*8)));
+	  in_batch->at4( img_ix, 2-c, y, x ) = get_chan(c,pel) - float(uint8_t(u32_rgba_inmc >> (c*8)));
 	}
       }
     }

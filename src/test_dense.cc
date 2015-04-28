@@ -9,10 +9,9 @@
 #include"conv_util.H"
 #include"rand_util.H"
 #include"timers.H"
+#include"imagenet_util.H"
 
 namespace boda {
-
-  uint32_t const inmc = 123U+(117U<<8)+(104U<<16)+(255U<<24); // RGBA
 
   template< typename T >
   shared_ptr< nda_T< T > > copy_clip( shared_ptr< nda_T< T > > const & in, dims_t const & b, dims_t const & e ) { 
@@ -84,7 +83,7 @@ namespace boda {
 	if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
 	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
 	// run net on entire input image
-	in_img_dense->fill_with_pel( inmc );
+	in_img_dense->fill_with_pel( u32_rgba_inmc );
 	img_copy_to_clip( (*i)->img.get(), in_img_dense.get() );
 	subtract_mean_and_copy_img_to_batch( run_cnet_dense->in_batch, 0, in_img_dense );
 	p_nda_float_t out_batch_dense;
@@ -166,7 +165,7 @@ namespace boda {
       u32_pt_t const samp_sz = run_cnet->in_sz >> 1;
       // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
       in_img_upsamp = make_p_img_t( run_cnet->in_sz );
-      in_img_upsamp->fill_with_pel( inmc );
+      in_img_upsamp->fill_with_pel( u32_rgba_inmc );
       for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
 	if( !(*i)->img->sz.both_dims_ge( samp_sz ) ) { continue; } // img too small to sample. assert? warn?
 	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
