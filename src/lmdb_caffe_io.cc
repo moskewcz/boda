@@ -18,12 +18,6 @@ namespace boda
     void main( nesi_init_arg_t * nia ) { 
       lmdb.env_open( db_fn.exp, MDB_RDONLY ); 
       MDB_val key, data;
-      char sval[32];
-      key.mv_size = sizeof(int);
-      key.mv_data = sval;
-      data.mv_size = sizeof(sval);
-      data.mv_data = sval;
-
       lmdb.txn_begin( MDB_RDONLY );
       lmdb.cursor_open();
       uint64_t num = 0;
