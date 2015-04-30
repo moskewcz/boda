@@ -68,6 +68,7 @@ LDFLAGS := $(LDFLAGS) -lpython2.7
 # that some dependencies may not usefully be disable-able.
 
 [objs]
+lmdb_caffe_io.o caffe_pb lmdb
 # we have our hacked-up version of the upgrade net func. we
 # (questionably) use it even when compiling with full caffe support.
 

@@ -152,6 +152,17 @@ namespace boda
   }
 
 
+
+  p_datum_t parse_datum( void const * const bytes, uint32_t const bytes_sz ) {
+    caffe::Datum caffe_datum;
+    bool const ret = caffe_datum.ParseFromArray( bytes, bytes_sz );
+    assert_st( ret );
+    p_datum_t datum( new datum_t );
+    datum->label = caffe_datum.label();
+    return datum;
+  }
+
+
   struct cnet_ana_t : virtual public nesi, public has_main_t // NESI(help="show info from caffe prototxt net. ",bases=["has_main_t"], type_id="cnet_ana")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
