@@ -28,9 +28,9 @@ namespace boda
       lmdb.cursor_open();
       uint64_t num = 0;
       while( lmdb.cursor_next( &key, &data ) ) {
-	printf( "key.mv_size=%s data.mv_size=%s\n", str(key.mv_size).c_str(), str(data.mv_size).c_str() );
+	//printf( "key.mv_size=%s data.mv_size=%s\n", str(key.mv_size).c_str(), str(data.mv_size).c_str() );
 	p_datum_t datum = parse_datum( data.mv_data, data.mv_size );
-	printf( "datum->label=%s\n", str(datum->label).c_str() );
+	//printf( "datum->label=%s\n", str(datum->label).c_str() );
 	++num; if( num == num_read ) { break; }
       }
       lmdb.cursor_close();

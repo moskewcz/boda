@@ -13,6 +13,7 @@
 // our local copy of caffe.proto, which better be identical to the caffe version if we're compiling with caffe support.
 #include"gen/caffe.pb.h" 
 #include"rand_util.H"
+#include"imagenet_util.H"
 
 // we get this function from our hacked-up version of
 // upgrade_proto.cpp, so we can upgrade NetParameters from V1->V2 the
@@ -155,10 +156,48 @@ namespace boda
 
   p_datum_t parse_datum( void const * const bytes, uint32_t const bytes_sz ) {
     caffe::Datum caffe_datum;
-    bool const ret = caffe_datum.ParseFromArray( bytes, bytes_sz );
-    assert_st( ret );
+    bool const cdp_ret = caffe_datum.ParseFromArray( bytes, bytes_sz );
+    assert_st( cdp_ret );
     p_datum_t datum( new datum_t );
     datum->label = caffe_datum.label();
+    bool const has_data = caffe_datum.has_data();
+    bool const has_float_data = caffe_datum.float_data_size();
+    if( has_data + has_float_data != 1 ) {
+      rt_err( strprintf( "datum must have exactly 1 of data and float_data, but: has_data=%s has_float_data=%s\n", 
+			 str(has_data).c_str(), str(has_float_data).c_str() ) );
+    }
+    if( has_float_data ) { rt_err( "TODO: datum has float_data handling." ); }
+    if( caffe_datum.encoded() ) { rt_err( "TODO: datum encoded=1 handling." ); }
+    if( !caffe_datum.has_channels() ) { rt_err( "datum missing channels field" ); }
+    if( !caffe_datum.has_height() ) { rt_err( "datum missing height field" ); }
+    if( !caffe_datum.has_width() ) { rt_err( "datum missing width field" ); }
+
+    uint32_t const chans = caffe_datum.channels();
+    uint32_t const w = caffe_datum.width();
+    uint32_t const h = caffe_datum.height();
+
+    p_nda_float_t ret( new nda_float_t( dims_t( { chans, w, h } ) ) );
+
+    uint32_t xi = 0;
+    uint32_t yi = 0;
+    
+    if( chans*h*w != caffe_datum.data().size() ) {
+      rt_err( strprintf( "inconsistency in datum data size vs datum dims: chans=%s h=%s w=%s so chans*h*w=%s but caffe_datum.data().size()=%s\n", 
+			 str(chans).c_str(), str(h).c_str(), str(w).c_str(), str(chans*h*w).c_str(), str(caffe_datum.data().size()).c_str() ) );
+    }
+    uint8_t const * const caffe_data = (uint8_t const *)(&caffe_datum.data()[0]);
+    float * const ret_data = &ret->elems[0];
+
+    for( uint32_t c = 0; c < chans; ++c ) {
+      for( uint32_t y = 0; y < w; ++y ) {
+	for( uint32_t x = 0; x < h; ++x ) {
+	  uint8_t const v = caffe_data[(c * h + yi + y ) * w + xi + x];
+	  // note: RGB -> BGR swap via the '2-c' below
+	  ret_data[ ( c * h + y ) * w + x ] = v - float(uint8_t(u32_rgba_inmc >> (c*8)));
+	}
+      }
+    }
+
     return datum;
   }
 
