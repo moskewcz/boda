@@ -14,6 +14,7 @@
 #include"gen/caffe.pb.h" 
 #include"rand_util.H"
 #include"imagenet_util.H"
+#include"img_io.H"
 
 // we get this function from our hacked-up version of
 // upgrade_proto.cpp, so we can upgrade NetParameters from V1->V2 the
@@ -176,7 +177,7 @@ namespace boda
     uint32_t const w = caffe_datum.width();
     uint32_t const h = caffe_datum.height();
 
-    p_nda_float_t ret( new nda_float_t( dims_t( { chans, w, h } ) ) );
+    datum->val.reset( new nda_float_t( dims_t( { chans, w, h } ) ) );
 
     uint32_t xi = 0;
     uint32_t yi = 0;
@@ -186,20 +187,56 @@ namespace boda
 			 str(chans).c_str(), str(h).c_str(), str(w).c_str(), str(chans*h*w).c_str(), str(caffe_datum.data().size()).c_str() ) );
     }
     uint8_t const * const caffe_data = (uint8_t const *)(&caffe_datum.data()[0]);
-    float * const ret_data = &ret->elems[0];
+    float * const ret_data = &datum->val->elems[0];
 
     for( uint32_t c = 0; c < chans; ++c ) {
       for( uint32_t y = 0; y < w; ++y ) {
 	for( uint32_t x = 0; x < h; ++x ) {
 	  uint8_t const v = caffe_data[(c * h + yi + y ) * w + xi + x];
-	  // note: RGB -> BGR swap via the '2-c' below
-	  ret_data[ ( c * h + y ) * w + x ] = v - float(uint8_t(u32_rgba_inmc >> (c*8)));
+	  // note: data is assumed to be in BGR format
+	  ret_data[ ( c * h + y ) * w + x ] = v - float(uint8_t(u32_bgra_inmc >> (c*8)));
 	}
       }
     }
 
     return datum;
   }
+
+
+  uint8_t float_to_pel( float const & v ) { 
+    int32_t ret = nearbyintl(v);
+    //return std::min(255,std::max(0,ret)); // allows de-normalized values 
+    assert_st( ret >= 0 );
+    assert_st( ret <= 255 );
+    return ret;
+  }
+  // currently only for debugging / display
+  p_img_t datum_to_img( p_datum_t datum ) {
+    p_nda_float_t const & v = datum->val;
+    assert_st( v->dims.sz() == 3 );
+    assert_st( v->dims.dims(0) == 3 ); // only handling BGR here
+
+    uint32_t const w = v->dims.dims(2);
+    uint32_t const h = v->dims.dims(1);
+    
+    p_img_t ret( new img_t );
+    ret->set_sz_and_alloc_pels( {w,h} );
+
+    float const * const vd = &v->elems[0];
+
+    uint32_t const c_off = w*h;
+    for( uint32_t y = 0; y != h; ++y ) {
+      for( uint32_t x = 0; x < w; ++x ) {
+	uint32_t const pix = y*w + x;
+	uint32_t const rgba_val = rgba_to_pel( float_to_pel(vd[pix+c_off*2]+inmc_r), 
+					       float_to_pel(vd[pix+c_off]+inmc_g), 
+					       float_to_pel(vd[pix]+inmc_b) );
+	ret->set_pel( {x, y}, rgba_val );
+      }
+    }
+    return ret;
+  }
+
 
 
   struct cnet_ana_t : virtual public nesi, public has_main_t // NESI(help="show info from caffe prototxt net. ",bases=["has_main_t"], type_id="cnet_ana")
