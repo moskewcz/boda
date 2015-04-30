@@ -3,8 +3,9 @@
 #include"lmdbif.H"
 #include"caffepb.H"
 #include"has_main.H"
-#include"disp_util.H"
-#include"asio_util.H"
+
+#include"disp_util.H" // only display_lmdb_t
+#include"asio_util.H" // only display_lmdb_t
 
 namespace boda 
 {
@@ -41,6 +42,7 @@ namespace boda
 
   };
 
+  // FIXME: dupe'd code with display_pil_t
   struct display_lmdb_t : virtual public nesi, public lmdb_parse_datums_t // NESI(
 			 // help="display caffe lmdb of images in video window",
 			 // bases=["lmdb_parse_datums_t"], type_id="display_lmdb")
