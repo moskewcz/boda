@@ -152,15 +152,12 @@ namespace boda
     boda_caffe::UpgradeNetAsNeeded( ptt_fn.exp, net_param.get() );
     return net_param;
   }
-
-
-
-  p_datum_t parse_datum( void const * const bytes, uint32_t const bytes_sz ) {
+  
+  uint32_t parse_datum_into( p_nda_float_t & out, uint32_t const out_ix, void const * const bytes, uint32_t const bytes_sz ) {
     caffe::Datum caffe_datum;
     bool const cdp_ret = caffe_datum.ParseFromArray( bytes, bytes_sz );
     assert_st( cdp_ret );
-    p_datum_t datum( new datum_t );
-    datum->label = caffe_datum.label();
+
     bool const has_data = caffe_datum.has_data();
     bool const has_float_data = caffe_datum.float_data_size();
     if( has_data + has_float_data != 1 ) {
@@ -174,34 +171,53 @@ namespace boda
     if( !caffe_datum.has_width() ) { rt_err( "datum missing width field" ); }
 
     uint32_t const chans = caffe_datum.channels();
-    uint32_t const w = caffe_datum.width();
-    uint32_t const h = caffe_datum.height();
+    uint32_t const hi = caffe_datum.width();
+    uint32_t const wi = caffe_datum.height();
 
-    datum->val.reset( new nda_float_t( dims_t( { chans, w, h } ) ) );
+    if( !out ) { out.reset( new nda_float_t( dims_t( { 1, chans, hi, wi } ) ) ); }
 
-    uint32_t xi = 0;
-    uint32_t yi = 0;
-    
-    if( chans*h*w != caffe_datum.data().size() ) {
-      rt_err( strprintf( "inconsistency in datum data size vs datum dims: chans=%s h=%s w=%s so chans*h*w=%s but caffe_datum.data().size()=%s\n", 
-			 str(chans).c_str(), str(h).c_str(), str(w).c_str(), str(chans*h*w).c_str(), str(caffe_datum.data().size()).c_str() ) );
+    assert( out->dims.sz() == 4 );
+    assert_st( out_ix < out->dims.dims(0) );
+
+    assert_st( chans == out->dims.dims(1) );
+    uint32_t const ho = out->dims.dims(2);
+    uint32_t const wo = out->dims.dims(3);
+
+    assert_st( ho <= hi );
+    assert_st( wo <= wi );
+
+    // take center crop
+    uint32_t xi = (wi - wo) >> 1;
+    uint32_t yi = (hi - ho) >> 1;
+
+    assert_st( (ho+yi) <= hi );
+    assert_st( (wo+xi) <= wi );
+
+    float * const ret_data = &out->elems[ out_ix * (chans*wo*ho) ];
+
+    if( chans*hi*wi != caffe_datum.data().size() ) {
+      rt_err( strprintf( "inconsistency in datum data size vs datum dims: chans=%s hi=%s wi=%s so chans*h*w=%s but caffe_datum.data().size()=%s\n", 
+			 str(chans).c_str(), str(hi).c_str(), str(wi).c_str(), str(chans*hi*wi).c_str(), str(caffe_datum.data().size()).c_str() ) );
     }
     uint8_t const * const caffe_data = (uint8_t const *)(&caffe_datum.data()[0]);
-    float * const ret_data = &datum->val->elems[0];
 
     for( uint32_t c = 0; c < chans; ++c ) {
-      for( uint32_t y = 0; y < w; ++y ) {
-	for( uint32_t x = 0; x < h; ++x ) {
-	  uint8_t const v = caffe_data[(c * h + yi + y ) * w + xi + x];
+      for( uint32_t y = 0; y < wo; ++y ) {
+	for( uint32_t x = 0; x < ho; ++x ) {
+	  uint8_t const v = caffe_data[(c * hi + yi + y ) * wi + xi + x];
 	  // note: data is assumed to be in BGR format
-	  ret_data[ ( c * h + y ) * w + x ] = v - float(uint8_t(u32_bgra_inmc >> (c*8)));
+	  ret_data[ ( c * ho + y ) * wo + x ] = v - float(uint8_t(u32_bgra_inmc >> (c*8)));
 	}
       }
     }
-
-    return datum;
+    return caffe_datum.label();
   }
 
+  p_datum_t parse_datum( void const * const bytes, uint32_t const bytes_sz ) {
+    p_datum_t datum( new datum_t );
+    datum->label = parse_datum_into( datum->val, 0, bytes, bytes_sz );
+    return datum;
+  }
 
   uint8_t float_to_pel( float const & v ) { 
     int32_t ret = nearbyintl(v);
@@ -213,11 +229,12 @@ namespace boda
   // currently only for debugging / display
   p_img_t datum_to_img( p_datum_t datum ) {
     p_nda_float_t const & v = datum->val;
-    assert_st( v->dims.sz() == 3 );
-    assert_st( v->dims.dims(0) == 3 ); // only handling BGR here
+    assert_st( v->dims.sz() == 4 );
+    assert_st( v->dims.dims(0) == 1 ); // only handling BGR here
+    assert_st( v->dims.dims(1) == 3 ); // only handling BGR here
 
-    uint32_t const w = v->dims.dims(2);
-    uint32_t const h = v->dims.dims(1);
+    uint32_t const h = v->dims.dims(2);
+    uint32_t const w = v->dims.dims(3);
     
     p_img_t ret( new img_t );
     ret->set_sz_and_alloc_pels( {w,h} );

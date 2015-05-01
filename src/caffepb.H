@@ -31,6 +31,7 @@ namespace boda {
   typedef vector< p_datum_t > vect_p_datum_t;
 
   p_datum_t parse_datum( void const * const bytes, uint32_t const bytes_sz );
+  uint32_t parse_datum_into( p_nda_float_t & out, uint32_t const out_ix, void const * const bytes, uint32_t const bytes_sz );
   struct img_t; typedef shared_ptr< img_t > p_img_t; 
   p_img_t datum_to_img( p_datum_t datum );
 
