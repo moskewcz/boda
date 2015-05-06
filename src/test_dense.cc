@@ -226,6 +226,64 @@ namespace boda {
     }
   };
 
+
+
+  struct test_compute_t : virtual public nesi, public has_main_t // NESI( help="comparison test CNN computation methods",
+			// bases=["has_main_t"], type_id="test_compute")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/test_compute.txt",help="output: text summary of differences between computations.")
+    p_load_pil_t imgs;//NESI(default="()")
+    string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
+    p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt
+                           // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
+                           // ,out_layer_name=relu12)",help="CNN model params")
+    uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
+
+    p_img_t in_img;
+
+    void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
+      rc->conv_pipe->dump_pipe( *out );
+      rc->conv_pipe->dump_ios( *out );
+    }
+
+    p_ostream out;
+    virtual void main( nesi_init_arg_t * nia ) {
+      out = ofs_open( out_fn.exp );
+      //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
+      imgs->load_img_db( 1 );
+      run_cnet->setup_cnet(); 
+      in_img = make_p_img_t( run_cnet->in_sz );
+      dump_pipe_and_ios( run_cnet );
+
+      boost::random::mt19937 gen;
+
+      uint32_t tot_wins = 0;
+      for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
+	if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
+	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
+	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
+	  u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
+	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
+	  ++tot_wins;
+	  comp_win( (*i)->img, samp_nc );
+	}
+      }
+      out.reset();
+    }
+    void comp_win( p_img_t const & img, u32_pt_t const & nc ) {
+      u32_box_t in_box{ nc, nc + run_cnet->in_sz };
+      // run net on just sample area
+      img_copy_to_clip( img.get(), in_img.get(), {}, nc );
+      subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
+      p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
+      p_nda_float_t out_batch_2 = run_cnet->run_one_blob_in_one_blob_out();
+      // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
+      (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_str(out_batch_1,out_batch_2)).c_str() );
+    }
+  };
+
+
 #include"gen/test_dense.cc.nesi_gen.cc"
   
 }
