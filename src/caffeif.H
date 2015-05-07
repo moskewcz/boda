@@ -82,8 +82,8 @@ namespace boda
     conv_io_t const & get_out_cio( bool const & from_upsamp_net );
     uint32_t out_s;
     run_cnet_t( void ) : out_s(0) { }
-  private:
     p_net_param_t net_param;
+  private:
     p_net_param_t upsamp_net_param;
     void create_upsamp_layer_0_weights( void );
 
