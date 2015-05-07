@@ -299,7 +299,7 @@ namespace boda
   };
 
 
-  p_net_param_t must_read_binary_proto(  filename_t const & fn ) {
+  p_net_param_t must_read_binary_proto( filename_t const & fn ) {
     p_net_param_t net( new net_param_t );
     p_istream is = ifs_open(fn);
     google::protobuf::io::IstreamInputStream iis( is.get() );
@@ -321,18 +321,6 @@ namespace boda
     return ret;
   }
 
-  // we iterate of dest, and for every layer with a matching name found in src, we copy the blobs from src->dest
-  void copy_matching_layer_blobs_from_param_to_param( p_net_param_t const & src, p_net_param_t const & dest ) {
-    for( int i = 0; i != dest->layer_size(); ++i ) { 
-      caffe::LayerParameter & dest_lp = *dest->mutable_layer(i);
-      uint32_t const src_lix = maybe_get_layer_ix( *src, dest_lp.name() );
-      if( src_lix == uint32_t_const_max ) { continue; } // layer not found in src
-      caffe::LayerParameter const & src_lp = src->layer(src_lix);
-      dest_lp.clear_blobs();
-      for( int j = 0; j != src_lp.blobs_size(); ++j ) { *dest_lp.add_blobs() = src_lp.blobs(j); }
-    }
-  }
-
   void alloc_layer_blobs( p_conv_pipe_t const & pipe, string const & layer_name, vect_p_nda_float_t & blobs ) {
     p_conv_op_t const & cop = pipe->get_op( layer_name );
     if( cop->type == Convolution_str ) { 
@@ -350,10 +338,8 @@ namespace boda
 
   }
 
-  void copy_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
+  void copy_layer_blobs( caffe::LayerParameter const & dest_lp, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_copy_layer_blob_data");
-    assert_st( layer_ix < (uint32_t)net->layer_size() );
-    caffe::LayerParameter const & dest_lp = net->layer( layer_ix );
     blobs.clear();
     for( uint32_t bix = 0; bix < (uint32_t)dest_lp.blobs_size(); ++bix ) {
       caffe::BlobProto const & lbp = dest_lp.blobs( bix );
@@ -376,6 +362,11 @@ namespace boda
       for( uint32_t i = 0; i != blob->elems.sz ; ++i ) { dest[i] = src[i]; }
       blobs.push_back( blob );
     }
+  }
+  void copy_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
+    assert_st( layer_ix < (uint32_t)net->layer_size() );
+    caffe::LayerParameter const & dest_lp = net->layer( layer_ix );
+    copy_layer_blobs( dest_lp, blobs );
   }
   void copy_layer_blobs( p_net_param_t const & net, string const & layer_name, vect_p_nda_float_t & blobs ) {
     uint32_t const layer_ix = get_layer_ix( *net, layer_name );
@@ -402,6 +393,50 @@ namespace boda
   void set_layer_blobs( p_net_param_t const & net, string const & layer_name, vect_p_nda_float_t & blobs ) {
     uint32_t const layer_ix = get_layer_ix( *net, layer_name );
     set_layer_blobs( net, layer_ix, blobs );
+  }
+
+  // we iterate of dest, and for every layer with a matching name found in src, we copy the blobs from src->dest
+  void copy_matching_layer_blobs_from_param_to_param( p_net_param_t const & src, p_net_param_t const & dest ) {
+    for( int i = 0; i != dest->layer_size(); ++i ) { 
+      caffe::LayerParameter & dest_lp = *dest->mutable_layer(i);
+      uint32_t const src_lix = maybe_get_layer_ix( *src, dest_lp.name() );
+      if( src_lix == uint32_t_const_max ) { continue; } // layer not found in src
+      caffe::LayerParameter const & src_lp = src->layer(src_lix);
+      dest_lp.clear_blobs();
+      for( int j = 0; j != src_lp.blobs_size(); ++j ) { *dest_lp.add_blobs() = src_lp.blobs(j); }
+    }
+  }
+  void copy_matching_layer_blobs_from_param_to_map( p_net_param_t const & blob_src, p_net_param_t const & pipe_src, 
+						    p_map_str_p_nda_float_t const & op_params ) {
+    for( int i = 0; i != pipe_src->layer_size(); ++i ) { 
+      caffe::LayerParameter const & pipe_lp = pipe_src->layer(i);
+      uint32_t const blob_src_lix = maybe_get_layer_ix( *blob_src, pipe_lp.name() );
+      if( blob_src_lix == uint32_t_const_max ) { continue; } // layer not found in src
+      caffe::LayerParameter const & blob_src_lp = blob_src->layer(blob_src_lix);
+
+      vect_p_nda_float_t blob_src_blobs;
+      copy_layer_blobs( blob_src_lp, blob_src_blobs );
+      vect_string bsb_names;
+      string const tag_id_str = as_pyid( pipe_lp.name() );
+
+      if( pipe_lp.type() == Convolution_str ) { 
+	assert( blob_src_blobs.size() == 2 );
+	bsb_names.push_back( tag_id_str + "_filts" ); 
+	bsb_names.push_back( tag_id_str + "_biases" ); 
+	dims_t & bd = blob_src_blobs[1]->dims;
+	// for 'old style' bias blobs, squish out leading size 1 dims
+	if( bd.sz() == 4 ) {
+	  for( uint32_t i = 0; i != bd.sz()-1; ++i ) { assert_st( bd.dims(i) == 1 ); }
+	  bd = dims_t( vect_uint32_t{ bd.dims(3) }, 1 );
+	}
+	assert( blob_src_blobs[1]->dims.sz() == 1 );
+      }
+      else { for( uint32_t i = 0; i != blob_src_blobs.size(); ++i ) { bsb_names.push_back( tag_id_str + "_" + str(i) ); } }
+      assert_st( bsb_names.size() == blob_src_blobs.size() );
+      for( uint32_t i = 0; i != bsb_names.size(); ++i ) { 
+	assert_st( op_params->insert( std::make_pair( bsb_names[i], blob_src_blobs[i] ) ).second );
+      }
+    }
   }
 
   void create_identity_weights( p_net_param_t net, p_conv_pipe_t pipe, string const & layer_name, uint32_t const noise_mode ) {

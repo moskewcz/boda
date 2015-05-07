@@ -16,6 +16,8 @@ namespace boda {
   typedef caffe::NetParameter net_param_t;
   typedef shared_ptr< net_param_t > p_net_param_t;
 
+  p_net_param_t must_read_binary_proto( filename_t const & fn );
+
   p_conv_pipe_t create_pipe_from_param( net_param_t & net_param, uint32_t const & in_chans, std::string const & out_layer_name );
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op );
   template< typename CP > p_conv_op_t get_conv_op_from_param( CP const & cp );
@@ -34,6 +36,8 @@ namespace boda {
   uint32_t parse_datum_into( p_nda_float_t & out, uint32_t const out_ix, void const * const bytes, uint32_t const bytes_sz );
   struct img_t; typedef shared_ptr< img_t > p_img_t; 
   p_img_t datum_to_img( p_datum_t datum );
+  void copy_matching_layer_blobs_from_param_to_map( p_net_param_t const & blob_src, p_net_param_t const & pipe_src, 
+						    p_map_str_p_nda_float_t const & op_params );
 
 
 }
