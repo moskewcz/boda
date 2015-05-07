@@ -6,6 +6,7 @@
 #include"img_io.H"
 #include"results_io.H"
 #include"caffeif.H"
+#include"caffepb.H"
 #include"conv_util.H"
 #include"rand_util.H"
 #include"timers.H"
@@ -237,7 +238,7 @@ namespace boda {
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
-                           // ,out_layer_name=relu12)",help="CNN model params")
+                           // ,out_layer_name=conv1)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
 
     p_img_t in_img;
@@ -245,6 +246,7 @@ namespace boda {
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
       rc->conv_pipe->dump_ios( *out );
+      rc->conv_pipe->dump_ops( *out, 1 );
     }
 
     p_ostream out;
@@ -255,6 +257,9 @@ namespace boda {
       run_cnet->setup_cnet(); 
       in_img = make_p_img_t( run_cnet->in_sz );
       dump_pipe_and_ios( run_cnet );
+
+      p_net_param_t trained_net = must_read_binary_proto( run_cnet->trained_fn );
+      copy_matching_layer_blobs_from_param_to_map( trained_net, run_cnet->net_param, run_cnet->conv_pipe->op_params );
 
       boost::random::mt19937 gen;
 
@@ -277,7 +282,7 @@ namespace boda {
       img_copy_to_clip( img.get(), in_img.get(), {}, nc );
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
       p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
-      p_nda_float_t out_batch_2 = run_cnet->run_one_blob_in_one_blob_out();
+      p_nda_float_t out_batch_2 = run_cnet->conv_pipe->run_one_blob_in_one_blob_out( run_cnet->in_batch );
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
       (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_str(out_batch_1,out_batch_2)).c_str() );
     }
