@@ -443,6 +443,77 @@ namespace boda
     for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i, expand_ops ); }
   }
 
+
+  p_nda_float_t alloc_fwd_for_node( p_conv_node_t const & n, uint32_t const num_imgs ) { 
+    return boost::make_shared<nda_float_t>( ); 
+  }
+
+
+  void run_conv_op_conv( p_conv_op_t const & cop, p_nda_float_t const & bot, p_nda_float_t const & filts, p_nda_float_t const & biases, 
+			 p_nda_float_t const & top ) {
+    float * const r_top = &top->elems[0];
+    for( uint32_t i = 0; i != top->elems.sz ; ++i ) { r_top[i] = 40; }
+  }
+  
+  void run_conv_op( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd ) { 
+    string const tag_id_str = as_pyid( cop->tag );
+    if( cop->type == Convolution_str || cop->type == InnerProduct_str ) {
+      assert_st( cop->bots.size() == 1 );
+      p_nda_float_t const & bot = must_find( *fwd, cop->bots[0] );
+      assert_st( bot->dims.sz() == 4 );
+
+      assert_st( cop->tops.size() == 1 );
+      p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
+      assert_st( top->dims.sz() == 4 );
+
+      assert_st( bot->dims.dims(0) == top->dims.dims(0) );
+      assert_st( top->dims.dims(1) == cop->out_chans );
+
+      p_nda_float_t const & filts = must_find( *fwd, tag_id_str + "_filts" );
+      p_nda_float_t const & biases = must_find( *fwd, tag_id_str + "_biases" );
+      u32_pt_t kern_sz = cop->kern_sz;
+      if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
+      assert_st( filts->dims == dims_t(vect_uint32_t{top->dims.dims(1),bot->dims.dims(1),kern_sz.d[1],kern_sz.d[0] },1) );
+      assert_st( biases->dims == dims_t(vect_uint32_t{top->dims.dims(1)},1) );
+      run_conv_op_conv( cop, bot, filts, biases, top );
+    }
+  }
+
+  void conv_pipe_t::run_ops_rec( p_map_str_p_nda_float_t const & fwd, string const & node_name ) {
+    p_conv_node_t const & node = must_get_node( node_name );
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      run_conv_op( cop, fwd );
+      for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { run_ops_rec( fwd, *i ); }
+    }
+  }
+
+  void conv_pipe_t::run_ops( p_map_str_p_nda_float_t const & fwd ) {
+    assert_st( finalized );
+    assert( bots.size() );
+    // we pick an arbitary input to get num_imgs from hete, then check it later for all inputs
+    uint32_t const num_imgs = must_find( *fwd, bots[0] )->dims.dims(0); // assume slowest dim is batch size
+    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
+      p_conv_node_t const & node = i->second;
+      dims_t node_dims( vect_uint32_t{num_imgs,node->cio.chans,node->cio.sz.d[1],node->cio.sz.d[0]} ); 
+      node_dims.calc_strides(); // for now, assume no padding
+      if( node->top_for.empty() ) { assert_st( must_find( *fwd, node->name )->dims == node_dims ); }
+      else { assert_st( fwd->insert( std::make_pair( node->name, make_shared<nda_float_t>( node_dims ) ) ).second ); }
+    }
+    topo_visit_setup();
+    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { run_ops_rec( fwd, *i ); }
+  }
+
+  p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in ) {
+    p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>( *op_params );
+    assert( bots.size() == 1 );
+    (*fwd)[bots[0]] = in;
+    run_ops( fwd );
+    assert( tops.size() == 1 );    
+    return must_find( *fwd, tops[0] );
+  }
+
   struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["has_main_t"], type_id="conv_ana")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
