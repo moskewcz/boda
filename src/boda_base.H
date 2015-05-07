@@ -4,6 +4,7 @@
 
 #include<cassert>
 #include<boost/shared_ptr.hpp>
+#include<boost/make_shared.hpp>
 #include<fstream>
 #include<string>
 #include<vector>
@@ -60,6 +61,7 @@ namespace boda
   inline int32_t u32_to_i32( uint32_t const & v ) { int32_t const ret( v ); assert( ret >= 0 ); return ret; }
 
   using boost::shared_ptr;
+  using boost::make_shared;
   template< typename T > struct null_deleter { void operator()( T * const ) const {}; };
   using boost::dynamic_pointer_cast;
   using boost::iostreams::mapped_file;
@@ -69,6 +71,23 @@ namespace boda
   using std::vector;
   using std::map;
   using std::set;
+
+  typedef vector< void * > vect_rp_void;
+  typedef shared_ptr< vect_rp_void > p_vect_rp_void;
+  typedef vector< char * > vect_rp_char;
+  string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
+  p_vect_rp_void get_backtrace( void );
+
+  template< typename T > typename T::mapped_type & must_find( T & kvm, typename T::key_type const & k ) {
+    typename T::iterator i = kvm.find( k );
+    assert_st( i != kvm.end() );
+    return i->second;
+  }
+  template< typename T > typename T::mapped_type const & must_find( T const & kvm, typename T::key_type const & k ) {
+    typename T::const_iterator i = kvm.find( k );
+    assert_st( i != kvm.end() );
+    return i->second;
+  }
 
   // NESI types
   struct filename_t { string in; string exp; };
@@ -112,11 +131,6 @@ namespace boda
   p_mapped_file_source map_file_ro( filename_t const & fn );
   p_mapped_file_source map_file_ro( std::string const & fn );
 
-  typedef vector< void * > vect_rp_void;
-  typedef shared_ptr< vect_rp_void > p_vect_rp_void;
-  typedef vector< char * > vect_rp_char;
-  p_vect_rp_void get_backtrace( void );
-  string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   bool ensure_is_dir( string const & fn, bool const create = 0 );
   void ensure_is_regular_file( string const & fn );
 
@@ -282,7 +296,7 @@ namespace boda
     dims_t clone( void ) const { dims_t ret; ret.dss = dss.clone(); return ret; }
     void copy_from( dims_t const & o ) { dss = o.dss.clone(); }
 
-    bool operator == ( dims_t const & o ) const { return dss == o.dss; }
+    bool operator == ( dims_t const & o ) const { return dss == o.dss; } // note: compares dims *and* strides
     bool fits_in( dims_t const & o ) const { 
       if( sz() != o.sz() ) { return 0; }
       for( uint32_t ix = 0; ix != sz(); ++ix ) { if( dims(ix) > o.dims(ix) ) { return 0; } }
@@ -290,9 +304,10 @@ namespace boda
     }
     dims_t( void ) { }
     dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
-    dims_t( vect_uint32_t const dims_ ) { 
+    dims_t( vect_uint32_t const dims_, bool const & calc_no_pad_strides = 0 ) { 
       resize_and_zero( dims_.size() ); 
       for( uint32_t i = 0; i != dims_.size(); ++i ) { dims(i) = dims_[i]; }
+      if( calc_no_pad_strides ) { calc_strides(); }
     }
     dims_t( dims_t const & o ) { copy_from(o); }
     void operator = ( dims_t const & o ) { copy_from(o); }
@@ -523,6 +538,8 @@ namespace boda
   typedef vector< nda_double_t > vect_nda_double_t; 
   typedef shared_ptr< nda_double_t > p_nda_double_t; 
   typedef vector< p_nda_double_t > vect_p_nda_double_t;
+  typedef map< string, p_nda_float_t > map_str_p_nda_float_t;
+  typedef shared_ptr< map_str_p_nda_float_t > p_map_str_p_nda_float_t;
 
   // get a string with info from sum_squared_diffs(o1,o2)
   template< typename T > string ssds_str( T const & o1, T const & o2 );
