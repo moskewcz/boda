@@ -444,15 +444,44 @@ namespace boda
   }
 
 
-  p_nda_float_t alloc_fwd_for_node( p_conv_node_t const & n, uint32_t const num_imgs ) { 
-    return boost::make_shared<nda_float_t>( ); 
+  void run_conv_op_conv( p_conv_op_t const & cop, uint32_t const img_ix, 
+			 p_nda_float_t const & bot, p_nda_float_t const & filts, p_nda_float_t const & biases, 
+			 p_nda_float_t const & top ) {
+#if 0
+    float * const r_top_b = &top->at1(img_ix);
+    float * const r_top_e = &top->cm_at1( top->dims.ix1(img_ix+1) - 1 ) + 1; // FIXME: factor out bounds checking?
+    for( float * i = r_top_b; i < r_top_e; ++i ) { *i = 40; }
+#endif
+    for( uint32_t fix = 0; fix != filts->dims.dims(0); ++fix ) {
+      for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
+	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
+	  float out_pel = 0;
+	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad.p[0]);
+	  for( uint32_t in_chan = 0; in_chan != bot->dims.dims(1); ++in_chan ) {
+	    for( uint32_t ky = 0; ky < cop->kern_sz.d[1]; ++ky ) {
+	      int32_t in_ky = in_ix.d[1] + ky;
+	      if( (in_ky < 0) || (uint32_t(in_ky) >= bot->dims.dims(2)) ) { continue; }
+	      for( uint32_t kx = 0; kx < cop->kern_sz.d[0]; ++kx ) {
+		int32_t in_kx = in_ix.d[0] + kx;
+		if( (in_kx < 0) || (uint32_t(in_kx) >= bot->dims.dims(3)) ) { continue; }
+		out_pel += bot->at4( img_ix, in_chan, in_ky, in_kx ) * filts->at4( fix, in_chan, ky, kx );
+	      }
+	    }
+	  }
+	  out_pel += biases->at1( fix );
+	  top->at4( img_ix, fix, y, x ) = out_pel > 0 ? out_pel : 0;
+	}
+      }
+    }
   }
 
-
-  void run_conv_op_conv( p_conv_op_t const & cop, p_nda_float_t const & bot, p_nda_float_t const & filts, p_nda_float_t const & biases, 
+  void run_conv_op_conv( p_conv_op_t const & cop, 
+			 p_nda_float_t const & bot, p_nda_float_t const & filts, p_nda_float_t const & biases, 
 			 p_nda_float_t const & top ) {
-    float * const r_top = &top->elems[0];
-    for( uint32_t i = 0; i != top->elems.sz ; ++i ) { r_top[i] = 40; }
+    assert( bot->dims.dims(0) == top->dims.dims(0) );
+    for( uint32_t i = 0; i != bot->dims.dims(0); ++i ) {
+      run_conv_op_conv( cop, i, bot, filts, biases, top );
+    }
   }
   
   void run_conv_op( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd ) { 
