@@ -64,10 +64,10 @@ namespace boda
     Py_Initialize();
     ppyo main_mod( PyImport_AddModule( "__main__" ), 1 );
     ppyo main_dict( PyModule_GetDict( main_mod.get() ), 1 );
-    ppyo ret( PyRun_String("import sys,os.path;"
+    ppyo ret( PyRun_String("import sys,os.path,signal;"
 			   "boda_dir = os.path.join(os.path.split(os.readlink('/proc/self/exe'))[0],'..');"
 			   "boda_test_dir = os.path.join(boda_dir,'test');"
-			   " sys.path.append(os.path.join(boda_dir,'pysrc'));",
+			   " sys.path.append(os.path.join(boda_dir,'pysrc')); signal.signal(signal.SIGINT, signal.SIG_DFL);",
 			   Py_file_input, main_dict.get(), main_dict.get() ) );
     if( _import_array() < 0 ) { rt_err( "failed to import numpy" ); }
     ppyo boda_dir( PyMapping_GetItemString( main_dict.get(), (char *)"boda_dir" ) );
