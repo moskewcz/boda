@@ -13,6 +13,7 @@ namespace boda
   std::string const Dropout_str = "Dropout";
   std::string const LRN_str = "LRN";
   std::string const Accuracy_str = "Accuracy";
+  std::string const Softmax_str = "Softmax";
   std::string const SoftmaxWithLoss_str = "SoftmaxWithLoss";
   std::string const Data_str = "Data";
   std::string const Concat_str = "Concat";

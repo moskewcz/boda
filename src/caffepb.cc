@@ -102,6 +102,10 @@ namespace boda
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
+      } else if( lp.type() == Softmax_str ) { // mostly ignored
+	conv_op.reset( new conv_op_t );
+	conv_op->stride = {1,1};
+	conv_op->out_chans = 0; // no effect on chans
       } else if( lp.type() == Pooling_str ) {
 	assert_st( lp.has_pooling_param() );
 	caffe::PoolingParameter const & pp = lp.pooling_param();

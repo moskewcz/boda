@@ -538,6 +538,26 @@ namespace boda
       for( uint32_t i = 0; i != top->elems.sz; ++i ) { if( r_top[i] <= 0 ) { r_top[i] = 0; } }
     } else if( cop->type == Dropout_str ) {
       // ingore 
+    } else if( cop->type == Softmax_str ) {
+      assert_st( cop->bots.size() == 1 );
+      p_nda_float_t const & bot = must_find( *fwd, cop->bots[0] );
+      assert_st( cop->tops.size() == 1 );
+      p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
+      assert( bot->dims == top->dims );
+      assert( bot->dims.sz() == 4 );
+      for( uint32_t i = 0; i != top->dims.dims(0); ++i ) {
+	for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
+	  for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
+	    float max_val = std::numeric_limits<float>::lowest(); // get max over chans
+	    for( uint32_t c = 0; c != top->dims.dims(1); ++c ) { max_eq( max_val, bot->at4(i,c,y,x) ); } 
+	    float sum_val = 0; // get sum(exp()) over chans
+	    for( uint32_t c = 0; c != top->dims.dims(1); ++c ) { sum_val += exp(bot->at4(i,c,y,x) - max_val); } 
+	    for( uint32_t c = 0; c != top->dims.dims(1); ++c ) { 
+	      top->at4(i,c,y,x) = exp(bot->at4(i,c,y,x) - max_val) / sum_val; // normalize
+	    } 
+	  }
+	}
+      }
     } else { rt_err( "unhandled operation: " + cop->type ); }
   }
 
