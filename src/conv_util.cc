@@ -411,16 +411,6 @@ namespace boda
 			cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
 			extra_params.c_str(), pad_and_stride.c_str() );
     }
-    
-    // print any in-place ops for any of the output nodes
-    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
-      p_conv_node_t const & out_node = pipe->must_get_node(*i);
-      for( vect_p_conv_op_t::const_iterator j = out_node->in_place_ops.begin(); j != out_node->in_place_ops.end(); ++j ) {
-	p_conv_op_t const & ip_cop = *j;
-	out << strprintf( "%s(name=\"%s\",in_place=[%s])\n", 
-			  ip_cop->type.c_str(), as_pyid(ip_cop->tag).c_str(), as_pyid(out_node->name).c_str() );
-      }
-    }
   }
 
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name, bool const & expand_ops ) {
@@ -428,12 +418,16 @@ namespace boda
     // print source nodes here, otherwise print with thier writing op
     if( node->top_for.empty() ) { print_blob_decl( out, node_name, node ); }
     else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
+    // print in-place ops for this node
+    for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) {
+      p_conv_op_t const & ip_cop = *j;
+      out << strprintf( "%s(name=\"%s\",in_place=[%s])\n", ip_cop->type.c_str(), as_pyid(ip_cop->tag).c_str(), as_pyid(node->name).c_str() );
+    }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
       print_op_decl( out, this, cop, expand_ops );
-      assert_st( cop->has_one_top() );
-      dump_ops_rec( out, cop->tops[0], expand_ops );
+      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { dump_ops_rec( out, *j, expand_ops ); }
     }
   }
 
@@ -444,24 +438,28 @@ namespace boda
   }
 
 
-  void run_conv_op_conv( p_conv_op_t const & cop, uint32_t const img_ix, 
-			 p_nda_float_t const & bot, p_nda_float_t const & filts, p_nda_float_t const & biases, 
-			 p_nda_float_t const & top ) {
-#if 0
-    float * const r_top_b = &top->at1(img_ix);
-    float * const r_top_e = &top->cm_at1( top->dims.ix1(img_ix+1) - 1 ) + 1; // FIXME: factor out bounds checking?
-    for( float * i = r_top_b; i < r_top_e; ++i ) { *i = 40; }
-#endif
+  void run_conv_op_one_img_conv( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
+				 p_nda_float_t const & bot, p_nda_float_t const & top ) {
+    
+    u32_pt_t kern_sz = cop->kern_sz;
+    if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
+    string const tag_id_str = as_pyid( cop->tag );    
+    p_nda_float_t const & filts = must_find( *fwd, tag_id_str + "_filts" );
+    p_nda_float_t const & biases = must_find( *fwd, tag_id_str + "_biases" );
+    assert_st( filts->dims == dims_t(vect_uint32_t{top->dims.dims(1),bot->dims.dims(1),kern_sz.d[1],kern_sz.d[0] },1) );
+    assert_st( biases->dims == dims_t(vect_uint32_t{top->dims.dims(1)},1) );
+    assert_st( top->dims.dims(1) == cop->out_chans );
+
     for( uint32_t fix = 0; fix != filts->dims.dims(0); ++fix ) {
       for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
 	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
 	  float out_pel = 0;
 	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad.p[0]);
 	  for( uint32_t in_chan = 0; in_chan != bot->dims.dims(1); ++in_chan ) {
-	    for( uint32_t ky = 0; ky < cop->kern_sz.d[1]; ++ky ) {
+	    for( uint32_t ky = 0; ky < kern_sz.d[1]; ++ky ) {
 	      int32_t in_ky = in_ix.d[1] + ky;
 	      if( (in_ky < 0) || (uint32_t(in_ky) >= bot->dims.dims(2)) ) { continue; }
-	      for( uint32_t kx = 0; kx < cop->kern_sz.d[0]; ++kx ) {
+	      for( uint32_t kx = 0; kx < kern_sz.d[0]; ++kx ) {
 		int32_t in_kx = in_ix.d[0] + kx;
 		if( (in_kx < 0) || (uint32_t(in_kx) >= bot->dims.dims(3)) ) { continue; }
 		out_pel += bot->at4( img_ix, in_chan, in_ky, in_kx ) * filts->at4( fix, in_chan, ky, kx );
@@ -469,47 +467,83 @@ namespace boda
 	    }
 	  }
 	  out_pel += biases->at1( fix );
-	  top->at4( img_ix, fix, y, x ) = out_pel > 0 ? out_pel : 0;
+	  top->at4( img_ix, fix, y, x ) = out_pel; // > 0 ? out_pel : 0;
 	}
       }
     }
   }
 
-  void run_conv_op_conv( p_conv_op_t const & cop, 
-			 p_nda_float_t const & bot, p_nda_float_t const & filts, p_nda_float_t const & biases, 
-			 p_nda_float_t const & top ) {
-    assert( bot->dims.dims(0) == top->dims.dims(0) );
-    for( uint32_t i = 0; i != bot->dims.dims(0); ++i ) {
-      run_conv_op_conv( cop, i, bot, filts, biases, top );
+  void run_conv_op_one_img_pool( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
+				 p_nda_float_t const & bot, p_nda_float_t const & top ) {
+    
+    u32_pt_t kern_sz = cop->kern_sz;
+    if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
+    assert_st( cop->out_chans == 0 ); // one-to-one chans IO
+    assert_st( top->dims.dims(1) == bot->dims.dims(1) ); // one-to-one chans IO
+    uint32_t const out_pool_elems = kern_sz.dims_prod();
+    bool const avg_pool = cop->avg_pool;
+    for( uint32_t cix = 0; cix != top->dims.dims(1); ++cix ) {
+      for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
+	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
+	  float out_pel = 0;
+	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad.p[0]);
+	  for( uint32_t ky = 0; ky < kern_sz.d[1]; ++ky ) {
+	    int32_t in_ky = in_ix.d[1] + ky;
+	    if( (in_ky < 0) || (uint32_t(in_ky) >= bot->dims.dims(2)) ) { continue; }
+	    for( uint32_t kx = 0; kx < kern_sz.d[0]; ++kx ) {
+	      int32_t in_kx = in_ix.d[0] + kx;
+	      if( (in_kx < 0) || (uint32_t(in_kx) >= bot->dims.dims(3)) ) { continue; }
+	      float const bv = bot->at4( img_ix, cix, in_ky, in_kx );
+	      if( avg_pool ) { out_pel += bv; } else { max_eq( out_pel, bv ); }
+	    }
+	  }
+	  if( avg_pool ) { out_pel /= out_pool_elems; }
+	  top->at4( img_ix, cix, y, x ) = out_pel; 
+	}
+      }
     }
   }
-  
+
+  void run_conv_op_per_img( p_conv_op_t const & cop, 
+			    p_map_str_p_nda_float_t const & fwd, p_nda_float_t const & bot, p_nda_float_t const & top ) {
+    assert( bot->dims.dims(0) == top->dims.dims(0) );
+    for( uint32_t i = 0; i != bot->dims.dims(0); ++i ) {
+      if( cop->type == Convolution_str) { run_conv_op_one_img_conv( cop, fwd, i, bot, top ); }
+      else if( cop->type == Pooling_str) { run_conv_op_one_img_pool( cop, fwd, i, bot, top ); }
+      else { assert_st(0); }
+    }
+  }
+
+  string const & get_single_in_place_arg( p_conv_op_t const & cop ) {
+    assert_st( cop->bots.size() == 1 );
+    assert_st( cop->tops.size() == 1 );
+    assert_st( cop->tops[0] == cop->bots[0] );
+    return cop->tops[0];
+  }  
+
   void run_conv_op( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd ) { 
-    string const tag_id_str = as_pyid( cop->tag );
-    if( cop->type == Convolution_str || cop->type == InnerProduct_str ) {
+    if( 0 ) {
+    } else if( (cop->type == Convolution_str) || (cop->type == Pooling_str) ) {
       assert_st( cop->bots.size() == 1 );
       p_nda_float_t const & bot = must_find( *fwd, cop->bots[0] );
       assert_st( bot->dims.sz() == 4 );
-
       assert_st( cop->tops.size() == 1 );
       p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
       assert_st( top->dims.sz() == 4 );
-
       assert_st( bot->dims.dims(0) == top->dims.dims(0) );
-      assert_st( top->dims.dims(1) == cop->out_chans );
-
-      p_nda_float_t const & filts = must_find( *fwd, tag_id_str + "_filts" );
-      p_nda_float_t const & biases = must_find( *fwd, tag_id_str + "_biases" );
-      u32_pt_t kern_sz = cop->kern_sz;
-      if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
-      assert_st( filts->dims == dims_t(vect_uint32_t{top->dims.dims(1),bot->dims.dims(1),kern_sz.d[1],kern_sz.d[0] },1) );
-      assert_st( biases->dims == dims_t(vect_uint32_t{top->dims.dims(1)},1) );
-      run_conv_op_conv( cop, bot, filts, biases, top );
-    }
+      run_conv_op_per_img( cop, fwd, bot, top );
+    } else if( cop->type == ReLU_str ) {
+      p_nda_float_t const & top = must_find( *fwd, get_single_in_place_arg( cop ) );
+      float * const r_top = &top->elems[0];
+      for( uint32_t i = 0; i != top->elems.sz; ++i ) { if( r_top[i] <= 0 ) { r_top[i] = 0; } }
+    } else if( cop->type == Dropout_str ) {
+      // ingore 
+    } else { rt_err( "unhandled operation: " + cop->type ); }
   }
 
   void conv_pipe_t::run_ops_rec( p_map_str_p_nda_float_t const & fwd, string const & node_name ) {
     p_conv_node_t const & node = must_get_node( node_name );
+    for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { run_conv_op( *j, fwd ); }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms

@@ -31,6 +31,8 @@ namespace boda
     uint32_t out_chans; //NESI(default="0",help="number of output channels")
     // uint32_t groups; NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
 
+    uint32_t avg_pool; //NESI(default="0",help="0 for max pooling, 1 for average pooling (others unsupported for compute)")
+
     vect_string tops; // inputs (by node/blob name)
     vect_string bots; // outputs (by node/blob name)
 

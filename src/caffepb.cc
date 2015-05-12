@@ -107,6 +107,10 @@ namespace boda
 	caffe::PoolingParameter const & pp = lp.pooling_param();
 	conv_op = get_conv_op_from_param( pp );
 	conv_op->out_chans = 0; // no effect on chans
+	conv_op->avg_pool = 0;
+	if( pp.pool() == caffe::PoolingParameter_PoolMethod_AVE ) { conv_op->avg_pool = 1; } 
+	else if( pp.pool() == caffe::PoolingParameter_PoolMethod_MAX ) { }
+	else { printf( "warning: unhanded pooling method pp.pool()=%s\n", str(pp.pool()).c_str() ); }
 	// global pooling iff kernel size is all zeros (we use as a special value)
 	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
       } else if( lp.type() == InnerProduct_str ) {
