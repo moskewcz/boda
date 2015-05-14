@@ -75,6 +75,7 @@ namespace boda
   typedef vector< void * > vect_rp_void;
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
   typedef vector< char * > vect_rp_char;
+  typedef vector< char const * > vect_rp_const_char;
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   p_vect_rp_void get_backtrace( void );
 
@@ -100,6 +101,9 @@ namespace boda
   typedef vector< string > vect_string;
   typedef shared_ptr< string > p_string;
   typedef shared_ptr< vect_string > p_vect_string;
+  vect_rp_char get_vect_rp_char( vect_string const & v );
+  vect_rp_const_char get_vect_rp_const_char( vect_string const & v );
+
   typedef set< string > set_string;
   typedef set< uint32_t > set_uint32_t;
 

@@ -120,9 +120,20 @@ namespace boda
     neg_one_fail( fcntl( fd, F_SETFD, fd_flags ), "fcntl" );
   }
 
+  vect_rp_const_char get_vect_rp_const_char( vect_string const & v ) {
+    vect_rp_const_char ret;
+    for( vect_string::const_iterator i = v.begin(); i != v.end(); ++i ) { ret.push_back( (char *)i->c_str() ); }
+    return ret;
+  }
+  vect_rp_char get_vect_rp_char( vect_string const & v ) {
+    vect_rp_char ret;
+    for( vect_string::const_iterator i = v.begin(); i != v.end(); ++i ) { ret.push_back( (char *)i->c_str() ); }
+    return ret;
+  }
+
+
   void fork_and_exec_self( vect_string const & args ) {
-    vect_rp_char argp;
-    for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { argp.push_back( (char *)i->c_str() ); }
+    vect_rp_char argp = get_vect_rp_char( args );
     argp.push_back( 0 );
     string const self_exe = py_boda_dir() + "/lib/boda"; // note: uses readlink on /proc/self/exe internally
     pid_t const ret = fork();
