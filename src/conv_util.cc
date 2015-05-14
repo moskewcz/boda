@@ -588,11 +588,14 @@ namespace boda
     for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { run_ops_rec( fwd, *i ); }
   }
 
-  p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in ) {
+  p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in, bool const & use_nvrtc ) {
     p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>( *op_params );
     assert( bots.size() == 1 );
     (*fwd)[bots[0]] = in;
-    run_ops( fwd );
+    if( use_nvrtc ) {
+      if( !conv_pipe_fwd ) { conv_pipe_fwd = make_conv_pipe_fwd_t( p_conv_pipe_t( this, null_deleter<conv_pipe_t>() ) ); };
+      conv_pipe_fwd_t_run( conv_pipe_fwd, fwd );
+    } else { run_ops( fwd ); }
     assert( tops.size() == 1 );    
     return must_find( *fwd, tops[0] );
   }

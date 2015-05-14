@@ -240,6 +240,7 @@ namespace boda {
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
                            // ,out_layer_name=conv1)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
+    uint32_t use_nvrtc; //NESI(default="0",help="if non-zero, use nvrtc for conv_pipe fwd")
 
     p_img_t in_img;
 
@@ -282,7 +283,7 @@ namespace boda {
       img_copy_to_clip( img.get(), in_img.get(), {}, nc );
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
       p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
-      p_nda_float_t out_batch_2 = run_cnet->conv_pipe->run_one_blob_in_one_blob_out( run_cnet->in_batch );
+      p_nda_float_t out_batch_2 = run_cnet->conv_pipe->run_one_blob_in_one_blob_out( run_cnet->in_batch, use_nvrtc );
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
       (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_str(out_batch_1,out_batch_2)).c_str() );
     }

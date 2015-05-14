@@ -8,6 +8,9 @@
 #include<nvrtc.h>
 #include<cuda.h>
 
+// for conv_pipe_fwd_t
+#include"conv_util.H"
+
 namespace boda 
 {
   void nvrtc_err_chk( nvrtcResult const & ret, char const * const func_name ) {
@@ -134,6 +137,100 @@ namespace boda
       }
     }
   };
+
+  struct conv_pipe_fwd_t {
+    p_conv_pipe_t cp;
+    void gen_ops_rec( string const & node_name );
+    void init( p_conv_pipe_t const & cp_ );
+    void run_fwd( p_map_str_p_nda_float_t const & fwd );
+  };
+  p_conv_pipe_fwd_t make_conv_pipe_fwd_t( p_conv_pipe_t const & cp ) { 
+    p_conv_pipe_fwd_t ret = make_shared<conv_pipe_fwd_t>(); ret->init(cp); return ret; 
+  }
+  void conv_pipe_fwd_t_run( p_conv_pipe_fwd_t const & cpf, p_map_str_p_nda_float_t const & fwd ) { cpf->run_fwd( fwd ); }
+
+  void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
+    p_conv_node_t node = cp->must_get_node( node_name );
+#if 0
+    // print source nodes here, otherwise print with thier writing op
+    if( node->top_for.empty() ) { print_blob_decl( out, node_name, node ); }
+    else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
+    // print in-place ops for this node
+    for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) {
+      p_conv_op_t const & ip_cop = *j;
+      out << strprintf( "%s(name=\"%s\",in_place=[%s])\n", ip_cop->type.c_str(), as_pyid(ip_cop->tag).c_str(), as_pyid(node->name).c_str() );
+    }
+#endif
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = cp->get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      //print_op_decl( out, this, cop, expand_ops );
+      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { gen_ops_rec( *i ); }
+    }
+  }
+  void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_ ) {
+    cp = cp_;
+    assert_st( cp );
+    assert_st( cp->finalized );
+    cp->topo_visit_setup();
+    for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
+  }
+  void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
+  }
+
+
+  string cu_base_decls = R"rstr(
+typedef unsigned uint32_t;
+)rstr";
+
+  string gen_conv_op_one_img_conv( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
+				 p_nda_float_t const & bot, p_nda_float_t const & top ) {
+    
+    string ret;
+    ret += cu_base_decls;
+    ret += R"rstr(
+extern "C" {
+  __global__ void conv_mumble( float const * const bot, float const * const filts, float const * const biases, float * const top ) {
+    uint32_t const ix = blockDim.x * blockIdx.x + threadIdx.x;
+
+}
+)rstr";
+    return ret;
+#if 0
+    
+    u32_pt_t kern_sz = cop->kern_sz;
+    if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
+    string const tag_id_str = as_pyid( cop->tag );    
+    p_nda_float_t const & filts = must_find( *fwd, tag_id_str + "_filts" );
+    p_nda_float_t const & biases = must_find( *fwd, tag_id_str + "_biases" );
+    assert_st( filts->dims == dims_t(vect_uint32_t{top->dims.dims(1),bot->dims.dims(1),kern_sz.d[1],kern_sz.d[0] },1) );
+    assert_st( biases->dims == dims_t(vect_uint32_t{top->dims.dims(1)},1) );
+    assert_st( top->dims.dims(1) == cop->out_chans );
+
+    for( uint32_t fix = 0; fix != filts->dims.dims(0); ++fix ) {
+      for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
+	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
+	  float out_pel = 0;
+	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad.p[0]);
+	  for( uint32_t in_chan = 0; in_chan != bot->dims.dims(1); ++in_chan ) {
+	    for( uint32_t ky = 0; ky < kern_sz.d[1]; ++ky ) {
+	      int32_t in_ky = in_ix.d[1] + ky;
+	      if( (in_ky < 0) || (uint32_t(in_ky) >= bot->dims.dims(2)) ) { continue; }
+	      for( uint32_t kx = 0; kx < kern_sz.d[0]; ++kx ) {
+		int32_t in_kx = in_ix.d[0] + kx;
+		if( (in_kx < 0) || (uint32_t(in_kx) >= bot->dims.dims(3)) ) { continue; }
+		out_pel += bot->at4( img_ix, in_chan, in_ky, in_kx ) * filts->at4( fix, in_chan, ky, kx );
+	      }
+	    }
+	  }
+	  out_pel += biases->at1( fix );
+	  top->at4( img_ix, fix, y, x ) = out_pel; // > 0 ? out_pel : 0;
+	}
+      }
+    }
+#endif
+  }
+
   
 #include"gen/nvrtc_util.cc.nesi_gen.cc"
 }
