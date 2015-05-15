@@ -179,6 +179,14 @@ namespace boda
     uint32_t num_imgs;
     p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
+
+    // nvrtc/cuda state
+    CUdevice cu_dev;
+    CUcontext cu_context;
+    CUmodule cu_mod;
+    CUfunction cu_func;
+
+
     void gen_node( string const & name, p_conv_node_t const & node );
     void add_op_param( string const & name, uint32_t const & sz );
     void gen_op( p_conv_op_t const & cop );
@@ -283,6 +291,10 @@ namespace boda
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { gen_ops_rec( *i ); }
     }
   }
+  string cu_base_decls = R"rstr(
+typedef unsigned uint32_t;
+)rstr";
+
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
     cp = cp_;
     assert_st( cp );
@@ -294,6 +306,24 @@ namespace boda
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
+    string prog_str = cu_base_decls;
+    prog_str += R"rstr(
+extern "C" {
+  __global__ void set_to_const( float * const d, uint32_t const sz, float const v ) {
+    uint32_t const ix = blockDim.x * blockIdx.x + threadIdx.x;
+    if( ix < sz ) { d[ix] = v; }
+   }
+}
+)rstr";
+
+    string const prog_ptx = nvrtc_compile( prog_str );
+
+    cu_err_chk( cuInit( 0 ), "cuInit" );
+    cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
+    cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
+    cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
+    cu_err_chk( cuModuleGetFunction( &cu_func, cu_mod, "set_to_const" ), "cuModuleGetFunction" );
+
     copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in
   
   }
@@ -303,17 +333,28 @@ namespace boda
     printf("run_fwd() begin\n");
     copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
     printf("run_fwd() exec\n");
-    // TODO
+    assert( cp->tops.size() == 1 );
+    p_cup_float top = must_find( *cups, as_pyid(cp->tops[0]) );
+    float v = 37.9105f;
+    vect_rp_void cu_func_args{ &top->p, &top->sz, &v };
+    uint32_t const tpb = 256;
+    uint32_t const num_blocks = u32_ceil_div( top->sz, tpb );
+    {
+      timer_t t("cu_launch_and_sync");
+      cu_err_chk( cuLaunchKernel( cu_func,
+				  num_blocks, 1, 1, // grid x,y,z dims
+				  tpb, 1, 1, // block x,y,z dims
+				  0, 0, // smem_bytes, stream_ix
+				  &cu_func_args[0], // cu_func's args
+				  0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
+      cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
+    }
     printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
     printf("run_fwd() done\n");
   }
 
-
-  string cu_base_decls = R"rstr(
-typedef unsigned uint32_t;
-)rstr";
 
   string gen_conv_op_one_img_conv( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
 				 p_nda_float_t const & bot, p_nda_float_t const & top ) {
