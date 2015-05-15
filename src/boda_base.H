@@ -79,16 +79,21 @@ namespace boda
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   p_vect_rp_void get_backtrace( void );
 
-  template< typename T > typename T::mapped_type & must_find( T & kvm, typename T::key_type const & k ) {
-    typename T::iterator i = kvm.find( k );
-    assert_st( i != kvm.end() );
-    return i->second;
-  }
+  template< typename T > void must_insert( T & kvm, typename T::key_type const & k, typename T::mapped_type const & v ) {
+    bool const did_ins = kvm.insert( std::make_pair( k, v ) ).second;
+    assert_st( did_ins );
+  }		      
   template< typename T > typename T::mapped_type const & must_find( T const & kvm, typename T::key_type const & k ) {
     typename T::const_iterator i = kvm.find( k );
     assert_st( i != kvm.end() );
     return i->second;
   }
+  template< typename T > typename T::mapped_type & must_find( T & kvm, typename T::key_type const & k ) {
+    typename T::iterator i = kvm.find( k );
+    assert_st( i != kvm.end() );
+    return i->second;
+  }
+
 
   // NESI types
   struct filename_t { string in; string exp; };
