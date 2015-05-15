@@ -572,18 +572,24 @@ namespace boda
     }
   }
 
-  void conv_pipe_t::run_ops( p_map_str_p_nda_float_t const & fwd ) {
-    assert_st( finalized );
-    assert( bots.size() );
-    // we pick an arbitary input to get num_imgs from hete, then check it later for all inputs
-    uint32_t const num_imgs = must_find( *fwd, bots[0] )->dims.dims(0); // assume slowest dim is batch size
+  void conv_pipe_t::fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only ) {
     for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
       p_conv_node_t const & node = i->second;
       dims_t node_dims( vect_uint32_t{num_imgs,node->cio.chans,node->cio.sz.d[1],node->cio.sz.d[0]} ); 
       node_dims.calc_strides(); // for now, assume no padding
       if( node->top_for.empty() ) { assert_st( must_find( *fwd, node->name )->dims == node_dims ); }
-      else { assert_st( fwd->insert( std::make_pair( node->name, make_shared<nda_float_t>( node_dims ) ) ).second ); }
+      else if( (!sinks_only) || node->bot_for.empty() ) {
+	must_insert( *fwd, as_pyid(node->name), make_shared<nda_float_t>( node_dims ) );
+      }
     }
+  }
+
+  void conv_pipe_t::run_ops( p_map_str_p_nda_float_t const & fwd ) {
+    assert_st( finalized );
+    assert( bots.size() );
+    // we pick an arbitary input to get num_imgs from hete, then check it later for all inputs
+    uint32_t const num_imgs = must_find( *fwd, bots[0] )->dims.dims(0); // assume slowest dim is batch size
+    fwd_alloc_ndas( fwd, num_imgs, 0 );
     topo_visit_setup();
     for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { run_ops_rec( fwd, *i ); }
   }
@@ -593,7 +599,11 @@ namespace boda
     assert( bots.size() == 1 );
     (*fwd)[bots[0]] = in;
     if( use_nvrtc ) {
-      if( !conv_pipe_fwd ) { conv_pipe_fwd = make_conv_pipe_fwd_t( p_conv_pipe_t( this, null_deleter<conv_pipe_t>() ) ); };
+      if( !conv_pipe_fwd ) {
+	// note: num_imgs can't change after conv_pipe_fwd_t::init(); this is checked in conv_pipe_fwd_t::run_fwd()
+	uint32_t const num_imgs = in->dims.dims(0); 
+	conv_pipe_fwd = make_conv_pipe_fwd_t( p_conv_pipe_t( this, null_deleter<conv_pipe_t>() ), num_imgs ); 
+      };
       conv_pipe_fwd_t_run( conv_pipe_fwd, fwd );
     } else { run_ops( fwd ); }
     assert( tops.size() == 1 );    

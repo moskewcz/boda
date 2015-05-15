@@ -114,6 +114,7 @@ namespace boda
     void dump_ops_rec( std::ostream & out, string const & node_name, bool const & expand_ops );
     void dump_ops( std::ostream & out, bool const & expand_ops );
 
+    void fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only );
     void run_ops( p_map_str_p_nda_float_t const & fwd );
     void run_ops_rec( p_map_str_p_nda_float_t const & fwd, string const & node_name );
     p_nda_float_t run_one_blob_in_one_blob_out( p_nda_float_t const & in, bool const & use_nvrtc );

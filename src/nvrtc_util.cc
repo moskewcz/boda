@@ -70,14 +70,31 @@ namespace boda
   typedef cup_T< float > cup_float;
   typedef shared_ptr< cup_float > p_cup_float; 
 
+  // rp_float <-> cup_float
+  void cu_copy_to_cup( p_cup_float const & cup, float const * const v, uint32_t const sz ) {
+    cu_err_chk( cuMemcpyHtoD( cup->p, v, sz*sizeof(float) ), "cuMemcpyHtoD" );
+  }
+  void cu_copy_from_cup( float * const v, p_cup_float const & cup, uint32_t const sz ) {
+    cu_err_chk( cuMemcpyDtoH( v, cup->p, sz*sizeof(float) ), "cuMemcpyDtoH" );
+  }
+  // nda_float <-> cup_float
+  void cu_copy_nda_to_cup( p_cup_float const & cup, p_nda_float_t const & nda ) {
+    assert_st( nda->elems.sz == cup->sz );
+    cu_copy_to_cup( cup, &nda->elems[0], cup->sz );
+  }
+  void cu_copy_cup_to_nda( p_nda_float_t const & nda, p_cup_float const & cup ) {
+    assert_st( nda->elems.sz == cup->sz );
+    cu_copy_from_cup( &nda->elems[0], cup, cup->sz );
+  }
+  // vect_float <-> cup_float
   p_cup_float get_cup_copy( vect_float const & v ) { 
     p_cup_float ret = make_shared<cup_float>( v.size() ); 
-    cu_err_chk( cuMemcpyHtoD( ret->p, &v[0], v.size()*sizeof(vect_float::value_type) ), "cuMemcpyHtoD" );
-    return ret;
+    cu_copy_to_cup( ret, &v[0], v.size() ); 
+    return ret; 
   }
   void set_from_cup( vect_float & v, p_cup_float const & cup ) {
     assert_st( cup->sz == v.size() );
-    cu_err_chk( cuMemcpyDtoH( &v[0], cup->p, v.size()*sizeof(vect_float::value_type) ), "cuMemcpyHtoD" );
+    cu_copy_to_cup( cup, &v[0], v.size() );
   }
   
   struct nvrtc_test_t : virtual public nesi, public has_main_t // NESI(help="test basic usage of cuda nvrtc library",
@@ -138,23 +155,121 @@ namespace boda
     }
   };
 
+  typedef map< string, p_cup_float > map_str_p_cup_float_t;
+  typedef shared_ptr< map_str_p_cup_float_t > p_map_str_p_cup_float_t;
+
+  void copy_named_ndas_to_cups( vect_string const & names, map_str_p_nda_float_t const & ndas, map_str_p_cup_float_t const & cups ) {
+    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
+      string const pyid = as_pyid( *i );
+      //printf( "(*i)=%s pyid=%s\n", str((*i)).c_str(), str(pyid).c_str() );
+      cu_copy_nda_to_cup( must_find( cups, pyid ), must_find( ndas, pyid ) );
+    }
+  }
+  void copy_named_cups_to_ndas( vect_string const & names, map_str_p_cup_float_t const & cups, map_str_p_nda_float_t & ndas ) {
+    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
+      string const pyid = as_pyid( *i );
+      printf( "(*i)=%s pyid=%s\n", str((*i)).c_str(), str(pyid).c_str() );
+      cu_copy_cup_to_nda( must_find( ndas, pyid ), must_find( cups, pyid ) );
+    }
+  }
+
+
   struct conv_pipe_fwd_t {
     p_conv_pipe_t cp;
+    uint32_t num_imgs;
+    p_map_str_p_cup_float_t cups;
+    vect_string op_param_names;
+    void gen_node( string const & name, p_conv_node_t const & node );
+    void add_op_param( string const & name, uint32_t const & sz );
+    void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
-    void init( p_conv_pipe_t const & cp_ );
+    void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
     void run_fwd( p_map_str_p_nda_float_t const & fwd );
   };
-  p_conv_pipe_fwd_t make_conv_pipe_fwd_t( p_conv_pipe_t const & cp ) { 
-    p_conv_pipe_fwd_t ret = make_shared<conv_pipe_fwd_t>(); ret->init(cp); return ret; 
+  p_conv_pipe_fwd_t make_conv_pipe_fwd_t( p_conv_pipe_t const & cp, uint32_t const & num_imgs ) { 
+    p_conv_pipe_fwd_t ret = make_shared<conv_pipe_fwd_t>(); ret->init(cp,num_imgs); return ret; 
   }
   void conv_pipe_fwd_t_run( p_conv_pipe_fwd_t const & cpf, p_map_str_p_nda_float_t const & fwd ) { cpf->run_fwd( fwd ); }
 
+  void conv_pipe_fwd_t::add_op_param( string const & name, uint32_t const & sz ) {
+    string const & name_id = as_pyid( name );
+    must_insert( *cups, name_id, make_shared<cup_float>( sz ) ); 
+    op_param_names.push_back( name );
+  }
+
+  void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
+    string const tag_id_str = as_pyid( cop->tag );
+    //char const * const tag_id = tag_id_str.c_str();
+
+    if( cop->type == Convolution_str ) {
+      assert_st( cop->bots.size() == 1 );
+      conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
+      u32_pt_t kern_sz = cop->kern_sz;
+      if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
+
+      add_op_param( tag_id_str + "_filts", cop->out_chans * cio_in.chans * kern_sz.dims_prod() );
+      add_op_param( tag_id_str + "_biases", cop->out_chans );
+
+      //extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag_id, tag_id );
+    } else { rt_err( "gen_op: unhandled op of type" + cop->type ); }
+
+    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { gen_node( *i, cp->must_get_node(*i) ); }
+
+#if 0
+    string extra_params;
+    string expanded_op;
+    string const tag_id_str = as_pyid( cop->tag );
+    char const * const tag_id = tag_id_str.c_str();
+    
+    string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
+    uint32_t M = 0, N = 0, K = 0;
+    if( cop->type == Convolution_str || cop->type == InnerProduct_str ) {
+      assert_st( cop->bots.size() == 1 );
+      conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
+      u32_pt_t kern_sz = cop->kern_sz;
+      if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
+
+      out << strprintf( "%s_filts = NDA(\"%s_filts\",%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
+			tag_id, tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
+			str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
+      out << strprintf( "%s_biases = NDA(\"%s_biases\",%s) # SOURCE out_chan\n", 
+			tag_id, tag_id, str(cop->out_chans).c_str() );
+      extra_params = strprintf( ",filts=%s_filts,biases=%s_biases", tag_id, tag_id );
+
+      assert_st( cop->tops.size() == 1 );
+      conv_io_t & cio_out = pipe->must_get_node( cop->tops[0] )->cio;
+      M = cio_out.sz.d[0] * cio_out.sz.d[1];
+      N = kern_sz.d[0]*kern_sz.d[1]*cio_in.chans;
+      K = cop->out_chans;
+
+      // get expanded op 
+      expanded_op = get_conv_as_sgemm(cop->tops[0],cop->bots[0],tag_id_str+"_filts",M,N,K,pad_and_stride);
+    }
+    // print decls for all of this ops output nodes here
+    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
+      print_blob_decl( out, *i, pipe->must_get_node(*i) ); 
+    }
+    // print acutal op
+    if( expanded_ops && !expanded_op.empty() ) { out << expanded_op; }
+    else {
+      out << strprintf( "%s(name=\"%s\",bots=%s,tops=%s%s,\n\t%s)\n", 
+			cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
+			extra_params.c_str(), pad_and_stride.c_str() );
+    }
+#endif
+  }
+
+  void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) {
+    conv_io_t & cio = node->cio;
+    must_insert( *cups, as_pyid(name), make_shared<cup_float>( num_imgs * cio.chans * cio.sz.dims_prod() ) ); 
+  }
+
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
     p_conv_node_t node = cp->must_get_node( node_name );
-#if 0
-    // print source nodes here, otherwise print with thier writing op
-    if( node->top_for.empty() ) { print_blob_decl( out, node_name, node ); }
+    // setup source nodes here, otherwise print with thier writing op
+    if( node->top_for.empty() ) { gen_node( node_name, node ); }
     else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
+#if 0
     // print in-place ops for this node
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) {
       p_conv_op_t const & ip_cop = *j;
@@ -164,18 +279,35 @@ namespace boda
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = cp->get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      //print_op_decl( out, this, cop, expand_ops );
+      gen_op( cop );
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { gen_ops_rec( *i ); }
     }
   }
-  void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_ ) {
+  void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
     cp = cp_;
     assert_st( cp );
     assert_st( cp->finalized );
+    num_imgs = num_imgs_;
+    assert_st( num_imgs );
+    cups.reset( new map_str_p_cup_float_t );
+    
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
+
+    copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in
+  
   }
+  
+
   void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
+    printf("run_fwd() begin\n");
+    copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
+    printf("run_fwd() exec\n");
+    // TODO
+    printf("run_fwd() copy out\n");
+    cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
+    copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
+    printf("run_fwd() done\n");
   }
 
 
