@@ -113,6 +113,7 @@ namespace boda
   typedef set< uint32_t > set_uint32_t;
 
   typedef map< string, zi_uint32_t > map_str_ziu32_t;
+  typedef map< string, string > map_str_str;
 
   typedef shared_ptr< void > p_void;
   typedef shared_ptr< std::istream > p_istream;

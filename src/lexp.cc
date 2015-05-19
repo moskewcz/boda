@@ -142,6 +142,11 @@ namespace boda {
     }
     return did_ins;
   }
+  void lexp_name_val_map_t::insert_leafs_from( map_str_str const & kvs ) {
+    for( map_str_str::const_iterator i = kvs.begin(); i != kvs.end(); ++i ) {
+      assert_st( insert_leaf( i->first.c_str(), i->second.c_str(), 0 ) );
+    }
+  }
 
   void lexp_name_val_map_t::init_nvm( void ) {
     if( !l ) { nvm_init = 1; return; } // trivial/null init for no-lexp use-case
