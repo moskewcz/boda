@@ -108,6 +108,7 @@ namespace boda
   typedef shared_ptr< vect_string > p_vect_string;
   vect_rp_char get_vect_rp_char( vect_string const & v );
   vect_rp_const_char get_vect_rp_const_char( vect_string const & v );
+  typedef vector< std::pair< string, string > > vect_pair_str_str;
 
   typedef set< string > set_string;
   typedef set< uint32_t > set_uint32_t;
