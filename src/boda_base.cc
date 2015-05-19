@@ -217,6 +217,7 @@ namespace boda
     uint8_t const * const fn_data = (uint8_t const *)mfile->data();
     return p_string( new string( fn_data, fn_data+mfile->size() ) );
   }
+  p_string read_whole_fn( std::string const & fn ) { return read_whole_fn( filename_t{fn,fn} ); }
   void write_whole_fn( filename_t const & fn, std::string const & data ) {
     p_ofstream out = ofs_open( fn );
     (*out) << data;

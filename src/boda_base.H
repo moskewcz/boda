@@ -125,6 +125,7 @@ namespace boda
   p_ofstream ofs_open( filename_t const & fn );
   p_ofstream ofs_open( string const & fn );
   p_string read_whole_fn( filename_t const & fn );
+  p_string read_whole_fn( string const & fn );
   void write_whole_fn( filename_t const & fn, std::string const & data );
 
   p_vect_string readlines_fn( filename_t const & fn );
