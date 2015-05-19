@@ -222,6 +222,7 @@ namespace boda
     p_ofstream out = ofs_open( fn );
     (*out) << data;
   }
+  void write_whole_fn( std::string const & fn, std::string const & data ) { return write_whole_fn( filename_t{fn,fn}, data ); }
 
   uint32_t const max_frames = 64;
 
