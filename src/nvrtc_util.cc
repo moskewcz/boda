@@ -7,12 +7,16 @@
 #include"timers.H"
 #include<nvrtc.h>
 #include<cuda.h>
+#include<boost/filesystem.hpp>
+#include"lexp.H"
 
 // for conv_pipe_fwd_t
 #include"conv_util.H"
 
 namespace boda 
 {
+using boost::filesystem::path;
+
   void nvrtc_err_chk( nvrtcResult const & ret, char const * const func_name ) {
     if( ret != NVRTC_SUCCESS ) { rt_err( strprintf( "%s() failed with ret=%s (%s)", func_name, str(ret).c_str(), nvrtcGetErrorString(ret) ) ); } }
   void nvrtcDestroyProgram_wrap( nvrtcProgram p ) { if(!p){return;} nvrtc_err_chk( nvrtcDestroyProgram( &p ), "nvrtcDestroyProgram" ); }
@@ -206,6 +210,7 @@ namespace boda
     void run_fwd( p_map_str_p_nda_float_t const & fwd );
 
   protected:
+    p_string conv_template;
     string gen_op_conv( uint32_t const & in_pad, uint32_t const & kern_sz, uint32_t const & stride,
 			conv_io_t const & cio_in, conv_io_t const & cio_out );
     string gen_op_relu( conv_io_t const & cio_out );
@@ -246,13 +251,14 @@ namespace boda
     cf.arg_sizes = vect_uint32_t{ filts_sz, biases_sz, in_sz, out_sz }; 
     cf.tpb = 256;
     cf.blks = u32_ceil_div( out_sz, cf.tpb );
-    cu_prog_str += strprintf( R"rstr(
-extern "C"  __global__ void %s( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-    uint32_t const ix = blockDim.x * blockIdx.x + threadIdx.x;
-    if( ix < %s ) { out[ix] = -4.0f; }
-}
-)rstr", cu_func_name.c_str(), str(out_sz).c_str() );
-    
+
+    lexp_name_val_map_t tf_nvm{ p_lexp_t() };
+    tf_nvm.insert_leaf( "cu_func_name", cu_func_name.c_str(), 0 ); 
+    tf_nvm.insert_leaf( "out_sz", str(out_sz).c_str(), 0 );
+    string cu_func_str;
+    str_format_from_nvm( cu_func_str, *conv_template, tf_nvm );
+    cu_prog_str += cu_func_str;
+
     //printf( "cu_func_name=%s\n", str(cu_func_name).c_str() );
     return cu_func_name;
   }
@@ -341,6 +347,8 @@ typedef unsigned uint32_t;
 )rstr";
 
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
+    conv_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / "conv.cu").string() );
+
     cp = cp_;
     assert_st( cp );
     assert_st( cp->finalized );
