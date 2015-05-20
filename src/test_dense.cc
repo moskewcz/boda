@@ -294,7 +294,7 @@ namespace boda {
 	float const v1 = out_batch_1->cm_at1(i);
 	float const v2 = out_batch_2->cm_at1(i);
 	if( v1 != v2 ) {
-	  printf( "i=%s v1=%s v2=%s\n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
+	  (*out) << strprintf( "i=%s v1=%s v2=%s\n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
 	  ++num_err;
 	  if( num_err > 9 ) { break; }
 	}
