@@ -8,6 +8,7 @@
 #include<nvrtc.h>
 #include<cuda.h>
 #include<boost/filesystem.hpp>
+#include<boost/lexical_cast.hpp>
 #include"lexp.H"
 
 // for conv_pipe_fwd_t
@@ -165,14 +166,12 @@ using boost::filesystem::path;
   void copy_named_ndas_to_cups( vect_string const & names, map_str_p_nda_float_t const & ndas, map_str_p_cup_float_t const & cups ) {
     for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
       string const pyid = as_pyid( *i );
-      //printf( "(*i)=%s pyid=%s\n", str((*i)).c_str(), str(pyid).c_str() );
       cu_copy_nda_to_cup( must_find( cups, pyid ), must_find( ndas, pyid ) );
     }
   }
   void copy_named_cups_to_ndas( vect_string const & names, map_str_p_cup_float_t const & cups, map_str_p_nda_float_t & ndas ) {
     for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
       string const pyid = as_pyid( *i );
-      printf( "(*i)=%s pyid=%s\n", str((*i)).c_str(), str(pyid).c_str() );
       cu_copy_cup_to_nda( must_find( ndas, pyid ), must_find( cups, pyid ) );
     }
   }
@@ -210,9 +209,7 @@ using boost::filesystem::path;
     void run_fwd( p_map_str_p_nda_float_t const & fwd );
 
   protected:
-    p_string conv_template;
-    string gen_op_conv( uint32_t const & in_pad, uint32_t const & kern_sz, uint32_t const & stride,
-			conv_io_t const & cio_in, conv_io_t const & cio_out );
+    cu_funcs_t::iterator gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     string gen_op_relu( conv_io_t const & cio_out );
     void gen_node( string const & name, p_conv_node_t const & node );
     void add_op_param( string const & name, uint32_t const & sz );
@@ -230,10 +227,9 @@ using boost::filesystem::path;
     must_insert( *cups, name_id, make_shared<cup_float>( sz ) ); 
     op_param_names.push_back( name );
   }
-
-
   
   void insert_nda_exprs( vect_pair_str_str & mss, string const & ix, vect_string const & dns, vect_uint32_t const & dss ) {
+    assert_st( dns.size() );
     assert_st( dns.size() == dss.size() );
     uint32_t stride = 1;
     for( int32_t i = dns.size()-1; i >= 0; --i ) {
@@ -249,27 +245,52 @@ using boost::filesystem::path;
     mss.push_back( make_pair( ix+"_sz", str(stride) ) );
   }
 
-  string conv_pipe_fwd_t::gen_op_conv( uint32_t const & in_pad, uint32_t const & kern_sz, uint32_t const & stride,
-				       conv_io_t const & cio_in, conv_io_t const & cio_out ) {
-    // for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
+  // yeah, not the greatest ...
+  uint32_t get_sz( vect_pair_str_str & mss, string const & ix ) { 
+    for( vect_pair_str_str::const_iterator i = mss.begin(); i != mss.end(); ++i ) {
+      if( i->first == (ix+"_sz") ) { return boost::lexical_cast< uint32_t >( i->second ); }
+    }
+    rt_err( "size not found in tf_exprs for ix:" + ix );
+  }
+
+  cu_funcs_t::iterator conv_pipe_fwd_t::gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out ) {
+    // note: cio_in and cio_out are derived from cop->bots[0] and cop->tops[0]
+    // for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
+    assert_st( cop->in_pad.bnds_are_same() );
+    assert_st( cop->in_pad.p[0].dims_are_same() );
+    assert_st( cop->stride.dims_are_same() );
+    u32_pt_t kern_sz_ = cop->kern_sz;
+    if( kern_sz_.is_zeros() ) { kern_sz_ = cio_in.sz; } // 'global' input special case
+    assert_st( kern_sz_.dims_are_same() );
+    uint32_t const in_pad = cop->in_pad.p[0].d[0];
+    uint32_t const kern_sz = kern_sz_.d[0];
+    uint32_t const stride = cop->stride.d[0];
+
+    // also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
     assert_st( cio_in.sz.dims_are_same() );
     uint32_t const in_dim = cio_in.sz.d[0];
-    string const cu_func_name = strprintf( "conv__num_imgs_%s__in_pad_%s__in_dim_%s__in_chans_%s__kern_sz_%s__stride_%s__out_chans_%s", 
-					   str(num_imgs).c_str(), str(in_pad).c_str(), str(in_dim).c_str(), str(cio_in.chans).c_str(),
-					   str(kern_sz).c_str(), str(stride).c_str(), str(cio_out.chans).c_str() );
-    std::pair< cu_funcs_t::iterator, bool > ins_ret = cu_funcs.insert( make_pair( cu_func_name, cu_func_t{} ) );
-    if( !ins_ret.second ) { return cu_func_name; } // already generated
-    cu_func_t & cf = ins_ret.first->second;
+
+    bool const is_conv = cop->type == Convolution_str;
+    bool const is_pool = cop->type == Pooling_str;
+    string cu_func_name;
+    p_string cu_func_template;
+    if( is_conv ) {
+      cu_func_name = strprintf( "conv__num_imgs_%s__in_pad_%s__in_dim_%s__in_chans_%s__kern_sz_%s__stride_%s__out_chans_%s", 
+				str(num_imgs).c_str(), str(in_pad).c_str(), str(in_dim).c_str(), str(cio_in.chans).c_str(),
+				str(kern_sz).c_str(), str(stride).c_str(), str(cio_out.chans).c_str() );
+      cu_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / "conv.cu").string() );
+    } else if( is_pool ) {
+      assert_st( cio_out.chans == cio_in.chans );
+      cu_func_name = strprintf( "pool__num_imgs_%s__in_pad_%s__in_dim_%s__avg_pool_%s__kern_sz_%s__stride_%s__out_chans_%s", 
+				str(num_imgs).c_str(), str(in_pad).c_str(), str(in_dim).c_str(), str(uint32_t(cop->avg_pool)).c_str(),
+				str(kern_sz).c_str(), str(stride).c_str(), str(cio_out.chans).c_str() );
+      cu_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / "pool.cu").string() );
+    } else { rt_err( "unhanded kern op: " + cop->type ); }
     
-    // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
-    uint32_t const filts_sz = cio_out.chans * cio_in.chans * kern_sz * kern_sz;
-    uint32_t const biases_sz = cio_out.chans;
-    uint32_t const in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;
-    uint32_t const out_sz = cio_out.sz.dims_prod() * cio_out.chans * num_imgs;
-    cf.arg_sizes = vect_uint32_t{ filts_sz, biases_sz, in_sz, out_sz }; 
-    cf.tpb = 256;
-    cf.blks = u32_ceil_div( out_sz, cf.tpb );
-  
+    std::pair< cu_funcs_t::iterator, bool > ins_ret = cu_funcs.insert( make_pair( cu_func_name, cu_func_t{} ) );
+    if( !ins_ret.second ) { return ins_ret.first; } // already generated
+    cu_func_t & cf = ins_ret.first->second;
+
     vect_pair_str_str tf_exprs;
     tf_exprs.push_back( make_pair( "cu_func_name", cu_func_name ) );
     tf_exprs.push_back( make_pair( "kern_sz", str(kern_sz) ) );
@@ -278,37 +299,61 @@ using boost::filesystem::path;
     vect_string const cio_dims{"img","chan","y","x"};
     insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,cio_out.chans,cio_out.sz.d[0],cio_out.sz.d[1]} );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[0],cio_in.sz.d[1]} );
-    insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
-		      vect_uint32_t{cio_out.chans,cio_in.chans,kern_sz,kern_sz} );
+    if( is_conv ) {
+      insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
+			vect_uint32_t{cio_out.chans,cio_in.chans,kern_sz,kern_sz} );
+    }
     for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
       //printf( "%s = %s\n", str(i->first).c_str(), str(i->second).c_str() );
     } 
-
-    string fmas("// begin fmas\n");
-    uint32_t filts_off = 0;
-    uint32_t in_off = 0;
-    for( uint32_t kc = 0; kc != cio_in.chans; ++kc ) {
-      for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
-	for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
-	  in_off = kc * cio_in.sz.dims_prod() + ky * cio_in.sz.d[0] + kx; // FIXME: get dims from tf_exprs?
-	  fmas += "  out_v += in[in_ix+"+str(in_off)+"] * filts[filts_ix+"+str(filts_off)+"];\n";
-	  ++filts_off;
-	  ++in_off;
+      
+    string ops("// begin ops\n");
+    if( is_conv ) {
+      uint32_t filts_off = 0;
+      for( uint32_t kc = 0; kc != cio_in.chans; ++kc ) {
+	for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
+	  for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
+	    uint32_t const in_off = kc * cio_in.sz.dims_prod() + ky * cio_in.sz.d[0] + kx; // FIXME: get dims from tf_exprs?
+	    ops += "  out_v += in[in_ix+"+str(in_off)+"] * filts[filts_ix+"+str(filts_off)+"];\n";
+	    ++filts_off;
+	  }
 	}
       }
+    } 
+    if( is_pool ) {
+      for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
+	for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
+	  uint32_t const in_off = ky * cio_in.sz.d[0] + kx; // FIXME: get dims from tf_exprs?
+	  if( cop->avg_pool ) { ops += "  out_v += in[in_ix+"+str(in_off)+"];\n"; }
+	  else { ops += "  out_v = max( out_v, in[in_ix+"+str(in_off)+"]);\n"; }
+	}
+      }
+      if( cop->avg_pool ) { ops += "  out_v /= float("+str(kern_sz*kern_sz)+");\n"; }
     }
-    fmas += "  // end fmas"; // note: newline (and semi-unwanted semi-colon) will go here from src
-    tf_exprs.push_back( std::make_pair( "fmas", fmas ) );
+    ops += "  // end ops"; // note: newline (and semi-unwanted semi-colon) will go here from src
+    tf_exprs.push_back( std::make_pair( "ops", ops ) );
     
     lexp_name_val_map_t tf_nvm{ p_lexp_t() };
     tf_nvm.insert_leafs_from( tf_exprs );
 
     string cu_func_str;
-    str_format_from_nvm( cu_func_str, *conv_template, tf_nvm );
+    str_format_from_nvm( cu_func_str, *cu_func_template, tf_nvm );
     cu_prog_str += cu_func_str;
 
+    // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
+    if( is_conv ) { 
+      cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_ix" ) );
+      cf.arg_sizes.push_back( cio_out.chans ); // biases_sz
+    }
+    cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
+    uint32_t const out_sz = get_sz( tf_exprs, "out_ix" );
+    cf.arg_sizes.push_back( out_sz );
+
+    cf.tpb = 256;
+    cf.blks = u32_ceil_div( out_sz, cf.tpb );
+
     //printf( "cu_func_name=%s\n", str(cu_func_name).c_str() );
-    return cu_func_name;
+    return ins_ret.first;
   }
 
   string conv_pipe_fwd_t::gen_op_relu( conv_io_t const & cio_out ) {
@@ -334,37 +379,39 @@ extern "C"  __global__ void %s( float * const out ) {
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     string const tag_id_str = as_pyid( cop->tag );
     //char const * const tag_id = tag_id_str.c_str();
-
-    if( cop->type == Convolution_str ) {
-      assert_st( cop->bots.size() == 1 );
-      conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
-      assert_st( cop->tops.size() == 1 );
-      conv_io_t & cio_out = cp->must_get_node( cop->tops[0] )->cio;
-      u32_pt_t kern_sz = cop->kern_sz;
-      if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
-
-      assert_st( cio_out.chans == cop->out_chans );
-
+    assert_st( cop->bots.size() == 1 );
+    conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
+    assert_st( cop->tops.size() == 1 );
+    conv_io_t & cio_out = cp->must_get_node( cop->tops[0] )->cio;
+    bool const is_conv = cop->type == Convolution_str;
+    if( is_conv || (cop->type == Pooling_str) ) {
+      vect_string arg_ids;
       string const filts_id = tag_id_str + "_filts";
       string const biases_id = tag_id_str + "_biases";
-      add_op_param( filts_id, cop->out_chans * cio_in.chans * kern_sz.dims_prod() );
-      add_op_param( biases_id, cop->out_chans );
+      if( is_conv ) {
+	arg_ids.push_back( filts_id );
+	arg_ids.push_back( biases_id );
+      }
+      arg_ids.push_back( as_pyid(cop->bots[0]) );
+      arg_ids.push_back( as_pyid(cop->tops[0]) );
+      cu_funcs_t::iterator cfi = gen_op_kern( cop, cio_in, cio_out );
+      fwd_calls.push_back( cu_func_call_t{ cfi->first, arg_ids } );
+      if( is_conv ) {
+	assert_st( cio_out.chans == cop->out_chans );
+	vect_uint32_t const & arg_sizes = cfi->second.arg_sizes;
+	assert_st( arg_sizes.size() == 4 );
+	add_op_param( filts_id, arg_sizes[0] );
+	add_op_param( biases_id, arg_sizes[1] );
+      }
 
-      // for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
-      assert_st( cop->in_pad.bnds_are_same() );
-      assert_st( cop->in_pad.p[0].dims_are_same() );
-      assert_st( cop->stride.dims_are_same() );
-      assert_st( cop->kern_sz.dims_are_same() );
-      fwd_calls.push_back( cu_func_call_t{ gen_op_conv( cop->in_pad.p[0].d[0], cop->kern_sz.d[0], cop->stride.d[0], cio_in, cio_out ), 
-	  { filts_id, biases_id, as_pyid(cop->bots[0]), as_pyid(cop->tops[0]) } } );
-    }
-    else if( cop->type == ReLU_str ) {
+    } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
-      assert_st( cop->tops.size() == 1 );
-      conv_io_t & cio_out = cp->must_get_node( cop->tops[0] )->cio;
-      assert_st( cop->bots.size() == 1 );
       assert_st( cop->bots[0] == cop->tops[0] );
       fwd_calls.push_back( cu_func_call_t{ gen_op_relu( cio_out ), { as_pyid(cop->tops[0]) } } );
+    } else if( cop->type == Dropout_str ) {
+      // check that this is a single in-out in-place operation
+      assert_st( cop->bots[0] == cop->tops[0] );
+      // ignore for fwd
     } else { rt_err( "gen_op: unhandled op of type" + cop->type ); }
   }
 
@@ -385,8 +432,8 @@ extern "C"  __global__ void %s( float * const out ) {
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
       gen_op( cop );
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { 
-	gen_node( *i, cp->must_get_node(*i) );
-	gen_ops_rec( *i ); 
+	gen_node( *j, cp->must_get_node(*j) );
+	gen_ops_rec( *j ); 
       }
     }
   }
@@ -395,8 +442,6 @@ typedef unsigned uint32_t;
 )rstr";
 
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
-    conv_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / "conv.cu").string() );
-
     cp = cp_;
     assert_st( cp );
     assert_st( cp->finalized );
@@ -409,15 +454,15 @@ typedef unsigned uint32_t;
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
-    string const prog_ptx = nvrtc_compile( cu_prog_str );
-
     write_whole_fn( "out.cu", cu_prog_str );
+    string const prog_ptx = nvrtc_compile( cu_prog_str );
     write_whole_fn( "out.ptx", prog_ptx );
     //printf( "cu_prog_str=%s\n", str(cu_prog_str).c_str() );
     //printf( "prog_ptx=%s\n", str(prog_ptx).c_str() );
     cu_err_chk( cuInit( 0 ), "cuInit" );
     cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
-    cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
+    //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
+    cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
     cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
     for( cu_funcs_t::iterator i = cu_funcs.begin(); i != cu_funcs.end(); ++i ) {
       cu_err_chk( cuModuleGetFunction( &i->second.cu_func, cu_mod, i->first.c_str() ), "cuModuleGetFunction" );
@@ -428,9 +473,9 @@ typedef unsigned uint32_t;
 
   void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     timer_t t("conv_pipe_fwd_t::run_fwd");
-    printf("run_fwd() begin\n");
+    //printf("run_fwd() begin\n");
     copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
-    printf("run_fwd() exec\n");
+    //printf("run_fwd() exec\n");
     for( vect_cu_func_call_t::const_iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
       cu_func_call_t const & cfc = *i;
       cu_func_t const & cf = must_find( cu_funcs, cfc.cu_func_name );
@@ -452,61 +497,11 @@ typedef unsigned uint32_t;
       
     }
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
-    printf("run_fwd() copy out\n");
+    //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
-    printf("run_fwd() done\n");
+    //printf("run_fwd() done\n");
   }
-
-
-  string gen_conv_op_one_img_conv( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
-				 p_nda_float_t const & bot, p_nda_float_t const & top ) {
-    
-    string ret;
-    ret += cu_base_decls;
-    ret += R"rstr(
-extern "C" {
-  __global__ void conv_mumble( float const * const bot, float const * const filts, float const * const biases, float * const top ) {
-    uint32_t const ix = blockDim.x * blockIdx.x + threadIdx.x;
-
-}
-)rstr";
-    return ret;
-#if 0
-    
-    u32_pt_t kern_sz = cop->kern_sz;
-    if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
-    string const tag_id_str = as_pyid( cop->tag );    
-    p_nda_float_t const & filts = must_find( *fwd, tag_id_str + "_filts" );
-    p_nda_float_t const & biases = must_find( *fwd, tag_id_str + "_biases" );
-    assert_st( filts->dims == dims_t(vect_uint32_t{top->dims.dims(1),bot->dims.dims(1),kern_sz.d[1],kern_sz.d[0] },1) );
-    assert_st( biases->dims == dims_t(vect_uint32_t{top->dims.dims(1)},1) );
-    assert_st( top->dims.dims(1) == cop->out_chans );
-
-    for( uint32_t fix = 0; fix != filts->dims.dims(0); ++fix ) {
-      for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
-	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
-	  float out_pel = 0;
-	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad.p[0]);
-	  for( uint32_t in_chan = 0; in_chan != bot->dims.dims(1); ++in_chan ) {
-	    for( uint32_t ky = 0; ky < kern_sz.d[1]; ++ky ) {
-	      int32_t in_ky = in_ix.d[1] + ky;
-	      if( (in_ky < 0) || (uint32_t(in_ky) >= bot->dims.dims(2)) ) { continue; }
-	      for( uint32_t kx = 0; kx < kern_sz.d[0]; ++kx ) {
-		int32_t in_kx = in_ix.d[0] + kx;
-		if( (in_kx < 0) || (uint32_t(in_kx) >= bot->dims.dims(3)) ) { continue; }
-		out_pel += bot->at4( img_ix, in_chan, in_ky, in_kx ) * filts->at4( fix, in_chan, ky, kx );
-	      }
-	    }
-	  }
-	  out_pel += biases->at1( fix );
-	  top->at4( img_ix, fix, y, x ) = out_pel; // > 0 ? out_pel : 0;
-	}
-      }
-    }
-#endif
-  }
-
   
 #include"gen/nvrtc_util.cc.nesi_gen.cc"
 }
