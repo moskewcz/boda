@@ -257,7 +257,7 @@ namespace boda {
       imgs->load_img_db( 1 );
       run_cnet->setup_cnet(); 
       in_img = make_p_img_t( run_cnet->in_sz );
-      dump_pipe_and_ios( run_cnet );
+      //dump_pipe_and_ios( run_cnet );
 
       p_net_param_t trained_net = must_read_binary_proto( run_cnet->trained_fn );
       copy_matching_layer_blobs_from_param_to_map( trained_net, run_cnet->net_param, run_cnet->conv_pipe->op_params );
@@ -286,6 +286,17 @@ namespace boda {
       p_nda_float_t out_batch_2 = run_cnet->conv_pipe->run_one_blob_in_one_blob_out( run_cnet->in_batch, use_nvrtc );
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
       (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_str(out_batch_1,out_batch_2)).c_str() );
+      
+      uint32_t num_err = 0;
+      for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
+	float const v1 = out_batch_1->cm_at1(i);
+	float const v2 = out_batch_2->cm_at1(i);
+	if( v1 != v2 ) {
+	  printf( "i=%s v1=%s v2=%s\n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
+	  ++num_err;
+	  if( num_err > 9 ) { break; }
+	}
+      }
     }
   };
 
