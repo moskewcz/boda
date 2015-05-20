@@ -231,14 +231,32 @@ using boost::filesystem::path;
     op_param_names.push_back( name );
   }
 
+
+  
+  void insert_nda_exprs( vect_pair_str_str & mss, string const & ix, vect_string const & dns, vect_uint32_t const & dss ) {
+    assert_st( dns.size() == dss.size() );
+    uint32_t stride = 1;
+    for( int32_t i = dns.size()-1; i >= 0; --i ) {
+      mss.push_back( make_pair( ix+"_"+dns[i]+"_dim", str(dss[i]) ) );
+      assert_st( stride );
+      mss.push_back( make_pair( ix+"_"+dns[i]+"_sz", str(stride) ) );
+      string v = (stride > 1) ? "("+ix+"/"+str(stride)+")" : ix;
+      mss.push_back( make_pair( ix+"_"+dns[i]+"_nomod", v ) );      
+      if( i ) { v = "("+v+"%%"+str(dss[i])+")"; }
+      mss.push_back( make_pair( ix+"_"+dns[i], v ) );
+      stride *= dss[i];
+    }
+    mss.push_back( make_pair( ix+"_sz", str(stride) ) );
+  }
+
   string conv_pipe_fwd_t::gen_op_conv( uint32_t const & in_pad, uint32_t const & kern_sz, uint32_t const & stride,
 				       conv_io_t const & cio_in, conv_io_t const & cio_out ) {
     // for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
     assert_st( cio_in.sz.dims_are_same() );
     uint32_t const in_dim = cio_in.sz.d[0];
-    string const cu_func_name = strprintf( "conv__num_imgs_%s__in_pad_%s__in_dim_%s__in_chans_%s__kern_sz_%s__stride_%s", 
+    string const cu_func_name = strprintf( "conv__num_imgs_%s__in_pad_%s__in_dim_%s__in_chans_%s__kern_sz_%s__stride_%s__out_chans_%s", 
 					   str(num_imgs).c_str(), str(in_pad).c_str(), str(in_dim).c_str(), str(cio_in.chans).c_str(),
-					   str(kern_sz).c_str(), str(stride).c_str() );
+					   str(kern_sz).c_str(), str(stride).c_str(), str(cio_out.chans).c_str() );
     std::pair< cu_funcs_t::iterator, bool > ins_ret = cu_funcs.insert( make_pair( cu_func_name, cu_func_t{} ) );
     if( !ins_ret.second ) { return cu_func_name; } // already generated
     cu_func_t & cf = ins_ret.first->second;
@@ -251,10 +269,40 @@ using boost::filesystem::path;
     cf.arg_sizes = vect_uint32_t{ filts_sz, biases_sz, in_sz, out_sz }; 
     cf.tpb = 256;
     cf.blks = u32_ceil_div( out_sz, cf.tpb );
+  
+    vect_pair_str_str tf_exprs;
+    tf_exprs.push_back( make_pair( "cu_func_name", cu_func_name ) );
+    tf_exprs.push_back( make_pair( "kern_sz", str(kern_sz) ) );
+    tf_exprs.push_back( make_pair( "stride", str(stride) ) );
 
+    vect_string const cio_dims{"img","chan","y","x"};
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,cio_out.chans,cio_out.sz.d[0],cio_out.sz.d[1]} );
+    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[0],cio_in.sz.d[1]} );
+    insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
+		      vect_uint32_t{cio_out.chans,cio_in.chans,kern_sz,kern_sz} );
+    for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
+      //printf( "%s = %s\n", str(i->first).c_str(), str(i->second).c_str() );
+    } 
+
+    string fmas("// begin fmas\n");
+    uint32_t filts_off = 0;
+    uint32_t in_off = 0;
+    for( uint32_t kc = 0; kc != cio_in.chans; ++kc ) {
+      for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
+	for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
+	  in_off = kc * cio_in.sz.dims_prod() + ky * cio_in.sz.d[0] + kx; // FIXME: get dims from tf_exprs?
+	  fmas += "  out_v += in[in_ix+"+str(in_off)+"] * filts[filts_ix+"+str(filts_off)+"];\n";
+	  ++filts_off;
+	  ++in_off;
+	}
+      }
+    }
+    fmas += "  // end fmas"; // note: newline (and semi-unwanted semi-colon) will go here from src
+    tf_exprs.push_back( std::make_pair( "fmas", fmas ) );
+    
     lexp_name_val_map_t tf_nvm{ p_lexp_t() };
-    tf_nvm.insert_leaf( "cu_func_name", cu_func_name.c_str(), 0 ); 
-    tf_nvm.insert_leaf( "out_sz", str(out_sz).c_str(), 0 );
+    tf_nvm.insert_leafs_from( tf_exprs );
+
     string cu_func_str;
     str_format_from_nvm( cu_func_str, *conv_template, tf_nvm );
     cu_prog_str += cu_func_str;
@@ -363,6 +411,8 @@ typedef unsigned uint32_t;
 
     string const prog_ptx = nvrtc_compile( cu_prog_str );
 
+    write_whole_fn( "out.cu", cu_prog_str );
+    write_whole_fn( "out.ptx", prog_ptx );
     //printf( "cu_prog_str=%s\n", str(cu_prog_str).c_str() );
     //printf( "prog_ptx=%s\n", str(prog_ptx).c_str() );
     cu_err_chk( cuInit( 0 ), "cuInit" );
