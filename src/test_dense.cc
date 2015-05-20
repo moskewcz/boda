@@ -281,7 +281,9 @@ namespace boda {
       u32_box_t in_box{ nc, nc + run_cnet->in_sz };
       // run net on just sample area
       img_copy_to_clip( img.get(), in_img.get(), {}, nc );
-      subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
+      for( uint32_t i = 0; i != run_cnet->in_num_imgs; ++i ) {
+	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, i, in_img );
+      }
       p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
       p_nda_float_t out_batch_2 = run_cnet->conv_pipe->run_one_blob_in_one_blob_out( run_cnet->in_batch, use_nvrtc );
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
