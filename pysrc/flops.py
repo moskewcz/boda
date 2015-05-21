@@ -161,9 +161,9 @@ def reshape( A, *args ): return A
 import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--net-fn', metavar="FN", type=str, default="out.py", help="filename of network-definition python script" )
-parser.add_argument('--num-imgs', metavar='N', type=int, default=0, help='an integer for the accumulator')
-parser.add_argument('--runtime', metavar='SECONDS', type=float, default=0, help='time taken for power/energy calculations')
-parser.add_argument('--power', metavar='WATTS', type=float, default=0, help='average power used over runtime')
+parser.add_argument('--num-imgs', metavar='N', type=int, default=1, help='an integer for the accumulator')
+parser.add_argument('--runtime', metavar='SECONDS', type=float, default=1, help='time taken for power/energy calculations')
+parser.add_argument('--power', metavar='WATTS', type=float, default=200, help='average power used over runtime')
 parser.add_argument('--backward', metavar='BOOL', type=int, default=1, help='1:forward+backward; 0:only forward')
 parser.add_argument('--ai-mnk', metavar='BOOL', type=int, default=0, help='1:show fwd AI and MxNxK; 0:do not show')
 parser.add_argument('--per-layer', metavar='BOOL', type=int, default=0, help='1:print per-layer info; 0:only summary')
