@@ -89,14 +89,14 @@ class Convolution( object ):
         in_pels = bot.dims_prod()
         out_pels = top.dims_prod()
 
-        N = filts.chan*filts.x*filts.y
-        K = filts.num
+        K = filts.chan*filts.x*filts.y
+        N = filts.num
 
         if 0:
             M = top.x*top.y # note: per-img M
 
             buf_name = bot.name + "_one_row_per_patch_buf"
-            print "%s = NDA(%s,%s,%s)" % (buf_name,buf_name,M,N)
+            print "%s = NDA(%s,%s,%s)" % (buf_name,buf_name,M,K)
             print "for i in range(0,num_img):"
             print "  patches_to_rows( in=%s[i,:,:,:], out=%s )" % (bot.name,buf_name)
             print "  %s = %s * transpose(reshape(%s,%s,%s)) # sgemm: MxNxK == %sx%sx%s" % (top.name,buf_name,filts.name,K,N,M,N,K)
