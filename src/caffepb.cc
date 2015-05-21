@@ -268,6 +268,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
+    string out_layer_name;//NESI(default="",help="trim off network after named layer (note: keeps whole network if empty string).")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
     p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
@@ -283,7 +284,7 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
 
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      p_conv_pipe_t conv_pipe = create_pipe_from_param( *net_param, in_chans, "" );
+      p_conv_pipe_t conv_pipe = create_pipe_from_param( *net_param, in_chans, out_layer_name );
 
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
