@@ -68,7 +68,7 @@ class Net( object ):
         print "TOTAL_%s_FLOPS_PER_SEC_PER_WATT %s" % ( fb_str, pp_fpspw(flops/args.runtime/args.power) )
 
         print "TOTAL_%s_IO_BYTES %s" % ( fb_str, pp_bytes(bytes_))
-        print "TOTAL_%s_ARITH_INTENSITY %s" % ( fb_str, pp_fpb(flops / bytes_) )
+        print "TOTAL_%s_ARITH_INTENSITY %s" % ( fb_str, pp_fpb(flops / float(bytes_)) )
 
 
 
@@ -89,15 +89,19 @@ class Convolution( object ):
         in_pels = bot.dims_prod()
         out_pels = top.dims_prod()
 
+        N = filts.chan*filts.x*filts.y
+        K = filts.num
+
         if 0:
+            M = top.x*top.y # note: per-img M
+
             buf_name = bot.name + "_one_row_per_patch_buf"
-            M = top.x*top.y
-            N = filts.chan*filts.x*filts.y
-            K = filts.num
             print "%s = NDA(%s,%s,%s)" % (buf_name,buf_name,M,N)
             print "for i in range(0,num_img):"
             print "  patches_to_rows( in=%s[i,:,:,:], out=%s )" % (bot.name,buf_name)
             print "  %s = %s * transpose(reshape(%s,%s,%s)) # sgemm: MxNxK == %sx%sx%s" % (top.name,buf_name,filts.name,K,N,M,N,K)
+        else:
+            M = top.x*top.y*top.num # note: all-imgs M
 
         forward_bytes = (in_pels + out_pels + filts.dims_prod() + biases.dims_prod()) * 4
         backward_bytes = (in_pels*2 + out_pels + filts.dims_prod()*2 + biases.dims_prod()*2) * 4
@@ -126,6 +130,9 @@ class Convolution( object ):
                 print " --- BACK_GRAD",pp_flops(back_grad_flops),
                 print " --- BACK_DIFF",pp_flops(back_diff_flops),
             print " FORWARD_BYTES",pp_bytes(forward_bytes),
+            if net.args.ai_mnk:
+                print " FWD_AI", pp_fpb( forward_flops / float(forward_bytes) ),
+                print " MxNxK=%sx%sx%s" % (M,N,K),
             if net.args.backward:
                 print " BACKWARD_BYTES",pp_bytes(backward_bytes),
             print ""
@@ -158,6 +165,7 @@ parser.add_argument('--num-imgs', metavar='N', type=int, default=0, help='an int
 parser.add_argument('--runtime', metavar='SECONDS', type=float, default=0, help='time taken for power/energy calculations')
 parser.add_argument('--power', metavar='WATTS', type=float, default=0, help='average power used over runtime')
 parser.add_argument('--backward', metavar='BOOL', type=int, default=1, help='1:forward+backward; 0:only forward')
+parser.add_argument('--ai-mnk', metavar='BOOL', type=int, default=0, help='1:show fwd AI and MxNxK; 0:do not show')
 parser.add_argument('--per-layer', metavar='BOOL', type=int, default=0, help='1:print per-layer info; 0:only summary')
 args = parser.parse_args()
 net.args = args
