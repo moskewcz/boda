@@ -57,7 +57,7 @@ using boost::filesystem::path;
   string nvrtc_compile( string const & cuda_prog_str ) {
     timer_t t("nvrtc_compile");
     p_nvrtcProgram cuda_prog = make_p_nvrtcProgram( cuda_prog_str );
-    vect_string cc_opts = {};
+    vect_string cc_opts = {"--use_fast_math","--gpu-architecture=compute_52","--restrict"};
     auto const comp_ret = nvrtcCompileProgram( cuda_prog.get(), cc_opts.size(), &get_vect_rp_const_char( cc_opts )[0] );
     string const log = nvrtc_get_compile_log( cuda_prog );
     //printf( "log=%s\n", str(log).c_str() );
@@ -296,19 +296,33 @@ using boost::filesystem::path;
     tf_exprs.push_back( make_pair( "kern_sz", str(kern_sz) ) );
     tf_exprs.push_back( make_pair( "stride", str(stride) ) );
 
+    uint32_t const t_tile_sz = 8;
+    tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
+
+
     vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,cio_out.chans,cio_out.sz.d[0],cio_out.sz.d[1]} );
-    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[0],cio_in.sz.d[1]} );
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,cio_out.chans,cio_out.sz.d[1],cio_out.sz.d[0]} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
     if( is_conv ) {
       insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
 			vect_uint32_t{cio_out.chans,cio_in.chans,kern_sz,kern_sz} );
+      // for reg blocking
+      uint32_t const out_chan_tile_sz = u32_ceil_div( cio_out.chans, t_tile_sz );
+      assert_st( out_chan_tile_sz * t_tile_sz == cio_out.chans ); // FIXME: too strong (need to handle partial tiles)
+      uint32_t const patch_sz = u32_ceil_div( out_ix_sz, cio_out.chans );
+      assert_st( patch_sz * cio_out.chans == out_ix_sz ); // by construction
+      uint32_t const patch_tile_sz = u32_ceil_div( patch_sz, t_tile_sz );
+      //assert_st( patch_tile_sz * t_tile_sz == patch_sz ); // FIXME: too strong (need to handle partial tiles)
+      insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, 
+			vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
+      insert_nda_exprs( tf_exprs, "patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
+      insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
+			vect_uint32_t{cio_in.chans,kern_sz,kern_sz} );
     }
-    for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
-      //printf( "%s = %s\n", str(i->first).c_str(), str(i->second).c_str() );
-    } 
-      
     string ops("// begin ops\n");
     if( is_conv ) {
+#if 0      
       uint32_t filts_off = 0;
       for( uint32_t kc = 0; kc != cio_in.chans; ++kc ) {
 	for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
@@ -319,7 +333,10 @@ using boost::filesystem::path;
 	  }
 	}
       }
-    } 
+#else
+      ops += "#error disabled\n";
+#endif
+    }
     if( is_pool ) {
       for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
 	for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
@@ -332,7 +349,52 @@ using boost::filesystem::path;
     }
     ops += "  // end ops"; // note: newline (and semi-unwanted semi-colon) will go here from src
     tf_exprs.push_back( std::make_pair( "ops", ops ) );
-    
+    string t_tile_fmas("// begin t_tile_fmas\n");
+    string t_tile_loads("// begin t_tile_loads\n");
+    string t_tile_stores("// begin t_tile_stores\n");
+    if( is_conv ) {
+      t_tile_loads += "    uint32_t const filt_ix_base = "
+	"((%(tile_ix_out_chan_tile)*%(t_tile_sz)))*%(filts_ix_out_chan_sz)+filts_ix_out_chan_elem;\n"; 
+      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	t_tile_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
+				   str(tx).c_str(), str(tx).c_str() );
+      }
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
+	t_tile_loads += strprintf("  { uint32_t const patch_ix = %%(tile_ix_patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
+	t_tile_loads += strprintf( "    in_strip[%s] = in[%%(patch_ix_img)*%%(in_ix_img_sz) + \n"
+				   "    %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) + \n"
+				   "    (%%(patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y))*%%(in_ix_y_sz) + \n"
+				   "    (%%(patch_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x))*%%(in_ix_x_sz)]; }\n", 
+				   str(ty).c_str() );
+      }
+
+      t_tile_stores += "  uint32_t const chan_ix = %(tile_ix_out_chan_tile)*%(t_tile_sz);\n";
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
+	t_tile_stores += strprintf("  {\n    uint32_t const patch_ix = %%(tile_ix_patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
+	t_tile_stores += "    if( patch_ix >= %(patch_ix_sz) ) { return; } // this and the following off-the-end patches\n";
+	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	  t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
+				    str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
+	  //t_tile_stores += strprintf( "    { float const v = (tile_ix+1)*1000 + %s*10 + %s;\n", str(tx).c_str(), str(ty).c_str() );
+	  //t_tile_stores += strprintf( "    { float const v = tile_ix;\n" );
+	  t_tile_stores += strprintf( "    { float const v = out_tile[%s] + biases[chan_ix+%s];\n",  
+				      str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+	  t_tile_stores += strprintf( "    out[ %%(patch_ix_img)*%%(out_ix_img_sz) + %%(patch_ix_y)*%%(out_ix_y_sz) + "
+				      " %%(patch_ix_x)*%%(out_ix_x_sz) + (chan_ix+%s)*%%(out_ix_chan_sz)] = v; };\n ",
+				      str(tx).c_str() );
+	}
+	t_tile_stores += "  }\n";
+      }
+    } 
+    if( is_pool ) { } // unused for pooling
+    // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
+    t_tile_fmas += "    // end t_tile_fmas"; 
+    t_tile_loads += "    // end t_tile_loads";
+    t_tile_stores += "  // end t_tile_stores";
+    tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
+
     lexp_name_val_map_t tf_nvm{ p_lexp_t() };
     tf_nvm.insert_leafs_from( tf_exprs );
 
@@ -340,19 +402,24 @@ using boost::filesystem::path;
     str_format_from_nvm( cu_func_str, *cu_func_template, tf_nvm );
     cu_prog_str += cu_func_str;
 
+    cu_prog_str += "// -- template substituion table used: --\n";
+    for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
+      cu_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
+    } 
+
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     if( is_conv ) { 
       cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_ix" ) );
       cf.arg_sizes.push_back( cio_out.chans ); // biases_sz
     }
     cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
-    uint32_t const out_sz = get_sz( tf_exprs, "out_ix" );
-    cf.arg_sizes.push_back( out_sz );
+    cf.arg_sizes.push_back( out_ix_sz );
 
     cf.tpb = 256;
-    cf.blks = u32_ceil_div( out_sz, cf.tpb );
-
-    //printf( "cu_func_name=%s\n", str(cu_func_name).c_str() );
+    if( is_conv ) { cf.blks = u32_ceil_div( u32_ceil_div( out_ix_sz, t_tile_sz*t_tile_sz ), cf.tpb ); }
+    else if( is_pool ) { cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); }
+    else { assert_st( 0 ); }
+    printf( "cu_func_name=%s cf.tpb=%s cf.blks=%s\n", str(cu_func_name).c_str(), str(cf.tpb).c_str(), str(cf.blks).c_str() );
     return ins_ret.first;
   }
 

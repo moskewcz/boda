@@ -1,4 +1,28 @@
+// 256 tbp
+// each thread: computes 8x8 block of out
+// loop over k dim
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
+  uint32_t const tile_ix = blockDim.x * blockIdx.x + threadIdx.x;
+  if( %(tile_ix_patch_tile)*%(t_tile_sz) >= %(patch_ix_sz) ) { return; } // if no valid patches, done
+  //if( ((%(tile_ix_patch_tile)+1)*%(t_tile_sz)-1) >= %(patch_ix_sz) ) { return; } // HACK: if any in-valid patches, done
+ 
+  float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
+  // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
+  float filts_strip[%(t_tile_sz)]; // across output chans (stride is %(filts_ix_out_chan_sz) )
+  float in_strip[%(t_tile_sz)]; // across patches (approx square block in x/y space, favoring x if sqrt() not integer)
+  // iteratate over filter elements
+  for( uint32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_sz); ++filts_ix_out_chan_elem ) {
+    // (1) load %(t_tile_sz) elements from in and filts    
+    %(t_tile_loads);
+    // (2) do %(t_tile_sz)^2 fmas into out_tile
+    %(t_tile_fmas);
+  }
+  // add bias to each elem of out_tile[] and store the results to out[]
+  %(t_tile_stores);
+}
+
+#if 0
+extern "C"  __global__ void %(cu_func_name)_direct( float const * const filts, float const * const biases, float const * const in, float * const out ) {
   uint32_t const out_ix = blockDim.x * blockIdx.x + threadIdx.x;
   if( out_ix >= %(out_ix_sz) ) { return; }
   float out_v = 0.0f;
@@ -8,3 +32,6 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   out_v += biases[%(out_ix_chan)];
   out[out_ix] = out_v;
 }
+
+#endif
+
