@@ -242,6 +242,8 @@ namespace boda {
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
     uint32_t use_nvrtc; //NESI(default="0",help="if non-zero, use nvrtc for conv_pipe fwd")
 
+    uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
+
     p_img_t in_img;
 
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
@@ -294,9 +296,9 @@ namespace boda {
 	float const v1 = out_batch_1->cm_at1(i);
 	float const v2 = out_batch_2->cm_at1(i);
 	if( v1 != v2 ) {
-	  (*out) << strprintf( "i=%s v1=%s v2=%s\n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
+	  (*out) << strprintf( "i=%s v1=%s v2=%s \n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
 	  ++num_err;
-	  if( num_err > 9 ) { break; }
+	  if( num_err > max_err ) { break; }
 	}
       }
     }
