@@ -228,6 +228,11 @@ namespace boda {
   };
 
 
+  // example test_compute command line for testing nvrtc:
+  // time boda test_compute --model-name=nin_imagenet_nopad --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=256,ptt_fn=%(models_dir)/%(model_name)/deploy.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_layer_name=pool4)' --use-nvrtc=1 --max-err=10 && cat test_compute.txt
+
+  // matching cnet_ana+flops.py command line:
+  // boda cnet_ana --in-model=nin_imagenet_nopad --print-ops=1 --in-sz=227 --out-layer-name=relu0  && python ../../pysrc/flops.py --per-layer=1 --backward=0 --runtime=.015 --num-imgs=20
 
   struct test_compute_t : virtual public nesi, public has_main_t // NESI( help="comparison test CNN computation methods",
 			// bases=["has_main_t"], type_id="test_compute")
