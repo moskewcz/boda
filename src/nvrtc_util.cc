@@ -269,6 +269,12 @@ using boost::filesystem::path;
     mss.push_back( make_pair( ix+"_sz", str(stride) ) );
   }
 
+  // if d divides v evenly, and the result is at least half the goal, divide v by d 
+  void try_div_by( uint32_t const & d, uint32_t const & goal, uint32_t & v ) {
+    uint32_t const vdd = u32_ceil_div( v, d );
+    if( ((vdd * d) == v) && ((vdd * 5) >= goal) ) { v = vdd; }  // FIXME: the * 5 can given too-small results ...
+  }
+
   // yeah, not the greatest ...
   uint32_t get_sz( vect_pair_str_str & mss, string const & ix ) { 
     for( vect_pair_str_str::const_iterator i = mss.begin(); i != mss.end(); ++i ) {
@@ -344,8 +350,33 @@ using boost::filesystem::path;
       insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
 			vect_uint32_t{cio_in.chans,kern_sz,kern_sz} );
       //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
-      cf.tpb = 256;
-      cf.blks = u32_ceil_div( out_chan_tile_sz * patch_tile_sz, cf.tpb );
+      uint32_t const goal_blk_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
+      // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ /
+      // 8) and the H is over patch_size (probably large-ish, at least in the cases we care
+      // most about perf for). ideally, we want blocks with size sqrt(tpb) tiles. but, we prefer to
+      // tile the out_chan dim exactly, and we can't (usefully) use a W smaller than the out_chans.
+      uint32_t blk_out_chan_tile_sz = out_chan_tile_sz;
+      // FIXME: it's probably no good to insist on an even tiling of out_chans, especially since
+      // 1000 is a common value, and we can't do much with that. anyway, for now we'll try to squeak
+      // by.
+      while( blk_out_chan_tile_sz * 2 > goal_blk_out_chan_tile_sz * 3 ) {
+	uint32_t const orig = blk_out_chan_tile_sz;
+	try_div_by( 5, goal_blk_out_chan_tile_sz, blk_out_chan_tile_sz );
+	try_div_by( 3, goal_blk_out_chan_tile_sz, blk_out_chan_tile_sz );
+	try_div_by( 2, goal_blk_out_chan_tile_sz, blk_out_chan_tile_sz );
+	if( blk_out_chan_tile_sz == orig ) { 
+	  rt_err( strprintf( "unhanded number of output chans %s. currently, out_chans must be divisible by 8 *and* then by factors"
+			     " of 2,3,5 until it is <= (%s * 2 / 3): ", 
+			     str(cio_out.chans).c_str(), str(goal_blk_out_chan_tile_sz).c_str() ) ); 
+	}
+      }
+      uint32_t blk_patch_tile_sz = 16; // treated as a minimum
+      cf.tpb = 256; // treated as a minimum
+      while( blk_patch_tile_sz * blk_out_chan_tile_sz < cf.tpb ) { ++blk_patch_tile_sz; }
+      cf.tpb = blk_patch_tile_sz * blk_out_chan_tile_sz; // recalculate tpb, may increase a bit over min
+      // note: currently, the out_chan division below will be exact, but if it wasn't we'd want ceil_div here
+      cf.blks = u32_ceil_div( patch_tile_sz, blk_patch_tile_sz ) * u32_ceil_div( out_chan_tile_sz, blk_out_chan_tile_sz );
+
     } else if( is_pool ) { 
       cf.tpb = 256;
       cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); 
