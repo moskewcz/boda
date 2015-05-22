@@ -319,7 +319,16 @@ using boost::filesystem::path;
       insert_nda_exprs( tf_exprs, "patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
       insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
 			vect_uint32_t{cio_in.chans,kern_sz,kern_sz} );
+      //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
+      cf.tpb = 256;
+      cf.blks = u32_ceil_div( out_chan_tile_sz * patch_tile_sz, cf.tpb );
+    } else if( is_pool ) { 
+      cf.tpb = 256;
+      cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); 
     }
+    else { assert_st( 0 ); }
+
+
     string ops("// begin ops\n");
     if( is_conv ) {
 #if 0      
@@ -415,10 +424,6 @@ using boost::filesystem::path;
     cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
     cf.arg_sizes.push_back( out_ix_sz );
 
-    cf.tpb = 256;
-    if( is_conv ) { cf.blks = u32_ceil_div( u32_ceil_div( out_ix_sz, t_tile_sz*t_tile_sz ), cf.tpb ); }
-    else if( is_pool ) { cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); }
-    else { assert_st( 0 ); }
     printf( "cu_func_name=%s cf.tpb=%s cf.blks=%s\n", str(cu_func_name).c_str(), str(cf.tpb).c_str(), str(cf.blks).c_str() );
     return ins_ret.first;
   }
