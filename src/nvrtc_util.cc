@@ -560,10 +560,14 @@ typedef unsigned uint32_t;
     //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
     cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
     cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
+    bool const print_func_attrs = 0;
     for( cu_funcs_t::iterator i = cu_funcs.begin(); i != cu_funcs.end(); ++i ) {
       cu_err_chk( cuModuleGetFunction( &i->second.cu_func, cu_mod, i->first.c_str() ), "cuModuleGetFunction" );
+      if( print_func_attrs ) {
+	string cfas = cu_get_all_func_attrs( i->second.cu_func );
+	printf( "%s: \n%s", i->first.c_str(), str(cfas).c_str() );
+      }
     }
-
     copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in  
   }
 
