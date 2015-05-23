@@ -2,9 +2,8 @@
 // each thread: computes 8x8 block of out
 // loop over k dim
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-  uint32_t const tile_ix = blockDim.x * blockIdx.x + threadIdx.x;
-  if( %(tile_ix_patch_tile)*%(t_tile_sz) >= %(patch_ix_sz) ) { return; } // if no valid patches, done
-  //if( ((%(tile_ix_patch_tile)+1)*%(t_tile_sz)-1) >= %(patch_ix_sz) ) { return; } // HACK: if any in-valid patches, done
+  if( %(patch_tile)*%(t_tile_sz) >= %(patch_ix_sz) ) { return; } // if no valid patches, done
+  //if( ((%(patch_tile)+1)*%(t_tile_sz)-1) >= %(patch_ix_sz) ) { return; } // HACK: if any in-valid patches, done
  
   float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem

@@ -344,39 +344,50 @@ using boost::filesystem::path;
       assert_st( patch_sz * cio_out.chans == out_ix_sz ); // by construction
       uint32_t const patch_tile_sz = u32_ceil_div( patch_sz, t_tile_sz );
       //assert_st( patch_tile_sz * t_tile_sz == patch_sz ); // FIXME: too strong (need to handle partial tiles)
-      insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, 
-			vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
+      //insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
+
       insert_nda_exprs( tf_exprs, "patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
       insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
 			vect_uint32_t{cio_in.chans,kern_sz,kern_sz} );
       //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
-      uint32_t const goal_blk_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
+      uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
       // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ /
       // 8) and the H is over patch_size (probably large-ish, at least in the cases we care
       // most about perf for). ideally, we want blocks with size sqrt(tpb) tiles. but, we prefer to
       // tile the out_chan dim exactly, and we can't (usefully) use a W smaller than the out_chans.
-      uint32_t blk_out_chan_tile_sz = out_chan_tile_sz;
+      uint32_t tix_out_chan_tile_sz = out_chan_tile_sz;
       // FIXME: it's probably no good to insist on an even tiling of out_chans, especially since
       // 1000 is a common value, and we can't do much with that. anyway, for now we'll try to squeak
       // by.
-      while( blk_out_chan_tile_sz * 2 > goal_blk_out_chan_tile_sz * 3 ) {
-	uint32_t const orig = blk_out_chan_tile_sz;
-	try_div_by( 5, goal_blk_out_chan_tile_sz, blk_out_chan_tile_sz );
-	try_div_by( 3, goal_blk_out_chan_tile_sz, blk_out_chan_tile_sz );
-	try_div_by( 2, goal_blk_out_chan_tile_sz, blk_out_chan_tile_sz );
-	if( blk_out_chan_tile_sz == orig ) { 
+      while( tix_out_chan_tile_sz * 2 > goal_tix_out_chan_tile_sz * 3 ) {
+	uint32_t const orig = tix_out_chan_tile_sz;
+	try_div_by( 5, goal_tix_out_chan_tile_sz, tix_out_chan_tile_sz );
+	try_div_by( 3, goal_tix_out_chan_tile_sz, tix_out_chan_tile_sz );
+	try_div_by( 2, goal_tix_out_chan_tile_sz, tix_out_chan_tile_sz );
+	if( tix_out_chan_tile_sz == orig ) { 
 	  rt_err( strprintf( "unhanded number of output chans %s. currently, out_chans must be divisible by 8 *and* then by factors"
 			     " of 2,3,5 until it is <= (%s * 2 / 3): ", 
-			     str(cio_out.chans).c_str(), str(goal_blk_out_chan_tile_sz).c_str() ) ); 
+			     str(cio_out.chans).c_str(), str(goal_tix_out_chan_tile_sz).c_str() ) ); 
 	}
       }
-      uint32_t blk_patch_tile_sz = 16; // treated as a minimum
+      uint32_t tix_patch_tile_sz = 16; // treated as a minimum
       cf.tpb = 256; // treated as a minimum
-      while( blk_patch_tile_sz * blk_out_chan_tile_sz < cf.tpb ) { ++blk_patch_tile_sz; }
-      cf.tpb = blk_patch_tile_sz * blk_out_chan_tile_sz; // recalculate tpb, may increase a bit over min
-      // note: currently, the out_chan division below will be exact, but if it wasn't we'd want ceil_div here
-      cf.blks = u32_ceil_div( patch_tile_sz, blk_patch_tile_sz ) * u32_ceil_div( out_chan_tile_sz, blk_out_chan_tile_sz );
+      while( tix_patch_tile_sz * tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
+      cf.tpb = tix_patch_tile_sz * tix_out_chan_tile_sz; // recalculate tpb, may increase a bit over min
+      insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, 
+			vect_uint32_t{tix_patch_tile_sz,tix_out_chan_tile_sz} );
 
+      uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
+      // note: currently, the out_chan division below will be exact, but if it wasn't we'd want ceil_div here
+      uint32_t const bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, tix_out_chan_tile_sz );
+      cf.blks = bix_patch_blk_sz * bix_out_chan_blk_sz; 
+      insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{bix_patch_blk_sz,bix_out_chan_blk_sz}); 
+
+      tf_exprs.push_back( std::make_pair( "out_chan_tile", 
+					  "(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
+      tf_exprs.push_back( std::make_pair( "patch_tile",
+					  "(%(threadIdx.x_patch_tile)+%(blockIdx.x_patch_blk)*%(threadIdx.x_patch_tile_dim))"));
+      
     } else if( is_pool ) { 
       cf.tpb = 256;
       cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); 
@@ -418,13 +429,13 @@ using boost::filesystem::path;
     string t_tile_stores("// begin t_tile_stores\n");
     if( is_conv ) {
       t_tile_loads += "    uint32_t const filt_ix_base = "
-	"((%(tile_ix_out_chan_tile)*%(t_tile_sz)))*%(filts_ix_out_chan_sz)+filts_ix_out_chan_elem;\n"; 
+	"((%(out_chan_tile)*%(t_tile_sz)))*%(filts_ix_out_chan_sz)+filts_ix_out_chan_elem;\n"; 
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	t_tile_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
 				   str(tx).c_str(), str(tx).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	t_tile_loads += strprintf("  { uint32_t const patch_ix = %%(tile_ix_patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
+	t_tile_loads += strprintf("  { uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
 	t_tile_loads += strprintf( "    in_strip[%s] = in[%%(patch_ix_img)*%%(in_ix_img_sz) + \n"
 				   "    %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) + \n"
 				   "    (%%(patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y))*%%(in_ix_y_sz) + \n"
@@ -432,9 +443,9 @@ using boost::filesystem::path;
 				   str(ty).c_str() );
       }
 
-      t_tile_stores += "  uint32_t const chan_ix = %(tile_ix_out_chan_tile)*%(t_tile_sz);\n";
+      t_tile_stores += "  uint32_t const chan_ix = %(out_chan_tile)*%(t_tile_sz);\n";
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-	t_tile_stores += strprintf("  {\n    uint32_t const patch_ix = %%(tile_ix_patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
+	t_tile_stores += strprintf("  {\n    uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
 	t_tile_stores += "    if( patch_ix >= %(patch_ix_sz) ) { return; } // this and the following off-the-end patches\n";
 	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	  t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
