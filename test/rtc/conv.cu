@@ -23,17 +23,13 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
     }
     if( threadIdx.x < blk_patch_ix_sz ) { 
       uint32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x);
-      in_smem[threadIdx.x] = in[%(t_smem_patch_ix_img)*%(in_ix_img_sz) +
-				%(filts_ix_out_chan_elem_in_chan)*%(in_ix_chan_sz) +
-				(%(t_smem_patch_ix_y)*%(stride)+%(filts_ix_out_chan_elem_y))*%(in_ix_y_sz) +
-				(%(t_smem_patch_ix_x)*%(stride)+%(filts_ix_out_chan_elem_x))*%(in_ix_x_sz)];
+      %(get_in);
+      in_smem[threadIdx.x] = v;
     }
-    if( 0 && threadIdx.x+blockDim.x < blk_patch_ix_sz ) { 
+    if( threadIdx.x+blockDim.x < blk_patch_ix_sz ) { 
       uint32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x);
-      in_smem[threadIdx.x+blockDim.x] = in[%(t_smem_patch_ix_img)*%(in_ix_img_sz) +
-					   %(filts_ix_out_chan_elem_in_chan)*%(in_ix_chan_sz) +
-					   (%(t_smem_patch_ix_y)*%(stride)+%(filts_ix_out_chan_elem_y))*%(in_ix_y_sz) +
-					   (%(t_smem_patch_ix_x)*%(stride)+%(filts_ix_out_chan_elem_x))*%(in_ix_x_sz)];
+      %(get_in);
+      in_smem[threadIdx.x+blockDim.x] = v;
     }
     __syncthreads();
     %(t_tile_loads);

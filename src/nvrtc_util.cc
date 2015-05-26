@@ -328,6 +328,7 @@ using boost::filesystem::path;
     tf_exprs.push_back( make_pair( "cu_func_name", cu_func_name ) );
     tf_exprs.push_back( make_pair( "kern_sz", str(kern_sz) ) );
     tf_exprs.push_back( make_pair( "stride", str(stride) ) );
+    tf_exprs.push_back( make_pair( "in_pad", str(in_pad) ) );
 
     uint32_t const t_tile_sz = 8;
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
@@ -405,7 +406,20 @@ using boost::filesystem::path;
 			  vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]},
 			  1 );
       }
-
+      string const get_in = strprintf( 
+	"float v = 0;\n"
+        "      int const smem_in_ix_y = %%(t_smem_patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
+        "      int const smem_in_ix_x = %%(t_smem_patch_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
+        "      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
+        "         smem_in_ix_x < %%(in_ix_x_dim) && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
+        "        v = in[%%(t_smem_patch_ix_img)*%%(in_ix_img_sz) +\n"
+	"          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
+	"          smem_in_ix_y*%%(in_ix_y_sz) +\n"
+	"          smem_in_ix_x*%%(in_ix_x_sz)];\n" 
+	"      }"
+				       );
+      tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
+			
     } else if( is_pool ) { 
       cf.tpb = 256;
       cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); 
