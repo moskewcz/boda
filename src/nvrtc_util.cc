@@ -349,7 +349,7 @@ using boost::filesystem::path;
       //assert_st( patch_tile_sz * t_tile_sz == patch_sz ); // FIXME: too strong (need to handle partial tiles)
       //insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
 
-      //insert_nda_exprs( tf_exprs, "patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
+      insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
       insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
 			vect_uint32_t{cio_in.chans,kern_sz,kern_sz} );
       //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
@@ -457,12 +457,13 @@ using boost::filesystem::path;
 
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	//t_tile_loads += strprintf("  { uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
-	t_tile_loads += strprintf( "    in_strip[%s] = in[%%(patch_ix_%s_img)*%%(in_ix_img_sz) + \n"
-				   "      %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) + \n"
-				   "      (%%(patch_ix_%s_y)*%%(stride)+%%(filts_ix_out_chan_elem_y))*%%(in_ix_y_sz) + \n"
-				   "      (%%(patch_ix_%s_x)*%%(stride)+%%(filts_ix_out_chan_elem_x))*%%(in_ix_x_sz)];\n", 
-				   str(ty).c_str(), str(ty).c_str(),  str(ty).c_str(), str(ty).c_str() );
+	//t_tile_loads += strprintf( "    in_strip[%s] = in[%%(patch_ix_%s_img)*%%(in_ix_img_sz) + \n"
+	//			   "      %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) + \n"
+	//			   "      (%%(patch_ix_%s_y)*%%(stride)+%%(filts_ix_out_chan_elem_y))*%%(in_ix_y_sz) + \n"
+	//			   "      (%%(patch_ix_%s_x)*%%(stride)+%%(filts_ix_out_chan_elem_x))*%%(in_ix_x_sz)];\n", 
+	//			   str(ty).c_str(), str(ty).c_str(),  str(ty).c_str(), str(ty).c_str() );
+	t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
+				   str(ty).c_str(), str(ty).c_str() );
       }
 
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
