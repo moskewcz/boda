@@ -2,8 +2,6 @@
 // each thread: computes 8x8 block of out
 // loop over k dim
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-  //if( %(patch_ix_0) >= %(patch_ix_0_sz) ) { return; } // if no valid patches, done
-  //if( (%(patch_ix_0) + %(t_tile_sz) - 1) >= %(patch_ix_0_sz) ) { return; } // HACK: if any in-valid patches, done
   __shared__ float in_smem[%(threadIdx.x_patch_tile_dim)*%(t_tile_sz)];
   __shared__ float filts_smem[%(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz)];
   float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
@@ -37,8 +35,6 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 					   (%(t_smem_patch_ix_y)*%(stride)+%(filts_ix_out_chan_elem_y))*%(in_ix_y_sz) +
 					   (%(t_smem_patch_ix_x)*%(stride)+%(filts_ix_out_chan_elem_x))*%(in_ix_x_sz)];
     }
-
-    // %(t_tile_smem_loads);
     __syncthreads();
     %(t_tile_loads);
     // (2) do %(t_tile_sz)^2 fmas into out_tile
@@ -47,18 +43,4 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   // add bias to each elem of out_tile[] and store the results to out[]
   %(t_tile_stores);
 }
-
-#if 0
-extern "C"  __global__ void %(cu_func_name)_direct( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-  uint32_t const out_ix = blockDim.x * blockIdx.x + threadIdx.x;
-  if( out_ix >= %(out_ix_sz) ) { return; }
-  float out_v = 0.0f;
-  uint32_t const in_ix = %(out_ix_img) * %(in_ix_img_sz) + %(out_ix_y)*%(in_ix_y_sz)*%(stride) + %(out_ix_x)*%(in_ix_x_sz)*%(stride);
-  uint32_t const filts_ix = %(out_ix_chan) * %(filts_ix_out_chan_sz);
-  %(ops);
-  out_v += biases[%(out_ix_chan)];
-  out[out_ix] = out_v;
-}
-
-#endif
 

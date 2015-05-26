@@ -346,7 +346,6 @@ using boost::filesystem::path;
       uint32_t const patch_sz = u32_ceil_div( out_ix_sz, cio_out.chans );
       assert_st( patch_sz * cio_out.chans == out_ix_sz ); // by construction
       uint32_t const patch_tile_sz = u32_ceil_div( patch_sz, t_tile_sz );
-      //assert_st( patch_tile_sz * t_tile_sz == patch_sz ); // FIXME: too strong (need to handle partial tiles)
       //insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
 
       insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
@@ -414,24 +413,8 @@ using boost::filesystem::path;
     else { assert_st( 0 ); }
 
 
-    string ops("// begin ops\n");
-    if( is_conv ) {
-#if 0      
-      uint32_t filts_off = 0;
-      for( uint32_t kc = 0; kc != cio_in.chans; ++kc ) {
-	for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
-	  for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
-	    uint32_t const in_off = kc * cio_in.sz.dims_prod() + ky * cio_in.sz.d[0] + kx; // FIXME: get dims from tf_exprs?
-	    ops += "  out_v += in[in_ix+"+str(in_off)+"] * filts[filts_ix+"+str(filts_off)+"];\n";
-	    ++filts_off;
-	  }
-	}
-      }
-#else
-      ops += "#error disabled\n";
-#endif
-    }
     if( is_pool ) {
+      string ops("// begin ops\n");
       for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
 	for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
 	  uint32_t const in_off = ky * cio_in.sz.d[0] + kx; // FIXME: get dims from tf_exprs?
@@ -440,9 +423,9 @@ using boost::filesystem::path;
 	}
       }
       if( cop->avg_pool ) { ops += "  out_v /= float("+str(kern_sz*kern_sz)+");\n"; }
+      ops += "  // end ops"; // note: newline (and semi-unwanted semi-colon) will go here from src
+      tf_exprs.push_back( std::make_pair( "ops", ops ) );
     }
-    ops += "  // end ops"; // note: newline (and semi-unwanted semi-colon) will go here from src
-    tf_exprs.push_back( std::make_pair( "ops", ops ) );
     string t_tile_fmas("// begin t_tile_fmas\n");
     string t_tile_smem_loads("// begin t_tile_smem_loads\n");
     string t_tile_loads("// begin t_tile_loads\n");
@@ -450,31 +433,20 @@ using boost::filesystem::path;
     if( is_conv ) {
       t_tile_loads += "    uint32_t const filt_ix_base = %(out_chan_ix)*%(filts_ix_out_chan_sz)+filts_ix_out_chan_elem;\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	//t_tile_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
-	//			   str(tx).c_str(), str(tx).c_str() );
 	t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(t_tile_sz)*%%(threadIdx.x_out_chan_tile)+%s];\n",
 				   str(tx).c_str(), str(tx).c_str() );
-
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	//t_tile_loads += strprintf( "    in_strip[%s] = in[%%(patch_ix_%s_img)*%%(in_ix_img_sz) + \n"
-	//			   "      %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) + \n"
-	//			   "      (%%(patch_ix_%s_y)*%%(stride)+%%(filts_ix_out_chan_elem_y))*%%(in_ix_y_sz) + \n"
-	//			   "      (%%(patch_ix_%s_x)*%%(stride)+%%(filts_ix_out_chan_elem_x))*%%(in_ix_x_sz)];\n", 
-	//			   str(ty).c_str(), str(ty).c_str(),  str(ty).c_str(), str(ty).c_str() );
 	t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
 				   str(ty).c_str(), str(ty).c_str() );
       }
 
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-	//t_tile_stores += strprintf("  {\n    uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
 	t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
 	  "// this patch and the following are off-the-end patches, so don't store them.\n";
 	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	  t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
 				    str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
-	  //t_tile_stores += strprintf( "    { float const v = (tile_ix+1)*1000 + %s*10 + %s;\n", str(tx).c_str(), str(ty).c_str() );
-	  //t_tile_stores += strprintf( "    { float const v = tile_ix;\n" );
 	  string const ve = strprintf( "(out_tile[%s] + biases[%%(out_chan_ix)+%s])",  
 				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
 	  t_tile_stores += strprintf( "  out[ %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
