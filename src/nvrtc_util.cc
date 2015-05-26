@@ -380,6 +380,12 @@ using boost::filesystem::path;
       insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, 
 			vect_uint32_t{tix_patch_tile_sz,tix_out_chan_tile_sz} );
 
+      // check that we have enough threads per block to load smem using one-elem-per-thread.
+      // FIXME: allow for cases when this does not hold
+      // printf( "tix_patch_tile_sz=%s\n", str(tix_patch_tile_sz).c_str() );
+      assert_st( cf.tpb >= (t_tile_sz * tix_out_chan_tile_sz) ); 
+      //assert_st( cf.tpb >= (t_tile_sz * tix_patch_tile_sz) ); 
+
       uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
       // note: currently, the out_chan division below will be exact, but if it wasn't we'd want ceil_div here
       uint32_t const bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, tix_out_chan_tile_sz );
@@ -446,9 +452,7 @@ using boost::filesystem::path;
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	//t_tile_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
 	//			   str(tx).c_str(), str(tx).c_str() );
-	t_tile_smem_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
-				   str(tx).c_str(), str(tx).c_str() );
-	t_tile_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
+	t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(t_tile_sz)*%%(threadIdx.x_out_chan_tile)+%s];\n",
 				   str(tx).c_str(), str(tx).c_str() );
 
       }
@@ -487,6 +491,7 @@ using boost::filesystem::path;
     t_tile_loads += "    // end t_tile_loads";
     t_tile_stores += "  // end t_tile_stores";
     tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_smem_loads", t_tile_smem_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
 

@@ -4,19 +4,25 @@
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
   if( %(patch_ix_0) >= %(patch_ix_0_sz) ) { return; } // if no valid patches, done
   //if( (%(patch_ix_0) + %(t_tile_sz) - 1) >= %(patch_ix_0_sz) ) { return; } // HACK: if any in-valid patches, done
-
   __shared__ float in_smem[%(threadIdx.x_patch_tile_dim)*%(t_tile_sz)];
   __shared__ float filts_smem[%(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz)];
   float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is %(filts_ix_out_chan_sz) )
   float in_strip[%(t_tile_sz)]; // across patches (approx square block in x/y space, favoring x if sqrt() not integer)
+  uint32_t const blk_filt_ix_sz = %(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz);
+  uint32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
+
   // iteratate over filter elements
   for( uint32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_sz); ++filts_ix_out_chan_elem ) {
     // (1) load %(t_tile_sz) elements from in and filts    
     __syncthreads();
-    %(t_tile_loads);
+    if( threadIdx.x < blk_filt_ix_sz ) { 
+      filts_smem[threadIdx.x] = filts[(blk_filt_ix_base+threadIdx.x)*%(filts_ix_out_chan_sz) + filts_ix_out_chan_elem];
+    }
+    // %(t_tile_smem_loads);
     __syncthreads();
+    %(t_tile_loads);
     // (2) do %(t_tile_sz)^2 fmas into out_tile
     %(t_tile_fmas);
   }
