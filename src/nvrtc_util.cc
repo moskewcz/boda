@@ -391,6 +391,8 @@ using boost::filesystem::path;
       tf_exprs.push_back( std::make_pair( "patch_tile",
 					  "(%(threadIdx.x_patch_tile)+%(blockIdx.x_patch_blk)*%(threadIdx.x_patch_tile_dim))"));
 
+      tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(t_tile_sz))" ) );
+      
       for( uint32_t i = 0; i != t_tile_sz; ++i ) {
 	tf_exprs.push_back( std::make_pair( "patch_ix_" + str(i), 
 					    strprintf( "(%%(patch_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
@@ -436,14 +438,19 @@ using boost::filesystem::path;
     ops += "  // end ops"; // note: newline (and semi-unwanted semi-colon) will go here from src
     tf_exprs.push_back( std::make_pair( "ops", ops ) );
     string t_tile_fmas("// begin t_tile_fmas\n");
+    string t_tile_smem_loads("// begin t_tile_smem_loads\n");
     string t_tile_loads("// begin t_tile_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
     if( is_conv ) {
-      t_tile_loads += "    uint32_t const filt_ix_base = "
-	"((%(out_chan_tile)*%(t_tile_sz)))*%(filts_ix_out_chan_sz)+filts_ix_out_chan_elem;\n"; 
+      t_tile_loads += "    uint32_t const filt_ix_base = %(out_chan_ix)*%(filts_ix_out_chan_sz)+filts_ix_out_chan_elem;\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	//t_tile_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
+	//			   str(tx).c_str(), str(tx).c_str() );
+	t_tile_smem_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
+				   str(tx).c_str(), str(tx).c_str() );
 	t_tile_loads += strprintf( "    filts_strip[%s] = filts[%s*%%(filts_ix_out_chan_sz) + filt_ix_base];\n",
 				   str(tx).c_str(), str(tx).c_str() );
+
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
 	//t_tile_loads += strprintf("  { uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
@@ -454,7 +461,6 @@ using boost::filesystem::path;
 				   str(ty).c_str(), str(ty).c_str(),  str(ty).c_str(), str(ty).c_str() );
       }
 
-      t_tile_stores += "  uint32_t const chan_ix = %(out_chan_tile)*%(t_tile_sz);\n";
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
 	//t_tile_stores += strprintf("  {\n    uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
 	t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
@@ -464,12 +470,12 @@ using boost::filesystem::path;
 				    str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
 	  //t_tile_stores += strprintf( "    { float const v = (tile_ix+1)*1000 + %s*10 + %s;\n", str(tx).c_str(), str(ty).c_str() );
 	  //t_tile_stores += strprintf( "    { float const v = tile_ix;\n" );
-	  string const ve = strprintf( "(out_tile[%s] + biases[chan_ix+%s])",  
+	  string const ve = strprintf( "(out_tile[%s] + biases[%%(out_chan_ix)+%s])",  
 				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
 	  t_tile_stores += strprintf( "  out[ %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
 				      "    %%(patch_ix_%s_y)*%%(out_ix_y_sz) + \n"
 				      "    %%(patch_ix_%s_x)*%%(out_ix_x_sz) + \n"
-				      "    (chan_ix+%s)*%%(out_ix_chan_sz) ] = %s;\n",
+				      "    (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz) ] = %s;\n",
 				      str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(tx).c_str(),
 				      ve.c_str() );
 	}
