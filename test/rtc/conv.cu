@@ -2,9 +2,11 @@
 // each thread: computes 8x8 block of out
 // loop over k dim
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-  if( %(patch_tile)*%(t_tile_sz) >= %(patch_ix_sz) ) { return; } // if no valid patches, done
-  //if( ((%(patch_tile)+1)*%(t_tile_sz)-1) >= %(patch_ix_sz) ) { return; } // HACK: if any in-valid patches, done
- 
+  if( %(patch_ix_0) >= %(patch_ix_0_sz) ) { return; } // if no valid patches, done
+  //if( (%(patch_ix_0) + %(t_tile_sz) - 1) >= %(patch_ix_0_sz) ) { return; } // HACK: if any in-valid patches, done
+
+  __shared__ float in_smem[%(threadIdx.x_patch_tile_dim)*%(t_tile_sz)];
+  __shared__ float filts_smem[%(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz)];
   float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is %(filts_ix_out_chan_sz) )
@@ -12,7 +14,9 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   // iteratate over filter elements
   for( uint32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_sz); ++filts_ix_out_chan_elem ) {
     // (1) load %(t_tile_sz) elements from in and filts    
+    __syncthreads();
     %(t_tile_loads);
+    __syncthreads();
     // (2) do %(t_tile_sz)^2 fmas into out_tile
     %(t_tile_fmas);
   }

@@ -252,15 +252,18 @@ using boost::filesystem::path;
     op_param_names.push_back( name );
   }
   
-  void insert_nda_exprs( vect_pair_str_str & mss, string const & ix, vect_string const & dns, vect_uint32_t const & dss ) {
+  void insert_nda_exprs( vect_pair_str_str & mss, string const & ix, vect_string const & dns, vect_uint32_t const & dss,
+			 bool const src_is_expr = 0 ) {
     assert_st( dns.size() );
     assert_st( dns.size() == dss.size() );
+    string eix = ix;
+    if( src_is_expr ) { eix = "%("+eix+")"; }
     uint32_t stride = 1;
     for( int32_t i = dns.size()-1; i >= 0; --i ) {
       mss.push_back( make_pair( ix+"_"+dns[i]+"_dim", str(dss[i]) ) );
       assert_st( stride );
       mss.push_back( make_pair( ix+"_"+dns[i]+"_sz", str(stride) ) );
-      string v = (stride > 1) ? "("+ix+"/"+str(stride)+")" : ix;
+      string v = (stride > 1) ? "("+eix+"/"+str(stride)+")" : eix;
       mss.push_back( make_pair( ix+"_"+dns[i]+"_nomod", v ) );      
       if( i ) { v = "("+v+"%%"+str(dss[i])+")"; }
       mss.push_back( make_pair( ix+"_"+dns[i], v ) );
@@ -346,7 +349,7 @@ using boost::filesystem::path;
       //assert_st( patch_tile_sz * t_tile_sz == patch_sz ); // FIXME: too strong (need to handle partial tiles)
       //insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
 
-      insert_nda_exprs( tf_exprs, "patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
+      //insert_nda_exprs( tf_exprs, "patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
       insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
 			vect_uint32_t{cio_in.chans,kern_sz,kern_sz} );
       //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
@@ -387,7 +390,15 @@ using boost::filesystem::path;
 					  "(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
       tf_exprs.push_back( std::make_pair( "patch_tile",
 					  "(%(threadIdx.x_patch_tile)+%(blockIdx.x_patch_blk)*%(threadIdx.x_patch_tile_dim))"));
-      
+
+      for( uint32_t i = 0; i != t_tile_sz; ++i ) {
+	tf_exprs.push_back( std::make_pair( "patch_ix_" + str(i), 
+					    strprintf( "(%%(patch_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
+	insert_nda_exprs( tf_exprs, "patch_ix_" + str(i), 
+			  vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]},
+			  1 );
+      }
+
     } else if( is_pool ) { 
       cf.tpb = 256;
       cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); 
@@ -435,30 +446,33 @@ using boost::filesystem::path;
 				   str(tx).c_str(), str(tx).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	t_tile_loads += strprintf("  { uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
-	t_tile_loads += strprintf( "    in_strip[%s] = in[%%(patch_ix_img)*%%(in_ix_img_sz) + \n"
-				   "    %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) + \n"
-				   "    (%%(patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y))*%%(in_ix_y_sz) + \n"
-				   "    (%%(patch_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x))*%%(in_ix_x_sz)]; }\n", 
-				   str(ty).c_str() );
+	//t_tile_loads += strprintf("  { uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
+	t_tile_loads += strprintf( "    in_strip[%s] = in[%%(patch_ix_%s_img)*%%(in_ix_img_sz) + \n"
+				   "      %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) + \n"
+				   "      (%%(patch_ix_%s_y)*%%(stride)+%%(filts_ix_out_chan_elem_y))*%%(in_ix_y_sz) + \n"
+				   "      (%%(patch_ix_%s_x)*%%(stride)+%%(filts_ix_out_chan_elem_x))*%%(in_ix_x_sz)];\n", 
+				   str(ty).c_str(), str(ty).c_str(),  str(ty).c_str(), str(ty).c_str() );
       }
 
       t_tile_stores += "  uint32_t const chan_ix = %(out_chan_tile)*%(t_tile_sz);\n";
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-	t_tile_stores += strprintf("  {\n    uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
-	t_tile_stores += "    if( patch_ix >= %(patch_ix_sz) ) { return; } // this and the following off-the-end patches\n";
+	//t_tile_stores += strprintf("  {\n    uint32_t const patch_ix = %%(patch_tile)*%%(t_tile_sz)+%s;\n", str(ty).c_str() );
+	t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
+	  "// this patch and the following are off-the-end patches, so don't store them.\n";
 	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	  t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
 				    str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
 	  //t_tile_stores += strprintf( "    { float const v = (tile_ix+1)*1000 + %s*10 + %s;\n", str(tx).c_str(), str(ty).c_str() );
 	  //t_tile_stores += strprintf( "    { float const v = tile_ix;\n" );
-	  t_tile_stores += strprintf( "    { float const v = out_tile[%s] + biases[chan_ix+%s];\n",  
-				      str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
-	  t_tile_stores += strprintf( "    out[ %%(patch_ix_img)*%%(out_ix_img_sz) + %%(patch_ix_y)*%%(out_ix_y_sz) + "
-				      " %%(patch_ix_x)*%%(out_ix_x_sz) + (chan_ix+%s)*%%(out_ix_chan_sz)] = v; };\n ",
-				      str(tx).c_str() );
+	  string const ve = strprintf( "(out_tile[%s] + biases[chan_ix+%s])",  
+				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+	  t_tile_stores += strprintf( "  out[ %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
+				      "    %%(patch_ix_%s_y)*%%(out_ix_y_sz) + \n"
+				      "    %%(patch_ix_%s_x)*%%(out_ix_x_sz) + \n"
+				      "    (chan_ix+%s)*%%(out_ix_chan_sz) ] = %s;\n",
+				      str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(tx).c_str(),
+				      ve.c_str() );
 	}
-	t_tile_stores += "  }\n";
       }
     } 
     if( is_pool ) { } // unused for pooling
@@ -602,7 +616,7 @@ typedef unsigned uint32_t;
     //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
     cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
     cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
-    bool const print_func_attrs = 0;
+    bool const print_func_attrs = 1;
     for( cu_funcs_t::iterator i = cu_funcs.begin(); i != cu_funcs.end(); ++i ) {
       cu_err_chk( cuModuleGetFunction( &i->second.cu_func, cu_mod, i->first.c_str() ), "cuModuleGetFunction" );
       if( print_func_attrs ) {
