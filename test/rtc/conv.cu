@@ -2,7 +2,7 @@
 // each thread: computes 8x8 block of out
 // loop over k dim
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-  if( %(patch_ix_0) >= %(patch_ix_0_sz) ) { return; } // if no valid patches, done
+  //if( %(patch_ix_0) >= %(patch_ix_0_sz) ) { return; } // if no valid patches, done
   //if( (%(patch_ix_0) + %(t_tile_sz) - 1) >= %(patch_ix_0_sz) ) { return; } // HACK: if any in-valid patches, done
   __shared__ float in_smem[%(threadIdx.x_patch_tile_dim)*%(t_tile_sz)];
   __shared__ float filts_smem[%(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz)];
@@ -30,6 +30,14 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 				(%(t_smem_patch_ix_y)*%(stride)+%(filts_ix_out_chan_elem_y))*%(in_ix_y_sz) +
 				(%(t_smem_patch_ix_x)*%(stride)+%(filts_ix_out_chan_elem_x))*%(in_ix_x_sz)];
     }
+    if( 0 && threadIdx.x+blockDim.x < blk_patch_ix_sz ) { 
+      uint32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x);
+      in_smem[threadIdx.x+blockDim.x] = in[%(t_smem_patch_ix_img)*%(in_ix_img_sz) +
+					   %(filts_ix_out_chan_elem_in_chan)*%(in_ix_chan_sz) +
+					   (%(t_smem_patch_ix_y)*%(stride)+%(filts_ix_out_chan_elem_y))*%(in_ix_y_sz) +
+					   (%(t_smem_patch_ix_x)*%(stride)+%(filts_ix_out_chan_elem_x))*%(in_ix_x_sz)];
+    }
+
     // %(t_tile_smem_loads);
     __syncthreads();
     %(t_tile_loads);

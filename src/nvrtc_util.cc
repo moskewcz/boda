@@ -384,7 +384,7 @@ using boost::filesystem::path;
       // FIXME: allow for cases when this does not hold
       // printf( "tix_patch_tile_sz=%s\n", str(tix_patch_tile_sz).c_str() );
       assert_st( cf.tpb >= (t_tile_sz * tix_out_chan_tile_sz) ); 
-      //assert_st( cf.tpb >= (t_tile_sz * tix_patch_tile_sz) ); 
+      assert_st( cf.tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); 
 
       uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
       // note: currently, the out_chan division below will be exact, but if it wasn't we'd want ceil_div here
@@ -628,7 +628,7 @@ typedef unsigned uint32_t;
     //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
     cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
     cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
-    bool const print_func_attrs = 1;
+    bool const print_func_attrs = 0;
     for( cu_funcs_t::iterator i = cu_funcs.begin(); i != cu_funcs.end(); ++i ) {
       cu_err_chk( cuModuleGetFunction( &i->second.cu_func, cu_mod, i->first.c_str() ), "cuModuleGetFunction" );
       if( print_func_attrs ) {
