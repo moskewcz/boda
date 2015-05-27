@@ -98,10 +98,16 @@ namespace boda
 	conv_op->out_chans = 0; // no effect on chans
       } else if( lp.type() == LRN_str ) {
 	//assert_st( lp.has_lrn_param() );
-	//caffe::LRNParameter const & p = lp.lrn_param();	
+	caffe::LRNParameter const & p = lp.lrn_param();	
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
+
+	conv_op->lrn_alpha = p.alpha();
+	conv_op->lrn_beta = p.beta();
+	conv_op->lrn_local_size = p.local_size();
+	conv_op->lrn_k = p.k();
+
       } else if( lp.type() == Softmax_str ) { // mostly ignored
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};

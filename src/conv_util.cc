@@ -558,6 +558,32 @@ namespace boda
 	  }
 	}
       }
+    } else if( cop->type == LRN_str ) {
+      assert_st( cop->bots.size() == 1 );
+      p_nda_float_t const & bot = must_find( *fwd, cop->bots[0] );
+      assert_st( cop->tops.size() == 1 );
+      p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
+      assert( bot->dims == top->dims );
+      assert( bot->dims.sz() == 4 );
+      assert( cop->lrn_local_size & 1 );
+      int32_t const half_win = cop->lrn_local_size >> 1;
+      for( uint32_t i = 0; i != top->dims.dims(0); ++i ) {
+	for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
+	  for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
+	    for( uint32_t c = 0; c != top->dims.dims(1); ++c ) { 
+	      float wind_sum_v2 = 0;
+	      for( int32_t cw = int32_t(c) - half_win; cw <= int32_t(c) + half_win; ++cw ) {
+		if( cw >= 0 && cw < int32_t(top->dims.dims(1)) ) { 
+		  float const v = bot->at4(i,cw,y,x); 
+		  wind_sum_v2 += v * v; 
+		}
+	      }
+	      top->at4(i,c,y,x) = bot->at4(i,c,y,x) * 
+		powf((cop->lrn_k + cop->lrn_alpha*wind_sum_v2/float(cop->lrn_local_size)), -cop->lrn_beta);
+	    } 
+	  }
+	}
+      }
     } else { rt_err( "unhandled operation: " + cop->type ); }
   }
 

@@ -35,6 +35,11 @@ namespace boda
 
     uint32_t avg_pool; //NESI(default="0",help="0 for max pooling, 1 for average pooling (others unsupported for compute)")
 
+    uint32_t lrn_local_size; //NESI(default="5",help="LRN local_size param")
+    double lrn_alpha; //NESI(default="1.0",help="LRN alpha param")
+    double lrn_beta; //NESI(default="0.75",help="LRN beta param")
+    double lrn_k; //NESI(default="1.0",help="LRN k param")
+
     vect_string tops; // inputs (by node/blob name)
     vect_string bots; // outputs (by node/blob name)
 
