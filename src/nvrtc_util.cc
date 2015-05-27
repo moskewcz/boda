@@ -562,7 +562,7 @@ extern "C"  __global__ void %s( float * const out ) {
       // check that this is a single in-out in-place operation
       assert_st( cop->bots[0] == cop->tops[0] );
       // ignore for fwd
-    } else { rt_err( "gen_op: unhandled op of type" + cop->type ); }
+    } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
   void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) {
