@@ -233,7 +233,9 @@ using boost::filesystem::path;
     void run_fwd( p_map_str_p_nda_float_t const & fwd );
 
   protected:
+    void instantiate_template( p_string cu_func_template, vect_pair_str_str const & tf_exprs );
     cu_funcs_t::iterator gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
+    cu_funcs_t::iterator gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     string gen_op_relu( conv_io_t const & cio_out );
     void gen_node( string const & name, p_conv_node_t const & node );
     void add_op_param( string const & name, uint32_t const & sz );
@@ -284,6 +286,18 @@ using boost::filesystem::path;
       if( i->first == (ix+"_sz") ) { return boost::lexical_cast< uint32_t >( i->second ); }
     }
     rt_err( "size not found in tf_exprs for ix:" + ix );
+  }
+
+  void conv_pipe_fwd_t::instantiate_template( p_string cu_func_template, vect_pair_str_str const & tf_exprs ) {
+    lexp_name_val_map_t tf_nvm{ p_lexp_t() };
+    tf_nvm.insert_leafs_from( tf_exprs );
+    string cu_func_str;
+    str_format_from_nvm( cu_func_str, *cu_func_template, tf_nvm );
+    cu_prog_str += cu_func_str;
+    cu_prog_str += "// -- template substituion table used: --\n";
+    for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
+      cu_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
+    }
   }
 
   cu_funcs_t::iterator conv_pipe_fwd_t::gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out ) {
@@ -482,18 +496,6 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
 
-    lexp_name_val_map_t tf_nvm{ p_lexp_t() };
-    tf_nvm.insert_leafs_from( tf_exprs );
-
-    string cu_func_str;
-    str_format_from_nvm( cu_func_str, *cu_func_template, tf_nvm );
-    cu_prog_str += cu_func_str;
-
-    cu_prog_str += "// -- template substituion table used: --\n";
-    for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
-      cu_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
-    } 
-
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     if( is_conv ) { 
       cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_ix" ) );
@@ -502,7 +504,51 @@ using boost::filesystem::path;
     cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
     cf.arg_sizes.push_back( out_ix_sz );
 
-    printf( "cu_func_name=%s cf.tpb=%s cf.blks=%s\n", str(cu_func_name).c_str(), str(cf.tpb).c_str(), str(cf.blks).c_str() );
+    instantiate_template( cu_func_template, tf_exprs );
+    printf( "cu_func_name=%s cf.tpb=%s cf.blks=%s\n", 
+	    str(cu_func_name).c_str(), str(cf.tpb).c_str(), str(cf.blks).c_str()); 
+    return ins_ret.first;
+  }
+
+  cu_funcs_t::iterator conv_pipe_fwd_t::gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out ) {
+    // note: cio_in and cio_out are derived from cop->bots[0] and cop->tops[0]
+    string cu_func_name;
+    p_string cu_func_template;
+    assert_st( cio_in.sz == cio_out.sz );
+    assert_st( cio_in.chans == cio_out.chans );
+    cu_func_name = strprintf( "lrn__num_imgs_%s__chans_%s__ysz_%s__xsz_%s", 
+			      str(num_imgs).c_str(), str(cio_in.chans).c_str(), 
+			      str(cio_in.sz.d[1]).c_str(), str(cio_in.sz.d[0]).c_str() );
+    cu_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / "lrn.cu").string() );
+    std::pair< cu_funcs_t::iterator, bool > ins_ret = cu_funcs.insert( make_pair( cu_func_name, cu_func_t{} ) );
+    if( !ins_ret.second ) { return ins_ret.first; } // already generated
+    cu_func_t & cf = ins_ret.first->second;
+
+    vect_pair_str_str tf_exprs;
+    assert_st( cop->lrn_local_size & 1 ); // we're only supporting centerable windows
+    // FIXME: make into 'regular' params (and support that somehow)
+    tf_exprs.push_back( make_pair( "local_size", str(cop->lrn_local_size) ) );
+    tf_exprs.push_back( make_pair( "alpha", str(cop->lrn_alpha) ) );
+    tf_exprs.push_back( make_pair( "beta", str(cop->lrn_beta) ) );
+    tf_exprs.push_back( make_pair( "k", str(cop->lrn_k) ) );
+
+
+    tf_exprs.push_back( make_pair( "cu_func_name", cu_func_name ) );
+    vect_string const cio_dims{"img","chan","y","x"};
+    insert_nda_exprs( tf_exprs, "tix", vect_string{"img","y","x"}, 
+		      vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
+		      vect_uint32_t{num_imgs,cio_out.chans,cio_out.sz.d[1],cio_out.sz.d[0]} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+
+
+    cf.tpb = 256;
+    cf.blks = u32_ceil_div( out_ix_sz / cio_out.chans, cf.tpb ); // handle one img,y,x per thread (across chans)
+    cf.arg_sizes.push_back( out_ix_sz );
+    cf.arg_sizes.push_back( out_ix_sz );
+    instantiate_template( cu_func_template, tf_exprs );
+    printf( "cu_func_name=%s cf.tpb=%s cf.blks=%s\n", 
+	    str(cu_func_name).c_str(), str(cf.tpb).c_str(), str(cf.blks).c_str()); 
     return ins_ret.first;
   }
 
@@ -558,6 +604,16 @@ extern "C"  __global__ void %s( float * const out ) {
       // check that this is a single in-out in-place operation
       assert_st( cop->bots[0] == cop->tops[0] );
       fwd_calls.push_back( cu_func_call_t{ gen_op_relu( cio_out ), { as_pyid(cop->tops[0]) } } );
+    } else if( cop->type == LRN_str ) {
+      assert_st( cop->bots.size() == 1 );
+      conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
+      assert_st( cop->tops.size() == 1 );
+      conv_io_t & cio_out = cp->must_get_node( cop->tops[0] )->cio;
+      vect_string arg_ids;
+      arg_ids.push_back( as_pyid(cop->bots[0]) );
+      arg_ids.push_back( as_pyid(cop->tops[0]) );
+      cu_funcs_t::iterator cfi = gen_op_lrn( cop, cio_in, cio_out );
+      fwd_calls.push_back( cu_func_call_t{ cfi->first, arg_ids } );
     } else if( cop->type == Dropout_str ) {
       // check that this is a single in-out in-place operation
       assert_st( cop->bots[0] == cop->tops[0] );
