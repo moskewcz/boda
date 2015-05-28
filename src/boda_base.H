@@ -83,6 +83,7 @@ namespace boda
     bool const did_ins = kvm.insert( std::make_pair( k, v ) ).second;
     assert_st( did_ins );
   }		      
+  template< typename T > bool has( T const & kvm, typename T::key_type const & k ) { return kvm.find( k ) != kvm.end(); }
   template< typename T > typename T::mapped_type const & must_find( T const & kvm, typename T::key_type const & k ) {
     typename T::const_iterator i = kvm.find( k );
     assert_st( i != kvm.end() );
