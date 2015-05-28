@@ -577,6 +577,30 @@ namespace boda
 	  }
 	}
       }
+    } else if( cop->type == Concat_str ) {
+      assert_st( cop->tops.size() == 1 );
+      p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
+      assert( top->dims.sz() == 4 );
+      uint32_t chans_out_done = 0;
+      for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
+	p_nda_float_t const & bot = must_find( *fwd, cop->bots[bi] );
+	assert( bot->dims.sz() == 4 );
+	assert( bot->dims.dims(0) == top->dims.dims(0) );
+	assert( bot->dims.dims(2) == top->dims.dims(2) );
+	assert( bot->dims.dims(3) == top->dims.dims(3) );
+	assert_st( chans_out_done+bot->dims.dims(1) <= top->dims.dims(1) );
+	for( uint32_t i = 0; i != bot->dims.dims(0); ++i ) {
+	  for( uint32_t c = 0; c != bot->dims.dims(1); ++c ) { 
+	    for( uint32_t y = 0; y != bot->dims.dims(2); ++y ) {
+	      for( uint32_t x = 0; x != bot->dims.dims(3); ++x ) {
+		top->at4(i,chans_out_done+c,y,x) = bot->at4(i,c,y,x);
+	      } 
+	    }
+	  }
+	}
+	chans_out_done += bot->dims.dims(1);
+      }
+      assert_st( chans_out_done == top->dims.dims(1) );
     } else { rt_err( "unhandled operation: " + cop->type ); }
   }
 
