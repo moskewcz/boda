@@ -21,15 +21,12 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
     if( threadIdx.x < blk_filt_ix_sz ) { 
       filts_smem[threadIdx.x] = filts[(blk_filt_ix_base+threadIdx.x)*%(filts_ix_out_chan_sz) + filts_ix_out_chan_elem];
     }
-    if( threadIdx.x < blk_patch_ix_sz ) { 
-      uint32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x);
-      %(get_in);
-      in_smem[threadIdx.x] = v;
-    }
-    if( threadIdx.x+blockDim.x < blk_patch_ix_sz ) { 
-      uint32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x);
-      %(get_in);
-      in_smem[threadIdx.x+blockDim.x] = v;
+    for( uint32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
+      if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
+	uint32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x*i);
+	%(get_in);
+	in_smem[threadIdx.x+blockDim.x*i] = v;
+      }
     }
     __syncthreads();
     %(t_tile_loads);

@@ -316,7 +316,7 @@ using boost::filesystem::path;
     // also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
     assert_st( cio_in.sz.dims_are_same() );
     uint32_t const in_dim = cio_in.sz.d[0];
-
+    
     bool const is_conv = cop->type == Convolution_str;
     bool const is_pool = cop->type == Pooling_str;
     string cu_func_name;
@@ -337,7 +337,7 @@ using boost::filesystem::path;
     std::pair< cu_funcs_t::iterator, bool > ins_ret = cu_funcs.insert( make_pair( cu_func_name, cu_func_t{} ) );
     if( !ins_ret.second ) { return ins_ret.first; } // already generated
     cu_func_t & cf = ins_ret.first->second;
-
+    //printf( "cop->tag=%s cu_func_name=%s\n", str(cop->tag).c_str(), str(cu_func_name).c_str() );
     vect_pair_str_str tf_exprs;
     tf_exprs.push_back( make_pair( "cu_func_name", cu_func_name ) );
     tf_exprs.push_back( make_pair( "kern_sz", str(kern_sz) ) );
@@ -396,9 +396,11 @@ using boost::filesystem::path;
 
       // check that we have enough threads per block to load smem using one-elem-per-thread.
       // FIXME: allow for cases when this does not hold
-      // printf( "tix_patch_tile_sz=%s\n", str(tix_patch_tile_sz).c_str() );
       assert_st( cf.tpb >= (t_tile_sz * tix_out_chan_tile_sz) ); 
-      assert_st( cf.tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); 
+      uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_patch_tile_sz), cf.tpb );
+      tf_exprs.push_back( std::make_pair( "patch_smem_load_iter", str(patch_smem_load_iter) ) );
+      // printf( "patch_smem_load_iter=%s\n", str(patch_smem_load_iter).c_str() );
+      // assert_st( cf.tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
 
       uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
       // note: currently, the out_chan division below will be exact, but if it wasn't we'd want ceil_div here
