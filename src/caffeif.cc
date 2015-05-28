@@ -314,9 +314,29 @@ namespace boda
   }
 
   void run_cnet_t::create_net_param( void ) {
-    // read the 'stock' deploy prototxt, and then override
-    // the input dims using knowledge of the protobuf format.
+    // read the 'stock' deploy prototxt, and then override the input dims using knowledge of the
+    // protobuf format.  also, if there are no inputs / input dims, assume we're reading a train_val-style
+    // prototxt and adjust it as needed for our usage -- in particular by dropping data layers and
+    // adding input dims (i.e. converting it on-the-fly to deploy format).
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
+    if( net_param->input_dim_size() == 0 ) { // if train-val form, convert to deploy form
+      assert_st( net_param->input_size() == 0 );
+      // remove data, softmax, and accuracy layers
+      set_string layer_types_to_remove{ Data_str, Accuracy_str, SoftmaxWithLoss_str };
+      int o = 0;
+      for( int i = 0; i < net_param->layer_size(); i++ ) {
+	if( !has( layer_types_to_remove, net_param->layer(i).type() ) ) { 
+	  if( i != o ) { *net_param->mutable_layer(o) = net_param->layer(i); } 
+	  ++o; 
+	}
+      }
+      while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
+      // we assume there is single input blob named 'data'. FIXME: do better?
+      net_param->add_input("data");
+      for( uint32_t i = 0; i != 4; ++i ) { net_param->add_input_dim(0); }
+    }
+    // FIXME: handle shape for input?
+    assert_st( net_param->input_size() == 1 );
     assert_st( net_param->input_dim_size() == 4 );
     net_param->set_input_dim(0,in_num_imgs);
     net_param->set_input_dim(1,in_num_chans);
