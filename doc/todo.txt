@@ -1,3 +1,7 @@
+** rtc tasks
+-- allow inexact division in chan dim
+-- support 'small'/non-specialized param passing (and fix LRN fudged params)
+
 ** current tasks
 -- cascade porting and related testing (oct_dfc) 
 
