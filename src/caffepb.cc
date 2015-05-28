@@ -144,12 +144,7 @@ namespace boda
 	conv_op->type = lp.type();
 	RF_TO_VEC( conv_op->bots, lp.bottom );
 	RF_TO_VEC( conv_op->tops, lp.top );
-	// FIXME: handle ReLU / Dropout. for now, just check that they are one-in-one-out inplace
-	if( (conv_op->type == "ReLU") || (conv_op->type == "Dropout") ) { 
-	  assert_st( conv_op->bots.size() == 1 ); assert_st( conv_op->tops == conv_op->bots );
-	  conv_pipe->get_or_make_node(conv_op->bots[0])->in_place_ops.push_back( conv_op );
-	}
-	else { conv_pipe->add_conv( conv_op ); }
+	conv_pipe->add_conv( conv_op );
       }
       // FIXME: it's not generally correct to assume we can ignore layers after the layer with out_layer_name (but often true)
       if( (!found_layer) && (out_layer_name == lp.name()) ) { found_layer = 1; break; }

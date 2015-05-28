@@ -96,8 +96,15 @@ namespace boda
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
     assert_st( !finalized );
+    bool in_place = 0;
+    if( (conv->type == "ReLU") || (conv->type == "Dropout") ) { 
+      assert_st( conv->bots.size() == 1 ); assert_st( conv->tops == conv->bots );
+      get_or_make_node(conv->bots[0])->in_place_ops.push_back( conv );
+      in_place = 1;
+    }
     bool did_ins = convs->insert( make_pair( conv->tag, conv ) ).second;
     if( !did_ins ) { rt_err( strprintf( "duplicate conv op '%s' seen; can't process net", conv->tag.c_str() ) ); }
+    if( in_place ) { return; } // don't add in-place ops to top_for and bot_for
     for( vect_string::const_iterator i = conv->tops.begin(); i != conv->tops.end(); ++i ) {
       get_or_make_node( *i )->top_for.push_back( conv->tag );
     }
