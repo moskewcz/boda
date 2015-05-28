@@ -78,6 +78,7 @@ namespace boda
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     //vect_string const & layer_names = net->layer_names();
+    conv_pipe->out_layer_name = out_layer_name;
     bool found_layer = out_layer_name.empty(); // if no layer name input, don't try to find a 'stopping/end' layer
     for( int32_t i = 0; i != net_param.layer_size(); ++i ) { 
       caffe::LayerParameter const & lp = net_param.layer(i);
@@ -150,6 +151,7 @@ namespace boda
 	}
 	else { conv_pipe->add_conv( conv_op ); }
       }
+      // FIXME: it's not generally correct to assume we can ignore layers after the layer with out_layer_name (but often true)
       if( (!found_layer) && (out_layer_name == lp.name()) ) { found_layer = 1; break; }
     }
     if( !found_layer ) { rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); }

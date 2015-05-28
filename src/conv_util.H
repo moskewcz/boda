@@ -78,6 +78,7 @@ namespace boda
   typedef shared_ptr< map_str_p_conv_node_t > p_map_str_p_conv_node_t;
 
   struct conv_pipe_t {
+    string out_layer_name;
     p_map_str_p_conv_op_t convs;
     p_map_str_p_conv_node_t nodes;
     // global top and bottom sets of nodes (sources and sinks of whole network)

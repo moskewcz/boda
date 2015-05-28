@@ -57,33 +57,26 @@ namespace boda
     finalized = 1;
   }
 
-  // this returns the single unique input node of the net or throws an error
   p_conv_node_t conv_pipe_t::get_single_bot_node( void ) const {
-    p_conv_node_t ret;
-    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
-      p_conv_node_t const & in = i->second;
-      if( in->top_for.empty() ) { 
-	if( ret ) { rt_err( strprintf( "multiple source/input nodes found in net; can't process. two examples:'%s','%s'", 
-				       ret->name.c_str(), in->name.c_str() ) ); }
-	ret = in;
-      }
-    }
-    if( !ret ) { rt_err( "no source/input nodes found in net; can't process. perhaps this is an invalid circular net?" ); }
-    return ret;
+    assert_st( finalized );
+    if( bots.size() != 1 ) { rt_err( "not exactly one source/input node in net; can't process. input nodes are: " + str(bots) ); }
+    return must_get_node( bots[0] ); 
   }
-
+  // if out_layer_name is empty, this returns the single unique input node of the net or throws an error. if out_layer_name is
+  // non-empty, it returns the single output node of the layer with name out_layer_name (or throws an error).
   p_conv_node_t conv_pipe_t::get_single_top_node( void ) const {
-    p_conv_node_t ret;
-    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
-      p_conv_node_t const & in = i->second;
-      if( in->bot_for.empty() ) { 
-	if( ret ) { rt_err( strprintf( "multiple sink/output nodes found in net; can't process. two examples:'%s','%s'", 
-				       ret->name.c_str(), in->name.c_str() ) ); }
-	ret = in;
+    assert_st( finalized );
+    if( out_layer_name.empty() ) {
+      if( tops.size() != 1 ) { rt_err( "not exactly one sink/output node in net; can't process. output nodes are: " + str(tops) ); }
+      return must_get_node( tops[0] ); 
+    } else {
+      if( !has( *convs, out_layer_name ) ) { 
+	rt_err( "layer '"+out_layer_name+"' specified for use as producing the primary net output not found in net." ); 
       }
+      p_conv_op_t top_op = get_op(out_layer_name);
+      assert_st( top_op->tops.size() == 1 );
+      return must_get_node( top_op->tops[0] );
     }
-    if( !ret ) { rt_err( "no sink/output nodes found in net; can't process. perhaps this is an invalid circular net?" ); }
-    return ret;
   }
   
   p_conv_node_t conv_pipe_t::get_or_make_node( string const & name ) {
@@ -632,8 +625,7 @@ namespace boda
       };
       conv_pipe_fwd_t_run( conv_pipe_fwd, fwd );
     } else { run_ops( fwd ); }
-    assert( tops.size() == 1 );    
-    return must_find( *fwd, tops[0] );
+    return must_find( *fwd, get_single_top_node()->name );
   }
 
   struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["has_main_t"], type_id="conv_ana")
