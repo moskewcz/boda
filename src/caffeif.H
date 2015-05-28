@@ -61,6 +61,7 @@ namespace boda
     //" 3=label plus rank")
     uint32_t enable_upsamp_net; //NESI(default=0,help="if 1, create an extra internal net with internal 2X input upsampling.")
     uint32_t dump_rps; //NESI(default=0,help="if 1, dump region proposals for each feature pizel to 'rps.txt'.")
+    uint32_t compute_mode; //NESI(default="0",help="compute mode: 0:caffe 1:supa-slow-cpu 2:rtc-gpu")
 
     virtual void main( nesi_init_arg_t * nia );
     p_nda_float_t in_batch;

@@ -261,10 +261,23 @@ namespace boda
     return out_data.front();
   }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out( void ) { 
-    return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch ); }
+    if( compute_mode == 0 ) {
+      return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch );      
+    } else {
+      assert_st( compute_mode >= 1 );
+      assert_st( compute_mode <= 2 );
+      return conv_pipe->run_one_blob_in_one_blob_out( in_batch, compute_mode == 2 );
+    }
+  }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out_upsamp( void ) { 
-    return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch ); }
-
+    if( compute_mode == 0 ) {
+      return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch );      
+    } else {
+      assert_st( compute_mode >= 1 );
+      assert_st( compute_mode <= 2 );
+      return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, compute_mode == 2 );
+    }
+  }
   // note; there is an unfortunate potential circular dependency here: we may need the pipe info
   // about the network before we have set it up if the desired size of the input image depends on
   // the net architeture (i.e. support size / padding / etc ).  currently, the only thing we need

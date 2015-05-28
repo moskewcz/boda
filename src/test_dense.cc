@@ -234,7 +234,7 @@ namespace boda {
   // matching cnet_ana+flops.py command line:
   // boda cnet_ana --in-model=nin_imagenet_nopad --print-ops=1 --in-sz=227 --out-layer-name=relu0  && python ../../pysrc/flops.py --per-layer=1 --backward=0 --runtime=.015 --num-imgs=20
 
-  struct test_compute_t : virtual public nesi, public has_main_t // NESI( help="comparison test CNN computation methods",
+  struct test_compute_t : virtual public nesi, public has_main_t // NESI( help="comparison test 2 CNN computation methods",
 			// bases=["has_main_t"], type_id="test_compute")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -245,7 +245,9 @@ namespace boda {
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
                            // ,out_layer_name=conv1)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
-    uint32_t use_nvrtc; //NESI(default="0",help="if non-zero, use nvrtc for conv_pipe fwd")
+
+    uint32_t cm1; //NESI(default="0",help="compute mode 1 for comparison")
+    uint32_t cm2; //NESI(default="0",help="compute mode 2 for comparison")
 
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
@@ -291,8 +293,10 @@ namespace boda {
       for( uint32_t i = 0; i != run_cnet->in_num_imgs; ++i ) {
 	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, i, in_img );
       }
+      run_cnet->compute_mode = cm1;
       p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
-      p_nda_float_t out_batch_2 = run_cnet->conv_pipe->run_one_blob_in_one_blob_out( run_cnet->in_batch, use_nvrtc );
+      run_cnet->compute_mode = cm2;
+      p_nda_float_t out_batch_2 = run_cnet->run_one_blob_in_one_blob_out();
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
       (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_str(out_batch_1,out_batch_2)).c_str() );
       
