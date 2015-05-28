@@ -236,6 +236,7 @@ using boost::filesystem::path;
     void instantiate_template( p_string cu_func_template, vect_pair_str_str const & tf_exprs );
     cu_funcs_t::iterator gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     cu_funcs_t::iterator gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
+    cu_funcs_t::iterator gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix );
     string gen_op_relu( conv_io_t const & cio_out );
     void gen_node( string const & name, p_conv_node_t const & node );
     void add_op_param( string const & name, uint32_t const & sz );
@@ -444,17 +445,8 @@ using boost::filesystem::path;
 
 
     if( is_pool ) {
-      string ops("// begin ops\n");
-      for( uint32_t ky = 0; ky != kern_sz; ++ky ) {
-	for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
-	  uint32_t const in_off = ky * cio_in.sz.d[0] + kx; // FIXME: get dims from tf_exprs?
-	  if( cop->avg_pool ) { ops += "  out_v += in[in_ix+"+str(in_off)+"];\n"; }
-	  else { ops += "  out_v = max( out_v, in[in_ix+"+str(in_off)+"]);\n"; }
-	}
-      }
-      if( cop->avg_pool ) { ops += "  out_v /= float("+str(kern_sz*kern_sz)+");\n"; }
-      ops += "  // end ops"; // note: newline (and semi-unwanted semi-colon) will go here from src
-      tf_exprs.push_back( std::make_pair( "ops", ops ) );
+      tf_exprs.push_back( std::make_pair( "op", cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" ) );
+      tf_exprs.push_back( std::make_pair( "op_post", cop->avg_pool ? "out_v /= float("+str(kern_sz*kern_sz)+")" : "" ) );
     }
     string t_tile_fmas("// begin t_tile_fmas\n");
     string t_tile_smem_loads("// begin t_tile_smem_loads\n");
@@ -554,6 +546,39 @@ using boost::filesystem::path;
     return ins_ret.first;
   }
 
+  cu_funcs_t::iterator conv_pipe_fwd_t::gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix ) {
+    // note: cio_in and cio_out are derived from cop->bots[bi] and cop->tops[0]
+    string cu_func_name;
+    p_string cu_func_template;
+    assert_st( cio_in.sz == cio_out.sz );
+    cu_func_name = strprintf( "copy__num_imgs_%s__in_chans_%s__out_chans_%s__ocix_%s__ysz_%s__xsz_%s", 
+			      str(num_imgs).c_str(), 
+			      str(cio_in.chans).c_str(), str(cio_out.chans).c_str(), str(ocix).c_str(), 
+			      str(cio_in.sz.d[1]).c_str(), str(cio_in.sz.d[0]).c_str() );
+    cu_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / "copy.cu").string() );
+    std::pair< cu_funcs_t::iterator, bool > ins_ret = cu_funcs.insert( make_pair( cu_func_name, cu_func_t{} ) );
+    if( !ins_ret.second ) { return ins_ret.first; } // already generated
+    cu_func_t & cf = ins_ret.first->second;
+    vect_pair_str_str tf_exprs;
+    tf_exprs.push_back( make_pair( "ocix", str(ocix) ) );
+    tf_exprs.push_back( make_pair( "cu_func_name", cu_func_name ) );
+    vect_string const cio_dims{"img","chan","y","x"};
+    insert_nda_exprs( tf_exprs, "in_ix", vect_string{"img","chan","y","x"}, 
+		      vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
+		      vect_uint32_t{num_imgs,cio_out.chans,cio_out.sz.d[1],cio_out.sz.d[0]} );
+    uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    cf.tpb = 256;
+    cf.blks = u32_ceil_div( in_ix_sz, cf.tpb ); // handle one img,y,x per thread (across chans)
+    cf.arg_sizes.push_back( in_ix_sz );
+    cf.arg_sizes.push_back( out_ix_sz );
+    instantiate_template( cu_func_template, tf_exprs );
+    printf( "cu_func_name=%s cf.tpb=%s cf.blks=%s\n", 
+	    str(cu_func_name).c_str(), str(cf.tpb).c_str(), str(cf.blks).c_str()); 
+    return ins_ret.first;
+  }
+
   string conv_pipe_fwd_t::gen_op_relu( conv_io_t const & cio_out ) {
     uint32_t const out_sz = cio_out.sz.dims_prod() * cio_out.chans * num_imgs;
     string const cu_func_name = strprintf( "relu__out_sz_%s", str(out_sz).c_str() );
@@ -577,10 +602,29 @@ extern "C"  __global__ void %s( float * const out ) {
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     string const tag_id_str = as_pyid( cop->tag );
     //char const * const tag_id = tag_id_str.c_str();
-    assert_st( cop->bots.size() == 1 );
-    conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
     assert_st( cop->tops.size() == 1 );
     conv_io_t & cio_out = cp->must_get_node( cop->tops[0] )->cio;
+
+    if( cop->type == Concat_str ) {      
+      vect_string arg_ids;
+      arg_ids.push_back( "" ); // placeholder for per-copy input
+      arg_ids.push_back( as_pyid(cop->tops[0]) );
+      uint32_t chans_out_done = 0;
+      for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
+	conv_io_t & cio_in = cp->must_get_node( cop->bots[bi] )->cio;
+	assert_st( cio_in.sz == cio_out.sz );
+	assert_st( chans_out_done+cio_in.chans <= cio_out.chans );
+	cu_funcs_t::iterator cfi = gen_op_copy( cop, cio_in, cio_out, chans_out_done );
+	arg_ids[0] = as_pyid(cop->bots[bi]);
+	fwd_calls.push_back( cu_func_call_t{ cfi->first, arg_ids } );
+	chans_out_done += cio_in.chans;
+      }
+      assert_st( chans_out_done == cio_out.chans );
+      return;
+    }
+
+    assert_st( cop->bots.size() == 1 );
+    conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
     bool const is_conv = cop->type == Convolution_str;
     if( is_conv || (cop->type == Pooling_str) ) {
       vect_string arg_ids;
