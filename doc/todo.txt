@@ -1,6 +1,9 @@
 ** rtc tasks
 -- allow inexact division in chan dim
 -- support 'small'/non-specialized param passing (and fix LRN fudged params)
+-- use smem/registers for bias
+-- improve output writing
+-- per-function profiling
 
 ** current tasks
 -- cascade porting and related testing (oct_dfc) 
