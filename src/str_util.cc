@@ -32,11 +32,13 @@ namespace boda
     return ret;
   }
 
+  // note: not reversable (i.e. just sanitization, not escaping)
   string as_pyid( string const & s ) {
     string ret;
     for (string::const_iterator i = s.begin(); i != s.end(); ++i) {
       switch (*i) {
       case '-': ret += "_"; break;
+      case '.': ret += "_"; break;
       default: ret.push_back( *i );
       }
     }
