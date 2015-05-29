@@ -321,7 +321,7 @@ using boost::filesystem::path;
       for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
 	cu_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
-      printf( "rtc_func_name=%s cf.tpb=%s cf.blks=%s\n", str(rtc_func_name).c_str(), str(cf->tpb).c_str(), str(cf->blks).c_str()); 
+      //printf( "rtc_func_name=%s cf.tpb=%s cf.blks=%s\n", str(rtc_func_name).c_str(), str(cf->tpb).c_str(), str(cf->blks).c_str()); 
       cf->finalized = 1;
     }
   };
