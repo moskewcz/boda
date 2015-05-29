@@ -667,6 +667,7 @@ using boost::filesystem::path;
   }
   string cu_base_decls = R"rstr(
 typedef unsigned uint32_t;
+typedef long long int64_t;
 union fbits { float f; uint32_t u; };
 
 )rstr";
