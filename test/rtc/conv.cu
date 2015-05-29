@@ -25,6 +25,12 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
 	uint32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x*i);
 	%(get_in);
+#if 0
+	int64_t iv = v;
+	if( iv > 200 ) { iv = 200; }
+	if( iv < -200 ) { iv = -200; }
+	v = iv;
+#endif
 	in_smem[threadIdx.x+blockDim.x*i] = v;
       }
     }
