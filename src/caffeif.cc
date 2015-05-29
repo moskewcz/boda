@@ -402,9 +402,16 @@ namespace boda
     assert( !net_param );
     create_net_param();
     conv_pipe = cache_pipe( *net_param );
+    // note: we may or may not need the trained blobs in the conv_pipe, depending on the compute
+    // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
+    // the time ...
+    p_net_param_t trained_net = must_read_binary_proto( trained_fn );
+    copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe->op_params );
+
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
+      copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe_upsamp->op_params );
       assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
     }
     conv_pipe->calc_sizes_forward( in_sz, 0 ); 

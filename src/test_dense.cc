@@ -268,9 +268,6 @@ namespace boda {
       in_img = make_p_img_t( run_cnet->in_sz );
       //dump_pipe_and_ios( run_cnet );
 
-      p_net_param_t trained_net = must_read_binary_proto( run_cnet->trained_fn );
-      copy_matching_layer_blobs_from_param_to_map( trained_net, run_cnet->net_param, run_cnet->conv_pipe->op_params );
-
       boost::random::mt19937 gen;
 
       uint32_t tot_wins = 0;
