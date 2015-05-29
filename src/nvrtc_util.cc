@@ -464,7 +464,6 @@ using boost::filesystem::path;
     string t_tile_loads("// begin t_tile_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
     if( is_conv ) {
-      t_tile_loads += "    uint32_t const filt_ix_base = %(out_chan_ix)*%(filts_ix_out_chan_sz)+filts_ix_out_chan_elem;\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(t_tile_sz)*%%(threadIdx.x_out_chan_tile)+%s];\n",
 				   str(tx).c_str(), str(tx).c_str() );
@@ -668,6 +667,8 @@ using boost::filesystem::path;
   }
   string cu_base_decls = R"rstr(
 typedef unsigned uint32_t;
+union fbits { float f; uint32_t u; };
+
 )rstr";
 
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
