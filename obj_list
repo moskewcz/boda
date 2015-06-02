@@ -71,9 +71,11 @@ LDFLAGS := $(LDFLAGS) -lpython2.7
 # that some dependencies may not usefully be disable-able.
 
 [objs]
+
 nvrtc_util.o nvrtc
 nvrtc_util-no-nvrtc-stub.o -nvrtc
-lmdb_caffe_io.o caffe_pb lmdb
+lmdb_caffe_disp.o caffe_pb caffe lmdb SDL2
+lmdb_caffe_io.o caffe_pb caffe lmdb
 
 # we have our hacked-up version of the upgrade net func. we
 # (questionably) use it even when compiling with full caffe support.

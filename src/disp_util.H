@@ -1,6 +1,7 @@
 #ifndef _DISP_UTIL_H_
 #define _DISP_UTIL_H_
 #include"boda_base.H"
+#include"geom_prim.H"
 
 #define PRE_DECL_SDL_OBJ( tn ) \
   struct SDL_##tn; \
