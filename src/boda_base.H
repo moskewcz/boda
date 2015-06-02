@@ -493,15 +493,20 @@ namespace boda
   template< typename T >
   inline std::ostream & operator << ( std::ostream & out, nda_T< T > const & o ) {
     out << "nda " << o.dims << std::endl;
-    // print rows by iterating over dim with fastest/smallest stride (using column major indexing, of course)
-    for( uint32_t rix = 0; o.dims.cm_ix2( 0, rix ) != o.elems.sz; ++rix ) {
-      out << "row=" << rix << ":";
-      for( uint32_t cix = 0; cix != o.dims.cm_ix2( 0, 1 ); ++cix ) {
-	out << " " << o.cm_at2( cix, rix );
+    if( o.dims.sz() > 1 ) {
+      // print rows by iterating over dim with fastest/smallest stride (using column major indexing, of course)
+      for( uint32_t rix = 0; o.dims.cm_ix2( 0, rix ) != o.elems.sz; ++rix ) {
+	out << "row=" << rix << ":";
+	for( uint32_t cix = 0; cix != o.dims.cm_ix2( 0, 1 ); ++cix ) {
+	  out << " " << o.cm_at2( cix, rix );
+	}
+	out << std::endl;
       }
-      out << std::endl;
-    }
-    
+    } else { // 1D case
+      for( uint32_t ix = 0; ix != o.elems.sz; ++ix ) {
+	out << " " << o.elems[ix];
+      }
+    }    
 
     return out;
   }
