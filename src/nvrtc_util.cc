@@ -245,6 +245,8 @@ using boost::filesystem::path;
     string cu_prog_str;
     vect_cu_func_call_t fwd_calls;
     cu_funcs_t cu_funcs;
+    
+    bool enable_stats;
 
     void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
     void run_fwd( p_map_str_p_nda_float_t const & fwd );
@@ -609,17 +611,26 @@ using boost::filesystem::path;
       else if( tag == "min" ) { iv = "FLT_MAX"; }
       else if( tag == "max" ) { iv = "-FLT_MAX"; }
       else if( tag == "sum" ) { iv = "0"; }
+      else if( tag == "hist" ) { iv = "0"; }
       else { assert_st(0); } // unknown tag/op
     }
     string param_str( void ) { return strprintf( "%s * %s_in, %s * %s_out", ts.c_str(), tag.c_str(), ts.c_str(), tag.c_str() ); }
     string decl_str( void ) { return strprintf( "    %s %s_v = %s; __shared__ %s %s_smem[tbp];", 
 						ts.c_str(), tag.c_str(), iv.c_str(), ts.c_str(), tag.c_str() ); }
-    string load_str( void ) { return strprintf( "    if( ix < in_sz ) { %s_v = %s_in[ix]; } %s_smem[tid] = %s_v;", 
-						tag.c_str(), tag.c_str(), tag.c_str(), tag.c_str() ); }
+    string in_proc_str( void ) { 
+      if( tag == "hist" ) { return strprintf( " (%s_in[ix]>1000) ", tag.c_str() ); }
+      else { return strprintf( " %s_in[ix]", tag.c_str() ); }
+    }
+    string load_str( void ) { return strprintf( "    if( ix < in_sz ) { "
+						"if(primary_in) { %s_v = %s; } else { %s_v = %s_in[ix]; } } %s_smem[tid] = %s_v;", 
+						tag.c_str(), in_proc_str().c_str(), tag.c_str(), tag.c_str(), tag.c_str(), 
+						tag.c_str() ); }
     string update_v_str( string const & from_expr ) {
       if( tag == "min" || tag == "max" ) {
 	return strprintf( "    %s_v = %s( %s_v, %s );", tag.c_str(), tag.c_str(), tag.c_str(), from_expr.c_str() ); 
       } else if( tag == "sum" ) {
+      	return strprintf( "    %s_v += %s;", tag.c_str(), from_expr.c_str() ); 
+      } else if( tag == "hist" ) {
       	return strprintf( "    %s_v += %s;", tag.c_str(), from_expr.c_str() ); 
       } else { assert_st(0); }
     }
@@ -630,8 +641,9 @@ using boost::filesystem::path;
   typedef vector< red_op_t > vect_red_op_t; 
 
   vect_string conv_pipe_fwd_t::gen_op_stats( conv_io_t const & cio_in, string const & top_in ) {
-    vect_red_op_t reds{ red_op_t("min"), red_op_t("max"), red_op_t("sum")  };
+    vect_red_op_t reds{ red_op_t("min"), red_op_t("max"), red_op_t("sum"), red_op_t("hist")  };
     uint32_t in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;
+    uint32_t primary_in = 1;
     assert_st( in_sz );
     vect_string cur_ins;
     for( uint32_t i = 0; i != reds.size(); ++i ) { cur_ins.push_back( top_in ); }
@@ -687,10 +699,10 @@ using boost::filesystem::path;
 	args.push_back( cur_ins[i] );
 	args.push_back( cur_out );
       }
-      fwd_calls.push_back( cu_func_call_t{ cf.name, args, {in_sz} } );
+      fwd_calls.push_back( cu_func_call_t{ cf.name, args, {in_sz, primary_in} } );
       cur_ins = cur_outs;
       in_sz = out_sz;
-
+      primary_in = 0;
     }
     assert_st( in_sz == 1 );
     return cur_ins;
@@ -777,8 +789,10 @@ using boost::filesystem::path;
     // in-place ops for this node
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { gen_op( *j ); }
     // generate stats gathering call
-    //vect_string stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
-    //to_dump.insert( to_dump.end(), stats_names.begin(), stats_names.end() );
+    if( enable_stats ) {
+      vect_string stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
+      to_dump.insert( to_dump.end(), stats_names.begin(), stats_names.end() );
+    }
 
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = cp->get_op( *i );
@@ -799,6 +813,8 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 )rstr";
 
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
+    enable_stats = 1;
+
     cp = cp_;
     assert_st( cp );
     assert_st( cp->finalized );
@@ -855,7 +871,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       // FIXME: check that we're passing the correct # of args here somehow.
       if( !blks ) { // handle dynamic # of blks case
 	// FIXME: pretty limited / special cased here
-	assert_st( cfc.u32_args.size() == 1 );
+	assert_st( cfc.u32_args.size() > 0 );
 	blks = u32_ceil_div( cfc.u32_args[0], cf.tpb );
       }
       cu_err_chk( cuLaunchKernel( cf.cu_func,
@@ -870,7 +886,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
-    //dump_named_cups( to_dump, *cups ); 
+    dump_named_cups( to_dump, *cups ); 
     //printf("run_fwd() done\n");
   }
   
