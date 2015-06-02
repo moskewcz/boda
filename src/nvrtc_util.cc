@@ -200,9 +200,23 @@ using boost::filesystem::path;
     }
   }
 
+  void dump_named_cups( vect_string const & names, map_str_p_cup_float_t const & cups ) {
+    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
+      string const pyid = as_pyid( *i );
+      p_cup_float const & cup = must_find( cups, pyid );
+      dims_t cup_dims( vect_uint32_t{cup->sz} ); 
+      cup_dims.calc_strides();
+      p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
+      cu_copy_cup_to_nda( nda, cup );
+      assert_st( nda->elems.sz == 1 );
+      printf( "%s=%s\n", str((*i)).c_str(), str(nda->elems[0]).c_str() );
+    }
+  }
+
   struct cu_func_call_t { 
     string cu_func_name; 
     vect_string args; 
+    vect_uint32_t u32_args;
   };
   typedef vector< cu_func_call_t > vect_cu_func_call_t; 
   struct cu_func_t { 
@@ -220,6 +234,7 @@ using boost::filesystem::path;
     uint32_t num_imgs;
     p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
+    vect_string to_dump;
 
     //nvrtc/cuda state
     CUdevice cu_dev;
@@ -239,6 +254,8 @@ using boost::filesystem::path;
     cu_func_t & gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     cu_func_t & gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix );
     cu_func_t & gen_op_relu( conv_io_t const & cio_out );
+    vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
+
     void gen_node( string const & name, p_conv_node_t const & node );
     void add_op_param( string const & name, uint32_t const & sz );
     void gen_op( p_conv_op_t const & cop );
@@ -290,7 +307,9 @@ using boost::filesystem::path;
     rt_err( "size not found in tf_exprs for ix:" + ix );
   }
 
+
   struct rtc_func_param_info_t { string name; string val; };
+  struct rtc_u32_param_info_t { string name; uint32_t val; };
   typedef vector< rtc_func_param_info_t > vect_rtc_func_param_info_t; 
   struct rtc_func_gen_info_t {
     string op_tag;
@@ -323,6 +342,13 @@ using boost::filesystem::path;
       }
       //printf( "rtc_func_name=%s cf.tpb=%s cf.blks=%s\n", str(rtc_func_name).c_str(), str(cf->tpb).c_str(), str(cf->blks).c_str()); 
       cf->finalized = 1;
+    }
+  // note: also adds the output as a parameter
+    void set_tpb_blks_for_one_output_per_thread( uint32_t out_sz ) {
+      // note: cf.arg_sizes might or might not be empty here
+      cf->arg_sizes.push_back( out_sz );
+      cf->tpb = 256;
+      cf->blks = u32_ceil_div( out_sz, cf->tpb );
     }
   };
 
@@ -568,11 +594,106 @@ using boost::filesystem::path;
     cu_func_t & cf = rfgi.init( cu_funcs );
     //vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
     if( cf.finalized ) { return cf; } // already generated
-    cf.arg_sizes = vect_uint32_t{ out_sz }; 
-    cf.tpb = 256;
-    cf.blks = u32_ceil_div( out_sz, cf.tpb );
+    rfgi.set_tpb_blks_for_one_output_per_thread( out_sz );
     rfgi.instantiate_template( cu_prog_str );
     return cf;
+  }
+
+  struct red_op_t {
+    string tag;
+    string iv;
+    string ts;
+    red_op_t( string const & tag_ ) { 
+      tag = tag_; ts = "float"; 
+      if( 0 ) { }
+      else if( tag == "min" ) { iv = "FLT_MAX"; }
+      else if( tag == "max" ) { iv = "-FLT_MAX"; }
+      else if( tag == "sum" ) { iv = "0"; }
+      else { assert_st(0); } // unknown tag/op
+    }
+    string param_str( void ) { return strprintf( "%s * %s_in, %s * %s_out", ts.c_str(), tag.c_str(), ts.c_str(), tag.c_str() ); }
+    string decl_str( void ) { return strprintf( "    %s %s_v = %s; __shared__ %s %s_smem[tbp];", 
+						ts.c_str(), tag.c_str(), iv.c_str(), ts.c_str(), tag.c_str() ); }
+    string load_str( void ) { return strprintf( "    if( ix < in_sz ) { %s_v = %s_in[ix]; } %s_smem[tid] = %s_v;", 
+						tag.c_str(), tag.c_str(), tag.c_str(), tag.c_str() ); }
+    string update_v_str( string const & from_expr ) {
+      if( tag == "min" || tag == "max" ) {
+	return strprintf( "    %s_v = %s( %s_v, %s );", tag.c_str(), tag.c_str(), tag.c_str(), from_expr.c_str() ); 
+      } else if( tag == "sum" ) {
+      	return strprintf( "    %s_v += %s;", tag.c_str(), from_expr.c_str() ); 
+      } else { assert_st(0); }
+    }
+    string store_str( void ) {
+      return strprintf( "    if( !tid ) { %s_out[blockIdx.x] = %s_v; }", tag.c_str(), tag.c_str() ); }
+
+  };
+  typedef vector< red_op_t > vect_red_op_t; 
+
+  vect_string conv_pipe_fwd_t::gen_op_stats( conv_io_t const & cio_in, string const & top_in ) {
+    vect_red_op_t reds{ red_op_t("min"), red_op_t("max"), red_op_t("sum")  };
+    uint32_t in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;
+    assert_st( in_sz );
+    vect_string cur_ins;
+    for( uint32_t i = 0; i != reds.size(); ++i ) { cur_ins.push_back( top_in ); }
+    
+    while( in_sz > 1 ) {
+      rtc_func_gen_info_t rfgi{"stats", { } };
+      cu_func_t & cf = rfgi.init( cu_funcs );
+      if( !cf.finalized ) { 
+	cf.tpb = 256;
+	// FIXME: handle dynamic block sizes better?
+	//cf.blks = u32_ceil_div( in_sz, cf.tpb );
+	cf.blks = 0;
+	vect_string params;
+	vect_string body;
+	for( uint32_t i = 0; i != reds.size(); ++i ) { 
+	  params.push_back(reds[i].param_str());
+	  // FIXME: for now, we disable these size checks ...
+	  //cf.arg_sizes.push_back( in_sz );
+	  //cf.arg_sizes.push_back( cf.blks );
+	  body.push_back(reds[i].decl_str());
+	  body.push_back(reds[i].load_str());
+	}
+	body.push_back( "  __syncthreads();" );
+	uint32_t const tbp = 256;
+	uint32_t const warp_sz = 32;
+	for( uint32_t smb = tbp / 2; smb > warp_sz; smb /= 2 ) {
+	  body.push_back( strprintf( "  if( tid < %s ) {", str(smb).c_str() ) );
+	  for( uint32_t i = 0; i != reds.size(); ++i ) { 
+	    body.push_back( reds[i].update_v_str( strprintf( "%s_smem[tid+%s]", reds[i].tag.c_str(), str(smb).c_str() )));
+	  }
+	  body.push_back( "  }" );
+	  body.push_back( "  __syncthreads();" );
+	}
+	for( uint32_t wb = warp_sz / 2; wb; wb /= 2 ) {
+	  for( uint32_t i = 0; i != reds.size(); ++i ) { body.push_back( 
+	      reds[i].update_v_str( strprintf( "__shfl_down( %s_v,%s )", reds[i].tag.c_str(), str(wb).c_str() ) ) );
+	  }
+	}	  
+	for( uint32_t i = 0; i != reds.size(); ++i ) { body.push_back( reds[i].store_str() ); }
+
+	rfgi.tf_exprs.push_back( std::make_pair( "params", join(params,", ") ) );
+	rfgi.tf_exprs.push_back( std::make_pair( "body", join(body,"\n") ) );
+
+	rfgi.instantiate_template( cu_prog_str );
+      }
+      uint32_t const out_sz = u32_ceil_div( in_sz, cf.tpb );
+      vect_string cur_outs;
+      vect_string args;
+      for( uint32_t i = 0; i != reds.size(); ++i ) { 
+	string cur_out = top_in + "_" + reds[i].tag + "_out_sz_" + str(out_sz);
+	must_insert( *cups, cur_out, make_shared<cup_float>( out_sz ) ); 
+	cur_outs.push_back( cur_out );
+	args.push_back( cur_ins[i] );
+	args.push_back( cur_out );
+      }
+      fwd_calls.push_back( cu_func_call_t{ cf.name, args, {in_sz} } );
+      cur_ins = cur_outs;
+      in_sz = out_sz;
+
+    }
+    assert_st( in_sz == 1 );
+    return cur_ins;
   }
 
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
@@ -655,6 +776,10 @@ using boost::filesystem::path;
     else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
     // in-place ops for this node
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { gen_op( *j ); }
+    // generate stats gathering call
+    //vect_string stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
+    //to_dump.insert( to_dump.end(), stats_names.begin(), stats_names.end() );
+
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = cp->get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
@@ -669,6 +794,7 @@ using boost::filesystem::path;
 typedef unsigned uint32_t;
 typedef long long int64_t;
 union fbits { float f; uint32_t u; };
+float const FLT_MAX = /*0x1.fffffep127f*/ 340282346638528859811704183484516925440.0f;
 
 )rstr";
 
@@ -714,17 +840,26 @@ union fbits { float f; uint32_t u; };
     for( vect_cu_func_call_t::const_iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
       cu_func_call_t const & cfc = *i;
       cu_func_t const & cf = must_find( cu_funcs, cfc.cu_func_name );
-      assert( cf.arg_sizes.size() == cfc.args.size() );
       vect_rp_void cu_func_args;
-      //printf( "cfc.cu_func_name=%s cfc.args=%s\n", str(cfc.cu_func_name).c_str(), str(cfc.args).c_str() );
+      //printf( "cfc.cu_func_name=%s cfc.args=%s cfc.u32_args=%s\n", str(cfc.cu_func_name).c_str(), str(cfc.args).c_str(), str(cfc.u32_args).c_str() );
+      uint32_t blks = cf.blks; // if non-zero, blks is static, and we can check arg sizes
+      if( blks ) { assert( cf.arg_sizes.size() == cfc.args.size() ); }
       for( uint32_t i = 0; i != cfc.args.size(); ++i ) {
 	p_cup_float arg = must_find( *cups, cfc.args[i] );
 	//printf( "  cfc.args[i]=%s arg->sz=%s\n", str(cfc.args[i]).c_str(), str(arg->sz).c_str() );
-	assert_st( arg->sz == cf.arg_sizes[i] );
+	if( blks ) { assert_st( arg->sz == cf.arg_sizes[i] ); }
 	cu_func_args.push_back( &arg->p );
       }
+      // add u32 args
+      for( uint32_t i = 0; i != cfc.u32_args.size(); ++i ) { cu_func_args.push_back( (void *)&cfc.u32_args[i] ); }
+      // FIXME: check that we're passing the correct # of args here somehow.
+      if( !blks ) { // handle dynamic # of blks case
+	// FIXME: pretty limited / special cased here
+	assert_st( cfc.u32_args.size() == 1 );
+	blks = u32_ceil_div( cfc.u32_args[0], cf.tpb );
+      }
       cu_err_chk( cuLaunchKernel( cf.cu_func,
-				  cf.blks, 1, 1, // grid x,y,z dims
+				  blks, 1, 1, // grid x,y,z dims
 				  cf.tpb, 1, 1, // block x,y,z dims
 				  0, 0, // smem_bytes, stream_ix
 				  &cu_func_args[0], // cu_func's args
@@ -735,6 +870,7 @@ union fbits { float f; uint32_t u; };
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
+    //dump_named_cups( to_dump, *cups ); 
     //printf("run_fwd() done\n");
   }
   
