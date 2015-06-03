@@ -185,6 +185,9 @@ using boost::filesystem::path;
     }
   };
 
+  typedef map< string, uint32_t > map_str_u32_t;
+  typedef map< string, float > map_str_float_t;
+
   typedef map< string, p_cup_float > map_str_p_cup_float_t;
   typedef shared_ptr< map_str_p_cup_float_t > p_map_str_p_cup_float_t;
 
@@ -198,19 +201,6 @@ using boost::filesystem::path;
     for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
       string const pyid = as_pyid( *i );
       cu_copy_cup_to_nda( must_find( ndas, pyid ), must_find( cups, pyid ) );
-    }
-  }
-
-  void dump_named_cups( vect_string const & names, map_str_p_cup_float_t const & cups ) {
-    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
-      string const pyid = as_pyid( *i );
-      p_cup_float const & cup = must_find( cups, pyid );
-      dims_t cup_dims( vect_uint32_t{cup->sz} ); 
-      cup_dims.calc_strides();
-      p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
-      cu_copy_cup_to_nda( nda, cup );
-      assert_st( nda->elems.sz == 1 );
-      printf( "%s=%s\n", str((*i)).c_str(), str(nda->elems[0]).c_str() );
     }
   }
 
@@ -239,12 +229,15 @@ using boost::filesystem::path;
     uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
     uint32_t enable_quantize; //NESI(default=0,help="if 1, enable quantize")
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
+    uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
 
     p_conv_pipe_t cp;
     uint32_t num_imgs;
     p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
-    vect_string to_dump;
+
+    vect_string stats_names;
+    map_str_float_t stats_map;
 
     //nvrtc/cuda state
     CUdevice cu_dev;
@@ -260,6 +253,8 @@ using boost::filesystem::path;
     virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
     virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
 
+    void update_stats( void );
+    virtual ~conv_pipe_fwd_t( void );
   protected:
     cu_func_t & gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     cu_func_t & gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
@@ -274,6 +269,38 @@ using boost::filesystem::path;
     void gen_ops_rec( string const & node_name );
 
   };
+
+  // FIXME: i'm not too happy about the duplication between here and the kernel version
+  float stats_reduce( string const & stats_name, float const & v1, float const & v2 ) { 
+    if( 0 ) { }
+    else if( endswith(stats_name,"min_out_sz_1") ) { return std::min(v1,v2); }
+    else if( endswith(stats_name,"max_out_sz_1") ) { return std::max(v1,v2); }
+    else if( endswith(stats_name,"sum_out_sz_1") ) { return v1 + v2; }
+    else if( endswith(stats_name,"hist_out_sz_1") ) { return v1 + v2; }
+    else if( endswith(stats_name,"cnt_out_sz_1") ) { return v1 + v2; }
+    else { assert_st(0); }
+  }
+
+  void conv_pipe_fwd_t::update_stats( void ) {
+    for( vect_string::const_iterator i = stats_names.begin(); i != stats_names.end(); ++i ) {
+      string const pyid = as_pyid( *i );
+      p_cup_float const & cup = must_find( *cups, pyid );
+      dims_t cup_dims( vect_uint32_t{cup->sz} ); 
+      cup_dims.calc_strides();
+      p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
+      cu_copy_cup_to_nda( nda, cup );
+      assert_st( nda->elems.sz == 1 );
+      float v = nda->elems[0];
+      if( has( stats_map, *i ) ) { v = stats_reduce( *i, v, stats_map[*i] ); }
+      stats_map[*i] = v;
+    }
+  }
+
+  conv_pipe_fwd_t::~conv_pipe_fwd_t( void ) {
+    for( map_str_float_t::const_iterator i = stats_map.begin(); i != stats_map.end(); ++i ) {
+      printf( "%s=%s\n", str(i->first).c_str(), str(i->second).c_str() );
+    }
+  }
 
   void conv_pipe_fwd_t::add_op_param( string const & name, uint32_t const & sz ) {
     string const & name_id = as_pyid( name );
@@ -618,6 +645,7 @@ using boost::filesystem::path;
       else if( tag == "max" ) { iv = "-FLT_MAX"; }
       else if( tag == "sum" ) { iv = "0"; }
       else if( tag == "hist" ) { iv = "0"; }
+      else if( tag == "cnt" ) { iv = "0"; }
       else { assert_st(0); } // unknown tag/op
     }
     string param_str( void ) { return strprintf( "%s * %s_in, %s * %s_out", ts.c_str(), tag.c_str(), ts.c_str(), tag.c_str() ); }
@@ -625,6 +653,7 @@ using boost::filesystem::path;
 						ts.c_str(), tag.c_str(), iv.c_str(), ts.c_str(), tag.c_str() ); }
     string in_proc_str( void ) { 
       if( tag == "hist" ) { return strprintf( " (%s_in[ix]>1000) ", tag.c_str() ); }
+      if( tag == "cnt" ) { return strprintf( "1" ); }
       else { return strprintf( " %s_in[ix]", tag.c_str() ); }
     }
     string load_str( void ) { return strprintf( "    if( ix < in_sz ) { "
@@ -633,11 +662,9 @@ using boost::filesystem::path;
 						tag.c_str() ); }
     string update_v_str( string const & from_expr ) {
       if( tag == "min" || tag == "max" ) {
-	return strprintf( "    %s_v = %s( %s_v, %s );", tag.c_str(), tag.c_str(), tag.c_str(), from_expr.c_str() ); 
-      } else if( tag == "sum" ) {
-      	return strprintf( "    %s_v += %s;", tag.c_str(), from_expr.c_str() ); 
-      } else if( tag == "hist" ) {
-      	return strprintf( "    %s_v += %s;", tag.c_str(), from_expr.c_str() ); 
+	return strprintf( "%s_v = %s( %s_v, %s );", tag.c_str(), tag.c_str(), tag.c_str(), from_expr.c_str() ); 
+      } else if( tag == "sum" || tag == "hist" || tag == "cnt" ) {
+      	return strprintf( "%s_v += %s;", tag.c_str(), from_expr.c_str() ); 
       } else { assert_st(0); }
     }
     string store_str( void ) {
@@ -647,7 +674,7 @@ using boost::filesystem::path;
   typedef vector< red_op_t > vect_red_op_t; 
 
   vect_string conv_pipe_fwd_t::gen_op_stats( conv_io_t const & cio_in, string const & top_in ) {
-    vect_red_op_t reds{ red_op_t("min"), red_op_t("max"), red_op_t("sum"), red_op_t("hist")  };
+    vect_red_op_t reds{ red_op_t("min"), red_op_t("max"), red_op_t("sum"), red_op_t("hist"), red_op_t("cnt")  };
     uint32_t in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;
     uint32_t primary_in = 1;
     assert_st( in_sz );
@@ -678,16 +705,20 @@ using boost::filesystem::path;
 	for( uint32_t smb = tbp / 2; smb > warp_sz; smb /= 2 ) {
 	  body.push_back( strprintf( "  if( tid < %s ) {", str(smb).c_str() ) );
 	  for( uint32_t i = 0; i != reds.size(); ++i ) { 
-	    body.push_back( reds[i].update_v_str( strprintf( "%s_smem[tid+%s]", reds[i].tag.c_str(), str(smb).c_str() )));
+	    body.push_back( strprintf("    %s_smem[tid] = ",reds[i].tag.c_str()) +
+			    reds[i].update_v_str( strprintf( "%s_smem[tid+%s]", reds[i].tag.c_str(), str(smb).c_str() )));
 	  }
 	  body.push_back( "  }" );
 	  body.push_back( "  __syncthreads();" );
 	}
-	for( uint32_t wb = warp_sz / 2; wb; wb /= 2 ) {
-	  for( uint32_t i = 0; i != reds.size(); ++i ) { body.push_back( 
-	      reds[i].update_v_str( strprintf( "__shfl_down( %s_v,%s )", reds[i].tag.c_str(), str(wb).c_str() ) ) );
+	body.push_back( strprintf( "  if( tid < %s ) {", str(warp_sz).c_str() ) );
+	for( uint32_t i = 0; i != reds.size(); ++i ) {
+	  body.push_back( reds[i].update_v_str( strprintf( "%s_smem[tid+%s]", reds[i].tag.c_str(), str(warp_sz).c_str() )));
+	  for( uint32_t wb = warp_sz / 2; wb; wb /= 2 ) {
+	    body.push_back( reds[i].update_v_str( strprintf( "__shfl_down( %s_v,%s )", reds[i].tag.c_str(), str(wb).c_str() ) ) );
 	  }
-	}	  
+	} 
+	body.push_back( "  }" );
 	for( uint32_t i = 0; i != reds.size(); ++i ) { body.push_back( reds[i].store_str() ); }
 
 	rfgi.tf_exprs.push_back( std::make_pair( "params", join(params,", ") ) );
@@ -809,8 +840,6 @@ using boost::filesystem::path;
     must_insert( *cups, as_pyid(name), make_shared<cup_float>( num_imgs * cio.chans * cio.sz.dims_prod() ) ); 
   }
 
-  typedef map< string, uint32_t > map_str_u32_t;
-
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
     p_conv_node_t node = cp->must_get_node( node_name );
     // setup source nodes here, otherwise print with thier writing op
@@ -821,13 +850,13 @@ using boost::filesystem::path;
     // generate stats gathering call
     // printf( "node_name=%s\n", str(node_name).c_str() );
     if( enable_quantize ) {
-      map_str_u32_t to_quantize{{"conv1",2048},{"conv2",256},{"conv3",256},{"conv4",256},{"conv5",256}};
+      map_str_u32_t to_quantize{{"conv1",4096},{"conv2",1024},{"conv3",1024},{"conv4",512},{"conv5",512}};
       if( has( to_quantize, node_name ) ) { gen_op_quantize( node->cio, as_pyid(node_name), to_quantize[node_name], 
 							     quantize_keep_bits ); }
     }
     if( enable_stats ) {
-      vect_string stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
-      to_dump.insert( to_dump.end(), stats_names.begin(), stats_names.end() );
+      vect_string new_stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
+      stats_names.insert( stats_names.end(), new_stats_names.begin(), new_stats_names.end() );
     }
 
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
@@ -892,12 +921,11 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       cu_func_call_t const & cfc = *i;
       cu_func_t const & cf = must_find( cu_funcs, cfc.cu_func_name );
       vect_rp_void cu_func_args;
-      //printf( "cfc.cu_func_name=%s cfc.args=%s cfc.u32_args=%s\n", str(cfc.cu_func_name).c_str(), str(cfc.args).c_str(), str(cfc.u32_args).c_str() );
       uint32_t blks = cf.blks; // if non-zero, blks is static, and we can check arg sizes
       if( blks ) { assert( cf.arg_sizes.size() == cfc.args.size() ); }
       for( uint32_t i = 0; i != cfc.args.size(); ++i ) {
 	p_cup_float arg = must_find( *cups, cfc.args[i] );
-	//printf( "  cfc.args[i]=%s arg->sz=%s\n", str(cfc.args[i]).c_str(), str(arg->sz).c_str() );
+	// printf( "  cfc.args[i]=%s arg->sz=%s\n", str(cfc.args[i]).c_str(), str(arg->sz).c_str() );
 	if( blks ) { assert_st( arg->sz == cf.arg_sizes[i] ); }
 	cu_func_args.push_back( &arg->p );
       }
@@ -908,6 +936,10 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 	// FIXME: pretty limited / special cased here
 	assert_st( cfc.u32_args.size() > 0 );
 	blks = u32_ceil_div( cfc.u32_args[0], cf.tpb );
+      }
+      if( show_rtc_calls ) { 
+	printf( "%s( %s -- %s ) tpb=%s blks=%s\n", str(cfc.cu_func_name).c_str(), str(cfc.args).c_str(), str(cfc.u32_args).c_str(),
+		str(cf.tpb).c_str(), str(blks).c_str() );
       }
       cu_err_chk( cuLaunchKernel( cf.cu_func,
 				  blks, 1, 1, // grid x,y,z dims
@@ -921,7 +953,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
-    dump_named_cups( to_dump, *cups ); 
+    update_stats();
     //printf("run_fwd() done\n");
   }
   
