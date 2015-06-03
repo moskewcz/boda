@@ -5,6 +5,7 @@
 #include"timers.H"
 #include"str_util.H"
 #include"has_main.H"
+#include"has_conv_fwd.H"
 #include"io_util.H"
 #include"nesi.H"
 #include"caffepb.H"
@@ -644,18 +645,12 @@ namespace boda
     for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { run_ops_rec( fwd, *i ); }
   }
 
-  p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in, bool const & use_nvrtc ) {
+  p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd ) {
     p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>( *op_params );
     assert( bots.size() == 1 );
     (*fwd)[bots[0]] = in;
-    if( use_nvrtc ) {
-      if( !conv_pipe_fwd ) {
-	// note: num_imgs can't change after conv_pipe_fwd_t::init(); this is checked in conv_pipe_fwd_t::run_fwd()
-	uint32_t const num_imgs = in->dims.dims(0); 
-	conv_pipe_fwd = make_conv_pipe_fwd_t( p_conv_pipe_t( this, null_deleter<conv_pipe_t>() ), num_imgs ); 
-      };
-      conv_pipe_fwd_t_run( conv_pipe_fwd, fwd );
-    } else { run_ops( fwd ); }
+    if( conv_fwd ) { conv_fwd->run_fwd( fwd ); }
+    else { run_ops( fwd ); }
     return must_find( *fwd, get_single_top_node()->name );
   }
 

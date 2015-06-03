@@ -264,18 +264,17 @@ namespace boda
     if( compute_mode == 0 ) {
       return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch );      
     } else {
-      assert_st( compute_mode >= 1 );
-      assert_st( compute_mode <= 2 );
-      return conv_pipe->run_one_blob_in_one_blob_out( in_batch, compute_mode == 2 );
+      assert_st( compute_mode == 1 );
+      return conv_pipe->run_one_blob_in_one_blob_out( in_batch, conv_fwd );
     }
   }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out_upsamp( void ) { 
     if( compute_mode == 0 ) {
       return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch );      
     } else {
-      assert_st( compute_mode >= 1 );
-      assert_st( compute_mode <= 2 );
-      return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, compute_mode == 2 );
+      assert_st( compute_mode == 1 );
+      assert_st( !conv_fwd ); // FIXME: not supported; need two conv_fwd's ...
+      return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, conv_fwd );
     }
   }
   // note; there is an unfortunate potential circular dependency here: we may need the pipe info
@@ -407,7 +406,6 @@ namespace boda
     // the time ...
     p_net_param_t trained_net = must_read_binary_proto( trained_fn );
     copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe->op_params );
-
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
@@ -416,6 +414,9 @@ namespace boda
     }
     conv_pipe->calc_sizes_forward( in_sz, 0 ); 
     if( enable_upsamp_net ) { conv_pipe_upsamp->calc_sizes_forward( in_sz, 0 ); }
+
+    if( conv_fwd ) { conv_fwd->init( conv_pipe, in_num_imgs ); } // FIXME: need upsamp version of conv_fwd ...
+
   }
   void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
     assert_st( net_param && conv_pipe );

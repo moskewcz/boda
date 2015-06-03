@@ -4,6 +4,7 @@
 #include"str_util.H"
 #include"rand_util.H"
 #include"has_main.H"
+#include"has_conv_fwd.H"
 #include"timers.H"
 #include<nvrtc.h>
 #include<cuda.h>
@@ -229,7 +230,16 @@ using boost::filesystem::path;
   };
   typedef map< string, cu_func_t > cu_funcs_t;
 
-  struct conv_pipe_fwd_t {
+  struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
+			   // bases=["has_conv_fwd_t"], type_id="nvrtc" )
+
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
+    uint32_t enable_quantize; //NESI(default=0,help="if 1, enable quantize")
+    uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
+
     p_conv_pipe_t cp;
     uint32_t num_imgs;
     p_map_str_p_cup_float_t cups;
@@ -246,10 +256,9 @@ using boost::filesystem::path;
     vect_cu_func_call_t fwd_calls;
     cu_funcs_t cu_funcs;
     
-    bool enable_stats;
 
-    void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
-    void run_fwd( p_map_str_p_nda_float_t const & fwd );
+    virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
+    virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
 
   protected:
     cu_func_t & gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
@@ -265,10 +274,6 @@ using boost::filesystem::path;
     void gen_ops_rec( string const & node_name );
 
   };
-  p_conv_pipe_fwd_t make_conv_pipe_fwd_t( p_conv_pipe_t const & cp, uint32_t const & num_imgs ) { 
-    p_conv_pipe_fwd_t ret = make_shared<conv_pipe_fwd_t>(); ret->init(cp,num_imgs); return ret; 
-  }
-  void conv_pipe_fwd_t_run( p_conv_pipe_fwd_t const & cpf, p_map_str_p_nda_float_t const & fwd ) { cpf->run_fwd( fwd ); }
 
   void conv_pipe_fwd_t::add_op_param( string const & name, uint32_t const & sz ) {
     string const & name_id = as_pyid( name );
@@ -815,10 +820,10 @@ using boost::filesystem::path;
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { gen_op( *j ); }
     // generate stats gathering call
     // printf( "node_name=%s\n", str(node_name).c_str() );
-    bool enable_quantize = 0;
     if( enable_quantize ) {
       map_str_u32_t to_quantize{{"conv1",2048},{"conv2",256},{"conv3",256},{"conv4",256},{"conv5",256}};
-      if( has( to_quantize, node_name ) ) { gen_op_quantize( node->cio, as_pyid(node_name), to_quantize[node_name], 8 ); }
+      if( has( to_quantize, node_name ) ) { gen_op_quantize( node->cio, as_pyid(node_name), to_quantize[node_name], 
+							     quantize_keep_bits ); }
     }
     if( enable_stats ) {
       vect_string stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
@@ -845,17 +850,19 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 )rstr";
 
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
-    enable_stats = 0;
-
     cp = cp_;
     assert_st( cp );
     assert_st( cp->finalized );
     num_imgs = num_imgs_;
     assert_st( num_imgs );
+    // need to init CUDA prior to potential cuda mallocs during setup/codegen
+    cu_err_chk( cuInit( 0 ), "cuInit" ); 
+    cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
+    //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
+    cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
+    cu_err_chk( cuCtxSetCurrent( cu_context ), "cuCtxSetCurrent" ); // is this always needed/okay?
     cups.reset( new map_str_p_cup_float_t );
-
-    cu_prog_str += cu_base_decls;
-    
+    cu_prog_str += cu_base_decls;    
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
@@ -864,10 +871,6 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     write_whole_fn( "out.ptx", prog_ptx );
     //printf( "cu_prog_str=%s\n", str(cu_prog_str).c_str() );
     //printf( "prog_ptx=%s\n", str(prog_ptx).c_str() );
-    cu_err_chk( cuInit( 0 ), "cuInit" );
-    cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
-    //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
-    cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
     cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
     bool const print_func_attrs = 0;
     for( cu_funcs_t::iterator i = cu_funcs.begin(); i != cu_funcs.end(); ++i ) {

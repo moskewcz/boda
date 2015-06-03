@@ -71,9 +71,8 @@ LDFLAGS := $(LDFLAGS) -lpython2.7
 # that some dependencies may not usefully be disable-able.
 
 [objs]
-
+has_conv_fwd.o
 nvrtc_util.o nvrtc
-nvrtc_util-no-nvrtc-stub.o -nvrtc
 lmdb_caffe_disp.o caffe_pb caffe lmdb SDL2
 lmdb_caffe_io.o caffe_pb caffe lmdb
 

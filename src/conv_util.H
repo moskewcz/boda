@@ -2,10 +2,11 @@
 #define _CONV_UTIL_H_
 
 #include"conv_common.H"
-#include"nvrtc_util.H"
 
 namespace boda 
 {
+  struct has_conv_fwd_t; typedef shared_ptr< has_conv_fwd_t > p_has_conv_fwd_t; 
+
   // caffe-compatible layer type strings
   // raw list: Pooling Convolution ReLU Dropout LRN Accuracy SoftmaxWithLoss Data Concat InnerProduct
   std::string const Pooling_str = "Pooling";
@@ -88,8 +89,6 @@ namespace boda
     p_map_str_p_nda_float_t op_params;
     bool finalized;
 
-    p_conv_pipe_fwd_t conv_pipe_fwd; // from nvrtc_util.H
-
     conv_pipe_t( void ) : convs( new map_str_p_conv_op_t ), nodes( new map_str_p_conv_node_t ), 
 			  op_params( new map_str_p_nda_float_t ), finalized(0) { }
     void finalize( void ); // call when finished building network
@@ -123,7 +122,7 @@ namespace boda
     void fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only );
     void run_ops( p_map_str_p_nda_float_t const & fwd );
     void run_ops_rec( p_map_str_p_nda_float_t const & fwd, string const & node_name );
-    p_nda_float_t run_one_blob_in_one_blob_out( p_nda_float_t const & in, bool const & use_nvrtc );
+    p_nda_float_t run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd );
   };
 
 
