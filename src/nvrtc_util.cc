@@ -257,6 +257,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix );
     cu_func_t & gen_op_relu( conv_io_t const & cio_out );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
+    void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
     void gen_node( string const & name, p_conv_node_t const & node );
     void add_op_param( string const & name, uint32_t const & sz );
@@ -708,6 +709,28 @@ using boost::filesystem::path;
     return cur_ins;
   }
 
+  void conv_pipe_fwd_t::gen_op_quantize( conv_io_t const & cio_in, string const & top_in, 
+					 uint32_t const & max_val, uint32_t const & keep_bits ) {
+    uint32_t drop_bits = 0;
+    while( max_val > (1<<(keep_bits+drop_bits)) ) { ++drop_bits; }
+    uint32_t drop_mask = ((1<<drop_bits)-1);
+
+    uint32_t in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;
+    assert_st( in_sz );
+    rtc_func_gen_info_t rfgi{"quantize", { } };
+    cu_func_t & cf = rfgi.init( cu_funcs );
+    if( !cf.finalized ) { 
+      cf.tpb = 256;
+      // FIXME: handle dynamic block sizes better?
+      //cf.blks = u32_ceil_div( in_sz, cf.tpb );
+      cf.blks = 0;
+      vect_string body;
+      rfgi.tf_exprs.push_back( std::make_pair( "body", join(body,"\n") ) );
+      rfgi.instantiate_template( cu_prog_str );
+    }
+    fwd_calls.push_back( cu_func_call_t{ cf.name, {top_in}, {in_sz,max_val,drop_mask} } );
+  }
+
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     string const tag_id_str = as_pyid( cop->tag );
     //char const * const tag_id = tag_id_str.c_str();
@@ -781,6 +804,8 @@ using boost::filesystem::path;
     must_insert( *cups, as_pyid(name), make_shared<cup_float>( num_imgs * cio.chans * cio.sz.dims_prod() ) ); 
   }
 
+  typedef map< string, uint32_t > map_str_u32_t;
+
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
     p_conv_node_t node = cp->must_get_node( node_name );
     // setup source nodes here, otherwise print with thier writing op
@@ -789,6 +814,12 @@ using boost::filesystem::path;
     // in-place ops for this node
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { gen_op( *j ); }
     // generate stats gathering call
+    // printf( "node_name=%s\n", str(node_name).c_str() );
+    bool enable_quantize = 0;
+    if( enable_quantize ) {
+      map_str_u32_t to_quantize{{"conv1",2048},{"conv2",256},{"conv3",256},{"conv4",256},{"conv5",256}};
+      if( has( to_quantize, node_name ) ) { gen_op_quantize( node->cio, as_pyid(node_name), to_quantize[node_name], 8 ); }
+    }
     if( enable_stats ) {
       vect_string stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
       to_dump.insert( to_dump.end(), stats_names.begin(), stats_names.end() );
@@ -806,6 +837,7 @@ using boost::filesystem::path;
   }
   string cu_base_decls = R"rstr(
 typedef unsigned uint32_t;
+typedef int int32_t;
 typedef long long int64_t;
 union fbits { float f; uint32_t u; };
 float const FLT_MAX = /*0x1.fffffep127f*/ 340282346638528859811704183484516925440.0f;
@@ -813,7 +845,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 )rstr";
 
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
-    enable_stats = 1;
+    enable_stats = 0;
 
     cp = cp_;
     assert_st( cp );
