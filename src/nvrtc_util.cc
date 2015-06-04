@@ -759,7 +759,7 @@ using boost::filesystem::path;
   void conv_pipe_fwd_t::gen_op_quantize( conv_io_t const & cio_in, string const & top_in, 
 					 uint32_t const & max_val, uint32_t const & keep_bits ) {
     uint32_t drop_bits = 0;
-    while( max_val > (1<<(keep_bits+drop_bits)) ) { ++drop_bits; }
+    while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
 
     uint32_t in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;

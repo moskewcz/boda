@@ -13,7 +13,7 @@ namespace boda
 {
   template< typename GEN, typename DIST = boost::random::uniform_int_distribution<> >
   u32_pt_t random_pt( u32_pt_t const & max_val, GEN & gen ) {
-    return u32_pt_t{ DIST( 0, max_val.d[0] )(gen), DIST( 0, max_val.d[1] )(gen) }; }
+    return u32_pt_t{ (uint32_t)DIST( 0, max_val.d[0] )(gen), (uint32_t)DIST( 0, max_val.d[1] )(gen) }; }
 
   template< typename T, typename GEN, typename DIST = boost::random::uniform_real_distribution<T> >
   void rand_fill_vect( vector< T > & v, T const & min_val, T const & max_val, GEN & gen ) {

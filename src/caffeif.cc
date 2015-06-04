@@ -508,7 +508,7 @@ namespace boda
 	    pred_state.push_back( pred_state_t{} );
 	    pred_state_t & ps = pred_state.back();
 	    ps.label_ix = bc; 
-	    u32_pt_t const feat_xy = {bx, by};
+	    u32_pt_t const feat_xy = {(uint32_t)bx, (uint32_t)by};
 	    u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
 	    i32_box_t valid_in_xy, core_valid_in_xy; // note: core_valid_in_xy unused
 	    unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
