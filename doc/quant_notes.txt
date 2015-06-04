@@ -1,0 +1,162 @@
+*** baseline run (2015.06.03), run 50000
+moskewcz@maaya:~/git_work/boda/run/tr1$ CUDA_VISIBLE_DEVICES=0 DISABLE_CUDNN=0 time boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=50000 --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_layer_name=fc8-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=1,enable_quantize=0,quantize_keep_bits=7,show_rtc_calls=0))' 
+top_1_acc=0.5806 num_pos=29030 num_test=50000
+conv1_cnt_out_sz_1=1.45203e+10
+conv1_hist_out_sz_1=5.80299e+06
+conv1_max_out_sz_1=3012.62
+conv1_min_out_sz_1=0
+conv1_sum_out_sz_1=3.19585e+11
+conv2_cnt_out_sz_1=9.3312e+09
+conv2_hist_out_sz_1=2
+conv2_max_out_sz_1=1009.37
+conv2_min_out_sz_1=0
+conv2_sum_out_sz_1=8.87775e+10
+conv3_cnt_out_sz_1=3.2448e+09
+conv3_hist_out_sz_1=0
+conv3_max_out_sz_1=644.528
+conv3_min_out_sz_1=0
+conv3_sum_out_sz_1=3.13941e+10
+conv4_cnt_out_sz_1=3.2448e+09
+conv4_hist_out_sz_1=0
+conv4_max_out_sz_1=492.365
+conv4_min_out_sz_1=0
+conv4_sum_out_sz_1=1.89226e+10
+conv5_cnt_out_sz_1=2.1632e+09
+conv5_hist_out_sz_1=0
+conv5_max_out_sz_1=401.314
+conv5_min_out_sz_1=0
+conv5_sum_out_sz_1=2.76215e+09
+data_cnt_out_sz_1=7.72957e+09
+data_hist_out_sz_1=0
+data_max_out_sz_1=151
+data_min_out_sz_1=-123
+data_sum_out_sz_1=-1.99395e+10
+fc6_cnt_out_sz_1=2.048e+08
+fc6_hist_out_sz_1=0
+fc6_max_out_sz_1=113.737
+fc6_min_out_sz_1=0
+fc6_sum_out_sz_1=2.58823e+08
+fc7_cnt_out_sz_1=2.048e+08
+fc7_hist_out_sz_1=0
+fc7_max_out_sz_1=40.1864
+fc7_min_out_sz_1=0
+fc7_sum_out_sz_1=8.4036e+07
+fc8_cnt_out_sz_1=5e+07
+fc8_hist_out_sz_1=0
+fc8_max_out_sz_1=57.0793
+fc8_min_out_sz_1=-18.1492
+fc8_sum_out_sz_1=-35204.7
+norm1_cnt_out_sz_1=1.45203e+10
+norm1_hist_out_sz_1=0
+norm1_max_out_sz_1=138.726
+norm1_min_out_sz_1=0
+norm1_sum_out_sz_1=1.99747e+11
+norm2_cnt_out_sz_1=9.3312e+09
+norm2_hist_out_sz_1=0
+norm2_max_out_sz_1=138.726
+norm2_min_out_sz_1=0
+norm2_sum_out_sz_1=6.8314e+10
+pool1_cnt_out_sz_1=3.49932e+09
+pool1_hist_out_sz_1=0
+pool1_max_out_sz_1=138.726
+pool1_min_out_sz_1=0
+pool1_sum_out_sz_1=1.31014e+11
+pool2_cnt_out_sz_1=2.1632e+09
+pool2_hist_out_sz_1=0
+pool2_max_out_sz_1=138.726
+pool2_min_out_sz_1=0
+pool2_sum_out_sz_1=4.43179e+10
+pool5_cnt_out_sz_1=4.608e+08
+pool5_hist_out_sz_1=0
+pool5_max_out_sz_1=401.314
+pool5_min_out_sz_1=0
+pool5_sum_out_sz_1=2.18966e+09
+TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  
+          22     41.519ms      1.887ms    caffe_copy_layer_blob_data
+           1    750.764ms    750.764ms    nvrtc_compile
+           1     50.681ms     50.681ms    caffe_init
+        2500     183.477s     73.391ms    conv_pipe_fwd_t::run_fwd
+174.49user 26.23system 3:20.92elapsed 99%CPU (0avgtext+0avgdata 42537104maxresident)k
+0inputs+2328outputs (0major+209166minor)pagefaults 0swaps
+
+*** baseline run (2015.06.03), 1000
+moskewcz@maaya:~/git_work/boda/run/tr1$ CUDA_VISIBLE_DEVICES=0 DISABLE_CUDNN=0 time boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=1000 --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_layer_name=fc8-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=1,enable_quantize=0,quantize_keep_bits=7,show_rtc_calls=0))' 
+top_1_acc=0.573 num_pos=573 num_test=1000
+conv1_cnt_out_sz_1=2.904e+08
+conv1_hist_out_sz_1=109443
+conv1_max_out_sz_1=2677.8
+conv1_min_out_sz_1=0
+conv1_sum_out_sz_1=6.35093e+09
+conv2_cnt_out_sz_1=1.86624e+08
+conv2_hist_out_sz_1=0
+conv2_max_out_sz_1=933.4
+conv2_min_out_sz_1=0
+conv2_sum_out_sz_1=1.76644e+09
+conv3_cnt_out_sz_1=6.4896e+07
+conv3_hist_out_sz_1=0
+conv3_max_out_sz_1=597.958
+conv3_min_out_sz_1=0
+conv3_sum_out_sz_1=6.30128e+08
+conv4_cnt_out_sz_1=6.4896e+07
+conv4_hist_out_sz_1=0
+conv4_max_out_sz_1=469.181
+conv4_min_out_sz_1=0
+conv4_sum_out_sz_1=3.7696e+08
+conv5_cnt_out_sz_1=4.3264e+07
+conv5_hist_out_sz_1=0
+conv5_max_out_sz_1=353.564
+conv5_min_out_sz_1=0
+conv5_sum_out_sz_1=5.4764e+07
+data_cnt_out_sz_1=1.54587e+08
+data_hist_out_sz_1=0
+data_max_out_sz_1=151
+data_min_out_sz_1=-123
+data_sum_out_sz_1=-5.14236e+08
+fc6_cnt_out_sz_1=4.096e+06
+fc6_hist_out_sz_1=0
+fc6_max_out_sz_1=82.5472
+fc6_min_out_sz_1=0
+fc6_sum_out_sz_1=5.14088e+06
+fc7_cnt_out_sz_1=4.096e+06
+fc7_hist_out_sz_1=0
+fc7_max_out_sz_1=31.2247
+fc7_min_out_sz_1=0
+fc7_sum_out_sz_1=1.67954e+06
+fc8_cnt_out_sz_1=1e+06
+fc8_hist_out_sz_1=0
+fc8_max_out_sz_1=41.4754
+fc8_min_out_sz_1=-12.2359
+fc8_sum_out_sz_1=-709.08
+norm1_cnt_out_sz_1=2.904e+08
+norm1_hist_out_sz_1=0
+norm1_max_out_sz_1=138.726
+norm1_min_out_sz_1=0
+norm1_sum_out_sz_1=4.00034e+09
+norm2_cnt_out_sz_1=1.86624e+08
+norm2_hist_out_sz_1=0
+norm2_max_out_sz_1=138.726
+norm2_min_out_sz_1=0
+norm2_sum_out_sz_1=1.35815e+09
+pool1_cnt_out_sz_1=6.9984e+07
+pool1_hist_out_sz_1=0
+pool1_max_out_sz_1=138.726
+pool1_min_out_sz_1=0
+pool1_sum_out_sz_1=2.63607e+09
+pool2_cnt_out_sz_1=4.3264e+07
+pool2_hist_out_sz_1=0
+pool2_max_out_sz_1=138.726
+pool2_min_out_sz_1=0
+pool2_sum_out_sz_1=8.79989e+08
+pool5_cnt_out_sz_1=9.216e+06
+pool5_hist_out_sz_1=0
+pool5_max_out_sz_1=353.564
+pool5_min_out_sz_1=0
+pool5_sum_out_sz_1=4.34342e+07
+TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  
+          22     41.651ms      1.893ms    caffe_copy_layer_blob_data
+           1    765.114ms    765.114ms    nvrtc_compile
+           1     50.993ms     50.993ms    caffe_init
+          50       3.653s     73.071ms    conv_pipe_fwd_t::run_fwd
+6.57user 0.88system 0:07.47elapsed 99%CPU (0avgtext+0avgdata 4534848maxresident)k
+0inputs+1544outputs (0major+58795minor)pagefaults 0swaps
+moskewcz@maaya:~/git_work/boda/run/tr1$ 
