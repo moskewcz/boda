@@ -220,6 +220,17 @@ using boost::filesystem::path;
   };
   typedef map< string, cu_func_t > cu_funcs_t;
 
+  struct quantize_ops_t : virtual public nesi // NESI(help="per-layer quantization options") 
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string name; //NESI(help="name of node to apply operation to",req=1)
+    uint32_t max_val; //NESI(help="clamp value to this maximum",req=1)
+    uint32_t keep_bits; //NESI(help="after clamping, keep this many high bits",req=1)
+  };
+  typedef vector< quantize_ops_t > vect_quantize_ops_t; 
+  typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
+  typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
+
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
 			   // bases=["has_conv_fwd_t"], type_id="nvrtc" )
 
@@ -227,7 +238,7 @@ using boost::filesystem::path;
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
     uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
-    uint32_t enable_quantize; //NESI(default=0,help="if 1, enable quantize")
+    vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
 
@@ -840,6 +851,12 @@ using boost::filesystem::path;
     must_insert( *cups, as_pyid(name), make_shared<cup_float>( num_imgs * cio.chans * cio.sz.dims_prod() ) ); 
   }
 
+  // quantize command line example:
+  // export QOPTS="keep_bits=8,quantize=(_=(name=conv1,max_val=4096),_=(name=conv2,max_val=1024),_=(name=conv3,max_val=1024),_=(name=conv4,max_val=512),_=(name=conv5,max_val=512))
+
+  // CUDA_VISIBLE_DEVICES=0 DISABLE_CUDNN=0 time boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=1000 --run-cnet="(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_layer_name=fc8-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=0,show_rtc_calls=0,${QOPTS}))"
+
+
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
     p_conv_node_t node = cp->must_get_node( node_name );
     // setup source nodes here, otherwise print with thier writing op
@@ -849,10 +866,9 @@ using boost::filesystem::path;
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { gen_op( *j ); }
     // generate stats gathering call
     // printf( "node_name=%s\n", str(node_name).c_str() );
-    if( enable_quantize ) {
-      map_str_u32_t to_quantize{{"conv1",4096},{"conv2",1024},{"conv3",1024},{"conv4",512},{"conv5",512}};
-      if( has( to_quantize, node_name ) ) { gen_op_quantize( node->cio, as_pyid(node_name), to_quantize[node_name], 
-							     quantize_keep_bits ); }
+    for( vect_p_quantize_ops_t::const_iterator i = quantize.begin(); i != quantize.end(); ++i ) {
+      if( node_name != (*i)->name ) { continue; }
+      gen_op_quantize( node->cio, as_pyid(node_name), (*i)->max_val, (*i)->keep_bits );
     }
     if( enable_stats ) {
       vect_string new_stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
