@@ -1,3 +1,58 @@
+*** alexnet results
+boda_job_0.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_1.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_2.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_3.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_4.txt:top_1_acc=0.009 num_pos=450 num_test=50000
+boda_job_5.txt:top_1_acc=0.1726 num_pos=8630 num_test=50000
+boda_job_6.txt:top_1_acc=0.39784 num_pos=19892 num_test=50000
+boda_job_7.txt:top_1_acc=0.51594 num_pos=25797 num_test=50000
+boda_job_8.txt:top_1_acc=0.56026 num_pos=28013 num_test=50000
+boda_job_9.txt:top_1_acc=0.57448 num_pos=28724 num_test=50000
+boda_job_10.txt:top_1_acc=0.57728 num_pos=28864 num_test=50000
+boda_job_11.txt:top_1_acc=0.57862 num_pos=28931 num_test=50000
+boda_job_12.txt:top_1_acc=0.5785 num_pos=28925 num_test=50000
+boda_job_13.txt:top_1_acc=0.5785 num_pos=28925 num_test=50000
+boda_job_14.txt:top_1_acc=0.5785 num_pos=28925 num_test=50000
+boda_job_15.txt:top_1_acc=0.5785 num_pos=28925 num_test=50000
+*** nin results
+boda_job_0.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_1.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_2.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_3.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_4.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_5.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_6.txt:top_1_acc=0.11682 num_pos=5841 num_test=50000
+boda_job_7.txt:top_1_acc=0.49826 num_pos=24913 num_test=50000
+boda_job_8.txt:top_1_acc=0.56804 num_pos=28402 num_test=50000
+boda_job_9.txt:top_1_acc=0.57858 num_pos=28929 num_test=50000
+boda_job_10.txt:top_1_acc=0.58106 num_pos=29053 num_test=50000
+boda_job_11.txt:top_1_acc=0.58142 num_pos=29071 num_test=50000
+boda_job_12.txt:top_1_acc=0.5818 num_pos=29090 num_test=50000
+boda_job_13.txt:top_1_acc=0.5818 num_pos=29090 num_test=50000
+boda_job_14.txt:top_1_acc=0.5818 num_pos=29090 num_test=50000
+boda_job_15.txt:top_1_acc=0.5818 num_pos=29090 num_test=50000
+*** gn results
+boda_job_0.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_1.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_2.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_3.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_4.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_5.txt:top_1_acc=0.001 num_pos=50 num_test=50000
+boda_job_6.txt:top_1_acc=0.0089 num_pos=445 num_test=50000
+boda_job_7.txt:top_1_acc=0.53476 num_pos=26738 num_test=50000
+boda_job_8.txt:top_1_acc=0.65478 num_pos=32739 num_test=50000
+boda_job_9.txt:top_1_acc=0.66864 num_pos=33432 num_test=50000
+boda_job_10.txt:top_1_acc=0.67188 num_pos=33594 num_test=50000
+boda_job_11.txt:top_1_acc=0.67362 num_pos=33681 num_test=50000
+boda_job_12.txt:top_1_acc=0.6738 num_pos=33690 num_test=50000
+boda_job_13.txt:top_1_acc=0.6738 num_pos=33690 num_test=50000
+boda_job_14.txt:top_1_acc=0.6738 num_pos=33690 num_test=50000
+boda_job_15.txt:top_1_acc=0.6738 num_pos=33690 num_test=50000
+
+
+
+
 *** baseline run (2015.06.03), run 50000
 moskewcz@maaya:~/git_work/boda/run/tr1$ CUDA_VISIBLE_DEVICES=0 DISABLE_CUDNN=0 time boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=50000 --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_layer_name=fc8-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=1,enable_quantize=0,quantize_keep_bits=7,show_rtc_calls=0))' 
 top_1_acc=0.5806 num_pos=29030 num_test=50000
