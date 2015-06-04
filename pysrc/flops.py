@@ -15,6 +15,7 @@ def pp_val( v ): # pretty-print flops
     return ret+"KMGTP"[exp - 1]
 def pp_flops( v ): return pp_val( v ) + " FLOPS"
 def pp_bytes( v ): return pp_val( v ) + " BYTES"
+def pp_bps( v ): return pp_val( v ) + " BYTES/SEC"
 def pp_fpb( v ): return pp_val( v ) + " FLOPS/BYTE"
 def pp_fps( v ): return pp_val( v ) + " FLOPS/SEC"
 def pp_fpspw( v ): return pp_val( v ) + " FLOPS/SEC/WATT"
@@ -68,6 +69,7 @@ class Net( object ):
         print "TOTAL_%s_FLOPS_PER_SEC_PER_WATT %s" % ( fb_str, pp_fpspw(flops/args.runtime/args.power) )
 
         print "TOTAL_%s_IO_BYTES %s" % ( fb_str, pp_bytes(bytes_))
+        print "TOTAL_%s_IO_BYTES_PER_SEC %s" % ( fb_str, pp_bps(bytes_/args.runtime) )
         print "TOTAL_%s_ARITH_INTENSITY %s" % ( fb_str, pp_fpb(flops / float(bytes_)) )
 
 
