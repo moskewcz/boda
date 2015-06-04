@@ -1,3 +1,35 @@
+data = SRC_NDA(3,227,227) 
+conv1_filts = SRC_NDA(96,3,11,11)
+conv1_out = NDA(96,55,55)
+ConvolutionRELU( conv1_filts, 
+   pad=0, stride=4, data, conv1 )
+
+conv2_filts = SRC_NDA(64,96,3,3)
+conv2_out = NDA(64,55,55)
+ConvolutionRELU( conv2_filts, pad=1, 
+   stride=1, conv1_out, conv2_out )
+
+NUM_IMGS=1 FWD
+conv1   211MF  1.92MB
+conv2   896MF  3.49MB 
+conv3   299MF  3.97MB 
+conv4   449MF  5.83MB 
+conv5   299MF  3.97MB 
+fc6    75.5MF   151MB 
+fc7    33.6MF  67.2MB 
+fc8    8.19MF  16.4MB 
+
+IO=254MB COMPUTE=2.27GF
+0.029s * 150W = 4.35J
+78.3GF/s 522MF/s/W
+
+ARITH_INTEN=8.95F/Byte
+
+
+conv1 FWD 4.22GF 35.7MB
+FWD AI=164 4.57GF/s/W
+ 
+
 *** alexnet results
 boda_job_0.txt:top_1_acc=0.001 num_pos=50 num_test=50000
 boda_job_1.txt:top_1_acc=0.001 num_pos=50 num_test=50000
