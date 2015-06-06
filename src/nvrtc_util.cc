@@ -11,7 +11,7 @@
 #include<boost/filesystem.hpp>
 #include<boost/lexical_cast.hpp>
 #include"lexp.H"
-
+#include<cudaProfiler.h>
 // for conv_pipe_fwd_t
 #include"conv_util.H"
 
@@ -930,6 +930,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 
   void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     timer_t t("conv_pipe_fwd_t::run_fwd");
+    cuProfilerStart();
     //printf("run_fwd() begin\n");
     copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
     //printf("run_fwd() exec\n");
@@ -966,6 +967,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       
     }
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
+    cuProfilerStop();
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
