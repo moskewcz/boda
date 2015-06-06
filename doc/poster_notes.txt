@@ -1,0 +1,12 @@
+Note the that caffe DSL includes various rarely-used options, features, and legacy compatibility quirks.
+Rule of thumb: each new 'interesting' CNN topology needs a couple new layers/features.
+Before computation can be performed, various setup and error checking must be performed on the specified net.
+In particular, the sizes of the input must be propagated though the net to determine the size of the output and all intermediate nodes
+Our proposed IR sits between these parsing and setup activities and the computation
+Construct DAG of nodes and operations using simple C++ structures
+Alexnet and nin are 'sticks' – just simple pipelines
+Googlenet has some small-scale split and reconvergence ('inception' layers)
+Node are N-D arrays, generally representing multi-channel images: CxWxH
+Operations are the atomic semantic computational units of the IR listed above, annotated with any needed parameters.
+The operation type, its parameters, and the sizes of it's input and output nodes are sufficient to precisely define the input-output semantics of the operation node.
+
