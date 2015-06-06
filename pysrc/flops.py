@@ -13,13 +13,25 @@ def pp_val( v ): # pretty-print flops
         ret = pp_val_part( v, exp == 5 )
     if exp == 0: return ret
     return ret+"KMGTP"[exp - 1]
-def pp_flops( v ): return pp_val( v ) + " FLOPS"
-def pp_bytes( v ): return pp_val( v ) + " BYTES"
-def pp_bps( v ): return pp_val( v ) + " BYTES/SEC"
-def pp_fpb( v ): return pp_val( v ) + " FLOPS/BYTE"
-def pp_fps( v ): return pp_val( v ) + " FLOPS/SEC"
-def pp_fpspw( v ): return pp_val( v ) + " FLOPS/SEC/WATT"
-def pp_joules( v ): return pp_val( v ) + " JOULES"
+
+verbose_print = 0
+if verbose_print:
+    def pp_flops( v ): return pp_val( v ) + " FLOPS"
+    def pp_bytes( v ): return pp_val( v ) + " BYTES"
+    def pp_bps( v ): return pp_val( v ) + " BYTES/SEC"
+    def pp_fpb( v ): return pp_val( v ) + " FLOPS/BYTE"
+    def pp_fps( v ): return pp_val( v ) + " FLOPS/SEC"
+    def pp_fpspw( v ): return pp_val( v ) + " FLOPS/SEC/WATT"
+    def pp_joules( v ): return pp_val( v ) + " JOULES"
+else:
+    def pp_flops( v ): return pp_val( v ) + "F"
+    def pp_bytes( v ): return pp_val( v ) + "B"
+    def pp_bps( v ): return pp_val( v ) + "B/s"
+    def pp_fpb( v ): return pp_val( v ) + "F/B"
+    def pp_fps( v ): return pp_val( v ) + "F/s"
+    def pp_fpspw( v ): return pp_val( v ) + "F/s/W"
+    def pp_joules( v ): return pp_val( v ) + "J"
+
 
 import operator
 
@@ -45,36 +57,30 @@ class NDA( object ):
         return self
 
 class Net( object ):
-    def __init__( self ):
+    def __init__( self, args ):
+        self.args = args
+        print "-- INPUT: NUM_IMGS=%s --" %(args.num_imgs,)
+        print "-- INPUT: RUNTIME=%ss --"% (args.runtime, )
+        print "-- INPUT: POWER=%sW --" % (args.power, )
         self.tot_forward_flops = 0
         self.tot_forward_bytes = 0
         self.tot_backward_flops = 0
         self.tot_backward_bytes = 0
 
     def print_stats( self ):
-        args = self.args
-        print ""
-        print "inputs: NUM_IMGS=%s RUNTIME=%s s POWER=%s W" % (args.num_imgs, args.runtime, args.power )
-        print "TOTAL_ENERGY",pp_joules(args.power*args.runtime)
-
-        fb_str = "FORWARD"
+        fb_str = "FWD"
+        if verbose_print: fb_str = "FORWARD"
+        print "--- %s TOTALS ---" % fb_str
         flops = self.tot_forward_flops
         bytes_ = self.tot_forward_bytes
         if args.backward:
             fb_str = "FORWARD_BACKWARD"
             flops += self.tot_backward_flops
             bytes_ += self.tot_backward_bytes
-        print "TOTAL_%s_FLOPS %s" % ( fb_str, pp_flops(flops) )
-        print "TOTAL_%s_FLOPS_PER_SEC %s" % ( fb_str, pp_fps(flops/args.runtime) )
-        print "TOTAL_%s_FLOPS_PER_SEC_PER_WATT %s" % ( fb_str, pp_fpspw(flops/args.runtime/args.power) )
+        print pp_flops(flops), pp_fps(flops/args.runtime)
+        print pp_bytes(bytes_), pp_bps(bytes_/args.runtime), "AI="+pp_fpb(flops / float(bytes_))
+        print pp_joules(args.power*args.runtime), pp_fpspw(flops/args.runtime/args.power) 
 
-        print "TOTAL_%s_IO_BYTES %s" % ( fb_str, pp_bytes(bytes_))
-        print "TOTAL_%s_IO_BYTES_PER_SEC %s" % ( fb_str, pp_bps(bytes_/args.runtime) )
-        print "TOTAL_%s_ARITH_INTENSITY %s" % ( fb_str, pp_fpb(flops / float(bytes_)) )
-
-
-
-net = Net()
 
 class Convolution( object ): 
     def __init__( self, name, bots, tops, filts, biases, in_pad, stride ): 
@@ -127,11 +133,10 @@ class Convolution( object ):
 
         if net.args.per_layer:
             print name,
-            print " FORWARD",pp_flops(forward_flops),
+            print "FWD",pp_flops(forward_flops),pp_bytes(forward_bytes),
             if net.args.backward:
                 print " --- BACK_GRAD",pp_flops(back_grad_flops),
                 print " --- BACK_DIFF",pp_flops(back_diff_flops),
-            print " FORWARD_BYTES",pp_bytes(forward_bytes),
             if net.args.ai_mnk:
                 print " FWD_AI", pp_fpb( forward_flops / float(forward_bytes) ),
                 print " MxNxK=%sx%sx%s" % (M,N,K),
@@ -170,7 +175,7 @@ parser.add_argument('--backward', metavar='BOOL', type=int, default=1, help='1:f
 parser.add_argument('--ai-mnk', metavar='BOOL', type=int, default=0, help='1:show fwd AI and MxNxK; 0:do not show')
 parser.add_argument('--per-layer', metavar='BOOL', type=int, default=0, help='1:print per-layer info; 0:only summary')
 args = parser.parse_args()
-net.args = args
+net = Net(args)
 # set num_img and source cnet decl
 num_img = args.num_imgs
 execfile( args.net_fn )
