@@ -35,9 +35,9 @@ namespace boda
     sum_squared_diffs( ssds, sds, mad, o1->elems, o2->elems );
     double const aad = sqrt(ssds / o1->elems.sz);
     double const ad = sds / o1->elems.sz;
-    return strprintf( "cnt=%s sum_squared_diffs=%s avg_abs_diff=%s sum_diffs=%s avg_diff=%s", 
+    return strprintf( "cnt=%s sum_squared_diffs=%s avg_abs_diff=%s max_abs_diff=%s sum_diffs=%s avg_diff=%s", 
 		      str( o1->elems.cnt_diff_elems( o2->elems ) ).c_str(),
-		      str( ssds ).c_str(), str( aad ).c_str(),
+		      str( ssds ).c_str(), str( aad ).c_str(), str( mad ).c_str(),
 		      str( sds ).c_str(), str( ad ).c_str() );
   }
 
