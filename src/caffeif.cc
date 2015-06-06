@@ -251,6 +251,7 @@ namespace boda
 
 
   p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in ) {
+    timer_t t("boda::caffe::do_blob_io_and_fwd");
     assert_st( net );
     vect_p_nda_float_t in_data; 
     in_data.push_back( in ); // assume single input blob
