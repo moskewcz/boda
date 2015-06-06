@@ -10,3 +10,9 @@ Node are N-D arrays, generally representing multi-channel images: CxWxH
 Operations are the atomic semantic computational units of the IR listed above, annotated with any needed parameters.
 The operation type, its parameters, and the sizes of it's input and output nodes are sufficient to precisely define the input-output semantics of the operation node.
 
+
+Instead, we could use Caffe to perform computations for us
+Caffe, in turn, uses either the (closed) cuDNN library to 'directly' compute convolutions, or uses data transformations + the (closed) cuBLAS library.
+It is certainly possible to perform various experiments using Caffe as a base, particurlar if we're only interested in accuracy, not computational speed.
+Other deep learning frameworks, such as cuda-convnet2 and others, provide more open and customized CUDA implementations of convolutions. But, due to the complexity and volume of CUDA code templates, It is not clear how good a platform for experimentation they would form.
+
