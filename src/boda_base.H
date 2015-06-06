@@ -200,13 +200,13 @@ namespace boda
     }
   };
 
-  // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1
+  // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1. mad == max absolute diff
   template< typename RT, typename DT >
-  void sum_squared_diffs( RT & ssd, RT & sd, DT const & o1, DT const & o2 ) {
+  void sum_squared_diffs( RT & ssd, RT & sd, RT & mad, DT const & o1, DT const & o2 ) {
     assert_st( o1.sz == o2.sz );
     for( uint32_t i = 0; i < o1.sz; ++i ) { 
       RT const d = RT(o2[i])-RT(o1[i]);
-      sd += d; ssd += d*d;
+      sd += d; ssd += d*d; max_eq(mad,(d<0)?-d:d);
     }
   }
 

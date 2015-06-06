@@ -31,8 +31,8 @@ namespace boda
 
   template< typename T >
   string ssds_str( T const & o1, T const & o2 ) {
-    double ssds = 0, sds = 0;
-    sum_squared_diffs( ssds, sds, o1->elems, o2->elems );
+    double ssds = 0, sds = 0, mad = 0;
+    sum_squared_diffs( ssds, sds, mad, o1->elems, o2->elems );
     double const aad = sqrt(ssds / o1->elems.sz);
     double const ad = sds / o1->elems.sz;
     return strprintf( "cnt=%s sum_squared_diffs=%s avg_abs_diff=%s sum_diffs=%s avg_diff=%s", 
