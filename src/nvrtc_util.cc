@@ -246,6 +246,7 @@ using boost::filesystem::path;
     uint32_t num_imgs;
     p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
+    vect_string has_filts_names;
 
     vect_string stats_names;
     map_str_float_t stats_map;
@@ -533,17 +534,28 @@ using boost::filesystem::path;
     }
     string t_tile_fmas("// begin t_tile_fmas\n");
     string t_tile_smem_loads("// begin t_tile_smem_loads\n");
-    string t_tile_loads("// begin t_tile_loads\n");
+    string t_tile_filt_loads("// begin t_tile_filt_loads\n");
+    string t_tile_in_loads("// begin t_tile_int_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
     if( is_conv ) {
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(t_tile_sz)*%%(threadIdx.x_out_chan_tile)+%s];\n",
+	t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(t_tile_sz)*%%(threadIdx.x_out_chan_tile)+%s];\n",
 				   str(tx).c_str(), str(tx).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
+	t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
 				   str(ty).c_str(), str(ty).c_str() );
       }
+
+      t_tile_stores += "  uint32_t tpix[%(t_tile_sz)];\n";
+
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
+	t_tile_stores += strprintf( "  tpix[%s] = %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
+				    "    %%(patch_ix_%s_y)*%%(out_ix_y_sz) + \n"
+				    "    %%(patch_ix_%s_x)*%%(out_ix_x_sz); // cache patch ix\n ",
+				    str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
+      }
+	
 
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
 	t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
@@ -551,25 +563,23 @@ using boost::filesystem::path;
 	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	  t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
 				    str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
-	  string const ve = strprintf( "(out_tile[%s] + biases[%%(out_chan_ix)+%s])",  
+	  string const ve = strprintf( "(out_tile[%s] + filts_strip[%s])",  
 				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
-	  t_tile_stores += strprintf( "  out[ %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
-				      "    %%(patch_ix_%s_y)*%%(out_ix_y_sz) + \n"
-				      "    %%(patch_ix_%s_x)*%%(out_ix_x_sz) + \n"
-				      "    (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz) ] = %s;\n",
-				      str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(tx).c_str(),
-				      ve.c_str() );
+	  t_tile_stores += strprintf( "  out[ tpix[%s] + (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz) ] = %s;\n",
+				      str(ty).c_str(), str(tx).c_str(), ve.c_str() );
 	}
       }
     } 
     if( is_pool ) { } // unused for pooling
     // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
     t_tile_fmas += "    // end t_tile_fmas"; 
-    t_tile_loads += "    // end t_tile_loads";
+    t_tile_filt_loads += "    // end t_tile_filt_loads";
+    t_tile_in_loads += "    // end t_tile_in_loads";
     t_tile_stores += "  // end t_tile_stores";
     tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
     tf_exprs.push_back( std::make_pair( "t_tile_smem_loads", t_tile_smem_loads ) );
-    tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_filt_loads", t_tile_filt_loads ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_in_loads", t_tile_in_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
@@ -823,8 +833,8 @@ using boost::filesystem::path;
 	assert_st( arg_sizes.size() == 4 );
 	add_op_param( filts_id, arg_sizes[0] );
 	add_op_param( biases_id, arg_sizes[1] );
+	has_filts_names.push_back( cop->tag ); // track operation name so we can transpose filters later
       }
-
     } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
       assert_st( cop->bots[0] == cop->tops[0] );

@@ -16,7 +16,6 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 
   // iteratate over filter elements
   for( uint32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_sz); ++filts_ix_out_chan_elem ) {
-    // (1) load %(t_tile_sz) elements from in and filts    
     __syncthreads();
     if( threadIdx.x < blk_filt_ix_sz ) { 
       filts_smem[threadIdx.x] = filts[(blk_filt_ix_base+threadIdx.x)*%(filts_ix_out_chan_sz) + filts_ix_out_chan_elem];
@@ -25,20 +24,25 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
 	uint32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x*i);
 	%(get_in);
-#if 0
-	int64_t iv = v;
-	if( iv > 200 ) { iv = 200; }
-	if( iv < -200 ) { iv = -200; }
-	v = iv;
-#endif
 	in_smem[threadIdx.x+blockDim.x*i] = v;
       }
     }
     __syncthreads();
-    %(t_tile_loads);
+    %(t_tile_filt_loads);
+    %(t_tile_in_loads);
     // (2) do %(t_tile_sz)^2 fmas into out_tile
     %(t_tile_fmas);
   }
+
+  // load per-block biases into smem
+  __syncthreads();
+  if( threadIdx.x < blk_filt_ix_sz ) { 
+    filts_smem[threadIdx.x] = biases[(blk_filt_ix_base+threadIdx.x)];
+  }
+  __syncthreads();
+  // load biases into filts_strip
+  %(t_tile_filt_loads);
+
   // add bias to each elem of out_tile[] and store the results to out[]
   %(t_tile_stores);
 }
