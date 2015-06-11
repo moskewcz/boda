@@ -114,12 +114,18 @@ namespace boda
   }
 
   p_Net_float caffe_create_net( net_param_t & net_param, string const & trained_fn ) {
+    timer_t t("caffe_create_net");
+
     // for now, we mimic the behavior of the caffe Net ctor that takes
     // a phase and 'force' the phase in the passed net. hey, it is
     // passed by non-const ref, right?
     net_param.mutable_state()->set_phase(caffe::TEST);
     p_Net_float net( new Net_float( net_param ) );
     net->CopyTrainedLayersFrom( trained_fn );
+    // for timing, do one (garbage) forward. presumably forces memory allocs and/or some other lazy
+    // setup to happen here
+    net->ForwardPrefilled();
+    cudaDeviceSynchronize();
     return net;
   }
 
