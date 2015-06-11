@@ -552,15 +552,19 @@ using boost::filesystem::path;
       }
 
       t_tile_stores += "  uint32_t tpix[%(t_tile_sz)];\n";
+      t_tile_stores += "  uint32_t tcix[%(t_tile_sz)];\n";
 
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
 	t_tile_stores += strprintf( "  tpix[%s] = %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
 				    "    %%(patch_ix_%s_y)*%%(out_ix_y_sz) + \n"
-				    "    %%(patch_ix_%s_x)*%%(out_ix_x_sz); // cache patch ix\n ",
+				    "    %%(patch_ix_%s_x)*%%(out_ix_x_sz); // cache out patch ixs\n ",
 				    str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
       }
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
+	t_tile_stores += strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz); // cache out chan ixs\n",
+				    str(ty).c_str(), str(ty).c_str() );
+      }
 	
-
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
 	t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
 	  "// this patch and the following are off-the-end patches, so don't store them.\n";
@@ -569,8 +573,9 @@ using boost::filesystem::path;
 				    str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
 	  string const ve = strprintf( "(out_tile[%s] + filts_strip[%s])",  
 				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
-	  t_tile_stores += strprintf( "  out[ tpix[%s] + (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz) ] = %s;\n",
-				      str(ty).c_str(), str(tx).c_str(), ve.c_str() );
+	  t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
+				      "out[ tpix[%s] + tcix[%s] ] = %s; }\n",
+				      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() );
 	}
       }
     } 
