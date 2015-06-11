@@ -442,8 +442,8 @@ using boost::filesystem::path;
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
     if( is_conv ) {
-      insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
-			vect_uint32_t{cio_out.chans,cio_in.chans,kern_sz,kern_sz} );
+      insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
+			vect_uint32_t{cio_in.chans,kern_sz,kern_sz,cio_out.chans} );
       // for reg blocking
       uint32_t const out_chan_tile_sz = u32_ceil_div( cio_out.chans, t_tile_sz );
       assert_st( out_chan_tile_sz * t_tile_sz == cio_out.chans ); // FIXME: too strong (need to handle partial tiles)
@@ -588,7 +588,7 @@ using boost::filesystem::path;
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     if( is_conv ) { 
-      cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_ix" ) );
+      cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
       cf.arg_sizes.push_back( cio_out.chans ); // biases_sz
     }
     cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
@@ -803,6 +803,8 @@ using boost::filesystem::path;
     if( cf.finalized ) { return cf; } // already generated
     insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
 		      vect_uint32_t{cop->out_chans,in_chans,kern_sz.d[1],kern_sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
+		      vect_uint32_t{in_chans,kern_sz.d[1],kern_sz.d[0],cop->out_chans} );
     uint32_t const filts_ix_sz = get_sz( tf_exprs, "filts_ix" );
     cf.tpb = 256;
     cf.blks = u32_ceil_div( filts_ix_sz, cf.tpb ); // handle one img,y,x per thread (across chans)

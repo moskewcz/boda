@@ -6,7 +6,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   __shared__ float filts_smem[%(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz)];
   float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
-  float filts_strip[%(t_tile_sz)]; // across output chans (stride is %(filts_ix_out_chan_sz) )
+  float filts_strip[%(t_tile_sz)]; // across output chans (stride is %(filts_xp_ix_out_chan_sz) )
   float in_strip[%(t_tile_sz)]; // across patches (approx square block in x/y space, favoring x if sqrt() not integer)
   uint32_t const blk_filt_ix_sz = %(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz);
   uint32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
@@ -15,10 +15,21 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   uint32_t const blk_patch_ix_base = %(blockIdx.x_patch_blk)*blk_patch_ix_sz;
 
   // iteratate over filter elements
-  for( uint32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_sz); ++filts_ix_out_chan_elem ) {
+  uint32_t filts_off = (blk_filt_ix_base + threadIdx.x)*%(filts_xp_ix_out_chan_sz);
+  for( uint32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != (%(filts_xp_ix_sz) / %(filts_xp_ix_out_chan_dim));
+       ++filts_ix_out_chan_elem ) {
     __syncthreads();
     if( threadIdx.x < blk_filt_ix_sz ) { 
-      filts_smem[threadIdx.x] = filts[(blk_filt_ix_base+threadIdx.x)*%(filts_ix_out_chan_sz) + filts_ix_out_chan_elem];
+      
+#if 0
+      filts_smem[threadIdx.x] = filts[(blk_filt_ix_base+threadIdx.x)*%(filts_xp_ix_out_chan_sz) + 
+				      %(filts_ix_out_chan_elem_in_chan)*%(filts_xp_ix_in_chan_sz) +
+				      %(filts_ix_out_chan_elem_y)*%(filts_xp_ix_y_sz) +
+				      %(filts_ix_out_chan_elem_x)*%(filts_xp_ix_x_sz) ];
+#else
+      filts_smem[threadIdx.x] = filts[filts_off];
+      filts_off += %(filts_xp_ix_out_chan_dim); // FIXME: assumes out_chan is innermost dim ... make explicit/check?
+#endif
     }
     for( uint32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
       if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
