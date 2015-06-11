@@ -246,7 +246,7 @@ using boost::filesystem::path;
     uint32_t num_imgs;
     p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
-    vect_string has_filts_names;
+    set_string filts_names;
 
     vect_string stats_names;
     map_str_float_t stats_map;
@@ -258,6 +258,7 @@ using boost::filesystem::path;
     CUfunction cu_func;
 
     string cu_prog_str;
+    vect_cu_func_call_t init_calls;
     vect_cu_func_call_t fwd_calls;
     cu_funcs_t cu_funcs;
     
@@ -272,6 +273,8 @@ using boost::filesystem::path;
     cu_func_t & gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     cu_func_t & gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix );
     cu_func_t & gen_op_relu( conv_io_t const & cio_out );
+    cu_func_t & gen_op_xpose( p_conv_op_t const & cop, uint32_t const & in_chans );
+    void gen_xpose( p_conv_op_t const & cop, string const & filts_name, uint32_t const & in_chans );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
@@ -280,6 +283,7 @@ using boost::filesystem::path;
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
 
+    void run_cfc( cu_func_call_t const & cfc );
   };
 
   // FIXME: i'm not too happy about the duplication between here and the kernel version
@@ -788,6 +792,37 @@ using boost::filesystem::path;
     fwd_calls.push_back( cu_func_call_t{ cf.name, {top_in}, {in_sz,max_val,drop_mask} } );
   }
 
+  cu_func_t & conv_pipe_fwd_t::gen_op_xpose( p_conv_op_t const & cop, uint32_t const & in_chans ) {
+    u32_pt_t kern_sz = cop->kern_sz;
+    assert_st( kern_sz.both_dims_non_zero() );
+    rtc_func_gen_info_t rfgi{"xpose_filts", {
+	{"out_chans",str(cop->out_chans)},{"in_chans",str(in_chans)},{"kysz",str(kern_sz.d[1])},{"kxsz",str(kern_sz.d[0])} 
+      } };
+    cu_func_t & cf = rfgi.init( cu_funcs );
+    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    if( cf.finalized ) { return cf; } // already generated
+    insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
+		      vect_uint32_t{cop->out_chans,in_chans,kern_sz.d[1],kern_sz.d[0]} );
+    uint32_t const filts_ix_sz = get_sz( tf_exprs, "filts_ix" );
+    cf.tpb = 256;
+    cf.blks = u32_ceil_div( filts_ix_sz, cf.tpb ); // handle one img,y,x per thread (across chans)
+    cf.arg_sizes.push_back( filts_ix_sz );
+    cf.arg_sizes.push_back( filts_ix_sz );
+    rfgi.instantiate_template( cu_prog_str );
+    return cf;
+  }
+
+  void conv_pipe_fwd_t::gen_xpose( p_conv_op_t const & cop, string const & filts_name, uint32_t const & in_chans ) {
+    string const filts_xposed_name = filts_name + "_xposed"; // note: doesn't exist yet
+    // create transpose func
+    cu_func_t & cf = gen_op_xpose( cop, in_chans );
+    init_calls.push_back( cu_func_call_t{ cf.name, vect_string{ filts_name, filts_xposed_name } } );
+    // create cup for xposed version of filts
+    p_cup_float filts_cup = must_find( *cups, filts_name );
+    must_insert( *cups, filts_xposed_name, make_shared<cup_float>( filts_cup->sz ) ); 
+  }
+
+
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     string const tag_id_str = as_pyid( cop->tag );
     //char const * const tag_id = tag_id_str.c_str();
@@ -820,7 +855,7 @@ using boost::filesystem::path;
       string const filts_id = tag_id_str + "_filts";
       string const biases_id = tag_id_str + "_biases";
       if( is_conv ) {
-	arg_ids.push_back( filts_id );
+	arg_ids.push_back( filts_id + "_xposed" );
 	arg_ids.push_back( biases_id );
       }
       arg_ids.push_back( as_pyid(cop->bots[0]) );
@@ -832,8 +867,9 @@ using boost::filesystem::path;
 	vect_uint32_t const & arg_sizes = cf.arg_sizes;
 	assert_st( arg_sizes.size() == 4 );
 	add_op_param( filts_id, arg_sizes[0] );
+	bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
+	if( did_ins ) { gen_xpose( cop, filts_id, cio_in.chans ); } // newly-seen/used filter, so set up to transpose it
 	add_op_param( biases_id, arg_sizes[1] );
-	has_filts_names.push_back( cop->tag ); // track operation name so we can transpose filters later
       }
     } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
@@ -935,8 +971,44 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 	printf( "%s: \n%s", i->first.c_str(), str(cfas).c_str() );
       }
     }
-    copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in  
+    copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in
+
+    // transpose filters ... and do any other init-time work added after this comment was written ;)
+    for( vect_cu_func_call_t::const_iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_cfc( *i ); }
+    cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
   }
+
+  void conv_pipe_fwd_t::run_cfc( cu_func_call_t const & cfc ) {
+    cu_func_t const & cf = must_find( cu_funcs, cfc.cu_func_name );
+    vect_rp_void cu_func_args;
+    uint32_t blks = cf.blks; // if non-zero, blks is static, and we can check arg sizes
+    if( blks ) { assert( cf.arg_sizes.size() == cfc.args.size() ); }
+    for( uint32_t i = 0; i != cfc.args.size(); ++i ) {
+      p_cup_float arg = must_find( *cups, cfc.args[i] );
+      // printf( "  cfc.args[i]=%s arg->sz=%s\n", str(cfc.args[i]).c_str(), str(arg->sz).c_str() );
+      if( blks ) { assert_st( arg->sz == cf.arg_sizes[i] ); }
+      cu_func_args.push_back( &arg->p );
+    }
+    // add u32 args
+    for( uint32_t i = 0; i != cfc.u32_args.size(); ++i ) { cu_func_args.push_back( (void *)&cfc.u32_args[i] ); }
+    // FIXME: check that we're passing the correct # of args here somehow.
+    if( !blks ) { // handle dynamic # of blks case
+      // FIXME: pretty limited / special cased here
+      assert_st( cfc.u32_args.size() > 0 );
+      blks = u32_ceil_div( cfc.u32_args[0], cf.tpb );
+    }
+    if( show_rtc_calls ) { 
+      printf( "%s( %s -- %s ) tpb=%s blks=%s\n", str(cfc.cu_func_name).c_str(), str(cfc.args).c_str(), str(cfc.u32_args).c_str(),
+	      str(cf.tpb).c_str(), str(blks).c_str() );
+    }
+    cu_err_chk( cuLaunchKernel( cf.cu_func,
+				blks, 1, 1, // grid x,y,z dims
+				cf.tpb, 1, 1, // block x,y,z dims
+				0, 0, // smem_bytes, stream_ix
+				&cu_func_args[0], // cu_func's args
+				0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg      
+  }
+
 
   void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     timer_t t("conv_pipe_fwd_t::run_fwd");
@@ -944,38 +1016,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     //printf("run_fwd() begin\n");
     copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
     //printf("run_fwd() exec\n");
-    for( vect_cu_func_call_t::const_iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
-      cu_func_call_t const & cfc = *i;
-      cu_func_t const & cf = must_find( cu_funcs, cfc.cu_func_name );
-      vect_rp_void cu_func_args;
-      uint32_t blks = cf.blks; // if non-zero, blks is static, and we can check arg sizes
-      if( blks ) { assert( cf.arg_sizes.size() == cfc.args.size() ); }
-      for( uint32_t i = 0; i != cfc.args.size(); ++i ) {
-	p_cup_float arg = must_find( *cups, cfc.args[i] );
-	// printf( "  cfc.args[i]=%s arg->sz=%s\n", str(cfc.args[i]).c_str(), str(arg->sz).c_str() );
-	if( blks ) { assert_st( arg->sz == cf.arg_sizes[i] ); }
-	cu_func_args.push_back( &arg->p );
-      }
-      // add u32 args
-      for( uint32_t i = 0; i != cfc.u32_args.size(); ++i ) { cu_func_args.push_back( (void *)&cfc.u32_args[i] ); }
-      // FIXME: check that we're passing the correct # of args here somehow.
-      if( !blks ) { // handle dynamic # of blks case
-	// FIXME: pretty limited / special cased here
-	assert_st( cfc.u32_args.size() > 0 );
-	blks = u32_ceil_div( cfc.u32_args[0], cf.tpb );
-      }
-      if( show_rtc_calls ) { 
-	printf( "%s( %s -- %s ) tpb=%s blks=%s\n", str(cfc.cu_func_name).c_str(), str(cfc.args).c_str(), str(cfc.u32_args).c_str(),
-		str(cf.tpb).c_str(), str(blks).c_str() );
-      }
-      cu_err_chk( cuLaunchKernel( cf.cu_func,
-				  blks, 1, 1, // grid x,y,z dims
-				  cf.tpb, 1, 1, // block x,y,z dims
-				  0, 0, // smem_bytes, stream_ix
-				  &cu_func_args[0], // cu_func's args
-				  0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
-      
-    }
+    for( vect_cu_func_call_t::const_iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
     cuProfilerStop();
     //printf("run_fwd() copy out\n");
