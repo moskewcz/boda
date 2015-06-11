@@ -20,16 +20,8 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
        ++filts_ix_out_chan_elem ) {
     __syncthreads();
     if( threadIdx.x < blk_filt_ix_sz ) { 
-      
-#if 0
-      filts_smem[threadIdx.x] = filts[(blk_filt_ix_base+threadIdx.x)*%(filts_xp_ix_out_chan_sz) + 
-				      %(filts_ix_out_chan_elem_in_chan)*%(filts_xp_ix_in_chan_sz) +
-				      %(filts_ix_out_chan_elem_y)*%(filts_xp_ix_y_sz) +
-				      %(filts_ix_out_chan_elem_x)*%(filts_xp_ix_x_sz) ];
-#else
-      filts_smem[threadIdx.x] = filts[filts_off];
+      if( (blk_filt_ix_base + threadIdx.x) < %(filts_xp_ix_out_chan_dim) ) { filts_smem[threadIdx.x] = filts[filts_off]; }
       filts_off += %(filts_xp_ix_out_chan_dim); // FIXME: assumes out_chan is innermost dim ... make explicit/check?
-#endif
     }
     for( uint32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
       if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
