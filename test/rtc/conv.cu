@@ -40,7 +40,9 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   // load per-block biases into smem
   __syncthreads();
   if( threadIdx.x < blk_filt_ix_sz ) { 
-    filts_smem[threadIdx.x] = biases[(blk_filt_ix_base+threadIdx.x)];
+    if( (blk_filt_ix_base + threadIdx.x) < %(filts_xp_ix_out_chan_dim) ) { 
+      filts_smem[threadIdx.x] = biases[(blk_filt_ix_base+threadIdx.x)];
+    }
   }
   __syncthreads();
   // load biases into filts_strip
