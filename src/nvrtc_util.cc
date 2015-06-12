@@ -440,7 +440,7 @@ using boost::filesystem::path;
 			vect_uint32_t{cio_in.chans,kern_sz,kern_sz,cio_out.chans} );
       // for reg blocking
       uint32_t const out_chan_tile_sz = u32_ceil_div( cio_out.chans, t_tile_sz );
-      assert_st( out_chan_tile_sz * t_tile_sz == cio_out.chans ); // FIXME: too strong (need to handle partial tiles)
+      //assert_st( out_chan_tile_sz * t_tile_sz == cio_out.chans ); // FIXME: too strong (need to handle partial tiles)
       uint32_t const patch_sz = u32_ceil_div( out_ix_sz, cio_out.chans );
       assert_st( patch_sz * cio_out.chans == out_ix_sz ); // by construction
       uint32_t const patch_tile_sz = u32_ceil_div( patch_sz, t_tile_sz );
@@ -458,8 +458,8 @@ using boost::filesystem::path;
       if( tix_out_chan_tile_sz < goal_tix_out_chan_tile_sz ) {
 	
       }
-      uint32_t tix_patch_tile_sz = 16; // treated as a minimum
-      cf.tpb = 256; // treated as a target, but not be exceeded
+      uint32_t tix_patch_tile_sz = 8; // treated as a minimum
+      cf.tpb = 128; // treated as a target, but not be exceeded
       while( (tix_patch_tile_sz+1) * tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
       cf.tpb = tix_patch_tile_sz * tix_out_chan_tile_sz; // recalculate tpb, may increase a bit over min
       //printf( "tix_patch_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_patch_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
