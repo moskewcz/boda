@@ -241,6 +241,7 @@ using boost::filesystem::path;
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
+    uint32_t print_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
 
     p_conv_pipe_t cp;
     uint32_t num_imgs;
@@ -942,6 +943,9 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
     cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
     cu_err_chk( cuCtxSetCurrent( cu_context ), "cuCtxSetCurrent" ); // is this always needed/okay?
+
+    // cu_err_chk( cuCtxSetCacheConfig( CU_FUNC_CACHE_PREFER_L1 ), "cuCtxSetCacheConfig" ); // does nothing?
+
     cups.reset( new map_str_p_cup_float_t );
     cu_prog_str += cu_base_decls;    
     cp->topo_visit_setup();
@@ -953,9 +957,10 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     //printf( "cu_prog_str=%s\n", str(cu_prog_str).c_str() );
     //printf( "prog_ptx=%s\n", str(prog_ptx).c_str() );
     cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
-    bool const print_func_attrs = 0;
     for( cu_funcs_t::iterator i = cu_funcs.begin(); i != cu_funcs.end(); ++i ) {
       cu_err_chk( cuModuleGetFunction( &i->second.cu_func, cu_mod, i->first.c_str() ), "cuModuleGetFunction" );
+      // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
+      // cu_err_chk( cuFuncSetCacheConfig( i->second.cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
       if( print_func_attrs ) {
 	string cfas = cu_get_all_func_attrs( i->second.cu_func );
 	printf( "%s: \n%s", i->first.c_str(), str(cfas).c_str() );
