@@ -242,6 +242,7 @@ using boost::filesystem::path;
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t print_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
+    uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
     p_conv_pipe_t cp;
     uint32_t num_imgs;
@@ -429,7 +430,6 @@ using boost::filesystem::path;
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
     if( cf.finalized ) { return cf; } // already generated
 
-    uint32_t const t_tile_sz = 8;
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
 
     vect_string const cio_dims{"img","chan","y","x"};
@@ -437,10 +437,12 @@ using boost::filesystem::path;
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
     if( is_conv ) {
-      insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
-			vect_uint32_t{cio_in.chans,kern_sz,kern_sz,cio_out.chans} );
       // for reg blocking
       uint32_t const out_chan_tile_sz = u32_ceil_div( cio_out.chans, t_tile_sz );
+      insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_reg","out_chan_tile"}, 
+      		vect_uint32_t{cio_in.chans,kern_sz,kern_sz,t_tile_sz,out_chan_tile_sz} );
+      //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
+      //		vect_uint32_t{cio_in.chans,kern_sz,kern_sz,cio_out.chans} );
       //assert_st( out_chan_tile_sz * t_tile_sz == cio_out.chans ); // FIXME: too strong (need to handle partial tiles)
       uint32_t const patch_sz = u32_ceil_div( out_ix_sz, cio_out.chans );
       assert_st( patch_sz * cio_out.chans == out_ix_sz ); // by construction
@@ -531,8 +533,9 @@ using boost::filesystem::path;
     string t_tile_stores("// begin t_tile_stores\n");
     if( is_conv ) {
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(t_tile_sz)*%%(threadIdx.x_out_chan_tile)+%s];\n",
-				   str(tx).c_str(), str(tx).c_str() );
+	//t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(t_tile_sz)*%%(threadIdx.x_out_chan_tile)+%s];\n",
+	t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
+					str(tx).c_str(), str(tx).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
 	t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
@@ -794,15 +797,17 @@ using boost::filesystem::path;
     cu_func_t & cf = rfgi.init( cu_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
     if( cf.finalized ) { return cf; } // already generated
+    tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
+    uint32_t const out_chan_tile = u32_ceil_div( cop->out_chans, t_tile_sz );
     insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
 		      vect_uint32_t{cop->out_chans,in_chans,kern_sz.d[1],kern_sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
-		      vect_uint32_t{in_chans,kern_sz.d[1],kern_sz.d[0],cop->out_chans} );
+    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_reg","out_chan_tile"}, 
+		      vect_uint32_t{in_chans,kern_sz.d[1],kern_sz.d[0],t_tile_sz,out_chan_tile} );
     uint32_t const filts_ix_sz = get_sz( tf_exprs, "filts_ix" );
     cf.tpb = 256;
     cf.blks = u32_ceil_div( filts_ix_sz, cf.tpb ); // handle one img,y,x per thread (across chans)
     cf.arg_sizes.push_back( filts_ix_sz );
-    cf.arg_sizes.push_back( filts_ix_sz );
+    cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
     rfgi.instantiate_template( cu_prog_str );
     return cf;
   }
@@ -814,7 +819,13 @@ using boost::filesystem::path;
     init_calls.push_back( cu_func_call_t{ cf.name, vect_string{ filts_name, filts_xposed_name } } );
     // create cup for xposed version of filts
     p_cup_float filts_cup = must_find( *cups, filts_name );
-    must_insert( *cups, filts_xposed_name, make_shared<cup_float>( filts_cup->sz ) ); 
+    // for reg blocking
+    uint32_t const out_chan_tile_sz = u32_ceil_div( cop->out_chans, t_tile_sz );
+    // note that if out_chans doesn't divide evenly by t_tile_sz, the xposed array will have internal padding/garbage
+    // FIXME: untested! none of alexnet, googlenet, nin have any layers with out_chans not divisible by 8
+    assert_st( out_chan_tile_sz * t_tile_sz == cop->out_chans ); // FIXME: might work, but untested
+    must_insert( *cups, filts_xposed_name, 
+		 make_shared<cup_float>( filts_cup->sz / cop->out_chans * out_chan_tile_sz * t_tile_sz ) ); 
   }
 
 
