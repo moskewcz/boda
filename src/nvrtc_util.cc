@@ -535,8 +535,8 @@ using boost::filesystem::path;
 				   str(ty).c_str(), str(ty).c_str() );
       }
 
-      t_tile_stores += "  uint32_t tpix[%(t_tile_sz)];\n";
-      t_tile_stores += "  uint32_t tcix[%(t_tile_sz)];\n";
+      t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
+      t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
 
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
 	t_tile_stores += strprintf( "  tpix[%s] = %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
@@ -923,10 +923,9 @@ using boost::filesystem::path;
     }
   }
   string cu_base_decls = R"rstr(
-typedef unsigned uint32_t;
+//typedef unsigned uint32_t;
 typedef int int32_t;
 typedef long long int64_t;
-union fbits { float f; uint32_t u; };
 float const FLT_MAX = /*0x1.fffffep127f*/ 340282346638528859811704183484516925440.0f;
 
 )rstr";
