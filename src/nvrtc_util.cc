@@ -495,6 +495,7 @@ using boost::filesystem::path;
 			  vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]},
 			  1 );
       }
+#if 1
       string const get_in = strprintf( 
 	"float v = 0;\n"
         "      int const smem_in_ix_y = %%(t_smem_patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
@@ -507,6 +508,9 @@ using boost::filesystem::path;
 	"          smem_in_ix_x*%%(in_ix_x_sz)];\n" 
 	"      }"
 				       );
+#else // hack for testing overhead of above
+      string const get_in = strprintf("float v = in[threadIdx.x];\n");
+#endif				      
       tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
 			
     } else if( is_pool ) { 
