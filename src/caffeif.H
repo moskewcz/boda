@@ -16,9 +16,8 @@ namespace boda
   typedef shared_ptr< Net_float > p_Net_float;
 
   p_Net_float init_caffe( net_param_t & net_param, string const & trained_fn );
-  void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom );
+  void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom, bool const enable_prof );
   void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top );
-  p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in );
   void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img );
   void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region, 
 			  float const & out_max  );
@@ -49,6 +48,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
     uint32_t gpu_id; //NESI(default=0,help="id of gpu to use, passed to caffe::SetDevice() and in turn to CUDA.")
+    uint32_t enable_prof; //NESI(default=0,help="if 1, enable profiling of caffe forward calls")
     filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet/deploy.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/alexnet/best.caffemodel",help="input trained net from which to copy params")
     u32_pt_t in_sz; //NESI(default="227 227",help="input size to use for caffe net")

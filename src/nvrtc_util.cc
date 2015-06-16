@@ -240,6 +240,7 @@ using boost::filesystem::path;
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
     uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
+    uint32_t enable_prof; //NESI(default=1,help="if 1, enable profiling")
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
@@ -1030,13 +1031,13 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 
   void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     timer_t t("conv_pipe_fwd_t::run_fwd");
-    cuProfilerStart();
+    if( enable_prof ) { cuProfilerStart(); }
     //printf("run_fwd() begin\n");
     copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
     //printf("run_fwd() exec\n");
     for( vect_cu_func_call_t::const_iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
-    cuProfilerStop();
+    if( enable_prof ) { cuProfilerStop(); }
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out

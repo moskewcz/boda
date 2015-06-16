@@ -15,6 +15,7 @@
 #include"anno_util.H"
 #include"rand_util.H"
 #include"imagenet_util.H"
+#include<cudaProfiler.h>
 
 namespace boda 
 {
@@ -129,8 +130,7 @@ namespace boda
     return net;
   }
 
-  void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom ) {
-    timer_t t("caffe_forward");
+  void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom, bool const enable_prof ) {
     vector<caffe::Blob<float>*> const & input_blobs = net_->input_blobs();
     assert_st( bottom.size() == input_blobs.size() );
     for (unsigned int i = 0; i < input_blobs.size(); ++i) {
@@ -150,7 +150,9 @@ namespace boda
       }  // switch (Caffe::mode())
     }
     //const vector<Blob<float>*>& output_blobs = net_->ForwardPrefilled();
+    if( enable_prof ) { cuProfilerStart(); }
     net_->ForwardPrefilled();
+    if( enable_prof ) { cuProfilerStop(); }
   }
 
   uint32_t get_layer_ix( p_Net_float net_, string const & out_layer_name ) {
@@ -256,12 +258,12 @@ namespace boda
   }
 
 
-  p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in ) {
+  p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, string const & out_layer_name, p_nda_float_t const & in, bool const enable_prof ) {
     timer_t t("boda::caffe::do_blob_io_and_fwd");
     assert_st( net );
     vect_p_nda_float_t in_data; 
     in_data.push_back( in ); // assume single input blob
-    raw_do_forward( net, in_data );
+    raw_do_forward( net, in_data, enable_prof );
     vect_p_nda_float_t out_data; 
     copy_output_blob_data( net, out_layer_name, out_data );
     assert( out_data.size() == 1 ); // assume single output blob
@@ -269,7 +271,7 @@ namespace boda
   }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out( void ) { 
     if( compute_mode == 0 ) {
-      return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch );      
+      return boda::run_one_blob_in_one_blob_out( net, out_layer_name, in_batch, enable_prof );      
     } else {
       assert_st( compute_mode == 1 );
       return conv_pipe->run_one_blob_in_one_blob_out( in_batch, conv_fwd );
@@ -277,7 +279,7 @@ namespace boda
   }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out_upsamp( void ) { 
     if( compute_mode == 0 ) {
-      return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch );      
+      return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch, enable_prof );      
     } else {
       assert_st( compute_mode == 1 );
       assert_st( !conv_fwd ); // FIXME: not supported; need two conv_fwd's ...
