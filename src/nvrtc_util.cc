@@ -243,7 +243,7 @@ using boost::filesystem::path;
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
-    uint32_t print_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
+    uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
     p_conv_pipe_t cp;
@@ -464,7 +464,9 @@ using boost::filesystem::path;
       uint32_t tix_patch_tile_sz = 8; // treated as a minimum
       cf.tpb = 128; // treated as a target, but not be exceeded
       while( (tix_patch_tile_sz+1) * tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
-      cf.tpb = tix_patch_tile_sz * tix_out_chan_tile_sz; // recalculate tpb, may increase a bit over min
+      uint32_t const new_tbp = tix_patch_tile_sz * tix_out_chan_tile_sz;// recalculate tpb, should not increase
+      assert_st( new_tbp <= cf.tpb );
+      cf.tpb = new_tbp;
       //printf( "tix_patch_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_patch_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
       insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, 
 			vect_uint32_t{tix_patch_tile_sz,tix_out_chan_tile_sz} );
@@ -982,7 +984,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       cu_err_chk( cuModuleGetFunction( &i->second.cu_func, cu_mod, i->first.c_str() ), "cuModuleGetFunction" );
       // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
       // cu_err_chk( cuFuncSetCacheConfig( i->second.cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
-      if( print_func_attrs ) {
+      if( show_func_attrs ) {
 	string cfas = cu_get_all_func_attrs( i->second.cu_func );
 	printf( "%s: \n%s", i->first.c_str(), str(cfas).c_str() );
       }
