@@ -9,29 +9,33 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
   float in_strip[%(t_tile_sz)]; // across patches (approx square block in x/y space, favoring x if sqrt() not integer)
-  int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim);
+  int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
 
   int32_t const blk_patch_ix_sz = %(threadIdx.x_patch_tile_dim)*%(t_tile_sz);
   int32_t const blk_patch_ix_base = %(blockIdx.x_patch_blk)*blk_patch_ix_sz;
 
   // iteratate over filter elements
-  int32_t filts_off = blk_filt_ix_base + (threadIdx.x %% %(threadIdx.x_out_chan_tile_dim));
+  int32_t filts_off = blk_filt_ix_base + threadIdx.x;
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != (%(filts_xp_ix_sz) / %(filts_xp_ix_x_sz));
        ++filts_ix_out_chan_elem ) {
     __syncthreads();
     if( threadIdx.x < blk_filt_ix_sz ) { 
-      int32_t const load_reg = threadIdx.x / %(threadIdx.x_out_chan_tile_dim);
-      // FIXME: will read (unused) garbage off the end of filts (really off the end of each per-reg block, but only for
-      // the last block will the reads be output filts[]) when ceil(chans/t_tile_sz) is not divisible by
-      // out_chan_tile_dim
-      filts_smem[threadIdx.x] = filts[filts_off + load_reg*%(filts_xp_ix_out_chan_reg_sz)]; 
+#ifdef NOLOAD
+      filts_smem[threadIdx.x] = threadIdx.x;
+      //filts_smem[threadIdx.x] = filts[threadIdx.x];
+#else
+      filts_smem[threadIdx.x] = filts[filts_off];
+#endif
     }
     filts_off += %(filts_xp_ix_x_sz);
     for( int32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
       if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
 	int32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x*i);
+#ifdef NOLOAD
+	float v = threadIdx.x;
+#else
 	%(get_in);
-	//float v = threadIdx.x;
+#endif
 	in_smem[threadIdx.x+blockDim.x*i] = v;
       }
     }
