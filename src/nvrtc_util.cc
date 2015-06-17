@@ -557,10 +557,10 @@ using boost::filesystem::path;
       t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
       t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
 
+      // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
 	t_tile_stores += strprintf( "  tpix[%s] = %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
-				    "    %%(patch_ix_%s_y)*%%(out_ix_y_sz) + \n"
-				    "    %%(patch_ix_%s_x)*%%(out_ix_x_sz); // cache out patch ixs\n ",
+				    "   ( %%(patch_ix_%s) %%%% %%(patch_ix_%s_img_sz) ); // cache out patch ixs\n ",
 				    str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
