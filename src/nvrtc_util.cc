@@ -58,7 +58,7 @@ using boost::filesystem::path;
   string nvrtc_compile( string const & cuda_prog_str ) {
     timer_t t("nvrtc_compile");
     p_nvrtcProgram cuda_prog = make_p_nvrtcProgram( cuda_prog_str );
-    vect_string cc_opts = {"--use_fast_math","--gpu-architecture=compute_52","--restrict"};
+    vect_string cc_opts = {"--use_fast_math","--gpu-architecture=compute_52","--restrict","-lineinfo"};
     auto const comp_ret = nvrtcCompileProgram( cuda_prog.get(), cc_opts.size(), &get_vect_rp_const_char( cc_opts )[0] );
     string const log = nvrtc_get_compile_log( cuda_prog );
     //printf( "log=%s\n", str(log).c_str() );
