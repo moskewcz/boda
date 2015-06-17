@@ -55,13 +55,13 @@ using boost::filesystem::path;
     nvrtc_err_chk( nvrtcGetPTX( cuda_prog.get(), &ret[0] ), "nvrtcGetPTX" );
     return ret;
   }
-  string nvrtc_compile( string const & cuda_prog_str ) {
+  string nvrtc_compile( string const & cuda_prog_str, bool const & print_log ) {
     timer_t t("nvrtc_compile");
     p_nvrtcProgram cuda_prog = make_p_nvrtcProgram( cuda_prog_str );
     vect_string cc_opts = {"--use_fast_math","--gpu-architecture=compute_52","--restrict","-lineinfo"};
     auto const comp_ret = nvrtcCompileProgram( cuda_prog.get(), cc_opts.size(), &get_vect_rp_const_char( cc_opts )[0] );
     string const log = nvrtc_get_compile_log( cuda_prog );
-    //printf( "log=%s\n", str(log).c_str() );
+    if( print_log ) { printf( "NVRTC COMPILE LOG:\n%s\n", str(log).c_str() ); }
     nvrtc_err_chk( comp_ret, ("nvrtcCompileProgram\n"+log).c_str() ); // delay error check until after getting log
     return nvrtc_get_ptx( cuda_prog );
   }
@@ -138,7 +138,7 @@ using boost::filesystem::path;
 
     virtual void main( nesi_init_arg_t * nia ) { 
       p_string prog_str = read_whole_fn( prog_fn );
-      string const prog_ptx = nvrtc_compile( *prog_str );
+      string const prog_ptx = nvrtc_compile( *prog_str, 0 );
 
       cu_err_chk( cuInit( 0 ), "cuInit" );
       CUdevice cu_dev;
@@ -243,6 +243,7 @@ using boost::filesystem::path;
     uint32_t enable_prof; //NESI(default=1,help="if 1, enable profiling")
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
+    uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
@@ -976,7 +977,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
     write_whole_fn( "out.cu", cu_prog_str );
-    string const prog_ptx = nvrtc_compile( cu_prog_str );
+    string const prog_ptx = nvrtc_compile( cu_prog_str, show_compile_log );
     write_whole_fn( "out.ptx", prog_ptx );
     //printf( "cu_prog_str=%s\n", str(cu_prog_str).c_str() );
     //printf( "prog_ptx=%s\n", str(prog_ptx).c_str() );
