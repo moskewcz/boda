@@ -540,17 +540,19 @@ using boost::filesystem::path;
     }
     string t_tile_fmas("// begin t_tile_fmas\n");
     string t_tile_smem_loads("// begin t_tile_smem_loads\n");
-    string t_tile_filt_loads("// begin t_tile_filt_loads\n");
-    string t_tile_in_loads("// begin t_tile_int_loads\n");
+    string t_tile_loads("// begin t_tile_loads\n");
+    string t_tile_dummy_loads("// begin t_tile_dummy_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
+    string t_tile_dummy_stores("// begin t_tile_dummy_stores\n");
     if( is_conv ) {
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	//t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(t_tile_sz)*%%(threadIdx.x_out_chan_tile)+%s];\n",
-	t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
+	t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[0];\n", str(tx).c_str() );
+	t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
 					str(tx).c_str(), str(tx).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
+	t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[0];\n", str(ty).c_str() );
+	t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
 				   str(ty).c_str(), str(ty).c_str() );
       }
 
@@ -568,6 +570,7 @@ using boost::filesystem::path;
 				    str(ty).c_str(), str(ty).c_str() );
       }
 	
+      t_tile_dummy_stores += " out[0] = 0.0f\n";
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
 	t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
 	  "// this patch and the following are off-the-end patches, so don't store them.\n";
@@ -579,20 +582,24 @@ using boost::filesystem::path;
 	  t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
 				      "out[ tpix[%s] + tcix[%s] ] = %s; }\n",
 				      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() );
+	  t_tile_dummy_stores += " + " + ve + "\n";
 	}
       }
     } 
+    t_tile_dummy_stores += ";\n";
+
     if( is_pool ) { } // unused for pooling
     // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
     t_tile_fmas += "    // end t_tile_fmas"; 
-    t_tile_filt_loads += "    // end t_tile_filt_loads";
-    t_tile_in_loads += "    // end t_tile_in_loads";
+    t_tile_loads += "    // end t_tile_loads";
+    t_tile_dummy_loads += "    // end t_tile_dummy_loads";
     t_tile_stores += "  // end t_tile_stores";
     tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
     tf_exprs.push_back( std::make_pair( "t_tile_smem_loads", t_tile_smem_loads ) );
-    tf_exprs.push_back( std::make_pair( "t_tile_filt_loads", t_tile_filt_loads ) );
-    tf_exprs.push_back( std::make_pair( "t_tile_in_loads", t_tile_in_loads ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_dummy_loads", t_tile_dummy_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_dummy_stores", t_tile_dummy_stores ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     if( is_conv ) { 
