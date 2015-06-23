@@ -20,26 +20,28 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
        ++filts_ix_out_chan_elem ) {
     __syncthreads();
     if( threadIdx.x < blk_filt_ix_sz ) { 
-#ifdef NO_IO
-      filts_smem[threadIdx.x] = threadIdx.x;
-      //filts_smem[threadIdx.x] = filts[threadIdx.x];
+#ifdef NO_IOX
+      //filts_smem[threadIdx.x] = threadIdx.x;
+      filts_smem[threadIdx.x] = filts[threadIdx.x];
 #else
       filts_smem[threadIdx.x] = filts[filts_off];
 #endif
     }
-    filts_off += %(filts_xp_ix_x_sz);
     for( int32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
       if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
 	int32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x*i);
 
 #ifdef NO_IO
-	float v = threadIdx.x;
+	//float v = threadIdx.x;
+	//float v = in[threadIdx.x];
+	float v = in[filts_off];
 #else
 	%(get_in);
 #endif
 	in_smem[threadIdx.x+blockDim.x*i] = v;
       }
     }
+    filts_off += %(filts_xp_ix_x_sz);
     __syncthreads();
 #ifdef NO_IO
     %(t_tile_dummy_loads);
