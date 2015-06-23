@@ -131,7 +131,7 @@ namespace boda {
 	//float const sum_f = nda_reduce( *feats, sum_functor<float>(), 0.0f );
 	//float const sum_fd = nda_reduce( *feats_dense, sum_functor<float>(), 0.0f );
 	//(*out) << strprintf( "sum_f=%s sum_fd=%s\n", str(sum_f).c_str(), str(sum_fd).c_str() );
-	(*out) << strprintf( "ssds_str(from_dense,out_batch)=%s\n", str(ssds_str(feats_dense,feats)).c_str() );
+	(*out) << strprintf( "ssds_str(from_dense,out_batch)=%s\n", str(ssds_diff_t(feats_dense,feats)).c_str() );
       }
     }
   };
@@ -223,7 +223,7 @@ namespace boda {
       p_nda_float_t feats = feats_copy_clip( out_batch, feat_box );
 
       (*out) << strprintf( "ssds_str(out_batch_upsamp,out_batch)=%s\n", 
-			   str(ssds_str(feats_upsamp,feats)).c_str() );
+			   str(ssds_diff_t(feats_upsamp,feats)).c_str() );
     }
   };
 
@@ -295,7 +295,7 @@ namespace boda {
       run_cnet->compute_mode = cm2;
       p_nda_float_t out_batch_2 = run_cnet->run_one_blob_in_one_blob_out();
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
-      (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_str(out_batch_1,out_batch_2)).c_str() );
+      (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_diff_t(out_batch_1,out_batch_2)).c_str() );
       
       uint32_t num_err = 0;
       for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {

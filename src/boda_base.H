@@ -560,8 +560,18 @@ namespace boda
   typedef map< string, p_nda_float_t > map_str_p_nda_float_t;
   typedef shared_ptr< map_str_p_nda_float_t > p_map_str_p_nda_float_t;
 
-  // get a string with info from sum_squared_diffs(o1,o2)
-  template< typename T > string ssds_str( T const & o1, T const & o2 );
+  // class to store info from sum_squared_diffs(o1,o2); str()-able for printing
+  struct ssds_diff_t {
+    double ssds;
+    double sds;
+    double mad;
+    uint32_t num_diff;
+    uint32_t sz;
+    ssds_diff_t( void ) : ssds(0), sds(0), mad(0), num_diff(0), sz(0) { }
+    template< typename T > ssds_diff_t( T const & o1, T const & o2 );
+    string str( void ) const;
+  };
+  std::ostream & operator <<(std::ostream & os, ssds_diff_t const & v);
 
   struct rt_exception : public std::exception
   {
