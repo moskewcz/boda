@@ -20,7 +20,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
        ++filts_ix_out_chan_elem ) {
     __syncthreads();
     if( threadIdx.x < blk_filt_ix_sz ) { 
-#ifdef NO_IOX
+#ifdef NO_IOX // by default, we don't ever disable this, since it's seems about as good as it can be already
       //filts_smem[threadIdx.x] = threadIdx.x;
       filts_smem[threadIdx.x] = filts[threadIdx.x];
 #else
