@@ -253,6 +253,8 @@ namespace boda {
 
     p_img_t in_img;
 
+    uint32_t num_mad_fail;
+
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
       rc->conv_pipe->dump_ios( *out );
@@ -270,6 +272,7 @@ namespace boda {
 
       boost::random::mt19937 gen;
 
+      num_mad_fail = 0;
       uint32_t tot_wins = 0;
       for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
 	if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
@@ -281,6 +284,8 @@ namespace boda {
 	  comp_win( (*i)->img, samp_nc );
 	}
       }
+      if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
+      else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
       out.reset();
     }
     void comp_win( p_img_t const & img, u32_pt_t const & nc ) {
@@ -295,8 +300,9 @@ namespace boda {
       run_cnet->compute_mode = cm2;
       p_nda_float_t out_batch_2 = run_cnet->run_one_blob_in_one_blob_out();
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
-      (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_diff_t(out_batch_1,out_batch_2)).c_str() );
-      
+      ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
+      (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_diff).c_str() );
+      if( ssds_diff.mad >= 1e-5 ) { ++num_mad_fail; }
       uint32_t num_err = 0;
       for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
 	float const v1 = out_batch_1->cm_at1(i);
