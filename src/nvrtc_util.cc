@@ -275,7 +275,7 @@ using boost::filesystem::path;
     void update_stats( void );
     virtual ~conv_pipe_fwd_t( void );
   protected:
-    cu_func_t & gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
+    cu_func_t & gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, p_conv_node_t const & node_out );
     cu_func_t & gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     cu_func_t & gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix );
     cu_func_t & gen_op_relu( conv_io_t const & cio_out );
@@ -403,9 +403,14 @@ using boost::filesystem::path;
     }
   };
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out ) {
-    // note: cio_in and cio_out are derived from cop->bots[0] and cop->tops[0]
+  cu_func_t & conv_pipe_fwd_t::gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, p_conv_node_t const & node_out ) {
+    bool const is_conv = cop->type == Convolution_str;
+    bool const is_pool = cop->type == Pooling_str;
+    // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
+    bool const conv_has_relu = is_conv && (node_out->in_place_ops.size() > 0) && (node_out->in_place_ops[0]->type == ReLU_str);
+    // note: cio_in and node_out are derived from cop->bots[0] and cop->tops[0]
     // for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
+    conv_io_t & cio_out = node_out->cio;
     assert_st( cop->in_pad.bnds_are_same() );
     assert_st( cop->in_pad.p[0].dims_are_same() );
     assert_st( cop->stride.dims_are_same() );
@@ -420,11 +425,9 @@ using boost::filesystem::path;
     assert_st( cio_in.sz.dims_are_same() );
     uint32_t const in_dim = cio_in.sz.d[0];
     
-    bool const is_conv = cop->type == Convolution_str;
-    bool const is_pool = cop->type == Pooling_str;
 
     rtc_func_gen_info_t rfgi{"",
-      { {"num_imgs",str(num_imgs)},{"in_pad",str(in_pad)},{"in_dim",str(in_dim)}
+      { {"num_imgs",str(num_imgs)},{"in_pad",str(in_pad)},{"in_dim",str(in_dim)},{"conv_has_relu",str(conv_has_relu)}
 	,{"kern_sz",str(kern_sz)},{"stride",str(stride)},{"out_chans",str(cio_out.chans)} } };
     if( 0 ) { }
     else if( is_conv ) { rfgi.op_tag="conv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(cio_in.chans)} ); }
@@ -577,7 +580,7 @@ using boost::filesystem::path;
 	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	  t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
 				    str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
-	  string const ve = strprintf( "(out_tile[%s] + filts_strip[%s])",  
+	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", conv_has_relu ? "max(0.0f," : "(",
 				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
 	  t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
 				      "out[ tpix[%s] + tcix[%s] ] = %s; }\n",
@@ -850,7 +853,8 @@ using boost::filesystem::path;
     string const tag_id_str = as_pyid( cop->tag );
     //char const * const tag_id = tag_id_str.c_str();
     assert_st( cop->tops.size() == 1 );
-    conv_io_t & cio_out = cp->must_get_node( cop->tops[0] )->cio;
+    p_conv_node_t node_out = cp->must_get_node( cop->tops[0] );
+    conv_io_t & cio_out = node_out->cio;
 
     if( cop->type == Concat_str ) {      
       vect_string arg_ids;
@@ -871,7 +875,8 @@ using boost::filesystem::path;
     }
 
     assert_st( cop->bots.size() == 1 );
-    conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
+    p_conv_node_t node_in = cp->must_get_node( cop->bots[0] );
+    conv_io_t & cio_in = node_in->cio;
     bool const is_conv = cop->type == Convolution_str;
     if( is_conv || (cop->type == Pooling_str) ) {
       vect_string arg_ids;
@@ -883,7 +888,7 @@ using boost::filesystem::path;
       }
       arg_ids.push_back( as_pyid(cop->bots[0]) );
       arg_ids.push_back( as_pyid(cop->tops[0]) );
-      cu_func_t & cf = gen_op_kern( cop, cio_in, cio_out );
+      cu_func_t & cf = gen_op_kern( cop, cio_in, node_out );
       fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids } );
       if( is_conv ) {
 	assert_st( cio_out.chans == cop->out_chans );
@@ -930,10 +935,19 @@ using boost::filesystem::path;
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
     p_conv_node_t node = cp->must_get_node( node_name );
     // setup source nodes here, otherwise print with thier writing op
+    bool writer_is_conv = 0;
     if( node->top_for.empty() ) { gen_node( node_name, node ); }
-    else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
+    else { 
+      assert( node->top_for.size() == 1 ); // multiple writers not handled
+      p_conv_op_t const & cop = cp->get_op( node->top_for[0] );
+      writer_is_conv = ( cop->type == Convolution_str );
+    }
     // in-place ops for this node
-    for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { gen_op( *j ); }
+    for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { 
+      // skip first operation if it is a ReLU on a node written by a conv, as it will have been fused into the conv:
+      if( writer_is_conv && (j == node->in_place_ops.begin()) && ((*j)->type == ReLU_str) ) { continue; } 
+      gen_op( *j ); 
+    }
     // generate stats gathering call
     // printf( "node_name=%s\n", str(node_name).c_str() );
     for( vect_p_quantize_ops_t::const_iterator i = quantize.begin(); i != quantize.end(); ++i ) {
