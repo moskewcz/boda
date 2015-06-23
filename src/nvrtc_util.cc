@@ -550,12 +550,12 @@ using boost::filesystem::path;
     string t_tile_dummy_stores("// begin t_tile_dummy_stores\n");
     if( is_conv ) {
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[threadIdx.x %%%% 32];\n", str(tx).c_str() );
+	t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[(threadIdx.x %%%% 32) + %s];\n", str(tx).c_str(), str(tx).c_str() );
 	t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
 					str(tx).c_str(), str(tx).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[threadIdx.x %%%% 32];\n", str(ty).c_str() );
+	t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(threadIdx.x %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
 	t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
 				   str(ty).c_str(), str(ty).c_str() );
       }
