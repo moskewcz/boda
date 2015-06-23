@@ -241,6 +241,7 @@ using boost::filesystem::path;
 
     uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
     uint32_t enable_prof; //NESI(default=1,help="if 1, enable profiling")
+    vect_string def; // NESI(help="#define STR 1 in generated code")
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
     uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
@@ -993,7 +994,8 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     // cu_err_chk( cuCtxSetCacheConfig( CU_FUNC_CACHE_PREFER_L1 ), "cuCtxSetCacheConfig" ); // does nothing?
 
     cups.reset( new map_str_p_cup_float_t );
-    cu_prog_str += cu_base_decls;    
+    cu_prog_str += cu_base_decls;
+    for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { cu_prog_str += "#define "+*i+" 1\n"; }
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 

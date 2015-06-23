@@ -20,7 +20,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
        ++filts_ix_out_chan_elem ) {
     __syncthreads();
     if( threadIdx.x < blk_filt_ix_sz ) { 
-#if 0
+#ifdef NO_IO
       filts_smem[threadIdx.x] = threadIdx.x;
       //filts_smem[threadIdx.x] = filts[threadIdx.x];
 #else
@@ -32,7 +32,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
 	int32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x*i);
 
-#if 0
+#ifdef NO_IO
 	float v = threadIdx.x;
 #else
 	%(get_in);
@@ -41,7 +41,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       }
     }
     __syncthreads();
-#if 0
+#ifdef NO_IO
     %(t_tile_dummy_loads);
 #else
     %(t_tile_loads);
@@ -67,7 +67,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   %(t_tile_loads);
 
   // add bias to each elem of out_tile[] and store the results to out[]
-#if 0
+#ifdef NO_IO
   %(t_tile_dummy_stores);
 #else
   %(t_tile_stores);
