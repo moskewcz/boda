@@ -378,6 +378,7 @@ using boost::filesystem::path;
       tf_exprs.push_back( make_pair( "cu_func_name", rtc_func_name ) );
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (op_tag+".cu")).string() );
       cf = &cu_funcs.insert( make_pair( rtc_func_name, cu_func_t{rtc_func_name,0} ) ).first->second;
+      printf( "cf->name=%s\n", str(cf->name).c_str() );
       return *cf;
     }
     vect_pair_str_str tf_exprs;
@@ -641,13 +642,11 @@ using boost::filesystem::path;
 
     // for reg blocking
     uint32_t const out_chan_tile_sz = u32_ceil_div( cio_out.chans, t_tile_sz );
-    //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
-    //		vect_uint32_t{cio_in.chans,kern_sz,kern_sz,cio_out.chans} );
-    //assert_st( out_chan_tile_sz * t_tile_sz == cio_out.chans ); // FIXME: too strong (need to handle partial tiles)
-    uint32_t const patch_sz = u32_ceil_div( out_ix_sz, cio_out.chans );
-    assert_st( patch_sz * cio_out.chans == out_ix_sz ); // by construction
-    uint32_t const patch_tile_sz = u32_ceil_div( patch_sz, t_tile_sz );
-    //insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
+    uint32_t const lines_sz = u32_ceil_div( u32_ceil_div( out_ix_sz, cio_out.sz.d[0] ), cio_out.chans );
+    assert_st( lines_sz * cio_out.sz.d[0] * cio_out.chans == out_ix_sz ); // by construction
+    
+    uint32_t const line_patch_sz = cio_out.sz.d[0];
+    uint32_t const line_patch_tile_sz = u32_ceil_div( line_patch_sz, t_tile_sz );
 
     insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
     insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
@@ -658,16 +657,13 @@ using boost::filesystem::path;
     // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
     // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the cio_out.chans.
     uint32_t tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-    if( tix_out_chan_tile_sz < goal_tix_out_chan_tile_sz ) {
-	
-    }
-    uint32_t tix_patch_tile_sz = 8; // treated as a minimum
-    cf.tpb = 128; // treated as a target, but not be exceeded
-    while( (tix_patch_tile_sz+1) * tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
+    uint32_t tix_patch_tile_sz = line_patch_tile_sz;
+    cf.tpb = 512; // treated as a target, but not be exceeded
     uint32_t const new_tbp = tix_patch_tile_sz * tix_out_chan_tile_sz;// recalculate tpb, should not increase
     assert_st( new_tbp <= cf.tpb );
     cf.tpb = new_tbp;
-    //printf( "tix_patch_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_patch_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
+    printf( "cio_out.sz=%s\n", str(cio_out.sz).c_str() );
+    printf( "tix_patch_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_patch_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
     insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, 
 		      vect_uint32_t{tix_patch_tile_sz,tix_out_chan_tile_sz} );
 
@@ -681,16 +677,14 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{cio_in.chans,kern_sz,kern_sz,bix_out_chan_blk_sz,t_tile_sz,tix_out_chan_tile_sz} );
 
-    // check that we have enough threads per block to load smem using one-elem-per-thread.
-    // FIXME: allow for cases when this does not hold
-    assert_st( cf.tpb >= (t_tile_sz * tix_out_chan_tile_sz) ); 
+    uint32_t const out_chan_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_out_chan_tile_sz), cf.tpb );
+    tf_exprs.push_back( std::make_pair( "out_chan_smem_load_iter", str(out_chan_smem_load_iter) ) );
     uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_patch_tile_sz), cf.tpb );
     tf_exprs.push_back( std::make_pair( "patch_smem_load_iter", str(patch_smem_load_iter) ) );
-    // printf( "patch_smem_load_iter=%s\n", str(patch_smem_load_iter).c_str() );
-    // assert_st( cf.tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
       
-    uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
+    uint32_t const bix_patch_blk_sz = lines_sz;
     cf.blks = bix_patch_blk_sz * bix_out_chan_blk_sz; 
+    // TODO/FIXME: rework following for block-per-line
     insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{bix_patch_blk_sz,bix_out_chan_blk_sz}); 
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 

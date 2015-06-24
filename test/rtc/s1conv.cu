@@ -19,13 +19,15 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != (%(filts_xp_ix_sz) / %(filts_xp_ix_x_sz));
        ++filts_ix_out_chan_elem ) {
     __syncthreads();
-    if( threadIdx.x < blk_filt_ix_sz ) { 
+    for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
+      if( (threadIdx.x+blockDim.x*i) < blk_filt_ix_sz ) { 
 #ifdef NO_IOX // by default, we don't ever disable this, since it's seems about as good as it can be already
-      //filts_smem[threadIdx.x] = threadIdx.x;
-      filts_smem[threadIdx.x] = filts[threadIdx.x];
+	//filts_smem[threadIdx.x] = threadIdx.x;
+	filts_smem[threadIdx.x+blockDim.x*i] = filts[threadIdx.x];
 #else
-      filts_smem[threadIdx.x] = filts[filts_off];
+	filts_smem[threadIdx.x+blockDim.x*i] = filts[filts_off+blockDim.x*i];
 #endif
+      }
     }
     for( int32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
       if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
