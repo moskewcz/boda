@@ -82,7 +82,7 @@ Y_MAX=10000.0
 PEAK_PERF=[172.8, 5600.0 ]
 PEAK_PERF_LABELS=['Adreno 418 Peak Compute','GTX-980 Peak Compute']
 PEAK_BW=[15.0, 224.0 ]
-PEAK_BW_LABELS = ['Adreno 418 Peak Bandwidth    (for refernce only)','GTC-980 Peak Bandwidth']
+PEAK_BW_LABELS = ['Adreno 418 Peak Bandwidth    (for reference only)','GTX-980 Peak Bandwidth']
 knee_ais = [ knee_ai(a,b) for a,b in zip( PEAK_PERF, PEAK_BW ) ]
 knee_ais = zip( knee_ais, ["--","-"] )
 
@@ -169,4 +169,4 @@ for p,l,kai in zip(PEAK_PERF, PEAK_PERF_LABELS, knee_ais): addPerfLine(p,l,kai[0
 #BW line and text
 for bw,l,kai in zip(PEAK_BW, PEAK_BW_LABELS, knee_ais ): addBWLine(bw,l,kai[0], kai[1])
 #save file
-fig.savefig("cnn-gtx980-roofline.svg", dpi=300,  bbox_inches='tight')
+fig.savefig("cnn-gtx980-roofline.png", dpi=600,  bbox_inches='tight')
