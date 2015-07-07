@@ -219,6 +219,7 @@ using boost::filesystem::path;
     string cu_func_name; 
     vect_string args; 
     vect_uint32_t u32_args;
+    string call_tag;
     // begin and end event from most recent call (currently only for timing/profiling)
     p_CUevent b_ev; 
     p_CUevent e_ev;
@@ -256,12 +257,14 @@ using boost::filesystem::path;
 
     uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
     uint32_t enable_prof; //NESI(default=1,help="if 1, enable profiling")
+    string per_call_fn; //NESI(default="",help="if non-empty, write per-call profiling (timing via events) to given file.")
     vect_string def; // NESI(help="#define STR 1 in generated code")
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
     uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
     uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
+    uint32_t enable_s1conv; //NESI(default=0,help="if 1, enable experimental s1conv special case")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
     p_conv_pipe_t cp;
@@ -1056,7 +1059,7 @@ using boost::filesystem::path;
 	assert_st( chans_out_done+cio_in.chans <= cio_out.chans );
 	cu_func_t & cf = gen_op_copy( cop, cio_in, cio_out, chans_out_done );
 	arg_ids[0] = as_pyid(cop->bots[bi]);
-	fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids } );
+	fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, tag_id_str } );
 	chans_out_done += cio_in.chans;
       }
       assert_st( chans_out_done == cio_out.chans );
@@ -1078,7 +1081,7 @@ using boost::filesystem::path;
       arg_ids.push_back( as_pyid(cop->bots[0]) );
       arg_ids.push_back( as_pyid(cop->tops[0]) );
       cu_func_t & cf = gen_op_kern( cop, cio_in, node_out );
-      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids } );
+      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, tag_id_str } );
       if( is_conv ) {
 	assert_st( cio_out.chans == cop->out_chans );
 	vect_uint32_t const & arg_sizes = cf.arg_sizes;
@@ -1092,7 +1095,7 @@ using boost::filesystem::path;
     } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
       assert_st( cop->bots[0] == cop->tops[0] );
-      fwd_calls.push_back( cu_func_call_t{ gen_op_relu( cio_out ).name, { as_pyid(cop->tops[0]) } } );
+      fwd_calls.push_back( cu_func_call_t{ gen_op_relu( cio_out ).name, { as_pyid(cop->tops[0]) }, {}, tag_id_str } );
     } else if( cop->type == LRN_str ) {
       assert_st( cop->bots.size() == 1 );
       conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
@@ -1102,7 +1105,7 @@ using boost::filesystem::path;
       arg_ids.push_back( as_pyid(cop->bots[0]) );
       arg_ids.push_back( as_pyid(cop->tops[0]) );
       cu_func_t & cf = gen_op_lrn( cop, cio_in, cio_out );
-      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids } );
+      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, tag_id_str } );
     } else if( cop->type == Dropout_str ) {
       // check that this is a single in-out in-place operation
       assert_st( cop->bots[0] == cop->tops[0] );
@@ -1254,6 +1257,18 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
     if( enable_prof ) { cuProfilerStop(); }
+    if( !per_call_fn.empty() ) {
+      string per_call_str;
+      for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
+	cu_func_call_t & cfc = *i;
+	if( cfc.call_tag.empty() ) { continue; }
+	float cfc_dur = 0.0f;
+	cu_err_chk( cuEventElapsedTime( &cfc_dur, *cfc.b_ev, *cfc.e_ev ), "cuEventElapsedTime" );
+	per_call_str += strprintf( "per_layer_time['%s']=%s\n", str(cfc.call_tag).c_str(), str(cfc_dur/1000.0).c_str() );
+      }
+      write_whole_fn( per_call_fn, per_call_str );
+    }
+
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out

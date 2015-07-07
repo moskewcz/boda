@@ -5,17 +5,26 @@ def pp_val_part( v, force ):
     if (v < 1000) or force: return "%.0f" % v
     return None
 def pp_val( v ): # pretty-print flops
-    ret = pp_val_part( v, 0 )
     exp = 0
+    assert v >= 0
+    if v == 0: return "0"
+    while v < 1.0:
+        v *= 1000.0
+        exp -= 1
+    ret = pp_val_part( v, 0 )
     while ret is None:
         v /= 1000.0
         exp += 1
         ret = pp_val_part( v, exp == 5 )
+    if exp < -4: return str(v) # too small, give up
+    #print "v",v,"exp",exp
+    if exp < 0: return ret+"munp"[- 1 - exp]
     if exp == 0: return ret
     return ret+"KMGTP"[exp - 1]
 
 verbose_print = 0
 if verbose_print:
+    def pp_secs( v ): return pp_val( v ) + " SECS"
     def pp_flops( v ): return pp_val( v ) + " FLOPS"
     def pp_bytes( v ): return pp_val( v ) + " BYTES"
     def pp_bps( v ): return pp_val( v ) + " BYTES/SEC"
@@ -24,6 +33,7 @@ if verbose_print:
     def pp_fpspw( v ): return pp_val( v ) + " FLOPS/SEC/WATT"
     def pp_joules( v ): return pp_val( v ) + " JOULES"
 else:
+    def pp_secs( v ): return pp_val( v ) + "s"
     def pp_flops( v ): return pp_val( v ) + "F"
     def pp_bytes( v ): return pp_val( v ) + "B"
     def pp_bps( v ): return pp_val( v ) + "B/s"
@@ -142,6 +152,9 @@ class Convolution( object ):
                 print " MxNxK=%sx%sx%s" % (M,N,K),
             if net.args.backward:
                 print " BACKWARD_BYTES",pp_bytes(backward_bytes),
+            plt = per_layer_time.get(name,None)
+            if plt:
+                print " --- ", pp_secs( plt ), pp_fps( forward_flops / float(plt) ),
             print ""
 
 # FIXME: in boda output, the ops/nodes of IP layers are printed out as if it
@@ -168,6 +181,7 @@ def reshape( A, *args ): return A
 import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--net-fn', metavar="FN", type=str, default="out.py", help="filename of network-definition python script" )
+parser.add_argument('--time-fn', metavar="FN", type=str, default="", help="filename of per-layer timing info" )
 parser.add_argument('--num-imgs', metavar='N', type=int, default=1, help='an integer for the accumulator')
 parser.add_argument('--runtime', metavar='SECONDS', type=float, default=1, help='time taken for power/energy calculations')
 parser.add_argument('--power', metavar='WATTS', type=float, default=200, help='average power used over runtime')
@@ -178,6 +192,8 @@ args = parser.parse_args()
 net = Net(args)
 # set num_img and source cnet decl
 num_img = args.num_imgs
+per_layer_time = {}
+if args.time_fn: execfile( args.time_fn )
 execfile( args.net_fn )
 
 net.print_stats()
