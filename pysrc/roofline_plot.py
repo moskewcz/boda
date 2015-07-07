@@ -168,7 +168,7 @@ for ai, lab, mss, gfs in aiois:
     if show_perf:
         for alg, perf in zip( algs, perfs ):
             addPerfPt( alg, ai, perf )
-
+#print "KAIs",knee_ais
 #Peak performance line and text
 for p,l,kai in zip(PEAK_PERF, PEAK_PERF_LABELS, knee_ais): addPerfLine(p,l,kai[0], kai[1])
 #BW line and text
