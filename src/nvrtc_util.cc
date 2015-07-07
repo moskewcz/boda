@@ -204,10 +204,25 @@ using boost::filesystem::path;
     }
   }
 
+  typedef shared_ptr< CUevent > p_CUevent; 
+  void cuEventDestroy_wrap( CUevent const * const p ) { 
+    if(!p){return;} 
+    cu_err_chk( cuEventDestroy( *p ), "cuEventDestroy" ); 
+  }
+  p_CUevent make_p_CUevent( void ) {
+    CUevent ret;
+    cu_err_chk( cuEventCreate( &ret, CU_EVENT_DEFAULT ), "cuEventCreate" );
+    return p_CUevent( new CUevent( ret ), cuEventDestroy_wrap ); 
+  }
+
   struct cu_func_call_t { 
     string cu_func_name; 
     vect_string args; 
     vect_uint32_t u32_args;
+    // begin and end event from most recent call (currently only for timing/profiling)
+    p_CUevent b_ev; 
+    p_CUevent e_ev;
+    void ensure_evs( void ) { if( !b_ev ) { b_ev = make_p_CUevent(); } if( !e_ev ) { e_ev = make_p_CUevent(); } }
   };
   typedef vector< cu_func_call_t > vect_cu_func_call_t; 
   struct gen_layout_info_t { uint32_t in_chans; uint32_t bix_out_chan_blk_sz; uint32_t tix_out_chan_tile_sz; };
@@ -292,7 +307,7 @@ using boost::filesystem::path;
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
 
-    void run_cfc( cu_func_call_t const & cfc );
+    void run_cfc( cu_func_call_t & cfc );
   };
 
   // FIXME: i'm not too happy about the duplication between here and the kernel version
@@ -1190,11 +1205,11 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in
 
     // transpose filters ... and do any other init-time work added after this comment was written ;)
-    for( vect_cu_func_call_t::const_iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_cfc( *i ); }
+    for( vect_cu_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_cfc( *i ); }
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
   }
 
-  void conv_pipe_fwd_t::run_cfc( cu_func_call_t const & cfc ) {
+  void conv_pipe_fwd_t::run_cfc( cu_func_call_t & cfc ) {
     cu_func_t const & cf = must_find( cu_funcs, cfc.cu_func_name );
     vect_rp_void cu_func_args;
     uint32_t blks = cf.blks; // if non-zero, blks is static, and we can check arg sizes
@@ -1218,12 +1233,15 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       printf( "%s( %s -- %s ) tpb=%s blks=%s\n", str(cfc.cu_func_name).c_str(), str(cfc.args).c_str(), str(cfc.u32_args).c_str(),
 	      str(cf.tpb).c_str(), str(blks).c_str() );
     }
+    cfc.ensure_evs();
+    cu_err_chk( cuEventRecord( *cfc.b_ev, 0 ), "cuEventRecord" );
     cu_err_chk( cuLaunchKernel( cf.cu_func,
 				blks, 1, 1, // grid x,y,z dims
 				cf.tpb, 1, 1, // block x,y,z dims
 				0, 0, // smem_bytes, stream_ix
 				&cu_func_args[0], // cu_func's args
 				0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg      
+    cu_err_chk( cuEventRecord( *cfc.e_ev, 0 ), "cuEventRecord" );
   }
 
 
@@ -1233,7 +1251,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     //printf("run_fwd() begin\n");
     copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
     //printf("run_fwd() exec\n");
-    for( vect_cu_func_call_t::const_iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
+    for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
     if( enable_prof ) { cuProfilerStop(); }
     //printf("run_fwd() copy out\n");
