@@ -445,8 +445,12 @@ using boost::filesystem::path;
     
     // also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
     assert_st( cio_in.sz.dims_are_same() );
-    if( is_conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) && (cio_in.sz.d[0] >= 20) && (cio_in.sz.d[0] <= 500) ) { 
-      //return gen_op_s1conv( conv_has_relu, in_pad, kern_sz, cio_in, cio_out ); 
+    if( enable_s1conv ) { 
+      if( is_conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) 
+	  && (cio_in.sz.d[0] >= 20) && (cio_in.sz.d[0] <= 500) ) 
+      { 
+	return gen_op_s1conv( conv_has_relu, in_pad, kern_sz, cio_in, cio_out ); 
+      }
     }
 
     rtc_func_gen_info_t rfgi{"",
