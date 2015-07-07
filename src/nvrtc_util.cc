@@ -378,7 +378,7 @@ using boost::filesystem::path;
       tf_exprs.push_back( make_pair( "cu_func_name", rtc_func_name ) );
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (op_tag+".cu")).string() );
       cf = &cu_funcs.insert( make_pair( rtc_func_name, cu_func_t{rtc_func_name,0} ) ).first->second;
-      printf( "cf->name=%s\n", str(cf->name).c_str() );
+      //printf( "cf->name=%s\n", str(cf->name).c_str() );
       return *cf;
     }
     vect_pair_str_str tf_exprs;
