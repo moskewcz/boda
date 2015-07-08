@@ -799,6 +799,16 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
     tf_exprs.push_back( std::make_pair( "t_tile_dummy_stores", t_tile_dummy_stores ) );
 
+
+    string inner_loop_body("// begin inner_loop_body\n");
+    for( uint32_t i = 0; i != kern_sz; ++i ) {
+      inner_loop_body += t_tile_filt_loads + ";\n";
+      inner_loop_body += t_tile_in_loads + ";\n";
+      inner_loop_body += "    filts_smem_off += blk_filt_ix_sz;\n    kx += 1;\n";
+      inner_loop_body += t_tile_fmas + ";\n";
+    }
+    tf_exprs.push_back( std::make_pair( "inner_loop_body", inner_loop_body ) );
+
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
     cf.arg_sizes.push_back( cio_out.chans ); // biases_sz
