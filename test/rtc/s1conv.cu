@@ -1,7 +1,8 @@
 // each thread: computes 8x8 block of out
 // loop over k dim
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-  __shared__ float in_smem[%(in_pad) + %(in_ix_x_dim) + %(in_pad)]; 
+  // for in_sem, only [%(in_pad) + %(in_ix_x_dim) + %(in_pad)] is needed/valid, but allocate extra so we don't read off the end
+  __shared__ float in_smem[%(threadIdx.x_line_x_tile_dim)*%(t_tile_sz)];
   // zero init padding part of in_smem
   if( threadIdx.x < ( 2 * %(in_pad) ) ) { 
     in_smem[ (( threadIdx.x < %(in_pad) ) ? 0 : %(in_ix_x_dim))+threadIdx.x] = 0.0f; 
