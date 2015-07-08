@@ -8,7 +8,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
     in_smem[ (( threadIdx.x < %(in_pad) ) ? 0 : %(in_ix_x_dim))+threadIdx.x] = 0.0f; 
   }  
   int32_t const blk_filt_ix_sz = %(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz);
-  __shared__ float filts_smem[blk_filt_ix_sz];
+  __shared__ float filts_smem[blk_filt_ix_sz*%(filts_xp_ix_x_dim)];
   float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
@@ -17,31 +17,37 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 
   // iteratate over filter elements
   int32_t filts_off = blk_filt_ix_base;
-  for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != (%(filts_xp_ix_sz) / %(filts_xp_ix_x_sz));
-       ++filts_ix_out_chan_elem ) {
+  int32_t filts_smem_off = 0;
+  for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_elem_sz); ++filts_ix_out_chan_elem ) {
     __syncthreads();
-    for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
-      int32_t const t_smem_filt_ix = threadIdx.x+blockDim.x*i;
-      if( t_smem_filt_ix < blk_filt_ix_sz ) { 
-	filts_smem[t_smem_filt_ix] = filts[filts_off+t_smem_filt_ix];
+    filts_smem_off = 0;
+    for( int32_t kx = 0; kx < %(filts_xp_ix_x_dim); ++kx ) {
+      int32_t t_smem_filt_ix = threadIdx.x;
+      for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
+	if( t_smem_filt_ix < blk_filt_ix_sz ) { filts_smem[filts_smem_off+t_smem_filt_ix] = filts[filts_off+t_smem_filt_ix]; }
+	t_smem_filt_ix += blockDim.x;
       }
+      filts_off += %(filts_xp_ix_x_sz);
+      filts_smem_off += blk_filt_ix_sz;
     }
-    if( %(filts_ix_out_chan_elem_x) == 0 ) {
-      int32_t const t_smem_line_x = threadIdx.x;
-      if( t_smem_line_x < %(in_ix_x_dim) ) { 
-	%(get_in);
-	in_smem[%(in_pad)+t_smem_line_x] = v;
-      }
+    int32_t const t_smem_line_x = threadIdx.x;
+    if( t_smem_line_x < %(in_ix_x_dim) ) { 
+      %(get_in);
+      in_smem[%(in_pad)+t_smem_line_x] = v;
     }
-    filts_off += %(filts_xp_ix_x_sz);
     __syncthreads();
-    %(t_tile_filt_loads);
-    %(t_tile_in_loads);
 
-    %(t_tile_fmas);
+    filts_smem_off = 0;
+    for( int32_t kx = 0; kx < %(filts_xp_ix_x_dim); ++kx ) {
+      %(t_tile_filt_loads);
+      filts_smem_off += blk_filt_ix_sz;
+      %(t_tile_in_loads);
+      %(t_tile_fmas);
+    }
   }
 
   // load per-block biases into smem
+  filts_smem_off = 0;
   __syncthreads();
     for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
       int32_t const t_smem_bias_ix = threadIdx.x+blockDim.x*i;
@@ -50,7 +56,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 	int32_t const load_reg = t_smem_bias_ix / %(threadIdx.x_out_chan_tile_dim);
 	int32_t const load_tile = t_smem_bias_ix %% %(threadIdx.x_out_chan_tile_dim);
 	int32_t const ocix = ocix_base + load_tile*%(t_tile_sz) + load_reg;
-	if( ocix < %(out_ix_chan_dim) ) { filts_smem[t_smem_bias_ix] = biases[ ocix ]; }
+	if( ocix < %(out_ix_chan_dim) ) { filts_smem[filts_smem_off+t_smem_bias_ix] = biases[ ocix ]; }
       }
   }
   __syncthreads();

@@ -673,8 +673,8 @@ using boost::filesystem::path;
     uint32_t const line_x_tile_sz = u32_ceil_div( line_x_sz, t_tile_sz );
     
     insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
-		      vect_uint32_t{cio_in.chans,kern_sz,kern_sz} );
+    insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y"}, 
+		      vect_uint32_t{cio_in.chans,kern_sz} );
     //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
     uint32_t const goal_tix_out_chan_tile_sz = 8; // sqrt( cf.tpb ) above, more or less, but tweakable
     // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
@@ -744,12 +744,12 @@ using boost::filesystem::path;
 
     for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
       t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[(threadIdx.x %%%% 32) + %s];\n", str(tx).c_str(), str(tx).c_str() );
-      t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
+      t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[filts_smem_off+%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
 				 str(tx).c_str(), str(tx).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
       t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(threadIdx.x %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
-      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%%(filts_ix_out_chan_elem_x)+%s];\n",
+      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+kx+%s];\n",
 				 str(ty).c_str(), str(ty).c_str() );
     }
 
