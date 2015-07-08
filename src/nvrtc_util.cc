@@ -449,7 +449,7 @@ using boost::filesystem::path;
     assert_st( cio_in.sz.dims_are_same() );
     if( enable_s1conv ) { 
       if( is_conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) 
-	  && (cio_in.sz.d[0] >= 20) && (cio_in.sz.d[0] <= 500) ) 
+	  && (cio_out.sz.d[0] >= 20) && (cio_out.sz.d[0] <= 64 ) && (cio_out.chans >= 64) ) 
       { 
 	return gen_op_s1conv( conv_has_relu, in_pad, kern_sz, cio_in, cio_out ); 
       }
@@ -676,7 +676,7 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
 		      vect_uint32_t{cio_in.chans,kern_sz,kern_sz} );
     //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
-    uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
+    uint32_t const goal_tix_out_chan_tile_sz = 8; // sqrt( cf.tpb ) above, more or less, but tweakable
     // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
     // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
     // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the cio_out.chans.
@@ -703,8 +703,8 @@ using boost::filesystem::path;
 
     uint32_t const out_chan_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_out_chan_tile_sz), cf.tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_smem_load_iter", str(out_chan_smem_load_iter) ) );
-    uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_line_x_tile_sz), cf.tpb );
-    tf_exprs.push_back( std::make_pair( "patch_smem_load_iter", str(patch_smem_load_iter) ) );
+    assert_st( line_x_sz <= cf.tpb ); // FIXME: too strong?
+    assert_st( (in_pad*2) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
       
     uint32_t const bix_patch_blk_sz = lines_sz; // note: == num_imgs * cio_out.sz.d[1] (aka "y")
     cf.blks = bix_patch_blk_sz * bix_out_chan_blk_sz; 
@@ -724,9 +724,8 @@ using boost::filesystem::path;
     string const get_in = strprintf( 
       "float v = 0;\n"
       "      int const smem_in_ix_y = %%(blockIdx.x_y) + %%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
-      "      int const smem_in_ix_x = t_smem_line_x+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
-      "      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
-      "         smem_in_ix_x < %%(in_ix_x_dim) && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
+      "      int const smem_in_ix_x = t_smem_line_x;\n"
+      "      if(smem_in_ix_y >= 0 && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
       "        v = in[%%(blockIdx.x_img)*%%(in_ix_img_sz) +\n"
       "          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
       "          smem_in_ix_y*%%(in_ix_y_sz) +\n"
@@ -737,19 +736,20 @@ using boost::filesystem::path;
 			
     string t_tile_fmas("// begin t_tile_fmas\n");
     string t_tile_smem_loads("// begin t_tile_smem_loads\n");
-    string t_tile_loads("// begin t_tile_loads\n");
+    string t_tile_in_loads("// begin t_tile_in_loads\n");
+    string t_tile_filt_loads("// begin t_tile_filt_loads\n");
     string t_tile_dummy_loads("// begin t_tile_dummy_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
     string t_tile_dummy_stores("// begin t_tile_dummy_stores\n");
 
     for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
       t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[(threadIdx.x %%%% 32) + %s];\n", str(tx).c_str(), str(tx).c_str() );
-      t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
+      t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
 				 str(tx).c_str(), str(tx).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
       t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(threadIdx.x %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
-      t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%s];\n",
+      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%%(filts_ix_out_chan_elem_x)+%s];\n",
 				 str(ty).c_str(), str(ty).c_str() );
     }
 
@@ -787,12 +787,14 @@ using boost::filesystem::path;
 
     // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
     t_tile_fmas += "    // end t_tile_fmas"; 
-    t_tile_loads += "    // end t_tile_loads";
+    t_tile_in_loads += "    // end t_tile_in_loads";
+    t_tile_filt_loads += "    // end t_tile_filt_loads";
     t_tile_dummy_loads += "    // end t_tile_dummy_loads";
     t_tile_stores += "  // end t_tile_stores";
     tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
     tf_exprs.push_back( std::make_pair( "t_tile_smem_loads", t_tile_smem_loads ) );
-    tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_in_loads", t_tile_in_loads ) );
+    tf_exprs.push_back( std::make_pair( "t_tile_filt_loads", t_tile_filt_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_dummy_loads", t_tile_dummy_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
     tf_exprs.push_back( std::make_pair( "t_tile_dummy_stores", t_tile_dummy_stores ) );
