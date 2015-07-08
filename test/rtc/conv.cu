@@ -15,7 +15,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   int32_t const blk_patch_ix_base = %(blockIdx.x_patch_blk)*blk_patch_ix_sz;
 
   // iteratate over filter elements
-  int32_t filts_off = blk_filt_ix_base + threadIdx.x;
+  int32_t filts_off = blk_filt_ix_base;
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != (%(filts_xp_ix_sz) / %(filts_xp_ix_x_sz));
        ++filts_ix_out_chan_elem ) {
     __syncthreads();
@@ -24,7 +24,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       //filts_smem[threadIdx.x] = threadIdx.x;
       filts_smem[threadIdx.x] = filts[threadIdx.x];
 #else
-      filts_smem[threadIdx.x] = filts[filts_off];
+      filts_smem[threadIdx.x] = filts[filts_off + threadIdx.x];
 #endif
     }
     for( int32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
@@ -34,7 +34,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 #ifdef NO_IO
 	//float v = threadIdx.x;
 	//float v = in[threadIdx.x];
-	float v = in[filts_off];
+	float v = in[filts_off + threadIdx.x];
 #else
 	%(get_in);
 #endif
