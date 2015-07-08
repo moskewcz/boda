@@ -2,7 +2,7 @@
 // loop over k dim
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
   // for in_sem, only [%(in_pad) + %(in_ix_x_dim) + %(in_pad)] is needed/valid, but allocate extra so we don't read off the end
-  __shared__ float in_smem[%(threadIdx.x_line_x_tile_dim)*%(t_tile_sz)];
+  __shared__ float in_smem[%(threadIdx.x_line_x_tile_dim)*%(t_tile_sz) + %(filts_xp_ix_x_dim)-1];
   // zero init padding part of in_smem
   if( threadIdx.x < ( 2 * %(in_pad) ) ) { 
     in_smem[ (( threadIdx.x < %(in_pad) ) ? 0 : %(in_ix_x_dim))+threadIdx.x] = 0.0f; 
