@@ -734,7 +734,6 @@ using boost::filesystem::path;
     
     tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
 			
-    string t_tile_fmas("// begin t_tile_fmas\n");
     string t_tile_smem_loads("// begin t_tile_smem_loads\n");
     string t_tile_in_loads("// begin t_tile_in_loads\n");
     string t_tile_filt_loads("// begin t_tile_filt_loads\n");
@@ -749,10 +748,11 @@ using boost::filesystem::path;
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
       t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(threadIdx.x %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
-      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+kx+%s];\n",
+    }
+    for( uint32_t ty = 0; ty != t_tile_sz + kern_sz - 1; ++ty ) { 
+      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%s];\n",
 				 str(ty).c_str(), str(ty).c_str() );
     }
-
     t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
     t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
 
@@ -773,8 +773,6 @@ using boost::filesystem::path;
       t_tile_stores += "  if( (%(t_tile_sz)*%(threadIdx.x_line_x_tile)+"+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
 	"// this patch and the following are off-the-end patches, so don't store them.\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
-				  str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
 	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", conv_has_relu ? "max(0.0f," : "(",
 				     str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
 	t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
@@ -786,12 +784,10 @@ using boost::filesystem::path;
     t_tile_dummy_stores += ";\n";
 
     // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
-    t_tile_fmas += "    // end t_tile_fmas"; 
     t_tile_in_loads += "    // end t_tile_in_loads";
     t_tile_filt_loads += "    // end t_tile_filt_loads";
     t_tile_dummy_loads += "    // end t_tile_dummy_loads";
     t_tile_stores += "  // end t_tile_stores";
-    tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
     tf_exprs.push_back( std::make_pair( "t_tile_smem_loads", t_tile_smem_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_in_loads", t_tile_in_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_filt_loads", t_tile_filt_loads ) );
@@ -801,11 +797,16 @@ using boost::filesystem::path;
 
 
     string inner_loop_body("// begin inner_loop_body\n");
-    for( uint32_t i = 0; i != kern_sz; ++i ) {
+    inner_loop_body += t_tile_in_loads + ";\n";
+    for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
       inner_loop_body += t_tile_filt_loads + ";\n";
-      inner_loop_body += t_tile_in_loads + ";\n";
-      inner_loop_body += "    filts_smem_off += blk_filt_ix_sz;\n    kx += 1;\n";
-      inner_loop_body += t_tile_fmas + ";\n";
+      inner_loop_body += "    filts_smem_off += blk_filt_ix_sz;\n";
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
+	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	  inner_loop_body += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
+					str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty+kx).c_str() );
+	}
+      }
     }
     tf_exprs.push_back( std::make_pair( "inner_loop_body", inner_loop_body ) );
 

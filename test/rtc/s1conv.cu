@@ -12,7 +12,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
-  float in_strip[%(t_tile_sz)]; // across patches (approx square block in x/y space, favoring x if sqrt() not integer)
+  float in_strip[%(t_tile_sz)+%(filts_xp_ix_x_dim)-1]; // segment of input line sufficient for one inner loop iter
   int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
 
   // iteratate over filter elements
