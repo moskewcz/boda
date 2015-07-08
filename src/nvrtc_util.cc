@@ -55,10 +55,11 @@ using boost::filesystem::path;
     nvrtc_err_chk( nvrtcGetPTX( cuda_prog.get(), &ret[0] ), "nvrtcGetPTX" );
     return ret;
   }
-  string nvrtc_compile( string const & cuda_prog_str, bool const & print_log ) {
+  string nvrtc_compile( string const & cuda_prog_str, bool const & print_log, bool const & enable_lineinfo ) {
     timer_t t("nvrtc_compile");
     p_nvrtcProgram cuda_prog = make_p_nvrtcProgram( cuda_prog_str );
-    vect_string cc_opts = {"--use_fast_math","--gpu-architecture=compute_52","--restrict","-lineinfo"};
+    vect_string cc_opts = {"--use_fast_math","--gpu-architecture=compute_52","--restrict"};
+    if( enable_lineinfo ) { cc_opts.push_back("-lineinfo"); }
     auto const comp_ret = nvrtcCompileProgram( cuda_prog.get(), cc_opts.size(), &get_vect_rp_const_char( cc_opts )[0] );
     string const log = nvrtc_get_compile_log( cuda_prog );
     if( print_log ) { printf( "NVRTC COMPILE LOG:\n%s\n", str(log).c_str() ); }
@@ -138,7 +139,7 @@ using boost::filesystem::path;
 
     virtual void main( nesi_init_arg_t * nia ) { 
       p_string prog_str = read_whole_fn( prog_fn );
-      string const prog_ptx = nvrtc_compile( *prog_str, 0 );
+      string const prog_ptx = nvrtc_compile( *prog_str, 0, 0 );
 
       cu_err_chk( cuInit( 0 ), "cuInit" );
       CUdevice cu_dev;
@@ -255,6 +256,7 @@ using boost::filesystem::path;
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
+    uint32_t enable_lineinfo; //NESI(default=0,help="if 1, enable lineinfo for ptx compilation")
     uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
     uint32_t enable_prof; //NESI(default=1,help="if 1, enable profiling")
     string per_call_fn; //NESI(default="",help="if non-empty, write per-call profiling (timing via events) to given file.")
@@ -1188,7 +1190,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
     write_whole_fn( "out.cu", cu_prog_str );
-    string const prog_ptx = nvrtc_compile( cu_prog_str, show_compile_log );
+    string const prog_ptx = nvrtc_compile( cu_prog_str, show_compile_log, enable_lineinfo );
     write_whole_fn( "out.ptx", prog_ptx );
     //printf( "cu_prog_str=%s\n", str(cu_prog_str).c_str() );
     //printf( "prog_ptx=%s\n", str(prog_ptx).c_str() );
