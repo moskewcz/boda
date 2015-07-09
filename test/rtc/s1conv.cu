@@ -42,13 +42,12 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       in_smem[t_smem_line*%(line_buf_sz)+%(in_pad)+t_smem_line_x] = v;
     }
     __syncthreads();
-    filts_smem_off = 0;
     %(inner_loop_body);
   }
 
   // load per-block biases into smem
-  filts_smem_off = 0;
   __syncthreads();
+  filts_smem_off = 0;
   for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
     int32_t const t_smem_bias_ix = threadIdx.x+blockDim.x*i;
     if( t_smem_bias_ix < blk_filt_ix_sz ) { 

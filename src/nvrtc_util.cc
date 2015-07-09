@@ -813,6 +813,7 @@ using boost::filesystem::path;
 
 
     string inner_loop_body("// begin inner_loop_body\n");
+    inner_loop_body += "    filts_smem_off = 0;\n";
     inner_loop_body += t_tile_in_loads + ";\n";
     for( uint32_t kx = 0; kx != kern_sz; ++kx ) {
       inner_loop_body += t_tile_filt_loads + ";\n";
