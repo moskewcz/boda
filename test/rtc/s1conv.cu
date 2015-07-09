@@ -44,7 +44,6 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
     __syncthreads();
     %(inner_loop_body);
   }
-
   // load per-block biases into smem
   __syncthreads();
   filts_smem_off = 0;
@@ -61,9 +60,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   __syncthreads();
   // load biases into filts_strip
   %(t_tile_filt_loads);
-  
   int32_t const out_line = %(blockIdx.x_lines_blk)*%(threadIdx.x_line_dim) + %(threadIdx.x_line);
-
   // add bias to each elem of out_tile[] and store the results to out[]
   %(t_tile_stores);
 }
