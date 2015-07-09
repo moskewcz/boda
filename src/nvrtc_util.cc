@@ -672,24 +672,37 @@ using boost::filesystem::path;
     uint32_t const line_x_sz = cio_out.sz.d[0];
     uint32_t const line_x_tile_sz = u32_ceil_div( line_x_sz, t_tile_sz );
     
+
     insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
     insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y"}, 
 		      vect_uint32_t{cio_in.chans,kern_sz} );
     //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
-    uint32_t const goal_tix_out_chan_tile_sz = 8; // sqrt( cf.tpb ) above, more or less, but tweakable
+    uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
     // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
     // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
     // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the cio_out.chans.
     uint32_t tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-    uint32_t tix_line_x_tile_sz = line_x_tile_sz;
-    cf.tpb = 512; // treated as a target, but not be exceeded
-    uint32_t const new_tbp = tix_line_x_tile_sz * tix_out_chan_tile_sz;// recalculate tpb, should not increase
-    assert_st( new_tbp <= cf.tpb );
-    cf.tpb = new_tbp;
+    uint32_t const tix_line_x_tile_sz = line_x_tile_sz;
+    cf.tpb = 128; // treated as a target, but not be exceeded
+    uint32_t best_tbp = 0;
+    uint32_t blk_num_lines = 0;
+    while( 1 ) {
+      uint32_t const maybe_tbp = (blk_num_lines+1) * tix_line_x_tile_sz * tix_out_chan_tile_sz; // recalculate proposed tpb
+      if( maybe_tbp > cf.tpb ) { break; }
+      ++blk_num_lines;
+      best_tbp = maybe_tbp;
+    }
+    assert_st( best_tbp );
+    assert_st( best_tbp <= cf.tpb );
+    cf.tpb = best_tbp;
+    
     printf( "cio_out.sz=%s\n", str(cio_out.sz).c_str() );
-    printf( "tix_line_x_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_line_x_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
-    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"line_x_tile","out_chan_tile"}, 
-		      vect_uint32_t{tix_line_x_tile_sz,tix_out_chan_tile_sz} );
+    printf( "blk_num_lines=%s tix_line_x_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(blk_num_lines).c_str(),
+	    str(tix_line_x_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
+    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"line","line_x_tile","out_chan_tile"}, 
+		      vect_uint32_t{blk_num_lines,tix_line_x_tile_sz,tix_out_chan_tile_sz} );
+
+    tf_exprs.push_back( std::make_pair( "line_buf_sz", "(%(in_pad)+%(in_ix_x_dim)+%(in_pad))"));
 
     uint32_t const bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, tix_out_chan_tile_sz );
       
@@ -703,14 +716,14 @@ using boost::filesystem::path;
 
     uint32_t const out_chan_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_out_chan_tile_sz), cf.tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_smem_load_iter", str(out_chan_smem_load_iter) ) );
-    assert_st( line_x_sz <= cf.tpb ); // FIXME: too strong?
-    assert_st( (in_pad*2) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
+    assert_st( cio_in.sz.d[0]*blk_num_lines <= cf.tpb ); // FIXME: too strong?
+    assert_st( (2*in_pad*blk_num_lines) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
       
-    uint32_t const bix_patch_blk_sz = lines_sz; // note: == num_imgs * cio_out.sz.d[1] (aka "y")
-    cf.blks = bix_patch_blk_sz * bix_out_chan_blk_sz; 
+    uint32_t const bix_lines_blk_sz = u32_ceil_div( lines_sz, blk_num_lines ); // note: lines_sz == num_imgs * cio_out.sz.d[1] (aka "y")
+    cf.blks = bix_lines_blk_sz * bix_out_chan_blk_sz; 
     // TODO/FIXME: rework following for block-per-line
-    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"img","y","out_chan_blk"}, 
-		      vect_uint32_t{num_imgs,cio_out.sz.d[1],bix_out_chan_blk_sz}); 
+    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"lines_blk","out_chan_blk"}, 
+		      vect_uint32_t{bix_lines_blk_sz,bix_out_chan_blk_sz}); 
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
 					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
@@ -721,12 +734,14 @@ using boost::filesystem::path;
 					  strprintf( "(%%(threadIdx.x_line_x_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
     }
 
+    insert_nda_exprs( tf_exprs, "out_line", vect_string{"img","y"}, vect_uint32_t{num_imgs,cio_out.sz.d[1]}); 
+
     string const get_in = strprintf( 
       "float v = 0;\n"
-      "      int const smem_in_ix_y = %%(blockIdx.x_y) + %%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
+      "      int const smem_in_ix_y = %%(out_line_y) + %%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
       "      int const smem_in_ix_x = t_smem_line_x;\n"
       "      if(smem_in_ix_y >= 0 && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
-      "        v = in[%%(blockIdx.x_img)*%%(in_ix_img_sz) +\n"
+      "        v = in[%%(out_line_img)*%%(in_ix_img_sz) +\n"
       "          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
       "          smem_in_ix_y*%%(in_ix_y_sz) +\n"
       "          smem_in_ix_x*%%(in_ix_x_sz)];\n" 
@@ -750,7 +765,8 @@ using boost::filesystem::path;
       t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(threadIdx.x %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz + kern_sz - 1; ++ty ) { 
-      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%s];\n",
+      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(line_buf_sz)*%%(threadIdx.x_line)+"
+				    " %%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%s];\n",
 				 str(ty).c_str(), str(ty).c_str() );
     }
     t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
@@ -758,8 +774,8 @@ using boost::filesystem::path;
 
     // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-      t_tile_stores += strprintf( "  tpix[%s] = %%(blockIdx.x_img)*%%(out_ix_img_sz) + \n"
-				  "             %%(blockIdx.x_y)*%%(out_ix_y_sz) + \n"
+      t_tile_stores += strprintf( "  tpix[%s] = %%(out_line_img)*%%(out_ix_img_sz) + \n"
+				  "             %%(out_line_y)*%%(out_ix_y_sz) + \n"
 				  "   (%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%s)*%%(out_ix_x_sz); // cache out patch ixs\n ",
 				  str(ty).c_str(), str(ty).c_str() );
     }
@@ -1276,7 +1292,8 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 	if( cfc.call_tag.empty() ) { continue; }
 	float cfc_dur = 0.0f;
 	cu_err_chk( cuEventElapsedTime( &cfc_dur, *cfc.b_ev, *cfc.e_ev ), "cuEventElapsedTime" );
-	per_call_str += strprintf( "per_layer_time['%s']=%s\n", str(cfc.call_tag).c_str(), str(cfc_dur/1000.0).c_str() );
+	per_call_str += strprintf( "per_layer_time['%s']=%s # %s \n", 
+				   str(cfc.call_tag).c_str(), str(cfc_dur/1000.0).c_str(), cfc.cu_func_name.c_str() );
       }
       write_whole_fn( per_call_fn, per_call_str );
     }

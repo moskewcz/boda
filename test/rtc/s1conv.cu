@@ -1,11 +1,14 @@
 // each thread: computes 8x8 block of out
 // loop over k dim
 extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-  // for in_sem, only [%(in_pad) + %(in_ix_x_dim) + %(in_pad)] is needed/valid, but allocate extra so we don't read off the end
-  __shared__ float in_smem[%(threadIdx.x_line_x_tile_dim)*%(t_tile_sz) + %(filts_xp_ix_x_dim)-1];
+  // for in_sem, only %(line_buf_sz) == (%(in_pad) + %(in_ix_x_dim) + %(in_pad)) is needed/valid,
+  // but allocate extra so we don't read off the end
+  __shared__ float in_smem[%(line_buf_sz)*%(threadIdx.x_line_dim) + %(t_tile_sz)+%(filts_xp_ix_x_dim)-1];
   // zero init padding part of in_smem
-  if( threadIdx.x < ( 2 * %(in_pad) ) ) { 
-    in_smem[ (( threadIdx.x < %(in_pad) ) ? 0 : %(in_ix_x_dim))+threadIdx.x] = 0.0f; 
+  if( threadIdx.x < ( 2*%(in_pad)*%(threadIdx.x_line_dim) ) ) {
+    int32_t const pad_ix = threadIdx.x %% (2*%(in_pad));
+    int32_t const line_off = (threadIdx.x / (2*%(in_pad))) * %(line_buf_sz); 
+    in_smem[ line_off + pad_ix + ((pad_ix < %(in_pad)) ? 0 : %(in_ix_x_dim))] = 0.0f; 
   }  
   int32_t const blk_filt_ix_sz = %(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz);
   __shared__ float filts_smem[blk_filt_ix_sz*%(filts_xp_ix_x_dim)];
@@ -31,15 +34,16 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       filts_off += %(filts_xp_ix_x_sz);
       filts_smem_off += blk_filt_ix_sz;
     }
-    int32_t const t_smem_line_x = threadIdx.x;
-    if( t_smem_line_x < %(in_ix_x_dim) ) { 
+    int32_t const t_smem_line = threadIdx.x / %(in_ix_x_dim);
+    int32_t const t_smem_line_x = threadIdx.x %% %(in_ix_x_dim);
+    int32_t const out_line = %(blockIdx.x_lines_blk)*%(threadIdx.x_line_dim) + t_smem_line;
+    if( t_smem_line < %(threadIdx.x_line_dim) ) { 
       %(get_in);
-      in_smem[%(in_pad)+t_smem_line_x] = v;
+      in_smem[t_smem_line*%(line_buf_sz)+%(in_pad)+t_smem_line_x] = v;
     }
     __syncthreads();
 
     filts_smem_off = 0;
-    kx = 0;
     %(inner_loop_body);
   }
 
@@ -59,6 +63,8 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   __syncthreads();
   // load biases into filts_strip
   %(t_tile_filt_loads);
+  
+  int32_t const out_line = %(blockIdx.x_lines_blk)*%(threadIdx.x_line_dim) + %(threadIdx.x_line);
 
   // add bias to each elem of out_tile[] and store the results to out[]
 #ifdef NO_IO2
