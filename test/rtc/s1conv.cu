@@ -42,7 +42,6 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       in_smem[t_smem_line*%(line_buf_sz)+%(in_pad)+t_smem_line_x] = v;
     }
     __syncthreads();
-
     filts_smem_off = 0;
     %(inner_loop_body);
   }
@@ -50,15 +49,15 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   // load per-block biases into smem
   filts_smem_off = 0;
   __syncthreads();
-    for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
-      int32_t const t_smem_bias_ix = threadIdx.x+blockDim.x*i;
-      if( t_smem_bias_ix < blk_filt_ix_sz ) { 
-	int32_t const ocix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
-	int32_t const load_reg = t_smem_bias_ix / %(threadIdx.x_out_chan_tile_dim);
-	int32_t const load_tile = t_smem_bias_ix %% %(threadIdx.x_out_chan_tile_dim);
-	int32_t const ocix = ocix_base + load_tile*%(t_tile_sz) + load_reg;
-	if( ocix < %(out_ix_chan_dim) ) { filts_smem[filts_smem_off+t_smem_bias_ix] = biases[ ocix ]; }
-      }
+  for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
+    int32_t const t_smem_bias_ix = threadIdx.x+blockDim.x*i;
+    if( t_smem_bias_ix < blk_filt_ix_sz ) { 
+      int32_t const ocix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
+      int32_t const load_reg = t_smem_bias_ix / %(threadIdx.x_out_chan_tile_dim);
+      int32_t const load_tile = t_smem_bias_ix %% %(threadIdx.x_out_chan_tile_dim);
+      int32_t const ocix = ocix_base + load_tile*%(t_tile_sz) + load_reg;
+      if( ocix < %(out_ix_chan_dim) ) { filts_smem[filts_smem_off+t_smem_bias_ix] = biases[ ocix ]; }
+    }
   }
   __syncthreads();
   // load biases into filts_strip
@@ -67,10 +66,6 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   int32_t const out_line = %(blockIdx.x_lines_blk)*%(threadIdx.x_line_dim) + %(threadIdx.x_line);
 
   // add bias to each elem of out_tile[] and store the results to out[]
-#ifdef NO_IO2
-  %(t_tile_dummy_stores);
-#else
   %(t_tile_stores);
-#endif
 }
 
