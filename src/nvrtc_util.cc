@@ -449,7 +449,7 @@ using boost::filesystem::path;
     assert_st( cio_in.sz.dims_are_same() );
     if( enable_s1conv ) { 
       if( is_conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) 
-	  && (cio_out.sz.d[0] >= 20) && (cio_out.sz.d[0] <= 64 ) && (cio_out.chans >= 64) ) 
+	  && (cio_out.sz.d[0] >= 6) && (cio_out.sz.d[0] <= 300 ) && (cio_out.chans >= 64) ) 
       { 
 	return gen_op_s1conv( conv_has_relu, in_pad, kern_sz, cio_in, cio_out ); 
       }
