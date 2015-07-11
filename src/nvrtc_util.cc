@@ -717,8 +717,11 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{cio_in.chans,kern_sz,kern_sz,bix_out_chan_blk_sz,t_tile_sz,tix_out_chan_tile_sz} );
 
-    uint32_t const out_chan_smem_load_iter = u32_ceil_div( blk_filt_ix_sz * kern_sz, cf.tpb );
-    
+    uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, cf.tpb );
+    tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
+
+    // generate filter smem loads
+    uint32_t const out_chan_smem_load_iter = u32_ceil_div( blk_filt_ix_sz * kern_sz, cf.tpb );    
     string filts_smem_loads("// begin filts_smem_loads\n");
     if( cf.tpb == blk_filt_ix_sz ) {
       assert_st( out_chan_smem_load_iter * cf.tpb == blk_filt_ix_sz * kern_sz );
@@ -738,23 +741,10 @@ using boost::filesystem::path;
 				      "+(%s %%%% %%(blk_filt_ix_sz))];%s\n",ixe.c_str(),ixe.c_str(),ixe.c_str(),eif.c_str());
       }
     }
-
-#if 0
-    int t_smem_filt_ix = threadIdx.x;
-    for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
-      int32_t const filt_x = t_smem_filt_ix / blk_filt_ix_sz;
-      int32_t const filt_off = t_smem_filt_ix %% blk_filt_ix_sz;
-      if( t_smem_filt_ix < blk_filt_ix_sz*%(filts_xp_ix_x_dim) ) { 
-	filts_smem[t_smem_filt_ix] = filts[filt_x*%(filts_xp_ix_x_sz)+filt_off+filts_off]; 
-      }
-      t_smem_filt_ix += %(tpb);
-    }
-#endif
     filts_smem_loads += "  // end filts_smem_loads";
     tf_exprs.push_back( std::make_pair( "filts_smem_loads", filts_smem_loads ) );
 
 
-    tf_exprs.push_back( std::make_pair( "out_chan_smem_load_iter", str(out_chan_smem_load_iter) ) );
     assert_st( cio_in.sz.d[0]*blk_num_lines <= cf.tpb ); // FIXME: too strong?
     assert_st( (2*in_pad*blk_num_lines) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
       
