@@ -671,7 +671,6 @@ using boost::filesystem::path;
     uint32_t const line_x_tile_sz = u32_ceil_div( line_x_sz, t_tile_sz );
     
 
-    insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,cio_out.sz.d[1],cio_out.sz.d[0]} );
     insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y"}, 
 		      vect_uint32_t{cio_in.chans,kern_sz} );
     //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
@@ -750,7 +749,7 @@ using boost::filesystem::path;
       
     uint32_t const bix_lines_blk_sz = u32_ceil_div( lines_sz, blk_num_lines ); // note: lines_sz == num_imgs * cio_out.sz.d[1] (aka "y")
     cf.blks = bix_lines_blk_sz * bix_out_chan_blk_sz; 
-    // TODO/FIXME: rework following for block-per-line
+
     insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"lines_blk","out_chan_blk"}, 
 		      vect_uint32_t{bix_lines_blk_sz,bix_out_chan_blk_sz}); 
 
@@ -764,18 +763,6 @@ using boost::filesystem::path;
     }
 
     insert_nda_exprs( tf_exprs, "out_line", vect_string{"img","y"}, vect_uint32_t{num_imgs,cio_out.sz.d[1]}); 
-
-    string const get_in = strprintf( 
-      "float v = 0;\n"
-      "      int const smem_in_ix_y = %%(out_line_y) + %%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
-      "      if(smem_in_ix_y >= 0 && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
-      "        v = in[%%(out_line_img)*%%(in_ix_img_sz) +\n"
-      "          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
-      "          smem_in_ix_y*%%(in_ix_y_sz) +\n"
-      "          t_smem_line_x*%%(in_ix_x_sz)];\n" 
-      "      }" );
-    
-    tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
 			
     string t_tile_in_loads("// begin t_tile_in_loads\n");
     string t_tile_filt_loads("// begin t_tile_filt_loads\n");
