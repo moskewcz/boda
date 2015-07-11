@@ -571,7 +571,6 @@ using boost::filesystem::path;
       tf_exprs.push_back( std::make_pair( "op_post", cop->avg_pool ? "out_v /= float("+str(kern_sz*kern_sz)+")" : "" ) );
     }
     string t_tile_fmas("// begin t_tile_fmas\n");
-    string t_tile_smem_loads("// begin t_tile_smem_loads\n");
     string t_tile_loads("// begin t_tile_loads\n");
     string t_tile_dummy_loads("// begin t_tile_dummy_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
@@ -627,7 +626,6 @@ using boost::filesystem::path;
     t_tile_dummy_loads += "    // end t_tile_dummy_loads";
     t_tile_stores += "  // end t_tile_stores";
     tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
-    tf_exprs.push_back( std::make_pair( "t_tile_smem_loads", t_tile_smem_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_dummy_loads", t_tile_dummy_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
@@ -695,6 +693,8 @@ using boost::filesystem::path;
     assert_st( best_tbp );
     assert_st( best_tbp <= cf.tpb );
     cf.tpb = best_tbp;
+
+    tf_exprs.push_back( std::make_pair( "tpb", str(cf.tpb) ) );
     
     printf( "cio_out.sz=%s\n", str(cio_out.sz).c_str() );
     printf( "blk_num_lines=%s tix_line_x_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(blk_num_lines).c_str(),
@@ -711,10 +711,49 @@ using boost::filesystem::path;
     cf.gli.tix_out_chan_tile_sz = tix_out_chan_tile_sz; // num out chan tiles (threads) per block (~8-16)
     cf.gli.bix_out_chan_blk_sz = bix_out_chan_blk_sz; // number of blocks in out_chan dim of blocks  
 
+    uint32_t const blk_filt_ix_sz = tix_out_chan_tile_sz * t_tile_sz;
+    tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
+    
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{cio_in.chans,kern_sz,kern_sz,bix_out_chan_blk_sz,t_tile_sz,tix_out_chan_tile_sz} );
 
-    uint32_t const out_chan_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_out_chan_tile_sz), cf.tpb );
+    uint32_t const out_chan_smem_load_iter = u32_ceil_div( blk_filt_ix_sz * kern_sz, cf.tpb );
+    
+    string filts_smem_loads("// begin filts_smem_loads\n");
+    if( cf.tpb == blk_filt_ix_sz ) {
+      assert_st( out_chan_smem_load_iter * cf.tpb == blk_filt_ix_sz * kern_sz );
+      tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));;
+      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
+	filts_smem_loads += strprintf( "    filts_smem[threadIdx.x + %%(tpb) * %s] = "
+				       "filts[filts_off+(%s*%%(filts_xp_ix_x_sz))];\n",
+				       str(i).c_str(), str(i).c_str() );
+      } 
+    } else {
+      tf_exprs.push_back( std::make_pair( "filts_off_adj", "0" ));
+      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
+	string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+	string eif;
+	if( (i+1) == out_chan_smem_load_iter ) { filts_smem_loads += "if( "+ixe+" < "+str(blk_filt_ix_sz*kern_sz)+") { "; eif = "}"; }
+	filts_smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+((%s/%%(blk_filt_ix_sz))*%%(filts_xp_ix_x_sz))"
+				      "+(%s %%%% %%(blk_filt_ix_sz))];%s\n",ixe.c_str(),ixe.c_str(),ixe.c_str(),eif.c_str());
+      }
+    }
+
+#if 0
+    int t_smem_filt_ix = threadIdx.x;
+    for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
+      int32_t const filt_x = t_smem_filt_ix / blk_filt_ix_sz;
+      int32_t const filt_off = t_smem_filt_ix %% blk_filt_ix_sz;
+      if( t_smem_filt_ix < blk_filt_ix_sz*%(filts_xp_ix_x_dim) ) { 
+	filts_smem[t_smem_filt_ix] = filts[filt_x*%(filts_xp_ix_x_sz)+filt_off+filts_off]; 
+      }
+      t_smem_filt_ix += %(tpb);
+    }
+#endif
+    filts_smem_loads += "  // end filts_smem_loads";
+    tf_exprs.push_back( std::make_pair( "filts_smem_loads", filts_smem_loads ) );
+
+
     tf_exprs.push_back( std::make_pair( "out_chan_smem_load_iter", str(out_chan_smem_load_iter) ) );
     assert_st( cio_in.sz.d[0]*blk_num_lines <= cf.tpb ); // FIXME: too strong?
     assert_st( (2*in_pad*blk_num_lines) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
@@ -749,7 +788,6 @@ using boost::filesystem::path;
     
     tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
 			
-    string t_tile_smem_loads("// begin t_tile_smem_loads\n");
     string t_tile_in_loads("// begin t_tile_in_loads\n");
     string t_tile_filt_loads("// begin t_tile_filt_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
@@ -790,7 +828,6 @@ using boost::filesystem::path;
     t_tile_in_loads += "    // end t_tile_in_loads";
     t_tile_filt_loads += "    // end t_tile_filt_loads";
     t_tile_stores += "  // end t_tile_stores";
-    tf_exprs.push_back( std::make_pair( "t_tile_smem_loads", t_tile_smem_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_in_loads", t_tile_in_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_filt_loads", t_tile_filt_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );

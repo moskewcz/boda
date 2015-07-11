@@ -16,24 +16,16 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
   float in_strip[%(t_tile_sz)+%(filts_xp_ix_x_dim)-1]; // segment of input line sufficient for one inner loop iter
-  int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
+  int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz; // index of first out chan
 
   // iteratate over filter elements
-  int32_t filts_off = blk_filt_ix_base;
   int32_t filts_smem_off = 0;
+  int32_t filts_off = blk_filt_ix_base + %(filts_off_adj); // adj is either 0 or threadIdx.x;
   int32_t kx = 0;
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_elem_sz); ++filts_ix_out_chan_elem ) {
     __syncthreads();
-    filts_smem_off = 0;
-    for( kx = 0; kx < %(filts_xp_ix_x_dim); ++kx ) {
-      int32_t t_smem_filt_ix = threadIdx.x;
-      for( int32_t i = 0; i != %(out_chan_smem_load_iter); ++i ) {
-	if( t_smem_filt_ix < blk_filt_ix_sz ) { filts_smem[filts_smem_off+t_smem_filt_ix] = filts[filts_off+t_smem_filt_ix]; }
-	t_smem_filt_ix += blockDim.x;
-      }
-      filts_off += %(filts_xp_ix_x_sz);
-      filts_smem_off += blk_filt_ix_sz;
-    }
+    %(filts_smem_loads);
+    filts_off += %(filts_xp_ix_y_sz);
     int32_t const t_smem_line = threadIdx.x / %(in_ix_x_dim);
     int32_t const t_smem_line_x = threadIdx.x %% %(in_ix_x_dim);
     int32_t const out_line = %(blockIdx.x_lines_blk)*%(threadIdx.x_line_dim) + t_smem_line;
