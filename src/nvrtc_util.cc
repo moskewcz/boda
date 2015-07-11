@@ -778,6 +778,8 @@ using boost::filesystem::path;
     t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
     t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
 
+    t_tile_stores += "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; } ";
+
     // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
       t_tile_stores += strprintf( "  tpix[%s] = %%(out_line_img)*%%(out_ix_img_sz) + \n"
