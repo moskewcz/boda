@@ -778,12 +778,11 @@ using boost::filesystem::path;
     string const get_in = strprintf( 
       "float v = 0;\n"
       "      int const smem_in_ix_y = %%(out_line_y) + %%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
-      "      int const smem_in_ix_x = t_smem_line_x;\n"
       "      if(smem_in_ix_y >= 0 && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
       "        v = in[%%(out_line_img)*%%(in_ix_img_sz) +\n"
       "          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
       "          smem_in_ix_y*%%(in_ix_y_sz) +\n"
-      "          smem_in_ix_x*%%(in_ix_x_sz)];\n" 
+      "          t_smem_line_x*%%(in_ix_x_sz)];\n" 
       "      }" );
     
     tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
