@@ -694,10 +694,11 @@ using boost::filesystem::path;
     cf.tpb = best_tbp;
 
     tf_exprs.push_back( std::make_pair( "tpb", str(cf.tpb) ) );
-    
+#if 0 // random debug/info printout
     printf( "cio_out.sz=%s\n", str(cio_out.sz).c_str() );
     printf( "blk_num_lines=%s tix_line_x_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(blk_num_lines).c_str(),
 	    str(tix_line_x_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
+#endif
     insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"line","line_x_tile","out_chan_tile"}, 
 		      vect_uint32_t{blk_num_lines,tix_line_x_tile_sz,tix_out_chan_tile_sz} );
 
