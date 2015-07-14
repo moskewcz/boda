@@ -338,6 +338,7 @@ namespace boda
 
   void run_cnet_t::main( nesi_init_arg_t * nia ) { 
     setup_cnet();
+    p_nda_float_t out_batch_1 = run_one_blob_in_one_blob_out();
   }
 
   void run_cnet_t::create_net_param( void ) {
