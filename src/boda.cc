@@ -88,57 +88,10 @@ namespace boda
     // args uses as fields in cli-syntax: each arg must start with '--' (which is ignored), and
     // names a field (with "-"->"_"). '=' can used to split key from value in single arg, otherwise
     // the next arg is consumed as its value.
-    } else {    
-      p_lexp_t lexp = make_list_lexp_from_one_key_val( "mode", mode );
-      assert_st( lexp->kids.size() == 1 ); // should just be mode
-      if( !lexp->kids[0].v->leaf_val.exists() ) {
-	rt_err( "specified mode name '"+mode+"' parses as a list, and it must not be a list." );
-      }
-      vect_string pos_args;
-      for( int32_t ai = 2; ai != argc; ++ai ) {
-	string arg( argv[ai] );
-	string key;
-	string val;
-	// hack for compsup / completion support: dump all args into pos_args
-	if( mode == "compsup" ) { pos_args.push_back( arg ); continue; } 
-	bool const allow_pos_param = 1;
-	if( !startswith( arg, "--" ) ) { 
-	  if( !allow_pos_param ) {
-	    rt_err( strprintf("expected option, but argument '%s' does not start with '--'",
-			      arg.c_str() ) ); 
-	  } else { 
-	    pos_args.push_back( arg ); 
-	  }
-	} else {
-	  bool key_had_eq = 0;
-	  for (string::const_iterator i = arg.begin() + 2; i != arg.end(); ++i) {
-	    if( (*i) == '=' ) { 
-	      if( (i+1) == arg.end() ) { os << strprintf( "warning empty/missing value after '=' in option '%s'\n", 
-							  arg.c_str() ); }
-	      val = string( i+1, string::const_iterator( arg.end() ) ); 
-	      key_had_eq = 1;
-	      break; 
-	    }
-	    key.push_back( ((*i)=='-')? '_' : (*i) );
-	  }
-	  if( !key_had_eq ) {
-	    if( (ai + 1) == argc ) { rt_err( strprintf("missing value for option '%s': no '=' present, and no more args",
-						       arg.c_str() ) ); }
-	    val = string( argv[ai+1] );
-	    ++ai;
-	    if( startswith( val, "--" ) ) { 
-	      os << strprintf("warning: option '%s's value '%s' starts with '--', did you forget a value?\n", 
-			      arg.c_str(), val.c_str() );
-	    }
-	    if( val.empty() ) { os << strprintf("warning: option '%s's value '' is empty.\n", arg.c_str() ); }
-	  }
-	  lexp->add_key_val( key, val ); 
-	}
-      }
-      if( !pos_args.empty() ) { 
-	lexp->add_key_lexp_val( "pos_args", make_list_lexp_from_vals_vector("",pos_args) ); 
-      }
-
+    } else {
+      vect_string vs_argv;
+      for( int32_t ai = 0; ai != argc; ++ai ) {	string arg( argv[ai] ); vs_argv.push_back( arg ); }
+      p_lexp_t lexp = get_lexp_from_argv( vs_argv, os ); 
       create_and_run_has_main_t( lexp );
     }
     return 0;

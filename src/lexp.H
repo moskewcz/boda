@@ -90,6 +90,7 @@ namespace boda {
   p_lexp_t parse_lexp_leaf_str( char const * const s );
   p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v );
   p_lexp_t make_list_lexp_from_vals_vector( std::string const & k, vect_string const & vs );
+  p_lexp_t get_lexp_from_argv( vect_string const & vs_argv, std::ostream & os );
 
   void test_lexp( void );
   void lexp_check_unused( lexp_t * l, vect_string & path );

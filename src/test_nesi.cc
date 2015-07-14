@@ -11,6 +11,7 @@
 #include<boost/filesystem.hpp>
 #include<boost/iostreams/device/mapped_file.hpp>
 #include<boost/iostreams/stream.hpp>         
+#include<boost/program_options/parsers.hpp> // for split_unix()
 
 #include"dtl/dtl.hpp"
 #include"img_io.H"
@@ -40,8 +41,8 @@ namespace boda
     string test_name; //NESI(help="name of test",req=1)
     uint32_t slow; //NESI(default=0,help="is test slow to run (and thus disabled by default)?")
     p_string err; //NESI(help="expected error (if any)")
-    p_has_main_t command; //NESI(help="input",req=1)
-
+    p_has_main_t command; //NESI(help="input")
+    p_string cli_str; //NESI(help="cli-string-format command")
   };
   typedef vector< cmd_test_t > vect_cmd_test_t; 
   typedef shared_ptr< cmd_test_t > p_cmd_test_t; 
@@ -592,6 +593,19 @@ namespace boda
 	  string const & mode_str = mode->leaf_val.str();
 	  failed_modes.insert( mode_str );
 	}
+	uint32_t num_spec = bool(cmd_test->command) + bool(cmd_test->cli_str);
+	if( num_spec != 1 ) {
+	  rt_err( strprintf( "internal test_cmds error: %s of command and cli_str specified for test %s. specify exactly one.",
+			     str(num_spec).c_str(), cmd_test->test_name.c_str() ) );
+	} 
+	if( !cmd_test->command ) {
+	  assert_st( cmd_test->cli_str );
+	  vect_string cli_str_argv = boost::program_options::split_unix( *cmd_test->cli_str );
+	  lexp_name_val_map_t nvm_cli( get_lexp_from_argv( cli_str_argv, std::cout ), &nvm );
+	  nesi_init_and_check_unused_from_nia( &nvm_cli, &tinfo_p_has_main_t, &cmd_test->command ); 
+	}
+	assert_st( cmd_test->command );
+	  
 	if( test_init_failed ) { continue; }
 
 	cur_test = cmd_test; // needed by test_print()
