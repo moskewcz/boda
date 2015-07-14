@@ -26,10 +26,13 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   int32_t const t_smem_line = threadIdx.x / %(in_ix_x_dim);
   int32_t const t_smem_line_x = threadIdx.x %% %(in_ix_x_dim);
   int32_t const t_smem_ix = t_smem_line*%(line_buf_sz)+%(in_pad)+t_smem_line_x;
-  int32_t out_line = %(blockIdx.x_lines_blk)*%(threadIdx.x_line_dim) + t_smem_line;
+  // note: this out_line is for this thread's smem reading, not this thread's calc
+  int32_t out_line = %(blockIdx.x_lines_blk)*%(threadIdx.x_line_dim) + t_smem_line; 
   int32_t in_line = %(out_line_y) - %(in_pad);
   int32_t filt_ky = 0;
   int32_t in_off = %(out_line_img)*%(in_ix_img_sz) + t_smem_line_x*%(in_ix_x_sz);
+  // if out of bounds, the values read into in_smem[] will be unused; we prefer reading in-bounds useless data to out-of-bounds garbage
+  if( !( %(out_line_img) < %(in_ix_img_dim) ) ) { in_off = 0; } 
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_elem_sz); ++filts_ix_out_chan_elem ) {
     __syncthreads();
     %(filts_smem_loads);
@@ -64,6 +67,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   __syncthreads();
   // load biases into filts_strip
   %(t_tile_filt_loads);
+  // note: this out_line is for this thread's calculation/output region, used to guard writes
   out_line = %(blockIdx.x_lines_blk)*%(threadIdx.x_line_dim) + %(threadIdx.x_line);
   // add bias to each elem of out_tile[] and store the results to out[]
   %(t_tile_stores);

@@ -547,6 +547,7 @@ using boost::filesystem::path;
         "      int const smem_in_ix_y = %%(t_smem_patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
         "      int const smem_in_ix_x = %%(t_smem_patch_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
         "      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
+        "          %%(t_smem_patch_ix_img) < %%(in_ix_img_dim) && \n"
         "         smem_in_ix_x < %%(in_ix_x_dim) && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
         "        v = in[%%(t_smem_patch_ix_img)*%%(in_ix_img_sz) +\n"
 	"          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
