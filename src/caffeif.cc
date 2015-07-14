@@ -130,8 +130,8 @@ namespace boda
     return net;
   }
 
-  void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom, bool const enable_prof ) {
-    vector<caffe::Blob<float>*> const & input_blobs = net_->input_blobs();
+  void raw_do_forward( p_Net_float net, vect_p_nda_float_t const & bottom, bool const enable_prof ) {
+    vector<caffe::Blob<float>*> const & input_blobs = net->input_blobs();
     assert_st( bottom.size() == input_blobs.size() );
     for (unsigned int i = 0; i < input_blobs.size(); ++i) {
       assert_st( bottom[i]->elems.sz == uint32_t(input_blobs[i]->count()) );
@@ -151,20 +151,20 @@ namespace boda
     }
     //const vector<Blob<float>*>& output_blobs = net_->ForwardPrefilled();
     if( enable_prof ) { cuProfilerStart(); }
-    net_->ForwardPrefilled();
+    net->ForwardPrefilled();
     if( enable_prof ) { cuProfilerStop(); }
   }
 
-  uint32_t get_layer_ix( p_Net_float net_, string const & out_layer_name ) {
-    vect_string const & layer_names = net_->layer_names();
+  uint32_t get_layer_ix( p_Net_float net, string const & out_layer_name ) {
+    vect_string const & layer_names = net->layer_names();
     for( uint32_t i = 0; i != layer_names.size(); ++i ) { if( out_layer_name == layer_names[i] ) { return i; } }
     rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
   }
 
-  void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top ) {
+  void copy_output_blob_data( p_Net_float net, string const & out_layer_name, vect_p_nda_float_t & top ) {
     timer_t t("caffe_copy_output_blob_data");
-    uint32_t const out_layer_ix = get_layer_ix( net_, out_layer_name );
-    const vector<Blob<float>*>& output_blobs = net_->top_vecs()[ out_layer_ix ];
+    uint32_t const out_layer_ix = get_layer_ix( net, out_layer_name );
+    const vector<Blob<float>*>& output_blobs = net->top_vecs()[ out_layer_ix ];
     top.clear();
     for( uint32_t bix = 0; bix < output_blobs.size(); ++bix ) {
       Blob<float> * const output_blob = output_blobs[bix];
@@ -188,9 +188,9 @@ namespace boda
   }
 
 
-  void copy_layer_blobs( p_Net_float net_, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
+  void copy_layer_blobs( p_Net_float net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_copy_layer_blob_data");
-    caffe::Layer<float>* layer = net_->layers().at( layer_ix ).get();
+    caffe::Layer<float>* layer = net->layers().at( layer_ix ).get();
     const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     blobs.clear();
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
@@ -241,9 +241,9 @@ namespace boda
       }  // switch (Caffe::mode())
     }
   }
-  void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
-    uint32_t const layer_ix = get_layer_ix( net_, layer_name );
-    set_layer_blobs( net_, layer_ix, blobs );
+  void set_layer_blobs( p_Net_float net, string const & layer_name, vect_p_nda_float_t & blobs ) {
+    uint32_t const layer_ix = get_layer_ix( net, layer_name );
+    set_layer_blobs( net, layer_ix, blobs );
   }
 
 
