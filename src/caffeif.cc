@@ -288,7 +288,7 @@ namespace boda
       return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch, enable_prof );      
     } else {
       assert_st( compute_mode == 1 );
-      assert_st( !conv_fwd ); // FIXME: not supported; need two conv_fwd's ...
+      assert_st( 0 ); // FIXME: not supported; need two conv_fwd's and boda version of create_upsamp_layer_0_weights() ...
       return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, conv_fwd );
     }
   }
@@ -472,11 +472,14 @@ namespace boda
 
   void run_cnet_t::setup_cnet_net_and_batch( void ) {
     assert_st( !net );
-    init_caffe( gpu_id ); // FIXME/note: only does something on first call
-    net = caffe_create_net( *net_param, trained_fn.exp );      
-    if( enable_upsamp_net ) { 
-      upsamp_net = caffe_create_net( *upsamp_net_param, trained_fn.exp ); 
-      create_upsamp_layer_0_weights();
+
+    if( compute_mode == 0 ) {
+      init_caffe( gpu_id ); // FIXME/note: only does something on first call
+      net = caffe_create_net( *net_param, trained_fn.exp );      
+      if( enable_upsamp_net ) { 
+	upsamp_net = caffe_create_net( *upsamp_net_param, trained_fn.exp ); 
+	create_upsamp_layer_0_weights();
+      }
     }
 
     assert_st( !in_batch );
