@@ -95,7 +95,10 @@ using boost::filesystem::path;
     typedef T element_type;
     CUdeviceptr p;
     uint32_t sz;
-    cup_T( uint32_t const sz_ ) : p(0), sz(sz_) { cu_err_chk( cuMemAlloc( &p, sz * sizeof(element_type) ), "cuMemAlloc" ); }
+    cup_T( uint32_t const sz_ ) : p(0), sz(sz_) { 
+      cu_err_chk( cuMemAlloc( &p,    sz * sizeof(element_type) ), "cuMemAlloc" ); 
+      cu_err_chk( cuMemsetD8(  p, 0, sz * sizeof(element_type) ), "cuMemsetD8" ); 
+    }
     ~cup_T( void ) { cu_err_chk( cuMemFree( p ), "cuMemFree" ); }
   };
   typedef cup_T< float > cup_float;
