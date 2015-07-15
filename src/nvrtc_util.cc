@@ -234,6 +234,7 @@ using boost::filesystem::path;
   struct cu_func_t { 
     string name;
     bool finalized;
+    bool has_final_flags_arg;
     vect_uint32_t arg_sizes;
     uint32_t tpb;
     uint32_t blks;
@@ -270,6 +271,7 @@ using boost::filesystem::path;
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
     uint32_t enable_s1conv; //NESI(default=0,help="if 1, enable experimental s1conv special case")
+    uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
     p_conv_pipe_t cp;
@@ -400,7 +402,7 @@ using boost::filesystem::path;
       }
       tf_exprs.push_back( make_pair( "cu_func_name", rtc_func_name ) );
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (op_tag+".cu")).string() );
-      cf = &cu_funcs.insert( make_pair( rtc_func_name, cu_func_t{rtc_func_name,0} ) ).first->second;
+      cf = &cu_funcs.insert( make_pair( rtc_func_name, cu_func_t{rtc_func_name,0,0} ) ).first->second;
       //printf( "cf->name=%s\n", str(cf->name).c_str() );
       return *cf;
     }
@@ -835,6 +837,7 @@ using boost::filesystem::path;
     cf.arg_sizes.push_back( cio_out.chans ); // biases_sz
     cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
     cf.arg_sizes.push_back( out_ix_sz );
+    cf.has_final_flags_arg = 1;
 
     rfgi.instantiate_template( cu_prog_str );
     return cf;
@@ -1258,6 +1261,8 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     }
     // add u32 args
     for( uint32_t i = 0; i != cfc.u32_args.size(); ++i ) { cu_func_args.push_back( (void *)&cfc.u32_args[i] ); }
+    if( cf.has_final_flags_arg ) { cu_func_args.push_back( (void *)&flags ); }
+
     // FIXME: check that we're passing the correct # of args here somehow.
     if( !blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here
