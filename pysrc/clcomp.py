@@ -29,11 +29,15 @@ def run_conv( prog, queue ):
     func.setarg( 2, in_buf )
     func.setarg( 3, out_buf )
     run_evt = cl.clEnqueueNDRangeKernel( queue, func, gsize=(120*2166,), lsize=(120,), wait_for=in_evt)
-
     out, evt = cl.buffer_to_pyarray(queue, out_buf, wait_for=run_evt, like=in_ar)
+
     print "start wait"
     evt.wait()
-    print "end wait"
+    print "end wait, start loop"
+    for i in range(1000):
+        run_evt = cl.clEnqueueNDRangeKernel( queue, func, gsize=(120*2166,), lsize=(120,) )
+        run_evt.wait()
+    print "end loop"
     print out[0:10]
 
 
