@@ -348,19 +348,26 @@ namespace boda
     // adding input dims (i.e. converting it on-the-fly to deploy format).
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
     if( net_param->input_dim_size() == 0 ) { // if train-val form, convert to deploy form
+      // we assume there is single input blob named 'data', unless we see (and remove) a Data layer,
+      // then we use the first top blob name from the last such removed layer. FIXME: do better?
+      string data_blob_name = "data";
       assert_st( net_param->input_size() == 0 );
       // remove data, softmax, and accuracy layers
       set_string layer_types_to_remove{ Data_str, Accuracy_str, SoftmaxWithLoss_str };
       int o = 0;
       for( int i = 0; i < net_param->layer_size(); i++ ) {
-	if( !has( layer_types_to_remove, net_param->layer(i).type() ) ) { 
+	caffe::LayerParameter const * const lp = &net_param->layer(i);
+	if( lp->type() == Data_str ) {
+	  // assume first top is name of data layer image data output blob
+	  data_blob_name = lp->top(0);
+	}
+	if( !has( layer_types_to_remove, lp->type() ) ) { 
 	  if( i != o ) { *net_param->mutable_layer(o) = net_param->layer(i); } 
 	  ++o; 
 	}
       }
       while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
-      // we assume there is single input blob named 'data'. FIXME: do better?
-      net_param->add_input("data");
+      net_param->add_input(data_blob_name);
       for( uint32_t i = 0; i != 4; ++i ) { net_param->add_input_dim(0); }
     }
     // FIXME: handle shape for input?
