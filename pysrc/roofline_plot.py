@@ -97,7 +97,10 @@ AXIS_ASPECT_RATIO=log10(X_MAX/X_MIN)/log10(Y_MAX/Y_MIN)
 aiois = [ 
     (8.95,"alexnet-1-image",[20.3,8.5],2.27),(135,"alexnet-20-images",[51.4,31.0],2.27*20),
     (51.3,"nin-1-image",[10.5,5.1],2.21),(156.0,"nin-20-images",[43.3,27.3],2.21*20),
-    (37.6,"googlenet-1-image",[38.7,15.4],3.2),(92.8,"googlenet-20-images",[91.8,71,7],3.2*20),
+    (37.6,"googlenet-1-image",[38.7,15.4],3.2),(92.8,"googlenet-20-images",[91.8,71.7],3.2*20),
+
+    (1.1,".\hspace{6mm}stratos-1-image\hspace{5mm}",[13.6,6.0],0.286),(19.1,"stratos-20-images",[20.5,10.8],0.286*20),
+    (0.7,"bigstride-1-image\hspace{4mm}",[8.0,3.6],0.097),(11.9,"bigstride-20-images",[12.5,6.8],0.097*20),
 ]
 
 fig = plt.figure()
