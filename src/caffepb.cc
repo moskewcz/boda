@@ -738,20 +738,27 @@ namespace boda
 	//printf( "net_param->mutable_layer(i)->name()=%s\n", str(net_param->mutable_layer(i)->name()).c_str() );
 	printf( "blobs[0]->dims=%s\n", str(blobs[0]->dims).c_str() );
 	// FIXME: it's not clear what versions of blob format are possible here or which we want to support ...
-	assert_st( blobs[0]->dims.sz() == 4 );
 	uint32_t num_w = 0;
-	if( blobs[0]->dims.dims(0) == ipp->num_output() ) {
+	if( blobs[0]->dims.sz() == 4 ) {
+	  if( blobs[0]->dims.dims(0) == ipp->num_output() ) {
+	    assert_st( blobs[0]->dims.dims(0) == ipp->num_output() );
+	    num_w = blobs[0]->dims.dims(1);
+	    assert_st( blobs[0]->dims.dims(2) == 1 );
+	    assert_st( blobs[0]->dims.dims(3) == 1 );
+	  } else if ( blobs[0]->dims.dims(2) == ipp->num_output() ) {
+	    assert_st( blobs[0]->dims.dims(0) == 1 );
+	    assert_st( blobs[0]->dims.dims(1) == 1 );
+	    assert_st( blobs[0]->dims.dims(2) == ipp->num_output() );
+	    num_w = blobs[0]->dims.dims(3);
+	  } else {
+	    rt_err( strprintf( "unknown IP blobs dim layout: blobs[0]->dims=%s\n", str(blobs[0]->dims).c_str() ).c_str() );
+	  }
+	} else if( blobs[0]->dims.sz() == 2 ) {
 	  assert_st( blobs[0]->dims.dims(0) == ipp->num_output() );
 	  num_w = blobs[0]->dims.dims(1);
-	  assert_st( blobs[0]->dims.dims(2) == 1 );
-	  assert_st( blobs[0]->dims.dims(3) == 1 );
-	} else if ( blobs[0]->dims.dims(2) == ipp->num_output() ) {
-	  assert_st( blobs[0]->dims.dims(0) == 1 );
-	  assert_st( blobs[0]->dims.dims(1) == 1 );
-	  assert_st( blobs[0]->dims.dims(2) == ipp->num_output() );
-	  num_w = blobs[0]->dims.dims(3);
 	} else {
-	  rt_err( strprintf( "unknown IP blobs dim layout: blobs[0]->dims=%s\n", str(blobs[0]->dims).c_str() ).c_str() );
+	  rt_err( strprintf( "unknown/unhandled IP blobs dim layout, dims.sz() not 2 or 4: blobs[0]->dims=%s\n", 
+			     str(blobs[0]->dims).c_str() ).c_str() );
 	}
 
 	// get number of input chans
