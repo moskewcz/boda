@@ -38,7 +38,7 @@ matplotlib.rc('ytick.minor',size =0 )
 def knee_ai( perf, bw ): return perf / bw
 
 def addPerfPt( alg, ai, perf ):
-    print ai, perf
+    print alg, ai, perf
     ax.plot( [ai], [perf], alg[1] )
 
 def addAILine( ai, lab, gfs ):
