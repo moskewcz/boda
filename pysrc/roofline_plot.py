@@ -158,27 +158,35 @@ yticks(newlocs, newlabels)
 algs = [("boda-nvrtc (GTX 980)","go"),("cuDNNv2 (GTX 980)","gx")]
 arts = [ plt.Line2D((0,0),(0,0), color='g', marker='o', linestyle=''), plt.Line2D((0,0),(0,0), color='g', marker='x', linestyle='') ]
 
-show_perf = 1
-
-if show_perf:
-    legend = ax.legend(arts,(alg[0] for alg in algs),loc='upper left', shadow=True, fontsize='large',numpoints=1)
-    # Put a nicer background color on the legend.
-    legend.get_frame().set_facecolor('#eeddcc')
-
 for ai, lab, mss, gfs in aiois: 
     perfs = [ gfs * 1000.0 / ms for ms in mss ]
     addAILine( ai, lab, gfs )
-    if show_perf:
-        for alg, perf in zip( algs, perfs ):
-            addPerfPt( alg, ai, perf )
+
 #print "KAIs",knee_ais
 #Peak performance line and text
 for p,l,kai in zip(PEAK_PERF, PEAK_PERF_LABELS, knee_ais): addPerfLine(p,l,kai[0], kai[1])
 #BW line and text
 for bw,l,kai in zip(PEAK_BW, PEAK_BW_LABELS, knee_ais ): addBWLine(bw,l,kai[0], kai[1])
 #save file
-show_perf_fn_part = ""
-if not show_perf: show_perf_fn_part = "-no-perf"
-out_fn = "cnn-gtx980-roofline%s.png" % (show_perf_fn_part,)
 
-fig.savefig( out_fn, dpi=600,  bbox_inches='tight')
+out_fn = "cnn-gtx980-roofline%s.png"
+fig.savefig( out_fn % "-no-perf", dpi=600,  bbox_inches='tight')
+
+show_perf = 1
+
+if show_perf:
+    for ai, lab, mss, gfs in aiois: 
+        perfs = [ gfs * 1000.0 / ms for ms in mss ]
+        for alg, perf in zip( algs, perfs ):
+            addPerfPt( alg, ai, perf )
+
+    legend = ax.legend(arts,(alg[0] for alg in algs),loc='upper left', shadow=True, fontsize='large',numpoints=1)
+    # Put a nicer background color on the legend.
+    legend.get_frame().set_facecolor('#eeddcc')
+
+fig.savefig( out_fn % "", dpi=600,  bbox_inches='tight')
+
+#if not show_perf: show_perf_fn_part = "-no-perf"
+# % (show_perf_fn_part,)
+
+
