@@ -879,7 +879,7 @@ using boost::filesystem::path;
     uint32_t const line_x_sz = cio_out.sz.d[0];
     uint32_t const line_x_tile_sz = u32_ceil_div( line_x_sz, t_tile_sz );
     
-    uint32_t const in_chan_tile = 1;
+    uint32_t const in_chan_tile = 8;
     tf_exprs.push_back( make_pair( "in_chan_tile", str(in_chan_tile) ) );
 
     uint32_t in_chan_tile_dim = u32_ceil_div( cio_in.chans, in_chan_tile );
@@ -957,10 +957,12 @@ using boost::filesystem::path;
     filts_smem_loads += "  // end filts_smem_loads";
     tf_exprs.push_back( std::make_pair( "filts_smem_loads", filts_smem_loads ) );
 
-    assert_st( cio_in.sz.d[0]*blk_num_lines*in_chan_tile <= cf.tpb ); // FIXME: too strong?
+    uint32_t const in_smem_load_iter = u32_ceil_div( cio_in.sz.d[0] * blk_num_lines * in_chan_tile, cf.tpb );    
+    tf_exprs.push_back( std::make_pair( "in_smem_load_iter", str(in_smem_load_iter) ) );
+    //assert_st( cio_in.sz.d[0]*blk_num_lines*in_chan_tile <= cf.tpb ); // FIXME: too strong?
     assert_st( (2*in_pad*blk_num_lines*in_chan_tile) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
 
-    // TODO --- 
+
     insert_nda_exprs( tf_exprs, "t_smem_ld_pel", vect_string{"chan","line","x"}, 
 		      vect_uint32_t{in_chan_tile,blk_num_lines,cio_in.sz.d[0]}); 
 
