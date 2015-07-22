@@ -307,7 +307,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_kern( p_conv_op_t const & cop, conv_io_t const & cio_in, p_conv_node_t const & node_out );
     cu_func_t & gen_op_s1conv( bool const conv_has_relu, uint32_t const & in_pad, uint32_t const kern_sz,
 			       conv_io_t const & cio_in, conv_io_t const & cio_out ); // stride 1, kern_sz >2 <~5, ... case (see use)
-    cu_func_t & gen_op_k1conv( bool const conv_has_relu, uint32_t const & in_pad,
+    cu_func_t & gen_op_k1conv( bool const conv_has_relu, 
 			       conv_io_t const & cio_in, conv_io_t const & cio_out ); // stride 1, kern_sz 1, ... special case
     cu_func_t & gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     cu_func_t & gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix );
@@ -457,10 +457,14 @@ using boost::filesystem::path;
     
     // also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
     assert_st( cio_in.sz.dims_are_same() );
-    if( is_conv && enable_k1conv && (kern_sz == 1) && (stride == 1)
+    if( is_conv && enable_k1conv && (kern_sz == 1) && (stride == 1) 
 	&& (cio_out.sz.d[0] >= 6) && (cio_out.sz.d[0] <= 300 ) && (cio_out.chans >= 64) ) 
     { 
-      return gen_op_k1conv( conv_has_relu, in_pad, cio_in, cio_out ); 
+      if( in_pad != 0 ) {
+	printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" );
+      } else {
+	return gen_op_k1conv( conv_has_relu, cio_in, cio_out ); 
+      }
     }
     else if( is_conv && enable_s1conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) 
 	     && (cio_out.sz.d[0] >= 6) && (cio_out.sz.d[0] <= 300 ) && (cio_out.chans >= 64) ) 
@@ -758,10 +762,9 @@ using boost::filesystem::path;
     filts_smem_loads += "  // end filts_smem_loads";
     tf_exprs.push_back( std::make_pair( "filts_smem_loads", filts_smem_loads ) );
 
-
     assert_st( cio_in.sz.d[0]*blk_num_lines <= cf.tpb ); // FIXME: too strong?
     assert_st( (2*in_pad*blk_num_lines) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
-      
+
     uint32_t const bix_lines_blk_sz = u32_ceil_div( lines_sz, blk_num_lines ); // note: lines_sz == num_imgs * cio_out.sz.d[1] (aka "y")
     cf.blks = bix_lines_blk_sz * bix_out_chan_blk_sz; 
 
@@ -851,11 +854,11 @@ using boost::filesystem::path;
     return cf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_k1conv( bool const conv_has_relu, uint32_t const & in_pad,
+  cu_func_t & conv_pipe_fwd_t::gen_op_k1conv( bool const conv_has_relu,
 					      conv_io_t const & cio_in, conv_io_t const & cio_out ) 
   {
     rtc_func_gen_info_t rfgi{"",
-      { {"num_imgs",str(num_imgs)},{"in_pad",str(in_pad)},{"in_dim_0",str(cio_in.sz.d[0])},{"in_dim_1",str(cio_in.sz.d[1])}
+      { {"num_imgs",str(num_imgs)},{"in_dim_0",str(cio_in.sz.d[0])},{"in_dim_1",str(cio_in.sz.d[1])}
 	,{"conv_has_relu",str(conv_has_relu)},{"out_chans",str(cio_out.chans)} } };
     rfgi.op_tag="k1conv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(cio_in.chans)} );
     
@@ -914,7 +917,7 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"line","line_x_tile","out_chan_tile"}, 
 		      vect_uint32_t{blk_num_lines,tix_line_x_tile_sz,tix_out_chan_tile_sz} );
 
-    tf_exprs.push_back( std::make_pair( "line_buf_sz", "(%(in_pad)+%(in_ix_x_dim)+%(in_pad))"));
+    tf_exprs.push_back( std::make_pair( "line_buf_sz", "%(in_ix_x_dim)"));
 
     uint32_t const bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, tix_out_chan_tile_sz );
       
@@ -960,7 +963,6 @@ using boost::filesystem::path;
     uint32_t const in_smem_load_iter = u32_ceil_div( cio_in.sz.d[0] * blk_num_lines * in_chan_tile, cf.tpb );    
     tf_exprs.push_back( std::make_pair( "in_smem_load_iter", str(in_smem_load_iter) ) );
     //assert_st( cio_in.sz.d[0]*blk_num_lines*in_chan_tile <= cf.tpb ); // FIXME: too strong?
-    assert_st( (2*in_pad*blk_num_lines*in_chan_tile) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
 
 
     insert_nda_exprs( tf_exprs, "t_smem_ld_pel", vect_string{"chan","line","x"}, 
