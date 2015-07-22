@@ -49,7 +49,10 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       int32_t const t_smem_ld_pel = threadIdx.x + i * blockDim.x; // may need loop
       if( t_smem_ld_pel < %(t_smem_ld_pel_sz) ) { 
 	float v;
-	if( do_load_bits&(1<<i) ) { v = in[ in_off[i] + in_chan_off ]; }
+	if( (do_load_bits&(1<<i)) && 
+	    ((%(t_smem_ld_pel_chan)+filts_ix_out_chan_elem*%(in_chan_tile)) < %(in_ix_chan_dim)) ) { 
+	  v = in[ in_off[i] + in_chan_off ]; 
+	}
 	else { v = 0.0f; }
 	in_smem[t_smem_ix[i]] = v;
       }
