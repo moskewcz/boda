@@ -46,7 +46,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 
 #pragma unroll
     for( int32_t i = 0; i < %(in_smem_load_iter); ++i ) {   
-      int32_t const t_smem_ld_pel = threadIdx.x + i * blockDim.x; // may need loop
+      int32_t const t_smem_ld_pel = threadIdx.x + i * %(tpb); // may need loop
       if( t_smem_ld_pel < %(t_smem_ld_pel_sz) ) { 
 	float v;
 	if( (do_load_bits&(1<<i)) && 
@@ -65,7 +65,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   __syncthreads();
   filts_smem_off = 0;
   for( int32_t i = 0; i != %(out_chan_bias_smem_load_iter); ++i ) {
-    int32_t const t_smem_bias_ix = threadIdx.x+blockDim.x*i;
+    int32_t const t_smem_bias_ix = threadIdx.x+%(tpb)*i;
     if( t_smem_bias_ix < blk_filt_ix_sz ) { 
       int32_t const ocix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
       int32_t const load_reg = t_smem_bias_ix / %(threadIdx.x_out_chan_tile_dim);
