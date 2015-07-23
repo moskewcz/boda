@@ -313,7 +313,6 @@ using boost::filesystem::path;
     cu_func_t & gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix );
     cu_func_t & gen_op_relu( conv_io_t const & cio_out );
     cu_func_t & gen_op_xpose( p_conv_op_t const & cop, gen_layout_info_t const & gli );
-    void gen_xpose( cu_func_t const & cf, p_conv_op_t const & cop, string const & filts_name, gen_layout_info_t const & gli );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
@@ -1265,19 +1264,6 @@ using boost::filesystem::path;
     return cf;
   }
 
-  void conv_pipe_fwd_t::gen_xpose( cu_func_t const & cf, 
-				   p_conv_op_t const & cop, string const & filts_name, gen_layout_info_t const & gli ) {
-    string const filts_xposed_name = filts_name + "_xposed"; // note: doesn't exist yet
-    init_calls.push_back( cu_func_call_t{ cf.name, vect_string{ filts_name, filts_xposed_name } } );
-    // create cup for xposed version of filts
-    p_cup_float filts_cup = must_find( *cups, filts_name );
-    // note that if out_chans doesn't divide evenly by t_tile_sz, the xposed array will have internal padding/garbage
-    // FIXME: partially untested! none of alexnet, googlenet, nin have any layers with out_chans not divisible by 8 (def. t_tile_sz)
-    uint32_t const padded_out_chans = gli.bix_out_chan_blk_sz * gli.tix_out_chan_tile_sz * t_tile_sz;
-    must_insert( *cups, filts_xposed_name, make_shared<cup_float>( filts_cup->sz / cop->out_chans * padded_out_chans ) ); 
-  }
-
-
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     string const tag_id_str = as_pyid( cop->tag );
     //char const * const tag_id = tag_id_str.c_str();
@@ -1310,23 +1296,39 @@ using boost::filesystem::path;
     if( is_conv || (cop->type == Pooling_str) ) {
       vect_string arg_ids;
       string const filts_id = tag_id_str + "_filts";
+      string const filtsxp_id = filts_id + "_xposed";
       string const biases_id = tag_id_str + "_biases";
+      string const in_id = as_pyid(cop->bots[0]);
       if( is_conv ) {
-	arg_ids.push_back( filts_id + "_xposed" );
+	arg_ids.push_back( filtsxp_id );
 	arg_ids.push_back( biases_id );
       }
-      arg_ids.push_back( as_pyid(cop->bots[0]) );
-      arg_ids.push_back( as_pyid(cop->tops[0]) );
       cu_func_t & cf = gen_op_kern( cop, cio_in, node_out );
+#if 0
+      if( cf.gli.needs_in_xpose ) {
+	string const inxp_id = in_id + "_inxp";
+	cu_func_t & in_xpose_cf = gen_op_in_xpose( cop, cf.gli );
+	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
+	must_insert( *cups, inxp_if, make_shared<cup_float>( in_xpose_cf.arg_sizes[1] ) ); 
+	fwd_calls.push_back( cu_func_call_t{ in_xpose_cf.name, {in_id,inxp_id}, {}, tag_id_str + "_inxp" } );
+      }
+#endif
+      arg_ids.push_back( in_id );
+      arg_ids.push_back( as_pyid(cop->tops[0]) );
+
       fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, tag_id_str } );
       if( is_conv ) {
 	assert_st( cio_out.chans == cop->out_chans );
 	vect_uint32_t const & arg_sizes = cf.arg_sizes;
 	assert_st( arg_sizes.size() == 4 );
 	cu_func_t & xpose_cf = gen_op_xpose( cop, cf.gli );
+	assert_st( xpose_cf.arg_sizes.size() == 2 ); // in, out
 	add_op_param( filts_id, xpose_cf.arg_sizes[0] );
 	bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
-	if( did_ins ) { gen_xpose( xpose_cf, cop, filts_id, cf.gli ); } // newly-seen/used filter, so set up to transpose it
+	if( did_ins ) { // newly-seen/used filter, so set up to transpose it
+	  init_calls.push_back( cu_func_call_t{ xpose_cf.name, vect_string{ filts_id, filtsxp_id } } );
+	  must_insert( *cups, filtsxp_id, make_shared<cup_float>( xpose_cf.arg_sizes[1] ) ); 
+	} 
 	add_op_param( biases_id, arg_sizes[1] );
       }
     } else if( cop->type == ReLU_str ) {
