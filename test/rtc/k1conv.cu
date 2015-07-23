@@ -49,8 +49,8 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       }
     }
     __syncthreads();
-    %(inner_loop_body);
     in_chan_off += %(in_chan_tile)*%(in_ix_chan_sz); 
+    %(inner_loop_body);
   }
   // load per-block biases into smem
   __syncthreads();
