@@ -989,9 +989,9 @@ using boost::filesystem::path;
 
     // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-      t_tile_stores += strprintf( "  tpix[%s] = %%(out_pel_img)*%%(out_ix_img_sz) + \n"
-				  "             %%(out_pel_pel)*%%(out_ix_x_sz) + \n"
-				  "   (%%(t_tile_sz)*%%(threadIdx.x_pels_tile)+%s)*%%(out_ix_x_sz); // cache out patch ixs\n ",
+      t_tile_stores += strprintf( "  tpix[%s] = %%(blockIdx.x_img)*%%(out_ix_img_sz) + "
+				  " %%(out_pel_pel)*%%(out_ix_x_sz) + %s"
+				  "  ; // cache out patch ixs\n ",
 				  str(ty).c_str(), str(ty).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
@@ -999,7 +999,7 @@ using boost::filesystem::path;
 				  str(ty).c_str(), str(ty).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-      t_tile_stores += "  if( (%(t_tile_sz)*%(threadIdx.x_pels_tile)+"+str(ty)+") >= (%(out_ix_x_dim)*%(out_ix_y_dim)) ) { return; } "
+      t_tile_stores += "  if( (out_pel+"+str(ty)+") >= (%(out_ix_x_dim)*%(out_ix_y_dim)) ) { return; } "
 	"// this patch and the following are off-the-end patches, so don't store them.\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", conv_has_relu ? "max(0.0f," : "(",
