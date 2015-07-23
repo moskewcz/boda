@@ -969,11 +969,6 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "t_smem_ld_pel", vect_string{"chan","pel"}, 
 		      vect_uint32_t{in_chan_tile,tix_pels_tile_sz * t_tile_sz}); 
 
-    for( uint32_t i = 0; i != t_tile_sz; ++i ) {
-      tf_exprs.push_back( std::make_pair( "pel_" + str(i), 
-					  strprintf( "(%%(threadIdx.x_pels_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
-    }
-
     insert_nda_exprs( tf_exprs, "out_pel", vect_string{"img","pel"}, vect_uint32_t{num_imgs,cio_out.sz.dims_prod()}); 
 			
     string t_tile_in_loads("// begin t_tile_in_loads\n");
