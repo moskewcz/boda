@@ -929,6 +929,7 @@ using boost::filesystem::path;
     cf.gli.in_chans = cio_in.chans; 
     cf.gli.tix_out_chan_tile_sz = tix_out_chan_tile_sz; // num out chan tiles (threads) per block (~8-16)
     cf.gli.bix_out_chan_blk_sz = bix_out_chan_blk_sz; // number of blocks in out_chan dim of blocks  
+    cf.gli.needs_in_xpose = 1;
 
     uint32_t const blk_filt_ix_sz = tix_out_chan_tile_sz * t_tile_sz;
     tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
