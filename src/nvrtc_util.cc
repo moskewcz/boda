@@ -232,7 +232,12 @@ using boost::filesystem::path;
     void ensure_evs( void ) { if( !b_ev ) { b_ev = make_p_CUevent(); } if( !e_ev ) { e_ev = make_p_CUevent(); } }
   };
   typedef vector< cu_func_call_t > vect_cu_func_call_t; 
-  struct gen_layout_info_t { uint32_t in_chans; uint32_t bix_out_chan_blk_sz; uint32_t tix_out_chan_tile_sz; };
+  struct gen_layout_info_t { 
+    uint32_t in_chans; 
+    uint32_t bix_out_chan_blk_sz; 
+    uint32_t tix_out_chan_tile_sz; 
+    uint32_t needs_in_xpose;
+  };
   struct cu_func_t { 
     string name;
     bool finalized;
@@ -282,6 +287,7 @@ using boost::filesystem::path;
     p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
     set_string filts_names;
+    set_string inxp_names;
 
     vect_string stats_names;
     map_str_float_t stats_map;
@@ -312,6 +318,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_lrn( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out );
     cu_func_t & gen_op_copy( p_conv_op_t const & cop, conv_io_t const & cio_in, conv_io_t const & cio_out, uint32_t const ocix );
     cu_func_t & gen_op_relu( conv_io_t const & cio_out );
+    cu_func_t & gen_op_in_xpose( conv_io_t const & cio_in, gen_layout_info_t const & gli );
     cu_func_t & gen_op_xpose( p_conv_op_t const & cop, gen_layout_info_t const & gli );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
@@ -1264,6 +1271,22 @@ using boost::filesystem::path;
     return cf;
   }
 
+  cu_func_t & conv_pipe_fwd_t::gen_op_in_xpose( conv_io_t const & cio_in, gen_layout_info_t const & gli ) {
+    uint32_t in_sz = num_imgs * cio_in.chans * cio_in.sz.dims_prod();
+    rtc_func_gen_info_t rfgi{"xpose_in", {
+	{"in_sz",str(in_sz)}
+      } };
+    cu_func_t & cf = rfgi.init( cu_funcs );
+    //vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    if( cf.finalized ) { return cf; } // already generated
+    cf.tpb = 256;
+    cf.blks = u32_ceil_div( in_sz, cf.tpb ); // handle one pel per thread
+    cf.arg_sizes.push_back( in_sz );
+    cf.arg_sizes.push_back( in_sz );
+    rfgi.instantiate_template( cu_prog_str );
+    return cf;
+  }
+
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     string const tag_id_str = as_pyid( cop->tag );
     //char const * const tag_id = tag_id_str.c_str();
@@ -1304,16 +1327,20 @@ using boost::filesystem::path;
 	arg_ids.push_back( biases_id );
       }
       cu_func_t & cf = gen_op_kern( cop, cio_in, node_out );
-#if 0
+
       if( cf.gli.needs_in_xpose ) {
 	string const inxp_id = in_id + "_inxp";
-	cu_func_t & in_xpose_cf = gen_op_in_xpose( cop, cf.gli );
+	cu_func_t & in_xpose_cf = gen_op_in_xpose( cio_in, cf.gli );
 	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
-	must_insert( *cups, inxp_if, make_shared<cup_float>( in_xpose_cf.arg_sizes[1] ) ); 
-	fwd_calls.push_back( cu_func_call_t{ in_xpose_cf.name, {in_id,inxp_id}, {}, tag_id_str + "_inxp" } );
+	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
+	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
+	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_cf.arg_sizes[1] ) ); 
+	  fwd_calls.push_back( cu_func_call_t{ in_xpose_cf.name, {in_id,inxp_id}, {}, tag_id_str + "_inxp" } );
+	}
+	arg_ids.push_back( inxp_id );
+      } else {
+	arg_ids.push_back( in_id );
       }
-#endif
-      arg_ids.push_back( in_id );
       arg_ids.push_back( as_pyid(cop->tops[0]) );
 
       fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, tag_id_str } );

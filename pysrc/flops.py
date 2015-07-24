@@ -193,7 +193,13 @@ net = Net(args)
 # set num_img and source cnet decl
 num_img = args.num_imgs
 per_layer_time = {}
-if args.time_fn: execfile( args.time_fn )
+if args.time_fn: 
+    execfile( args.time_fn )
+    tot_inxp = 0
+    for k,v in per_layer_time.iteritems():
+        if k.endswith("_inxp"): tot_inxp += v
+    print "total _inxp time: ", tot_inxp
+
 execfile( args.net_fn )
 
 net.print_stats()
