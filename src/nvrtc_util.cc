@@ -233,7 +233,8 @@ using boost::filesystem::path;
   };
   typedef vector< cu_func_call_t > vect_cu_func_call_t; 
   struct gen_layout_info_t { 
-    uint32_t in_chans; 
+    uint32_t in_chans;
+    uint32_t in_chan_tile;
     uint32_t bix_out_chan_blk_sz; 
     uint32_t tix_out_chan_tile_sz; 
     uint32_t needs_in_xpose;
@@ -877,7 +878,6 @@ using boost::filesystem::path;
     vect_string const cio_dims{"img","chan","y","x"};
     insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,cio_out.chans,cio_out.sz.d[1],cio_out.sz.d[0]} );
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
 
     // for reg blocking
     uint32_t const out_chan_tile_sz = u32_ceil_div( cio_out.chans, t_tile_sz );
@@ -889,7 +889,11 @@ using boost::filesystem::path;
     
     uint32_t const in_chan_tile = 8;
     tf_exprs.push_back( make_pair( "in_chan_tile", str(in_chan_tile) ) );
-    uint32_t in_chan_tile_dim = u32_ceil_div( cio_in.chans, in_chan_tile );
+    // FIXME: dup'd code with in_xpose() ...
+    uint32_t const in_chan_tile_dim = u32_ceil_div( cio_in.chans, in_chan_tile );
+    uint32_t const pad_in_chans = in_chan_tile_dim * in_chan_tile;
+
+    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,pad_in_chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
 
     insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan_tile"}, vect_uint32_t{in_chan_tile_dim} );
     //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
@@ -929,7 +933,9 @@ using boost::filesystem::path;
     cf.gli.in_chans = cio_in.chans; 
     cf.gli.tix_out_chan_tile_sz = tix_out_chan_tile_sz; // num out chan tiles (threads) per block (~8-16)
     cf.gli.bix_out_chan_blk_sz = bix_out_chan_blk_sz; // number of blocks in out_chan dim of blocks  
+
     cf.gli.needs_in_xpose = 1;
+    cf.gli.in_chan_tile = in_chan_tile;
 
     uint32_t const blk_filt_ix_sz = tix_out_chan_tile_sz * t_tile_sz;
     tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
@@ -1273,17 +1279,27 @@ using boost::filesystem::path;
   }
 
   cu_func_t & conv_pipe_fwd_t::gen_op_in_xpose( conv_io_t const & cio_in, gen_layout_info_t const & gli ) {
-    uint32_t in_sz = num_imgs * cio_in.chans * cio_in.sz.dims_prod();
+    uint32_t const in_chan_tile_dim = u32_ceil_div( gli.in_chans, gli.in_chan_tile );
+    uint32_t const pad_in_chans = in_chan_tile_dim * gli.in_chan_tile;
     rtc_func_gen_info_t rfgi{"xpose_in", {
-	{"in_sz",str(in_sz)}
+	{"num_imgs",str(num_imgs)}, {"in_chan_tile",str(gli.in_chan_tile)}, {"pad_in_chans",str(pad_in_chans)}
+	,{"in_chans",str(gli.in_chans)},{"ysz",str(cio_in.sz.d[1])},{"xsz",str(cio_in.sz.d[0])}
       } };
+
     cu_func_t & cf = rfgi.init( cu_funcs );
-    //vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+
+    vect_string const cio_dims{"img","chan","y","x"};
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,pad_in_chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
+    uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
+
     if( cf.finalized ) { return cf; } // already generated
     cf.tpb = 256;
-    cf.blks = u32_ceil_div( in_sz, cf.tpb ); // handle one pel per thread
-    cf.arg_sizes.push_back( in_sz );
-    cf.arg_sizes.push_back( in_sz );
+    cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); // handle one pel per thread
+    cf.arg_sizes.push_back( in_ix_sz );
+    cf.arg_sizes.push_back( out_ix_sz );
     rfgi.instantiate_template( cu_prog_str );
     return cf;
   }

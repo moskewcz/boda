@@ -1,7 +1,13 @@
 extern "C"  __global__ void %(cu_func_name)( float const * const in, float * const out ) {
-  int32_t const in_ix = blockDim.x * blockIdx.x + threadIdx.x;
-  if( in_ix >= %(in_sz) ) { return; }
-  out[in_ix] = in[in_ix];
+  int32_t const out_ix = blockDim.x * blockIdx.x + threadIdx.x;
+  float v = 0.0f;
+  int32_t const in_ix  = 
+    %(out_ix_img)*%(in_ix_img_sz) +
+    %(out_ix_chan)*%(in_ix_chan_sz) +
+    %(out_ix_y)*%(in_ix_y_sz) +
+    %(out_ix_x)*%(in_ix_x_sz);
+  if( %(out_ix_chan) < %(in_ix_chan_dim) ) { v = in[in_ix]; }
+  out[out_ix] = v;
 }
 
 /*
