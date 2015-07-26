@@ -1346,8 +1346,8 @@ using boost::filesystem::path;
       cu_func_t & cf = gen_op_kern( cop, cio_in, node_out );
 
       if( cf.gli.needs_in_xpose ) {
-	string const inxp_id = in_id + "_inxp";
 	cu_func_t & in_xpose_cf = gen_op_in_xpose( cio_in, cf.gli );
+	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
 	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
