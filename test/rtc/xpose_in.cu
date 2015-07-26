@@ -1,12 +1,14 @@
 extern "C"  __global__ void %(cu_func_name)( float const * const in, float * const out ) {
   int32_t const out_ix = blockDim.x * blockIdx.x + threadIdx.x;
+  int32_t const chan_ix = %(out_ix_blk_iter)*%(out_ix_blk_iter_chan_dim) + %(out_ix_blk_iter_chan);
+  int32_t const pel_ix = %(out_ix_blk)*%(out_ix_blk_pel_dim) + %(out_ix_blk_pel);
   float v = 0.0f;
-  int32_t const in_ix  = 
-    %(out_ix_img)*%(in_ix_img_sz) +
-    %(out_ix_chan)*%(in_ix_chan_sz) +
-    %(out_ix_y)*%(in_ix_y_sz) +
-    %(out_ix_x)*%(in_ix_x_sz);
-  if( %(out_ix_chan) < %(in_ix_chan_dim) ) { v = in[in_ix]; }
+  if( ( chan_ix < %(in_ix_chan_dim) ) && ( %(pel_ix_img) < %(in_ix_img_dim) ) ) {
+    v = in[ %(pel_ix_img)*%(in_ix_img_sz) +
+	    chan_ix*%(in_ix_chan_sz) +
+	    %(pel_ix_y)*%(in_ix_y_sz) +
+	    %(pel_ix_x)*%(in_ix_x_sz) ];
+  }
   out[out_ix] = v;
 }
 

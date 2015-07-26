@@ -10,45 +10,27 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
   float in_strip[%(t_tile_sz)]; // segment of input line sufficient for one unrolling of inner loop
   int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz; // index of first out chan
-  int32_t const blk_in_ix_base = %(blockIdx.x_img)*%(in_ix_img_sz) + %(blockIdx.x_pels_blk)*blk_in_ix_sz;// index of first input pel
+  int32_t blk_in_ix_base = %(blockIdx.x_pels_blk)*%(in_ix_blk_sz);// index of first input pel
 
   // iteratate over filter elements
   int32_t filts_smem_off = 0;
   int32_t in_smem_off = 0;
   int32_t filts_off = blk_filt_ix_base + %(filts_off_adj); // adj is either 0 or threadIdx.x;
 
-  int32_t do_load_bits = 0;
-  int32_t in_off[%(in_smem_load_iter)];
-#pragma unroll
-  for( int32_t i = 0; i < %(in_smem_load_iter); ++i ) {   
-    int32_t const t_smem_ld_pel = threadIdx.x + i * %(tpb);
-    // note: this out_line is for this thread's smem reading, not this thread's calc
-    int32_t out_pel = %(blockIdx.x_pels_blk)*blk_in_ix_sz + %(t_smem_ld_pel_pel);
-    // since ky_sz == 1, in_line and thus do_load are constant per-thread-per-i. also we can thus include in_line in in_off
-    do_load_bits |= int32_t(bool( ( %(out_pel_img) < 1 ) ) ) << i; // note: max of one image per block
-    in_off[i] = blk_in_ix_base + %(t_smem_ld_pel_chan)*%(in_ix_chan_sz) +  %(t_smem_ld_pel_pel)*%(in_ix_x_sz);
-  }
-  int32_t in_chan_off = 0;
-  for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_elem_sz); ++filts_ix_out_chan_elem ) {
+  for( int32_t blk_iter = 0; blk_iter != %(in_ix_blk_iter_dim); ++blk_iter ) {
     __syncthreads();
     %(filts_smem_loads);
     filts_off += %(filts_xp_ix_in_chan_sz)*%(in_chan_tile);
 
 #pragma unroll
     for( int32_t i = 0; i < %(in_smem_load_iter); ++i ) {   
-      int32_t const t_smem_ld_pel = threadIdx.x + i * %(tpb); // may need loop
-      if( t_smem_ld_pel < %(t_smem_ld_pel_sz) ) { 
-	float v;
-	if( (do_load_bits&(1<<i)) 
-	    ) { 
-	  v = in[ in_off[i] + in_chan_off ]; 
-	}
-	else { v = 0.0f; }
-	in_smem[t_smem_ld_pel] = v;
+      int32_t const t_smem_ld_pel = threadIdx.x + i * %(tpb); // may need loop      
+      if( t_smem_ld_pel < %(in_ix_blk_iter_sz) ) { 
+	in_smem[t_smem_ld_pel] = in[ blk_in_ix_base + t_smem_ld_pel ];
       }
     }
     __syncthreads();
-    in_chan_off += %(in_chan_tile)*%(in_ix_chan_sz); 
+    blk_in_ix_base += %(in_ix_blk_iter_sz);
     %(inner_loop_body);
   }
   // load per-block biases into smem
@@ -67,8 +49,6 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   __syncthreads();
   // load biases into filts_strip
   %(t_tile_filt_loads);
-  // note: this out_line is for this thread's calculation/output region, used to guard writes
-  int32_t out_pel = %(blockIdx.x_pels_blk)*blk_in_ix_sz + %(threadIdx.x_pels_tile)*%(t_tile_sz);
   // add bias to each elem of out_tile[] and store the results to out[]
   %(t_tile_stores);
 }
