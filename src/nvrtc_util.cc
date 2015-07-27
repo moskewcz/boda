@@ -755,8 +755,7 @@ using boost::filesystem::path;
       assert_st( out_chan_smem_load_iter * cf.tpb == blk_filt_ix_sz * kern_sz );
       tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));;
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	filts_smem_loads += strprintf( "    filts_smem[threadIdx.x + %%(tpb) * %s] = "
-				       "filts[filts_off+(%s*%%(filts_xp_ix_x_sz))];\n",
+	filts_smem_loads += strprintf( "    filts_smem[threadIdx.x + %%(tpb) * %s] = filts[filts_off+(%s*%%(filts_xp_ix_x_sz))];\n",
 				       str(i).c_str(), str(i).c_str() );
       } 
     } else {
@@ -991,16 +990,7 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "t_smem_ld_pel", vect_string{"chan","pel"}, 
 		      vect_uint32_t{in_chan_tile,tix_pels_tile_sz * t_tile_sz}); 
 
-    string t_tile_in_loads("// begin t_tile_in_loads\n");
-    string t_tile_filt_loads("// begin t_tile_filt_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
-    for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-      t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[filts_smem_off+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
-    }
-    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[in_smem_off+%s];\n",
-				    str(ty).c_str(), str(ty).c_str() );
-    }
     t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
     t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
 
@@ -1035,21 +1025,28 @@ using boost::filesystem::path;
       }
     }
     // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
-    t_tile_in_loads += "    // end t_tile_in_loads";
-    t_tile_filt_loads += "    // end t_tile_filt_loads";
     t_tile_stores += "  // end t_tile_stores";
-    tf_exprs.push_back( std::make_pair( "t_tile_in_loads", t_tile_in_loads ) );
-    tf_exprs.push_back( std::make_pair( "t_tile_filt_loads", t_tile_filt_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
 
+
+    string t_tile_bias_loads("// begin t_tile_bias_loads\n");
+    for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+      t_tile_bias_loads += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
+    }
+    t_tile_bias_loads += "  // end t_tile_bias_loads";
+    tf_exprs.push_back( std::make_pair( "t_tile_bias_loads", t_tile_bias_loads ) );
+
     string inner_loop_body("// begin inner_loop_body\n");
-    inner_loop_body += "    filts_smem_off = %(threadIdx.x_out_chan_tile);\n";
-    inner_loop_body += "    in_smem_off = %(t_tile_sz)*%(threadIdx.x_pels_tile);\n";
     for( uint32_t ict = 0; ict != in_chan_tile; ++ict ) {
-      inner_loop_body += t_tile_filt_loads + ";\n";
-      inner_loop_body += t_tile_in_loads + ";\n";
-      inner_loop_body += "    filts_smem_off += blk_filt_ix_sz;\n";
-      inner_loop_body += "    in_smem_off += %(t_tile_sz)*%(threadIdx.x_pels_tile_dim);\n";
+      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(blk_filt_ix_sz)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(ict).c_str(), str(tx).c_str() );
+	//uint32_t const off = ict*blk_filt_ix_sz+tx*tix_out_chan_tile_sz;
+	//inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s];\n", str(tx).c_str(), str(off).c_str() );
+      }
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
+	inner_loop_body += strprintf( "    in_strip[%s] = in_smem_off[(%s*%%(t_tile_sz)*%%(threadIdx.x_pels_tile_dim)+%s)];\n",
+				      str(ty).c_str(), str(ict).c_str(), str(ty).c_str() );
+      }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
 	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	  inner_loop_body += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
