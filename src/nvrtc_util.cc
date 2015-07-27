@@ -995,10 +995,10 @@ using boost::filesystem::path;
     string t_tile_filt_loads("// begin t_tile_filt_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
     for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-      t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[filts_smem_off+%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
+      t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[filts_smem_off+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[in_smem_off+%%(t_tile_sz)*%%(threadIdx.x_pels_tile)+%s];\n",
+      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[in_smem_off+%s];\n",
 				    str(ty).c_str(), str(ty).c_str() );
     }
     t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
@@ -1043,8 +1043,8 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
 
     string inner_loop_body("// begin inner_loop_body\n");
-    inner_loop_body += "    filts_smem_off = 0;\n";
-    inner_loop_body += "    in_smem_off = 0;\n";
+    inner_loop_body += "    filts_smem_off = %(threadIdx.x_out_chan_tile);\n";
+    inner_loop_body += "    in_smem_off = %(t_tile_sz)*%(threadIdx.x_pels_tile);\n";
     for( uint32_t ict = 0; ict != in_chan_tile; ++ict ) {
       inner_loop_body += t_tile_filt_loads + ";\n";
       inner_loop_body += t_tile_in_loads + ";\n";

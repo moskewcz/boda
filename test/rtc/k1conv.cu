@@ -5,7 +5,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   int32_t const blk_in_ix_sz = %(threadIdx.x_pels_tile_dim)*%(t_tile_sz);
   __shared__ float filts_smem[blk_filt_ix_sz*%(in_chan_tile)];
   __shared__ float in_smem[blk_in_ix_sz*%(in_chan_tile)];
-  float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
+  float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {-0.0f}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
   float in_strip[%(t_tile_sz)]; // segment of input line sufficient for one unrolling of inner loop
@@ -28,7 +28,6 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   if( flags ) { return; }
   // load per-block biases into smem
   __syncthreads();
-  filts_smem_off = 0;
   for( int32_t i = 0; i != %(out_chan_bias_smem_load_iter); ++i ) {
     int32_t const t_smem_bias_ix = threadIdx.x+%(tpb)*i;
     if( t_smem_bias_ix < blk_filt_ix_sz ) { 
@@ -36,11 +35,12 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       int32_t const load_reg = t_smem_bias_ix / %(threadIdx.x_out_chan_tile_dim);
       int32_t const load_tile = t_smem_bias_ix %% %(threadIdx.x_out_chan_tile_dim);
       int32_t const ocix = ocix_base + load_tile*%(t_tile_sz) + load_reg;
-      if( ocix < %(out_ix_chan_dim) ) { filts_smem[filts_smem_off+t_smem_bias_ix] = biases[ ocix ]; }
+      if( ocix < %(out_ix_chan_dim) ) { filts_smem[t_smem_bias_ix] = biases[ ocix ]; }
     }
   }
   __syncthreads();
   // load biases into filts_strip
+  filts_smem_off = %(threadIdx.x_out_chan_tile);
   %(t_tile_filt_loads);
   // add bias to each elem of out_tile[] and store the results to out[]
   %(t_tile_stores);
