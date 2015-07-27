@@ -10,7 +10,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
   float in_strip[%(t_tile_sz)]; // segment of input line sufficient for one unrolling of inner loop
   int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz; // index of first out chan
-  int32_t blk_in_ix_base = %(blockIdx.x_pels_blk)*%(in_ix_blk_sz);// index of first input pel
+  int32_t blk_in_ix_base = %(blockIdx.x_pels_blk)*%(in_ix_blk_sz) + threadIdx.x;// index of first input pel to load for this thread
 
   // iteratate over filter elements
   int32_t filts_smem_off = 0;
@@ -19,20 +19,13 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 
   for( int32_t blk_iter = 0; blk_iter != %(in_ix_blk_iter_dim); ++blk_iter ) {
     __syncthreads();
-    %(filts_smem_loads);
-    filts_off += %(filts_xp_ix_in_chan_sz)*%(in_chan_tile);
-
-#pragma unroll
-    for( int32_t i = 0; i < %(in_smem_load_iter); ++i ) {   
-      int32_t const t_smem_ld_pel = threadIdx.x + i * %(tpb); // may need loop      
-      if( t_smem_ld_pel < %(in_ix_blk_iter_sz) ) { 
-	in_smem[t_smem_ld_pel] = in[ blk_in_ix_base + t_smem_ld_pel ];
-      }
-    }
+    %(smem_loads);
     __syncthreads();
+    filts_off += %(filts_xp_ix_in_chan_sz)*%(in_chan_tile);
     blk_in_ix_base += %(in_ix_blk_iter_sz);
     %(inner_loop_body);
   }
+  if( flags ) { return; }
   // load per-block biases into smem
   __syncthreads();
   filts_smem_off = 0;

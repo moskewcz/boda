@@ -952,12 +952,12 @@ using boost::filesystem::path;
 
     // generate filter smem loads
     uint32_t const out_chan_smem_load_iter = u32_ceil_div( blk_filt_ix_sz * in_chan_tile, cf.tpb );    
-    string filts_smem_loads("// begin filts_smem_loads\n");
+    string smem_loads("// begin smem_loads\n");
     if( cf.tpb == blk_filt_ix_sz ) {
       assert_st( out_chan_smem_load_iter * cf.tpb == blk_filt_ix_sz * in_chan_tile );
       tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));;
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	filts_smem_loads += strprintf( "    filts_smem[threadIdx.x + %%(tpb) * %s] = "
+	smem_loads += strprintf( "    filts_smem[threadIdx.x + %%(tpb) * %s] = "
 				       "filts[filts_off+(%s*%%(filts_xp_ix_in_chan_sz))];\n",
 				       str(i).c_str(), str(i).c_str() );
       } 
@@ -966,16 +966,22 @@ using boost::filesystem::path;
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
 	string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
 	string eif;
-	if( (i+1) == out_chan_smem_load_iter ) { filts_smem_loads+="if( "+ixe+" < "+str(blk_filt_ix_sz*in_chan_tile)+") { ";eif = "}";}
-	filts_smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+((%s/%%(blk_filt_ix_sz))*%%(filts_xp_ix_in_chan_sz))"
+	if( (i+1) == out_chan_smem_load_iter ) { smem_loads+="if( "+ixe+" < "+str(blk_filt_ix_sz*in_chan_tile)+") { ";eif = "}";}
+	smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+((%s/%%(blk_filt_ix_sz))*%%(filts_xp_ix_in_chan_sz))"
 				      "+(%s %%%% %%(blk_filt_ix_sz))];%s\n",ixe.c_str(),ixe.c_str(),ixe.c_str(),eif.c_str());
       }
     }
-    filts_smem_loads += "  // end filts_smem_loads";
-    tf_exprs.push_back( std::make_pair( "filts_smem_loads", filts_smem_loads ) );
-
-    uint32_t const in_smem_load_iter = u32_ceil_div( tix_pels_tile_sz * t_tile_sz * in_chan_tile, cf.tpb );    
-    tf_exprs.push_back( std::make_pair( "in_smem_load_iter", str(in_smem_load_iter) ) );
+    uint32_t const in_ix_blk_iter_sz = tix_pels_tile_sz * t_tile_sz * in_chan_tile;
+    uint32_t const in_smem_load_iter = u32_ceil_div( in_ix_blk_iter_sz, cf.tpb );    
+    for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
+      string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+      string eif;
+      if( (i+1)*cf.tpb > in_ix_blk_iter_sz ) { smem_loads+="if( "+ixe+" < %(in_ix_blk_iter_sz)) { ";eif = "}";}
+      smem_loads += strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
+			      ixe.c_str(),str(i).c_str(),eif.c_str());
+    }
+    tf_exprs.push_back( std::make_pair( "smem_loads", smem_loads ) );
+    smem_loads += "  // end smem_loads";
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
 					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
