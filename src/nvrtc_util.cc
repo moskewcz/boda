@@ -282,7 +282,7 @@ using boost::filesystem::path;
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
     uint32_t enable_s1conv; //NESI(default=0,help="if 1, enable experimental s1conv special case")
-    uint32_t enable_k1conv; //NESI(default=1,help="if 1, enable experimental k1conv special case")
+    uint32_t enable_k1conv; //NESI(default=0,help="if 1, enable experimental k1conv special case")
     uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
