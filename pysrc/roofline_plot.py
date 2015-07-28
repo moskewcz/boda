@@ -162,7 +162,7 @@ for ai, lab, mss, gfs in aiois:
     perfs = [ gfs * 1000.0 / ms for ms in mss ]
     addAILine( ai, lab, gfs )
 
-#print "KAIs",knee_ais
+print "KAIs",knee_ais
 #Peak performance line and text
 for p,l,kai in zip(PEAK_PERF, PEAK_PERF_LABELS, knee_ais): addPerfLine(p,l,kai[0], kai[1])
 #BW line and text
