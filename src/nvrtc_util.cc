@@ -152,7 +152,7 @@ using boost::filesystem::path;
       CUcontext cu_context;
       cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
       CUmodule cu_mod;
-      cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
+      cu_err_chk( cuModuleLoadDataEx( &cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
       CUfunction cu_func;
       cu_err_chk( cuModuleGetFunction( &cu_func, cu_mod, "dot" ), "cuModuleGetFunction" );
 
