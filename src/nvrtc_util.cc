@@ -1556,8 +1556,16 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     //printf("run_fwd() begin\n");
     copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
     //printf("run_fwd() exec\n");
+    p_CUevent b_ev = make_p_CUevent(); 
+    p_CUevent e_ev = make_p_CUevent();
+    cu_err_chk( cuEventRecord( *b_ev, 0 ), "cuEventRecord" );
     for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
+    cu_err_chk( cuEventRecord( *e_ev, 0 ), "cuEventRecord" );
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
+
+    float compute_dur = 0.0f;
+    cu_err_chk( cuEventElapsedTime( &compute_dur, *b_ev, *e_ev ), "cuEventElapsedTime" );
+    printf( "*** compute_dur=%s ***\n", str(compute_dur).c_str() );
     if( enable_prof ) { cuProfilerStop(); }
     if( !per_call_fn.empty() ) {
       string per_call_str;
