@@ -593,6 +593,7 @@ namespace boda
 	  string const & mode_str = mode->leaf_val.str();
 	  failed_modes.insert( mode_str );
 	}
+	if( test_init_failed ) { continue; }
 	uint32_t num_spec = bool(cmd_test->command) + bool(cmd_test->cli_str);
 	if( num_spec != 1 ) {
 	  rt_err( strprintf( "internal test_cmds error: %s of command and cli_str specified for test %s. specify exactly one.",
@@ -606,7 +607,6 @@ namespace boda
 	}
 	assert_st( cmd_test->command );
 	  
-	if( test_init_failed ) { continue; }
 
 	cur_test = cmd_test; // needed by test_print()
 	bool const seen_test_name = !seen_test_names.insert( cmd_test->test_name ).second;
