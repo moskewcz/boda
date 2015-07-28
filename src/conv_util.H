@@ -51,6 +51,12 @@ namespace boda
     bool on_seen_bot( void ) { ++bots_seen; assert_st( bots_seen <= bots.size() ); return bots_seen == bots.size(); }
     bool has_one_top( void ) const { return tops.size() == 1; }
     bool has_one_top_one_bot( void ) const { return (tops.size() == 1) && (bots.size() == 1); }
+
+    //FIXME: for now, we default-init these vars to prevent them from being garbage when they are unused. this is
+    //noticably bad in combination with always printing all parameters. we should do some combination of: (1) always
+    //using NESI to init conv_op_t's (2) custom-printing conv_op_t's to avoid printing ununsed/invalid fields (3)
+    //actually use some hierarchy here (gasp!)?
+    conv_op_t( void ) : out_chans(0), avg_pool(0), lrn_local_size(0), lrn_alpha(0), lrn_beta(0), lrn_k(0) { }
   };
 
   typedef vector< conv_op_t > vect_conv_op_t; 
