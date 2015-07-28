@@ -55,6 +55,10 @@ using boost::filesystem::path;
     nvrtc_err_chk( nvrtcGetPTX( cuda_prog.get(), &ret[0] ), "nvrtcGetPTX" );
     return ret;
   }
+
+  // FIXME: add function to get SASS? can use this command sequence:
+  // ptxas out.ptx -arch sm_52 -o out.cubin ; nvdisasm out.cubin > out.sass
+
   string nvrtc_compile( string const & cuda_prog_str, bool const & print_log, bool const & enable_lineinfo ) {
     timer_t t("nvrtc_compile");
     p_nvrtcProgram cuda_prog = make_p_nvrtcProgram( cuda_prog_str );
