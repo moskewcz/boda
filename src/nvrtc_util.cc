@@ -900,13 +900,20 @@ using boost::filesystem::path;
     //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
     cf.tpb = 128; // treated as a target, but not be exceeded
     uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
-    uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= cf.tpb target/max above (asserted below)
+    //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= cf.tpb target/max above (asserted below)
     // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
     // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
     // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the cio_out.chans.
     uint32_t tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-    uint32_t const tix_pels_tile_sz = goal_tix_pels_tile_sz;
-    uint32_t best_tbp = tix_pels_tile_sz * tix_out_chan_tile_sz;
+    uint32_t tix_pels_tile_sz = 0; // goal_tix_pels_tile_sz;
+    //uint32_t best_tbp = tix_pels_tile_sz * tix_out_chan_tile_sz;
+    uint32_t best_tbp = 0;
+    while( 1 ) {
+      uint32_t const maybe_tbp = (tix_pels_tile_sz+1) * tix_out_chan_tile_sz; // recalculate proposed tpb
+      if( maybe_tbp > cf.tpb ) { break; }
+      ++tix_pels_tile_sz;
+      best_tbp = maybe_tbp;
+    }
     assert_st( best_tbp );
     assert_st( best_tbp <= cf.tpb );
     cf.tpb = best_tbp;
