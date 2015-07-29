@@ -23,8 +23,8 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
     blk_in_ix_base += %(in_ix_blk_iter_sz);
     %(inner_loop_body);
   }
-  if( flags ) { return; }
   // load per-block biases into smem
+  if( flags == 2 ) { return; }
   __syncthreads();
   for( int32_t i = 0; i != %(out_chan_bias_smem_load_iter); ++i ) {
     int32_t const t_smem_bias_ix = threadIdx.x+%(tpb)*i;
@@ -39,6 +39,11 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   __syncthreads();
   // load biases into filts_strip
   %(t_tile_bias_loads);
+  if( flags == 1 ) { 
+    float * const out_off = out + threadIdx.x;
+    %(t_tile_dummy_stores);
+    return; 
+  }
   // add bias to each elem of out_tile[] and store the results to out[]
   %(t_tile_stores);
 }

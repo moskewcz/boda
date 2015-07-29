@@ -1039,6 +1039,16 @@ using boost::filesystem::path;
     t_tile_stores += "  // end t_tile_stores";
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
 
+    string t_tile_dummy_stores;
+    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
+      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	string const ve = strprintf( "%sout_tile[%s]+filts_strip[%s])", conv_has_relu ? "max(0.0f," : "(",
+				     str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+	t_tile_dummy_stores += strprintf( "out_off[%s] = %s;\n",
+				    str((ty*t_tile_sz+tx)*cf.tpb).c_str(), ve.c_str() );
+      }
+    }
+    tf_exprs.push_back( std::make_pair( "t_tile_dummy_stores", t_tile_dummy_stores ) );
 
     string t_tile_bias_loads("// begin t_tile_bias_loads\n");
     for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
