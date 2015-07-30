@@ -952,8 +952,18 @@ using boost::filesystem::path;
 
     uint32_t const blk_filt_ix_sz = tix_out_chan_tile_sz * t_tile_sz;
     tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
-	
-    
+
+    // calculate needed smem sizes (and total kernel needed smem size)
+    // note: filts and in smem are used concurrently, then just all of all_smem as an output buffer
+    uint32_t const filts_smem_sz = blk_filt_ix_sz*in_chan_tile;
+    tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
+    uint32_t const in_smem_sz = tix_pels_tile_sz*t_tile_sz*in_chan_tile;
+    tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
+    uint32_t const out_smem_sz = tix_pels_tile_sz*tix_out_chan_tile_sz*t_tile_sz; // note: == cf.tpb*t_tile_sz
+    tf_exprs.push_back( std::make_pair( "out_smem_sz", str(out_smem_sz) )); // note: unused, but assumed that all_smem_sz >= out_smem_sz
+    uint32_t const all_smem_sz = std::max( out_smem_sz, filts_smem_sz+in_smem_sz );
+    tf_exprs.push_back( std::make_pair( "all_smem_sz", str(all_smem_sz) ));
+
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","out_chan_blk","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{cio_in.chans,bix_out_chan_blk_sz,t_tile_sz,tix_out_chan_tile_sz} );
 
