@@ -269,6 +269,57 @@ using boost::filesystem::path;
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
+  struct op_info_t {
+    p_conv_op_t cop;
+    bool is_conv;
+    bool is_pool;
+    string tag_id_str;
+    p_conv_node_t no;
+    p_conv_node_t ni;
+
+    // valid if: is_conv == 1
+    bool conv_has_relu;
+    uint32_t in_pad;
+    uint32_t kern_sz;
+    uint32_t stride;
+
+    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_ ) {
+      cop = cop_;
+      tag_id_str = as_pyid( cop->tag );
+      //char const * const tag_id = tag_id_str.c_str();
+      assert_st( cop->tops.size() == 1 );
+      no = cp->must_get_node( cop->tops[0] );
+      if( cop->type != Concat_str ) {
+	assert_st( cop->bots.size() == 1 );
+	ni = cp->must_get_node( cop->bots[0] );
+      }
+      is_conv = cop->type == Convolution_str;
+      is_pool = cop->type == Pooling_str;
+      // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
+
+      if( is_conv ) {
+	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->type == ReLU_str);
+	// for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
+	assert_st( cop->in_pad.bnds_are_same() );
+	assert_st( cop->in_pad.p[0].dims_are_same() );
+	assert_st( cop->stride.dims_are_same() );
+	u32_pt_t kern_sz_ = cop->kern_sz;
+	if( kern_sz_.is_zeros() ) { kern_sz_ = ni->cio.sz; } // 'global' input special case
+	assert_st( kern_sz_.dims_are_same() );
+
+	in_pad = cop->in_pad.p[0].d[0];
+	kern_sz = kern_sz_.d[0];
+	stride = cop->stride.d[0];
+	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
+	assert_st( ni->cio.sz.dims_are_same() );
+      }
+    }    
+  };
+  typedef shared_ptr< op_info_t > p_op_info_t; 
+  typedef map< string, p_op_info_t > map_str_p_op_info_t;
+  typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
+
+
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
 			   // bases=["has_conv_fwd_t"], type_id="nvrtc" )
 
@@ -291,6 +342,8 @@ using boost::filesystem::path;
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
     p_conv_pipe_t cp;
+    p_map_str_p_op_info_t op_infos;
+
     uint32_t num_imgs;
     p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
@@ -456,6 +509,8 @@ using boost::filesystem::path;
     bool const is_pool = cop->type == Pooling_str;
     // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
     bool const conv_has_relu = is_conv && (node_out->in_place_ops.size() > 0) && (node_out->in_place_ops[0]->type == ReLU_str);
+    // is the next op a k1conv?
+
     // note: cio_in and node_out are derived from cop->bots[0] and cop->tops[0]
     // for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
     conv_io_t & cio_out = node_out->cio;
@@ -1353,11 +1408,7 @@ using boost::filesystem::path;
   }
 
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
-    string const tag_id_str = as_pyid( cop->tag );
-    //char const * const tag_id = tag_id_str.c_str();
-    assert_st( cop->tops.size() == 1 );
-    p_conv_node_t node_out = cp->must_get_node( cop->tops[0] );
-    conv_io_t & cio_out = node_out->cio;
+    p_op_info_t const & oi = must_find( *op_infos, cop->tag );
 
     if( cop->type == Concat_str ) {      
       vect_string arg_ids;
@@ -1366,51 +1417,47 @@ using boost::filesystem::path;
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
 	conv_io_t & cio_in = cp->must_get_node( cop->bots[bi] )->cio;
-	assert_st( cio_in.sz == cio_out.sz );
-	assert_st( chans_out_done+cio_in.chans <= cio_out.chans );
-	cu_func_t & cf = gen_op_copy( cop, cio_in, cio_out, chans_out_done );
+	assert_st( cio_in.sz == oi->no->cio.sz );
+	assert_st( chans_out_done+cio_in.chans <= oi->no->cio.chans );
+	cu_func_t & cf = gen_op_copy( cop, cio_in, oi->no->cio, chans_out_done );
 	arg_ids[0] = as_pyid(cop->bots[bi]);
-	fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, tag_id_str } );
+	fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, oi->tag_id_str } );
 	chans_out_done += cio_in.chans;
       }
-      assert_st( chans_out_done == cio_out.chans );
+      assert_st( chans_out_done == oi->no->cio.chans );
       return;
     }
 
-    assert_st( cop->bots.size() == 1 );
-    p_conv_node_t node_in = cp->must_get_node( cop->bots[0] );
-    conv_io_t & cio_in = node_in->cio;
-    bool const is_conv = cop->type == Convolution_str;
-    if( is_conv || (cop->type == Pooling_str) ) {
+    if( oi->is_conv || (cop->type == Pooling_str) ) {
       vect_string arg_ids;
-      string const filts_id = tag_id_str + "_filts";
+      string const filts_id = oi->tag_id_str + "_filts";
       string const filtsxp_id = filts_id + "_xposed";
-      string const biases_id = tag_id_str + "_biases";
+      string const biases_id = oi->tag_id_str + "_biases";
       string const in_id = as_pyid(cop->bots[0]);
-      if( is_conv ) {
+      if( oi->is_conv ) {
 	arg_ids.push_back( filtsxp_id );
 	arg_ids.push_back( biases_id );
       }
-      cu_func_t & cf = gen_op_kern( cop, cio_in, node_out );
+      cu_func_t & cf = gen_op_kern( cop, oi->ni->cio, oi->no  );
 
       if( cf.gli.needs_in_xpose ) {
-	cu_func_t & in_xpose_cf = gen_op_in_xpose( cio_in, cf.gli );
+	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi->ni->cio, cf.gli );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
 	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
 	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_cf.arg_sizes[1] ) ); 
-	  fwd_calls.push_back( cu_func_call_t{ in_xpose_cf.name, {in_id,inxp_id}, {}, tag_id_str + "_inxp" } );
+	  fwd_calls.push_back( cu_func_call_t{ in_xpose_cf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
 	}
 	arg_ids.push_back( inxp_id );
       } else {
 	arg_ids.push_back( in_id );
       }
-      arg_ids.push_back( as_pyid(cop->tops[0]) );
+      arg_ids.push_back( as_pyid(oi->no->name) );
 
-      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, tag_id_str } );
-      if( is_conv ) {
-	assert_st( cio_out.chans == cop->out_chans );
+      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, oi->tag_id_str } );
+      if( oi->is_conv ) {
+	assert_st( oi->no->cio.chans == cop->out_chans );
 	vect_uint32_t const & arg_sizes = cf.arg_sizes;
 	assert_st( arg_sizes.size() == 4 );
 	cu_func_t & xpose_cf = gen_op_xpose( cop, cf.gli );
@@ -1425,21 +1472,17 @@ using boost::filesystem::path;
       }
     } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
-      assert_st( cop->bots[0] == cop->tops[0] );
-      fwd_calls.push_back( cu_func_call_t{ gen_op_relu( cio_out ).name, { as_pyid(cop->tops[0]) }, {}, tag_id_str } );
+      assert_st( oi->ni->name == oi->no->name );
+      fwd_calls.push_back( cu_func_call_t{ gen_op_relu( oi->no->cio ).name, { as_pyid(oi->no->name) }, {}, oi->tag_id_str } );
     } else if( cop->type == LRN_str ) {
-      assert_st( cop->bots.size() == 1 );
-      conv_io_t & cio_in = cp->must_get_node( cop->bots[0] )->cio;
-      assert_st( cop->tops.size() == 1 );
-      conv_io_t & cio_out = cp->must_get_node( cop->tops[0] )->cio;
       vect_string arg_ids;
-      arg_ids.push_back( as_pyid(cop->bots[0]) );
-      arg_ids.push_back( as_pyid(cop->tops[0]) );
-      cu_func_t & cf = gen_op_lrn( cop, cio_in, cio_out );
-      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, tag_id_str } );
+      arg_ids.push_back( as_pyid(oi->ni->name) );
+      arg_ids.push_back( as_pyid(oi->no->name) );
+      cu_func_t & cf = gen_op_lrn( cop, oi->ni->cio, oi->ni->cio );
+      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, oi->tag_id_str } );
     } else if( cop->type == Dropout_str ) {
       // check that this is a single in-out in-place operation
-      assert_st( cop->bots[0] == cop->tops[0] );
+      assert_st( oi->ni->name == oi->no->name );
       // ignore for fwd
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
@@ -1504,6 +1547,15 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     cp = cp_;
     assert_st( cp );
     assert_st( cp->finalized );
+    op_infos.reset( new map_str_p_op_info_t );
+    for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
+      p_op_info_t & oi = (*op_infos)[i->first];
+      assert_st( !oi );
+      oi = make_shared< op_info_t >();
+      oi->init( cp, i->second );
+    }
+
+
     num_imgs = num_imgs_;
     assert_st( num_imgs );
     // need to init CUDA prior to potential cuda mallocs during setup/codegen
