@@ -47,7 +47,9 @@ namespace boda
 
   template ssds_diff_t::ssds_diff_t( p_nda_float_t const & o1, p_nda_float_t const & o2 );
   template ssds_diff_t::ssds_diff_t( p_nda_double_t const & o1, p_nda_double_t const & o2 );
-  
+
+  bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
+
 
   // questionably, we use (abuse?) the fact that we can mutate the
   // deleter to support mremap()ing the memory pointed to by the

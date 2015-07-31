@@ -302,7 +302,7 @@ namespace boda {
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
       ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
       (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_diff).c_str() );
-      if( ssds_diff.mad >= 1e-5 ) { ++num_mad_fail; }
+      if( (ssds_diff.mad >= 1e-5) || ssds_diff.has_nan() ) { ++num_mad_fail; }
       uint32_t num_err = 0;
       for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
 	float const v1 = out_batch_1->cm_at1(i);
