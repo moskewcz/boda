@@ -282,8 +282,10 @@ using boost::filesystem::path;
     uint32_t in_pad;
     uint32_t kern_sz;
     uint32_t stride;
+    bool is_k1conv;
+    bool is_s1conv;
 
-    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_ ) {
+    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, bool const & enable_k1conv, bool const & enable_s1conv ) {
       cop = cop_;
       tag_id_str = as_pyid( cop->tag );
       //char const * const tag_id = tag_id_str.c_str();
@@ -312,6 +314,20 @@ using boost::filesystem::path;
 	stride = cop->stride.d[0];
 	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
 	assert_st( ni->cio.sz.dims_are_same() );
+	is_k1conv = 0;
+	is_s1conv = 0;
+	if( is_conv && enable_k1conv && (kern_sz == 1) && (stride == 1) 
+	    && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) 
+	{ 
+	  if( in_pad != 0 ) {
+	    printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" );
+	  } else { is_k1conv = 1; }
+	}
+	else if( is_conv && enable_s1conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) 
+		 && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) 
+	{ 
+	  is_s1conv = 1;
+	}
       }
     }    
   };
@@ -503,21 +519,6 @@ using boost::filesystem::path;
   };
 
   cu_func_t & conv_pipe_fwd_t::gen_op_kern( p_op_info_t const & oi ) {
-    if( oi->is_conv && enable_k1conv && (oi->kern_sz == 1) && (oi->stride == 1) 
-	&& (oi->no->cio.sz.d[0] >= 6) && (oi->no->cio.sz.d[0] <= 300 ) && (oi->no->cio.chans >= 64) ) 
-    { 
-      if( oi->in_pad != 0 ) {
-	printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" );
-      } else {
-	return gen_op_k1conv( oi );
-      }
-    }
-    else if( oi->is_conv && enable_s1conv && (oi->stride == 1) && (oi->kern_sz <= 5) && (oi->kern_sz > 1) 
-	     && (oi->no->cio.sz.d[0] >= 6) && (oi->no->cio.sz.d[0] <= 300 ) && (oi->no->cio.chans >= 64) ) 
-    { 
-      return gen_op_s1conv( oi );
-    }
-
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_pad",str(oi->in_pad)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"out_chans",str(oi->no->cio.chans)} } };
@@ -1411,10 +1412,13 @@ using boost::filesystem::path;
 	arg_ids.push_back( filtsxp_id );
 	arg_ids.push_back( biases_id );
       }
-      cu_func_t & cf = gen_op_kern( oi );
+      cu_func_t * cf = 0;
+      if( oi->is_k1conv ) { cf = &gen_op_k1conv( oi ); }
+      else if( oi->is_s1conv ) { cf = &gen_op_s1conv( oi ); }
+      else { cf = &gen_op_kern( oi ); }
 
-      if( cf.gli.needs_in_xpose ) {
-	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi->ni->cio, cf.gli );
+      if( cf->gli.needs_in_xpose ) {
+	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi->ni->cio, cf->gli );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
 	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
@@ -1428,12 +1432,12 @@ using boost::filesystem::path;
       }
       arg_ids.push_back( as_pyid(oi->no->name) );
 
-      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, oi->tag_id_str } );
+      fwd_calls.push_back( cu_func_call_t{ cf->name, arg_ids, {}, oi->tag_id_str } );
       if( oi->is_conv ) {
 	assert_st( oi->no->cio.chans == cop->out_chans );
-	vect_uint32_t const & arg_sizes = cf.arg_sizes;
+	vect_uint32_t const & arg_sizes = cf->arg_sizes;
 	assert_st( arg_sizes.size() == 4 );
-	cu_func_t & xpose_cf = gen_op_xpose( cop, cf.gli );
+	cu_func_t & xpose_cf = gen_op_xpose( cop, cf->gli );
 	assert_st( xpose_cf.arg_sizes.size() == 2 ); // in, out
 	add_op_param( filts_id, xpose_cf.arg_sizes[0] );
 	bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
@@ -1525,7 +1529,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
-      oi->init( cp, i->second );
+      oi->init( cp, i->second, enable_k1conv, enable_s1conv );
     }
 
     num_imgs = num_imgs_;
