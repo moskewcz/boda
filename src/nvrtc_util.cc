@@ -907,8 +907,9 @@ using boost::filesystem::path;
   cu_func_t & conv_pipe_fwd_t::gen_op_k1conv( p_op_info_t const & oi ) {
     // fill in phase 2 info inside oi
     oi->single_k1conv_output = 0;
+    p_op_info_t noi;
     if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
-      p_op_info_t const & noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
+      noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
       if( noi->is_k1conv ) { oi->single_k1conv_output = 0; } // FIXME: 1; }
     }
     bool const write_xposed = oi->single_k1conv_output;
@@ -925,8 +926,20 @@ using boost::filesystem::path;
 
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
 
-    vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+    if( write_xposed ) {
+#if 0
+      // FIXME: need to know desired output format here, read from noi-> ...
+      insert_nda_exprs( tf_exprs, "out_ix", 
+			vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
+			vect_uint32_t{gli.bix_pels_blk_sz,in_chan_tile_dim,gli.in_chan_tile,gli.tix_pels_tile_sz*t_tile_sz} );
+#else
+      insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
+			vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+#endif
+    } else {
+      insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
+			vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+    }
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
 
     // for reg blocking
@@ -979,7 +992,6 @@ using boost::filesystem::path;
     uint32_t const blk_ix_sz = get_sz( tf_exprs, "blockIdx.x" );
     cf.blks = blk_ix_sz;
 
-    //insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,pad_in_chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
     insert_nda_exprs( tf_exprs, "in_ix", 
 		      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
 		      vect_uint32_t{bix_pels_blk_sz,in_chan_tile_dim,in_chan_tile,tix_pels_tile_sz*t_tile_sz} );
