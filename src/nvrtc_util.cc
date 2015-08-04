@@ -270,6 +270,7 @@ using boost::filesystem::path;
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
   struct op_info_t {
+    // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
     p_conv_op_t cop;
     string tag_id_str;
     p_conv_node_t no;
@@ -284,6 +285,10 @@ using boost::filesystem::path;
     uint32_t stride;
     bool is_k1conv;
     bool is_s1conv;
+
+    // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
+    // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
+    bool single_k1conv_output;
 
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, bool const & enable_k1conv, bool const & enable_s1conv ) {
       cop = cop_;
@@ -301,6 +306,7 @@ using boost::filesystem::path;
 
       if( is_conv || is_pool ) {
 	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->type == ReLU_str);
+	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
 	// for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
 	assert_st( cop->in_pad.bnds_are_same() );
 	assert_st( cop->in_pad.p[0].dims_are_same() );
@@ -899,9 +905,18 @@ using boost::filesystem::path;
   }
 
   cu_func_t & conv_pipe_fwd_t::gen_op_k1conv( p_op_info_t const & oi ) {
+    // fill in phase 2 info inside oi
+    oi->single_k1conv_output = 0;
+    if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
+      p_op_info_t const & noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
+      if( noi->is_k1conv ) { oi->single_k1conv_output = 0; } // FIXME: 1; }
+    }
+    bool const write_xposed = oi->single_k1conv_output;
+
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
-	,{"conv_has_relu",str(oi->conv_has_relu)},{"out_chans",str(oi->no->cio.chans)} } };
+	,{"conv_has_relu",str(oi->conv_has_relu)},{"out_chans",str(oi->no->cio.chans)}
+	,{"write_xposed",str(write_xposed)}} };
     rfgi.op_tag="k1conv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} );
     
     cu_func_t & cf = rfgi.init( cu_funcs );
@@ -973,7 +988,6 @@ using boost::filesystem::path;
     cf.gli.in_chans = oi->ni->cio.chans; 
     cf.gli.tix_out_chan_tile_sz = tix_out_chan_tile_sz; // num out chan tiles (threads) per block (~8-16)
     cf.gli.bix_out_chan_blk_sz = bix_out_chan_blk_sz; // number of blocks in out_chan dim of blocks  
-
     cf.gli.needs_in_xpose = 1;
     cf.gli.in_chan_tile = in_chan_tile;
     cf.gli.tix_pels_tile_sz = tix_pels_tile_sz;
@@ -1383,6 +1397,11 @@ using boost::filesystem::path;
 
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
+    p_op_info_t poi;
+    if( oi->ni && !oi->ni->top_for.empty() ) {
+      assert_st( oi->ni->top_for.size() == 1 );
+      poi = must_find( *op_infos, oi->ni->top_for[0] ); // single unique parent operation, needed for poi->single_k1conv_output
+    }
 
     if( cop->type == Concat_str ) {      
       vect_string arg_ids;
@@ -1416,8 +1435,8 @@ using boost::filesystem::path;
       if( oi->is_k1conv ) { cf = &gen_op_k1conv( oi ); }
       else if( oi->is_s1conv ) { cf = &gen_op_s1conv( oi ); }
       else { cf = &gen_op_kern( oi ); }
-
-      if( cf->gli.needs_in_xpose ) {
+      // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s cf->gli.needs_in_xpose=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(cf->gli.needs_in_xpose).c_str() );
+      if( cf->gli.needs_in_xpose && ((!poi) || (!poi->single_k1conv_output)) ) {
 	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi->ni->cio, cf->gli );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
 	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
@@ -1478,17 +1497,11 @@ using boost::filesystem::path;
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
     p_conv_node_t node = cp->must_get_node( node_name );
     // setup source nodes here, otherwise print with thier writing op
-    bool writer_is_conv = 0;
     if( node->top_for.empty() ) { gen_node( node_name, node ); }
-    else { 
-      assert( node->top_for.size() == 1 ); // multiple writers not handled
-      p_conv_op_t const & cop = cp->get_op( node->top_for[0] );
-      writer_is_conv = ( cop->type == Convolution_str );
-    }
+    else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
+
     // in-place ops for this node
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) { 
-      // skip first operation if it is a ReLU on a node written by a conv, as it will have been fused into the conv:
-      if( writer_is_conv && (j == node->in_place_ops.begin()) && ((*j)->type == ReLU_str) ) { continue; } 
       gen_op( *j ); 
     }
     // generate stats gathering call
