@@ -1036,6 +1036,7 @@ using boost::filesystem::path;
 
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","out_chan_blk","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{oi->ni->cio.chans,oi->bix_out_chan_blk_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
+    uint32_t filts_xp_ix_in_chan_sz = get_sz( tf_exprs, "filts_xp_ix" ) / oi->ni->cio.chans; // padded # of filters/output chans
 
     uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, cf.tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
@@ -1052,13 +1053,19 @@ using boost::filesystem::path;
 				       str(i).c_str(), str(i).c_str() );
       } 
     } else {
-      tf_exprs.push_back( std::make_pair( "filts_off_adj", "0" ));
+      bool load_is_contig = (blk_filt_ix_sz == filts_xp_ix_in_chan_sz);
+      assert_st( load_is_contig == (oi->bix_out_chan_blk_sz==1) ); // load is contig when blocks tiling dim == 1 for out_chans 
+      tf_exprs.push_back( std::make_pair( "filts_off_adj", load_is_contig ? "threadIdx.x" : "0" ));
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
 	string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
 	string eif;
 	if( (i+1) == out_chan_smem_load_iter ) { smem_loads+="if( "+ixe+" < "+str(blk_filt_ix_sz*oi->in_chan_tile)+") { ";eif = "}";}
-	smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+((%s/%%(blk_filt_ix_sz))*%%(filts_xp_ix_in_chan_sz))"
-				      "+(%s %%%% %%(blk_filt_ix_sz))];%s\n",ixe.c_str(),ixe.c_str(),ixe.c_str(),eif.c_str());
+	if( load_is_contig ) { // addr expresion simplifies in this case and we can move threadIdx.x into filts_off_adj
+	  smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s\n",ixe.c_str(),str(i).c_str(),eif.c_str());
+	} else {
+	  smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+((%s/%%(blk_filt_ix_sz))*%%(filts_xp_ix_in_chan_sz))"
+				  "+(%s %%%% %%(blk_filt_ix_sz))];%s\n",ixe.c_str(),ixe.c_str(),ixe.c_str(),eif.c_str());
+	}
       }
     }
     uint32_t const in_ix_blk_iter_sz = oi->tix_pels_tile_sz * t_tile_sz * oi->in_chan_tile;
