@@ -526,13 +526,13 @@ using boost::filesystem::path;
   }
 
   // yeah, not the greatest ...
-  uint32_t get_sz( vect_pair_str_str & mss, string const & ix ) { 
+  uint32_t get_expr( vect_pair_str_str & mss, string const & es ) { 
     for( vect_pair_str_str::const_iterator i = mss.begin(); i != mss.end(); ++i ) {
-      if( i->first == (ix+"_sz") ) { return boost::lexical_cast< uint32_t >( i->second ); }
+      if( i->first == es ) { return boost::lexical_cast< uint32_t >( i->second ); }
     }
-    rt_err( "size not found in tf_exprs for ix:" + ix );
+    rt_err( es + " not found in tf_exprs." );
   }
-
+  uint32_t get_sz( vect_pair_str_str & mss, string const & ix ) { return get_expr( mss, ix+"_sz" ); }
 
   struct rtc_func_param_info_t { string name; string val; };
   struct rtc_u32_param_info_t { string name; uint32_t val; };
@@ -988,7 +988,8 @@ using boost::filesystem::path;
 			vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
 			vect_uint32_t{noi->bix_pels_blk_sz,noi->in_chan_tile_dim,noi->in_chan_tile,noi->tix_pels_tile_sz*t_tile_sz} );
       tf_exprs.push_back( std::make_pair( "out_ix_chan_dim", str(oi->no->cio.chans) ) ); // unpadded out chans for bias loading guard
-    
+      insert_nda_exprs( tf_exprs, "out_pel", vect_string{"blk","blk_pel"},
+			vect_uint32_t{noi->bix_pels_blk_sz,noi->tix_pels_tile_sz*t_tile_sz} );
     } else {
       insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
 			vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
@@ -1100,7 +1101,29 @@ using boost::filesystem::path;
     // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
     // FIXME: out_pel must be per-tpix (again)
     if( write_xposed ) {
-      // TODO
+      // padded # of in chans of next layer  == noi->in_chan_tile_dim * noi->in_chan_tile
+      // padded # of out chans of this layer == oi->bix_out_chan_blk_sz * oi->tix_out_chan_tile_sz * t_tile_sz
+      // if these are ==, we don't have to worry about bounds-checking our writes to out in the chan dim
+      assert_st( oi->bix_out_chan_blk_sz * oi->tix_out_chan_tile_sz * t_tile_sz == noi->in_chan_tile_dim * noi->in_chan_tile );
+      // padded # of in pels of next layer:  == noi->bix_pels_blk_sz * noi->tix_pels_tile_sz * t_tile_sz
+      // padded # of out pels of this layer: == oi->bix_pels_blk_sz * oi->tix_pels_tile_sz * t_tile_sz
+      // if these are ==, we don't have to worry about bounds-checking our writes to out in the pel dim
+      assert_st( oi->bix_pels_blk_sz * oi->tix_pels_tile_sz * t_tile_sz == noi->bix_pels_blk_sz * noi->tix_pels_tile_sz * t_tile_sz );
+      t_tile_stores += "int32_t const out_pel = %(blockIdx.x_pels_blk)*%(in_ix_blk_pel_dim) + %(threadIdx.x_pels_tile)*%(t_tile_sz);\n";
+      // we assume out_ix_blk_pel_dim (== noi->tix_pels_tile_sz*t_tile_sz) is divisible by t_tile_sz. but let's check it explicitly:
+      assert_st( (get_expr( tf_exprs, "out_ix_blk_pel_dim" ) % t_tile_sz) == 0 );
+      // we assume the out chans are a single (span of) dims in out. FIXME: check this?. 
+      t_tile_stores += "int32_t const out_ix = %(out_pel_blk)*%(out_ix_blk_sz) + %(out_pel_blk_pel)*%(out_ix_blk_pel_sz) + "
+	"%(out_chan_ix)*%(out_ix_blk_iter_chan_sz);\n";
+
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
+	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
+				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+	  t_tile_stores += strprintf( "out[ out_ix + %s*%%(out_ix_blk_pel_sz) + %s*%%(out_ix_blk_iter_chan_sz) ] = %s;\n",
+				      str(ty).c_str(), str(tx).c_str(), ve.c_str() );
+	}
+      }
     } else {
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
 	tf_exprs.push_back( 
