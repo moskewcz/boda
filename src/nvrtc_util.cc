@@ -349,6 +349,14 @@ using boost::filesystem::path;
   typedef map< string, p_op_info_t > map_str_p_op_info_t;
   typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
 
+  struct node_info_t {
+    uint32_t sz;
+    node_info_t( void ) : sz(0) { }
+  };
+  typedef shared_ptr< node_info_t > p_node_info_t; 
+  typedef map< string, p_node_info_t > map_str_p_node_info_t;
+  typedef shared_ptr< map_str_p_node_info_t > p_map_str_p_node_info_t; 
+
 
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
 			   // bases=["has_conv_fwd_t"], type_id="nvrtc" )
@@ -368,11 +376,13 @@ using boost::filesystem::path;
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
     uint32_t enable_s1conv; //NESI(default=0,help="if 1, enable experimental s1conv special case")
     uint32_t enable_k1conv; //NESI(default=0,help="if 1, enable experimental k1conv special case")
+    uint32_t enable_write_xpose; //NESI(default=0,help="if 1, enable experimental k1conv write xposing")
     uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
     p_conv_pipe_t cp;
     p_map_str_p_op_info_t op_infos;
+    p_map_str_p_node_info_t node_infos;
 
     uint32_t num_imgs;
     p_map_str_p_cup_float_t cups;
@@ -955,7 +965,7 @@ using boost::filesystem::path;
     p_op_info_t noi;
     if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
       noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
-      if( noi->is_k1conv ) { oi->single_k1conv_output = 0; } // FIXME: 1; }
+      if( noi->is_k1conv ) { oi->single_k1conv_output = enable_write_xpose; }
     }
     bool const write_xposed = oi->single_k1conv_output;
 
@@ -972,20 +982,20 @@ using boost::filesystem::path;
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
 
     if( write_xposed ) {
-#if 0
-      // FIXME: need to know desired output format here, read from noi-> ...
       insert_nda_exprs( tf_exprs, "out_ix", 
 			vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
-			vect_uint32_t{gli.bix_pels_blk_sz,in_chan_tile_dim,gli.in_chan_tile,gli.tix_pels_tile_sz*t_tile_sz} );
-#else
-      insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
-			vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-#endif
+			vect_uint32_t{noi->bix_pels_blk_sz,noi->in_chan_tile_dim,noi->in_chan_tile,noi->tix_pels_tile_sz*t_tile_sz} );
+      tf_exprs.push_back( std::make_pair( "out_ix_chan_dim", str(oi->no->cio.chans) ) ); // unpadded out chans for bias loading guard
+    
     } else {
       insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
 			vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
     }
+    
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    p_node_info_t const & no_ninfo = must_find( *node_infos, oi->no->name );
+    assert_st( !no_ninfo->sz );
+    no_ninfo->sz = out_ix_sz;
 
     cf.tpb = oi->tpb;
     tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
@@ -1080,29 +1090,33 @@ using boost::filesystem::path;
 
     // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
     // FIXME: out_pel must be per-tpix (again)
-    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-      tf_exprs.push_back( 
-	std::make_pair( "out_pel_"+str(ty), 
-			"(%(blockIdx.x_pels_blk)*%(in_ix_blk_pel_dim) + %(threadIdx.x_pels_tile)*%(t_tile_sz)+"+str(ty)+")" ) );
-      insert_nda_exprs( tf_exprs, "out_pel_"+str(ty), vect_string{"img","pel"}, vect_uint32_t{num_imgs,oi->no->cio.sz.dims_prod()}, 1); 
-      t_tile_stores += strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_ix_img_sz) + "
-				  " %%(out_pel_%s_pel)*%%(out_ix_x_sz)"
-				  "  ; // cache out patch ixs\n ",
-				  str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
-    }
-    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-      t_tile_stores += strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz); // cache out chan ixs\n",
-				  str(ty).c_str(), str(ty).c_str() );
-    }
-    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-      t_tile_stores += "  if( %(out_pel_"+str(ty)+"_img) >= %(out_ix_img_dim) ) { return; } "
-	"// this patch and the following are off-the-end patches, so don't store them.\n";
-      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
-				     str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
-	t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
-				    "out[ tpix[%s] + tcix[%s] ] = %s; }\n",
-				    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() );
+    if( write_xposed ) {
+      // TODO
+    } else {
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
+	tf_exprs.push_back( 
+	  std::make_pair( "out_pel_"+str(ty), 
+			  "(%(blockIdx.x_pels_blk)*%(in_ix_blk_pel_dim) + %(threadIdx.x_pels_tile)*%(t_tile_sz)+"+str(ty)+")" ) );
+	insert_nda_exprs( tf_exprs, "out_pel_"+str(ty), vect_string{"img","pel"}, vect_uint32_t{num_imgs,oi->no->cio.sz.dims_prod()}, 1); 
+	t_tile_stores += strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_ix_img_sz) + "
+				    " %%(out_pel_%s_pel)*%%(out_ix_x_sz)"
+				    "  ; // cache out patch ixs\n ",
+				    str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
+      }
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
+	t_tile_stores += strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz); // cache out chan ixs\n",
+				    str(ty).c_str(), str(ty).c_str() );
+      }
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
+	t_tile_stores += "  if( %(out_pel_"+str(ty)+"_img) >= %(out_ix_img_dim) ) { return; } "
+	  "// this patch and the following are off-the-end patches, so don't store them.\n";
+	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
+				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+	  t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
+				      "out[ tpix[%s] + tcix[%s] ] = %s; }\n",
+				      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() );
+	}
       }
     }
     // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
@@ -1502,7 +1516,9 @@ using boost::filesystem::path;
 
   void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) {
     conv_io_t & cio = node->cio;
-    must_insert( *cups, as_pyid(name), make_shared<cup_float>( num_imgs * cio.chans * cio.sz.dims_prod() ) ); 
+    p_node_info_t const & ninfo = must_find( *node_infos, name );
+    if( !ninfo->sz ) { ninfo->sz = num_imgs * cio.chans * cio.sz.dims_prod(); }
+    must_insert( *cups, as_pyid(name), make_shared<cup_float>( ninfo->sz ) ); 
   }
 
   // quantize command line example:
@@ -1557,12 +1573,18 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     assert_st( cp );
     assert_st( cp->finalized );
     op_infos.reset( new map_str_p_op_info_t );
+    node_infos.reset( new map_str_p_node_info_t );
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
       oi->init( cp, i->second, enable_k1conv, enable_s1conv );
       if( oi->is_k1conv ) { calc_blocking_k1conv( oi ); }
+    }
+    for( map_str_p_conv_node_t::iterator i = cp->nodes->begin(); i != cp->nodes->end(); ++i ) { 
+      p_node_info_t & ninfo = (*node_infos)[i->first];
+      assert_st( !ninfo );
+      ninfo = make_shared< node_info_t >();
     }
 
     // need to init CUDA prior to potential cuda mallocs during setup/codegen
