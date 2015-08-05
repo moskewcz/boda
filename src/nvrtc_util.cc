@@ -637,8 +637,10 @@ using boost::filesystem::path;
       cf.gli.tix_out_chan_tile_sz = tix_out_chan_tile_sz; // num out chan tiles (threads) per block (~8-16)
       cf.gli.bix_out_chan_blk_sz = bix_out_chan_blk_sz; // number of blocks in out_chan dim of blocks  
 
-      insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
-			vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,bix_out_chan_blk_sz,t_tile_sz,tix_out_chan_tile_sz} );
+      insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
+			vect_uint32_t{bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,tix_out_chan_tile_sz} );
+      //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
+//			vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,bix_out_chan_blk_sz,t_tile_sz,tix_out_chan_tile_sz} );
 
       // check that we have enough threads per block to load smem using one-elem-per-thread.
       // FIXME: allow for cases when this does not hold
@@ -838,8 +840,8 @@ using boost::filesystem::path;
     uint32_t const blk_filt_ix_sz = tix_out_chan_tile_sz * t_tile_sz;
     tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
     
-    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
-		      vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,bix_out_chan_blk_sz,t_tile_sz,tix_out_chan_tile_sz} );
+    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
+		      vect_uint32_t{bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,tix_out_chan_tile_sz} );
 
     uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, cf.tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
@@ -1034,8 +1036,8 @@ using boost::filesystem::path;
     uint32_t const all_smem_sz = std::max( out_smem_sz, filts_smem_sz+in_smem_sz );
     tf_exprs.push_back( std::make_pair( "all_smem_sz", str(all_smem_sz) ));
 
-    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","out_chan_blk","out_chan_reg","out_chan_tile"}, 
-		      vect_uint32_t{oi->ni->cio.chans,oi->bix_out_chan_blk_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
+    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","out_chan_reg","out_chan_tile"}, 
+		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,t_tile_sz,oi->tix_out_chan_tile_sz} );
     uint32_t filts_xp_ix_in_chan_sz = get_sz( tf_exprs, "filts_xp_ix" ) / oi->ni->cio.chans; // padded # of filters/output chans
 
     uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, cf.tpb );
@@ -1385,9 +1387,9 @@ using boost::filesystem::path;
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
     insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
 		      vect_uint32_t{cop->out_chans,gli.in_chans,kern_sz.d[1],kern_sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
-		      vect_uint32_t{gli.in_chans,kern_sz.d[1],kern_sz.d[0],
-			  gli.bix_out_chan_blk_sz,t_tile_sz,gli.tix_out_chan_tile_sz} );
+    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
+		      vect_uint32_t{gli.bix_out_chan_blk_sz,gli.in_chans,kern_sz.d[1],kern_sz.d[0],
+			  t_tile_sz,gli.tix_out_chan_tile_sz} );
     insert_nda_exprs( tf_exprs, "fioc", vect_string{"out_chan_blk","out_chan_tile","out_chan_reg"}, 
 		      vect_uint32_t{ gli.bix_out_chan_blk_sz,gli.tix_out_chan_tile_sz,t_tile_sz} );
     uint32_t const filts_ix_sz = get_sz( tf_exprs, "filts_ix" );

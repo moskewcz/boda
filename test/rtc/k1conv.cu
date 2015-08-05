@@ -9,7 +9,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
   float in_strip[%(t_tile_sz)]; // segment of input line sufficient for one unrolling of inner loop
-  int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*%(blk_filt_ix_sz); // index of first out chan
+  int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*%(filts_xp_ix_out_chan_blk_sz); // index of first out chan
   int32_t blk_in_ix_base = %(blockIdx.x_pels_blk)*%(in_ix_blk_sz) + threadIdx.x;// index of first input pel to load for this thread
 
   float * const filts_smem_off = filts_smem + %(threadIdx.x_out_chan_tile);
