@@ -14,6 +14,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 
   float * const filts_smem_off = filts_smem + %(threadIdx.x_out_chan_tile);
   float * const in_smem_off = in_smem + %(t_tile_sz)*%(threadIdx.x_pels_tile);
+  float * const out_smem_off = all_smem + threadIdx.x;
   int32_t filts_off = blk_filt_ix_base + %(filts_off_adj); // adj is either 0 or threadIdx.x;
   // iteratate over filter elements
   for( int32_t blk_iter = 0; blk_iter != %(in_ix_blk_iter_dim); ++blk_iter ) {

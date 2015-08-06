@@ -1092,8 +1092,6 @@ using boost::filesystem::path;
 		      vect_uint32_t{oi->in_chan_tile, oi->tix_pels_tile_sz * t_tile_sz}); 
 
     string t_tile_stores("// begin t_tile_stores\n");
-    t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
-    t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
 
     // not possible due to no-partial-imgs-per-block
     //t_tile_stores += "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; } "; 
@@ -1109,13 +1107,14 @@ using boost::filesystem::path;
       // padded # of out pels of this layer: == oi->bix_pels_blk_sz * oi->tix_pels_tile_sz * t_tile_sz
       // if these are ==, we don't have to worry about bounds-checking our writes to out in the pel dim
       assert_st( oi->bix_pels_blk_sz * oi->tix_pels_tile_sz * t_tile_sz == noi->bix_pels_blk_sz * noi->tix_pels_tile_sz * t_tile_sz );
-      t_tile_stores += "int32_t const out_pel = %(blockIdx.x_pels_blk)*%(in_ix_blk_pel_dim) + %(threadIdx.x_pels_tile)*%(t_tile_sz);\n";
       // we assume out_ix_blk_pel_dim (== noi->tix_pels_tile_sz*t_tile_sz) is divisible by t_tile_sz. but let's check it explicitly:
       assert_st( (get_expr( tf_exprs, "out_ix_blk_pel_dim" ) % t_tile_sz) == 0 );
       // we assume the out chans are a single (span of) dims in out. FIXME: check this?. 
+
+#if 1
+      t_tile_stores += "int32_t const out_pel = %(blockIdx.x_pels_blk)*%(in_ix_blk_pel_dim) + %(threadIdx.x_pels_tile)*%(t_tile_sz);\n";
       t_tile_stores += "int32_t const out_ix = %(out_pel_blk)*%(out_ix_blk_sz) + %(out_pel_blk_pel)*%(out_ix_blk_pel_sz) + "
 	"%(out_chan_ix)*%(out_ix_blk_iter_chan_sz);\n";
-
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
 	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
@@ -1124,7 +1123,42 @@ using boost::filesystem::path;
 				      str(ty).c_str(), str(tx).c_str(), ve.c_str() );
 	}
       }
+#else
+      //t_tile_stores += "  int32_t xpbuf[%(t_tile_sz)];\n";
+      // FIXME: assumes (for blockIdx.x_pels_blk*... term) that input and output block have same # of pels ... too strong?
+      assert_st( oi->tix_pels_tile_sz == noi->tix_pels_tile_sz );
+      t_tile_stores += "int32_t const out_ix = %(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz)*%(out_ix_blk_iter_chan_sz) + "
+	"%(blockIdx.x_pels_blk)*%(out_ix_blk_sz);\n"; 
+      t_tile_stores += "int32_t xpbuf_rd_pel;\n";
+      t_tile_stores += "int32_t xpbuf_rd_chan;\n";
+
+      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	// transpose each thread's tx'th out_chan (= t_tile_sz out chans across all threads) into xpbuf (again across all threads)
+	// such that we can do (mostly) sequential writes to global memory for this set of t_tile_sz out chans
+	t_tile_stores += "  __syncthreads();\n";
+	for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // out_tile[] (registers) -> all_smem[]
+	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
+				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+	  t_tile_stores += strprintf( "out_smem_off[%%(tpb)*%s] = %s;\n", str(ty).c_str(), ve.c_str() );
+	}
+	t_tile_stores += "  __syncthreads();\n";
+	for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // all_smem[] -> [xpbuf[] (registers)] -> out[] (global)
+	  string const obe = "(threadIdx.x + %(tpb)*"+str(ty)+")";
+	  t_tile_stores += "  xpbuf_rd_pel = "+obe+" %% %(out_ix_blk_pel_dim) ;\n";
+	  t_tile_stores += "  xpbuf_rd_chan = "+obe+" / %(out_ix_blk_pel_dim) ;\n";
+	  t_tile_stores += strprintf( "out[out_ix + xpbuf_rd_pel + (xpbuf_rd_chan*%%(t_tile_sz)+%s)*%%(out_ix_blk_iter_chan_sz)] = "
+				      "out_smem_off[xpbuf_rd_chan+(xpbuf_rd_pel %%%% %%(t_tile_sz))*%%(tpb)"
+				      "+ (xpbuf_rd_pel / %%(t_tile_sz))*%%(threadIdx.x_out_chan_tile_sz) ];\n",
+				      str(tx).c_str() );	  
+	}
+	for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // xpbuf[] registers -> out[] (global)
+	  // TODO/UNUSED?
+	}	
+      }
+#endif
     } else {
+      t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
+      t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
 	tf_exprs.push_back( 
 	  std::make_pair( "out_pel_"+str(ty), 
