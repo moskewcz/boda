@@ -1521,21 +1521,28 @@ using boost::filesystem::path;
       return;
     }
 
-    if( oi->is_conv || oi->is_pool ) {
+    if( oi->is_pool ) {
+      vect_string arg_ids;
+      string const in_id = as_pyid(cop->bots[0]);
+      cu_func_t * cf = &gen_op_pool( oi );
+      arg_ids.push_back( in_id );
+      arg_ids.push_back( as_pyid(oi->no->name) );
+      fwd_calls.push_back( cu_func_call_t{ cf->name, arg_ids, {}, oi->tag_id_str } );
+
+    } else if( oi->is_conv ) {
       vect_string arg_ids;
       string const filts_id = oi->tag_id_str + "_filts";
       string const filtsxp_id = filts_id + "_xposed";
       string const biases_id = oi->tag_id_str + "_biases";
       string const in_id = as_pyid(cop->bots[0]);
-      if( oi->is_conv ) {
-	arg_ids.push_back( filtsxp_id );
-	arg_ids.push_back( biases_id );
-      }
+
+      arg_ids.push_back( filtsxp_id );
+      arg_ids.push_back( biases_id );
+
       cu_func_t * cf = 0;
       if( oi->is_k1conv ) { cf = &gen_op_k1conv( oi ); }
       else if( oi->is_s1conv ) { cf = &gen_op_s1conv( oi ); }
-      else if( oi->is_conv ) { cf = &gen_op_conv( oi ); }
-      else { cf = &gen_op_pool( oi ); }
+      else { cf = &gen_op_conv( oi ); }
       // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
       if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
 	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi );
@@ -1551,22 +1558,21 @@ using boost::filesystem::path;
 	arg_ids.push_back( in_id );
       }
       arg_ids.push_back( as_pyid(oi->no->name) );
-
       fwd_calls.push_back( cu_func_call_t{ cf->name, arg_ids, {}, oi->tag_id_str } );
-      if( oi->is_conv ) {
-	assert_st( oi->no->cio.chans == cop->out_chans );
-	vect_uint32_t const & arg_sizes = cf->arg_sizes;
-	assert_st( arg_sizes.size() == 4 );
-	cu_func_t & xpose_cf = gen_op_xpose( oi );
-	assert_st( xpose_cf.arg_sizes.size() == 2 ); // in, out
-	add_op_param( filts_id, xpose_cf.arg_sizes[0] );
-	bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
-	if( did_ins ) { // newly-seen/used filter, so set up to transpose it
-	  init_calls.push_back( cu_func_call_t{ xpose_cf.name, vect_string{ filts_id, filtsxp_id } } );
-	  must_insert( *cups, filtsxp_id, make_shared<cup_float>( xpose_cf.arg_sizes[1] ) ); 
-	} 
-	add_op_param( biases_id, arg_sizes[1] );
-      }
+
+      assert_st( oi->no->cio.chans == cop->out_chans );
+      vect_uint32_t const & arg_sizes = cf->arg_sizes;
+      assert_st( arg_sizes.size() == 4 );
+      cu_func_t & xpose_cf = gen_op_xpose( oi );
+      assert_st( xpose_cf.arg_sizes.size() == 2 ); // in, out
+      add_op_param( filts_id, xpose_cf.arg_sizes[0] );
+      bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
+      if( did_ins ) { // newly-seen/used filter, so set up to transpose it
+	init_calls.push_back( cu_func_call_t{ xpose_cf.name, vect_string{ filts_id, filtsxp_id } } );
+	must_insert( *cups, filtsxp_id, make_shared<cup_float>( xpose_cf.arg_sizes[1] ) ); 
+      } 
+      add_op_param( biases_id, arg_sizes[1] );
+
     } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
