@@ -236,16 +236,6 @@ using boost::filesystem::path;
     void ensure_evs( void ) { if( !b_ev ) { b_ev = make_p_CUevent(); } if( !e_ev ) { e_ev = make_p_CUevent(); } }
   };
   typedef vector< cu_func_call_t > vect_cu_func_call_t; 
-  struct gen_layout_info_t { 
-    uint32_t in_chans;
-    uint32_t bix_out_chan_blk_sz; 
-    uint32_t tix_out_chan_tile_sz; 
-
-    uint32_t needs_in_xpose;
-    uint32_t in_chan_tile;
-    uint32_t bix_pels_blk_sz; 
-    uint32_t tix_pels_tile_sz; 
-  };
   struct cu_func_t { 
     string name;
     bool finalized;
@@ -254,7 +244,6 @@ using boost::filesystem::path;
     uint32_t tpb;
     uint32_t blks;
     CUfunction cu_func; 
-    gen_layout_info_t gli; // for communication between conv codegen and xpose codegen
   };
   typedef map< string, cu_func_t > cu_funcs_t;
 
@@ -421,7 +410,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     cu_func_t & gen_op_relu( p_op_info_t const & oi );
     cu_func_t & gen_op_in_xpose( p_op_info_t const & oi );
-    cu_func_t & gen_op_xpose( p_op_info_t const & oi, gen_layout_info_t const & gli );
+    cu_func_t & gen_op_xpose( p_op_info_t const & oi );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
@@ -633,43 +622,38 @@ using boost::filesystem::path;
       // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
       // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
       // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the out_chans.
-      uint32_t tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-      if( tix_out_chan_tile_sz < goal_tix_out_chan_tile_sz ) {
+      oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
+      if( oi->tix_out_chan_tile_sz < goal_tix_out_chan_tile_sz ) {
 	
       }
       uint32_t tix_patch_tile_sz = 8; // treated as a minimum
       cf.tpb = 128; // treated as a target, but not be exceeded
-      while( (tix_patch_tile_sz+1) * tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
-      uint32_t const new_tbp = tix_patch_tile_sz * tix_out_chan_tile_sz;// recalculate tpb, should not increase
+      while( (tix_patch_tile_sz+1) * oi->tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
+      uint32_t const new_tbp = tix_patch_tile_sz * oi->tix_out_chan_tile_sz;// recalculate tpb, should not increase
       assert_st( new_tbp <= cf.tpb );
       cf.tpb = new_tbp;
       //printf( "tix_patch_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_patch_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
       insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, 
-			vect_uint32_t{tix_patch_tile_sz,tix_out_chan_tile_sz} );
+			vect_uint32_t{tix_patch_tile_sz,oi->tix_out_chan_tile_sz} );
 
-      uint32_t const bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, tix_out_chan_tile_sz );
+      oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
       
-      // fill in gli. this indo is used by gen_xpos to generate the xpose op for filters for used by conv
-      cf.gli.in_chans = oi->ni->cio.chans; 
-      cf.gli.tix_out_chan_tile_sz = tix_out_chan_tile_sz; // num out chan tiles (threads) per block (~8-16)
-      cf.gli.bix_out_chan_blk_sz = bix_out_chan_blk_sz; // number of blocks in out_chan dim of blocks  
-
       insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
-			vect_uint32_t{bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,tix_out_chan_tile_sz} );
+			vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
       //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
-//			vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,bix_out_chan_blk_sz,t_tile_sz,tix_out_chan_tile_sz} );
+//			vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,oi->bix_out_chan_blk_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
 
       // check that we have enough threads per block to load smem using one-elem-per-thread.
       // FIXME: allow for cases when this does not hold
-      assert_st( cf.tpb >= (t_tile_sz * tix_out_chan_tile_sz) ); 
+      assert_st( cf.tpb >= (t_tile_sz * oi->tix_out_chan_tile_sz) ); 
       uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_patch_tile_sz), cf.tpb );
       tf_exprs.push_back( std::make_pair( "patch_smem_load_iter", str(patch_smem_load_iter) ) );
       // printf( "patch_smem_load_iter=%s\n", str(patch_smem_load_iter).c_str() );
       // assert_st( cf.tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
       
       uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
-      cf.blks = bix_patch_blk_sz * bix_out_chan_blk_sz; 
-      insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{bix_patch_blk_sz,bix_out_chan_blk_sz}); 
+      cf.blks = bix_patch_blk_sz * oi->bix_out_chan_blk_sz; 
+      insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{bix_patch_blk_sz,oi->bix_out_chan_blk_sz}); 
 
       tf_exprs.push_back( std::make_pair( "out_chan_tile", 
 					  "(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
@@ -821,13 +805,13 @@ using boost::filesystem::path;
     // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
     // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
     // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the oi->no->cio.chans.
-    uint32_t tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
+    oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
     uint32_t const tix_line_x_tile_sz = line_x_tile_sz;
     cf.tpb = 128; // treated as a target, but not be exceeded
     uint32_t best_tbp = 0;
     uint32_t blk_num_lines = 0;
     while( 1 ) {
-      uint32_t const maybe_tbp = (blk_num_lines+1) * tix_line_x_tile_sz * tix_out_chan_tile_sz; // recalculate proposed tpb
+      uint32_t const maybe_tbp = (blk_num_lines+1) * tix_line_x_tile_sz * oi->tix_out_chan_tile_sz; // recalculate proposed tpb
       if( maybe_tbp > cf.tpb ) { break; }
       ++blk_num_lines;
       best_tbp = maybe_tbp;
@@ -839,26 +823,21 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "tpb", str(cf.tpb) ) );
 #if 0 // random debug/info printout
     printf( "oi->no->cio.sz=%s\n", str(oi->no->cio.sz).c_str() );
-    printf( "blk_num_lines=%s tix_line_x_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(blk_num_lines).c_str(),
-	    str(tix_line_x_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
+    printf( "blk_num_lines=%s tix_line_x_tile_sz=%s oi->tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(blk_num_lines).c_str(),
+	    str(tix_line_x_tile_sz).c_str(), str(oi->tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
 #endif
     insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"line","line_x_tile","out_chan_tile"}, 
-		      vect_uint32_t{blk_num_lines,tix_line_x_tile_sz,tix_out_chan_tile_sz} );
+		      vect_uint32_t{blk_num_lines,tix_line_x_tile_sz,oi->tix_out_chan_tile_sz} );
 
     tf_exprs.push_back( std::make_pair( "line_buf_sz", "(%(in_pad)+%(in_ix_x_dim)+%(in_pad))"));
 
-    uint32_t const bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, tix_out_chan_tile_sz );
+    oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
       
-    // fill in gli. this indo is used by gen_xpos to generate the xpose op for filters for used by conv
-    cf.gli.in_chans = oi->ni->cio.chans; 
-    cf.gli.tix_out_chan_tile_sz = tix_out_chan_tile_sz; // num out chan tiles (threads) per block (~8-16)
-    cf.gli.bix_out_chan_blk_sz = bix_out_chan_blk_sz; // number of blocks in out_chan dim of blocks  
-
-    uint32_t const blk_filt_ix_sz = tix_out_chan_tile_sz * t_tile_sz;
+    uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz;
     tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
     
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
-		      vect_uint32_t{bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,tix_out_chan_tile_sz} );
+		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
 
     uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, cf.tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
@@ -890,10 +869,10 @@ using boost::filesystem::path;
     assert_st( (2*oi->in_pad*blk_num_lines) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
 
     uint32_t const bix_lines_blk_sz = u32_ceil_div( lines_sz, blk_num_lines ); // note: lines_sz == num_imgs * oi->no->cio.sz.d[1] (aka "y")
-    cf.blks = bix_lines_blk_sz * bix_out_chan_blk_sz; 
+    cf.blks = bix_lines_blk_sz * oi->bix_out_chan_blk_sz; 
 
     insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"lines_blk","out_chan_blk"}, 
-		      vect_uint32_t{bix_lines_blk_sz,bix_out_chan_blk_sz}); 
+		      vect_uint32_t{bix_lines_blk_sz,oi->bix_out_chan_blk_sz}); 
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
 					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
@@ -1031,15 +1010,6 @@ using boost::filesystem::path;
 		      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
 		      vect_uint32_t{oi->bix_pels_blk_sz,oi->in_chan_tile_dim,oi->in_chan_tile,oi->tix_pels_tile_sz*t_tile_sz} );
       
-    // fill in gli. this indo is used by gen_xpos to generate the xpose op for filters for used by conv
-    cf.gli.in_chans = oi->ni->cio.chans; 
-    cf.gli.tix_out_chan_tile_sz = oi->tix_out_chan_tile_sz; // num out chan tiles (threads) per block (~8-16)
-    cf.gli.bix_out_chan_blk_sz = oi->bix_out_chan_blk_sz; // number of blocks in out_chan dim of blocks  
-    cf.gli.needs_in_xpose = 1;
-    cf.gli.in_chan_tile = oi->in_chan_tile;
-    cf.gli.tix_pels_tile_sz = oi->tix_pels_tile_sz;
-    cf.gli.bix_pels_blk_sz = oi->bix_pels_blk_sz;
-
     uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz;
     tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
 
@@ -1228,7 +1198,7 @@ using boost::filesystem::path;
     for( uint32_t ict = 0; ict != oi->in_chan_tile; ++ict ) {
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(blk_filt_ix_sz)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(ict).c_str(), str(tx).c_str() );
-	//uint32_t const off = ict*blk_filt_ix_sz+tx*tix_out_chan_tile_sz;
+	//uint32_t const off = ict*blk_filt_ix_sz+tx*oi->tix_out_chan_tile_sz;
 	//inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s];\n", str(tx).c_str(), str(off).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
@@ -1449,7 +1419,7 @@ using boost::filesystem::path;
     fwd_calls.push_back( cu_func_call_t{ cf.name, {top_in}, {in_sz,max_val,drop_mask} } );
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_xpose( p_op_info_t const & oi, gen_layout_info_t const & gli ) {
+  cu_func_t & conv_pipe_fwd_t::gen_op_xpose( p_op_info_t const & oi ) {
     rtc_func_gen_info_t rfgi{"xpose_filts", {
 	{"out_chans",str(oi->cop->out_chans)},{"in_chans",str(oi->ni->cio.chans)},{"kysz",str(oi->kern_sz)},{"kxsz",str(oi->kern_sz)} 
       } };
@@ -1460,10 +1430,10 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
 		      vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
-		      vect_uint32_t{gli.bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,
-			  t_tile_sz,gli.tix_out_chan_tile_sz} );
+		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,
+			  t_tile_sz,oi->tix_out_chan_tile_sz} );
     insert_nda_exprs( tf_exprs, "fioc", vect_string{"out_chan_blk","out_chan_tile","out_chan_reg"}, 
-		      vect_uint32_t{ gli.bix_out_chan_blk_sz,gli.tix_out_chan_tile_sz,t_tile_sz} );
+		      vect_uint32_t{ oi->bix_out_chan_blk_sz,oi->tix_out_chan_tile_sz,t_tile_sz} );
     uint32_t const filts_ix_sz = get_sz( tf_exprs, "filts_ix" );
     cf.tpb = 256;
     cf.blks = u32_ceil_div( filts_ix_sz, cf.tpb ); // handle one img,y,x per thread (across chans)
@@ -1473,7 +1443,7 @@ using boost::filesystem::path;
     return cf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_in_xpose( p_op_info_t const & oi ) { // conv_io_t const & cio_in, gen_layout_info_t const & gli ) {
+  cu_func_t & conv_pipe_fwd_t::gen_op_in_xpose( p_op_info_t const & oi ) {
     uint32_t const pad_in_chans = oi->in_chan_tile_dim * oi->in_chan_tile;
     rtc_func_gen_info_t rfgi{"xpose_in", {
 	{"num_imgs",str(num_imgs)}, {"in_chan_tile",str(oi->in_chan_tile)}, {"pad_in_chans",str(pad_in_chans)}
@@ -1546,8 +1516,8 @@ using boost::filesystem::path;
       if( oi->is_k1conv ) { cf = &gen_op_k1conv( oi ); }
       else if( oi->is_s1conv ) { cf = &gen_op_s1conv( oi ); }
       else { cf = &gen_op_kern( oi ); }
-      // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s cf->gli.needs_in_xpose=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(cf->gli.needs_in_xpose).c_str() );
-      if( cf->gli.needs_in_xpose && ((!poi) || (!poi->single_k1conv_output)) ) {
+      // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
+      if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
 	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
 	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
@@ -1567,7 +1537,7 @@ using boost::filesystem::path;
 	assert_st( oi->no->cio.chans == cop->out_chans );
 	vect_uint32_t const & arg_sizes = cf->arg_sizes;
 	assert_st( arg_sizes.size() == 4 );
-	cu_func_t & xpose_cf = gen_op_xpose( oi, cf->gli );
+	cu_func_t & xpose_cf = gen_op_xpose( oi );
 	assert_st( xpose_cf.arg_sizes.size() == 2 ); // in, out
 	add_op_param( filts_id, xpose_cf.arg_sizes[0] );
 	bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
