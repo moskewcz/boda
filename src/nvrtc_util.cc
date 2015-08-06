@@ -421,7 +421,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     cu_func_t & gen_op_relu( p_op_info_t const & oi );
     cu_func_t & gen_op_in_xpose( conv_io_t const & cio_in, gen_layout_info_t const & gli );
-    cu_func_t & gen_op_xpose( p_conv_op_t const & cop, gen_layout_info_t const & gli );
+    cu_func_t & gen_op_xpose( p_op_info_t const & oi, gen_layout_info_t const & gli );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
@@ -1449,20 +1449,18 @@ using boost::filesystem::path;
     fwd_calls.push_back( cu_func_call_t{ cf.name, {top_in}, {in_sz,max_val,drop_mask} } );
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_xpose( p_conv_op_t const & cop, gen_layout_info_t const & gli ) {
-    u32_pt_t kern_sz = cop->kern_sz;
-    assert_st( kern_sz.both_dims_non_zero() );
+  cu_func_t & conv_pipe_fwd_t::gen_op_xpose( p_op_info_t const & oi, gen_layout_info_t const & gli ) {
     rtc_func_gen_info_t rfgi{"xpose_filts", {
-	{"out_chans",str(cop->out_chans)},{"in_chans",str(gli.in_chans)},{"kysz",str(kern_sz.d[1])},{"kxsz",str(kern_sz.d[0])} 
+	{"out_chans",str(oi->cop->out_chans)},{"in_chans",str(oi->ni->cio.chans)},{"kysz",str(oi->kern_sz)},{"kxsz",str(oi->kern_sz)} 
       } };
     cu_func_t & cf = rfgi.init( cu_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
     if( cf.finalized ) { return cf; } // already generated
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
     insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
-		      vect_uint32_t{cop->out_chans,gli.in_chans,kern_sz.d[1],kern_sz.d[0]} );
+		      vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
-		      vect_uint32_t{gli.bix_out_chan_blk_sz,gli.in_chans,kern_sz.d[1],kern_sz.d[0],
+		      vect_uint32_t{gli.bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,
 			  t_tile_sz,gli.tix_out_chan_tile_sz} );
     insert_nda_exprs( tf_exprs, "fioc", vect_string{"out_chan_blk","out_chan_tile","out_chan_reg"}, 
 		      vect_uint32_t{ gli.bix_out_chan_blk_sz,gli.tix_out_chan_tile_sz,t_tile_sz} );
@@ -1570,7 +1568,7 @@ using boost::filesystem::path;
 	assert_st( oi->no->cio.chans == cop->out_chans );
 	vect_uint32_t const & arg_sizes = cf->arg_sizes;
 	assert_st( arg_sizes.size() == 4 );
-	cu_func_t & xpose_cf = gen_op_xpose( cop, cf->gli );
+	cu_func_t & xpose_cf = gen_op_xpose( oi, cf->gli );
 	assert_st( xpose_cf.arg_sizes.size() == 2 ); // in, out
 	add_op_param( filts_id, xpose_cf.arg_sizes[0] );
 	bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
