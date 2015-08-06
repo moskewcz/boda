@@ -402,7 +402,8 @@ using boost::filesystem::path;
     void dump_cup( string const & n );
     virtual ~conv_pipe_fwd_t( void );
   protected:
-    cu_func_t & gen_op_kern( p_op_info_t const & oi );
+    cu_func_t & gen_op_pool( p_op_info_t const & oi );
+    cu_func_t & gen_op_conv( p_op_info_t const & oi );
     cu_func_t & gen_op_s1conv( p_op_info_t const & oi ); // stride 1, kern_sz >2 <~5, ... case (see use)
     void calc_blocking_k1conv( p_op_info_t const & oi );
     cu_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
@@ -585,14 +586,13 @@ using boost::filesystem::path;
     }
   };
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_kern( p_op_info_t const & oi ) {
+  cu_func_t & conv_pipe_fwd_t::gen_op_pool( p_op_info_t const & oi ) {
+    assert_st( oi->is_pool );
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_pad",str(oi->in_pad)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"out_chans",str(oi->no->cio.chans)} } };
-    if( 0 ) { }
-    else if( oi->is_conv ) { rfgi.op_tag="conv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} ); }
-    else if( oi->is_pool ) { rfgi.op_tag="pool"; rfgi.spec_params.push_back( rtc_func_param_info_t{"avg_pool",str(oi->cop->avg_pool)} ); }
-    else { rt_err( "unhanded kern op: " + oi->cop->type ); }    
+    rfgi.op_tag="pool"; rfgi.spec_params.push_back( rtc_func_param_info_t{"avg_pool",str(oi->cop->avg_pool)} );
+    
     cu_func_t & cf = rfgi.init( cu_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
     if( cf.finalized ) { return cf; } // already generated
@@ -603,156 +603,176 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
-    if( oi->is_conv ) {
-      // for reg blocking
-      uint32_t const out_chan_tile_sz = u32_ceil_div( oi->no->cio.chans, t_tile_sz );
-      //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
-      //		vect_uint32_t{oi->ni->cio.chans,kern_sz,kern_sz,oi->no->cio.chans} );
-      //assert_st( out_chan_tile_sz * t_tile_sz == oi->no->cio.chans ); // FIXME: too strong (need to handle partial tiles)
-      uint32_t const patch_sz = u32_ceil_div( out_ix_sz, oi->no->cio.chans );
-      assert_st( patch_sz * oi->no->cio.chans == out_ix_sz ); // by construction
-      uint32_t const patch_tile_sz = u32_ceil_div( patch_sz, t_tile_sz );
-      //insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
 
-      insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-      insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
-			vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
-      //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
-      uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
-      // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
-      // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
-      // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the out_chans.
-      oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-      if( oi->tix_out_chan_tile_sz < goal_tix_out_chan_tile_sz ) {
+    cf.tpb = 256;
+    cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); 
+
+    tf_exprs.push_back( std::make_pair( "op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" ) );
+    tf_exprs.push_back( std::make_pair( "op_post", oi->cop->avg_pool ? "out_v /= float("+str(oi->kern_sz*oi->kern_sz)+")" : "" ) );
+
+    cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
+    cf.arg_sizes.push_back( out_ix_sz );
+
+    rfgi.instantiate_template( cu_prog_str );
+    return cf;
+  }
+
+  cu_func_t & conv_pipe_fwd_t::gen_op_conv( p_op_info_t const & oi ) {
+    assert_st( oi->is_conv ); // also assert not special conv?
+    rtc_func_gen_info_t rfgi{"",
+      { {"num_imgs",str(num_imgs)},{"in_pad",str(oi->in_pad)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
+	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"out_chans",str(oi->no->cio.chans)} } };
+    rfgi.op_tag="conv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} );
+
+    cu_func_t & cf = rfgi.init( cu_funcs );
+    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    if( cf.finalized ) { return cf; } // already generated
+
+    tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
+
+    vect_string const cio_dims{"img","chan","y","x"};
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
+
+    // for reg blocking
+    uint32_t const out_chan_tile_sz = u32_ceil_div( oi->no->cio.chans, t_tile_sz );
+    //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
+    //		vect_uint32_t{oi->ni->cio.chans,kern_sz,kern_sz,oi->no->cio.chans} );
+    //assert_st( out_chan_tile_sz * t_tile_sz == oi->no->cio.chans ); // FIXME: too strong (need to handle partial tiles)
+    uint32_t const patch_sz = u32_ceil_div( out_ix_sz, oi->no->cio.chans );
+    assert_st( patch_sz * oi->no->cio.chans == out_ix_sz ); // by construction
+    uint32_t const patch_tile_sz = u32_ceil_div( patch_sz, t_tile_sz );
+    //insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
+
+    insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
+		      vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
+    //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
+    uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
+    // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
+    // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
+    // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the out_chans.
+    oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
+    if( oi->tix_out_chan_tile_sz < goal_tix_out_chan_tile_sz ) {
 	
-      }
-      uint32_t tix_patch_tile_sz = 8; // treated as a minimum
-      cf.tpb = 128; // treated as a target, but not be exceeded
-      while( (tix_patch_tile_sz+1) * oi->tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
-      uint32_t const new_tbp = tix_patch_tile_sz * oi->tix_out_chan_tile_sz;// recalculate tpb, should not increase
-      assert_st( new_tbp <= cf.tpb );
-      cf.tpb = new_tbp;
-      //printf( "tix_patch_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_patch_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
-      insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, 
-			vect_uint32_t{tix_patch_tile_sz,oi->tix_out_chan_tile_sz} );
+    }
+    uint32_t tix_patch_tile_sz = 8; // treated as a minimum
+    cf.tpb = 128; // treated as a target, but not be exceeded
+    while( (tix_patch_tile_sz+1) * oi->tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
+    uint32_t const new_tbp = tix_patch_tile_sz * oi->tix_out_chan_tile_sz;// recalculate tpb, should not increase
+    assert_st( new_tbp <= cf.tpb );
+    cf.tpb = new_tbp;
+    //printf( "tix_patch_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_patch_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
+    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, 
+		      vect_uint32_t{tix_patch_tile_sz,oi->tix_out_chan_tile_sz} );
 
-      oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
+    oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
       
-      insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
-			vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
-      //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
+    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
+		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
+    //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
 //			vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,oi->bix_out_chan_blk_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
 
-      // check that we have enough threads per block to load smem using one-elem-per-thread.
-      // FIXME: allow for cases when this does not hold
-      assert_st( cf.tpb >= (t_tile_sz * oi->tix_out_chan_tile_sz) ); 
-      uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_patch_tile_sz), cf.tpb );
-      tf_exprs.push_back( std::make_pair( "patch_smem_load_iter", str(patch_smem_load_iter) ) );
-      // printf( "patch_smem_load_iter=%s\n", str(patch_smem_load_iter).c_str() );
-      // assert_st( cf.tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
+    // check that we have enough threads per block to load smem using one-elem-per-thread.
+    // FIXME: allow for cases when this does not hold
+    assert_st( cf.tpb >= (t_tile_sz * oi->tix_out_chan_tile_sz) ); 
+    uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_patch_tile_sz), cf.tpb );
+    tf_exprs.push_back( std::make_pair( "patch_smem_load_iter", str(patch_smem_load_iter) ) );
+    // printf( "patch_smem_load_iter=%s\n", str(patch_smem_load_iter).c_str() );
+    // assert_st( cf.tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
       
-      uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
-      cf.blks = bix_patch_blk_sz * oi->bix_out_chan_blk_sz; 
-      insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{bix_patch_blk_sz,oi->bix_out_chan_blk_sz}); 
+    uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
+    cf.blks = bix_patch_blk_sz * oi->bix_out_chan_blk_sz; 
+    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{bix_patch_blk_sz,oi->bix_out_chan_blk_sz}); 
 
-      tf_exprs.push_back( std::make_pair( "out_chan_tile", 
-					  "(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
-      tf_exprs.push_back( std::make_pair( "patch_tile",
-					  "(%(threadIdx.x_patch_tile)+%(blockIdx.x_patch_blk)*%(threadIdx.x_patch_tile_dim))"));
+    tf_exprs.push_back( std::make_pair( "out_chan_tile", 
+					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
+    tf_exprs.push_back( std::make_pair( "patch_tile",
+					"(%(threadIdx.x_patch_tile)+%(blockIdx.x_patch_blk)*%(threadIdx.x_patch_tile_dim))"));
 
-      tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(t_tile_sz))" ) );
+    tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(t_tile_sz))" ) );
       
-      for( uint32_t i = 0; i != t_tile_sz; ++i ) {
-	tf_exprs.push_back( std::make_pair( "patch_ix_" + str(i), 
-					    strprintf( "(%%(patch_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
-	insert_nda_exprs( tf_exprs, "patch_ix_" + str(i), 
-			  vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]},
-			  1 );
-      }
+    for( uint32_t i = 0; i != t_tile_sz; ++i ) {
+      tf_exprs.push_back( std::make_pair( "patch_ix_" + str(i), 
+					  strprintf( "(%%(patch_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
+      insert_nda_exprs( tf_exprs, "patch_ix_" + str(i), 
+			vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]},
+			1 );
+    }
 #if 1
-      string const get_in = strprintf( 
-	"float v = 0;\n"
-        "      int const smem_in_ix_y = %%(t_smem_patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
-        "      int const smem_in_ix_x = %%(t_smem_patch_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
-        "      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
-        "          %%(t_smem_patch_ix_img) < %%(in_ix_img_dim) && \n"
-        "         smem_in_ix_x < %%(in_ix_x_dim) && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
-        "        v = in[%%(t_smem_patch_ix_img)*%%(in_ix_img_sz) +\n"
-	"          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
-	"          smem_in_ix_y*%%(in_ix_y_sz) +\n"
-	"          smem_in_ix_x*%%(in_ix_x_sz)];\n" 
-	"      }"
-				       );
+    string const get_in = strprintf( 
+      "float v = 0;\n"
+      "      int const smem_in_ix_y = %%(t_smem_patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
+      "      int const smem_in_ix_x = %%(t_smem_patch_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
+      "      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
+      "          %%(t_smem_patch_ix_img) < %%(in_ix_img_dim) && \n"
+      "         smem_in_ix_x < %%(in_ix_x_dim) && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
+      "        v = in[%%(t_smem_patch_ix_img)*%%(in_ix_img_sz) +\n"
+      "          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
+      "          smem_in_ix_y*%%(in_ix_y_sz) +\n"
+      "          smem_in_ix_x*%%(in_ix_x_sz)];\n" 
+      "      }"
+				     );
 #else // hack for testing overhead of above
-      string const get_in = strprintf("float v = in[threadIdx.x];\n");
+    string const get_in = strprintf("float v = in[threadIdx.x];\n");
 #endif				      
-      tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
+    tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
 			
-    } else if( oi->is_pool ) { 
-      cf.tpb = 256;
-      cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); 
-    }
-    else { assert_st( 0 ); }
-
-
-    if( oi->is_pool ) {
-      tf_exprs.push_back( std::make_pair( "op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" ) );
-      tf_exprs.push_back( std::make_pair( "op_post", oi->cop->avg_pool ? "out_v /= float("+str(oi->kern_sz*oi->kern_sz)+")" : "" ) );
-    }
     string t_tile_fmas("// begin t_tile_fmas\n");
     string t_tile_loads("// begin t_tile_loads\n");
     string t_tile_dummy_loads("// begin t_tile_dummy_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
     string t_tile_dummy_stores("// begin t_tile_dummy_stores\n");
-    if( oi->is_conv ) {
-      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[(threadIdx.x %%%% 32) + %s];\n", str(tx).c_str(), str(tx).c_str() );
-	t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
-					str(tx).c_str(), str(tx).c_str() );
-      }
-      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(threadIdx.x %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
-	t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
-				   str(ty).c_str(), str(ty).c_str() );
-      }
 
-      t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
-      t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
+    for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+      t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[(threadIdx.x %%%% 32) + %s];\n", str(tx).c_str(), str(tx).c_str() );
+      t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
+				 str(tx).c_str(), str(tx).c_str() );
+    }
+    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
+      t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(threadIdx.x %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
+      t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
+				 str(ty).c_str(), str(ty).c_str() );
+    }
 
-      // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
-      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-	t_tile_stores += strprintf( "  tpix[%s] = %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
-				    "   ( %%(patch_ix_%s) %%%% %%(patch_ix_%s_img_sz) ); // cache out patch ixs\n ",
-				    str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
-      }
-      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-	t_tile_stores += strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz); // cache out chan ixs\n",
-				    str(ty).c_str(), str(ty).c_str() );
-      }
+    t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
+    t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
+
+    // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
+    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
+      t_tile_stores += strprintf( "  tpix[%s] = %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
+				  "   ( %%(patch_ix_%s) %%%% %%(patch_ix_%s_img_sz) ); // cache out patch ixs\n ",
+				  str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
+    }
+    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
+      t_tile_stores += strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_ix_chan_sz); // cache out chan ixs\n",
+				  str(ty).c_str(), str(ty).c_str() );
+    }
 	
-      t_tile_dummy_stores += " out[0] = 0.0f\n";
-      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-	t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
-	  "// this patch and the following are off-the-end patches, so don't store them.\n";
-	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	  t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
-				    str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
-	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
-				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
-	  t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
-				      "out[ tpix[%s] + tcix[%s] ] = %s; }\n",
-				      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() );
-	  t_tile_dummy_stores += " + " + ve + "\n";
-	}
+    t_tile_dummy_stores += " out[0] = 0.0f\n";
+    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
+      t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
+	"// this patch and the following are off-the-end patches, so don't store them.\n";
+      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
+				  str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
+	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
+				     str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+	t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
+				    "out[ tpix[%s] + tcix[%s] ] = %s; }\n",
+				    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() );
+	t_tile_dummy_stores += " + " + ve + "\n";
       }
-      t_tile_dummy_stores += ";\n";
-    } 
+    }
+    t_tile_dummy_stores += ";\n";
 
     // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
     t_tile_fmas += "    // end t_tile_fmas"; 
     t_tile_loads += "    // end t_tile_loads";
     t_tile_dummy_loads += "    // end t_tile_dummy_loads";
     t_tile_stores += "  // end t_tile_stores";
+    t_tile_dummy_stores += "  // end t_tile_dummy_stores";
     tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
     tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
     tf_exprs.push_back( std::make_pair( "t_tile_dummy_loads", t_tile_dummy_loads ) );
@@ -760,10 +780,9 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "t_tile_dummy_stores", t_tile_dummy_stores ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
-    if( oi->is_conv ) { 
-      cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
-      cf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
-    }
+    cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
+    cf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
+
     cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
     cf.arg_sizes.push_back( out_ix_sz );
 
@@ -1515,7 +1534,8 @@ using boost::filesystem::path;
       cu_func_t * cf = 0;
       if( oi->is_k1conv ) { cf = &gen_op_k1conv( oi ); }
       else if( oi->is_s1conv ) { cf = &gen_op_s1conv( oi ); }
-      else { cf = &gen_op_kern( oi ); }
+      else if( oi->is_conv ) { cf = &gen_op_conv( oi ); }
+      else { cf = &gen_op_pool( oi ); }
       // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
       if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
 	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi );
