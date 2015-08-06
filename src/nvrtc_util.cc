@@ -420,7 +420,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_lrn( p_op_info_t const & oi );
     cu_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     cu_func_t & gen_op_relu( p_op_info_t const & oi );
-    cu_func_t & gen_op_in_xpose( conv_io_t const & cio_in, gen_layout_info_t const & gli );
+    cu_func_t & gen_op_in_xpose( p_op_info_t const & oi );
     cu_func_t & gen_op_xpose( p_op_info_t const & oi, gen_layout_info_t const & gli );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
@@ -1473,14 +1473,13 @@ using boost::filesystem::path;
     return cf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_in_xpose( conv_io_t const & cio_in, gen_layout_info_t const & gli ) {
-    uint32_t const in_chan_tile_dim = u32_ceil_div( gli.in_chans, gli.in_chan_tile );
-    uint32_t const pad_in_chans = in_chan_tile_dim * gli.in_chan_tile;
+  cu_func_t & conv_pipe_fwd_t::gen_op_in_xpose( p_op_info_t const & oi ) { // conv_io_t const & cio_in, gen_layout_info_t const & gli ) {
+    uint32_t const pad_in_chans = oi->in_chan_tile_dim * oi->in_chan_tile;
     rtc_func_gen_info_t rfgi{"xpose_in", {
-	{"num_imgs",str(num_imgs)}, {"in_chan_tile",str(gli.in_chan_tile)}, {"pad_in_chans",str(pad_in_chans)}
-	,{"in_chans",str(gli.in_chans)},{"ysz",str(cio_in.sz.d[1])},{"xsz",str(cio_in.sz.d[0])}
-	,{"tix_pels_tile_sz",str(gli.tix_pels_tile_sz)}
-	,{"bix_pels_blk_sz",str(gli.bix_pels_blk_sz)}
+	{"num_imgs",str(num_imgs)}, {"in_chan_tile",str(oi->in_chan_tile)}, {"pad_in_chans",str(pad_in_chans)}
+	,{"in_chans",str(oi->ni->cio.chans)},{"ysz",str(oi->ni->cio.sz.d[1])},{"xsz",str(oi->ni->cio.sz.d[0])}
+	,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)}
+	,{"bix_pels_blk_sz",str(oi->bix_pels_blk_sz)}
       } };
     
     cu_func_t & cf = rfgi.init( cu_funcs );
@@ -1489,13 +1488,13 @@ using boost::filesystem::path;
     //insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,pad_in_chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
     insert_nda_exprs( tf_exprs, "out_ix", 
 		      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
-		      vect_uint32_t{gli.bix_pels_blk_sz,in_chan_tile_dim,gli.in_chan_tile,gli.tix_pels_tile_sz*t_tile_sz} );
+		      vect_uint32_t{oi->bix_pels_blk_sz,oi->in_chan_tile_dim,oi->in_chan_tile,oi->tix_pels_tile_sz*t_tile_sz} );
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "pel_ix", vect_string{"img","y","x"},
-		      vect_uint32_t{num_imgs,cio_in.sz.d[1],cio_in.sz.d[0]} );
+		      vect_uint32_t{num_imgs,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} ); 
     
-    vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "in_ix", vect_string{"img","chan","y","x"},
+		      vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
     uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
 
     if( cf.finalized ) { return cf; } // already generated
@@ -1549,7 +1548,7 @@ using boost::filesystem::path;
       else { cf = &gen_op_kern( oi ); }
       // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s cf->gli.needs_in_xpose=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(cf->gli.needs_in_xpose).c_str() );
       if( cf->gli.needs_in_xpose && ((!poi) || (!poi->single_k1conv_output)) ) {
-	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi->ni->cio, cf->gli );
+	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
 	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
