@@ -379,6 +379,7 @@ using boost::filesystem::path;
     uint32_t enable_write_xpose; //NESI(default=0,help="if 1, enable experimental k1conv write xposing")
     uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
+    vect_string dump_cups; // NESI(help="dump out values of these cups after forward")
 
     p_conv_pipe_t cp;
     p_map_str_p_op_info_t op_infos;
@@ -409,6 +410,7 @@ using boost::filesystem::path;
     virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
 
     void update_stats( void );
+    void dump_cup( string const & n );
     virtual ~conv_pipe_fwd_t( void );
   protected:
     cu_func_t & gen_op_kern( p_op_info_t const & oi );
@@ -492,6 +494,21 @@ using boost::filesystem::path;
       stats_map[*i] = v;
     }
   }
+
+  void conv_pipe_fwd_t::dump_cup( string const & n ) {
+    string const pyid = as_pyid( n );
+    p_cup_float const & cup = must_find( *cups, pyid );
+    dims_t cup_dims( vect_uint32_t{cup->sz} ); 
+    cup_dims.calc_strides();
+    p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
+    cu_copy_cup_to_nda( nda, cup );
+    // dump nda
+    printf( "dupming cup '%s'\n", str(n).c_str() );
+    for( uint32_t i = 0; i != cup->sz; ++i ) {
+      printf( "i=%s v=%s\n", str(i).c_str(), str(nda->cm_at1(i)).c_str() );
+    }
+  }
+
 
   conv_pipe_fwd_t::~conv_pipe_fwd_t( void ) {
     for( map_str_float_t::const_iterator i = stats_map.begin(); i != stats_map.end(); ++i ) {
@@ -1762,6 +1779,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
     update_stats();
+    for( vect_string::const_iterator i = dump_cups.begin(); i != dump_cups.end(); ++i ) { dump_cup( *i ); }
     //printf("run_fwd() done\n");
   }
   
