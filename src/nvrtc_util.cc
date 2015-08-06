@@ -1128,7 +1128,7 @@ using boost::filesystem::path;
       assert_st( (get_expr( tf_exprs, "out_ix_blk_pel_dim" ) % t_tile_sz) == 0 );
       // we assume the out chans are a single (span of) dims in out. FIXME: check this?. 
 
-#if 1
+#if 0
       t_tile_stores += "int32_t const out_pel = %(blockIdx.x_pels_blk)*%(in_ix_blk_pel_dim) + %(threadIdx.x_pels_tile)*%(t_tile_sz);\n";
       t_tile_stores += "int32_t const out_ix = %(out_pel_blk)*%(out_ix_blk_sz) + %(out_pel_blk_pel)*%(out_ix_blk_pel_sz) + "
 	"%(out_chan_ix)*%(out_ix_blk_iter_chan_sz);\n";
@@ -1165,8 +1165,8 @@ using boost::filesystem::path;
 	  t_tile_stores += "  xpbuf_rd_chan = "+obe+" / %(out_ix_blk_pel_dim) ;\n";
 	  t_tile_stores += strprintf( "out[out_ix + xpbuf_rd_pel + (xpbuf_rd_chan*%%(t_tile_sz)+%s)*%%(out_ix_blk_iter_chan_sz)] = "
 				      "all_smem[xpbuf_rd_chan+(xpbuf_rd_pel %%%% %%(t_tile_sz))*%%(tpb)"
-				      "+ (xpbuf_rd_pel / %%(t_tile_sz))*%%(threadIdx.x_out_chan_tile_sz) ];\n",
-				      str(tx).c_str() );	  
+				      "+ (xpbuf_rd_pel / %%(t_tile_sz))*%%(threadIdx.x_out_chan_tile_dim) ];\n",
+				      str(tx).c_str() );
 	}
 	for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // xpbuf[] registers -> out[] (global)
 	  // TODO/UNUSED?
