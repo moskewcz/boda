@@ -276,6 +276,7 @@ using boost::filesystem::path;
     bool is_s1conv;
     // blocking values (here for k1conv only currently)
     uint32_t tpb;
+    uint32_t blks;
     uint32_t in_chan_tile;
     uint32_t in_chan_tile_dim;
     uint32_t tix_out_chan_tile_sz;
@@ -405,7 +406,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_pool( p_op_info_t const & oi );
     cu_func_t & gen_op_conv( p_op_info_t const & oi );
     cu_func_t & gen_op_s1conv( p_op_info_t const & oi ); // stride 1, kern_sz >2 <~5, ... case (see use)
-    void calc_blocking_k1conv( p_op_info_t const & oi );
+    void calc_blocking_conv( p_op_info_t const & oi );
     cu_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
     cu_func_t & gen_op_lrn( p_op_info_t const & oi );
     cu_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
@@ -423,17 +424,23 @@ using boost::filesystem::path;
     void run_cfc( cu_func_call_t & cfc );
   };
 
-  void conv_pipe_fwd_t::calc_blocking_k1conv( p_op_info_t const & oi ) {
+  void conv_pipe_fwd_t::calc_blocking_conv( p_op_info_t const & oi ) {
     uint32_t const out_ix_sz = num_imgs * oi->no->cio.num_pels();
 
     // for reg blocking
     uint32_t const out_chan_tile_sz = u32_ceil_div( oi->no->cio.chans, t_tile_sz );
-    uint32_t const pels_sz = out_ix_sz / oi->no->cio.chans;
-    assert_st( pels_sz * oi->no->cio.chans == out_ix_sz ); // by construction
-    uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, t_tile_sz );
-    
-    oi->in_chan_tile = 8;
+
+    uint32_t tix_pels_tile_sz_incr = 1;
+    if( oi->is_s1conv ) {
+      uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
+      tix_pels_tile_sz_incr = line_x_tile_sz;
+    }
+
+    // note: in_chan_tile unused except in k1conv
+    oi->in_chan_tile = 1;
+    if( oi->is_k1conv ) { oi->in_chan_tile = 8; }
     oi->in_chan_tile_dim = u32_ceil_div( oi->ni->cio.chans, oi->in_chan_tile );
+
     //uint32_t const pad_in_chans = in_chan_tile_dim * in_chan_tile;
 
     oi->tpb = 128; // treated as a target, but not be exceeded
@@ -447,16 +454,27 @@ using boost::filesystem::path;
     //uint32_t best_tbp = tix_pels_tile_sz * tix_out_chan_tile_sz;
     uint32_t best_tbp = 0;
     while( 1 ) {
-      uint32_t const maybe_tbp = (oi->tix_pels_tile_sz+1) * oi->tix_out_chan_tile_sz; // recalculate proposed tpb
+      uint32_t const maybe_tbp = (oi->tix_pels_tile_sz+tix_pels_tile_sz_incr) * oi->tix_out_chan_tile_sz; // recalculate proposed tpb
       if( maybe_tbp > oi->tpb ) { break; }
-      ++oi->tix_pels_tile_sz;
+      oi->tix_pels_tile_sz += tix_pels_tile_sz_incr;
       best_tbp = maybe_tbp;
     }
     assert_st( best_tbp );
     assert_st( best_tbp <= oi->tpb );
     oi->tpb = best_tbp;
     oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
-    oi->bix_pels_blk_sz = u32_ceil_div( pels_tile_sz, oi->tix_pels_tile_sz );
+
+    if( oi->is_s1conv ) {
+      uint32_t const lines_sz = num_imgs * oi->no->cio.sz.d[1];
+      assert_st( lines_sz * oi->no->cio.sz.d[0] * oi->no->cio.chans == out_ix_sz ); // by construction
+      oi->bix_pels_blk_sz = u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, oi->tix_pels_tile_sz );
+    } else {
+      uint32_t const pels_sz = out_ix_sz / oi->no->cio.chans;
+      assert_st( pels_sz * oi->no->cio.chans == out_ix_sz ); // by construction
+      uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, t_tile_sz );
+      oi->bix_pels_blk_sz = u32_ceil_div( pels_tile_sz, oi->tix_pels_tile_sz );
+    }
+    oi->blks = oi->bix_pels_blk_sz * oi->bix_out_chan_blk_sz;
   }
 
   // FIXME: i'm not too happy about the duplication between here and the kernel version
@@ -619,6 +637,8 @@ using boost::filesystem::path;
 
   cu_func_t & conv_pipe_fwd_t::gen_op_conv( p_op_info_t const & oi ) {
     assert_st( oi->is_conv ); // also assert not special conv?
+    assert_st( oi->in_chan_tile == 1 );
+
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_pad",str(oi->in_pad)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"out_chans",str(oi->no->cio.chans)} } };
@@ -635,56 +655,25 @@ using boost::filesystem::path;
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
 
-    // for reg blocking
-    uint32_t const out_chan_tile_sz = u32_ceil_div( oi->no->cio.chans, t_tile_sz );
-    //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan"}, 
-    //		vect_uint32_t{oi->ni->cio.chans,kern_sz,kern_sz,oi->no->cio.chans} );
-    //assert_st( out_chan_tile_sz * t_tile_sz == oi->no->cio.chans ); // FIXME: too strong (need to handle partial tiles)
-    uint32_t const patch_sz = u32_ceil_div( out_ix_sz, oi->no->cio.chans );
-    assert_st( patch_sz * oi->no->cio.chans == out_ix_sz ); // by construction
-    uint32_t const patch_tile_sz = u32_ceil_div( patch_sz, t_tile_sz );
-    //insert_nda_exprs( tf_exprs, "tile_ix", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{patch_tile_sz,out_chan_tile_sz} );
-
     insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, 
-		      vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
-    //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
-    uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
-    // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
-    // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
-    // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the out_chans.
-    oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-    if( oi->tix_out_chan_tile_sz < goal_tix_out_chan_tile_sz ) {
-	
-    }
-    uint32_t tix_patch_tile_sz = 8; // treated as a minimum
-    cf.tpb = 128; // treated as a target, but not be exceeded
-    while( (tix_patch_tile_sz+1) * oi->tix_out_chan_tile_sz < cf.tpb ) { ++tix_patch_tile_sz; }
-    uint32_t const new_tbp = tix_patch_tile_sz * oi->tix_out_chan_tile_sz;// recalculate tpb, should not increase
-    assert_st( new_tbp <= cf.tpb );
-    cf.tpb = new_tbp;
-    //printf( "tix_patch_tile_sz=%s tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(tix_patch_tile_sz).c_str(), str(tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
-    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, 
-		      vect_uint32_t{tix_patch_tile_sz,oi->tix_out_chan_tile_sz} );
+    insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
+    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
 
-    oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
-      
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
-    //insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"in_chan","y","x","out_chan_blk","out_chan_reg","out_chan_tile"}, 
-//			vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,oi->bix_out_chan_blk_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
+
+    cf.tpb = oi->tpb;
+    cf.blks = oi->blks;
 
     // check that we have enough threads per block to load smem using one-elem-per-thread.
     // FIXME: allow for cases when this does not hold
-    assert_st( cf.tpb >= (t_tile_sz * oi->tix_out_chan_tile_sz) ); 
-    uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * tix_patch_tile_sz), cf.tpb );
+    assert_st( oi->tpb >= (t_tile_sz * oi->tix_out_chan_tile_sz) ); 
+    uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * oi->tix_pels_tile_sz), oi->tpb );
     tf_exprs.push_back( std::make_pair( "patch_smem_load_iter", str(patch_smem_load_iter) ) );
     // printf( "patch_smem_load_iter=%s\n", str(patch_smem_load_iter).c_str() );
-    // assert_st( cf.tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
+    // assert_st( oi->tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
       
-    uint32_t const bix_patch_blk_sz = u32_ceil_div( patch_tile_sz, tix_patch_tile_sz );
-    cf.blks = bix_patch_blk_sz * oi->bix_out_chan_blk_sz; 
-    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{bix_patch_blk_sz,oi->bix_out_chan_blk_sz}); 
+    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
 					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
@@ -792,6 +781,7 @@ using boost::filesystem::path;
 
   cu_func_t & conv_pipe_fwd_t::gen_op_s1conv( p_op_info_t const & oi ) {
     assert_st( oi->stride == 1 );
+    assert_st( oi->in_chan_tile == 1 );
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_pad",str(oi->in_pad)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"out_chans",str(oi->no->cio.chans)} } };
@@ -808,64 +798,36 @@ using boost::filesystem::path;
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
 
-    // for reg blocking
-    uint32_t const out_chan_tile_sz = u32_ceil_div( oi->no->cio.chans, t_tile_sz );
-    uint32_t const lines_sz = num_imgs * oi->no->cio.sz.d[1];
-    assert_st( lines_sz * oi->no->cio.sz.d[0] * oi->no->cio.chans == out_ix_sz ); // by construction
-    
-    uint32_t const line_x_sz = oi->no->cio.sz.d[0];
-    uint32_t const line_x_tile_sz = u32_ceil_div( line_x_sz, t_tile_sz );
-    
+    cf.tpb = oi->tpb;
+    cf.blks = oi->blks;
 
-    insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y"}, 
-		      vect_uint32_t{oi->ni->cio.chans,oi->kern_sz} );
-    //printf( "out_chan_tile_sz=%s patch_tile_sz=%s\n", str(out_chan_tile_sz).c_str(), str(patch_tile_sz).c_str() );
-    uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
-    // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
-    // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
-    // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the oi->no->cio.chans.
-    oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-    uint32_t const tix_line_x_tile_sz = line_x_tile_sz;
-    cf.tpb = 128; // treated as a target, but not be exceeded
-    uint32_t best_tbp = 0;
-    uint32_t blk_num_lines = 0;
-    while( 1 ) {
-      uint32_t const maybe_tbp = (blk_num_lines+1) * tix_line_x_tile_sz * oi->tix_out_chan_tile_sz; // recalculate proposed tpb
-      if( maybe_tbp > cf.tpb ) { break; }
-      ++blk_num_lines;
-      best_tbp = maybe_tbp;
-    }
-    assert_st( best_tbp );
-    assert_st( best_tbp <= cf.tpb );
-    cf.tpb = best_tbp;
+    uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
+    uint32_t const blk_num_lines = u32_ceil_div( oi->tix_pels_tile_sz, line_x_tile_sz );
+    assert_st( blk_num_lines * line_x_tile_sz == oi->tix_pels_tile_sz ); // should be exact div by construction
 
-    tf_exprs.push_back( std::make_pair( "tpb", str(cf.tpb) ) );
-#if 0 // random debug/info printout
-    printf( "oi->no->cio.sz=%s\n", str(oi->no->cio.sz).c_str() );
-    printf( "blk_num_lines=%s tix_line_x_tile_sz=%s oi->tix_out_chan_tile_sz=%s cf.tpb=%s\n", str(blk_num_lines).c_str(),
-	    str(tix_line_x_tile_sz).c_str(), str(oi->tix_out_chan_tile_sz).c_str(), str(cf.tpb).c_str() );
-#endif
+    insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y"},  vect_uint32_t{oi->ni->cio.chans,oi->kern_sz} );
+        
+    tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
+
     insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"line","line_x_tile","out_chan_tile"}, 
-		      vect_uint32_t{blk_num_lines,tix_line_x_tile_sz,oi->tix_out_chan_tile_sz} );
+		      vect_uint32_t{blk_num_lines,line_x_tile_sz,oi->tix_out_chan_tile_sz} );
 
     tf_exprs.push_back( std::make_pair( "line_buf_sz", "(%(in_pad)+%(in_ix_x_dim)+%(in_pad))"));
 
-    oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
-      
     uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz;
     tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
     
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
 
-    uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, cf.tpb );
+    uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, oi->tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
 
     // generate filter smem loads
-    uint32_t const out_chan_smem_load_iter = u32_ceil_div( blk_filt_ix_sz * oi->kern_sz, cf.tpb );    
+    uint32_t const out_chan_smem_load_iter = u32_ceil_div( blk_filt_ix_sz * oi->kern_sz, oi->tpb );    
     string filts_smem_loads("// begin filts_smem_loads\n");
-    if( cf.tpb == blk_filt_ix_sz ) {
-      assert_st( out_chan_smem_load_iter * cf.tpb == blk_filt_ix_sz * oi->kern_sz );
+    if( oi->tpb == blk_filt_ix_sz ) {
+      assert_st( out_chan_smem_load_iter * oi->tpb == blk_filt_ix_sz * oi->kern_sz );
       tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));;
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
 	filts_smem_loads += strprintf( "    filts_smem[threadIdx.x + %%(tpb) * %s] = filts[filts_off+(%s*%%(filts_xp_ix_x_sz))];\n",
@@ -884,14 +846,12 @@ using boost::filesystem::path;
     filts_smem_loads += "  // end filts_smem_loads";
     tf_exprs.push_back( std::make_pair( "filts_smem_loads", filts_smem_loads ) );
 
-    assert_st( oi->ni->cio.sz.d[0]*blk_num_lines <= cf.tpb ); // FIXME: too strong?
-    assert_st( (2*oi->in_pad*blk_num_lines) <= cf.tpb ); // FIXME: too strong? other bad things probably happen with large padding?
+    assert_st( oi->ni->cio.sz.d[0]*blk_num_lines <= oi->tpb ); // FIXME: too strong?
+    assert_st( (2*oi->in_pad*blk_num_lines) <= oi->tpb ); // FIXME: too strong? other bad things probably happen with large padding?
 
-    uint32_t const bix_lines_blk_sz = u32_ceil_div( lines_sz, blk_num_lines ); // note: lines_sz == num_imgs * oi->no->cio.sz.d[1] (aka "y")
-    cf.blks = bix_lines_blk_sz * oi->bix_out_chan_blk_sz; 
 
     insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"lines_blk","out_chan_blk"}, 
-		      vect_uint32_t{bix_lines_blk_sz,oi->bix_out_chan_blk_sz}); 
+		      vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
 					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
@@ -1016,6 +976,8 @@ using boost::filesystem::path;
     no_ninfo->sz = out_ix_sz;
 
     cf.tpb = oi->tpb;
+    cf.blks = oi->blks;
+
     tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
     tf_exprs.push_back( std::make_pair( "in_chan_tile", str(oi->in_chan_tile) ) );
 
@@ -1023,7 +985,6 @@ using boost::filesystem::path;
 		      vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
     insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"pels_blk","out_chan_blk"}, 
 		      vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
-    cf.blks = get_sz( tf_exprs, "blockIdx.x" );
 
     insert_nda_exprs( tf_exprs, "in_ix", 
 		      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
@@ -1038,7 +999,7 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
     uint32_t const in_smem_sz = oi->tix_pels_tile_sz*t_tile_sz*oi->in_chan_tile;
     tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
-    uint32_t const out_smem_sz = oi->tix_pels_tile_sz*oi->tix_out_chan_tile_sz*t_tile_sz; // note: == cf.tpb*t_tile_sz
+    uint32_t const out_smem_sz = oi->tix_pels_tile_sz*oi->tix_out_chan_tile_sz*t_tile_sz; // note: == oi->tpb*t_tile_sz
     tf_exprs.push_back( std::make_pair( "out_smem_sz", str(out_smem_sz) )); // note: unused, but assumed that all_smem_sz >= out_smem_sz
     uint32_t const all_smem_sz = std::max( out_smem_sz, filts_smem_sz+in_smem_sz );
     tf_exprs.push_back( std::make_pair( "all_smem_sz", str(all_smem_sz) ));
@@ -1047,7 +1008,7 @@ using boost::filesystem::path;
 		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,t_tile_sz,oi->tix_out_chan_tile_sz} );
     uint32_t filts_xp_ix_in_chan_sz = get_sz( tf_exprs, "filts_xp_ix" ) / oi->ni->cio.chans; // padded # of filters/output chans
 
-    uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, cf.tpb );
+    uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, oi->tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
 
     // generate filter smem loads
@@ -1655,7 +1616,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       assert_st( !oi );
       oi = make_shared< op_info_t >();
       oi->init( cp, i->second, enable_k1conv, enable_s1conv );
-      if( oi->is_k1conv ) { calc_blocking_k1conv( oi ); }
+      if( oi->is_conv ) { calc_blocking_conv( oi ); }
     }
     for( map_str_p_conv_node_t::iterator i = cp->nodes->begin(); i != cp->nodes->end(); ++i ) { 
       p_node_info_t & ninfo = (*node_infos)[i->first];
