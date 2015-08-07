@@ -1714,10 +1714,10 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 
     float compute_dur = 0.0f;
     cu_err_chk( cuEventElapsedTime( &compute_dur, *b_ev, *e_ev ), "cuEventElapsedTime" );
-    printf( "*** compute_dur=%s ***\n", str(compute_dur).c_str() );
     if( enable_prof ) { cuProfilerStop(); }
     if( !per_call_fn.empty() ) {
       string per_call_str;
+      per_call_str += strprintf("tot_compute_dur=%s\n", str(compute_dur/1000.0).c_str() );
       for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
 	cu_func_call_t & cfc = *i;
 	if( cfc.call_tag.empty() ) { continue; }

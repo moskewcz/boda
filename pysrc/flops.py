@@ -198,7 +198,8 @@ if args.time_fn:
     tot_inxp = 0
     for k,v in per_layer_time.iteritems():
         if k.endswith("_inxp"): tot_inxp += v
-    print "total _inxp time: ", tot_inxp
+    print "total _inxp time: ", pp_secs(tot_inxp)
+    print "tot_compute_dur", pp_secs(tot_compute_dur)
 
 execfile( args.net_fn )
 
