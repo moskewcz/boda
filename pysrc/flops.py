@@ -69,15 +69,15 @@ class NDA( object ):
 class Net( object ):
     def __init__( self, args ):
         self.args = args
-        print "-- INPUT: NUM_IMGS=%s --" %(args.num_imgs,)
-        print "-- INPUT: RUNTIME=%ss --"% (args.runtime, )
-        print "-- INPUT: POWER=%sW --" % (args.power, )
         self.tot_forward_flops = 0
         self.tot_forward_bytes = 0
         self.tot_backward_flops = 0
         self.tot_backward_bytes = 0
 
     def print_stats( self ):
+        print "-- INPUT: NUM_IMGS=%s --" %(args.num_imgs,)
+        print "-- INPUT: RUNTIME=%ss --"% (args.runtime, )
+        print "-- INPUT: POWER=%sW --" % (args.power, )
         fb_str = "FWD"
         if verbose_print: fb_str = "FORWARD"
         print "--- %s TOTALS ---" % fb_str
@@ -181,7 +181,6 @@ def reshape( A, *args ): return A
 import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--net-fn', metavar="FN", type=str, default="out.py", help="filename of network-definition python script" )
-parser.add_argument('--time-fn', metavar="FN", type=str, default="", help="filename of per-layer timing info" )
 parser.add_argument('--num-imgs', metavar='N', type=int, default=1, help='an integer for the accumulator')
 parser.add_argument('--runtime', metavar='SECONDS', type=float, default=1, help='time taken for power/energy calculations')
 parser.add_argument('--power', metavar='WATTS', type=float, default=200, help='average power used over runtime')
@@ -193,14 +192,13 @@ net = Net(args)
 # set num_img and source cnet decl
 num_img = args.num_imgs
 per_layer_time = {}
-if args.time_fn: 
-    execfile( args.time_fn )
+
+execfile( args.net_fn )
+
+if 1:
     tot_inxp = 0
     for k,v in per_layer_time.iteritems():
         if k.endswith("_inxp"): tot_inxp += v
     print "total _inxp time: ", pp_secs(tot_inxp)
-    print "tot_compute_dur", pp_secs(tot_compute_dur)
-
-execfile( args.net_fn )
 
 net.print_stats()

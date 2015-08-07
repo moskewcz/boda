@@ -1716,17 +1716,19 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     cu_err_chk( cuEventElapsedTime( &compute_dur, *b_ev, *e_ev ), "cuEventElapsedTime" );
     if( enable_prof ) { cuProfilerStop(); }
     if( !per_call_fn.empty() ) {
-      string per_call_str;
-      per_call_str += strprintf("tot_compute_dur=%s\n", str(compute_dur/1000.0).c_str() );
+      p_ofstream out = ofs_open( per_call_fn );
+      (*out) << strprintf("net.args.num_imgs=%s\n", str(num_imgs).c_str() );
+      (*out) << strprintf("num_img=%s\n", str(num_imgs).c_str() ); // FIXME: dup'd in flops.py, need to set both here ...
+      (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );
       for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
 	cu_func_call_t & cfc = *i;
 	if( cfc.call_tag.empty() ) { continue; }
 	float cfc_dur = 0.0f;
 	cu_err_chk( cuEventElapsedTime( &cfc_dur, *cfc.b_ev, *cfc.e_ev ), "cuEventElapsedTime" );
-	per_call_str += strprintf( "per_layer_time['%s']=%s # %s \n", 
-				   str(cfc.call_tag).c_str(), str(cfc_dur/1000.0).c_str(), cfc.cu_func_name.c_str() );
+	(*out) << strprintf( "per_layer_time['%s']=%s # %s \n", 
+			     str(cfc.call_tag).c_str(), str(cfc_dur/1000.0).c_str(), cfc.cu_func_name.c_str() );
       }
-      write_whole_fn( per_call_fn, per_call_str );
+      cp->dump_ops( *out, 0 );
     }
 
     //printf("run_fwd() copy out\n");
