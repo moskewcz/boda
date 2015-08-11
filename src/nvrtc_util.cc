@@ -272,8 +272,11 @@ using boost::filesystem::path;
     uint32_t in_pad;
     uint32_t kern_sz;
     uint32_t stride;
+    uint32_t out_to_in( uint32_t const & osz ) { assert( osz ); return (osz - 1)*stride + kern_sz; }
+
     bool is_k1conv;
     bool is_s1conv;
+    bool is_tconv; // FIXME/TODO: mostly unused
     // blocking values (here for k1conv only currently)
     uint32_t tpb;
     uint32_t blks;
@@ -288,7 +291,8 @@ using boost::filesystem::path;
     // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
     bool single_k1conv_output;
 
-    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, bool const & enable_k1conv, bool const & enable_s1conv ) {
+    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, 
+	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv ) {
       cop = cop_;
       tag_id_str = as_pyid( cop->tag );
       //char const * const tag_id = tag_id_str.c_str();
@@ -332,6 +336,11 @@ using boost::filesystem::path;
 	{ 
 	  is_s1conv = 1;
 	}
+	else if( is_conv && enable_tconv && (kern_sz <= 11) && (kern_sz > 1) && (no->cio.sz.d[0] >= 24) )
+	{ 
+	  is_tconv = 1;
+	}
+
       }
     }    
   };
@@ -366,6 +375,7 @@ using boost::filesystem::path;
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
     uint32_t enable_s1conv; //NESI(default=0,help="if 1, enable experimental s1conv special case")
     uint32_t enable_k1conv; //NESI(default=0,help="if 1, enable experimental k1conv special case")
+    uint32_t enable_tconv; //NESI(default=0,help="if 1, enable experimental tconv special case")
     uint32_t enable_write_xpose; //NESI(default=0,help="if 1, enable experimental k1conv write xposing")
     uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
@@ -412,6 +422,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     cu_func_t & gen_op_relu( p_op_info_t const & oi );
     cu_func_t & gen_op_in_xpose( p_op_info_t const & oi );
+    cu_func_t & gen_op_in_tile_xpose( p_op_info_t const & oi );
     cu_func_t & gen_op_xpose( p_op_info_t const & oi );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
@@ -1456,6 +1467,47 @@ using boost::filesystem::path;
     return cf;
   }
 
+
+  // for use when both oi->ni->cio.sz.d[0/1] are small multiple of t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too
+  // much work). each block will handle a (x,y) window of the output of size (t_tile_sz,tix_pels_tile_sz) across
+  // bix_pels_blk_sz*t_tile_sz output chans. in this case, we do not unroll across input chans, but we do unroll across kern_sz in X
+  // (and maybe in Y too for small kernels).
+  cu_func_t & conv_pipe_fwd_t::gen_op_in_tile_xpose( p_op_info_t const & oi ) {
+    assert_st( oi->in_chan_tile == 1 );
+    // note: input size+stride+kern_sz+in_pad uniquely determines output size, so it can be ommited from the func name
+    rtc_func_gen_info_t rfgi{"in_tile_xpose", {
+	{"num_imgs",str(num_imgs)},{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}
+	,{"in_chans",str(oi->ni->cio.chans)},{"ysz",str(oi->ni->cio.sz.d[1])},{"xsz",str(oi->ni->cio.sz.d[0])} 
+	,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)},{"t_tile_sz",str(t_tile_sz)}
+	,{"bix_pels_blk_sz",str(oi->bix_pels_blk_sz)}
+      } };
+    
+    cu_func_t & cf = rfgi.init( cu_funcs );
+    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+
+    u32_pt_t const blk_xy_sz = ceil_div( oi->no->cio.sz, u32_pt_t( t_tile_sz, oi->tix_pels_tile_sz ) );
+    uint32_t const out_ix_blk_sz = num_imgs*blk_xy_sz.d[1]*blk_xy_sz.d[0];
+    //assert_st( out_ix_blk_sz == oi->bix_pels_blk_sz );
+
+    insert_nda_exprs( tf_exprs, "out_ix", 
+		      vect_string{"blk_img","blk_by","blk_bx","blk_in_chan","blk_y","blk_x"},
+		      vect_uint32_t{num_imgs,blk_xy_sz.d[1],blk_xy_sz.d[0],
+			  oi->ni->cio.chans, oi->out_to_in(oi->tix_pels_tile_sz),oi->out_to_in(t_tile_sz)} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+
+    insert_nda_exprs( tf_exprs, "in_ix", vect_string{"img","chan","y","x"},
+		      vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
+    uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
+
+    if( cf.finalized ) { return cf; } // already generated
+    cf.tpb = 256;
+    cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); // handle one pel per thread
+    cf.arg_sizes.push_back( in_ix_sz );
+    cf.arg_sizes.push_back( out_ix_sz );
+    rfgi.instantiate_template( cu_prog_str );
+    return cf;
+  }
+
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
     p_op_info_t poi;
@@ -1505,6 +1557,11 @@ using boost::filesystem::path;
       else if( oi->is_s1conv ) { cf = &gen_op_s1conv( oi ); }
       else { cf = &gen_op_conv( oi ); }
       // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
+
+      if( oi->is_tconv ) {
+	cu_func_t & dummy_cf = gen_op_in_tile_xpose( oi );
+      }
+
       if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
 	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
@@ -1615,7 +1672,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
-      oi->init( cp, i->second, enable_k1conv, enable_s1conv );
+      oi->init( cp, i->second, enable_k1conv, enable_s1conv, enable_tconv );
       if( oi->is_conv ) { calc_blocking_conv( oi ); }
     }
     for( map_str_p_conv_node_t::iterator i = cp->nodes->begin(); i != cp->nodes->end(); ++i ) { 
