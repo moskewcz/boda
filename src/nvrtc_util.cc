@@ -277,7 +277,8 @@ using boost::filesystem::path;
     bool is_k1conv;
     bool is_s1conv;
     bool is_tconv; // FIXME/TODO: mostly unused
-    // blocking values (here for k1conv only currently)
+
+    // blocking values 
     uint32_t tpb;
     uint32_t blks;
     uint32_t in_chan_tile;
@@ -286,6 +287,7 @@ using boost::filesystem::path;
     uint32_t tix_pels_tile_sz;
     uint32_t bix_out_chan_blk_sz;
     uint32_t bix_pels_blk_sz;
+    u32_pt_t tconv_blk_xy_sz; // tconv only
 
     // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
     // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
@@ -324,6 +326,7 @@ using boost::filesystem::path;
 	assert_st( ni->cio.sz.dims_are_same() );
 	is_k1conv = 0;
 	is_s1conv = 0;
+	is_tconv = 0;
 	if( is_conv && enable_k1conv && (kern_sz == 1) && (stride == 1) 
 	    && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) 
 	{ 
@@ -340,6 +343,8 @@ using boost::filesystem::path;
 	{ 
 	  is_tconv = 1;
 	}
+
+	single_k1conv_output = 0; // may be set to 1 in phase 2, but default to 0 here
 
       }
     }    
@@ -418,6 +423,7 @@ using boost::filesystem::path;
     cu_func_t & gen_op_s1conv( p_op_info_t const & oi ); // stride 1, kern_sz >2 <~5, ... case (see use)
     void calc_blocking_conv( p_op_info_t const & oi );
     cu_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
+    cu_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
     cu_func_t & gen_op_lrn( p_op_info_t const & oi );
     cu_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     cu_func_t & gen_op_relu( p_op_info_t const & oi );
@@ -479,6 +485,9 @@ using boost::filesystem::path;
       uint32_t const lines_sz = num_imgs * oi->no->cio.sz.d[1];
       assert_st( lines_sz * oi->no->cio.sz.d[0] * oi->no->cio.chans == out_ix_sz ); // by construction
       oi->bix_pels_blk_sz = u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, oi->tix_pels_tile_sz );
+    } else if( oi->is_tconv ) {
+      oi->tconv_blk_xy_sz = ceil_div( oi->no->cio.sz, u32_pt_t( t_tile_sz, oi->tix_pels_tile_sz ) );
+      oi->bix_pels_blk_sz = num_imgs * oi->tconv_blk_xy_sz.dims_prod();
     } else {
       uint32_t const pels_sz = out_ix_sz / oi->no->cio.chans;
       assert_st( pels_sz * oi->no->cio.chans == out_ix_sz ); // by construction
@@ -949,7 +958,6 @@ using boost::filesystem::path;
 
   cu_func_t & conv_pipe_fwd_t::gen_op_k1conv( p_op_info_t const & oi ) {
     // fill in phase 2 info inside oi
-    oi->single_k1conv_output = 0;
     p_op_info_t noi;
     if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
       noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
@@ -1204,6 +1212,71 @@ using boost::filesystem::path;
       }
     }
     tf_exprs.push_back( std::make_pair( "inner_loop_body", inner_loop_body ) );
+
+    // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
+    cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
+    cf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
+    cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
+    cf.arg_sizes.push_back( out_ix_sz );
+    cf.has_final_flags_arg = 1;
+
+    rfgi.instantiate_template( cu_prog_str );
+    return cf;
+  }
+
+  cu_func_t & conv_pipe_fwd_t::gen_op_tconv( p_op_info_t const & oi ) {
+    rtc_func_gen_info_t rfgi{"",
+      { {"num_imgs",str(num_imgs)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
+	,{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)},{"t_tile_sz",str(t_tile_sz)}
+	,{"conv_has_relu",str(oi->conv_has_relu)},{"out_chans",str(oi->no->cio.chans)} } };
+    rfgi.op_tag="tconv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} );
+    
+    cu_func_t & cf = rfgi.init( cu_funcs );
+    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    if( cf.finalized ) { return cf; } // already generated
+
+    insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
+		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+
+    cf.tpb = oi->tpb;
+    cf.blks = oi->blks;
+
+    tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
+
+    // note: "in_ix" here is "out_ix" from in_tile_xpose; for in_ix, blk_y and blk_x are in input image space, others are output
+    // image space. other x/y's (in thread and block indexes) are all in output image space.
+    insert_nda_exprs( tf_exprs, "in_ix", 
+		      vect_string{"blk_img","blk_by","blk_bx","blk_in_chan","blk_y","blk_x"},
+		      vect_uint32_t{num_imgs,oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
+			  oi->ni->cio.chans, oi->out_to_in(oi->tix_pels_tile_sz), oi->out_to_in(t_tile_sz)} );
+
+    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"blk_y","out_chan_tile"}, 
+		      vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
+    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"blk_img","blk_by","blk_bx","out_chan_blk"}, 
+		      vect_uint32_t{num_imgs,oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],oi->bix_out_chan_blk_sz}); 
+
+    uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz;
+    tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
+
+    // calculate needed smem sizes (and total kernel needed smem size)
+    // note: filts and in smem are used concurrently, then just all of all_smem as an output buffer
+    uint32_t const filts_smem_sz = blk_filt_ix_sz*oi->kern_sz; // unroll over kernel x size in inner loop
+    tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
+    uint32_t const in_smem_sz = oi->out_to_in(oi->tix_pels_tile_sz) * oi->out_to_in(t_tile_sz);
+    tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
+    uint32_t const out_smem_sz = oi->tix_pels_tile_sz*oi->tix_out_chan_tile_sz*t_tile_sz; // note: == oi->tpb*t_tile_sz ( == 1/t_tile_sz of outs)
+    tf_exprs.push_back( std::make_pair( "out_smem_sz", str(out_smem_sz) )); // note: unused, but assumed that all_smem_sz >= out_smem_sz
+    uint32_t const all_smem_sz = std::max( out_smem_sz, filts_smem_sz+in_smem_sz );
+    tf_exprs.push_back( std::make_pair( "all_smem_sz", str(all_smem_sz) ));
+
+    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
+		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
+
+    //uint32_t filts_xp_ix_in_chan_sz = get_sz( tf_exprs, "filts_xp_ix" ) / (oi->ni->cio.chans*kx*ky); FIXME // padded # of filters/output chans
+
+    uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, oi->tpb );
+    tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
@@ -1485,13 +1558,9 @@ using boost::filesystem::path;
     cu_func_t & cf = rfgi.init( cu_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
 
-    u32_pt_t const blk_xy_sz = ceil_div( oi->no->cio.sz, u32_pt_t( t_tile_sz, oi->tix_pels_tile_sz ) );
-    uint32_t const out_ix_blk_sz = num_imgs*blk_xy_sz.d[1]*blk_xy_sz.d[0];
-    //assert_st( out_ix_blk_sz == oi->bix_pels_blk_sz );
-
     insert_nda_exprs( tf_exprs, "out_ix", 
 		      vect_string{"blk_img","blk_by","blk_bx","blk_in_chan","blk_y","blk_x"},
-		      vect_uint32_t{num_imgs,blk_xy_sz.d[1],blk_xy_sz.d[0],
+		      vect_uint32_t{num_imgs,oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
 			  oi->ni->cio.chans, oi->out_to_in(oi->tix_pels_tile_sz),oi->out_to_in(t_tile_sz)} );
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
 
@@ -1555,14 +1624,21 @@ using boost::filesystem::path;
       cu_func_t * cf = 0;
       if( oi->is_k1conv ) { cf = &gen_op_k1conv( oi ); }
       else if( oi->is_s1conv ) { cf = &gen_op_s1conv( oi ); }
+      else if( oi->is_tconv ) { cf = &gen_op_tconv( oi ); }
       else { cf = &gen_op_conv( oi ); }
       // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
 
       if( oi->is_tconv ) {
-	cu_func_t & dummy_cf = gen_op_in_tile_xpose( oi );
-      }
-
-      if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
+	cu_func_t & in_xpose_cf = gen_op_in_tile_xpose( oi );
+	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
+	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
+	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
+	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
+	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_cf.arg_sizes[1] ) ); 
+	  fwd_calls.push_back( cu_func_call_t{ in_xpose_cf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
+	}
+	arg_ids.push_back( inxp_id );
+      } else if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
 	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
 	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
