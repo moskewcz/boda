@@ -1025,38 +1025,22 @@ using boost::filesystem::path;
 
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,t_tile_sz,oi->tix_out_chan_tile_sz} );
-    uint32_t filts_xp_ix_in_chan_sz = get_sz( tf_exprs, "filts_xp_ix" ) / oi->ni->cio.chans; // padded # of filters/output chans
 
     uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, oi->tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
 
     // generate filter smem loads
-    uint32_t const out_chan_smem_load_iter = u32_ceil_div( blk_filt_ix_sz * oi->in_chan_tile, oi->tpb );    
+    uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, oi->tpb );    
     string smem_loads("// begin smem_loads\n");
-    if( oi->tpb == blk_filt_ix_sz ) {
-      assert_st( out_chan_smem_load_iter * oi->tpb == blk_filt_ix_sz * oi->in_chan_tile );
-      tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));;
-      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	smem_loads += strprintf( "    filts_smem[threadIdx.x + %%(tpb) * %s] = "
-				       "filts[filts_off+(%s*%%(filts_xp_ix_in_chan_sz))];\n",
-				       str(i).c_str(), str(i).c_str() );
-      } 
-    } else {
-      bool load_is_contig = (blk_filt_ix_sz == filts_xp_ix_in_chan_sz);
-      assert_st( load_is_contig == (oi->bix_out_chan_blk_sz==1) ); // load is contig when blocks tiling dim == 1 for out_chans 
-      tf_exprs.push_back( std::make_pair( "filts_off_adj", load_is_contig ? "threadIdx.x" : "0" ));
-      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
-	string eif;
-	if( (i+1) == out_chan_smem_load_iter ) { smem_loads+="if( "+ixe+" < "+str(blk_filt_ix_sz*oi->in_chan_tile)+") { ";eif = "}";}
-	if( load_is_contig ) { // addr expresion simplifies in this case and we can move threadIdx.x into filts_off_adj
-	  smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s\n",ixe.c_str(),str(i).c_str(),eif.c_str());
-	} else {
-	  smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+((%s/%%(blk_filt_ix_sz))*%%(filts_xp_ix_in_chan_sz))"
-				  "+(%s %%%% %%(blk_filt_ix_sz))];%s\n",ixe.c_str(),ixe.c_str(),ixe.c_str(),eif.c_str());
-	}
-      }
+    tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));
+    for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
+      string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+      string eif;
+      if( (i+1)*oi->tpb > filts_smem_sz ) { smem_loads+="if( "+ixe+" < %(filts_smem_sz) ) { ";eif = "}";}
+      // note: load is (always) contiguous
+      smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s\n",ixe.c_str(),str(i).c_str(),eif.c_str());
     }
+
     uint32_t const in_ix_blk_iter_sz = oi->tix_pels_tile_sz * t_tile_sz * oi->in_chan_tile;
     uint32_t const in_smem_load_iter = u32_ceil_div( in_ix_blk_iter_sz, oi->tpb );    
     for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
@@ -1066,8 +1050,8 @@ using boost::filesystem::path;
       smem_loads += strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
 			      ixe.c_str(),str(i).c_str(),eif.c_str());
     }
-    tf_exprs.push_back( std::make_pair( "smem_loads", smem_loads ) );
     smem_loads += "  // end smem_loads";
+    tf_exprs.push_back( std::make_pair( "smem_loads", smem_loads ) );
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
 					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
@@ -1273,10 +1257,36 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
 
-    //uint32_t filts_xp_ix_in_chan_sz = get_sz( tf_exprs, "filts_xp_ix" ) / (oi->ni->cio.chans*kx*ky); FIXME // padded # of filters/output chans
-
     uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, oi->tpb );
     tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
+
+    // filt smem loads
+    string filt_smem_loads("// begin filt_smem_loads\n");
+    uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, oi->tpb );    
+    tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));
+    for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
+      string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+      string eif;
+      if( (i+1)*oi->tpb > filts_smem_sz ) { filt_smem_loads+="if( "+ixe+" < %(filts_smem_sz) ) { ";eif = "}";}
+      // note: load is (always) contiguous
+      filt_smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s\n",ixe.c_str(),str(i).c_str(),eif.c_str());
+    }
+    filt_smem_loads += "  // end filt_smem_loads";
+    tf_exprs.push_back( std::make_pair( "filt_smem_loads", filt_smem_loads ) );
+
+    // in smem loads
+    string in_smem_loads("// begin in_smem_loads\n");
+    uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, oi->tpb );    
+    for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
+      string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+      string eif;
+      if( (i+1)*oi->tpb > in_smem_sz ) { in_smem_loads+="if( "+ixe+" < %(in_smem_sz)) { ";eif = "}";}
+      in_smem_loads += strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
+			      ixe.c_str(),str(i).c_str(),eif.c_str());
+    }
+    in_smem_loads += "  blk_in_ix_base += %(in_ix_blk_in_chan_sz);\n";
+    in_smem_loads += "  // end in_smem_loads";
+    tf_exprs.push_back( std::make_pair( "in_smem_loads", in_smem_loads ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
