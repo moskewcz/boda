@@ -1234,6 +1234,7 @@ using boost::filesystem::path;
 		      vect_string{"blk_img","blk_by","blk_bx","blk_in_chan","blk_y","blk_x"},
 		      vect_uint32_t{num_imgs,oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
 			  oi->ni->cio.chans, oi->out_to_in(oi->tix_pels_tile_sz), oi->out_to_in(t_tile_sz)} );
+    uint32_t const in_ix_blk_x_dim = oi->out_to_in(t_tile_sz);
 
     insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"blk_y","out_chan_tile"}, 
 		      vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
@@ -1287,6 +1288,26 @@ using boost::filesystem::path;
     in_smem_loads += "  blk_in_ix_base += %(in_ix_blk_in_chan_sz);\n";
     in_smem_loads += "  // end in_smem_loads";
     tf_exprs.push_back( std::make_pair( "in_smem_loads", in_smem_loads ) );
+
+
+    string inner_loop_body("// begin inner_loop_body\n");
+    for( uint32_t i = 0; i != in_ix_blk_x_dim; ++i ) {
+	inner_loop_body += strprintf( "    in_strip[%s] = in_smem_off[%s];\n", str(i).c_str(), str(i).c_str() );      
+    }
+    for( uint32_t kx = 0; kx != oi->kern_sz; ++kx ) {
+      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(blk_filt_ix_sz)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", 
+				      str(tx).c_str(), str(kx).c_str(), str(tx).c_str() );
+      }
+      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
+	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	  inner_loop_body += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
+					str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty*oi->stride+kx).c_str() );
+	}
+      }
+    }
+    tf_exprs.push_back( std::make_pair( "inner_loop_body", inner_loop_body ) );
+
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
