@@ -309,6 +309,9 @@ namespace boda {
 	  for( uint32_t c = 0; c < 3; ++c ) {
 	    float val = tpd_const;
 	    if( tpd == 2 ) { val += x; }
+	    else if( tpd == 3 ) { 
+	      if( (x==ibd.dims(2)/2) && (y==ibd.dims(3)/2) ) { val += 1.0f; }
+	    }
 	    // note: RGB -> BGR swap via the '2-c' below
 	    in_batch->at4( img_ix, 2-c, y, x ) = val;
 	  }
