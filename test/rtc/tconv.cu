@@ -28,5 +28,20 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       %(inner_loop_body);
     }
   }
+
+  __syncthreads();
+  for( int32_t i = 0; i != %(out_chan_bias_smem_load_iter); ++i ) {
+    int32_t const t_smem_bias_ix = threadIdx.x+%(tpb)*i;
+    if( t_smem_bias_ix < %(blk_filt_ix_sz) ) { 
+      int32_t const ocix_base = %(blockIdx.x_out_chan_blk)*%(blk_filt_ix_sz);
+      int32_t const load_reg = t_smem_bias_ix / %(threadIdx.x_out_chan_tile_dim);
+      int32_t const load_tile = t_smem_bias_ix %% %(threadIdx.x_out_chan_tile_dim);
+      int32_t const ocix = ocix_base + load_tile*%(t_tile_sz) + load_reg;
+      if( ocix < %(out_ix_chan_dim) ) { filts_smem[t_smem_bias_ix] = biases[ ocix ]; }
+    }
+  }
+  __syncthreads();
+  %(t_tile_bias_loads);
+  %(t_tile_stores);
 }
 

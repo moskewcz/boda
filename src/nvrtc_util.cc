@@ -1308,6 +1308,34 @@ using boost::filesystem::path;
     }
     tf_exprs.push_back( std::make_pair( "inner_loop_body", inner_loop_body ) );
 
+    string t_tile_bias_loads("// begin t_tile_bias_loads\n");
+    for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+      t_tile_bias_loads += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
+    }
+    t_tile_bias_loads += "  // end t_tile_bias_loads";
+    tf_exprs.push_back( std::make_pair( "t_tile_bias_loads", t_tile_bias_loads ) );
+
+    string t_tile_stores("// begin t_tile_stores\n");
+    t_tile_stores += "  int32_t out_y = %(blockIdx.x_blk_by)*%(threadIdx.x_blk_y_dim) + %(threadIdx.x_blk_y);\n";
+    t_tile_stores += "  if( out_y >= %(out_ix_y_sz) ) { return; }\n";
+    t_tile_stores += "  int32_t out_x = %(blockIdx.x_blk_bx)*%(t_tile_sz);\n";
+    t_tile_stores += "  int32_t out_chan = (%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim) + %(threadIdx.x_out_chan_tile))*%(t_tile_sz);\n";
+    t_tile_stores += "  float * out_off = out + %(blockIdx.x_blk_img)*%(out_ix_img_sz) + out_chan*%(out_ix_chan_sz) + "
+      "out_y*%(out_ix_y_sz) + out_x*%(out_ix_x_sz) ;\n";
+
+    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
+      t_tile_stores += "  if( (out_x + "+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
+	"// this x value and the following are off-the-end patches, so don't store them.\n";
+      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
+				     str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+	t_tile_stores += strprintf( "if( (out_chan + %s) < %%(out_ix_chan_dim) ) { "
+				    "out_off[ %s*%%(out_ix_chan_sz) + %s*%%(out_ix_x_sz) ] = %s; }\n",
+				    str(tx).c_str(), str(tx).c_str(), str(ty).c_str(), ve.c_str() );
+      }
+    }
+    t_tile_stores += "  // end t_tile_stores";
+    tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
     cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
