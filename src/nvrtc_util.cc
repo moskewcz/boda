@@ -335,14 +335,14 @@ using boost::filesystem::path;
 	    printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" );
 	  } else { is_k1conv = 1; }
 	}
+	else if( is_conv && enable_tconv && (force_enable_tconv || ((kern_sz <= 11) && (kern_sz > 1) && (no->cio.sz.d[0] >= 6))) )
+	{ 
+	  is_tconv = 1;
+	}
 	else if( is_conv && enable_s1conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) 
 		 && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) 
 	{ 
 	  is_s1conv = 1;
-	}
-	else if( is_conv && enable_tconv && (force_enable_tconv || ((kern_sz <= 11) && (kern_sz > 1) && (no->cio.sz.d[0] >= 24))) )
-	{ 
-	  is_tconv = 1;
 	}
 
 	single_k1conv_output = 0; // may be set to 1 in phase 2, but default to 0 here
