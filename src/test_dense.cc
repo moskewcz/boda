@@ -249,6 +249,11 @@ namespace boda {
     uint32_t cm1; //NESI(default="0",help="compute mode 1 for comparison")
     uint32_t cm2; //NESI(default="0",help="compute mode 2 for comparison")
 
+    uint32_t tpd; //NESI(default="0",help="if non-zero, use test-pattern data. 1 == const, 2 == const + x co-ord")
+    u32_pt_t tpd_in_sz; //NESI(default="15 15",help="x,y size of test-pattern data to use")
+    double tpd_const; //NESI(default="1.0",help="test-pattern data constant offset")
+    
+
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
     p_img_t in_img;
@@ -265,29 +270,50 @@ namespace boda {
     virtual void main( nesi_init_arg_t * nia ) {
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
-      imgs->load_img_db( 1 );
+      if( tpd ) { run_cnet->in_sz = tpd_in_sz; }
+      else { imgs->load_img_db( 1 ); in_img = make_p_img_t( run_cnet->in_sz ); }
+
       run_cnet->setup_cnet(); 
-      in_img = make_p_img_t( run_cnet->in_sz );
+
       //dump_pipe_and_ios( run_cnet );
-
+      
       boost::random::mt19937 gen;
-
       num_mad_fail = 0;
       uint32_t tot_wins = 0;
-      for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
-	if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
-	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
-	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
-	  u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
-	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
-	  ++tot_wins;
-	  copy_win_to_batch( (*i)->img, samp_nc );
-	  comp_batch();
+      if( tpd ) {
+	for( uint32_t i = 0; i != run_cnet->in_num_imgs; ++i ) { make_tpd_batch( run_cnet->in_batch, i ); }
+	comp_batch();
+      } else {
+	for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
+	  if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
+	  (*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
+	  for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
+	    u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
+	    u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
+	    ++tot_wins;
+	    copy_win_to_batch( (*i)->img, samp_nc );
+	    comp_batch();
+	  }
 	}
       }
       if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
       else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
       out.reset();
+    }
+    void make_tpd_batch( p_nda_float_t const & in_batch, uint32_t const img_ix ) {
+      dims_t const & ibd = in_batch->dims;
+      assert_st( img_ix < ibd.dims(0) );
+      assert_st( 3 == ibd.dims(1) );
+      for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
+	for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
+	  for( uint32_t c = 0; c < 3; ++c ) {
+	    float val = tpd_const;
+	    if( tpd == 2 ) { val += x; }
+	    // note: RGB -> BGR swap via the '2-c' below
+	    in_batch->at4( img_ix, 2-c, y, x ) = val;
+	  }
+	}
+      }
     }
     void copy_win_to_batch( p_img_t const & img, u32_pt_t const & nc ) {
       u32_box_t in_box{ nc, nc + run_cnet->in_sz };
