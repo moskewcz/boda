@@ -281,20 +281,23 @@ namespace boda {
 	  u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
 	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
 	  ++tot_wins;
-	  comp_win( (*i)->img, samp_nc );
+	  copy_win_to_batch( (*i)->img, samp_nc );
+	  comp_batch();
 	}
       }
       if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
       else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
       out.reset();
     }
-    void comp_win( p_img_t const & img, u32_pt_t const & nc ) {
+    void copy_win_to_batch( p_img_t const & img, u32_pt_t const & nc ) {
       u32_box_t in_box{ nc, nc + run_cnet->in_sz };
       // run net on just sample area
       img_copy_to_clip( img.get(), in_img.get(), {}, nc );
       for( uint32_t i = 0; i != run_cnet->in_num_imgs; ++i ) {
 	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, i, in_img );
       }
+    }
+    void comp_batch( void ) {
       run_cnet->compute_mode = cm1;
       p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
       run_cnet->compute_mode = cm2;
