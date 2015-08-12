@@ -101,9 +101,10 @@ using boost::filesystem::path;
     typedef T element_type;
     CUdeviceptr p;
     uint32_t sz;
+    void set_to_zero( void ) { cu_err_chk( cuMemsetD8(  p, 0, sz * sizeof(element_type) ), "cuMemsetD8" ); }
     cup_T( uint32_t const sz_ ) : p(0), sz(sz_) { 
       cu_err_chk( cuMemAlloc( &p,    sz * sizeof(element_type) ), "cuMemAlloc" ); 
-      cu_err_chk( cuMemsetD8(  p, 0, sz * sizeof(element_type) ), "cuMemsetD8" ); 
+      set_to_zero();
     }
     ~cup_T( void ) { cu_err_chk( cuMemFree( p ), "cuMemFree" ); }
   };
@@ -294,7 +295,7 @@ using boost::filesystem::path;
     bool single_k1conv_output;
 
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, 
-	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv ) {
+	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv, bool const & force_enable_tconv ) {
       cop = cop_;
       tag_id_str = as_pyid( cop->tag );
       //char const * const tag_id = tag_id_str.c_str();
@@ -339,7 +340,7 @@ using boost::filesystem::path;
 	{ 
 	  is_s1conv = 1;
 	}
-	else if( is_conv && enable_tconv && (kern_sz <= 11) && (kern_sz > 1) && (no->cio.sz.d[0] >= 24) )
+	else if( is_conv && enable_tconv && (force_enable_tconv || ((kern_sz <= 11) && (kern_sz > 1) && (no->cio.sz.d[0] >= 24))) )
 	{ 
 	  is_tconv = 1;
 	}
@@ -381,7 +382,9 @@ using boost::filesystem::path;
     uint32_t enable_s1conv; //NESI(default=0,help="if 1, enable experimental s1conv special case")
     uint32_t enable_k1conv; //NESI(default=0,help="if 1, enable experimental k1conv special case")
     uint32_t enable_tconv; //NESI(default=0,help="if 1, enable experimental tconv special case")
+    uint32_t force_enable_tconv; //NESI(default=0,help="if 1, force-enable experimental tconv special case even for not-sensible sizes")
     uint32_t enable_write_xpose; //NESI(default=0,help="if 1, enable experimental k1conv write xposing")
+    uint32_t force_zero_bias; //NESI(default=0,help="if 1, force biases to zero")
     uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
     vect_string dump_cups; // NESI(help="dump out values of these cups after forward")
@@ -395,6 +398,7 @@ using boost::filesystem::path;
     vect_string op_param_names;
     set_string filts_names;
     set_string inxp_names;
+    set_string force_zero_names;
 
     vect_string stats_names;
     map_str_float_t stats_map;
@@ -536,7 +540,6 @@ using boost::filesystem::path;
       printf( "i=%s v=%s\n", str(i).c_str(), str(nda->cm_at1(i)).c_str() );
     }
   }
-
 
   conv_pipe_fwd_t::~conv_pipe_fwd_t( void ) {
     for( map_str_float_t::const_iterator i = stats_map.begin(); i != stats_map.end(); ++i ) {
@@ -1691,6 +1694,8 @@ using boost::filesystem::path;
       else { cf = &gen_op_conv( oi ); }
       // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
 
+      if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
+
       if( oi->is_tconv ) {
 	cu_func_t & in_xpose_cf = gen_op_in_tile_xpose( oi );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
@@ -1811,7 +1816,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
-      oi->init( cp, i->second, enable_k1conv, enable_s1conv, enable_tconv );
+      oi->init( cp, i->second, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv );
       if( oi->is_conv ) { calc_blocking_conv( oi ); }
     }
     for( map_str_p_conv_node_t::iterator i = cp->nodes->begin(); i != cp->nodes->end(); ++i ) { 
@@ -1851,6 +1856,9 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       }
     }
     copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in
+    for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { 
+      must_find( *cups, as_pyid(*i) )->set_to_zero();
+    }
 
     // transpose filters ... and do any other init-time work added after this comment was written ;)
     for( vect_cu_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_cfc( *i ); }
