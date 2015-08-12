@@ -28,7 +28,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       %(inner_loop_body);
     }
   }
-
+  if( flags == 2 ) { return; }
   __syncthreads();
   for( int32_t i = 0; i != %(out_chan_bias_smem_load_iter); ++i ) {
     int32_t const t_smem_bias_ix = threadIdx.x+%(tpb)*i;
@@ -42,6 +42,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
   }
   __syncthreads();
   %(t_tile_bias_loads);
+  if( flags == 1 ) { return; }
   %(t_tile_stores);
 }
 
