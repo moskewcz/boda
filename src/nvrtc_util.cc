@@ -1275,6 +1275,7 @@ using boost::filesystem::path;
       // note: load is (always) contiguous
       filt_smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s\n",ixe.c_str(),str(i).c_str(),eif.c_str());
     }
+    filt_smem_loads += "  filts_off += %(filts_xp_ix_y_sz);\n";
     filt_smem_loads += "  // end filt_smem_loads";
     tf_exprs.push_back( std::make_pair( "filt_smem_loads", filt_smem_loads ) );
 
