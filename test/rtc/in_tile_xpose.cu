@@ -1,5 +1,6 @@
 extern "C"  __global__ void %(cu_func_name)( float const * const in, float * const out ) {
   int32_t const out_ix = blockDim.x * blockIdx.x + threadIdx.x;
+  if( out_ix >= %(out_ix_sz) ) { return; }
   int32_t const iy = %(out_ix_blk_by)*%(tix_pels_tile_sz)*%(stride) + %(out_ix_blk_y) - %(in_pad);
   int32_t const ix = %(out_ix_blk_bx)*%(t_tile_sz)*%(stride) + %(out_ix_blk_x) - %(in_pad);
   float v = 0.0f;
