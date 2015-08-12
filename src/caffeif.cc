@@ -346,27 +346,38 @@ namespace boda
     // protobuf format.  also, if there are no inputs / input dims, assume we're reading a train_val-style
     // prototxt and adjust it as needed for our usage -- in particular by dropping data layers and
     // adding input dims (i.e. converting it on-the-fly to deploy format).
+
+    // also, if specified, delete any layers after (in declaration order) the specified one. note that if the layers aren't
+    // declared in a 'good' (i.e. topo-sort) order for this to be sensible, then you get what you get.
+    bool found_layer = out_layer_name.empty(); // if no layer name input, don't try to find a 'stopping/end' layer
+
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-    if( net_param->input_dim_size() == 0 ) { // if train-val form, convert to deploy form
-      // we assume there is single input blob named 'data', unless we see (and remove) a Data layer,
-      // then we use the first top blob name from the last such removed layer. FIXME: do better?
-      string data_blob_name = "data";
-      assert_st( net_param->input_size() == 0 );
-      // remove data, softmax, and accuracy layers
-      set_string layer_types_to_remove{ Data_str, Accuracy_str, SoftmaxWithLoss_str };
-      int o = 0;
-      for( int i = 0; i < net_param->layer_size(); i++ ) {
-	caffe::LayerParameter const * const lp = &net_param->layer(i);
-	if( lp->type() == Data_str ) {
-	  // assume first top is name of data layer image data output blob
-	  data_blob_name = lp->top(0);
-	}
-	if( !has( layer_types_to_remove, lp->type() ) ) { 
-	  if( i != o ) { *net_param->mutable_layer(o) = net_param->layer(i); } 
-	  ++o; 
-	}
+
+    // we assume there is single input blob named 'data', unless we see (and remove) a Data layer,
+    // then we use the first top blob name from the last such removed layer. FIXME: do better?
+    string data_blob_name = "data";
+    // UPDATE: we now do the removal of data layers and layers-after-out-layer-name unconditionally. should be okay?
+    // assert_st( net_param->input_size() == 0 ); 
+    // remove data, softmax, and accuracy layers
+    set_string layer_types_to_remove{ Data_str, Accuracy_str, SoftmaxWithLoss_str };
+    int o = 0;
+    for( int i = 0; i < net_param->layer_size(); i++ ) {
+      caffe::LayerParameter const * const lp = &net_param->layer(i);
+      if( lp->type() == Data_str ) {
+	// assume first top is name of data layer image data output blob
+	data_blob_name = lp->top(0);
       }
-      while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
+      if( has( layer_types_to_remove, lp->type() ) ) { continue; }
+      // keep layer
+      if( i != o ) { *net_param->mutable_layer(o) = net_param->layer(i); } 
+      ++o; 
+      if( (!found_layer) && (out_layer_name == lp->name()) ) { found_layer = 1; break; }
+    }
+    if( !found_layer ) { rt_err( strprintf("run_cnet_t::create_net_param(): layer out_layer_name=%s not found in network\n",
+					   str(out_layer_name).c_str() )); }
+    while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
+
+    if( net_param->input_dim_size() == 0 ) { // if train-val form, convert to deploy form
       net_param->add_input(data_blob_name);
       for( uint32_t i = 0; i != 4; ++i ) { net_param->add_input_dim(0); }
     }
