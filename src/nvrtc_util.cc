@@ -1327,8 +1327,12 @@ using boost::filesystem::path;
       t_tile_stores += "  if( (out_x + "+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
 	"// this x value and the following are off-the-end patches, so don't store them.\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
+#if 1
 	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
 				     str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
+#else
+	string const ve = strprintf( "(filts_strip[%s])", str(tx).c_str() );
+#endif
 	t_tile_stores += strprintf( "if( (out_chan + %s) < %%(out_ix_chan_dim) ) { "
 				    "out_off[ %s*%%(out_ix_chan_sz) + %s*%%(out_ix_x_sz) ] = %s; }\n",
 				    str(tx).c_str(), str(tx).c_str(), str(ty).c_str(), ve.c_str() );
