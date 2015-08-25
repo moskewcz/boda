@@ -49,16 +49,18 @@ import operator
 class NDA( object ): 
     def __init__( self, name, *args ):
         self.name = name
+        self.dims = args
         if len(args) == 4:
             self.num = args[0]
             self.chan = args[1]
             self.y = args[2]
             self.x = args[3]
-        else:
-            self.dims = args
+
+    def dims_str( self ): return "*".join( str(d) for d in self.dims )
     def dims_prod( self ): 
         if hasattr(self,"dims"): return reduce(operator.mul, self.dims, 1)
         return self.num*self.chan*self.y*self.x
+    def dims_info_str( self ): return self.dims_str()+"="+pp_val(self.dims_prod())
     def __getitem__( self, *args, **kwargs ):
         return self
     def __mul__( self, o ):
@@ -120,6 +122,9 @@ class Convolution( object ):
             print "  %s = %s * transpose(reshape(%s,%s,%s)) # sgemm: MxNxK == %sx%sx%s" % (top.name,buf_name,filts.name,K,N,M,N,K)
         else:
             M = top.x*top.y*top.num # note: all-imgs M
+
+        if net.args.per_layer_in_info:
+            print name, "input", bot.dims_info_str(), "filts", filts.dims_info_str()
 
         forward_bytes = (in_pels + out_pels + filts.dims_prod() + biases.dims_prod()) * 4
         backward_bytes = (in_pels*2 + out_pels + filts.dims_prod()*2 + biases.dims_prod()*2) * 4
@@ -187,6 +192,7 @@ parser.add_argument('--power', metavar='WATTS', type=float, default=200, help='a
 parser.add_argument('--backward', metavar='BOOL', type=int, default=1, help='1:forward+backward; 0:only forward')
 parser.add_argument('--ai-mnk', metavar='BOOL', type=int, default=0, help='1:show fwd AI and MxNxK; 0:do not show')
 parser.add_argument('--per-layer', metavar='BOOL', type=int, default=0, help='1:print per-layer info; 0:only summary')
+parser.add_argument('--per-layer-in-info', metavar='BOOL', type=int, default=0, help='if non-zero print per-layer input dims info')
 args = parser.parse_args()
 net = Net(args)
 # set num_img and source cnet decl
