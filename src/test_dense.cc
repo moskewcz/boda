@@ -247,7 +247,10 @@ namespace boda {
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
 
     uint32_t cm1; //NESI(default="0",help="compute mode 1 for comparison")
+    p_has_conv_fwd_t cf1; //NESI(help="fwd compute mode 1; used if cm1==1")
+
     uint32_t cm2; //NESI(default="0",help="compute mode 2 for comparison")
+    p_has_conv_fwd_t cf2; //NESI(help="fwd compute mode 2; used if cm2==1")
 
     uint32_t tpd; //NESI(default="0",help="if non-zero, use test-pattern data. 1 == const, 2 == const + x co-ord")
     u32_pt_t tpd_in_sz; //NESI(default="15 15",help="x,y size of test-pattern data to use")
@@ -274,6 +277,9 @@ namespace boda {
       else { imgs->load_img_db( 1 ); in_img = make_p_img_t( run_cnet->in_sz ); }
 
       run_cnet->setup_cnet(); 
+
+      if( cf1 ) { cf1->init( run_cnet->conv_pipe, run_cnet->in_num_imgs ); }
+      if( cf2 ) { cf2->init( run_cnet->conv_pipe, run_cnet->in_num_imgs ); }
 
       //dump_pipe_and_ios( run_cnet );
       
@@ -328,8 +334,10 @@ namespace boda {
     }
     void comp_batch( void ) {
       run_cnet->compute_mode = cm1;
+      run_cnet->conv_fwd = cf1;
       p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
       run_cnet->compute_mode = cm2;
+      run_cnet->conv_fwd = cf2;
       p_nda_float_t out_batch_2 = run_cnet->run_one_blob_in_one_blob_out();
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
       ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);

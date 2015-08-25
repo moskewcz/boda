@@ -636,6 +636,7 @@ namespace boda
   }
 
   void conv_pipe_t::run_ops( p_map_str_p_nda_float_t const & fwd ) {
+    timer_t t1("run_ops");
     assert_st( finalized );
     assert( bots.size() );
     // we pick an arbitary input to get num_imgs from hete, then check it later for all inputs
