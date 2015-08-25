@@ -114,7 +114,7 @@ namespace boda
     }
   }
 
-  p_Net_float caffe_create_net( net_param_t & net_param, string const & trained_fn ) {
+  p_Net_float caffe_create_net( net_param_t & net_param, p_conv_pipe_t const & cp ) {
     timer_t t("caffe_create_net");
 
     // for now, we mimic the behavior of the caffe Net ctor that takes
@@ -122,7 +122,13 @@ namespace boda
     // passed by non-const ref, right?
     net_param.mutable_state()->set_phase(caffe::TEST);
     p_Net_float net( new Net_float( net_param ) );
-    net->CopyTrainedLayersFrom( trained_fn );
+
+    //net->CopyTrainedLayersFrom( trained_fn );
+    for( map_str_p_vect_p_nda_float_t::const_iterator i = cp->layer_blobs->begin(); i != cp->layer_blobs->end(); ++i ) { 
+      //printf( "i->first=%s i->second->size()=%s\n", str(i->first).c_str(), str(i->second->size()).c_str() );
+      set_layer_blobs( net, i->first, *i->second );  
+    }
+
     // for timing, do one (garbage) forward. presumably forces memory allocs and/or some other lazy
     // setup to happen here
     net->ForwardPrefilled();
@@ -195,11 +201,8 @@ namespace boda
     blobs.clear();
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
       Blob<float> * const layer_blob = layer_blobs[bix].get();
-      dims_t blob_dims( 4 );
-      blob_dims.dims(3) = layer_blob->width();
-      blob_dims.dims(2) = layer_blob->height();
-      blob_dims.dims(1) = layer_blob->channels();
-      blob_dims.dims(0) = layer_blob->num();
+      dims_t blob_dims( layer_blob->num_axes() );
+      for( uint32_t i = 0; i != blob_dims.sz(); ++i ) { blob_dims.dims(i) = uint32_t(layer_blob->shape(i)); }
       p_nda_float_t blob( new nda_float_t( blob_dims ) );
       assert_st( blob->elems.sz == uint32_t(layer_blob->count()) );
       blobs.push_back( blob );
@@ -221,15 +224,13 @@ namespace boda
     timer_t t("caffe_set_layer_blob_data");
     caffe::Layer<float>* layer = net_->layers()[ layer_ix ].get();
     const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
-    assert( blobs.size() == layer_blobs.size() );
+    assert_st( blobs.size() == layer_blobs.size() );
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
       p_nda_float_t const & blob = blobs[bix];
       Blob<float> * const layer_blob = layer_blobs[bix].get();
       dims_t const & blob_dims = blob->dims;
-      assert_st( blob_dims.dims(3) == (uint32_t)layer_blob->width() );
-      assert_st( blob_dims.dims(2) == (uint32_t)layer_blob->height() );
-      assert_st( blob_dims.dims(1) == (uint32_t)layer_blob->channels() );
-      assert_st( blob_dims.dims(0) == (uint32_t)layer_blob->num() );
+      assert_st( blob_dims.sz() == uint32_t(layer_blob->num_axes()) );
+      for( uint32_t i = 0; i != blob_dims.sz(); ++i ) { assert_st( blob_dims.dims(i) == uint32_t(layer_blob->shape(i)) ); }
       assert_st( blob->elems.sz == uint32_t(layer_blob->count()) );
 
       const float * const data_ptr = &blob->elems[0];
@@ -443,7 +444,7 @@ namespace boda
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
-      copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe_upsamp->op_params, conv_pipe_upsamp->layer_blobs );
+      copy_matching_layer_blobs_from_param_to_map( trained_net, upsamp_net_param, conv_pipe_upsamp->op_params, conv_pipe_upsamp->layer_blobs );
       assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
     }
     conv_pipe->calc_sizes_forward( in_sz, 0 ); 
@@ -494,9 +495,9 @@ namespace boda
 
     if( compute_mode == 0 ) {
       init_caffe( gpu_id ); // FIXME/note: only does something on first call
-      net = caffe_create_net( *net_param, trained_fn.exp );      
+      net = caffe_create_net( *net_param, conv_pipe );      
       if( enable_upsamp_net ) { 
-	upsamp_net = caffe_create_net( *upsamp_net_param, trained_fn.exp ); 
+	upsamp_net = caffe_create_net( *upsamp_net_param, conv_pipe_upsamp ); 
 	create_upsamp_layer_0_weights();
       }
     }
