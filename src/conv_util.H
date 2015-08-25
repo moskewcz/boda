@@ -51,6 +51,7 @@ namespace boda
     bool on_seen_bot( void ) { ++bots_seen; assert_st( bots_seen <= bots.size() ); return bots_seen == bots.size(); }
     bool has_one_top( void ) const { return tops.size() == 1; }
     bool has_one_top_one_bot( void ) const { return (tops.size() == 1) && (bots.size() == 1); }
+    string const & get_single_in_place_arg( void ) const { assert_st( has_one_top_one_bot() ); assert_st( tops[0] == bots[0] ); return tops[0]; }  
 
     //FIXME: for now, we default-init these vars to prevent them from being garbage when they are unused. this is
     //noticably bad in combination with always printing all parameters. we should do some combination of: (1) always
@@ -126,8 +127,6 @@ namespace boda
     void dump_ops( std::ostream & out, bool const & expand_ops );
 
     void fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only );
-    void run_ops( p_map_str_p_nda_float_t const & fwd );
-    void run_ops_rec( p_map_str_p_nda_float_t const & fwd, string const & node_name );
     p_nda_float_t run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd );
   };
 
