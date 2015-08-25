@@ -60,7 +60,7 @@ class NDA( object ):
     def dims_prod( self ): 
         if hasattr(self,"dims"): return reduce(operator.mul, self.dims, 1)
         return self.num*self.chan*self.y*self.x
-    def dims_info_str( self ): return self.dims_str()+"="+pp_val(self.dims_prod())
+    def dims_info_str( self ): return self.dims_str()+"="+pp_bytes(self.dims_prod()*4)
     def __getitem__( self, *args, **kwargs ):
         return self
     def __mul__( self, o ):
