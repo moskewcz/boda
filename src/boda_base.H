@@ -551,6 +551,7 @@ namespace boda
   typedef vector< nda_float_t > vect_nda_float_t; 
   typedef shared_ptr< nda_float_t > p_nda_float_t; 
   typedef vector< p_nda_float_t > vect_p_nda_float_t;
+  typedef shared_ptr< vect_p_nda_float_t > p_vect_p_nda_float_t;
 
   typedef nda_T< double > nda_double_t;
 
@@ -559,6 +560,8 @@ namespace boda
   typedef vector< p_nda_double_t > vect_p_nda_double_t;
   typedef map< string, p_nda_float_t > map_str_p_nda_float_t;
   typedef shared_ptr< map_str_p_nda_float_t > p_map_str_p_nda_float_t;
+  typedef map< string, p_vect_p_nda_float_t > map_str_p_vect_p_nda_float_t;
+  typedef shared_ptr< map_str_p_vect_p_nda_float_t > p_map_str_p_vect_p_nda_float_t;
 
   // class to store info from sum_squared_diffs(o1,o2); str()-able for printing
   struct ssds_diff_t {

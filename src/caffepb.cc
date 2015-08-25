@@ -419,35 +419,37 @@ namespace boda
     }
   }
   void copy_matching_layer_blobs_from_param_to_map( p_net_param_t const & blob_src, p_net_param_t const & pipe_src, 
-						    p_map_str_p_nda_float_t const & op_params ) {
+						    p_map_str_p_nda_float_t const & op_params, 
+						    p_map_str_p_vect_p_nda_float_t const & layer_blobs ) {
     for( int i = 0; i != pipe_src->layer_size(); ++i ) { 
       caffe::LayerParameter const & pipe_lp = pipe_src->layer(i);
       uint32_t const blob_src_lix = maybe_get_layer_ix( *blob_src, pipe_lp.name() );
       if( blob_src_lix == uint32_t_const_max ) { continue; } // layer not found in src
       caffe::LayerParameter const & blob_src_lp = blob_src->layer(blob_src_lix);
 
-      vect_p_nda_float_t blob_src_blobs;
-      copy_layer_blobs( blob_src_lp, blob_src_blobs );
+      p_vect_p_nda_float_t blob_src_blobs( new vect_p_nda_float_t );
+      copy_layer_blobs( blob_src_lp, *blob_src_blobs );
       vect_string bsb_names;
       string const tag_id_str = as_pyid( pipe_lp.name() );
 
       if( pipe_lp.type() == Convolution_str ) { 
-	assert( blob_src_blobs.size() == 2 );
+	assert( blob_src_blobs->size() == 2 );
 	bsb_names.push_back( tag_id_str + "_filts" ); 
 	bsb_names.push_back( tag_id_str + "_biases" ); 
-	dims_t & bd = blob_src_blobs[1]->dims;
+	dims_t & bd = blob_src_blobs->at(1)->dims;
 	// for 'old style' bias blobs, squish out leading size 1 dims
 	if( bd.sz() == 4 ) {
 	  for( uint32_t i = 0; i != bd.sz()-1; ++i ) { assert_st( bd.dims(i) == 1 ); }
 	  bd = dims_t( vect_uint32_t{ bd.dims(3) }, 1 );
 	}
-	assert( blob_src_blobs[1]->dims.sz() == 1 );
+	assert( blob_src_blobs->at(1)->dims.sz() == 1 );
       }
-      else { for( uint32_t i = 0; i != blob_src_blobs.size(); ++i ) { bsb_names.push_back( tag_id_str + "_" + str(i) ); } }
-      assert_st( bsb_names.size() == blob_src_blobs.size() );
+      else { for( uint32_t i = 0; i != blob_src_blobs->size(); ++i ) { bsb_names.push_back( tag_id_str + "_" + str(i) ); } }
+      assert_st( bsb_names.size() == blob_src_blobs->size() );
       for( uint32_t i = 0; i != bsb_names.size(); ++i ) { 
-	assert_st( op_params->insert( std::make_pair( bsb_names[i], blob_src_blobs[i] ) ).second );
+	assert_st( op_params->insert( std::make_pair( bsb_names[i], blob_src_blobs->at(i) ) ).second );
       }
+      must_insert( *layer_blobs, pipe_lp.name(), blob_src_blobs );
     }
   }
 

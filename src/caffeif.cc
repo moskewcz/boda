@@ -439,11 +439,11 @@ namespace boda
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
     // the time ...
     p_net_param_t trained_net = must_read_binary_proto( trained_fn );
-    copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe->op_params );
+    copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe->op_params, conv_pipe->layer_blobs );
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
-      copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe_upsamp->op_params );
+      copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe_upsamp->op_params, conv_pipe_upsamp->layer_blobs );
       assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
     }
     conv_pipe->calc_sizes_forward( in_sz, 0 ); 

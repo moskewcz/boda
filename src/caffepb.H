@@ -37,7 +37,7 @@ namespace boda {
   struct img_t; typedef shared_ptr< img_t > p_img_t; 
   p_img_t datum_to_img( p_datum_t datum );
   void copy_matching_layer_blobs_from_param_to_map( p_net_param_t const & blob_src, p_net_param_t const & pipe_src, 
-						    p_map_str_p_nda_float_t const & op_params );
+						    p_map_str_p_nda_float_t const & op_params, p_map_str_p_vect_p_nda_float_t const & layer_blobs );
 
 
 }

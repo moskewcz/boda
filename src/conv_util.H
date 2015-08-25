@@ -93,11 +93,12 @@ namespace boda
     vect_string tops;
     vect_string bots;
 
-    p_map_str_p_nda_float_t op_params;
+    p_map_str_p_nda_float_t op_params; // layer blobs, as layer_BLOBIX->blob or 'pretty' names for some layer types like layer_filts->blob
+    p_map_str_p_vect_p_nda_float_t layer_blobs; // same info as op_params, but in a generic layer_name->vect_blobs format
     bool finalized;
 
     conv_pipe_t( void ) : convs( new map_str_p_conv_op_t ), nodes( new map_str_p_conv_node_t ), 
-			  op_params( new map_str_p_nda_float_t ), finalized(0) { }
+			  op_params( new map_str_p_nda_float_t ), layer_blobs( new map_str_p_vect_p_nda_float_t ), finalized(0) { }
     void finalize( void ); // call when finished building network
     p_conv_node_t get_or_make_node( std::string const & name );
     p_conv_node_t must_get_node( std::string const & name ) const;
