@@ -222,18 +222,8 @@ namespace boda
 
   // note: assumes/includes chans_to_area conversion
   u32_pt_t run_cnet_t::get_one_blob_img_out_sz( void ) {
-#if 0 // caffe version
-    assert_st( net );
-    uint32_t const out_layer_ix = get_layer_ix( net, out_layer_name );
-    const vector<Blob<float>*>& output_blobs = net->top_vecs()[ out_layer_ix ];
-    assert_st( output_blobs.size() == 1 );
-    Blob<float> const * const output_blob = output_blobs[0];
-    return u32_pt_t( output_blob->width(), output_blob->height() ).scale( u32_ceil_sqrt( output_blob->channels() ) );
-#else // boda vesion
     p_conv_node_t out_node = conv_pipe->must_get_node( out_layer_name );
     return out_node->cio.sz.scale( u32_ceil_sqrt( out_node->cio.chans ) );
-#endif
-
   }
 
 
