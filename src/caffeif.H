@@ -93,7 +93,7 @@ namespace boda
     void create_upsamp_layer_0_weights( void );
 
     void create_net_param( void );
-    p_conv_pipe_t cache_pipe( net_param_t & net_param );
+    p_conv_pipe_t cache_pipe( p_net_param_t const & net_param );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 

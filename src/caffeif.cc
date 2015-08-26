@@ -263,7 +263,9 @@ namespace boda
   // here, but that could be delayed), we can get away with creating the net_param first, then the
   // pipe, then altering num_input_images input_dim field of the net_param, then setting up the
   // net. hmm.
-  p_conv_pipe_t run_cnet_t::cache_pipe( net_param_t & net_param ) {return create_pipe_from_param( net_param, in_num_chans, out_layer_name ); }
+  p_conv_pipe_t run_cnet_t::cache_pipe( p_net_param_t const & net_param ) {
+    return create_pipe_from_param( net_param, in_num_chans, out_layer_name ); 
+  }
 
   struct synset_elem_t {
     string id;
@@ -396,7 +398,7 @@ namespace boda
   void run_cnet_t::setup_cnet_param_and_pipe( void ) {
     assert( !net_param );
     create_net_param();
-    conv_pipe = cache_pipe( *net_param );
+    conv_pipe = cache_pipe( net_param );
     // note: we may or may not need the trained blobs in the conv_pipe, depending on the compute
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
     // the time ...
@@ -404,7 +406,7 @@ namespace boda
     copy_matching_layer_blobs_from_param_to_pipe( trained_net, net_param, conv_pipe );
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
-      conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
+      conv_pipe_upsamp = cache_pipe( upsamp_net_param );
       copy_matching_layer_blobs_from_param_to_pipe( trained_net, upsamp_net_param, conv_pipe_upsamp );
       create_upsamp_layer_weights( conv_pipe, net_param->layer(0).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(0).name() ); // sets weights in conv_pipe_upsamp->layer_blobs

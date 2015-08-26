@@ -532,6 +532,8 @@ namespace boda
     }
   };
 
+  p_net_param_t conv_pipe_t::as_net_param( void ) const { assert( orig_net_param ); return orig_net_param; }
+
 #include"gen/conv_util.H.nesi_gen.cc"
 #include"gen/conv_util.cc.nesi_gen.cc"
 

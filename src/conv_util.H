@@ -3,9 +3,13 @@
 
 #include"conv_common.H"
 
+namespace caffe { struct NetParameter; }
+
 namespace boda 
 {
   struct has_conv_fwd_t; typedef shared_ptr< has_conv_fwd_t > p_has_conv_fwd_t; 
+  typedef caffe::NetParameter net_param_t;
+  typedef shared_ptr< net_param_t > p_net_param_t;
 
   // caffe-compatible layer type strings
   // raw list: Pooling Convolution ReLU Dropout LRN Accuracy SoftmaxWithLoss Data Concat InnerProduct
@@ -132,6 +136,12 @@ namespace boda
 
     void add_layer_blobs( string const & rln, p_vect_p_nda_float_t const & blobs );
 
+    p_net_param_t as_net_param( void ) const; // return this pipe as a caffe net param
+    // FIXME: we use orig_net_param to cheat on the implimentation of as_net_param() under the assumption that the
+    // pipe is always created from a net_param, and that the net_param is substantially equivalent to the pipe. in
+    // general neither need be true; pipes could come from other sources, and the translation from input
+    // net_param_t's is limited/inexact.
+    p_net_param_t orig_net_param; 
   };
 
 
