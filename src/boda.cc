@@ -100,6 +100,7 @@ namespace boda
   int boda_main( int argc, char **argv ) {
     boda_asserts();
     assert_st( argc > 0 );
+    boda_dirs_init();
     py_init( argv[0] );
     oct_init();
     int const ret = boda_main_arg_proc( std::cout, argc, argv ); // split out for unit testing

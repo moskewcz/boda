@@ -49,13 +49,12 @@ ifneq ($(shell diff -wq ../src/ext/caffe.proto ${CAFFE_HOME}/src/caffe/proto/caf
 $(error "building with caffe support, but diff of boda copy of caffe.proto with caffe version failed (because the content diffed, a file was not found, etc). run diff manually for details and/or update boda version of caffe.proto. aborting make.")
 endif
 
+[python]
+CPPFLAGS := $(CPPFLAGS) -I/usr/include/python2.7 
+LDFLAGS := $(LDFLAGS) -lpython2.7
 
 [turbojpeg] # not disable-able, due to unmarked indirect dependencies. we mark only the direct dependencies below.
 LDFLAGS := $(LDFLAGS) -lturbojpeg
-
-[python] # not disable-able, due to unmarked indirect dependencies. we mark only the direct dependencies below.
-CPPFLAGS := $(CPPFLAGS) -I/usr/include/python2.7 
-LDFLAGS := $(LDFLAGS) -lpython2.7
 
 # list of object files to compile. at least the objects that are
 # direct dependencies of the above sections should be marked by adding
@@ -119,6 +118,8 @@ img_io.o turbojpeg
 model.o octave
 results_io.o  
 pyif.o python
+pyif-no-python-stub.o -python
+
 octif.o octave
 octif-no-octave-stub.o -octave
 boda.o  

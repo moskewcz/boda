@@ -20,6 +20,17 @@ namespace boda
   using boost::filesystem::path;
   using boost::filesystem::filesystem_error;
 
+  static string py_boda_dir_static;
+  static string py_boda_test_dir_static;
+  string const & py_boda_dir( void ) { return py_boda_dir_static; }
+  string const & py_boda_test_dir( void ) { return py_boda_test_dir_static; }
+
+  void boda_dirs_init( void ) {
+    path pse_dir_dir = read_symlink( path("/proc")/"self"/"exe" ).parent_path().parent_path();
+    py_boda_dir_static = canonical(pse_dir_dir).string();
+    py_boda_test_dir_static = canonical(pse_dir_dir/"test").string();
+  }
+
   // prints errno
   void neg_one_fail( int const & ret, char const * const func_name ) {
     if( ret == -1 ) { rt_err( strprintf( "%s() failed with errno=%s (%s)", func_name, str(errno).c_str(),
