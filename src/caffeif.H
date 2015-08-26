@@ -63,6 +63,7 @@ namespace boda
     uint32_t enable_upsamp_net; //NESI(default=0,help="if 1, create an extra internal net with internal 2X input upsampling.")
     uint32_t dump_rps; //NESI(default=0,help="if 1, dump region proposals for each feature pizel to 'rps.txt'.")
     p_has_conv_fwd_t conv_fwd; //NESI(help="fwd compute mode; used if compute_mode==1")
+    p_has_conv_fwd_t conv_fwd_upsamp; //NESI(help="fwd compute mode (for upsampled net); used if compute_mode==1")
     uint32_t compute_mode; //NESI(default="0",help="compute mode: 0:caffe 1:conv_fwd(see conv_fwd peer options)")
 
 

@@ -1,0 +1,40 @@
+(*i)->sz=353 500
+ssds_str(out_batch_upsamp,out_batch)=cnt=91726 sum_squared_diffs=4.32376e-06 avg_abs_diff=5.97776e-06 max_abs_diff=7.62939e-05 sum_diffs=-0.00333184 avg_diff=-2.75358e-08
+ssds_str(out_batch_upsamp,out_batch)=cnt=92566 sum_squared_diffs=2.80092e-06 avg_abs_diff=4.81125e-06 max_abs_diff=4.57764e-05 sum_diffs=0.0387181 avg_diff=3.19984e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=89429 sum_squared_diffs=2.4765e-06 avg_abs_diff=4.52404e-06 max_abs_diff=4.57764e-05 sum_diffs=-0.00168755 avg_diff=-1.39467e-08
+(*i)->sz=335 500
+ssds_str(out_batch_upsamp,out_batch)=cnt=88963 sum_squared_diffs=2.80896e-06 avg_abs_diff=4.81815e-06 max_abs_diff=4.19617e-05 sum_diffs=0.0498295 avg_diff=4.11814e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=87831 sum_squared_diffs=3.09079e-06 avg_abs_diff=5.05408e-06 max_abs_diff=5.72205e-05 sum_diffs=-0.0251646 avg_diff=-2.07972e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=90344 sum_squared_diffs=2.4837e-06 avg_abs_diff=4.53061e-06 max_abs_diff=4.57764e-05 sum_diffs=-0.00955937 avg_diff=-7.90031e-08
+(*i)->sz=500 375
+ssds_str(out_batch_upsamp,out_batch)=cnt=89551 sum_squared_diffs=2.17318e-06 avg_abs_diff=4.23794e-06 max_abs_diff=4.19617e-05 sum_diffs=0.0174582 avg_diff=1.44282e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=89531 sum_squared_diffs=1.71223e-06 avg_abs_diff=3.76174e-06 max_abs_diff=3.05176e-05 sum_diffs=0.0286031 avg_diff=2.36389e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=90392 sum_squared_diffs=2.13723e-06 avg_abs_diff=4.20275e-06 max_abs_diff=3.8147e-05 sum_diffs=0.0235159 avg_diff=1.94346e-07
+(*i)->sz=500 406
+ssds_str(out_batch_upsamp,out_batch)=cnt=90716 sum_squared_diffs=3.56225e-06 avg_abs_diff=5.42587e-06 max_abs_diff=5.34058e-05 sum_diffs=-0.00115643 avg_diff=-9.55726e-09
+ssds_str(out_batch_upsamp,out_batch)=cnt=87914 sum_squared_diffs=2.59625e-06 avg_abs_diff=4.63213e-06 max_abs_diff=4.00543e-05 sum_diffs=-0.00644949 avg_diff=-5.33015e-08
+ssds_str(out_batch_upsamp,out_batch)=cnt=91115 sum_squared_diffs=3.8295e-06 avg_abs_diff=5.62572e-06 max_abs_diff=5.53131e-05 sum_diffs=0.00217934 avg_diff=1.80111e-08
+(*i)->sz=500 375
+ssds_str(out_batch_upsamp,out_batch)=cnt=86657 sum_squared_diffs=2.48549e-06 avg_abs_diff=4.53224e-06 max_abs_diff=5.34058e-05 sum_diffs=0.0212272 avg_diff=1.75431e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=88112 sum_squared_diffs=2.5432e-06 avg_abs_diff=4.58456e-06 max_abs_diff=4.76837e-05 sum_diffs=-0.0359187 avg_diff=-2.96849e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=88530 sum_squared_diffs=3.72648e-06 avg_abs_diff=5.54954e-06 max_abs_diff=5.91278e-05 sum_diffs=0.00217142 avg_diff=1.79456e-08
+(*i)->sz=500 375
+ssds_str(out_batch_upsamp,out_batch)=cnt=87965 sum_squared_diffs=3.42591e-06 avg_abs_diff=5.32102e-06 max_abs_diff=4.19617e-05 sum_diffs=-0.00222578 avg_diff=-1.83949e-08
+ssds_str(out_batch_upsamp,out_batch)=cnt=88384 sum_squared_diffs=4.11582e-06 avg_abs_diff=5.83224e-06 max_abs_diff=5.53131e-05 sum_diffs=-0.00881254 avg_diff=-7.28309e-08
+ssds_str(out_batch_upsamp,out_batch)=cnt=89590 sum_squared_diffs=3.4963e-06 avg_abs_diff=5.37541e-06 max_abs_diff=4.3869e-05 sum_diffs=0.00176943 avg_diff=1.46234e-08
+(*i)->sz=354 480
+ssds_str(out_batch_upsamp,out_batch)=cnt=88566 sum_squared_diffs=4.24777e-06 avg_abs_diff=5.92499e-06 max_abs_diff=6.67572e-05 sum_diffs=0.0250748 avg_diff=2.0723e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=89239 sum_squared_diffs=4.46869e-06 avg_abs_diff=6.07712e-06 max_abs_diff=4.95911e-05 sum_diffs=-0.00536534 avg_diff=-4.43417e-08
+ssds_str(out_batch_upsamp,out_batch)=cnt=90725 sum_squared_diffs=4.99823e-06 avg_abs_diff=6.4271e-06 max_abs_diff=5.14984e-05 sum_diffs=0.0435107 avg_diff=3.59593e-07
+(*i)->sz=500 324
+ssds_str(out_batch_upsamp,out_batch)=cnt=90665 sum_squared_diffs=4.66361e-06 avg_abs_diff=6.20824e-06 max_abs_diff=5.34058e-05 sum_diffs=-0.0395117 avg_diff=-3.26543e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=91320 sum_squared_diffs=3.82793e-06 avg_abs_diff=5.62457e-06 max_abs_diff=5.72205e-05 sum_diffs=-0.0580415 avg_diff=-4.79682e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=91104 sum_squared_diffs=3.31348e-06 avg_abs_diff=5.23298e-06 max_abs_diff=3.8147e-05 sum_diffs=-0.0340779 avg_diff=-2.81636e-07
+(*i)->sz=500 375
+ssds_str(out_batch_upsamp,out_batch)=cnt=91978 sum_squared_diffs=1.90595e-06 avg_abs_diff=3.96883e-06 max_abs_diff=3.8147e-05 sum_diffs=0.00317648 avg_diff=2.62519e-08
+ssds_str(out_batch_upsamp,out_batch)=cnt=88030 sum_squared_diffs=1.82497e-06 avg_abs_diff=3.8836e-06 max_abs_diff=4.57764e-05 sum_diffs=0.0188186 avg_diff=1.55526e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=90216 sum_squared_diffs=1.71462e-06 avg_abs_diff=3.76436e-06 max_abs_diff=4.00543e-05 sum_diffs=0.0115897 avg_diff=9.5783e-08
+(*i)->sz=500 333
+ssds_str(out_batch_upsamp,out_batch)=cnt=86915 sum_squared_diffs=3.21133e-06 avg_abs_diff=5.15169e-06 max_abs_diff=4.19617e-05 sum_diffs=-0.0220412 avg_diff=-1.82158e-07
+ssds_str(out_batch_upsamp,out_batch)=cnt=86763 sum_squared_diffs=3.08265e-06 avg_abs_diff=5.04742e-06 max_abs_diff=4.57764e-05 sum_diffs=0.00921198 avg_diff=7.6132e-08
+ssds_str(out_batch_upsamp,out_batch)=cnt=86492 sum_squared_diffs=2.59887e-06 avg_abs_diff=4.63446e-06 max_abs_diff=4.19617e-05 sum_diffs=-0.0225877 avg_diff=-1.86675e-07

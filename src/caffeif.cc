@@ -251,8 +251,7 @@ namespace boda
       return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch, enable_prof );      
     } else {
       assert_st( compute_mode == 1 );
-      assert_st( 0 ); // FIXME: not supported; need two conv_fwd's ...
-      return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, conv_fwd );
+      return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, conv_fwd_upsamp );
     }
   }
   // note; there is an unfortunate potential circular dependency here: we may need the pipe info
@@ -414,7 +413,8 @@ namespace boda
     conv_pipe->calc_sizes_forward( in_sz, 0 ); 
     if( enable_upsamp_net ) { conv_pipe_upsamp->calc_sizes_forward( in_sz, 0 ); }
 
-    if( conv_fwd ) { conv_fwd->init( conv_pipe, in_num_imgs ); } // FIXME: need upsamp version of conv_fwd ...
+    if( conv_fwd ) { conv_fwd->init( conv_pipe, in_num_imgs ); } 
+    if( conv_fwd_upsamp ) { conv_fwd_upsamp->init( conv_pipe_upsamp, in_num_imgs ); } 
 
   }
   void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
