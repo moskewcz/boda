@@ -193,33 +193,6 @@ namespace boda
     }
   }
 
-
-  void copy_layer_blobs( p_Net_float net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
-    timer_t t("caffe_copy_layer_blob_data");
-    caffe::Layer<float>* layer = net->layers().at( layer_ix ).get();
-    const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
-    blobs.clear();
-    for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
-      Blob<float> * const layer_blob = layer_blobs[bix].get();
-      dims_t blob_dims( layer_blob->num_axes() );
-      for( uint32_t i = 0; i != blob_dims.sz(); ++i ) { blob_dims.dims(i) = uint32_t(layer_blob->shape(i)); }
-      p_nda_float_t blob( new nda_float_t( blob_dims ) );
-      assert_st( blob->elems.sz == uint32_t(layer_blob->count()) );
-      blobs.push_back( blob );
-      float * const dest = &blob->elems[0];
-      switch (Caffe::mode()) {
-      case Caffe::CPU: memcpy(dest, layer_blob->cpu_data(), sizeof(float) * layer_blob->count() ); break;
-      case Caffe::GPU: cudaMemcpy(dest, layer_blob->gpu_data(), sizeof(float) * layer_blob->count(), 
-				  cudaMemcpyDeviceToHost); break;
-      default: LOG(FATAL) << "Unknown Caffe mode.";
-      }  // switch (Caffe::mode())
-    }
-  }
-  void copy_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
-    uint32_t const layer_ix = get_layer_ix( net_, layer_name );
-    copy_layer_blobs( net_, layer_ix, blobs );
-  }
-
   void set_layer_blobs( p_Net_float net_, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_set_layer_blob_data");
     caffe::Layer<float>* layer = net_->layers()[ layer_ix ].get();
@@ -246,7 +219,6 @@ namespace boda
     uint32_t const layer_ix = get_layer_ix( net, layer_name );
     set_layer_blobs( net, layer_ix, blobs );
   }
-
 
   // note: assumes/includes chans_to_area conversion
   u32_pt_t run_cnet_t::get_one_blob_img_out_sz( void ) {
@@ -289,7 +261,7 @@ namespace boda
       return boda::run_one_blob_in_one_blob_out( upsamp_net, out_layer_name, in_batch, enable_prof );      
     } else {
       assert_st( compute_mode == 1 );
-      assert_st( 0 ); // FIXME: not supported; need two conv_fwd's and boda version of create_upsamp_layer_0_weights() ...
+      assert_st( 0 ); // FIXME: not supported; need two conv_fwd's ...
       return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, conv_fwd );
     }
   }
@@ -440,11 +412,13 @@ namespace boda
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
     // the time ...
     p_net_param_t trained_net = must_read_binary_proto( trained_fn );
-    copy_matching_layer_blobs_from_param_to_map( trained_net, net_param, conv_pipe->op_params, conv_pipe->layer_blobs );
+    copy_matching_layer_blobs_from_param_to_pipe( trained_net, net_param, conv_pipe );
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       conv_pipe_upsamp = cache_pipe( *upsamp_net_param );
-      copy_matching_layer_blobs_from_param_to_map( trained_net, upsamp_net_param, conv_pipe_upsamp->op_params, conv_pipe_upsamp->layer_blobs );
+      copy_matching_layer_blobs_from_param_to_pipe( trained_net, upsamp_net_param, conv_pipe_upsamp );
+      create_upsamp_layer_weights( conv_pipe, net_param->layer(0).name(), 
+				   conv_pipe_upsamp, upsamp_net_param->layer(0).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
       assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
     }
     conv_pipe->calc_sizes_forward( in_sz, 0 ); 
@@ -458,36 +432,7 @@ namespace boda
     assert_st( net_param->input_dim_size() == 4 );
     in_num_imgs = in_num_imgs_;
     net_param->set_input_dim(0,in_num_imgs);
-    if( enable_upsamp_net ) { 
-      upsamp_net_param->set_input_dim(0,in_num_imgs); } // FIXME/TODO: for now, run upsamp on all planes
-  }
-
-  void run_cnet_t::create_upsamp_layer_0_weights( void ) {
-    vect_p_nda_float_t usl_blobs;
-    copy_layer_blobs( net, 0, usl_blobs );
-
-    vect_p_nda_float_t usl_blobs_upsamp;
-    copy_layer_blobs( upsamp_net, 0, usl_blobs_upsamp );
-
-    assert_st( usl_blobs.size() == 2 ); // filters, biases
-    assert_st( usl_blobs_upsamp.size() == 2 ); // filters, biases
-    assert_st( usl_blobs[1]->dims == usl_blobs_upsamp[1]->dims ); // biases should be same shape (and same strides?)
-    usl_blobs_upsamp[1] = usl_blobs[1]; // use biases unchanged in upsamp net
-    assert_st( usl_blobs[0]->dims.dims(0) == usl_blobs_upsamp[0]->dims.dims(0) );
-    assert_st( usl_blobs[0]->dims.dims(1) == usl_blobs_upsamp[0]->dims.dims(1) );
-    assert_st( u32_ceil_div( usl_blobs[0]->dims.dims(2), 2 ) == usl_blobs_upsamp[0]->dims.dims(2) );
-    assert_st( u32_ceil_div( usl_blobs[0]->dims.dims(3), 2 ) == usl_blobs_upsamp[0]->dims.dims(3) );
-
-    for( dims_iter_t di( usl_blobs_upsamp[0]->dims ) ; ; ) { usl_blobs_upsamp[0]->at(di.di) = 0; 
-      if( !di.next() ) { break; } 
-    }
-
-    for( dims_iter_t di( usl_blobs[0]->dims ) ; ; ) { 
-      usl_blobs_upsamp[0]->at4(di.di[0],di.di[1],di.di[2]>>1,di.di[3]>>1) += usl_blobs[0]->at( di.di );
-      if( !di.next() ) { break; } 
-    }
-
-    set_layer_blobs( upsamp_net, 0, usl_blobs_upsamp );
+    if( enable_upsamp_net ) { upsamp_net_param->set_input_dim(0,in_num_imgs); } // FIXME/TODO: for now, run upsamp on all planes
   }
 
   void run_cnet_t::setup_cnet_net_and_batch( void ) {
@@ -496,10 +441,7 @@ namespace boda
     if( compute_mode == 0 ) {
       init_caffe( gpu_id ); // FIXME/note: only does something on first call
       net = caffe_create_net( *net_param, conv_pipe );      
-      if( enable_upsamp_net ) { 
-	upsamp_net = caffe_create_net( *upsamp_net_param, conv_pipe_upsamp ); 
-	create_upsamp_layer_0_weights();
-      }
+      if( enable_upsamp_net ) { upsamp_net = caffe_create_net( *upsamp_net_param, conv_pipe_upsamp ); }
     }
 
     assert_st( !in_batch );

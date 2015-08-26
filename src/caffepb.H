@@ -24,6 +24,9 @@ namespace boda {
   p_net_param_t parse_and_upgrade_net_param_from_text_file( filename_t const & ptt_fn );
   uint32_t get_layer_ix( net_param_t const & net_param, std::string const & layer_name );
 
+  void create_upsamp_layer_weights( p_conv_pipe_t const & conv_pipe, string const & cpln, 
+				    p_conv_pipe_t const & conv_pipe_upsamp, string const & cpuln );
+
   struct datum_t {
     p_nda_float_t val;
     uint32_t label;
@@ -36,9 +39,7 @@ namespace boda {
   uint32_t parse_datum_into( p_nda_float_t & out, uint32_t const out_ix, void const * const bytes, uint32_t const bytes_sz );
   struct img_t; typedef shared_ptr< img_t > p_img_t; 
   p_img_t datum_to_img( p_datum_t datum );
-  void copy_matching_layer_blobs_from_param_to_map( p_net_param_t const & blob_src, p_net_param_t const & pipe_src, 
-						    p_map_str_p_nda_float_t const & op_params, p_map_str_p_vect_p_nda_float_t const & layer_blobs );
-
+  void copy_matching_layer_blobs_from_param_to_pipe( p_net_param_t const & blob_src, p_net_param_t const & pipe_src, p_conv_pipe_t const & cp );
 
 }
 

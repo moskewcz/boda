@@ -460,6 +460,30 @@ namespace boda
     return must_find( *fwd, get_single_top_node()->name );
   }
 
+  void conv_pipe_t::add_layer_blobs( string const & rln, p_vect_p_nda_float_t const & blobs ) {
+    string const tag_id_str = as_pyid( rln );
+    p_conv_op_t const & cop = get_op( rln );
+    vect_string bsb_names;
+    if( cop->type == Convolution_str ) { 
+      assert( blobs->size() == 2 );
+      bsb_names.push_back( tag_id_str + "_filts" ); 
+      bsb_names.push_back( tag_id_str + "_biases" ); 
+      dims_t & bd = blobs->at(1)->dims;
+      // for 'old style' bias blobs, squwish out leading size 1 dims
+      if( bd.sz() == 4 ) {
+	for( uint32_t i = 0; i != bd.sz()-1; ++i ) { assert_st( bd.dims(i) == 1 ); }
+	bd = dims_t( vect_uint32_t{ bd.dims(3) }, 1 );
+      }
+      assert( blobs->at(1)->dims.sz() == 1 );
+    }
+    else { for( uint32_t i = 0; i != blobs->size(); ++i ) { bsb_names.push_back( tag_id_str + "_" + str(i) ); } }
+    assert_st( bsb_names.size() == blobs->size() );
+    for( uint32_t i = 0; i != bsb_names.size(); ++i ) { 
+      assert_st( op_params->insert( std::make_pair( bsb_names[i], blobs->at(i) ) ).second );
+    }
+    must_insert( *layer_blobs, rln, blobs );
+  }
+
   struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["has_main_t"], type_id="conv_ana")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
