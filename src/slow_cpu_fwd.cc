@@ -13,6 +13,7 @@ namespace boda
 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t skip_work; //NESI(default=0,help="if non-zero, skip all work")
 
     p_conv_pipe_t cp;
     uint32_t num_imgs;
@@ -209,6 +210,7 @@ namespace boda
     timer_t t("slow_cpu_fwd_t::run_fwd");
     assert_st( cp->finalized );
     cp->fwd_alloc_ndas( fwd, num_imgs, 0 );
+    if( skip_work ) { return; }
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { run_ops_rec( cp, fwd, *i ); }
   }  
