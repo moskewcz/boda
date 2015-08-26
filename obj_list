@@ -75,8 +75,8 @@ caffe_fwd.o caffe_pb caffe
 slow_cpu_fwd.o
 has_conv_fwd.o
 nvrtc_util.o nvrtc
-lmdb_caffe_disp.o caffe_pb caffe lmdb SDL2
-lmdb_caffe_io.o caffe_pb caffe lmdb
+lmdb_caffe_disp.o caffe_pb lmdb SDL2
+lmdb_caffe_io.o caffe_pb lmdb
 
 # we have our hacked-up version of the upgrade net func. we
 # (questionably) use it even when compiling with full caffe support.
@@ -95,15 +95,15 @@ caffe.pb.o caffe_pb -caffe
 caffepb.o caffe_pb
 
 lmdbif.o lmdb
-test_dense.o caffe
+test_dense.o caffe_pb
 conv_common.o
 asio_util.o
 disp_app.o SDL2
-cap_app.o SDL2 caffe
+cap_app.o SDL2 caffe_pb
 caffeif.o caffe_pb 
 cap_util.o
 disp_util.o SDL2
-conv_pyra.o SDL2 caffe
+conv_pyra.o SDL2 caffe_pb
 conv_util.o
 blf_pack.o
 vr5_mex_feats.o

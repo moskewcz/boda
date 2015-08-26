@@ -12,9 +12,7 @@
 #include"disp_util.H"
 #include"cap_util.H"
 
-#include "caffeif.H"
-#include <glog/logging.h>
-#include <google/protobuf/text_format.h>
+#include"caffeif.H"
 
 #include"asio_util.H"
 #include"anno_util.H"
