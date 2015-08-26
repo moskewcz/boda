@@ -8,22 +8,12 @@
 #include"geom_prim.H"
 #include"caffepb.H"
 
-namespace caffe { template< typename T > struct Net; }
-
 namespace boda 
 {
-  typedef caffe::Net< float > Net_float;
-  typedef shared_ptr< Net_float > p_Net_float;
-
-  p_Net_float init_caffe( net_param_t & net_param, string const & trained_fn );
-  void raw_do_forward( p_Net_float net_, vect_p_nda_float_t const & bottom, bool const enable_prof );
-  void copy_output_blob_data( p_Net_float net_, string const & out_layer_name, vect_p_nda_float_t & top );
   void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img );
   void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region, 
 			  float const & out_max  );
   void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region );
-  void copy_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs );
-  void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs );
 
   struct synset_elem_t;
   typedef vector< synset_elem_t > vect_synset_elem_t; 
@@ -47,8 +37,6 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
-    uint32_t gpu_id; //NESI(default=0,help="id of gpu to use, passed to caffe::SetDevice() and in turn to CUDA.")
-    uint32_t enable_prof; //NESI(default=0,help="if 1, enable profiling of caffe forward calls")
     filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet/deploy.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/alexnet/best.caffemodel",help="input trained net from which to copy params")
     u32_pt_t in_sz; //NESI(default="227 227",help="input size to use for caffe net")
@@ -62,15 +50,12 @@ namespace boda
     //" 3=label plus rank")
     uint32_t enable_upsamp_net; //NESI(default=0,help="if 1, create an extra internal net with internal 2X input upsampling.")
     uint32_t dump_rps; //NESI(default=0,help="if 1, dump region proposals for each feature pizel to 'rps.txt'.")
-    p_has_conv_fwd_t conv_fwd; //NESI(help="fwd compute mode; used if compute_mode==1")
-    p_has_conv_fwd_t conv_fwd_upsamp; //NESI(help="fwd compute mode (for upsampled net); used if compute_mode==1")
-    uint32_t compute_mode; //NESI(default="0",help="compute mode: 0:caffe 1:conv_fwd(see conv_fwd peer options)")
-
+    p_has_conv_fwd_t conv_fwd; //NESI(default="(mode=caffe)",help="fwd compute mode")
+    p_has_conv_fwd_t conv_fwd_upsamp; //NESI(default="(mode=caffe)",help="fwd compute mode (for upsampled net)")
 
     virtual void main( nesi_init_arg_t * nia );
     p_nda_float_t in_batch;
-    p_Net_float net;
-    p_Net_float upsamp_net;
+
     void setup_cnet( void );
     void setup_cnet_param_and_pipe( void );
     void setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ );
@@ -90,7 +75,6 @@ namespace boda
     p_net_param_t net_param;
   private:
     p_net_param_t upsamp_net_param;
-    void create_upsamp_layer_0_weights( void );
 
     void create_net_param( void );
     p_conv_pipe_t cache_pipe( p_net_param_t const & net_param );
