@@ -1,4 +1,5 @@
 # pretty printing stuff. factor out somewhere?
+def pad( v, s ): return s + " "*max(0,v - len(s))
 def pp_val_part( v, force ):
     if v < 10: return "%.2f" % v
     if v < 100: return "%.1f" % v
@@ -22,6 +23,7 @@ def pp_val( v ): # pretty-print flops
     if exp == 0: return ret
     return ret+"KMGTP"[exp - 1]
 
+def pp_pc( v ): return "%.1f%%" % (v*100.0,)
 verbose_print = 0
 if verbose_print:
     def pp_secs( v ): return pp_val( v ) + " SECS"
@@ -193,6 +195,7 @@ parser.add_argument('--backward', metavar='BOOL', type=int, default=1, help='1:f
 parser.add_argument('--ai-mnk', metavar='BOOL', type=int, default=0, help='1:show fwd AI and MxNxK; 0:do not show')
 parser.add_argument('--per-layer', metavar='BOOL', type=int, default=0, help='1:print per-layer info; 0:only summary')
 parser.add_argument('--per-layer-in-info', metavar='BOOL', type=int, default=0, help='if non-zero print per-layer input dims info')
+parser.add_argument('--profile', metavar='BOOL', type=int, default=0, help='if non-zero print per-layer sorted profile')
 args = parser.parse_args()
 net = Net(args)
 # set num_img and source cnet decl
@@ -208,3 +211,15 @@ if 1:
     print "total _inxp time: ", pp_secs(tot_inxp)
 
 net.print_stats()
+
+if net.args.profile:
+    lts = [ (t,ln) for ln,t in per_layer_time.iteritems() ]
+    lts.sort()
+    t = 0.0
+    print "PROFILE:"
+    print "".join( pad(10,v) for v in ["time","time%","cum_time","cum_time%","func_name"] )
+    for k,v in reversed(lts):
+        kf = float(k)
+        t += kf
+        print "".join( pad(10,v) for v in [pp_secs(kf),pp_pc(kf/net.args.runtime),pp_secs(t),pp_pc(t/net.args.runtime), v] )
+
