@@ -271,7 +271,7 @@ namespace boda {
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       if( tpd ) { run_cnet->in_sz = tpd_in_sz; }
-      else { imgs->load_img_db( 1 ); in_img = make_p_img_t( run_cnet->in_sz ); }
+      else { imgs->load_img_db( 1 ); in_img = make_p_img_t( run_cnet->in_sz ); in_img->fill_with_pel( u32_rgba_inmc ); }
 
       run_cnet->setup_cnet(); 
 
@@ -288,13 +288,17 @@ namespace boda {
 	comp_batch();
       } else {
 	for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
-	  if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
 	  (*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
 	  for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
-	    u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
-	    u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
+	    if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { 
+	      // img too small to sample. use whole image
+	      copy_win_to_batch( (*i)->img, u32_pt_t() );
+	    } else {
+	      u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
+	      u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
+	      copy_win_to_batch( (*i)->img, samp_nc );
+	    }
 	    ++tot_wins;
-	    copy_win_to_batch( (*i)->img, samp_nc );
 	    comp_batch();
 	  }
 	}
@@ -322,7 +326,6 @@ namespace boda {
       }
     }
     void copy_win_to_batch( p_img_t const & img, u32_pt_t const & nc ) {
-      u32_box_t in_box{ nc, nc + run_cnet->in_sz };
       // run net on just sample area
       img_copy_to_clip( img.get(), in_img.get(), {}, nc );
       for( uint32_t i = 0; i != run_cnet->in_num_imgs; ++i ) {
