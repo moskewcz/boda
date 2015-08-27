@@ -1320,7 +1320,6 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "t_tile_bias_loads", t_tile_bias_loads ) );
 
     string t_tile_stores("// begin t_tile_stores\n");
-    t_tile_stores += "  int32_t out_y = %(blockIdx.x_blk_by)*%(threadIdx.x_blk_y_dim) + %(threadIdx.x_blk_y);\n";
     t_tile_stores += "  if( out_y >= %(out_ix_y_sz) ) { return; }\n";
     t_tile_stores += "  int32_t out_x = %(blockIdx.x_blk_bx)*%(t_tile_sz);\n";
     t_tile_stores += "  int32_t out_chan = (%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim) + %(threadIdx.x_out_chan_tile))*%(t_tile_sz);\n";

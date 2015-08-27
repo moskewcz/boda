@@ -16,6 +16,9 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 
   float * const filts_smem_off = filts_smem + %(threadIdx.x_out_chan_tile);
 
+  int32_t const out_y = %(blockIdx.x_blk_by)*%(threadIdx.x_blk_y_dim) + %(threadIdx.x_blk_y);
+  int32_t const in_y = out_y*%(stride) - %(in_pad);
+
   for( int32_t in_chan = 0; in_chan != %(in_ix_blk_in_chan_dim); ++in_chan ) {
     __syncthreads();
     %(in_smem_loads);
@@ -23,6 +26,7 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       if( ky != 0 ) { __syncthreads(); }
       %(filt_smem_loads);
       __syncthreads();
+      if( ((in_y+ky) < 0) || ((in_y+ky)>%(in_dim_1)) ) { continue; }
       float * const in_smem_off = in_smem + (%(threadIdx.x_blk_y)*%(stride)+ky)*%(in_ix_blk_y_sz);
 
       %(inner_loop_body);
