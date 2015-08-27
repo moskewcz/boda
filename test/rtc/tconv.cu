@@ -16,8 +16,13 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
 
   float * const filts_smem_off = filts_smem + %(threadIdx.x_out_chan_tile);
 
-  int32_t const out_y = %(blockIdx.x_blk_by)*%(threadIdx.x_blk_y_dim) + %(threadIdx.x_blk_y);
-  int32_t const in_y = out_y*%(stride) - %(in_pad);
+  int32_t out_line = %(blockIdx.x_blk_bline)*%(threadIdx.x_blk_y_dim); // first out_line of block
+  int32_t const blk_fli = %(out_line_img); // image of first out_line of block
+  out_line += %(threadIdx.x_blk_y); // adjust to out_line of this thread
+  // offset in lines to deal with >1 img/block = (number of prior images (partial or full) in this block) * (adj to next img)
+  int32_t const img_off_lines = (%(out_line_img) - blk_fli)*(%(kern_sz)-%(stride)); 
+
+  int32_t const in_y = %(out_line_y)*%(stride) - %(in_pad);
 
   for( int32_t in_chan = 0; in_chan != %(in_ix_blk_in_chan_dim); ++in_chan ) {
     __syncthreads();
@@ -26,8 +31,9 @@ extern "C"  __global__ void %(cu_func_name)( float const * const filts, float co
       if( ky != 0 ) { __syncthreads(); }
       %(filt_smem_loads);
       __syncthreads();
-      if( ((in_y+ky) < 0) || ((in_y+ky)>%(in_dim_1)) ) { continue; }
-      float * const in_smem_off = in_smem + (%(threadIdx.x_blk_y)*%(stride)+ky)*%(in_ix_blk_y_sz);
+      if( %(out_line_img) >= %(out_ix_img_dim) ) { continue; } // required: skip lines from invalid images (read might be invalid)
+      if( ((in_y+ky) < 0) || ((in_y+ky)>%(in_dim_1)) ) { continue; } // optimization: skip known-to-be-padding input lines
+      float * const in_smem_off = in_smem + (%(threadIdx.x_blk_y)*%(stride)+ky+img_off_lines)*%(in_ix_blk_y_sz);
 
       %(inner_loop_body);
     }

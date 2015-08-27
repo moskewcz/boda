@@ -288,7 +288,14 @@ using boost::filesystem::path;
     uint32_t tix_pels_tile_sz;
     uint32_t bix_out_chan_blk_sz;
     uint32_t bix_pels_blk_sz;
-    u32_pt_t tconv_blk_xy_sz; // tconv only
+
+    // tconv only/specific
+    u32_pt_t tconv_blk_xy_sz; 
+    uint32_t tconv_blk_max_imgs;
+    uint32_t tconv_blk_max_in_lines( void ) const { 
+      assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
+      return (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz*tconv_blk_max_imgs;
+    }
 
     // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
     // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
@@ -485,13 +492,32 @@ using boost::filesystem::path;
     oi->tpb = best_tbp;
     oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
 
+    uint32_t const lines_sz = num_imgs * oi->no->cio.sz.d[1];
     if( oi->is_s1conv ) {
-      uint32_t const lines_sz = num_imgs * oi->no->cio.sz.d[1];
       assert_st( lines_sz * oi->no->cio.sz.d[0] * oi->no->cio.chans == out_ix_sz ); // by construction
       oi->bix_pels_blk_sz = u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, oi->tix_pels_tile_sz );
     } else if( oi->is_tconv ) {
-      oi->tconv_blk_xy_sz = ceil_div( oi->no->cio.sz, u32_pt_t( t_tile_sz, oi->tix_pels_tile_sz ) );
-      oi->bix_pels_blk_sz = num_imgs * oi->tconv_blk_xy_sz.dims_prod();
+      assert( oi->tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
+      oi->tconv_blk_xy_sz = ceil_div( u32_pt_t( oi->no->cio.sz.d[0], lines_sz ), 
+				      u32_pt_t( t_tile_sz, oi->tix_pels_tile_sz ) );
+      oi->bix_pels_blk_sz = oi->tconv_blk_xy_sz.dims_prod();
+      oi->tconv_blk_max_imgs = 0;
+      uint32_t blk_b_line = 0;
+      for( uint32_t i = 0; i != oi->tconv_blk_xy_sz.d[1]; ++i ) {
+	uint32_t const blk_e_line = blk_b_line + oi->tix_pels_tile_sz - 1;
+	uint32_t const blk_b_img = blk_b_line / oi->no->cio.sz.d[1];
+	uint32_t const blk_e_img = std::min( num_imgs - 1, blk_e_line / oi->no->cio.sz.d[1] );
+	uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
+	assert_st( blk_num_img );
+	max_eq( oi->tconv_blk_max_imgs, blk_num_img );
+	blk_b_line = blk_e_line + 1;
+      }
+      assert_st( oi->tconv_blk_max_imgs );
+      // calc conservative value (may be lower in general or for some num_imgs) and use as check:
+      uint32_t const conservative_conv_max_img_per_blk = 2 + ((oi->tix_pels_tile_sz - 2)/oi->no->cio.sz.d[1]); 
+      assert_st( oi->tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
+      //printf( "oi->no->cio.sz.d[1]=%s oi->tix_pels_tile_sz=%s\n", str(oi->no->cio.sz.d[1]).c_str(), str(oi->tix_pels_tile_sz).c_str() );
+      //printf( "oi->tconv_max_img_per_blk=%s\n", str(oi->tconv_blk_max_imgs).c_str() );
     } else {
       uint32_t const pels_sz = out_ix_sz / oi->no->cio.chans;
       assert_st( pels_sz * oi->no->cio.chans == out_ix_sz ); // by construction
@@ -1233,16 +1259,19 @@ using boost::filesystem::path;
 
     // note: "in_ix" here is "out_ix" from in_tile_xpose; for in_ix, blk_y and blk_x are in input image space, others are output
     // image space. other x/y's (in thread and block indexes) are all in output image space.
+    insert_nda_exprs( tf_exprs, "out_line", vect_string{"img","y"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1]}); 
     insert_nda_exprs( tf_exprs, "in_ix", 
-		      vect_string{"blk_img","blk_by","blk_bx","blk_in_chan","blk_y","blk_x"},
-		      vect_uint32_t{num_imgs,oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
-			  oi->ni->cio.chans, oi->out_to_in(oi->tix_pels_tile_sz), oi->out_to_in(t_tile_sz)} );
+		      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"},
+		      vect_uint32_t{oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
+			  oi->ni->cio.chans, oi->tconv_blk_max_in_lines(), oi->out_to_in(t_tile_sz)} );
+
+
     uint32_t const in_ix_blk_x_dim = oi->out_to_in(t_tile_sz);
 
     insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"blk_y","out_chan_tile"}, 
 		      vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
-    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"blk_img","blk_by","blk_bx","out_chan_blk"}, 
-		      vect_uint32_t{num_imgs,oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],oi->bix_out_chan_blk_sz}); 
+    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"blk_bline","blk_bx","out_chan_blk"}, 
+		      vect_uint32_t{oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],oi->bix_out_chan_blk_sz}); 
 
     uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz;
     tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
@@ -1251,7 +1280,7 @@ using boost::filesystem::path;
     // note: filts and in smem are used concurrently, then just all of all_smem as an output buffer
     uint32_t const filts_smem_sz = blk_filt_ix_sz*oi->kern_sz; // unroll over kernel x size in inner loop
     tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
-    uint32_t const in_smem_sz = oi->out_to_in(oi->tix_pels_tile_sz) * oi->out_to_in(t_tile_sz);
+    uint32_t const in_smem_sz = oi->tconv_blk_max_in_lines() * oi->out_to_in(t_tile_sz);
     tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
     uint32_t const out_smem_sz = oi->tix_pels_tile_sz*oi->tix_out_chan_tile_sz*t_tile_sz; // note: == oi->tpb*t_tile_sz ( == 1/t_tile_sz of outs)
     tf_exprs.push_back( std::make_pair( "out_smem_sz", str(out_smem_sz) )); // note: unused, but assumed that all_smem_sz >= out_smem_sz
@@ -1320,11 +1349,13 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "t_tile_bias_loads", t_tile_bias_loads ) );
 
     string t_tile_stores("// begin t_tile_stores\n");
-    t_tile_stores += "  if( out_y >= %(out_ix_y_sz) ) { return; }\n";
+
+    //t_tile_stores += "  if( %(out_line_y) >= %(out_ix_y_sz) ) { return; }\n"; // not possible
+    t_tile_stores += "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; }\n";
     t_tile_stores += "  int32_t out_x = %(blockIdx.x_blk_bx)*%(t_tile_sz);\n";
     t_tile_stores += "  int32_t out_chan = (%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim) + %(threadIdx.x_out_chan_tile))*%(t_tile_sz);\n";
-    t_tile_stores += "  float * out_off = out + %(blockIdx.x_blk_img)*%(out_ix_img_sz) + out_chan*%(out_ix_chan_sz) + "
-      "out_y*%(out_ix_y_sz) + out_x*%(out_ix_x_sz) ;\n";
+    t_tile_stores += "  float * out_off = out + %(out_line_img)*%(out_ix_img_sz) + out_chan*%(out_ix_chan_sz) + "
+      "%(out_line_y)*%(out_ix_y_sz) + out_x*%(out_ix_x_sz) ;\n";
 
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
       t_tile_stores += "  if( (out_x + "+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
@@ -1625,10 +1656,11 @@ using boost::filesystem::path;
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
 
     insert_nda_exprs( tf_exprs, "out_ix", 
-		      vect_string{"blk_img","blk_by","blk_bx","blk_in_chan","blk_y","blk_x"},
-		      vect_uint32_t{num_imgs,oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
-			  oi->ni->cio.chans, oi->out_to_in(oi->tix_pels_tile_sz),oi->out_to_in(t_tile_sz)} );
+		      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"},
+		      vect_uint32_t{oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
+			  oi->ni->cio.chans, oi->tconv_blk_max_in_lines(), oi->out_to_in(t_tile_sz)} );
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    insert_nda_exprs( tf_exprs, "out_line", vect_string{"img","y"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1]}); 
 
     insert_nda_exprs( tf_exprs, "in_ix", vect_string{"img","chan","y","x"},
 		      vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
