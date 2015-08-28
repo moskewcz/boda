@@ -379,6 +379,7 @@ using boost::filesystem::path;
     uint32_t enable_lineinfo; //NESI(default=0,help="if 1, enable lineinfo for ptx compilation")
     uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
     uint32_t enable_prof; //NESI(default=1,help="if 1, enable profiling")
+    uint32_t enable_double_run; //NESI(default=0,help="if 1, run ops an extra time before the timed run (doubles run time, might improve timing quality/repeatability).")
     string per_call_fn; //NESI(default="",help="if non-empty, write per-call profiling (timing via events) to given file.")
     vect_string def; // NESI(help="#define STR 1 in generated code")
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
@@ -1936,6 +1937,10 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 
 
   void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
+    if( enable_double_run ) {
+      // optional: run fwd cfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
+      for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
+    }
     timer_t t("conv_pipe_fwd_t::run_fwd");
     if( enable_prof ) { cuProfilerStart(); }
     //printf("run_fwd() begin\n");
