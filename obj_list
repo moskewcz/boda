@@ -41,6 +41,9 @@ LDFLAGS := $(LDFLAGS) -L/usr/local/cuda/lib64 -lcudart -lcublas -lcurand -lcuda
 [nvrtc needs=cuda]
 LDFLAGS := $(LDFLAGS) -lnvrtc
 
+[opencl]
+LDFLAGS := $(LDFLAGS) -lOpenCL
+
 [caffe needs=cuda needs=caffe_pb]
 CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
 CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src
@@ -70,6 +73,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # that some dependencies may not usefully be disable-able.
 
 [objs]
+ocl_util.o opencl
 caffe_fwd.o caffe_pb caffe
 slow_cpu_fwd.o
 has_conv_fwd.o
