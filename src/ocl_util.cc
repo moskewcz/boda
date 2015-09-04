@@ -135,27 +135,17 @@ namespace boda
 
 #if 0
 /*
-def ocl_init( ocl_src ):
-    platforms = cl.clGetPlatformIDs()
-    use_devices = None
-    for platform in platforms:
-        try:
-            devices = cl.clGetDeviceIDs(platform,device_type=cl.CL_DEVICE_TYPE_GPU)
-            use_devices = devices[0:1] # arbitraily choose first device
-        except cl.DeviceNotFoundError:
-            pass
-        if use_devices is not None: break
-    if use_devices is None: raise ValueError( "no GPU openCL device found" )
-    assert use_devices is not None
-    print( "OpenCL use_devices: " + str(use_devices) )
-
-    context = cl.clCreateContext(use_devices)
-    queue = cl.clCreateCommandQueue(context)
-
-    prog = cl.clCreateProgramWithSource( context, ocl_src ).build()
-    print prog
-    #run_mxplusb( prog, queue )
-    run_conv( prog, queue )
+def run_mxplusb( prog, queue ):
+    func = prog['mxplusb']
+    print func
+    func.argtypes = (cl.cl_float, cl.cl_mem, cl.cl_float, cl.cl_mem)
+    x = cl.array('f', range(100))
+    x_buf, in_evt = cl.buffer_from_pyarray(queue, x, blocking=False)
+    y_buf = x_buf.empty_like_this()
+    run_evt = func(2, x_buf, 5, y_buf).on(queue, len(x), wait_for=in_evt)
+    y, evt = cl.buffer_to_pyarray(queue, y_buf, wait_for=run_evt, like=x)
+    evt.wait()
+    print y[0:10]
 */
 #endif
   
@@ -167,6 +157,8 @@ def ocl_init( ocl_src ):
   using cl::Program;
   using cl::Kernel;
   using cl::CommandQueue;
+  using cl::Buffer;
+  using cl::NDRange;
 
   void cl_err_chk_build( cl_int const & ret, Program const & program, vect_Device const & use_devices ) {
     if( ret != CL_SUCCESS ) {
@@ -182,6 +174,25 @@ def ocl_init( ocl_src ):
     }
   }
 
+  // create a cl::Buffer() of the same size as the passed vect_float. if cq is non-null, also enqueue a non-blocking write of
+  // the contents of v into the returned buffer.
+  Buffer make_buf_from_vect_float( Context const & context, vect_float const & v, CommandQueue * const cq ) { 
+    cl_int err;
+    uint32_t const sz = sizeof(float)*v.size();
+    Buffer ret( context, CL_MEM_READ_WRITE, sz, 0, &err ); 
+    cl_err_chk( err, "Buffer() from vect_float" );
+    if( cq ) { 
+      err = cq->enqueueWriteBuffer( ret, 0, 0, sz, &v[0], 0, 0); 
+      cl_err_chk( err, "cq->enqueueWriteBuffer()" );
+    }
+    return ret;
+  }
+
+  template< typename V > void set_kernel_arg( Kernel & k, uint32_t const & ai, V const & v ) { 
+    cl_int err;
+    err = k.setArg( ai, v );
+    cl_err_chk( err, "Kernel::setArg()" );
+  }
 
   struct ocl_test_t : virtual public nesi, public has_main_t // NESI(help="test basic usage of openCL",
 		      // bases=["has_main_t"], type_id="ocl_test")
@@ -214,7 +225,8 @@ def ocl_init( ocl_src ):
 
       // note: after this, we're only using the first device in use_devices, although our context is for all of
       // them. this is arguably not the most sensible thing to do in general.
-      CommandQueue cq( context, use_devices[0] );
+      CommandQueue cq( context, use_devices[0], 0, &err ); // note: not out of order, no profiling
+      cl_err_chk( err, "cl::CommandQueue()" );
 
       vect_float a( data_sz, 0.0f );
       rand_fill_vect( a, 2.5f, 7.5f, gen );
@@ -222,6 +234,19 @@ def ocl_init( ocl_src ):
       rand_fill_vect( b, 2.5f, 7.5f, gen );
       vect_float c( data_sz, 123.456f );
 
+      Buffer d_a = make_buf_from_vect_float( context, a, &cq );
+      Buffer d_b = make_buf_from_vect_float( context, b, &cq );
+      Buffer d_c = make_buf_from_vect_float( context, c, &cq );
+
+      uint32_t const n = a.size();
+      set_kernel_arg( my_dot, 0, d_a );
+      set_kernel_arg( my_dot, 1, d_b );
+      set_kernel_arg( my_dot, 2, d_c );
+      set_kernel_arg( my_dot, 3, n );
+
+      err = cq.enqueueNDRangeKernel( my_dot, cl::NullRange, NDRange(n), cl::NullRange, 0, 0 );
+      cl_err_chk( err, "cl::CommandQueue::enqueueNDRangeKernel()" );
+       
 #if 0
       p_cup_float cu_a = get_cup_copy(a);
       p_cup_float cu_b = get_cup_copy(b);
@@ -242,6 +267,10 @@ def ocl_init( ocl_src ):
       }
       set_from_cup( c, cu_c );
 #endif
+
+      err = cq.enqueueReadBuffer( d_c, 1, 0, sizeof(float)*c.size(), &c[0], 0, 0 ); // note: blocking_read=1
+      cl_err_chk( err, "cq->enqueueReadBuffer()" );
+
       assert_st( b.size() == a.size() );
       assert_st( c.size() == a.size() );
       for( uint32_t i = 0; i != c.size(); ++i ) {
