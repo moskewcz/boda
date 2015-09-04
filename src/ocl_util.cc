@@ -160,18 +160,24 @@ def ocl_init( ocl_src ):
 #endif
   
   using cl::Platform;
-typedef vector< Platform > vect_Platform;
+  typedef vector< Platform > vect_Platform;
   using cl::Device;
-typedef vector< Device > vect_Device;
+  typedef vector< Device > vect_Device;
   using cl::Context;
   using cl::Program;
+  using cl::Kernel;
+  using cl::CommandQueue;
 
-  void cl_err_chk_build( cl_int const & ret, Program const & program, Device const & device ) {
+  void cl_err_chk_build( cl_int const & ret, Program const & program, vect_Device const & use_devices ) {
     if( ret != CL_SUCCESS ) {
-      string const bs = str(program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(device));
-      string const bo = program.getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(device);
-      string const bl = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-      printf( "OpenCL build error: build_status=%s build_options=\"%s\" build_log:\n%s\n", str(bs).c_str(), str(bo).c_str(), str(bl).c_str() );
+      for( vect_Device::const_iterator i = use_devices.begin(); i != use_devices.end(); ++i ) {
+	Device const & device = *i;
+	string const bs = str(program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(device));
+	string const bo = program.getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(device);
+	string const bl = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+	printf( "OpenCL build error (for device \"%s\"): build_status=%s build_options=\"%s\" build_log:\n%s\n", 
+		device.getInfo<CL_DEVICE_NAME>().c_str(), str(bs).c_str(), str(bo).c_str(), str(bl).c_str() );
+      }
       cl_err_chk( ret, "OpenCL build program");
     }
   }
@@ -187,35 +193,28 @@ typedef vector< Device > vect_Device;
     boost::random::mt19937 gen;
     
     virtual void main( nesi_init_arg_t * nia ) {
-  
       vect_Platform platforms;
       Platform::get(&platforms);
-      if( platforms.empty() ) { rt_err( "no openCL platforms found" ); }
+      if( platforms.empty() ) { rt_err( "no OpenCL platforms found" ); }
       vect_Device use_devices;
       for( vect_Platform::const_iterator i = platforms.begin(); i != platforms.end(); ++i ) {
 	vect_Device devices;
 	(*i).getDevices( CL_DEVICE_TYPE_GPU, &devices );
 	if( !devices.empty() ) { use_devices = vect_Device{devices[0]}; } // pick first device only (arbitrarily)
       }
-      Context context( use_devices );
+      if( use_devices.empty() ) { rt_err( "no OpenCL platform had any GPUs (devices of type CL_DEVICE_TYPE_GPU)" ); }
+      cl_int err = CL_SUCCESS;  
+      Context context( use_devices, 0, 0, 0, &err );
+      cl_err_chk( err, "cl::Context()" );
       p_string prog_str = read_whole_fn( prog_fn );
-      cl_int err = CL_SUCCESS;
       Program prog( context, *prog_str, 1, &err );
-      cl_err_chk_build( err, prog, use_devices[0] );
+      cl_err_chk_build( err, prog, use_devices );
+      Kernel my_dot( prog, "my_dot", &err );
+      cl_err_chk( err, "cl::Kernel() (aka clCreateKernel())" );
 
-#if 0
-      string const prog_ptx = nvrtc_compile( *prog_str, 0, 0 );
-
-      cu_err_chk( cuInit( 0 ), "cuInit" );
-      CUdevice cu_dev;
-      cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
-      CUcontext cu_context;
-      cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
-      CUmodule cu_mod;
-      cu_err_chk( cuModuleLoadDataEx( &cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
-      CUfunction cu_func;
-      cu_err_chk( cuModuleGetFunction( &cu_func, cu_mod, "dot" ), "cuModuleGetFunction" );
-#endif
+      // note: after this, we're only using the first device in use_devices, although our context is for all of
+      // them. this is arguably not the most sensible thing to do in general.
+      CommandQueue cq( context, use_devices[0] );
 
       vect_float a( data_sz, 0.0f );
       rand_fill_vect( a, 2.5f, 7.5f, gen );
