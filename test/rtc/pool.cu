@@ -1,4 +1,4 @@
-extern "C"  __global__ void %(cu_func_name)( float const * const in, float * const out ) {
+extern "C"  __global__ void %(rtc_func_name)( float const * const in, float * const out ) {
   int32_t const out_ix = blockDim.x * blockIdx.x + threadIdx.x;
   if( out_ix >= %(out_ix_sz) ) { return; }
   float out_v = 0.0f;

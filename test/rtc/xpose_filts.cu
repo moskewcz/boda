@@ -1,4 +1,4 @@
-extern "C"  __global__ void %(cu_func_name)( float const * const in, float * const out ) {
+extern "C"  __global__ void %(rtc_func_name)( float const * const in, float * const out ) {
   int32_t const filts_ix = blockDim.x * blockIdx.x + threadIdx.x;
   if( filts_ix >= %(filts_ix_sz) ) { return; }
   int32_t const fioc = %(filts_ix_out_chan);

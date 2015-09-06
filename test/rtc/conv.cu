@@ -1,7 +1,7 @@
 // 256 tbp
 // each thread: computes 8x8 block of out
 // loop over k dim
-extern "C"  __global__ void %(cu_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
+extern "C"  __global__ void %(rtc_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
   __shared__ float in_smem[%(threadIdx.x_patch_tile_dim)*%(t_tile_sz)];
   int32_t const blk_filt_ix_sz = %(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz);
   __shared__ float filts_smem[blk_filt_ix_sz];

@@ -226,8 +226,8 @@ using boost::filesystem::path;
     return p_CUevent( new CUevent( ret ), cuEventDestroy_wrap ); 
   }
 
-  struct cu_func_call_t { 
-    string cu_func_name; 
+  struct rtc_func_call_t { 
+    string rtc_func_name; 
     vect_string args; 
     vect_uint32_t u32_args;
     string call_tag;
@@ -236,8 +236,8 @@ using boost::filesystem::path;
     p_CUevent e_ev;
     void ensure_evs( void ) { if( !b_ev ) { b_ev = make_p_CUevent(); } if( !e_ev ) { e_ev = make_p_CUevent(); } }
   };
-  typedef vector< cu_func_call_t > vect_cu_func_call_t; 
-  struct cu_func_t { 
+  typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
+  struct rtc_func_t { 
     string name;
     bool finalized;
     bool has_final_flags_arg;
@@ -246,7 +246,7 @@ using boost::filesystem::path;
     uint32_t blks;
     CUfunction cu_func; 
   };
-  typedef map< string, cu_func_t > cu_funcs_t;
+  typedef map< string, rtc_func_t > rtc_funcs_t;
 
   struct quantize_ops_t : virtual public nesi // NESI(help="per-layer quantization options") 
   {
@@ -415,12 +415,11 @@ using boost::filesystem::path;
     CUdevice cu_dev;
     CUcontext cu_context;
     CUmodule cu_mod;
-    CUfunction cu_func;
 
-    string cu_prog_str;
-    vect_cu_func_call_t init_calls;
-    vect_cu_func_call_t fwd_calls;
-    cu_funcs_t cu_funcs;
+    string rtc_prog_str;
+    vect_rtc_func_call_t init_calls;
+    vect_rtc_func_call_t fwd_calls;
+    rtc_funcs_t rtc_funcs;
     
 
     virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
@@ -430,18 +429,18 @@ using boost::filesystem::path;
     void dump_cup( string const & n );
     virtual ~conv_pipe_fwd_t( void );
   protected:
-    cu_func_t & gen_op_pool( p_op_info_t const & oi );
-    cu_func_t & gen_op_conv( p_op_info_t const & oi );
-    cu_func_t & gen_op_s1conv( p_op_info_t const & oi ); // stride 1, kern_sz >2 <~5, ... case (see use)
+    rtc_func_t & gen_op_pool( p_op_info_t const & oi );
+    rtc_func_t & gen_op_conv( p_op_info_t const & oi );
+    rtc_func_t & gen_op_s1conv( p_op_info_t const & oi ); // stride 1, kern_sz >2 <~5, ... case (see use)
     void calc_blocking_conv( p_op_info_t const & oi );
-    cu_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
-    cu_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
-    cu_func_t & gen_op_lrn( p_op_info_t const & oi );
-    cu_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
-    cu_func_t & gen_op_relu( p_op_info_t const & oi );
-    cu_func_t & gen_op_in_xpose( p_op_info_t const & oi );
-    cu_func_t & gen_op_in_tile_xpose( p_op_info_t const & oi );
-    cu_func_t & gen_op_xpose( p_op_info_t const & oi );
+    rtc_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
+    rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
+    rtc_func_t & gen_op_lrn( p_op_info_t const & oi );
+    rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
+    rtc_func_t & gen_op_relu( p_op_info_t const & oi );
+    rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
+    rtc_func_t & gen_op_in_tile_xpose( p_op_info_t const & oi );
+    rtc_func_t & gen_op_xpose( p_op_info_t const & oi );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
@@ -450,7 +449,7 @@ using boost::filesystem::path;
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
 
-    void run_cfc( cu_func_call_t & cfc );
+    void run_rfc( rtc_func_call_t & rfc );
   };
 
   void conv_pipe_fwd_t::calc_blocking_conv( p_op_info_t const & oi ) {
@@ -473,8 +472,8 @@ using boost::filesystem::path;
     //uint32_t const pad_in_chans = in_chan_tile_dim * in_chan_tile;
 
     oi->tpb = 128; // treated as a target, but not be exceeded
-    uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( cf.tpb ) above, more or less, but tweakable
-    //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= cf.tpb target/max above (asserted below)
+    uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( rf.tpb ) above, more or less, but tweakable
+    //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= rf.tpb target/max above (asserted below)
     // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
     // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
     // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the oi->no->cio.chans.
@@ -616,54 +615,54 @@ using boost::filesystem::path;
     string op_tag;
     vect_rtc_func_param_info_t spec_params;
     // vect_rtc_func_param_info_t pass_params; // TODO
-    cu_func_t & init( cu_funcs_t & cu_funcs ) {
+    rtc_func_t & init( rtc_funcs_t & rtc_funcs ) {
       rtc_func_name = op_tag;
       for( vect_rtc_func_param_info_t::const_iterator i = spec_params.begin(); i != spec_params.end(); ++i ) {
 	rtc_func_name += "__"+i->name+"_"+as_pyid(i->val);
 	tf_exprs.push_back( make_pair( i->name, i->val ) );
       }
-      tf_exprs.push_back( make_pair( "cu_func_name", rtc_func_name ) );
+      tf_exprs.push_back( make_pair( "rtc_func_name", rtc_func_name ) );
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (op_tag+".cu")).string() );
-      cf = &cu_funcs.insert( make_pair( rtc_func_name, cu_func_t{rtc_func_name,0,0} ) ).first->second;
-      //printf( "cf->name=%s\n", str(cf->name).c_str() );
-      return *cf;
+      rf = &rtc_funcs.insert( make_pair( rtc_func_name, rtc_func_t{rtc_func_name,0,0} ) ).first->second;
+      //printf( "rf->name=%s\n", str(rf->name).c_str() );
+      return *rf;
     }
     vect_pair_str_str tf_exprs;
-    cu_func_t *cf;
+    rtc_func_t *rf;
     string rtc_func_name;
     p_string rtc_func_template;
-    void instantiate_template( string & cu_prog_str ) {
+    void instantiate_template( string & rtc_prog_str ) {
       lexp_name_val_map_t tf_nvm{ p_lexp_t() };
       tf_nvm.insert_leafs_from( tf_exprs );
       string rtc_func_str;
       str_format_from_nvm( rtc_func_str, *rtc_func_template, tf_nvm );
-      cu_prog_str += rtc_func_str;
-      cu_prog_str += "// -- template substituion table used: --\n";
+      rtc_prog_str += rtc_func_str;
+      rtc_prog_str += "// -- template substituion table used: --\n";
       for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
-	cu_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
+	rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
-      //printf( "rtc_func_name=%s cf.tpb=%s cf.blks=%s\n", str(rtc_func_name).c_str(), str(cf->tpb).c_str(), str(cf->blks).c_str()); 
-      cf->finalized = 1;
+      //printf( "rtc_func_name=%s rf.tpb=%s rf.blks=%s\n", str(rtc_func_name).c_str(), str(rf->tpb).c_str(), str(rf->blks).c_str()); 
+      rf->finalized = 1;
     }
   // note: also adds the output as a parameter
     void set_tpb_blks_for_one_output_per_thread( uint32_t out_sz ) {
-      // note: cf.arg_sizes might or might not be empty here
-      cf->arg_sizes.push_back( out_sz );
-      cf->tpb = 256;
-      cf->blks = u32_ceil_div( out_sz, cf->tpb );
+      // note: rf.arg_sizes might or might not be empty here
+      rf->arg_sizes.push_back( out_sz );
+      rf->tpb = 256;
+      rf->blks = u32_ceil_div( out_sz, rf->tpb );
     }
   };
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_pool( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_pool( p_op_info_t const & oi ) {
     assert_st( oi->is_pool );
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_pad",str(oi->in_pad)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"out_chans",str(oi->no->cio.chans)} } };
     rfgi.op_tag="pool"; rfgi.spec_params.push_back( rtc_func_param_info_t{"avg_pool",str(oi->cop->avg_pool)} );
     
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
 
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
 
@@ -672,20 +671,20 @@ using boost::filesystem::path;
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
 
-    cf.tpb = 256;
-    cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); 
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); 
 
     tf_exprs.push_back( std::make_pair( "op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" ) );
     tf_exprs.push_back( std::make_pair( "op_post", oi->cop->avg_pool ? "out_v /= float("+str(oi->kern_sz*oi->kern_sz)+")" : "" ) );
 
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
-    cf.arg_sizes.push_back( out_ix_sz );
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
+    rf.arg_sizes.push_back( out_ix_sz );
 
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_conv( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_conv( p_op_info_t const & oi ) {
     assert_st( oi->is_conv ); // also assert not special conv?
     assert_st( oi->in_chan_tile == 1 );
 
@@ -694,9 +693,9 @@ using boost::filesystem::path;
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"out_chans",str(oi->no->cio.chans)} } };
     rfgi.op_tag="conv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} );
 
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
 
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
 
@@ -712,8 +711,8 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
 
-    cf.tpb = oi->tpb;
-    cf.blks = oi->blks;
+    rf.tpb = oi->tpb;
+    rf.blks = oi->blks;
 
     // check that we have enough threads per block to load smem using one-elem-per-thread.
     // FIXME: allow for cases when this does not hold
@@ -819,17 +818,17 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "t_tile_dummy_stores", t_tile_dummy_stores ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
-    cf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
+    rf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
 
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
-    cf.arg_sizes.push_back( out_ix_sz );
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
+    rf.arg_sizes.push_back( out_ix_sz );
 
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_s1conv( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_s1conv( p_op_info_t const & oi ) {
     assert_st( oi->stride == 1 );
     assert_st( oi->in_chan_tile == 1 );
     rtc_func_gen_info_t rfgi{"",
@@ -837,9 +836,9 @@ using boost::filesystem::path;
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"out_chans",str(oi->no->cio.chans)} } };
     rfgi.op_tag="s1conv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} );
     
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
 
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
 
@@ -848,8 +847,8 @@ using boost::filesystem::path;
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
 
-    cf.tpb = oi->tpb;
-    cf.blks = oi->blks;
+    rf.tpb = oi->tpb;
+    rf.blks = oi->blks;
 
     uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
     uint32_t const blk_num_lines = u32_ceil_div( oi->tix_pels_tile_sz, line_x_tile_sz );
@@ -976,17 +975,17 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "inner_loop_body", inner_loop_body ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
-    cf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
-    cf.arg_sizes.push_back( out_ix_sz );
-    cf.has_final_flags_arg = 1;
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
+    rf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.has_final_flags_arg = 1;
 
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_k1conv( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_k1conv( p_op_info_t const & oi ) {
     // fill in phase 2 info inside oi
     p_op_info_t noi;
     if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
@@ -1001,9 +1000,9 @@ using boost::filesystem::path;
 	,{"write_xposed",str(write_xposed)}} };
     rfgi.op_tag="k1conv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} );
     
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
 
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
 
@@ -1024,8 +1023,8 @@ using boost::filesystem::path;
     assert_st( !no_ninfo->sz );
     no_ninfo->sz = out_ix_sz;
 
-    cf.tpb = oi->tpb;
-    cf.blks = oi->blks;
+    rf.tpb = oi->tpb;
+    rf.blks = oi->blks;
 
     tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
     tf_exprs.push_back( std::make_pair( "in_chan_tile", str(oi->in_chan_tile) ) );
@@ -1228,33 +1227,33 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "inner_loop_body", inner_loop_body ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
-    cf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
-    cf.arg_sizes.push_back( out_ix_sz );
-    cf.has_final_flags_arg = 1;
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
+    rf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.has_final_flags_arg = 1;
 
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_tconv( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_tconv( p_op_info_t const & oi ) {
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
 	,{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)},{"t_tile_sz",str(t_tile_sz)}
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"out_chans",str(oi->no->cio.chans)} } };
     rfgi.op_tag="tconv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} );
     
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
 
     insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
 		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
 
-    cf.tpb = oi->tpb;
-    cf.blks = oi->blks;
+    rf.tpb = oi->tpb;
+    rf.blks = oi->blks;
 
     tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
 
@@ -1377,17 +1376,17 @@ using boost::filesystem::path;
     tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
 
     // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
-    cf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
-    cf.arg_sizes.push_back( out_ix_sz );
-    cf.has_final_flags_arg = 1;
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
+    rf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.has_final_flags_arg = 1;
 
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_lrn( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_lrn( p_op_info_t const & oi ) {
     // note: oi->ni->cio and oi->no->cio are derived from cop->bots[0] and cop->tops[0]
     assert_st( oi->ni->cio.sz == oi->no->cio.sz );
     assert_st( oi->ni->cio.chans == oi->no->cio.chans );
@@ -1395,9 +1394,9 @@ using boost::filesystem::path;
     rtc_func_gen_info_t rfgi{"lrn",
       { {"num_imgs",str(num_imgs)},{"chans",str(oi->ni->cio.chans)},{"ysz",str(oi->ni->cio.sz.d[1])},{"xsz",str(oi->ni->cio.sz.d[0])}
 	,{"local_size",str(oi->cop->lrn_local_size)},{"alpha",str(oi->cop->lrn_alpha)},{"beta",str(oi->cop->lrn_beta)},{"k",str(oi->cop->lrn_k)} } };
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
     assert_st( oi->cop->lrn_local_size & 1 ); // we're only supporting centerable windows
     vect_string const cio_dims{"img","chan","y","x"};
     insert_nda_exprs( tf_exprs, "tix", vect_string{"img","y","x"}, 
@@ -1405,23 +1404,23 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
 		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    cf.tpb = 256;
-    cf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, cf.tpb ); // handle one img,y,x per thread (across chans)
-    cf.arg_sizes.push_back( out_ix_sz );
-    cf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
     // note: cio_in and oi->no->cio are derived from cop->bots[bi] and cop->tops[0]
     assert_st( cio_in.sz == oi->no->cio.sz );
     rtc_func_gen_info_t rfgi{"copy",
       { {"num_imgs",str(num_imgs)},{"in_chans",str(cio_in.chans)},{"ysz",str(cio_in.sz.d[1])},{"xsz",str(cio_in.sz.d[0])}
 	,{"out_chans",str(oi->no->cio.chans)},{"ocix",str(ocix)} } };
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
     vect_string const cio_dims{"img","chan","y","x"};
     insert_nda_exprs( tf_exprs, "in_ix", vect_string{"img","chan","y","x"}, 
 		      vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
@@ -1429,23 +1428,23 @@ using boost::filesystem::path;
 		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
     uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    cf.tpb = 256;
-    cf.blks = u32_ceil_div( in_ix_sz, cf.tpb ); // handle one img,y,x per thread (across chans)
-    cf.arg_sizes.push_back( in_ix_sz );
-    cf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( in_ix_sz, rf.tpb ); // handle one img,y,x per thread (across chans)
+    rf.arg_sizes.push_back( in_ix_sz );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_relu( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_relu( p_op_info_t const & oi ) {
     uint32_t const out_sz = oi->no->cio.sz.dims_prod() * oi->no->cio.chans * num_imgs;
     rtc_func_gen_info_t rfgi{"relu", { {"out_sz",str(out_sz)} } };
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     //vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
     rfgi.set_tpb_blks_for_one_output_per_thread( out_sz );
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
   struct red_op_t {
@@ -1497,19 +1496,19 @@ using boost::filesystem::path;
     
     while( in_sz > 1 ) {
       rtc_func_gen_info_t rfgi{"stats", { } };
-      cu_func_t & cf = rfgi.init( cu_funcs );
-      if( !cf.finalized ) { 
-	cf.tpb = 256;
+      rtc_func_t & rf = rfgi.init( rtc_funcs );
+      if( !rf.finalized ) { 
+	rf.tpb = 256;
 	// FIXME: handle dynamic block sizes better?
-	//cf.blks = u32_ceil_div( in_sz, cf.tpb );
-	cf.blks = 0;
+	//rf.blks = u32_ceil_div( in_sz, rf.tpb );
+	rf.blks = 0;
 	vect_string params;
 	vect_string body;
 	for( uint32_t i = 0; i != reds.size(); ++i ) { 
 	  params.push_back(reds[i].param_str());
 	  // FIXME: for now, we disable these size checks ...
-	  //cf.arg_sizes.push_back( in_sz );
-	  //cf.arg_sizes.push_back( cf.blks );
+	  //rf.arg_sizes.push_back( in_sz );
+	  //rf.arg_sizes.push_back( rf.blks );
 	  body.push_back(reds[i].decl_str());
 	  body.push_back(reds[i].load_str());
 	}
@@ -1538,9 +1537,9 @@ using boost::filesystem::path;
 	rfgi.tf_exprs.push_back( std::make_pair( "params", join(params,", ") ) );
 	rfgi.tf_exprs.push_back( std::make_pair( "body", join(body,"\n") ) );
 
-	rfgi.instantiate_template( cu_prog_str );
+	rfgi.instantiate_template( rtc_prog_str );
       }
-      uint32_t const out_sz = u32_ceil_div( in_sz, cf.tpb );
+      uint32_t const out_sz = u32_ceil_div( in_sz, rf.tpb );
       vect_string cur_outs;
       vect_string args;
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
@@ -1550,7 +1549,7 @@ using boost::filesystem::path;
 	args.push_back( cur_ins[i] );
 	args.push_back( cur_out );
       }
-      fwd_calls.push_back( cu_func_call_t{ cf.name, args, {in_sz, primary_in} } );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, args, {in_sz, primary_in} } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -1568,26 +1567,26 @@ using boost::filesystem::path;
     uint32_t in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;
     assert_st( in_sz );
     rtc_func_gen_info_t rfgi{"quantize", { } };
-    cu_func_t & cf = rfgi.init( cu_funcs );
-    if( !cf.finalized ) { 
-      cf.tpb = 256;
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
+    if( !rf.finalized ) { 
+      rf.tpb = 256;
       // FIXME: handle dynamic block sizes better?
-      //cf.blks = u32_ceil_div( in_sz, cf.tpb );
-      cf.blks = 0;
+      //rf.blks = u32_ceil_div( in_sz, rf.tpb );
+      rf.blks = 0;
       vect_string body;
       rfgi.tf_exprs.push_back( std::make_pair( "body", join(body,"\n") ) );
-      rfgi.instantiate_template( cu_prog_str );
+      rfgi.instantiate_template( rtc_prog_str );
     }
-    fwd_calls.push_back( cu_func_call_t{ cf.name, {top_in}, {in_sz,max_val,drop_mask} } );
+    fwd_calls.push_back( rtc_func_call_t{ rf.name, {top_in}, {in_sz,max_val,drop_mask} } );
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_xpose( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_xpose( p_op_info_t const & oi ) {
     rtc_func_gen_info_t rfgi{"xpose_filts", {
 	{"out_chans",str(oi->cop->out_chans)},{"in_chans",str(oi->ni->cio.chans)},{"kysz",str(oi->kern_sz)},{"kxsz",str(oi->kern_sz)} 
       } };
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( cf.finalized ) { return cf; } // already generated
+    if( rf.finalized ) { return rf; } // already generated
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
     insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
 		      vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
@@ -1597,15 +1596,15 @@ using boost::filesystem::path;
     insert_nda_exprs( tf_exprs, "fioc", vect_string{"out_chan_blk","out_chan_tile","out_chan_reg"}, 
 		      vect_uint32_t{ oi->bix_out_chan_blk_sz,oi->tix_out_chan_tile_sz,t_tile_sz} );
     uint32_t const filts_ix_sz = get_sz( tf_exprs, "filts_ix" );
-    cf.tpb = 256;
-    cf.blks = u32_ceil_div( filts_ix_sz, cf.tpb ); // handle one img,y,x per thread (across chans)
-    cf.arg_sizes.push_back( filts_ix_sz );
-    cf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( filts_ix_sz, rf.tpb ); // handle one img,y,x per thread (across chans)
+    rf.arg_sizes.push_back( filts_ix_sz );
+    rf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
-  cu_func_t & conv_pipe_fwd_t::gen_op_in_xpose( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_in_xpose( p_op_info_t const & oi ) {
     uint32_t const pad_in_chans = oi->in_chan_tile_dim * oi->in_chan_tile;
     rtc_func_gen_info_t rfgi{"xpose_in", {
 	{"num_imgs",str(num_imgs)}, {"in_chan_tile",str(oi->in_chan_tile)}, {"pad_in_chans",str(pad_in_chans)}
@@ -1614,7 +1613,7 @@ using boost::filesystem::path;
 	,{"bix_pels_blk_sz",str(oi->bix_pels_blk_sz)}
       } };
     
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
 
     //insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,pad_in_chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
@@ -1629,13 +1628,13 @@ using boost::filesystem::path;
 		      vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
     uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
 
-    if( cf.finalized ) { return cf; } // already generated
-    cf.tpb = 256;
-    cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); // handle one pel per thread
-    cf.arg_sizes.push_back( in_ix_sz );
-    cf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    if( rf.finalized ) { return rf; } // already generated
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); // handle one pel per thread
+    rf.arg_sizes.push_back( in_ix_sz );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
 
@@ -1643,7 +1642,7 @@ using boost::filesystem::path;
   // much work). each block will handle a (x,y) window of the output of size (t_tile_sz,tix_pels_tile_sz) across
   // bix_pels_blk_sz*t_tile_sz output chans. in this case, we do not unroll across input chans, but we do unroll across kern_sz in X
   // (and maybe in Y too for small kernels).
-  cu_func_t & conv_pipe_fwd_t::gen_op_in_tile_xpose( p_op_info_t const & oi ) {
+  rtc_func_t & conv_pipe_fwd_t::gen_op_in_tile_xpose( p_op_info_t const & oi ) {
     assert_st( oi->in_chan_tile == 1 );
     // note: input size+stride+kern_sz+in_pad uniquely determines output size, so it can be ommited from the func name
     rtc_func_gen_info_t rfgi{"in_tile_xpose", {
@@ -1653,7 +1652,7 @@ using boost::filesystem::path;
 	,{"bix_pels_blk_sz",str(oi->bix_pels_blk_sz)}
       } };
     
-    cu_func_t & cf = rfgi.init( cu_funcs );
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
 
     insert_nda_exprs( tf_exprs, "out_ix", 
@@ -1667,13 +1666,13 @@ using boost::filesystem::path;
 		      vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
     uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
 
-    if( cf.finalized ) { return cf; } // already generated
-    cf.tpb = 256;
-    cf.blks = u32_ceil_div( out_ix_sz, cf.tpb ); // handle one pel per thread
-    cf.arg_sizes.push_back( in_ix_sz );
-    cf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( cu_prog_str );
-    return cf;
+    if( rf.finalized ) { return rf; } // already generated
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); // handle one pel per thread
+    rf.arg_sizes.push_back( in_ix_sz );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
   }
 
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
@@ -1693,9 +1692,9 @@ using boost::filesystem::path;
 	conv_io_t & cio_in = cp->must_get_node( cop->bots[bi] )->cio;
 	assert_st( cio_in.sz == oi->no->cio.sz );
 	assert_st( chans_out_done+cio_in.chans <= oi->no->cio.chans );
-	cu_func_t & cf = gen_op_copy( oi, cio_in, chans_out_done );
+	rtc_func_t & rf = gen_op_copy( oi, cio_in, chans_out_done );
 	arg_ids[0] = as_pyid(cop->bots[bi]);
-	fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, oi->tag_id_str } );
+	fwd_calls.push_back( rtc_func_call_t{ rf.name, arg_ids, {}, oi->tag_id_str } );
 	chans_out_done += cio_in.chans;
       }
       assert_st( chans_out_done == oi->no->cio.chans );
@@ -1705,10 +1704,10 @@ using boost::filesystem::path;
     if( oi->is_pool ) {
       vect_string arg_ids;
       string const in_id = as_pyid(cop->bots[0]);
-      cu_func_t * cf = &gen_op_pool( oi );
+      rtc_func_t * rf = &gen_op_pool( oi );
       arg_ids.push_back( in_id );
       arg_ids.push_back( as_pyid(oi->no->name) );
-      fwd_calls.push_back( cu_func_call_t{ cf->name, arg_ids, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ rf->name, arg_ids, {}, oi->tag_id_str } );
 
     } else if( oi->is_conv ) {
       vect_string arg_ids;
@@ -1720,64 +1719,64 @@ using boost::filesystem::path;
       arg_ids.push_back( filtsxp_id );
       arg_ids.push_back( biases_id );
 
-      cu_func_t * cf = 0;
-      if( oi->is_k1conv ) { cf = &gen_op_k1conv( oi ); }
-      else if( oi->is_s1conv ) { cf = &gen_op_s1conv( oi ); }
-      else if( oi->is_tconv ) { cf = &gen_op_tconv( oi ); }
-      else { cf = &gen_op_conv( oi ); }
-      // printf( "cf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(cf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
+      rtc_func_t * rf = 0;
+      if( oi->is_k1conv ) { rf = &gen_op_k1conv( oi ); }
+      else if( oi->is_s1conv ) { rf = &gen_op_s1conv( oi ); }
+      else if( oi->is_tconv ) { rf = &gen_op_tconv( oi ); }
+      else { rf = &gen_op_conv( oi ); }
+      // printf( "rf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(rf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
 
       if( oi->is_tconv ) {
-	cu_func_t & in_xpose_cf = gen_op_in_tile_xpose( oi );
-	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
-	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
+	rtc_func_t & in_xpose_rf = gen_op_in_tile_xpose( oi );
+	string const inxp_id = in_id + "_inxp_" + in_xpose_rf.name; // depends on particular function applied
+	assert_st( in_xpose_rf.arg_sizes.size() == 2 ); // in, out
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
-	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_cf.arg_sizes[1] ) ); 
-	  fwd_calls.push_back( cu_func_call_t{ in_xpose_cf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
+	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_rf.arg_sizes[1] ) ); 
+	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
 	}
 	arg_ids.push_back( inxp_id );
       } else if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
-	cu_func_t & in_xpose_cf = gen_op_in_xpose( oi );
-	string const inxp_id = in_id + "_inxp_" + in_xpose_cf.name; // depends on particular function applied
-	assert_st( in_xpose_cf.arg_sizes.size() == 2 ); // in, out
+	rtc_func_t & in_xpose_rf = gen_op_in_xpose( oi );
+	string const inxp_id = in_id + "_inxp_" + in_xpose_rf.name; // depends on particular function applied
+	assert_st( in_xpose_rf.arg_sizes.size() == 2 ); // in, out
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
-	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_cf.arg_sizes[1] ) ); 
-	  fwd_calls.push_back( cu_func_call_t{ in_xpose_cf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
+	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_rf.arg_sizes[1] ) ); 
+	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
 	}
 	arg_ids.push_back( inxp_id );
       } else {
 	arg_ids.push_back( in_id );
       }
       arg_ids.push_back( as_pyid(oi->no->name) );
-      fwd_calls.push_back( cu_func_call_t{ cf->name, arg_ids, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ rf->name, arg_ids, {}, oi->tag_id_str } );
 
       assert_st( oi->no->cio.chans == cop->out_chans );
-      vect_uint32_t const & arg_sizes = cf->arg_sizes;
+      vect_uint32_t const & arg_sizes = rf->arg_sizes;
       assert_st( arg_sizes.size() == 4 );
-      cu_func_t & xpose_cf = gen_op_xpose( oi );
-      assert_st( xpose_cf.arg_sizes.size() == 2 ); // in, out
-      add_op_param( filts_id, xpose_cf.arg_sizes[0] );
+      rtc_func_t & xpose_rf = gen_op_xpose( oi );
+      assert_st( xpose_rf.arg_sizes.size() == 2 ); // in, out
+      add_op_param( filts_id, xpose_rf.arg_sizes[0] );
       bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
       if( did_ins ) { // newly-seen/used filter, so set up to transpose it
-	init_calls.push_back( cu_func_call_t{ xpose_cf.name, vect_string{ filts_id, filtsxp_id } } );
-	must_insert( *cups, filtsxp_id, make_shared<cup_float>( xpose_cf.arg_sizes[1] ) ); 
+	init_calls.push_back( rtc_func_call_t{ xpose_rf.name, vect_string{ filts_id, filtsxp_id } } );
+	must_insert( *cups, filtsxp_id, make_shared<cup_float>( xpose_rf.arg_sizes[1] ) ); 
       } 
       add_op_param( biases_id, arg_sizes[1] );
 
     } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
-      fwd_calls.push_back( cu_func_call_t{ gen_op_relu( oi ).name, { as_pyid(oi->no->name) }, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ gen_op_relu( oi ).name, { as_pyid(oi->no->name) }, {}, oi->tag_id_str } );
     } else if( cop->type == LRN_str ) {
       vect_string arg_ids;
       arg_ids.push_back( as_pyid(oi->ni->name) );
       arg_ids.push_back( as_pyid(oi->no->name) );
-      cu_func_t & cf = gen_op_lrn( oi );
-      fwd_calls.push_back( cu_func_call_t{ cf.name, arg_ids, {}, oi->tag_id_str } );
+      rtc_func_t & rf = gen_op_lrn( oi );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, arg_ids, {}, oi->tag_id_str } );
     } else if( cop->type == Dropout_str ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
@@ -1868,24 +1867,24 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     // cu_err_chk( cuCtxSetCacheConfig( CU_FUNC_CACHE_PREFER_L1 ), "cuCtxSetCacheConfig" ); // does nothing?
 
     cups.reset( new map_str_p_cup_float_t );
-    cu_prog_str += cu_base_decls;
-    for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { cu_prog_str += "#define "+*i+" 1\n"; }
+    rtc_prog_str += cu_base_decls;
+    for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
-    write_whole_fn( "out.cu", cu_prog_str );
-    string const prog_ptx = nvrtc_compile( cu_prog_str, show_compile_log, enable_lineinfo );
+    write_whole_fn( "out.cu", rtc_prog_str );
+    string const prog_ptx = nvrtc_compile( rtc_prog_str, show_compile_log, enable_lineinfo );
     write_whole_fn( "out.ptx", prog_ptx );
-    //printf( "cu_prog_str=%s\n", str(cu_prog_str).c_str() );
+    //printf( "rtc_prog_str=%s\n", str(rtc_prog_str).c_str() );
     //printf( "prog_ptx=%s\n", str(prog_ptx).c_str() );
     cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
-    for( cu_funcs_t::iterator i = cu_funcs.begin(); i != cu_funcs.end(); ++i ) {
+    for( rtc_funcs_t::iterator i = rtc_funcs.begin(); i != rtc_funcs.end(); ++i ) {
       cu_err_chk( cuModuleGetFunction( &i->second.cu_func, cu_mod, i->first.c_str() ), "cuModuleGetFunction" );
       // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
       // cu_err_chk( cuFuncSetCacheConfig( i->second.cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
       if( show_func_attrs ) {
-	string cfas = cu_get_all_func_attrs( i->second.cu_func );
-	printf( "%s: \n%s", i->first.c_str(), str(cfas).c_str() );
+	string rfas = cu_get_all_func_attrs( i->second.cu_func );
+	printf( "%s: \n%s", i->first.c_str(), str(rfas).c_str() );
       }
     }
     copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in
@@ -1894,52 +1893,52 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     }
 
     // transpose filters ... and do any other init-time work added after this comment was written ;)
-    for( vect_cu_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_cfc( *i ); }
+    for( vect_rtc_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); }
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
   }
 
-  void conv_pipe_fwd_t::run_cfc( cu_func_call_t & cfc ) {
-    cu_func_t const & cf = must_find( cu_funcs, cfc.cu_func_name );
-    vect_rp_void cu_func_args;
-    uint32_t blks = cf.blks; // if non-zero, blks is static, and we can check arg sizes
-    //printf( "cf.name=%s cf.arg_sizes=%s cfc.args.size()=%s\n", str(cf.name).c_str(), str(cf.arg_sizes).c_str(), str(cfc.args.size()).c_str() );
-    if( blks ) { assert( cf.arg_sizes.size() == cfc.args.size() ); }
-    for( uint32_t i = 0; i != cfc.args.size(); ++i ) {
-      p_cup_float arg = must_find( *cups, cfc.args[i] );
-      // printf( "  cfc.args[i]=%s arg->sz=%s\n", str(cfc.args[i]).c_str(), str(arg->sz).c_str() );
-      if( blks ) { assert_st( arg->sz == cf.arg_sizes[i] ); }
-      cu_func_args.push_back( &arg->p );
+  void conv_pipe_fwd_t::run_rfc( rtc_func_call_t & rfc ) {
+    rtc_func_t const & rf = must_find( rtc_funcs, rfc.rtc_func_name );
+    vect_rp_void rtc_func_args;
+    uint32_t blks = rf.blks; // if non-zero, blks is static, and we can check arg sizes
+    //printf( "rf.name=%s rf.arg_sizes=%s rfc.args.size()=%s\n", str(rf.name).c_str(), str(rf.arg_sizes).c_str(), str(rfc.args.size()).c_str() );
+    if( blks ) { assert( rf.arg_sizes.size() == rfc.args.size() ); }
+    for( uint32_t i = 0; i != rfc.args.size(); ++i ) {
+      p_cup_float arg = must_find( *cups, rfc.args[i] );
+      // printf( "  rfc.args[i]=%s arg->sz=%s\n", str(rfc.args[i]).c_str(), str(arg->sz).c_str() );
+      if( blks ) { assert_st( arg->sz == rf.arg_sizes[i] ); }
+      rtc_func_args.push_back( &arg->p );
     }
     // add u32 args
-    for( uint32_t i = 0; i != cfc.u32_args.size(); ++i ) { cu_func_args.push_back( (void *)&cfc.u32_args[i] ); }
-    if( cf.has_final_flags_arg ) { cu_func_args.push_back( (void *)&flags ); }
+    for( uint32_t i = 0; i != rfc.u32_args.size(); ++i ) { rtc_func_args.push_back( (void *)&rfc.u32_args[i] ); }
+    if( rf.has_final_flags_arg ) { rtc_func_args.push_back( (void *)&flags ); }
 
     // FIXME: check that we're passing the correct # of args here somehow.
     if( !blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here
-      assert_st( cfc.u32_args.size() > 0 );
-      blks = u32_ceil_div( cfc.u32_args[0], cf.tpb );
+      assert_st( rfc.u32_args.size() > 0 );
+      blks = u32_ceil_div( rfc.u32_args[0], rf.tpb );
     }
     if( show_rtc_calls ) { 
-      printf( "%s( %s -- %s ) tpb=%s blks=%s\n", str(cfc.cu_func_name).c_str(), str(cfc.args).c_str(), str(cfc.u32_args).c_str(),
-	      str(cf.tpb).c_str(), str(blks).c_str() );
+      printf( "%s( %s -- %s ) tpb=%s blks=%s\n", str(rfc.rtc_func_name).c_str(), str(rfc.args).c_str(), str(rfc.u32_args).c_str(),
+	      str(rf.tpb).c_str(), str(blks).c_str() );
     }
-    cfc.ensure_evs();
-    cu_err_chk( cuEventRecord( *cfc.b_ev, 0 ), "cuEventRecord" );
-    cu_err_chk( cuLaunchKernel( cf.cu_func,
+    rfc.ensure_evs();
+    cu_err_chk( cuEventRecord( *rfc.b_ev, 0 ), "cuEventRecord" );
+    cu_err_chk( cuLaunchKernel( rf.cu_func,
 				blks, 1, 1, // grid x,y,z dims
-				cf.tpb, 1, 1, // block x,y,z dims
+				rf.tpb, 1, 1, // block x,y,z dims
 				0, 0, // smem_bytes, stream_ix
-				&cu_func_args[0], // cu_func's args
+				&rtc_func_args[0], // rtc_func's args
 				0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg      
-    cu_err_chk( cuEventRecord( *cfc.e_ev, 0 ), "cuEventRecord" );
+    cu_err_chk( cuEventRecord( *rfc.e_ev, 0 ), "cuEventRecord" );
   }
 
 
   void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     if( enable_double_run ) {
-      // optional: run fwd cfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
-      for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
+      // optional: run fwd rfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
+      for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
     }
     timer_t t("conv_pipe_fwd_t::run_fwd");
     if( enable_prof ) { cuProfilerStart(); }
@@ -1949,7 +1948,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     p_CUevent b_ev = make_p_CUevent(); 
     p_CUevent e_ev = make_p_CUevent();
     cu_err_chk( cuEventRecord( *b_ev, 0 ), "cuEventRecord" );
-    for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_cfc( *i ); }
+    for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
     cu_err_chk( cuEventRecord( *e_ev, 0 ), "cuEventRecord" );
     cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
 
@@ -1961,13 +1960,13 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       (*out) << strprintf("net.args.num_imgs=%s\n", str(num_imgs).c_str() );
       (*out) << strprintf("num_img=%s\n", str(num_imgs).c_str() ); // FIXME: dup'd in flops.py, need to set both here ...
       (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );
-      for( vect_cu_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
-	cu_func_call_t & cfc = *i;
-	if( cfc.call_tag.empty() ) { continue; }
-	float cfc_dur = 0.0f;
-	cu_err_chk( cuEventElapsedTime( &cfc_dur, *cfc.b_ev, *cfc.e_ev ), "cuEventElapsedTime" );
+      for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
+	rtc_func_call_t & rfc = *i;
+	if( rfc.call_tag.empty() ) { continue; }
+	float rfc_dur = 0.0f;
+	cu_err_chk( cuEventElapsedTime( &rfc_dur, *rfc.b_ev, *rfc.e_ev ), "cuEventElapsedTime" );
 	(*out) << strprintf( "per_layer_time['%s']=%s # %s \n", 
-			     str(cfc.call_tag).c_str(), str(cfc_dur/1000.0).c_str(), cfc.cu_func_name.c_str() );
+			     str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), rfc.rtc_func_name.c_str() );
       }
       cp->dump_ops( *out, 0 );
     }

@@ -1,5 +1,5 @@
 // each thread: computes outputs across chan dim, using inputs across chan dim
-extern "C"  __global__ void %(cu_func_name)( float const * const in, float * const out ) {
+extern "C"  __global__ void %(rtc_func_name)( float const * const in, float * const out ) {
   int32_t const tix = blockDim.x * blockIdx.x + threadIdx.x;
   if( tix >= %(tix_sz) ) { return; }
   // iteratate over chans

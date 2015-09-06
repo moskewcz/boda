@@ -1,4 +1,4 @@
-extern "C"  __global__ void %(cu_func_name)( float const * const in, float * const out ) {
+extern "C"  __global__ void %(rtc_func_name)( float const * const in, float * const out ) {
   int32_t const out_ix = blockDim.x * blockIdx.x + threadIdx.x;
   int32_t const chan_ix = %(out_ix_blk_iter)*%(out_ix_blk_iter_chan_dim) + %(out_ix_blk_iter_chan);
   int32_t const pel_ix = %(out_ix_blk)*%(out_ix_blk_pel_dim) + %(out_ix_blk_pel);
