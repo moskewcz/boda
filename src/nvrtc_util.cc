@@ -135,66 +135,8 @@ using boost::filesystem::path;
   }
   void set_from_cup( vect_float & v, p_cup_float const & cup ) {
     assert_st( cup->sz == v.size() );
-    cu_copy_to_cup( cup, &v[0], v.size() );
+    cu_copy_from_cup( &v[0], cup, v.size() );
   }
-  
-  struct nvrtc_test_t : virtual public nesi, public has_main_t // NESI(help="test basic usage of cuda nvrtc library",
-			// bases=["has_main_t"], type_id="nvrtc_test")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t prog_fn; //NESI(default="%(boda_test_dir)/nvrtc_test_dot.cu",help="cuda program source filename")
-    uint32_t data_sz; //NESI(default=10000,help="size in floats of test data")
-
-    boost::random::mt19937 gen;
-
-    virtual void main( nesi_init_arg_t * nia ) { 
-      p_string prog_str = read_whole_fn( prog_fn );
-      string const prog_ptx = nvrtc_compile( *prog_str, 0, 0 );
-
-      cu_err_chk( cuInit( 0 ), "cuInit" );
-      CUdevice cu_dev;
-      cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
-      CUcontext cu_context;
-      cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
-      CUmodule cu_mod;
-      cu_err_chk( cuModuleLoadDataEx( &cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
-      CUfunction cu_func;
-      cu_err_chk( cuModuleGetFunction( &cu_func, cu_mod, "dot" ), "cuModuleGetFunction" );
-
-      vect_float a( data_sz, 0.0f );
-      rand_fill_vect( a, 2.5f, 7.5f, gen );
-      vect_float b( data_sz, 0.0f );
-      rand_fill_vect( b, 2.5f, 7.5f, gen );
-      vect_float c( data_sz, 123.456f );
-
-      p_cup_float cu_a = get_cup_copy(a);
-      p_cup_float cu_b = get_cup_copy(b);
-      p_cup_float cu_c = get_cup_copy(c); // or, for no init: make_shared<cup_float>( c.size() );
-
-      uint32_t const tpb = 256;
-      uint32_t const num_blocks = u32_ceil_div( data_sz, tpb );
-      vect_rp_void cu_func_args{ &cu_a->p, &cu_b->p, &cu_c->p, &data_sz };
-      {
-	timer_t t("cu_launch_and_sync");
-	cu_err_chk( cuLaunchKernel( cu_func,
-				    num_blocks, 1, 1, // grid x,y,z dims
-				    tpb, 1, 1, // block x,y,z dims
-				    0, 0, // smem_bytes, stream_ix
-				    &cu_func_args[0], // cu_func's args
-				    0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
-	cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
-      }
-      set_from_cup( c, cu_c );
-      assert_st( b.size() == a.size() );
-      assert_st( c.size() == a.size() );
-      for( uint32_t i = 0; i != c.size(); ++i ) {
-	if( fabs((a[i]+b[i]) - c[i]) > 1e-6f ) {
-	  printf( "bad res: a[i]=%s b[i]=%s c[i]=%s\n", str(a[i]).c_str(), str(b[i]).c_str(), str(c[i]).c_str() );
-	  break;
-	}
-      }
-    }
-  };
 
   typedef map< string, uint32_t > map_str_u32_t;
   typedef map< string, float > map_str_float_t;
@@ -237,6 +179,113 @@ using boost::filesystem::path;
     void ensure_evs( void ) { if( !b_ev ) { b_ev = make_p_CUevent(); } if( !e_ev ) { e_ev = make_p_CUevent(); } }
   };
   typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
+
+
+  struct nvrtc_compute_t {
+    // FIXME: can/should we init these cu_* vars?
+    CUdevice cu_dev;
+    CUcontext cu_context;
+    zi_bool init_done;
+    void init( void ) {
+      assert_st( !init_done.v );
+      cu_err_chk( cuInit( 0 ), "cuInit" );
+      cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
+      cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
+      init_done.v = 1;
+    }
+
+    CUmodule cu_mod;
+    zi_bool mod_valid;
+    void compile( string const & src ) {
+      assert( init_done.v );
+      string const prog_ptx = nvrtc_compile( src, 0, 0 );
+      assert( !mod_valid.v );
+      cu_err_chk( cuModuleLoadDataEx( &cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
+      mod_valid.v = 1;
+    }
+
+    p_map_str_p_cup_float_t cups;
+    void init_var_from_vect_float( string const & n, vect_float const & v ) {
+      p_cup_float cu_v = get_cup_copy(v);
+      must_insert( *cups, n, cu_v ); 
+    }
+    void set_vect_float_from_var( vect_float & v, string const & n ) {
+      p_cup_float const & cu_v = must_find( *cups, n );
+      set_from_cup( v, cu_v );
+    }
+    
+    nvrtc_compute_t( void ) : cups( new map_str_p_cup_float_t ) { }
+
+    void run( rtc_func_call_t & rfc ) {
+      assert_st( mod_valid.v );
+      CUfunction cu_func;
+      cu_err_chk( cuModuleGetFunction( &cu_func, cu_mod, rfc.rtc_func_name.c_str() ), "cuModuleGetFunction" );
+
+      assert_st( rfc.u32_args.size() == 1 );
+      uint32_t const data_sz = rfc.u32_args[0];
+
+      uint32_t const tpb = 256;
+      uint32_t const num_blocks = u32_ceil_div( data_sz, tpb );
+      vect_rp_void cu_func_args;
+      for( vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
+	p_cup_float const & cu_v = must_find( *cups, *i );
+	cu_func_args.push_back( &cu_v->p );
+      }
+      for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
+
+      timer_t t("cu_launch_and_sync");
+      cu_err_chk( cuLaunchKernel( cu_func,
+				  num_blocks, 1, 1, // grid x,y,z dims
+				  tpb, 1, 1, // block x,y,z dims
+				  0, 0, // smem_bytes, stream_ix
+				  &cu_func_args[0], // cu_func's args
+				  0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
+    }
+
+    void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }
+
+  };
+  
+  struct nvrtc_test_t : virtual public nesi, public has_main_t // NESI(help="test basic usage of cuda nvrtc library",
+			// bases=["has_main_t"], type_id="nvrtc_test")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t prog_fn; //NESI(default="%(boda_test_dir)/nvrtc_test_dot.cu",help="cuda program source filename")
+    uint32_t data_sz; //NESI(default=10000,help="size in floats of test data")
+
+    boost::random::mt19937 gen;
+
+    virtual void main( nesi_init_arg_t * nia ) { 
+      nvrtc_compute_t rtc;
+      rtc.init();
+      p_string prog_str = read_whole_fn( prog_fn );
+      rtc.compile( *prog_str );
+
+      vect_float a( data_sz, 0.0f );
+      rand_fill_vect( a, 2.5f, 7.5f, gen );
+      vect_float b( data_sz, 0.0f );
+      rand_fill_vect( b, 2.5f, 7.5f, gen );
+      vect_float c( data_sz, 123.456f );
+
+      rtc.init_var_from_vect_float( "a", a );
+      rtc.init_var_from_vect_float( "b", b );
+      rtc.init_var_from_vect_float( "c", c );
+      
+      rtc_func_call_t rfc{ "dot", {"a","b","c"}, {data_sz} }; 
+      rtc.run( rfc );
+      rtc.finish_and_sync();
+      rtc.set_vect_float_from_var( c, "c" );
+      assert_st( b.size() == a.size() );
+      assert_st( c.size() == a.size() );
+      for( uint32_t i = 0; i != c.size(); ++i ) {
+	if( fabs((a[i]+b[i]) - c[i]) > 1e-6f ) {
+	  printf( "bad res: i=%s a[i]=%s b[i]=%s c[i]=%s\n", str(i).c_str(), str(a[i]).c_str(), str(b[i]).c_str(), str(c[i]).c_str() );
+	  break;
+	}
+      }
+    }
+  };
+
   struct rtc_func_t { 
     string name;
     bool finalized;
