@@ -144,18 +144,6 @@ using boost::filesystem::path;
   typedef map< string, p_cup_float > map_str_p_cup_float_t;
   typedef shared_ptr< map_str_p_cup_float_t > p_map_str_p_cup_float_t;
 
-  void copy_named_ndas_to_cups( vect_string const & names, map_str_p_nda_float_t const & ndas, map_str_p_cup_float_t const & cups ) {
-    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
-      string const pyid = as_pyid( *i );
-      cu_copy_nda_to_cup( must_find( cups, pyid ), must_find( ndas, pyid ) );
-    }
-  }
-  void copy_named_cups_to_ndas( vect_string const & names, map_str_p_cup_float_t const & cups, map_str_p_nda_float_t & ndas ) {
-    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
-      string const pyid = as_pyid( *i );
-      cu_copy_cup_to_nda( must_find( ndas, pyid ), must_find( cups, pyid ) );
-    }
-  }
 
   typedef shared_ptr< CUevent > p_CUevent; 
   void cuEventDestroy_wrap( CUevent const * const p ) { 
@@ -168,15 +156,24 @@ using boost::filesystem::path;
     return p_CUevent( new CUevent( ret ), cuEventDestroy_wrap ); 
   }
 
+  typedef map< string, CUfunction > map_str_CUfunction_t;
+  typedef shared_ptr< map_str_CUfunction_t > p_map_str_CUfunction_t;
+
   struct rtc_func_call_t { 
     string rtc_func_name; 
     vect_string args; 
     vect_uint32_t u32_args;
     string call_tag;
+
+    zi_uint32_t tpb;
+    zi_uint32_t blks;
+
+    // FIXME_RTC: cuda-specific
     // begin and end event from most recent call (currently only for timing/profiling)
     p_CUevent b_ev; 
     p_CUevent e_ev;
     void ensure_evs( void ) { if( !b_ev ) { b_ev = make_p_CUevent(); } if( !e_ev ) { e_ev = make_p_CUevent(); } }
+
   };
   typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
 
@@ -188,23 +185,33 @@ using boost::filesystem::path;
     zi_bool init_done;
     void init( void ) {
       assert_st( !init_done.v );
-      cu_err_chk( cuInit( 0 ), "cuInit" );
+
+      cu_err_chk( cuInit( 0 ), "cuInit" ); 
       cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
-      cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
+      //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
+      cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
+      cu_err_chk( cuCtxSetCurrent( cu_context ), "cuCtxSetCurrent" ); // is this always needed/okay?
+      // cu_err_chk( cuCtxSetCacheConfig( CU_FUNC_CACHE_PREFER_L1 ), "cuCtxSetCacheConfig" ); // does nothing?
+
       init_done.v = 1;
     }
 
     CUmodule cu_mod;
     zi_bool mod_valid;
-    void compile( string const & src ) {
+    void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo ) {
       assert( init_done.v );
-      string const prog_ptx = nvrtc_compile( src, 0, 0 );
+      write_whole_fn( "out.cu", src );
+      string const prog_ptx = nvrtc_compile( src, show_compile_log, enable_lineinfo );
+      write_whole_fn( "out.ptx", prog_ptx );
       assert( !mod_valid.v );
       cu_err_chk( cuModuleLoadDataEx( &cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
       mod_valid.v = 1;
     }
 
     p_map_str_p_cup_float_t cups;
+    p_map_str_CUfunction_t cu_funcs;
+
+    // FIXME: deprecate this block of functions?
     void init_var_from_vect_float( string const & n, vect_float const & v ) {
       p_cup_float cu_v = get_cup_copy(v);
       must_insert( *cups, n, cu_v ); 
@@ -213,19 +220,47 @@ using boost::filesystem::path;
       p_cup_float const & cu_v = must_find( *cups, n );
       set_from_cup( v, cu_v );
     }
-    
-    nvrtc_compute_t( void ) : cups( new map_str_p_cup_float_t ) { }
+    void create_var_with_sz_floats( string const & name, uint32_t const & sz ) { must_insert( *cups, name, make_shared<cup_float>( sz ) ); }
+    p_nda_float_t copy_var_as_flat_nda( string const & n ) {
+      p_cup_float const & cup = must_find( *cups, n );
+      dims_t cup_dims( vect_uint32_t{cup->sz} ); 
+      cup_dims.calc_strides();
+      p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
+      cu_copy_cup_to_nda( nda, cup );
+      return nda;
+    }
 
-    void run( rtc_func_call_t & rfc ) {
+    // nda_float <-> var (note: var must already exist)
+    void copy_nda_to_var( string const & vn, p_nda_float_t const & nda ) {
+      p_cup_float const & cup = must_find( *cups, vn );
+      assert_st( nda->elems.sz == cup->sz );
+      cu_copy_to_cup( cup, &nda->elems[0], cup->sz );
+    }
+    void copy_var_to_nda( p_nda_float_t const & nda, string const & vn ) {
+      p_cup_float const & cup = must_find( *cups, vn );
+      assert_st( nda->elems.sz == cup->sz );
+      cu_copy_from_cup( &nda->elems[0], cup, cup->sz );
+    }
+    void set_var_to_zero( string const & vn ) { must_find( *cups, vn )->set_to_zero(); }
+    
+    nvrtc_compute_t( void ) : cups( new map_str_p_cup_float_t ), cu_funcs( new map_str_CUfunction_t ) { }
+
+    // note: post-compilation, MUST be called exactly once on all functions that will later be run()
+    void check_runnable( string const name, bool const show_func_attrs ) {
       assert_st( mod_valid.v );
       CUfunction cu_func;
-      cu_err_chk( cuModuleGetFunction( &cu_func, cu_mod, rfc.rtc_func_name.c_str() ), "cuModuleGetFunction" );
+      cu_err_chk( cuModuleGetFunction( &cu_func, cu_mod, name.c_str() ), "cuModuleGetFunction" );
+      // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
+      // cu_err_chk( cuFuncSetCacheConfig( cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
+      if( show_func_attrs ) {
+	string rfas = cu_get_all_func_attrs( cu_func );
+	printf( "%s: \n%s", name.c_str(), str(rfas).c_str() );
+      }
+      must_insert( *cu_funcs, name, cu_func );
+    }
 
-      assert_st( rfc.u32_args.size() == 1 );
-      uint32_t const data_sz = rfc.u32_args[0];
-
-      uint32_t const tpb = 256;
-      uint32_t const num_blocks = u32_ceil_div( data_sz, tpb );
+    void run( rtc_func_call_t & rfc ) {
+      CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() );
       vect_rp_void cu_func_args;
       for( vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
 	p_cup_float const & cu_v = must_find( *cups, *i );
@@ -235,8 +270,8 @@ using boost::filesystem::path;
 
       timer_t t("cu_launch_and_sync");
       cu_err_chk( cuLaunchKernel( cu_func,
-				  num_blocks, 1, 1, // grid x,y,z dims
-				  tpb, 1, 1, // block x,y,z dims
+				  rfc.blks.v, 1, 1, // grid x,y,z dims
+				  rfc.tpb.v, 1, 1, // block x,y,z dims
 				  0, 0, // smem_bytes, stream_ix
 				  &cu_func_args[0], // cu_func's args
 				  0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
@@ -244,7 +279,24 @@ using boost::filesystem::path;
 
     void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }
 
+    // --- the following will stay in base class / iface (or go back to being free funcs) ---
+    void copy_ndas_to_vars( vect_string const & names, map_str_p_nda_float_t const & ndas ) {
+      for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
+	string const pyid = as_pyid( *i ); // FIXME: move to callers/outside?
+	copy_nda_to_var( pyid, must_find( ndas, pyid ) );
+      }
+    }
+    void copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas ) {
+      for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
+	string const pyid = as_pyid( *i );
+	copy_var_to_nda( must_find( ndas, pyid ), pyid );
+      }
+    }
+
+
   };
+  struct nvrtc_compute_t; typedef shared_ptr< nvrtc_compute_t > p_nvrtc_compute_t; 
+
   
   struct nvrtc_test_t : virtual public nesi, public has_main_t // NESI(help="test basic usage of cuda nvrtc library",
 			// bases=["has_main_t"], type_id="nvrtc_test")
@@ -256,10 +308,10 @@ using boost::filesystem::path;
     boost::random::mt19937 gen;
 
     virtual void main( nesi_init_arg_t * nia ) { 
-      nvrtc_compute_t rtc;
-      rtc.init();
+      p_nvrtc_compute_t rtc( new nvrtc_compute_t );
+      rtc->init();
       p_string prog_str = read_whole_fn( prog_fn );
-      rtc.compile( *prog_str );
+      rtc->compile( *prog_str, 0, 0 );
 
       vect_float a( data_sz, 0.0f );
       rand_fill_vect( a, 2.5f, 7.5f, gen );
@@ -267,14 +319,19 @@ using boost::filesystem::path;
       rand_fill_vect( b, 2.5f, 7.5f, gen );
       vect_float c( data_sz, 123.456f );
 
-      rtc.init_var_from_vect_float( "a", a );
-      rtc.init_var_from_vect_float( "b", b );
-      rtc.init_var_from_vect_float( "c", c );
+      rtc->init_var_from_vect_float( "a", a );
+      rtc->init_var_from_vect_float( "b", b );
+      rtc->init_var_from_vect_float( "c", c );
       
       rtc_func_call_t rfc{ "dot", {"a","b","c"}, {data_sz} }; 
-      rtc.run( rfc );
-      rtc.finish_and_sync();
-      rtc.set_vect_float_from_var( c, "c" );
+      rfc.tpb.v = 256;
+      rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
+
+      rtc->check_runnable( rfc.rtc_func_name, 0 );
+
+      rtc->run( rfc );
+      rtc->finish_and_sync();
+      rtc->set_vect_float_from_var( c, "c" );
       assert_st( b.size() == a.size() );
       assert_st( c.size() == a.size() );
       for( uint32_t i = 0; i != c.size(); ++i ) {
@@ -293,7 +350,6 @@ using boost::filesystem::path;
     vect_uint32_t arg_sizes;
     uint32_t tpb;
     uint32_t blks;
-    CUfunction cu_func; 
   };
   typedef map< string, rtc_func_t > rtc_funcs_t;
 
@@ -451,7 +507,7 @@ using boost::filesystem::path;
     p_map_str_p_node_info_t node_infos;
 
     uint32_t num_imgs;
-    p_map_str_p_cup_float_t cups;
+    //p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
     set_string filts_names;
     set_string inxp_names;
@@ -460,10 +516,7 @@ using boost::filesystem::path;
     vect_string stats_names;
     map_str_float_t stats_map;
 
-    //nvrtc/cuda state
-    CUdevice cu_dev;
-    CUcontext cu_context;
-    CUmodule cu_mod;
+    p_nvrtc_compute_t rtc;
 
     string rtc_prog_str;
     vect_rtc_func_call_t init_calls;
@@ -589,12 +642,7 @@ using boost::filesystem::path;
 
   void conv_pipe_fwd_t::update_stats( void ) {
     for( vect_string::const_iterator i = stats_names.begin(); i != stats_names.end(); ++i ) {
-      string const pyid = as_pyid( *i );
-      p_cup_float const & cup = must_find( *cups, pyid );
-      dims_t cup_dims( vect_uint32_t{cup->sz} ); 
-      cup_dims.calc_strides();
-      p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
-      cu_copy_cup_to_nda( nda, cup );
+      p_nda_float_t nda = rtc->copy_var_as_flat_nda( as_pyid( *i ) );
       assert_st( nda->elems.sz == 1 );
       float v = nda->elems[0];
       if( has( stats_map, *i ) ) { v = stats_reduce( *i, v, stats_map[*i] ); }
@@ -603,15 +651,10 @@ using boost::filesystem::path;
   }
 
   void conv_pipe_fwd_t::dump_cup( string const & n ) {
-    string const pyid = as_pyid( n );
-    p_cup_float const & cup = must_find( *cups, pyid );
-    dims_t cup_dims( vect_uint32_t{cup->sz} ); 
-    cup_dims.calc_strides();
-    p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
-    cu_copy_cup_to_nda( nda, cup );
+    p_nda_float_t nda = rtc->copy_var_as_flat_nda( as_pyid( n ) );
     // dump nda
     printf( "dupming cup '%s'\n", str(n).c_str() );
-    for( uint32_t i = 0; i != cup->sz; ++i ) {
+    for( uint32_t i = 0; i != nda->dims.dims_prod(); ++i ) {
       printf( "i=%s v=%s\n", str(i).c_str(), str(nda->cm_at1(i)).c_str() );
     }
   }
@@ -623,8 +666,7 @@ using boost::filesystem::path;
   }
 
   void conv_pipe_fwd_t::add_op_param( string const & name, uint32_t const & sz ) {
-    string const & name_id = as_pyid( name );
-    must_insert( *cups, name_id, make_shared<cup_float>( sz ) ); 
+    rtc->create_var_with_sz_floats( as_pyid( name ), sz );
     op_param_names.push_back( name );
   }
   
@@ -1593,7 +1635,7 @@ using boost::filesystem::path;
       vect_string args;
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
 	string cur_out = top_in + "_" + reds[i].tag + "_out_sz_" + str(out_sz);
-	must_insert( *cups, cur_out, make_shared<cup_float>( out_sz ) ); 
+	rtc->create_var_with_sz_floats( cur_out, out_sz );
 	cur_outs.push_back( cur_out );
 	args.push_back( cur_ins[i] );
 	args.push_back( cur_out );
@@ -1783,7 +1825,7 @@ using boost::filesystem::path;
 	assert_st( in_xpose_rf.arg_sizes.size() == 2 ); // in, out
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
-	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_rf.arg_sizes[1] ) ); 
+	  rtc->create_var_with_sz_floats( inxp_id, in_xpose_rf.arg_sizes[1] );
 	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
 	}
 	arg_ids.push_back( inxp_id );
@@ -1793,7 +1835,7 @@ using boost::filesystem::path;
 	assert_st( in_xpose_rf.arg_sizes.size() == 2 ); // in, out
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
-	  must_insert( *cups, inxp_id, make_shared<cup_float>( in_xpose_rf.arg_sizes[1] ) ); 
+	  rtc->create_var_with_sz_floats( inxp_id, in_xpose_rf.arg_sizes[1] );
 	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
 	}
 	arg_ids.push_back( inxp_id );
@@ -1812,7 +1854,7 @@ using boost::filesystem::path;
       bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
       if( did_ins ) { // newly-seen/used filter, so set up to transpose it
 	init_calls.push_back( rtc_func_call_t{ xpose_rf.name, vect_string{ filts_id, filtsxp_id } } );
-	must_insert( *cups, filtsxp_id, make_shared<cup_float>( xpose_rf.arg_sizes[1] ) ); 
+	rtc->create_var_with_sz_floats( filtsxp_id, xpose_rf.arg_sizes[1] );
       } 
       add_op_param( biases_id, arg_sizes[1] );
 
@@ -1837,7 +1879,7 @@ using boost::filesystem::path;
     conv_io_t & cio = node->cio;
     p_node_info_t const & ninfo = must_find( *node_infos, name );
     if( !ninfo->sz ) { ninfo->sz = num_imgs * cio.chans * cio.sz.dims_prod(); }
-    must_insert( *cups, as_pyid(name), make_shared<cup_float>( ninfo->sz ) ); 
+    rtc->create_var_with_sz_floats( as_pyid(name), ninfo->sz ); 
   }
 
   // quantize command line example:
@@ -1906,62 +1948,31 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       ninfo = make_shared< node_info_t >();
     }
 
-    // need to init CUDA prior to potential cuda mallocs during setup/codegen
-    cu_err_chk( cuInit( 0 ), "cuInit" ); 
-    cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
-    //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
-    cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
-    cu_err_chk( cuCtxSetCurrent( cu_context ), "cuCtxSetCurrent" ); // is this always needed/okay?
+    rtc.reset( new nvrtc_compute_t );
+    rtc->init();
 
-    // cu_err_chk( cuCtxSetCacheConfig( CU_FUNC_CACHE_PREFER_L1 ), "cuCtxSetCacheConfig" ); // does nothing?
-
-    cups.reset( new map_str_p_cup_float_t );
+    //cups.reset( new map_str_p_cup_float_t );
     rtc_prog_str += cu_base_decls;
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
-    write_whole_fn( "out.cu", rtc_prog_str );
-    string const prog_ptx = nvrtc_compile( rtc_prog_str, show_compile_log, enable_lineinfo );
-    write_whole_fn( "out.ptx", prog_ptx );
-    //printf( "rtc_prog_str=%s\n", str(rtc_prog_str).c_str() );
-    //printf( "prog_ptx=%s\n", str(prog_ptx).c_str() );
-    cu_err_chk( cuModuleLoadDataEx( &cu_mod, &prog_ptx[0], 0, 0, 0 ), "cuModuleLoadDataEx" );
-    for( rtc_funcs_t::iterator i = rtc_funcs.begin(); i != rtc_funcs.end(); ++i ) {
-      cu_err_chk( cuModuleGetFunction( &i->second.cu_func, cu_mod, i->first.c_str() ), "cuModuleGetFunction" );
-      // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
-      // cu_err_chk( cuFuncSetCacheConfig( i->second.cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
-      if( show_func_attrs ) {
-	string rfas = cu_get_all_func_attrs( i->second.cu_func );
-	printf( "%s: \n%s", i->first.c_str(), str(rfas).c_str() );
-      }
-    }
-    copy_named_ndas_to_cups( op_param_names, *cp->op_params, *cups ); // copy op_params in
-    for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { 
-      must_find( *cups, as_pyid(*i) )->set_to_zero();
-    }
+    rtc->compile( rtc_prog_str, show_compile_log, enable_lineinfo );
+    for( rtc_funcs_t::iterator i = rtc_funcs.begin(); i != rtc_funcs.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
+
+    rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit as_pyid() on names)
+    for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( as_pyid(*i) ); }
 
     // transpose filters ... and do any other init-time work added after this comment was written ;)
     for( vect_rtc_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); }
-    cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
+    rtc->finish_and_sync();
   }
 
   void conv_pipe_fwd_t::run_rfc( rtc_func_call_t & rfc ) {
     rtc_func_t const & rf = must_find( rtc_funcs, rfc.rtc_func_name );
-    vect_rp_void rtc_func_args;
     uint32_t blks = rf.blks; // if non-zero, blks is static, and we can check arg sizes
     //printf( "rf.name=%s rf.arg_sizes=%s rfc.args.size()=%s\n", str(rf.name).c_str(), str(rf.arg_sizes).c_str(), str(rfc.args.size()).c_str() );
     if( blks ) { assert( rf.arg_sizes.size() == rfc.args.size() ); }
-    for( uint32_t i = 0; i != rfc.args.size(); ++i ) {
-      p_cup_float arg = must_find( *cups, rfc.args[i] );
-      // printf( "  rfc.args[i]=%s arg->sz=%s\n", str(rfc.args[i]).c_str(), str(arg->sz).c_str() );
-      if( blks ) { assert_st( arg->sz == rf.arg_sizes[i] ); }
-      rtc_func_args.push_back( &arg->p );
-    }
-    // add u32 args
-    for( uint32_t i = 0; i != rfc.u32_args.size(); ++i ) { rtc_func_args.push_back( (void *)&rfc.u32_args[i] ); }
-    if( rf.has_final_flags_arg ) { rtc_func_args.push_back( (void *)&flags ); }
-
     // FIXME: check that we're passing the correct # of args here somehow.
     if( !blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here
@@ -1974,12 +1985,11 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     }
     rfc.ensure_evs();
     cu_err_chk( cuEventRecord( *rfc.b_ev, 0 ), "cuEventRecord" );
-    cu_err_chk( cuLaunchKernel( rf.cu_func,
-				blks, 1, 1, // grid x,y,z dims
-				rf.tpb, 1, 1, // block x,y,z dims
-				0, 0, // smem_bytes, stream_ix
-				&rtc_func_args[0], // rtc_func's args
-				0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg      
+    rfc.tpb.v = rf.tpb;
+    rfc.blks.v = blks;
+    if( rf.has_final_flags_arg ) { rfc.u32_args.push_back( flags ); }
+    rtc->run( rfc );
+    if( rf.has_final_flags_arg ) { rfc.u32_args.pop_back(); }
     cu_err_chk( cuEventRecord( *rfc.e_ev, 0 ), "cuEventRecord" );
   }
 
@@ -1992,7 +2002,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     timer_t t("conv_pipe_fwd_t::run_fwd");
     if( enable_prof ) { cuProfilerStart(); }
     //printf("run_fwd() begin\n");
-    copy_named_ndas_to_cups( cp->bots, *fwd, *cups ); // copy sources in
+    rtc->copy_ndas_to_vars( cp->bots, *fwd ); // copy sources in. FIXME/note: implicit as_pyid() inside
     //printf("run_fwd() exec\n");
     p_CUevent b_ev = make_p_CUevent(); 
     p_CUevent e_ev = make_p_CUevent();
@@ -2022,7 +2032,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
-    copy_named_cups_to_ndas( cp->tops, *cups, *fwd ); // copy sinks out
+    rtc->copy_vars_to_ndas( cp->tops, *fwd ); // copy sinks out (FIXME/note: implicit as_pyid() inside)
     update_stats();
     for( vect_string::const_iterator i = dump_cups.begin(); i != dump_cups.end(); ++i ) { dump_cup( *i ); }
     //printf("run_fwd() done\n");
