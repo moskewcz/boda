@@ -15,6 +15,8 @@
 // for conv_pipe_fwd_t
 #include"conv_util.H"
 
+#include"rtc_compute.H"
+
 namespace boda 
 {
 using boost::filesystem::path;
@@ -111,33 +113,6 @@ using boost::filesystem::path;
   typedef cup_T< float > cup_float;
   typedef shared_ptr< cup_float > p_cup_float; 
 
-  // rp_float <-> cup_float
-  void cu_copy_to_cup( p_cup_float const & cup, float const * const v, uint32_t const sz ) {
-    cu_err_chk( cuMemcpyHtoD( cup->p, v, sz*sizeof(float) ), "cuMemcpyHtoD" );
-  }
-  void cu_copy_from_cup( float * const v, p_cup_float const & cup, uint32_t const sz ) {
-    cu_err_chk( cuMemcpyDtoH( v, cup->p, sz*sizeof(float) ), "cuMemcpyDtoH" );
-  }
-  // nda_float <-> cup_float
-  void cu_copy_nda_to_cup( p_cup_float const & cup, p_nda_float_t const & nda ) {
-    assert_st( nda->elems.sz == cup->sz );
-    cu_copy_to_cup( cup, &nda->elems[0], cup->sz );
-  }
-  void cu_copy_cup_to_nda( p_nda_float_t const & nda, p_cup_float const & cup ) {
-    assert_st( nda->elems.sz == cup->sz );
-    cu_copy_from_cup( &nda->elems[0], cup, cup->sz );
-  }
-  // vect_float <-> cup_float
-  p_cup_float get_cup_copy( vect_float const & v ) { 
-    p_cup_float ret = make_shared<cup_float>( v.size() ); 
-    cu_copy_to_cup( ret, &v[0], v.size() ); 
-    return ret; 
-  }
-  void set_from_cup( vect_float & v, p_cup_float const & cup ) {
-    assert_st( cup->sz == v.size() );
-    cu_copy_from_cup( &v[0], cup, v.size() );
-  }
-
   typedef map< string, uint32_t > map_str_u32_t;
   typedef map< string, float > map_str_float_t;
 
@@ -178,7 +153,7 @@ using boost::filesystem::path;
   typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
 
 
-  struct nvrtc_compute_t {
+  struct nvrtc_compute_t : public rtc_compute_t {
     // FIXME: can/should we init these cu_* vars?
     CUdevice cu_dev;
     CUcontext cu_context;
@@ -211,36 +186,16 @@ using boost::filesystem::path;
     p_map_str_p_cup_float_t cups;
     p_map_str_CUfunction_t cu_funcs;
 
-    // FIXME: deprecate this block of functions?
-    void init_var_from_vect_float( string const & n, vect_float const & v ) {
-      p_cup_float cu_v = get_cup_copy(v);
-      must_insert( *cups, n, cu_v ); 
-    }
-    void set_vect_float_from_var( vect_float & v, string const & n ) {
-      p_cup_float const & cu_v = must_find( *cups, n );
-      set_from_cup( v, cu_v );
-    }
-    void create_var_with_sz_floats( string const & name, uint32_t const & sz ) { must_insert( *cups, name, make_shared<cup_float>( sz ) ); }
-    p_nda_float_t copy_var_as_flat_nda( string const & n ) {
-      p_cup_float const & cup = must_find( *cups, n );
-      dims_t cup_dims( vect_uint32_t{cup->sz} ); 
-      cup_dims.calc_strides();
-      p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
-      cu_copy_cup_to_nda( nda, cup );
-      return nda;
-    }
-
-    // nda_float <-> var (note: var must already exist)
-    void copy_nda_to_var( string const & vn, p_nda_float_t const & nda ) {
+    void copy_to_var( string const & vn, float const * const v ) {
       p_cup_float const & cup = must_find( *cups, vn );
-      assert_st( nda->elems.sz == cup->sz );
-      cu_copy_to_cup( cup, &nda->elems[0], cup->sz );
+      cu_err_chk( cuMemcpyHtoD( cup->p, v, cup->sz*sizeof(float) ), "cuMemcpyHtoD" );
     }
-    void copy_var_to_nda( p_nda_float_t const & nda, string const & vn ) {
+    void copy_from_var( float * const v, string const & vn ) {
       p_cup_float const & cup = must_find( *cups, vn );
-      assert_st( nda->elems.sz == cup->sz );
-      cu_copy_from_cup( &nda->elems[0], cup, cup->sz );
+      cu_err_chk( cuMemcpyDtoH( v, cup->p, cup->sz*sizeof(float) ), "cuMemcpyDtoH" );
     }
+    void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { must_insert( *cups, vn, make_shared<cup_float>( sz ) ); }
+    uint32_t get_var_sz( string const & vn ) { return must_find( *cups, vn )->sz; }
     void set_var_to_zero( string const & vn ) { must_find( *cups, vn )->set_to_zero(); }
     
     nvrtc_compute_t( void ) : cups( new map_str_p_cup_float_t ), cu_funcs( new map_str_CUfunction_t ) { }
@@ -279,22 +234,8 @@ using boost::filesystem::path;
 
     void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }
 
-    // --- the following will stay in base class / iface (or go back to being free funcs) ---
-    void copy_ndas_to_vars( vect_string const & names, map_str_p_nda_float_t const & ndas ) {
-      for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
-	string const pyid = as_pyid( *i ); // FIXME: move to callers/outside?
-	copy_nda_to_var( pyid, must_find( ndas, pyid ) );
-      }
-    }
-    void copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas ) {
-      for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
-	string const pyid = as_pyid( *i );
-	copy_var_to_nda( must_find( ndas, pyid ), pyid );
-      }
-    }
-
-
   };
+
   struct nvrtc_compute_t; typedef shared_ptr< nvrtc_compute_t > p_nvrtc_compute_t; 
 
   
@@ -308,7 +249,7 @@ using boost::filesystem::path;
     boost::random::mt19937 gen;
 
     virtual void main( nesi_init_arg_t * nia ) { 
-      p_nvrtc_compute_t rtc( new nvrtc_compute_t );
+      p_rtc_compute_t rtc( new nvrtc_compute_t );
       rtc->init();
       p_string prog_str = read_whole_fn( prog_fn );
       rtc->compile( *prog_str, 0, 0 );
@@ -516,7 +457,7 @@ using boost::filesystem::path;
     vect_string stats_names;
     map_str_float_t stats_map;
 
-    p_nvrtc_compute_t rtc;
+    p_rtc_compute_t rtc;
 
     string rtc_prog_str;
     vect_rtc_func_call_t init_calls;

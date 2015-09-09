@@ -73,6 +73,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # that some dependencies may not usefully be disable-able.
 
 [objs]
+rtc_compute.o
 ocl_util.o opencl
 caffe_fwd.o caffe_pb caffe
 slow_cpu_fwd.o
