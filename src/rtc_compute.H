@@ -7,7 +7,11 @@
 namespace boda 
 {
   struct rtc_func_call_t;
-  struct rtc_compute_t {
+  struct rtc_compute_t : virtual public nesi // NESI(help="modes that can be used for rtc",is_abstract=1,tid_vn="be")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string be; //NESI(help="name of back-end to use for rtc",req=1)
+
     virtual void init( void ) = 0;
     virtual void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo ) = 0;
 
@@ -23,6 +27,10 @@ namespace boda
     virtual void run( rtc_func_call_t & rfc ) = 0;
     virtual void finish_and_sync( void ) = 0;
 
+    virtual p_void make_event( void ) = 0;
+    virtual void record_event( p_void const & ev ) = 0;
+    virtual float get_event_dur( p_void const & b_ev, p_void const & e_ev ) = 0;
+
     // non-virtual factored-out conversion functions layered on top of copy_{to,from}_var() and related functions
     // vect_float <-> var conversions/copies
     void init_var_from_vect_float( string const & vn, vect_float const & v );
@@ -36,6 +44,21 @@ namespace boda
 
   };
   struct rtc_compute_t; typedef shared_ptr< rtc_compute_t > p_rtc_compute_t; 
+
+  struct rtc_func_call_t { 
+    string rtc_func_name; 
+    vect_string args; 
+    vect_uint32_t u32_args;
+    string call_tag;
+
+    zi_uint32_t tpb;
+    zi_uint32_t blks;
+
+    p_void b_ev; 
+    p_void e_ev;
+  };
+  typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
+
 }
 
 #endif /* _RTC_COMPUTE_H_ */

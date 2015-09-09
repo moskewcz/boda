@@ -134,26 +134,11 @@ using boost::filesystem::path;
   typedef map< string, CUfunction > map_str_CUfunction_t;
   typedef shared_ptr< map_str_CUfunction_t > p_map_str_CUfunction_t;
 
-  struct rtc_func_call_t { 
-    string rtc_func_name; 
-    vect_string args; 
-    vect_uint32_t u32_args;
-    string call_tag;
 
-    zi_uint32_t tpb;
-    zi_uint32_t blks;
-
-    // FIXME_RTC: cuda-specific
-    // begin and end event from most recent call (currently only for timing/profiling)
-    p_CUevent b_ev; 
-    p_CUevent e_ev;
-    void ensure_evs( void ) { if( !b_ev ) { b_ev = make_p_CUevent(); } if( !e_ev ) { e_ev = make_p_CUevent(); } }
-
-  };
-  typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
-
-
-  struct nvrtc_compute_t : public rtc_compute_t {
+  struct nvrtc_compute_t : virtual public nesi, public rtc_compute_t // NESI(help="libnvrtc based rtc support (i.e. CUDA)",
+			   // bases=["rtc_compute_t"], type_id="nvrtc" )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     // FIXME: can/should we init these cu_* vars?
     CUdevice cu_dev;
     CUcontext cu_context;
@@ -214,6 +199,14 @@ using boost::filesystem::path;
       must_insert( *cu_funcs, name, cu_func );
     }
 
+    p_void make_event( void ) { return make_p_CUevent(); }
+    void record_event( p_void const & ev ) { cu_err_chk( cuEventRecord( *(CUevent*)ev.get(), 0 ), "cuEventRecord" ); }
+    float get_event_dur( p_void const & b_ev, p_void const & e_ev ) {
+      float compute_dur = 0.0f;
+      cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b_ev.get(), *(CUevent*)e_ev.get() ), "cuEventElapsedTime" );
+      return compute_dur;
+    }
+
     void run( rtc_func_call_t & rfc ) {
       CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() );
       vect_rp_void cu_func_args;
@@ -222,14 +215,18 @@ using boost::filesystem::path;
 	cu_func_args.push_back( &cu_v->p );
       }
       for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
+      if( !rfc.b_ev ) { rfc.b_ev = make_event(); } 
+      if( !rfc.e_ev ) { rfc.e_ev = make_event(); }
 
       timer_t t("cu_launch_and_sync");
+      record_event( rfc.b_ev );
       cu_err_chk( cuLaunchKernel( cu_func,
 				  rfc.blks.v, 1, 1, // grid x,y,z dims
 				  rfc.tpb.v, 1, 1, // block x,y,z dims
 				  0, 0, // smem_bytes, stream_ix
 				  &cu_func_args[0], // cu_func's args
 				  0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
+      record_event( rfc.e_ev );
     }
 
     void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }
@@ -1924,14 +1921,11 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       printf( "%s( %s -- %s ) tpb=%s blks=%s\n", str(rfc.rtc_func_name).c_str(), str(rfc.args).c_str(), str(rfc.u32_args).c_str(),
 	      str(rf.tpb).c_str(), str(blks).c_str() );
     }
-    rfc.ensure_evs();
-    cu_err_chk( cuEventRecord( *rfc.b_ev, 0 ), "cuEventRecord" );
     rfc.tpb.v = rf.tpb;
     rfc.blks.v = blks;
     if( rf.has_final_flags_arg ) { rfc.u32_args.push_back( flags ); }
     rtc->run( rfc );
     if( rf.has_final_flags_arg ) { rfc.u32_args.pop_back(); }
-    cu_err_chk( cuEventRecord( *rfc.e_ev, 0 ), "cuEventRecord" );
   }
 
 
@@ -1945,15 +1939,13 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     //printf("run_fwd() begin\n");
     rtc->copy_ndas_to_vars( cp->bots, *fwd ); // copy sources in. FIXME/note: implicit as_pyid() inside
     //printf("run_fwd() exec\n");
-    p_CUevent b_ev = make_p_CUevent(); 
-    p_CUevent e_ev = make_p_CUevent();
-    cu_err_chk( cuEventRecord( *b_ev, 0 ), "cuEventRecord" );
+    p_void b_ev = rtc->make_event();
+    p_void e_ev = rtc->make_event();
+    rtc->record_event( b_ev );
     for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
-    cu_err_chk( cuEventRecord( *e_ev, 0 ), "cuEventRecord" );
-    cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" );
-
-    float compute_dur = 0.0f;
-    cu_err_chk( cuEventElapsedTime( &compute_dur, *b_ev, *e_ev ), "cuEventElapsedTime" );
+    rtc->record_event( e_ev );
+    rtc->finish_and_sync();
+    float const compute_dur = rtc->get_event_dur( b_ev, e_ev );
     if( enable_prof ) { cuProfilerStop(); }
     if( !per_call_fn.empty() ) {
       p_ofstream out = ofs_open( per_call_fn );
@@ -1963,8 +1955,7 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
 	rtc_func_call_t & rfc = *i;
 	if( rfc.call_tag.empty() ) { continue; }
-	float rfc_dur = 0.0f;
-	cu_err_chk( cuEventElapsedTime( &rfc_dur, *rfc.b_ev, *rfc.e_ev ), "cuEventElapsedTime" );
+	float const rfc_dur = rtc->get_event_dur( rfc.b_ev, rfc.e_ev );
 	(*out) << strprintf( "per_layer_time['%s']=%s # %s \n", 
 			     str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), rfc.rtc_func_name.c_str() );
       }
