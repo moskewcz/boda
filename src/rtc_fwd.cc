@@ -150,7 +150,7 @@ namespace boda
 
 
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
-			   // bases=["has_conv_fwd_t"], type_id="nvrtc" )
+			   // bases=["has_conv_fwd_t"], type_id="rtc" )
 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
