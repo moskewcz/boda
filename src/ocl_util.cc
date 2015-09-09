@@ -1,19 +1,16 @@
 // Copyright (c) 2015, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
 #include"str_util.H"
+
+// FIXME: remove after test prog removed
 #include"rand_util.H"
 #include"has_main.H"
-#include"has_conv_fwd.H"
-#include"timers.H"
-#include<boost/filesystem.hpp>
-#include<boost/lexical_cast.hpp>
-#include"lexp.H"
+
 #include"CL/cl.hpp"
 #include"ocl_err.H"
 
 namespace boda 
 {
-  using boost::filesystem::path;
 
   void cl_err_chk( cl_int const & ret, char const * const tag ) {
     if( ret != CL_SUCCESS ) { rt_err( strprintf( "%s() failed with ret=%s (%s)", tag, str(ret).c_str(), get_cl_err_str(ret) ) ); } 
