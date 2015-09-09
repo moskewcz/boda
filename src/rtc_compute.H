@@ -31,6 +31,9 @@ namespace boda
     virtual void record_event( p_void const & ev ) = 0;
     virtual float get_event_dur( p_void const & b_ev, p_void const & e_ev ) = 0;
 
+    virtual void profile_start( void ) = 0;
+    virtual void profile_stop( void ) = 0;
+
     // non-virtual factored-out conversion functions layered on top of copy_{to,from}_var() and related functions
     // vect_float <-> var conversions/copies
     void init_var_from_vect_float( string const & vn, vect_float const & v );
