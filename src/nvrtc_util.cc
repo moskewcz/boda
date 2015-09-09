@@ -174,7 +174,7 @@ namespace boda
       cu_err_chk( cuMemcpyDtoH( v, cup->p, cup->sz*sizeof(float) ), "cuMemcpyDtoH" );
     }
     void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { must_insert( *cups, vn, make_shared<cup_float>( sz ) ); }
-    uint32_t get_var_sz( string const & vn ) { return must_find( *cups, vn )->sz; }
+    uint32_t get_var_sz_floats( string const & vn ) { return must_find( *cups, vn )->sz; }
     void set_var_to_zero( string const & vn ) { must_find( *cups, vn )->set_to_zero(); }
     
     nvrtc_compute_t( void ) : cups( new map_str_p_cup_float_t ), cu_funcs( new map_str_CUfunction_t ) { }

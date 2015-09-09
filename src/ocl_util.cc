@@ -8,6 +8,7 @@
 
 #include"CL/cl.hpp"
 #include"ocl_err.H"
+#include"rtc_compute.H"
 
 namespace boda 
 {
@@ -41,40 +42,32 @@ namespace boda
     }
   }
 
-  // create a cl::Buffer() of the same size as the passed vect_float. if cq is non-null, also enqueue a non-blocking write of
-  // the contents of v into the returned buffer.
-  Buffer make_buf_from_vect_float( Context const & context, vect_float const & v, CommandQueue * const cq ) { 
-    cl_int err;
-    uint32_t const sz = sizeof(float)*v.size();
-    Buffer ret( context, CL_MEM_READ_WRITE, sz, 0, &err ); 
-    cl_err_chk( err, "Buffer() from vect_float" );
-    if( cq ) { 
-      err = cq->enqueueWriteBuffer( ret, 0, 0, sz, &v[0], 0, 0); 
-      cl_err_chk( err, "cq->enqueueWriteBuffer()" );
-    }
-    return ret;
-  }
-
   template< typename V > void set_kernel_arg( Kernel & k, uint32_t const & ai, V const & v ) { 
     cl_int err;
     err = k.setArg( ai, v );
     cl_err_chk( err, "Kernel::setArg()" );
   }
 
-  struct ocl_test_t : virtual public nesi, public has_main_t // NESI(help="test basic usage of openCL",
-		      // bases=["has_main_t"], type_id="ocl_test")
+  typedef map< string, Kernel > map_str_Kernel_t;
+  typedef shared_ptr< map_str_Kernel_t > p_map_str_Kernel_t;
+
+  typedef map< string, Buffer > map_str_Buffer_t;
+  typedef shared_ptr< map_str_Buffer_t > p_map_str_Buffer_t;
+
+
+  struct ocl_compute_t : virtual public nesi, public rtc_compute_t // NESI(help="OpenCL based rtc support",
+			   // bases=["rtc_compute_t"], type_id="ocl" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t prog_fn; //NESI(default="%(boda_test_dir)/ocl_test_dot.cl",help="cuda program source filename")
-    uint32_t data_sz; //NESI(default=10000,help="size in floats of test data")
-
-    boost::random::mt19937 gen;
-    
-    virtual void main( nesi_init_arg_t * nia ) {
-      vect_Platform platforms;
+    vect_Platform platforms;
+    vect_Device use_devices;
+    Context context;
+    CommandQueue cq;
+    zi_bool init_done;
+    void init( void ) {
+      assert_st( !init_done.v );
       Platform::get(&platforms);
       if( platforms.empty() ) { rt_err( "no OpenCL platforms found" ); }
-      vect_Device use_devices;
       for( vect_Platform::const_iterator i = platforms.begin(); i != platforms.end(); ++i ) {
 	vect_Device devices;
 	(*i).getDevices( CL_DEVICE_TYPE_GPU, &devices );
@@ -82,18 +75,122 @@ namespace boda
       }
       if( use_devices.empty() ) { rt_err( "no OpenCL platform had any GPUs (devices of type CL_DEVICE_TYPE_GPU)" ); }
       cl_int err = CL_SUCCESS;  
-      Context context( use_devices, 0, 0, 0, &err );
+      context = Context( use_devices, 0, 0, 0, &err );
       cl_err_chk( err, "cl::Context()" );
-      p_string prog_str = read_whole_fn( prog_fn );
-      Program prog( context, *prog_str, 1, &err );
-      cl_err_chk_build( err, prog, use_devices );
-      Kernel my_dot( prog, "my_dot", &err );
-      cl_err_chk( err, "cl::Kernel() (aka clCreateKernel())" );
-
       // note: after this, we're only using the first device in use_devices, although our context is for all of
       // them. this is arguably not the most sensible thing to do in general.
-      CommandQueue cq( context, use_devices[0], 0, &err ); // note: not out of order, no profiling
+      cq = CommandQueue( context, use_devices[0], 0, &err ); // note: not out of order, no profiling
       cl_err_chk( err, "cl::CommandQueue()" );
+      init_done.v = 1;
+    }
+
+    Program prog;
+    zi_bool prog_valid;
+    void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo ) {
+      assert( init_done.v );
+      assert( !prog_valid.v );
+      write_whole_fn( "out.cl", src );
+      cl_int err;
+      prog = Program( context, src, 1, &err );
+      cl_err_chk_build( err, prog, use_devices );
+      prog_valid.v = 1;
+    }
+
+    p_map_str_Buffer_t bufs;
+    p_map_str_Kernel_t kerns;
+
+    void copy_to_var( string const & vn, float const * const v ) {
+      Buffer const & buf = must_find( *bufs, vn );
+      cl_int const err = cq.enqueueWriteBuffer( buf, 1, 0, buf.getInfo<CL_MEM_SIZE>(), &v[0], 0, 0);  // note: blocking write
+      cl_err_chk( err, "cq->enqueueWriteBuffer()" );
+    }
+    void copy_from_var( float * const v, string const & vn ) {
+      Buffer const & buf = must_find( *bufs, vn );
+      cl_int const err = cq.enqueueReadBuffer( buf, 1, 0, buf.getInfo<CL_MEM_SIZE>(), &v[0], 0, 0 ); // note: blocking_read=1
+      cl_err_chk( err, "cq->enqueueReadBuffer()" );
+    }
+    void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { 
+      uint32_t const bytes_sz = sizeof(float)*sz;
+      cl_int err;
+      Buffer buf( context, CL_MEM_READ_WRITE, bytes_sz, 0, &err ); 
+      cl_err_chk( err, "Buffer() from vect_float" );
+      must_insert( *bufs, vn, buf ); 
+    }
+    uint32_t get_var_sz_floats( string const & vn ) { 
+      uint32_t const bytes_sz = must_find( *bufs, vn ).getInfo<CL_MEM_SIZE>(); 
+      assert_st( (bytes_sz%sizeof(float)) == 0 );
+      return bytes_sz / sizeof(float);
+    }
+    void set_var_to_zero( string const & vn ) { 
+      // must_find( *bufs, vn ).set_to_zero();  // FIXME/TODO
+    }
+    
+    ocl_compute_t( void ) : bufs( new map_str_Buffer_t ), kerns( new map_str_Kernel_t ) { }
+
+    // note: post-compilation, MUST be called exactly once on all functions that will later be run()
+    void check_runnable( string const name, bool const show_func_attrs ) {
+      assert_st( prog_valid.v );
+      cl_int err = 0;
+      Kernel kern( prog, name.c_str(), &err );
+      cl_err_chk( err, "cl::Kernel() (aka clCreateKernel())" );
+      if( show_func_attrs ) {
+	// FIXME: TODO
+      }
+      must_insert( *kerns, name, kern );
+    }
+
+    // FIXME: todo
+    p_void make_event( void ) { return p_void(); }
+    void record_event( p_void const & ev ) { }
+    float get_event_dur( p_void const & b_ev, p_void const & e_ev ) {
+      float compute_dur = 0.0f;
+      // TODO
+      return compute_dur;
+    }
+
+    void run( rtc_func_call_t & rfc ) {
+      Kernel & kern = must_find( *kerns, rfc.rtc_func_name.c_str() );
+      uint32_t cur_arg_ix = 0;
+      for( vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
+	Buffer & buf = must_find( *bufs, *i );
+	set_kernel_arg( kern, cur_arg_ix, buf );
+	++cur_arg_ix;
+      }
+      for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { 
+	set_kernel_arg( kern, cur_arg_ix, *i );
+	++cur_arg_ix;
+      }
+      if( !rfc.b_ev ) { rfc.b_ev = make_event(); } 
+      if( !rfc.e_ev ) { rfc.e_ev = make_event(); }
+
+      record_event( rfc.b_ev );
+      cl_int const err = cq.enqueueNDRangeKernel( kern, cl::NullRange, NDRange(rfc.tpb.v*rfc.blks.v), NDRange(rfc.tpb.v), 0, 0 );
+      cl_err_chk( err, "cl::CommandQueue::enqueueNDRangeKernel()" );
+      record_event( rfc.e_ev );
+    }
+
+    void finish_and_sync( void ) { cl_err_chk( cq.finish(), "CommandQueue::finish()" ); }
+
+    // FIXME: TODO
+    void profile_start( void ) { }
+    void profile_stop( void ) { }
+
+  };
+
+  struct ocl_test_t : virtual public nesi, public has_main_t // NESI(help="test basic usage of openCL",
+		      // bases=["has_main_t"], type_id="ocl_test")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t prog_fn; //NESI(default="%(boda_test_dir)/ocl_test_dot.cl",help="cuda program source filename")
+    uint32_t data_sz; //NESI(default=10000,help="size in floats of test data")
+    p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
+
+    boost::random::mt19937 gen;
+    
+    virtual void main( nesi_init_arg_t * nia ) {
+      rtc->init();
+      p_string prog_str = read_whole_fn( prog_fn );
+      rtc->compile( *prog_str, 0, 0 );
 
       vect_float a( data_sz, 0.0f );
       rand_fill_vect( a, 2.5f, 7.5f, gen );
@@ -101,30 +198,29 @@ namespace boda
       rand_fill_vect( b, 2.5f, 7.5f, gen );
       vect_float c( data_sz, 123.456f );
 
-      Buffer d_a = make_buf_from_vect_float( context, a, &cq );
-      Buffer d_b = make_buf_from_vect_float( context, b, &cq );
-      Buffer d_c = make_buf_from_vect_float( context, c, &cq );
+      rtc->init_var_from_vect_float( "a", a );
+      rtc->init_var_from_vect_float( "b", b );
+      rtc->init_var_from_vect_float( "c", c );
+      
+      rtc_func_call_t rfc{ "my_dot", {"a","b","c"}, {data_sz} }; 
+      rfc.tpb.v = 256;
+      rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
 
-      uint32_t const n = a.size();
-      set_kernel_arg( my_dot, 0, d_a );
-      set_kernel_arg( my_dot, 1, d_b );
-      set_kernel_arg( my_dot, 2, d_c );
-      set_kernel_arg( my_dot, 3, n );
+      rtc->check_runnable( rfc.rtc_func_name, 0 );
+      rtc->run( rfc );
 
-      err = cq.enqueueNDRangeKernel( my_dot, cl::NullRange, NDRange(n), cl::NullRange, 0, 0 );
-      cl_err_chk( err, "cl::CommandQueue::enqueueNDRangeKernel()" );
-       
-      err = cq.enqueueReadBuffer( d_c, 1, 0, sizeof(float)*c.size(), &c[0], 0, 0 ); // note: blocking_read=1
-      cl_err_chk( err, "cq->enqueueReadBuffer()" );
-
+      rtc->finish_and_sync();
+      rtc->set_vect_float_from_var( c, "c" );
       assert_st( b.size() == a.size() );
       assert_st( c.size() == a.size() );
       for( uint32_t i = 0; i != c.size(); ++i ) {
 	if( fabs((a[i]+b[i]) - c[i]) > 1e-6f ) {
-	  printf( "bad res: a[i]=%s b[i]=%s c[i]=%s\n", str(a[i]).c_str(), str(b[i]).c_str(), str(c[i]).c_str() );
+	  printf( "bad res: i=%s a[i]=%s b[i]=%s c[i]=%s\n", str(i).c_str(), str(a[i]).c_str(), str(b[i]).c_str(), str(c[i]).c_str() );
 	  break;
 	}
       }
+       
+
     }
   };
 

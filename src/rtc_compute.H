@@ -19,7 +19,7 @@ namespace boda
     virtual void copy_to_var( string const & vn, float const * const v ) = 0;
     virtual void copy_from_var( float * const v, string const & vn ) = 0;
     virtual void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) = 0;
-    virtual uint32_t get_var_sz( string const & vn ) = 0;
+    virtual uint32_t get_var_sz_floats( string const & vn ) = 0;
     virtual void set_var_to_zero( string const & vn ) = 0;
     
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()

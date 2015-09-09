@@ -10,21 +10,21 @@ namespace boda
     copy_to_var( vn, &v[0] );
   }
   void rtc_compute_t::set_vect_float_from_var( vect_float & v, string const & vn) {
-    assert_st( v.size() == get_var_sz( vn ) );
+    assert_st( v.size() == get_var_sz_floats( vn ) );
     copy_from_var( &v[0], vn );
   }
   // nda_float <-> var copies
   void rtc_compute_t::copy_nda_to_var( string const & vn, p_nda_float_t const & nda ) {
-    assert_st( nda->elems.sz == get_var_sz( vn ) );
+    assert_st( nda->elems.sz == get_var_sz_floats( vn ) );
     copy_to_var( vn, &nda->elems[0] );
   }
   void rtc_compute_t::copy_var_to_nda( p_nda_float_t const & nda, string const & vn ) {
-    assert_st( nda->elems.sz == get_var_sz( vn ) );
+    assert_st( nda->elems.sz == get_var_sz_floats( vn ) );
     copy_from_var( &nda->elems[0], vn );
   }
   // create new flat nda from var
   p_nda_float_t rtc_compute_t::copy_var_as_flat_nda( string const & vn ) {
-    dims_t cup_dims( vect_uint32_t{get_var_sz( vn )} ); 
+    dims_t cup_dims( vect_uint32_t{get_var_sz_floats( vn )} ); 
     cup_dims.calc_strides();
     p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
     copy_var_to_nda( nda, vn );
@@ -75,7 +75,7 @@ namespace boda
       rtc->init_var_from_vect_float( "b", b );
       rtc->init_var_from_vect_float( "c", c );
       
-      rtc_func_call_t rfc{ "dot", {"a","b","c"}, {data_sz} }; 
+      rtc_func_call_t rfc{ "my_dot", {"a","b","c"}, {data_sz} }; 
       rfc.tpb.v = 256;
       rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
 
