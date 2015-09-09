@@ -54,6 +54,7 @@ namespace boda
   struct rtc_test_t : virtual public nesi, public has_main_t // NESI(help="test basic usage of rtc", bases=["has_main_t"], type_id="rtc_test")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/rtc_test.txt",help="output: test results as error or 'all is well'.")
     filename_t prog_fn; //NESI(default="%(boda_test_dir)/nvrtc_test_dot.cu",help="rtc program source filename")
     uint32_t data_sz; //NESI(default=10000,help="size in floats of test data")
     p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
@@ -61,6 +62,7 @@ namespace boda
     boost::random::mt19937 gen;
 
     virtual void main( nesi_init_arg_t * nia ) { 
+      p_ofstream out = ofs_open( out_fn.exp );
       rtc->init();
       p_string prog_str = read_whole_fn( prog_fn );
       rtc->compile( *prog_str, 0, 0 );
@@ -88,10 +90,11 @@ namespace boda
       assert_st( c.size() == a.size() );
       for( uint32_t i = 0; i != c.size(); ++i ) {
 	if( fabs((a[i]+b[i]) - c[i]) > 1e-6f ) {
-	  printf( "bad res: i=%s a[i]=%s b[i]=%s c[i]=%s\n", str(i).c_str(), str(a[i]).c_str(), str(b[i]).c_str(), str(c[i]).c_str() );
-	  break;
+	  (*out) << strprintf( "bad res: i=%s a[i]=%s b[i]=%s c[i]=%s\n", str(i).c_str(), str(a[i]).c_str(), str(b[i]).c_str(), str(c[i]).c_str() );
+	  return;
 	}
       }
+      (*out) << "All is Well.\n";
     }
   };
 
