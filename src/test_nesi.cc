@@ -601,10 +601,17 @@ namespace boda
 	} 
 	if( !cmd_test->command ) {
 	  assert_st( cmd_test->cli_str );
-	  vect_string cli_str_argv = boost::program_options::split_unix( *cmd_test->cli_str );
-	  lexp_name_val_map_t nvm_cli( get_lexp_from_argv( cli_str_argv, std::cout ), &nvm );
-	  nesi_init_and_check_unused_from_nia( &nvm_cli, &tinfo_p_has_main_t, &cmd_test->command ); 
+	  try { 
+	    vect_string cli_str_argv = boost::program_options::split_unix( *cmd_test->cli_str );
+	    lexp_name_val_map_t nvm_cli( get_lexp_from_argv( cli_str_argv, std::cout ), &nvm );
+	    nesi_init_and_check_unused_from_nia( &nvm_cli, &tinfo_p_has_main_t, &cmd_test->command ); 
+	  }
+	  catch( rt_exception const & rte ) { 
+	    test_init_failed = 1; 
+	    failed_modes.insert( "(mode-exists-but-cli_str-proc-failed-for:"+*cmd_test->cli_str+")" );
+	  }
 	}
+	if( test_init_failed ) { continue; }
 	assert_st( cmd_test->command );
 	  
 
