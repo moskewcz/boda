@@ -387,7 +387,7 @@ namespace boda
 	tf_exprs.push_back( make_pair( i->name, i->val ) );
       }
       tf_exprs.push_back( make_pair( "rtc_func_name", rtc_func_name ) );
-      rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (op_tag+".cu")).string() );
+      rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (op_tag+".cucl")).string() );
       rf = &rtc_funcs.insert( make_pair( rtc_func_name, rtc_func_t{rtc_func_name,0,0} ) ).first->second;
       //printf( "rf->name=%s\n", str(rf->name).c_str() );
       return *rf;
