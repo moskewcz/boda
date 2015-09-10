@@ -55,6 +55,18 @@ typedef long long int64_t;
 #define CUCL_GLOBAL_KERNEL kernel
 #define GASQ global
 #define GLOB_ID_1D get_global_id(0)
+#define LOC_ID_1D get_local_id(0)
+#define GRP_ID_1D get_group_id(0)
+#define LOC_SZ_1D get_local_size(0)
+#define LOCSHAR_MEM local
+#define LSMASQ local
+#define BARRIER_SYNC barrier(CLK_LOCAL_MEM_FENCE)
+
+// note: it seems OpenCL doesn't provide powf(), but instead overloads pow() for double and float. 
+// so, we use this as a compatibility wrapper. 
+// the casts should help uses that might expect implict casts from double->float when using powf() 
+// ... or maybe that's a bad idea?
+#define powf(v,e) pow((float)v,(float)e)
 
 )rstr";
 
@@ -96,7 +108,9 @@ typedef long long int64_t;
       assert( !prog_valid.v );
       write_whole_fn( "out.cl", src );
       cl_int err;
-      prog = Program( context, src, 1, &err );
+      prog = Program( context, src, 0, &err );
+      cl_err_chk( err, "Program::Program() (just ctor, no build (build=0))" );
+      err = prog.build( use_devices, "-cl-fast-relaxed-math -cl-denorms-are-zero" );
       cl_err_chk_build( err, prog, use_devices );
       prog_valid.v = 1;
     }

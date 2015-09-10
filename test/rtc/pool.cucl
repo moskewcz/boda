@@ -1,5 +1,5 @@
-extern "C"  __global__ void %(rtc_func_name)( float const * const in, float * const out ) {
-  int32_t const out_ix = blockDim.x * blockIdx.x + threadIdx.x;
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, GASQ float * const out ) {
+  int32_t const out_ix = GLOB_ID_1D;
   if( out_ix >= %(out_ix_sz) ) { return; }
   float out_v = 0.0f;
   for( int32_t kx = 0; kx != %(kern_sz); ++kx ) {

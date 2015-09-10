@@ -129,7 +129,12 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 #define CUCL_GLOBAL_KERNEL extern "C" __global__
 #define GASQ
 #define GLOB_ID_1D (blockDim.x * blockIdx.x + threadIdx.x)
-
+#define LOC_ID_1D (threadIdx.x)
+#define GRP_ID_1D (blockIdx.x)
+#define LOC_SZ_1D (blockDim.x)
+#define LOCSHAR_MEM __shared__
+#define LSMASQ
+#define BARRIER_SYNC __syncthreads()
 )rstr";
 
   struct nvrtc_compute_t : virtual public nesi, public rtc_compute_t // NESI(help="libnvrtc based rtc support (i.e. CUDA)",

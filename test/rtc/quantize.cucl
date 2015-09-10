@@ -1,5 +1,5 @@
-extern "C"  __global__ void %(rtc_func_name)( float * const out, uint32_t const out_sz, uint32_t const max_val, uint32_t const drop_mask ) {
-  uint32_t const ix = blockDim.x * blockIdx.x + threadIdx.x;
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const out, uint32_t const out_sz, uint32_t const max_val, uint32_t const drop_mask ) {
+  uint32_t const ix = GLOB_ID_1D;
   if( ix < out_sz ) { 
     int32_t v = out[ix];
     v = max(0,v);

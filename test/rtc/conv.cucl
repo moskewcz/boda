@@ -1,48 +1,48 @@
 // 256 tbp
 // each thread: computes 8x8 block of out
 // loop over k dim
-extern "C"  __global__ void %(rtc_func_name)( float const * const filts, float const * const biases, float const * const in, float * const out ) {
-  __shared__ float in_smem[%(threadIdx.x_patch_tile_dim)*%(t_tile_sz)];
-  int32_t const blk_filt_ix_sz = %(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz);
-  __shared__ float filts_smem[blk_filt_ix_sz];
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, GASQ float const * const biases, GASQ float const * const in, GASQ float * const out ) {
+  LOCSHAR_MEM float in_smem[%(LOC_ID_1D_patch_tile_dim)*%(t_tile_sz)];
+  int32_t const blk_filt_ix_sz = %(LOC_ID_1D_out_chan_tile_dim)*%(t_tile_sz);
+  LOCSHAR_MEM float filts_smem[%(LOC_ID_1D_out_chan_tile_dim)*%(t_tile_sz)]; // aka blk_filt_ix_sz, which wasn't const enough OpenCL 
   float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
   float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
   float in_strip[%(t_tile_sz)]; // across patches (approx square block in x/y space, favoring x if sqrt() not integer)
-  int32_t const blk_filt_ix_base = %(blockIdx.x_out_chan_blk)*%(filts_xp_ix_out_chan_blk_sz);
+  int32_t const blk_filt_ix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_xp_ix_out_chan_blk_sz);
 
-  int32_t const blk_patch_ix_sz = %(threadIdx.x_patch_tile_dim)*%(t_tile_sz);
-  int32_t const blk_patch_ix_base = %(blockIdx.x_patch_blk)*blk_patch_ix_sz;
+  int32_t const blk_patch_ix_sz = %(LOC_ID_1D_patch_tile_dim)*%(t_tile_sz);
+  int32_t const blk_patch_ix_base = %(GRP_ID_1D_patch_blk)*blk_patch_ix_sz;
 
   // iteratate over filter elements
   int32_t filts_off = blk_filt_ix_base;
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != 
 	 (%(filts_xp_ix_in_chan_dim) * %(filts_xp_ix_x_dim) * %(filts_xp_ix_y_dim)); ++filts_ix_out_chan_elem ) {
-    __syncthreads();
-    if( threadIdx.x < blk_filt_ix_sz ) { 
+    BARRIER_SYNC;
+    if( LOC_ID_1D < blk_filt_ix_sz ) { 
 #ifdef NO_IOX // by default, we don't ever disable this, since it's seems about as good as it can be already
-      //filts_smem[threadIdx.x] = threadIdx.x;
-      filts_smem[threadIdx.x] = filts[threadIdx.x];
+      //filts_smem[LOC_ID_1D] = LOC_ID_1D;
+      filts_smem[LOC_ID_1D] = filts[LOC_ID_1D];
 #else
-      filts_smem[threadIdx.x] = filts[filts_off + threadIdx.x];
+      filts_smem[LOC_ID_1D] = filts[filts_off + LOC_ID_1D];
 #endif
     }
     for( int32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
-      if( (threadIdx.x+blockDim.x*i) < blk_patch_ix_sz ) { 
-	int32_t const t_smem_patch_ix = (blk_patch_ix_base+threadIdx.x+blockDim.x*i);
+      if( (LOC_ID_1D+LOC_SZ_1D*i) < blk_patch_ix_sz ) { 
+	int32_t const t_smem_patch_ix = (blk_patch_ix_base+LOC_ID_1D+LOC_SZ_1D*i);
 
 #ifdef NO_IO
-	//float v = threadIdx.x;
-	//float v = in[threadIdx.x];
-	float v = in[filts_off + threadIdx.x];
+	//float v = LOC_ID_1D;
+	//float v = in[LOC_ID_1D];
+	float v = in[filts_off + LOC_ID_1D];
 #else
 	%(get_in);
 #endif
-	in_smem[threadIdx.x+blockDim.x*i] = v;
+	in_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
       }
     }
     filts_off += %(filts_xp_ix_x_sz);
-    __syncthreads();
+    BARRIER_SYNC;
 #ifdef NO_IO
     %(t_tile_dummy_loads);
 #else
@@ -53,18 +53,18 @@ extern "C"  __global__ void %(rtc_func_name)( float const * const filts, float c
   }
 
   // load per-block biases into smem
-  __syncthreads();
-  if( threadIdx.x < blk_filt_ix_sz ) { 
-    int32_t const ocix_base = %(blockIdx.x_out_chan_blk)*blk_filt_ix_sz;
-    int32_t const load_reg = threadIdx.x / %(threadIdx.x_out_chan_tile_dim);
-    int32_t const load_tile = threadIdx.x %% %(threadIdx.x_out_chan_tile_dim);
+  BARRIER_SYNC;
+  if( LOC_ID_1D < blk_filt_ix_sz ) { 
+    int32_t const ocix_base = %(GRP_ID_1D_out_chan_blk)*blk_filt_ix_sz;
+    int32_t const load_reg = LOC_ID_1D / %(LOC_ID_1D_out_chan_tile_dim);
+    int32_t const load_tile = LOC_ID_1D %% %(LOC_ID_1D_out_chan_tile_dim);
     int32_t const ocix = ocix_base + load_tile*%(t_tile_sz) + load_reg;
-    if( ocix < %(out_ix_chan_dim) ) { filts_smem[threadIdx.x] = biases[ ocix ]; }
-    //int32_t const ocix_tile = (ocix / %(t_tile_sz)) %% %(threadIdx.x_out_chan_tile_dim);
+    if( ocix < %(out_ix_chan_dim) ) { filts_smem[LOC_ID_1D] = biases[ ocix ]; }
+    //int32_t const ocix_tile = (ocix / %(t_tile_sz)) %% %(LOC_ID_1D_out_chan_tile_dim);
     //int32_t const ocix_reg = ocix %% %(t_tile_sz);
     //filts_smem[ocix_tile * %(filts_xp_ix_out_chan_tile_sz) + ocix_reg * %(filts_xp_ix_out_chan_reg_sz)] = biases[ocix];
   }
-  __syncthreads();
+  BARRIER_SYNC;
   // load biases into filts_strip
   %(t_tile_loads);
 

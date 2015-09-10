@@ -1,6 +1,6 @@
 // each thread: computes outputs across chan dim, using inputs across chan dim
-extern "C"  __global__ void %(rtc_func_name)( float const * const in, float * const out ) {
-  int32_t const tix = blockDim.x * blockIdx.x + threadIdx.x;
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, GASQ float * const out ) {
+  int32_t const tix = GLOB_ID_1D;
   if( tix >= %(tix_sz) ) { return; }
   // iteratate over chans
   float ls_buf[%(local_size)] = {0.0f};

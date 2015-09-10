@@ -174,14 +174,13 @@ namespace boda
     uint32_t force_zero_bias; //NESI(default=0,help="if 1, force biases to zero")
     uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
-    vect_string dump_cups; // NESI(help="dump out values of these cups after forward")
+    vect_string dump_vars; // NESI(help="dump out values of these vars after forward")
 
     p_conv_pipe_t cp;
     p_map_str_p_op_info_t op_infos;
     p_map_str_p_node_info_t node_infos;
 
     uint32_t num_imgs;
-    //p_map_str_p_cup_float_t cups;
     vect_string op_param_names;
     set_string filts_names;
     set_string inxp_names;
@@ -202,7 +201,7 @@ namespace boda
     virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
 
     void update_stats( void );
-    void dump_cup( string const & n );
+    void dump_var( string const & n );
     virtual ~conv_pipe_fwd_t( void );
   protected:
     rtc_func_t & gen_op_pool( p_op_info_t const & oi );
@@ -324,10 +323,10 @@ namespace boda
     }
   }
 
-  void conv_pipe_fwd_t::dump_cup( string const & n ) {
+  void conv_pipe_fwd_t::dump_var( string const & n ) {
     p_nda_float_t nda = rtc->copy_var_as_flat_nda( as_pyid( n ) );
     // dump nda
-    printf( "dupming cup '%s'\n", str(n).c_str() );
+    printf( "dupming var '%s'\n", str(n).c_str() );
     for( uint32_t i = 0; i != nda->dims.dims_prod(); ++i ) {
       printf( "i=%s v=%s\n", str(i).c_str(), str(nda->cm_at1(i)).c_str() );
     }
@@ -440,7 +439,7 @@ namespace boda
     rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); 
 
     tf_exprs.push_back( std::make_pair( "op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" ) );
-    tf_exprs.push_back( std::make_pair( "op_post", oi->cop->avg_pool ? "out_v /= float("+str(oi->kern_sz*oi->kern_sz)+")" : "" ) );
+    tf_exprs.push_back( std::make_pair( "op_post", oi->cop->avg_pool ? "out_v /= (float)("+str(oi->kern_sz*oi->kern_sz)+")" : "" ) );
 
     rf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
     rf.arg_sizes.push_back( out_ix_sz );
@@ -471,7 +470,7 @@ namespace boda
 
     insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
     insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
-    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
+    insert_nda_exprs( tf_exprs, "LOC_ID_1D", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
 
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
@@ -487,12 +486,12 @@ namespace boda
     // printf( "patch_smem_load_iter=%s\n", str(patch_smem_load_iter).c_str() );
     // assert_st( oi->tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
       
-    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
+    insert_nda_exprs( tf_exprs, "GRP_ID_1D", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
-					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
+					"(%(LOC_ID_1D_out_chan_tile)+%(GRP_ID_1D_out_chan_blk)*%(LOC_ID_1D_out_chan_tile_dim))"));
     tf_exprs.push_back( std::make_pair( "patch_tile",
-					"(%(threadIdx.x_patch_tile)+%(blockIdx.x_patch_blk)*%(threadIdx.x_patch_tile_dim))"));
+					"(%(LOC_ID_1D_patch_tile)+%(GRP_ID_1D_patch_blk)*%(LOC_ID_1D_patch_tile_dim))"));
 
     tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(t_tile_sz))" ) );
       
@@ -518,7 +517,7 @@ namespace boda
       "      }"
 				     );
 #else // hack for testing overhead of above
-    string const get_in = strprintf("float v = in[threadIdx.x];\n");
+    string const get_in = strprintf("float v = in[LOC_ID_1D];\n");
 #endif				      
     tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
 			
@@ -529,13 +528,13 @@ namespace boda
     string t_tile_dummy_stores("// begin t_tile_dummy_stores\n");
 
     for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-      t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[(threadIdx.x %%%% 32) + %s];\n", str(tx).c_str(), str(tx).c_str() );
-      t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n",
+      t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[(LOC_ID_1D %%%% 32) + %s];\n", str(tx).c_str(), str(tx).c_str() );
+      t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(LOC_ID_1D_out_chan_tile)+%s*%%(LOC_ID_1D_out_chan_tile_dim)];\n",
 				 str(tx).c_str(), str(tx).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-      t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(threadIdx.x %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
-      t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(threadIdx.x_patch_tile)+%s];\n",
+      t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(LOC_ID_1D %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
+      t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(LOC_ID_1D_patch_tile)+%s];\n",
 				 str(ty).c_str(), str(ty).c_str() );
     }
 
@@ -623,7 +622,7 @@ namespace boda
         
     tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
 
-    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"line","line_x_tile","out_chan_tile"}, 
+    insert_nda_exprs( tf_exprs, "LOC_ID_1D", vect_string{"line","line_x_tile","out_chan_tile"}, 
 		      vect_uint32_t{blk_num_lines,line_x_tile_sz,oi->tix_out_chan_tile_sz} );
 
     tf_exprs.push_back( std::make_pair( "line_buf_sz", "(%(in_pad)+%(in_ix_x_dim)+%(in_pad))"));
@@ -642,15 +641,15 @@ namespace boda
     string filts_smem_loads("// begin filts_smem_loads\n");
     if( oi->tpb == blk_filt_ix_sz ) {
       assert_st( out_chan_smem_load_iter * oi->tpb == blk_filt_ix_sz * oi->kern_sz );
-      tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));;
+      tf_exprs.push_back( std::make_pair( "filts_off_adj", "LOC_ID_1D" ));;
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	filts_smem_loads += strprintf( "    filts_smem[threadIdx.x + %%(tpb) * %s] = filts[filts_off+(%s*%%(filts_xp_ix_x_sz))];\n",
+	filts_smem_loads += strprintf( "    filts_smem[LOC_ID_1D + %%(tpb) * %s] = filts[filts_off+(%s*%%(filts_xp_ix_x_sz))];\n",
 				       str(i).c_str(), str(i).c_str() );
       } 
     } else {
       tf_exprs.push_back( std::make_pair( "filts_off_adj", "0" ));
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
 	string eif;
 	if( (i+1) == out_chan_smem_load_iter ) { filts_smem_loads += "if( "+ixe+" < "+str(blk_filt_ix_sz*oi->kern_sz)+") { "; eif = "}"; }
 	filts_smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+((%s/%%(blk_filt_ix_sz))*%%(filts_xp_ix_x_sz))"
@@ -664,16 +663,16 @@ namespace boda
     assert_st( (2*oi->in_pad*blk_num_lines) <= oi->tpb ); // FIXME: too strong? other bad things probably happen with large padding?
 
 
-    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"lines_blk","out_chan_blk"}, 
+    insert_nda_exprs( tf_exprs, "GRP_ID_1D", vect_string{"lines_blk","out_chan_blk"}, 
 		      vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
-					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
+					"(%(LOC_ID_1D_out_chan_tile)+%(GRP_ID_1D_out_chan_blk)*%(LOC_ID_1D_out_chan_tile_dim))"));
     tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(t_tile_sz))" ) );
       
     for( uint32_t i = 0; i != t_tile_sz; ++i ) {
       tf_exprs.push_back( std::make_pair( "line_x_" + str(i), 
-					  strprintf( "(%%(threadIdx.x_line_x_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
+					  strprintf( "(%%(LOC_ID_1D_line_x_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
     }
 
     insert_nda_exprs( tf_exprs, "out_line", vect_string{"img","y"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1]}); 
@@ -682,11 +681,11 @@ namespace boda
     string t_tile_filt_loads("// begin t_tile_filt_loads\n");
     string t_tile_stores("// begin t_tile_stores\n");
     for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-      t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[filts_smem_off+%%(threadIdx.x_out_chan_tile)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
+      t_tile_filt_loads += strprintf( "    filts_strip[%s] = filts_smem[filts_smem_off+%%(LOC_ID_1D_out_chan_tile)+%s*%%(LOC_ID_1D_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz + oi->kern_sz - 1; ++ty ) { 
-      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(line_buf_sz)*%%(threadIdx.x_line)+"
-				    " %%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%s];\n",
+      t_tile_in_loads += strprintf( "    in_strip[%s] = in_smem[%%(line_buf_sz)*%%(LOC_ID_1D_line)+"
+				    " %%(t_tile_sz)*%%(LOC_ID_1D_line_x_tile)+%s];\n",
 				 str(ty).c_str(), str(ty).c_str() );
     }
     t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
@@ -698,7 +697,7 @@ namespace boda
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
       t_tile_stores += strprintf( "  tpix[%s] = %%(out_line_img)*%%(out_ix_img_sz) + \n"
 				  "             %%(out_line_y)*%%(out_ix_y_sz) + \n"
-				  "   (%%(t_tile_sz)*%%(threadIdx.x_line_x_tile)+%s)*%%(out_ix_x_sz); // cache out patch ixs\n ",
+				  "   (%%(t_tile_sz)*%%(LOC_ID_1D_line_x_tile)+%s)*%%(out_ix_x_sz); // cache out patch ixs\n ",
 				  str(ty).c_str(), str(ty).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
@@ -706,7 +705,7 @@ namespace boda
 				  str(ty).c_str(), str(ty).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-      t_tile_stores += "  if( (%(t_tile_sz)*%(threadIdx.x_line_x_tile)+"+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
+      t_tile_stores += "  if( (%(t_tile_sz)*%(LOC_ID_1D_line_x_tile)+"+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
 	"// this patch and the following are off-the-end patches, so don't store them.\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
@@ -794,9 +793,9 @@ namespace boda
     tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
     tf_exprs.push_back( std::make_pair( "in_chan_tile", str(oi->in_chan_tile) ) );
 
-    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"pels_tile","out_chan_tile"}, 
+    insert_nda_exprs( tf_exprs, "LOC_ID_1D", vect_string{"pels_tile","out_chan_tile"}, 
 		      vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
-    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"pels_blk","out_chan_blk"}, 
+    insert_nda_exprs( tf_exprs, "GRP_ID_1D", vect_string{"pels_blk","out_chan_blk"}, 
 		      vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
 
     insert_nda_exprs( tf_exprs, "in_ix", 
@@ -826,9 +825,9 @@ namespace boda
     // generate filter smem loads
     uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, oi->tpb );    
     string smem_loads("// begin smem_loads\n");
-    tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));
+    tf_exprs.push_back( std::make_pair( "filts_off_adj", "LOC_ID_1D" ));
     for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-      string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+      string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
       string eif;
       if( (i+1)*oi->tpb > filts_smem_sz ) { smem_loads+="if( "+ixe+" < %(filts_smem_sz) ) { ";eif = "}";}
       // note: load is (always) contiguous
@@ -838,7 +837,7 @@ namespace boda
     uint32_t const in_ix_blk_iter_sz = oi->tix_pels_tile_sz * t_tile_sz * oi->in_chan_tile;
     uint32_t const in_smem_load_iter = u32_ceil_div( in_ix_blk_iter_sz, oi->tpb );    
     for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
-      string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+      string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
       string eif;
       if( (i+1)*oi->tpb > in_ix_blk_iter_sz ) { smem_loads+="if( "+ixe+" < %(in_ix_blk_iter_sz)) { ";eif = "}";}
       smem_loads += strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
@@ -848,7 +847,7 @@ namespace boda
     tf_exprs.push_back( std::make_pair( "smem_loads", smem_loads ) );
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
-					"(%(threadIdx.x_out_chan_tile)+%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim))"));
+					"(%(LOC_ID_1D_out_chan_tile)+%(GRP_ID_1D_out_chan_blk)*%(LOC_ID_1D_out_chan_tile_dim))"));
     tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(t_tile_sz))" ) );
 
     // generate in smem loads
@@ -876,7 +875,7 @@ namespace boda
       // we assume the out chans are a single (span of) dims in out. FIXME: check this?. 
 
 #if 0
-      t_tile_stores += "int32_t const out_pel = %(blockIdx.x_pels_blk)*%(in_ix_blk_pel_dim) + %(threadIdx.x_pels_tile)*%(t_tile_sz);\n";
+      t_tile_stores += "int32_t const out_pel = %(GRP_ID_1D_pels_blk)*%(in_ix_blk_pel_dim) + %(LOC_ID_1D_pels_tile)*%(t_tile_sz);\n";
       t_tile_stores += "int32_t const out_ix = %(out_pel_blk)*%(out_ix_blk_sz) + %(out_pel_blk_pel)*%(out_ix_blk_pel_sz) + "
 	"%(out_chan_ix)*%(out_ix_blk_iter_chan_sz);\n";
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
@@ -889,30 +888,30 @@ namespace boda
       }
 #else
       //t_tile_stores += "  int32_t xpbuf[%(t_tile_sz)];\n";
-      // FIXME: assumes (for blockIdx.x_pels_blk*... term) that input and output block have same # of pels ... too strong?
+      // FIXME: assumes (for GRP_ID_1D_pels_blk*... term) that input and output block have same # of pels ... too strong?
       assert_st( oi->tix_pels_tile_sz == noi->tix_pels_tile_sz );
-      t_tile_stores += "int32_t const out_ix = %(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim)*%(t_tile_sz)*%(out_ix_blk_iter_chan_sz) + "
-	"%(blockIdx.x_pels_blk)*%(out_ix_blk_sz);\n"; 
+      t_tile_stores += "int32_t const out_ix = %(GRP_ID_1D_out_chan_blk)*%(LOC_ID_1D_out_chan_tile_dim)*%(t_tile_sz)*%(out_ix_blk_iter_chan_sz) + "
+	"%(GRP_ID_1D_pels_blk)*%(out_ix_blk_sz);\n"; 
       t_tile_stores += "int32_t xpbuf_rd_pel;\n";
       t_tile_stores += "int32_t xpbuf_rd_chan;\n";
 
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	// transpose each thread's tx'th out_chan (= t_tile_sz out chans across all threads) into xpbuf (again across all threads)
 	// such that we can do (mostly) sequential writes to global memory for this set of t_tile_sz out chans
-	t_tile_stores += "  __syncthreads();\n";
+	t_tile_stores += "  BARRIER_SYNC;\n";
 	for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // out_tile[] (registers) -> all_smem[]
 	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
 				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
 	  t_tile_stores += strprintf( "out_smem_off[%%(tpb)*%s] = %s;\n", str(ty).c_str(), ve.c_str() );
 	}
-	t_tile_stores += "  __syncthreads();\n";
+	t_tile_stores += "  BARRIER_SYNC;\n";
 	for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // all_smem[] -> [xpbuf[] (registers)] -> out[] (global)
-	  string const obe = "(threadIdx.x + %(tpb)*"+str(ty)+")";
+	  string const obe = "(LOC_ID_1D + %(tpb)*"+str(ty)+")";
 	  t_tile_stores += "  xpbuf_rd_pel = "+obe+" %% %(out_ix_blk_pel_dim) ;\n";
 	  t_tile_stores += "  xpbuf_rd_chan = "+obe+" / %(out_ix_blk_pel_dim) ;\n";
 	  t_tile_stores += strprintf( "out[out_ix + xpbuf_rd_pel + (xpbuf_rd_chan*%%(t_tile_sz)+%s)*%%(out_ix_blk_iter_chan_sz)] = "
 				      "all_smem[xpbuf_rd_chan+(xpbuf_rd_pel %%%% %%(t_tile_sz))*%%(tpb)"
-				      "+ (xpbuf_rd_pel / %%(t_tile_sz))*%%(threadIdx.x_out_chan_tile_dim) ];\n",
+				      "+ (xpbuf_rd_pel / %%(t_tile_sz))*%%(LOC_ID_1D_out_chan_tile_dim) ];\n",
 				      str(tx).c_str() );
 	}
 	for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // xpbuf[] registers -> out[] (global)
@@ -926,7 +925,7 @@ namespace boda
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
 	tf_exprs.push_back( 
 	  std::make_pair( "out_pel_"+str(ty), 
-			  "(%(blockIdx.x_pels_blk)*%(in_ix_blk_pel_dim) + %(threadIdx.x_pels_tile)*%(t_tile_sz)+"+str(ty)+")" ) );
+			  "(%(GRP_ID_1D_pels_blk)*%(in_ix_blk_pel_dim) + %(LOC_ID_1D_pels_tile)*%(t_tile_sz)+"+str(ty)+")" ) );
 	insert_nda_exprs( tf_exprs, "out_pel_"+str(ty), vect_string{"img","pel"}, vect_uint32_t{num_imgs,oi->no->cio.sz.dims_prod()}, 1); 
 	t_tile_stores += strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_ix_img_sz) + "
 				    " %%(out_pel_%s_pel)*%%(out_ix_x_sz)"
@@ -966,7 +965,7 @@ namespace boda
 
     string t_tile_bias_loads("// begin t_tile_bias_loads\n");
     for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-      t_tile_bias_loads += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
+      t_tile_bias_loads += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(LOC_ID_1D_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
     }
     t_tile_bias_loads += "  // end t_tile_bias_loads";
     tf_exprs.push_back( std::make_pair( "t_tile_bias_loads", t_tile_bias_loads ) );
@@ -974,12 +973,12 @@ namespace boda
     string inner_loop_body("// begin inner_loop_body\n");
     for( uint32_t ict = 0; ict != oi->in_chan_tile; ++ict ) {
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(blk_filt_ix_sz)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(ict).c_str(), str(tx).c_str() );
+	inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(blk_filt_ix_sz)+%s*%%(LOC_ID_1D_out_chan_tile_dim)];\n", str(tx).c_str(), str(ict).c_str(), str(tx).c_str() );
 	//uint32_t const off = ict*blk_filt_ix_sz+tx*oi->tix_out_chan_tile_sz;
 	//inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s];\n", str(tx).c_str(), str(off).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-	inner_loop_body += strprintf( "    in_strip[%s] = in_smem_off[(%s*%%(t_tile_sz)*%%(threadIdx.x_pels_tile_dim)+%s)];\n",
+	inner_loop_body += strprintf( "    in_strip[%s] = in_smem_off[(%s*%%(t_tile_sz)*%%(LOC_ID_1D_pels_tile_dim)+%s)];\n",
 				      str(ty).c_str(), str(ict).c_str(), str(ty).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
@@ -1033,9 +1032,9 @@ namespace boda
 
     uint32_t const in_ix_blk_x_dim = oi->out_to_in(t_tile_sz);
 
-    insert_nda_exprs( tf_exprs, "threadIdx.x", vect_string{"blk_y","out_chan_tile"}, 
+    insert_nda_exprs( tf_exprs, "LOC_ID_1D", vect_string{"blk_y","out_chan_tile"}, 
 		      vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
-    insert_nda_exprs( tf_exprs, "blockIdx.x", vect_string{"blk_bline","blk_bx","out_chan_blk"}, 
+    insert_nda_exprs( tf_exprs, "GRP_ID_1D", vect_string{"blk_bline","blk_bx","out_chan_blk"}, 
 		      vect_uint32_t{oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],oi->bix_out_chan_blk_sz}); 
 
     uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz;
@@ -1061,9 +1060,9 @@ namespace boda
     // filt smem loads
     string filt_smem_loads("// begin filt_smem_loads\n");
     uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, oi->tpb );    
-    tf_exprs.push_back( std::make_pair( "filts_off_adj", "threadIdx.x" ));
+    tf_exprs.push_back( std::make_pair( "filts_off_adj", "LOC_ID_1D" ));
     for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-      string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+      string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
       string eif;
       if( (i+1)*oi->tpb > filts_smem_sz ) { filt_smem_loads+="if( "+ixe+" < %(filts_smem_sz) ) { ";eif = "}";}
       // note: load is (always) contiguous
@@ -1077,7 +1076,7 @@ namespace boda
     string in_smem_loads("// begin in_smem_loads\n");
     uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, oi->tpb );    
     for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
-      string const ixe = "(threadIdx.x + %(tpb) * "+str(i)+")";
+      string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
       string eif;
       if( (i+1)*oi->tpb > in_smem_sz ) { in_smem_loads+="if( "+ixe+" < %(in_smem_sz)) { ";eif = "}";}
       in_smem_loads += strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
@@ -1094,7 +1093,7 @@ namespace boda
     }
     for( uint32_t kx = 0; kx != oi->kern_sz; ++kx ) {
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(blk_filt_ix_sz)+%s*%%(threadIdx.x_out_chan_tile_dim)];\n", 
+	inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(blk_filt_ix_sz)+%s*%%(LOC_ID_1D_out_chan_tile_dim)];\n", 
 				      str(tx).c_str(), str(kx).c_str(), str(tx).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
@@ -1108,7 +1107,7 @@ namespace boda
 
     string t_tile_bias_loads("// begin t_tile_bias_loads\n");
     for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-      t_tile_bias_loads += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(threadIdx.x_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
+      t_tile_bias_loads += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(LOC_ID_1D_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
     }
     t_tile_bias_loads += "  // end t_tile_bias_loads";
     tf_exprs.push_back( std::make_pair( "t_tile_bias_loads", t_tile_bias_loads ) );
@@ -1117,9 +1116,9 @@ namespace boda
 
     //t_tile_stores += "  if( %(out_line_y) >= %(out_ix_y_sz) ) { return; }\n"; // not possible
     t_tile_stores += "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; }\n";
-    t_tile_stores += "  int32_t out_x = %(blockIdx.x_blk_bx)*%(t_tile_sz);\n";
-    t_tile_stores += "  int32_t out_chan = (%(blockIdx.x_out_chan_blk)*%(threadIdx.x_out_chan_tile_dim) + %(threadIdx.x_out_chan_tile))*%(t_tile_sz);\n";
-    t_tile_stores += "  float * out_off = out + %(out_line_img)*%(out_ix_img_sz) + out_chan*%(out_ix_chan_sz) + "
+    t_tile_stores += "  int32_t out_x = %(GRP_ID_1D_blk_bx)*%(t_tile_sz);\n";
+    t_tile_stores += "  int32_t out_chan = (%(GRP_ID_1D_out_chan_blk)*%(LOC_ID_1D_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile))*%(t_tile_sz);\n";
+    t_tile_stores += "  GASQ float * out_off = out + %(out_line_img)*%(out_ix_img_sz) + out_chan*%(out_ix_chan_sz) + "
       "%(out_line_y)*%(out_ix_y_sz) + out_x*%(out_ix_x_sz) ;\n";
 
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
@@ -1246,7 +1245,7 @@ namespace boda
       } else { assert_st(0); }
     }
     string store_str( void ) {
-      return strprintf( "    if( !tid ) { %s_out[blockIdx.x] = %s_v; }", tag.c_str(), tag.c_str() ); }
+      return strprintf( "    if( !tid ) { %s_out[GRP_ID_1D] = %s_v; }", tag.c_str(), tag.c_str() ); }
 
   };
   typedef vector< red_op_t > vect_red_op_t; 
@@ -1277,7 +1276,7 @@ namespace boda
 	  body.push_back(reds[i].decl_str());
 	  body.push_back(reds[i].load_str());
 	}
-	body.push_back( "  __syncthreads();" );
+	body.push_back( "  BARRIER_SYNC;" );
 	uint32_t const tbp = 256;
 	uint32_t const warp_sz = 32;
 	for( uint32_t smb = tbp / 2; smb > warp_sz; smb /= 2 ) {
@@ -1287,7 +1286,7 @@ namespace boda
 			    reds[i].update_v_str( strprintf( "%s_smem[tid+%s]", reds[i].tag.c_str(), str(smb).c_str() )));
 	  }
 	  body.push_back( "  }" );
-	  body.push_back( "  __syncthreads();" );
+	  body.push_back( "  BARRIER_SYNC;" );
 	}
 	body.push_back( strprintf( "  if( tid < %s ) {", str(warp_sz).c_str() ) );
 	for( uint32_t i = 0; i != reds.size(); ++i ) {
@@ -1559,7 +1558,7 @@ namespace boda
   // quantize command line example:
   // export QOPTS="keep_bits=8,quantize=(_=(name=conv1,max_val=4096),_=(name=conv2,max_val=1024),_=(name=conv3,max_val=1024),_=(name=conv4,max_val=512),_=(name=conv5,max_val=512))
 
-  // CUDA_VISIBLE_DEVICES=0 DISABLE_CUDNN=0 time boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=1000 --run-cnet="(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_layer_name=fc8-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=0,show_rtc_calls=0,${QOPTS}))"
+  // CUDA_VISIBLE_DEVICES=0 DISABLE_CUDNN=0 time boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=1000 --run-cnet="(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_layer_name=fc8-conv,compute_mode=1,conv_fwd=(mode=rtc,enable_stats=0,show_rtc_calls=0,${QOPTS}))"
 
 
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
@@ -1617,7 +1616,6 @@ namespace boda
 
     rtc->init();
 
-    //cups.reset( new map_str_p_cup_float_t );
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
@@ -1693,7 +1691,7 @@ namespace boda
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     rtc->copy_vars_to_ndas( cp->tops, *fwd ); // copy sinks out (FIXME/note: implicit as_pyid() inside)
     update_stats();
-    for( vect_string::const_iterator i = dump_cups.begin(); i != dump_cups.end(); ++i ) { dump_cup( *i ); }
+    for( vect_string::const_iterator i = dump_vars.begin(); i != dump_vars.end(); ++i ) { dump_var( *i ); }
     //printf("run_fwd() done\n");
   }
   
