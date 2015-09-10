@@ -1593,13 +1593,6 @@ namespace boda
       }
     }
   }
-  string cu_base_decls = R"rstr(
-//typedef unsigned uint32_t;
-typedef int int32_t;
-typedef long long int64_t;
-float const FLT_MAX = /*0x1.fffffep127f*/ 340282346638528859811704183484516925440.0f;
-
-)rstr";
 
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
     num_imgs = num_imgs_;
@@ -1625,7 +1618,6 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     rtc->init();
 
     //cups.reset( new map_str_p_cup_float_t );
-    rtc_prog_str += cu_base_decls;
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
     cp->topo_visit_setup();
     for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }

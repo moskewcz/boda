@@ -48,6 +48,16 @@ namespace boda
   typedef map< string, Buffer > map_str_Buffer_t;
   typedef shared_ptr< map_str_Buffer_t > p_map_str_Buffer_t;
 
+  string ocl_base_decls = R"rstr(
+//typedef unsigned uint32_t;
+typedef int int32_t;
+typedef long long int64_t;
+#define CUCL_GLOBAL_KERNEL kernel
+#define GASQ global
+#define GLOB_ID_1D get_global_id(0)
+
+)rstr";
+
 
   struct ocl_compute_t : virtual public nesi, public rtc_compute_t // NESI(help="OpenCL based rtc support",
 			   // bases=["rtc_compute_t"], type_id="ocl" )
@@ -80,7 +90,8 @@ namespace boda
 
     Program prog;
     zi_bool prog_valid;
-    void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo ) {
+    void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo ) {
+      string const src = ocl_base_decls + cucl_src;
       assert( init_done.v );
       assert( !prog_valid.v );
       write_whole_fn( "out.cl", src );
