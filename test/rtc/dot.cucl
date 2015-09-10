@@ -1,0 +1,6 @@
+
+CUCL_GLOBAL_KERNEL void my_dot( GASQ float const * const a, GASQ float const * const b, GASQ float * const c, int32_t const n ) {
+  int32_t const ix = GLOB_ID_1D;
+  if( ix < n ) { c[ix] = a[ix] + b[ix]; }
+}
+
