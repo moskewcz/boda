@@ -127,7 +127,16 @@ typedef long long int64_t;
       return bytes_sz / sizeof(float);
     }
     void set_var_to_zero( string const & vn ) { 
-      // must_find( *bufs, vn ).set_to_zero();  // FIXME/TODO
+      Buffer const & buf = must_find( *bufs, vn );
+#if 0
+      cl_int const err = cq.enqueueFillBuffer( buf, ... ); // need OpenCL 1.2 ...
+      cl_err_chk( err, "cq->enqueueFillBuffer()" );
+#else
+      uint32_t const bytes_sz = buf.getInfo<CL_MEM_SIZE>(); 
+      vect_uint8_t zeros( bytes_sz, 0 );
+      cl_int const err = cq.enqueueWriteBuffer( buf, 1, 0, bytes_sz, &zeros[0], 0, 0);  // note: blocking write
+      cl_err_chk( err, "cq->enqueueWriteBuffer()" );
+#endif
     }
     
     ocl_compute_t( void ) : bufs( new map_str_Buffer_t ), kerns( new map_str_Kernel_t ) { }
