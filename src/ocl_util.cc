@@ -51,7 +51,7 @@ namespace boda
   string ocl_base_decls = R"rstr(
 //typedef unsigned uint32_t;
 typedef int int32_t;
-typedef long long int64_t;
+//typedef long long int64_t;
 #define CUCL_GLOBAL_KERNEL kernel
 #define GASQ global
 #define GLOB_ID_1D get_global_id(0)

@@ -124,7 +124,7 @@ namespace boda
   string cu_base_decls = R"rstr(
 //typedef unsigned uint32_t;
 typedef int int32_t;
-typedef long long int64_t;
+//typedef long long int64_t;
 float const FLT_MAX = /*0x1.fffffep127f*/ 340282346638528859811704183484516925440.0f;
 #define CUCL_GLOBAL_KERNEL extern "C" __global__
 #define GASQ
