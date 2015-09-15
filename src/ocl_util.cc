@@ -176,14 +176,23 @@ typedef int int32_t;
       return compute_dur;
     }
 
-    void run( rtc_func_call_t & rfc ) {
-      Kernel & kern = must_find( *kerns, rfc.rtc_func_name.c_str() );
-      uint32_t cur_arg_ix = 0;
-      for( vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
+    virtual float get_var_compute_dur( string const & vn ) { return 0; }
+    virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { return 0; }
+
+    void add_args( vect_string const & args, Kernel & kern, uint32_t & cur_arg_ix ) {
+      for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
 	Buffer & buf = must_find( *bufs, *i );
 	set_kernel_arg( kern, cur_arg_ix, buf );
 	++cur_arg_ix;
       }
+    }
+
+    void run( rtc_func_call_t & rfc ) {
+      Kernel & kern = must_find( *kerns, rfc.rtc_func_name.c_str() );
+      uint32_t cur_arg_ix = 0;
+      add_args( rfc.in_args, kern, cur_arg_ix );
+      add_args( rfc.inout_args, kern, cur_arg_ix );
+      add_args( rfc.out_args, kern, cur_arg_ix );
       for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { 
 	set_kernel_arg( kern, cur_arg_ix, *i );
 	++cur_arg_ix;

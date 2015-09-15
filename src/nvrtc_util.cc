@@ -106,7 +106,6 @@ namespace boda
   typedef map< string, p_cup_float > map_str_p_cup_float_t;
   typedef shared_ptr< map_str_p_cup_float_t > p_map_str_p_cup_float_t;
 
-
   typedef shared_ptr< CUevent > p_CUevent; 
   void cuEventDestroy_wrap( CUevent const * const p ) { 
     if(!p){return;} 
@@ -120,6 +119,15 @@ namespace boda
 
   typedef map< string, CUfunction > map_str_CUfunction_t;
   typedef shared_ptr< map_str_CUfunction_t > p_map_str_CUfunction_t;
+
+  struct var_info_t {
+    p_cup_float cup;
+    p_CUevent b_ev; // when compute of this var starts
+    p_CUevent e_ev; // when ready
+  };
+
+  typedef map< string, var_info_t > map_str_var_info_t;
+  typedef shared_ptr< map_str_var_info_t > p_map_str_var_info_t;
 
   string cu_base_decls = R"rstr(
 //typedef unsigned uint32_t;
@@ -171,22 +179,24 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       mod_valid.v = 1;
     }
 
-    p_map_str_p_cup_float_t cups;
+    p_map_str_var_info_t vis;
     p_map_str_CUfunction_t cu_funcs;
 
     void copy_to_var( string const & vn, float const * const v ) {
-      p_cup_float const & cup = must_find( *cups, vn );
+      p_cup_float const & cup = must_find( *vis, vn ).cup;
       cu_err_chk( cuMemcpyHtoD( cup->p, v, cup->sz*sizeof(float) ), "cuMemcpyHtoD" );
     }
     void copy_from_var( float * const v, string const & vn ) {
-      p_cup_float const & cup = must_find( *cups, vn );
+      p_cup_float const & cup = must_find( *vis, vn ).cup;
       cu_err_chk( cuMemcpyDtoH( v, cup->p, cup->sz*sizeof(float) ), "cuMemcpyDtoH" );
     }
-    void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { must_insert( *cups, vn, make_shared<cup_float>( sz ) ); }
-    uint32_t get_var_sz_floats( string const & vn ) { return must_find( *cups, vn )->sz; }
-    void set_var_to_zero( string const & vn ) { must_find( *cups, vn )->set_to_zero(); }
+    void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { 
+      must_insert( *vis, vn, {make_shared<cup_float>( sz ), make_p_CUevent() } ); 
+    }
+    uint32_t get_var_sz_floats( string const & vn ) { return must_find( *vis, vn ).cup->sz; }
+    void set_var_to_zero( string const & vn ) { must_find( *vis, vn ).cup->set_to_zero(); }
     
-    nvrtc_compute_t( void ) : cups( new map_str_p_cup_float_t ), cu_funcs( new map_str_CUfunction_t ) { }
+    nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_CUfunction_t ) { }
 
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()
     void check_runnable( string const name, bool const show_func_attrs ) {
@@ -210,13 +220,33 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       return compute_dur;
     }
 
+    virtual float get_var_compute_dur( string const & vn ) { 
+      var_info_t const & vi = must_find( *vis, vn );
+      float compute_dur = 0.0f;
+      cu_err_chk( cuEventElapsedTime( &compute_dur, *vi.b_ev, *vi.e_ev ), "cuEventElapsedTime" );
+      return compute_dur;
+    }
+    virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { 
+      CUevent const & e_ev1 = *must_find( *vis, vn1 ).e_ev;
+      CUevent const & e_ev2 = *must_find( *vis, vn2 ).e_ev;
+      float compute_dur = 0.0f;
+      cu_err_chk( cuEventElapsedTime( &compute_dur, e_ev1, e_ev2 ), "cuEventElapsedTime" );
+      return compute_dur;
+    }
+
+    void add_args( vect_string const & args, vect_rp_void & cu_func_args ) {
+      for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
+	p_cup_float const & cu_v = must_find( *vis, *i ).cup;
+	cu_func_args.push_back( &cu_v->p );
+      }
+    }
+
     void run( rtc_func_call_t & rfc ) {
       CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() );
       vect_rp_void cu_func_args;
-      for( vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
-	p_cup_float const & cu_v = must_find( *cups, *i );
-	cu_func_args.push_back( &cu_v->p );
-      }
+      add_args( rfc.in_args, cu_func_args );
+      add_args( rfc.inout_args, cu_func_args );
+      add_args( rfc.out_args, cu_func_args );
       for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
       if( !rfc.b_ev ) { rfc.b_ev = make_event(); } 
       if( !rfc.e_ev ) { rfc.e_ev = make_event(); }

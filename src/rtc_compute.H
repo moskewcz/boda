@@ -31,6 +31,9 @@ namespace boda
     virtual void record_event( p_void const & ev ) = 0;
     virtual float get_event_dur( p_void const & b_ev, p_void const & e_ev ) = 0;
 
+    virtual float get_var_compute_dur( string const & vn ) = 0; // get duration (in secs) of run() call that computes this output
+    virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) = 0; // returns vn2_ready_time - vn1_ready_time (in secs)
+
     virtual void profile_start( void ) = 0;
     virtual void profile_stop( void ) = 0;
 
@@ -50,7 +53,9 @@ namespace boda
 
   struct rtc_func_call_t { 
     string rtc_func_name; 
-    vect_string args; 
+    vect_string in_args; 
+    vect_string inout_args; 
+    vect_string out_args; 
     vect_uint32_t u32_args;
     string call_tag;
 

@@ -1225,7 +1225,8 @@ namespace boda
       else if( tag == "cnt" ) { iv = "0"; }
       else { assert_st(0); } // unknown tag/op
     }
-    string param_str( void ) { return strprintf( "%s * %s_in, %s * %s_out", ts.c_str(), tag.c_str(), ts.c_str(), tag.c_str() ); }
+    string in_param_str( void ) { return strprintf( "%s const * %s_in", ts.c_str(), tag.c_str() ); }
+    string out_param_str( void ) { return strprintf( "%s * %s_out", ts.c_str(), tag.c_str() ); }
     string decl_str( void ) { return strprintf( "    %s %s_v = %s; __shared__ %s %s_smem[tbp];", 
 						ts.c_str(), tag.c_str(), iv.c_str(), ts.c_str(), tag.c_str() ); }
     string in_proc_str( void ) { 
@@ -1268,8 +1269,9 @@ namespace boda
 	rf.blks = 0;
 	vect_string params;
 	vect_string body;
+	for( uint32_t i = 0; i != reds.size(); ++i ) { params.push_back(reds[i].in_param_str()); }
+	for( uint32_t i = 0; i != reds.size(); ++i ) { params.push_back(reds[i].out_param_str()); }
 	for( uint32_t i = 0; i != reds.size(); ++i ) { 
-	  params.push_back(reds[i].param_str());
 	  // FIXME: for now, we disable these size checks ...
 	  //rf.arg_sizes.push_back( in_sz );
 	  //rf.arg_sizes.push_back( rf.blks );
@@ -1305,15 +1307,16 @@ namespace boda
       }
       uint32_t const out_sz = u32_ceil_div( in_sz, rf.tpb );
       vect_string cur_outs;
-      vect_string args;
+      vect_string in_args;
+      vect_string out_args;
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
 	string cur_out = top_in + "_" + reds[i].tag + "_out_sz_" + str(out_sz);
 	rtc->create_var_with_sz_floats( cur_out, out_sz );
 	cur_outs.push_back( cur_out );
-	args.push_back( cur_ins[i] );
-	args.push_back( cur_out );
+	in_args.push_back( cur_ins[i] );
+	out_args.push_back( cur_out );
       }
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, args, {in_sz, primary_in} } );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, in_args,{},out_args, {in_sz, primary_in} } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -1341,7 +1344,7 @@ namespace boda
       rfgi.tf_exprs.push_back( std::make_pair( "body", join(body,"\n") ) );
       rfgi.instantiate_template( rtc_prog_str );
     }
-    fwd_calls.push_back( rtc_func_call_t{ rf.name, {top_in}, {in_sz,max_val,drop_mask} } );
+    fwd_calls.push_back( rtc_func_call_t{ rf.name, {},{top_in},{}, {in_sz,max_val,drop_mask} } );
   }
 
   rtc_func_t & conv_pipe_fwd_t::gen_op_xpose( p_op_info_t const & oi ) {
@@ -1448,17 +1451,13 @@ namespace boda
     }
 
     if( cop->type == Concat_str ) {      
-      vect_string arg_ids;
-      arg_ids.push_back( "" ); // placeholder for per-copy input
-      arg_ids.push_back( as_pyid(cop->tops[0]) );
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
 	conv_io_t & cio_in = cp->must_get_node( cop->bots[bi] )->cio;
 	assert_st( cio_in.sz == oi->no->cio.sz );
 	assert_st( chans_out_done+cio_in.chans <= oi->no->cio.chans );
 	rtc_func_t & rf = gen_op_copy( oi, cio_in, chans_out_done );
-	arg_ids[0] = as_pyid(cop->bots[bi]);
-	fwd_calls.push_back( rtc_func_call_t{ rf.name, arg_ids, {}, oi->tag_id_str } );
+	fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(cop->bots[bi])},{},{as_pyid(cop->tops[0])}, {}, oi->tag_id_str } );
 	chans_out_done += cio_in.chans;
       }
       assert_st( chans_out_done == oi->no->cio.chans );
@@ -1466,22 +1465,18 @@ namespace boda
     }
 
     if( oi->is_pool ) {
-      vect_string arg_ids;
       string const in_id = as_pyid(cop->bots[0]);
       rtc_func_t * rf = &gen_op_pool( oi );
-      arg_ids.push_back( in_id );
-      arg_ids.push_back( as_pyid(oi->no->name) );
-      fwd_calls.push_back( rtc_func_call_t{ rf->name, arg_ids, {}, oi->tag_id_str } );
-
+      fwd_calls.push_back( rtc_func_call_t{ rf->name, {in_id},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
     } else if( oi->is_conv ) {
-      vect_string arg_ids;
+      vect_string in_arg_ids;
       string const filts_id = oi->tag_id_str + "_filts";
       string const filtsxp_id = filts_id + "_xposed";
       string const biases_id = oi->tag_id_str + "_biases";
       string const in_id = as_pyid(cop->bots[0]);
 
-      arg_ids.push_back( filtsxp_id );
-      arg_ids.push_back( biases_id );
+      in_arg_ids.push_back( filtsxp_id );
+      in_arg_ids.push_back( biases_id );
 
       rtc_func_t * rf = 0;
       if( oi->is_k1conv ) { rf = &gen_op_k1conv( oi ); }
@@ -1499,9 +1494,9 @@ namespace boda
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
 	  rtc->create_var_with_sz_floats( inxp_id, in_xpose_rf.arg_sizes[1] );
-	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
+	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id},{},{inxp_id}, {}, oi->tag_id_str + "_inxp" } );
 	}
-	arg_ids.push_back( inxp_id );
+	in_arg_ids.push_back( inxp_id );
       } else if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
 	rtc_func_t & in_xpose_rf = gen_op_in_xpose( oi );
 	string const inxp_id = in_id + "_inxp_" + in_xpose_rf.name; // depends on particular function applied
@@ -1509,15 +1504,14 @@ namespace boda
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
 	  rtc->create_var_with_sz_floats( inxp_id, in_xpose_rf.arg_sizes[1] );
-	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id,inxp_id}, {}, oi->tag_id_str + "_inxp" } );
+	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id},{},{inxp_id}, {}, oi->tag_id_str + "_inxp" } );
 	}
-	arg_ids.push_back( inxp_id );
+	in_arg_ids.push_back( inxp_id );
       } else {
-	arg_ids.push_back( in_id );
+	in_arg_ids.push_back( in_id );
       }
-      arg_ids.push_back( as_pyid(oi->no->name) );
-      fwd_calls.push_back( rtc_func_call_t{ rf->name, arg_ids, {}, oi->tag_id_str } );
-
+      fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
+      
       assert_st( oi->no->cio.chans == cop->out_chans );
       vect_uint32_t const & arg_sizes = rf->arg_sizes;
       assert_st( arg_sizes.size() == 4 );
@@ -1526,7 +1520,7 @@ namespace boda
       add_op_param( filts_id, xpose_rf.arg_sizes[0] );
       bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
       if( did_ins ) { // newly-seen/used filter, so set up to transpose it
-	init_calls.push_back( rtc_func_call_t{ xpose_rf.name, vect_string{ filts_id, filtsxp_id } } );
+	init_calls.push_back( rtc_func_call_t{ xpose_rf.name, {filts_id},{},{filtsxp_id} } );
 	rtc->create_var_with_sz_floats( filtsxp_id, xpose_rf.arg_sizes[1] );
       } 
       add_op_param( biases_id, arg_sizes[1] );
@@ -1534,13 +1528,10 @@ namespace boda
     } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
-      fwd_calls.push_back( rtc_func_call_t{ gen_op_relu( oi ).name, { as_pyid(oi->no->name) }, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ gen_op_relu( oi ).name, {},{as_pyid(oi->no->name)},{}, {}, oi->tag_id_str } );
     } else if( cop->type == LRN_str ) {
-      vect_string arg_ids;
-      arg_ids.push_back( as_pyid(oi->ni->name) );
-      arg_ids.push_back( as_pyid(oi->no->name) );
       rtc_func_t & rf = gen_op_lrn( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, arg_ids, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(oi->ni->name)},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
     } else if( cop->type == Dropout_str ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
@@ -1635,7 +1626,12 @@ namespace boda
     rtc_func_t const & rf = must_find( rtc_funcs, rfc.rtc_func_name );
     uint32_t blks = rf.blks; // if non-zero, blks is static, and we can check arg sizes
     //printf( "rf.name=%s rf.arg_sizes=%s rfc.args.size()=%s\n", str(rf.name).c_str(), str(rf.arg_sizes).c_str(), str(rfc.args.size()).c_str() );
-    if( blks ) { assert( rf.arg_sizes.size() == rfc.args.size() ); }
+
+    // FIXME: arg size checking bot broken/removed during the
+    // ocl/nvrtc split/factoring out. oops. also, rf.arg_sizes (or
+    // whatever it becomes) probably needs to be split into
+    // in/inout/out parts or something.
+    if( blks ) { assert( rf.arg_sizes.size() == (rfc.in_args.size()+rfc.inout_args.size()+rfc.out_args.size()) ); }
     // FIXME: check that we're passing the correct # of args here somehow.
     if( !blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here
@@ -1643,7 +1639,8 @@ namespace boda
       blks = u32_ceil_div( rfc.u32_args[0], rf.tpb );
     }
     if( show_rtc_calls ) { 
-      printf( "%s( %s -- %s ) tpb=%s blks=%s\n", str(rfc.rtc_func_name).c_str(), str(rfc.args).c_str(), str(rfc.u32_args).c_str(),
+      printf( "%s( in{%s} inout{%s} out{%s} -- u32{%s} ) tpb=%s blks=%s\n", str(rfc.rtc_func_name).c_str(), 
+	      str(rfc.in_args).c_str(), str(rfc.inout_args).c_str(), str(rfc.out_args).c_str(), str(rfc.u32_args).c_str(),
 	      str(rf.tpb).c_str(), str(blks).c_str() );
     }
     rfc.tpb.v = rf.tpb;
