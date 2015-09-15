@@ -21,6 +21,9 @@ namespace boda
   using cl::CommandQueue;
   using cl::Buffer;
   using cl::NDRange;
+  using cl::Event;
+
+  typedef shared_ptr< Event > p_Event; 
 
   void cl_err_chk_build( cl_int const & ret, Program const & program, vect_Device const & use_devices ) {
     if( ret != CL_SUCCESS ) {
@@ -47,6 +50,14 @@ namespace boda
 
   typedef map< string, Buffer > map_str_Buffer_t;
   typedef shared_ptr< map_str_Buffer_t > p_map_str_Buffer_t;
+
+  struct cl_var_info_t {
+    Buffer buf;
+    p_void ev; // when ready
+    cl_var_info_t( Buffer const & buf_ ) : buf(buf_), ev( new Event ) {}
+  };
+  typedef map< string, cl_var_info_t > map_str_cl_var_info_t;
+  typedef shared_ptr< map_str_cl_var_info_t > p_map_str_cl_var_info_t;
 
   string ocl_base_decls = R"rstr(
 //typedef unsigned uint32_t;
@@ -95,7 +106,7 @@ typedef int int32_t;
       cl_err_chk( err, "cl::Context()" );
       // note: after this, we're only using the first device in use_devices, although our context is for all of
       // them. this is arguably not the most sensible thing to do in general.
-      cq = CommandQueue( context, use_devices[0], 0, &err ); // note: not out of order, no profiling
+      cq = CommandQueue( context, use_devices[0], CL_QUEUE_PROFILING_ENABLE, &err ); // note: not out of order
       cl_err_chk( err, "cl::CommandQueue()" );
       init_done.v = 1;
     }
@@ -115,16 +126,16 @@ typedef int int32_t;
       prog_valid.v = 1;
     }
 
-    p_map_str_Buffer_t bufs;
+    p_map_str_cl_var_info_t vis;
     p_map_str_Kernel_t kerns;
 
     void copy_to_var( string const & vn, float const * const v ) {
-      Buffer const & buf = must_find( *bufs, vn );
+      Buffer const & buf = must_find( *vis, vn ).buf;
       cl_int const err = cq.enqueueWriteBuffer( buf, 1, 0, buf.getInfo<CL_MEM_SIZE>(), &v[0], 0, 0);  // note: blocking write
       cl_err_chk( err, "cq->enqueueWriteBuffer()" );
     }
     void copy_from_var( float * const v, string const & vn ) {
-      Buffer const & buf = must_find( *bufs, vn );
+      Buffer const & buf = must_find( *vis, vn ).buf;
       cl_int const err = cq.enqueueReadBuffer( buf, 1, 0, buf.getInfo<CL_MEM_SIZE>(), &v[0], 0, 0 ); // note: blocking_read=1
       cl_err_chk( err, "cq->enqueueReadBuffer()" );
     }
@@ -133,15 +144,15 @@ typedef int int32_t;
       cl_int err;
       Buffer buf( context, CL_MEM_READ_WRITE, bytes_sz, 0, &err ); 
       cl_err_chk( err, "Buffer() from vect_float" );
-      must_insert( *bufs, vn, buf ); 
+      must_insert( *vis, vn, cl_var_info_t{buf} ); 
     }
     uint32_t get_var_sz_floats( string const & vn ) { 
-      uint32_t const bytes_sz = must_find( *bufs, vn ).getInfo<CL_MEM_SIZE>(); 
+      uint32_t const bytes_sz = must_find( *vis, vn ).buf.getInfo<CL_MEM_SIZE>(); 
       assert_st( (bytes_sz%sizeof(float)) == 0 );
       return bytes_sz / sizeof(float);
     }
     void set_var_to_zero( string const & vn ) { 
-      Buffer const & buf = must_find( *bufs, vn );
+      Buffer const & buf = must_find( *vis, vn ).buf;
 #if 0
       cl_int const err = cq.enqueueFillBuffer( buf, ... ); // need OpenCL 1.2 ...
       cl_err_chk( err, "cq->enqueueFillBuffer()" );
@@ -153,7 +164,7 @@ typedef int int32_t;
 #endif
     }
     
-    ocl_compute_t( void ) : bufs( new map_str_Buffer_t ), kerns( new map_str_Kernel_t ) { }
+    ocl_compute_t( void ) : vis( new map_str_cl_var_info_t ), kerns( new map_str_Kernel_t ) { }
 
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()
     void check_runnable( string const name, bool const show_func_attrs ) {
@@ -167,12 +178,17 @@ typedef int int32_t;
       must_insert( *kerns, name, kern );
     }
 
-    // FIXME: todo
-    p_void make_event( void ) { return p_void(); }
-    void record_event( p_void const & ev ) { }
-    float get_event_dur( p_void const & b_ev, p_void const & e_ev ) {
+
+    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) {
       float compute_dur = 0.0f;
-      // TODO
+      cl_int err = 0;
+      cl_ulong const et = ((Event*)e.e_ev.get())->getProfilingInfo<CL_PROFILING_COMMAND_END>(&err);
+      cl_err_chk( err, "cl::Event::getProfilingInfo() (end time)" );
+      err = 0;
+      cl_ulong const bt = ((Event*)b.e_ev.get())->getProfilingInfo<CL_PROFILING_COMMAND_START>(&err);
+      cl_err_chk( err, "cl::Event::getProfilingInfo() (start time)" );
+      compute_dur = float(et - bt) / 1e6;
+      //cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b.b_ev.get(), *(CUevent*)e.e_ev.get() ), "cuEventElapsedTime" );
       return compute_dur;
     }
 
@@ -181,7 +197,7 @@ typedef int int32_t;
 
     void add_args( vect_string const & args, Kernel & kern, uint32_t & cur_arg_ix ) {
       for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
-	Buffer & buf = must_find( *bufs, *i );
+	Buffer & buf = must_find( *vis, *i ).buf;
 	set_kernel_arg( kern, cur_arg_ix, buf );
 	++cur_arg_ix;
       }
@@ -197,13 +213,12 @@ typedef int int32_t;
 	set_kernel_arg( kern, cur_arg_ix, *i );
 	++cur_arg_ix;
       }
-      if( !rfc.b_ev ) { rfc.b_ev = make_event(); } 
-      if( !rfc.e_ev ) { rfc.e_ev = make_event(); }
 
-      record_event( rfc.b_ev );
-      cl_int const err = cq.enqueueNDRangeKernel( kern, cl::NullRange, NDRange(rfc.tpb.v*rfc.blks.v), NDRange(rfc.tpb.v), 0, 0 );
+      // note/FIXME rfc.b_ev not used
+      if( !rfc.e_ev ) { rfc.e_ev.reset( new Event ); }
+      cl_int const err = cq.enqueueNDRangeKernel( kern, cl::NullRange, NDRange(rfc.tpb.v*rfc.blks.v), NDRange(rfc.tpb.v), 0, 
+						  (Event*)rfc.e_ev.get() );
       cl_err_chk( err, "cl::CommandQueue::enqueueNDRangeKernel()" );
-      record_event( rfc.e_ev );
     }
 
     void finish_and_sync( void ) { cl_err_chk( cq.finish(), "CommandQueue::finish()" ); }

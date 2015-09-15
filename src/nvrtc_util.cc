@@ -182,9 +182,9 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     p_map_str_var_info_t vis;
     p_map_str_CUfunction_t cu_funcs;
 
-    float get_event_dur( p_void const & b_ev, p_void const & e_ev ) {
+    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) {
       float compute_dur = 0.0f;
-      cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b_ev.get(), *(CUevent*)e_ev.get() ), "cuEventElapsedTime" );
+      cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b.b_ev.get(), *(CUevent*)e.e_ev.get() ), "cuEventElapsedTime" );
       return compute_dur;
     }
 
