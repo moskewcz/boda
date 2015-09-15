@@ -1661,13 +1661,9 @@ namespace boda
     //printf("run_fwd() begin\n");
     rtc->copy_ndas_to_vars( cp->bots, *fwd ); // copy sources in. FIXME/note: implicit as_pyid() inside
     //printf("run_fwd() exec\n");
-    p_void b_ev = rtc->make_event();
-    p_void e_ev = rtc->make_event();
-    rtc->record_event( b_ev );
     for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
-    rtc->record_event( e_ev );
     rtc->finish_and_sync();
-    float const compute_dur = rtc->get_event_dur( b_ev, e_ev );
+    float const compute_dur = fwd_calls.empty() ? 0.0f : rtc->get_event_dur( fwd_calls.front().b_ev, fwd_calls.back().e_ev );
     if( enable_prof ) { rtc->profile_stop(); }
     if( !per_call_fn.empty() ) {
       p_ofstream out = ofs_open( per_call_fn );

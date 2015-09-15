@@ -27,12 +27,7 @@ namespace boda
     virtual void run( rtc_func_call_t & rfc ) = 0;
     virtual void finish_and_sync( void ) = 0;
 
-    virtual p_void make_event( void ) = 0;
-    virtual void record_event( p_void const & ev ) = 0;
     virtual float get_event_dur( p_void const & b_ev, p_void const & e_ev ) = 0;
-
-    virtual float get_var_compute_dur( string const & vn ) = 0; // get duration (in secs) of run() call that computes this output
-    virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) = 0; // returns vn2_ready_time - vn1_ready_time (in secs)
 
     virtual void profile_start( void ) = 0;
     virtual void profile_stop( void ) = 0;

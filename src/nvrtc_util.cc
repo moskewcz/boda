@@ -122,8 +122,8 @@ namespace boda
 
   struct var_info_t {
     p_cup_float cup;
-    p_CUevent b_ev; // when compute of this var starts
-    p_CUevent e_ev; // when ready
+    p_void ev; // when ready
+    var_info_t( uint32_t const & sz ) : cup( make_shared<cup_float>( sz ) ), ev( make_p_CUevent() ) { }
   };
 
   typedef map< string, var_info_t > map_str_var_info_t;
@@ -182,16 +182,23 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
     p_map_str_var_info_t vis;
     p_map_str_CUfunction_t cu_funcs;
 
+    float get_event_dur( p_void const & b_ev, p_void const & e_ev ) {
+      float compute_dur = 0.0f;
+      cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b_ev.get(), *(CUevent*)e_ev.get() ), "cuEventElapsedTime" );
+      return compute_dur;
+    }
+
     void copy_to_var( string const & vn, float const * const v ) {
-      p_cup_float const & cup = must_find( *vis, vn ).cup;
-      cu_err_chk( cuMemcpyHtoD( cup->p, v, cup->sz*sizeof(float) ), "cuMemcpyHtoD" );
+      var_info_t const & vi = must_find( *vis, vn );
+      cu_err_chk( cuMemcpyHtoDAsync( vi.cup->p, v, vi.cup->sz*sizeof(float), 0 ), "cuMemcpyHtoD" );
+      record_event( vi.ev );
     }
     void copy_from_var( float * const v, string const & vn ) {
       p_cup_float const & cup = must_find( *vis, vn ).cup;
       cu_err_chk( cuMemcpyDtoH( v, cup->p, cup->sz*sizeof(float) ), "cuMemcpyDtoH" );
     }
     void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { 
-      must_insert( *vis, vn, {make_shared<cup_float>( sz ), make_p_CUevent() } ); 
+      must_insert( *vis, vn, var_info_t( sz ) ); 
     }
     uint32_t get_var_sz_floats( string const & vn ) { return must_find( *vis, vn ).cup->sz; }
     void set_var_to_zero( string const & vn ) { must_find( *vis, vn ).cup->set_to_zero(); }
@@ -212,33 +219,14 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
       must_insert( *cu_funcs, name, cu_func );
     }
 
-    p_void make_event( void ) { return make_p_CUevent(); }
-    void record_event( p_void const & ev ) { cu_err_chk( cuEventRecord( *(CUevent*)ev.get(), 0 ), "cuEventRecord" ); }
-    float get_event_dur( p_void const & b_ev, p_void const & e_ev ) {
-      float compute_dur = 0.0f;
-      cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b_ev.get(), *(CUevent*)e_ev.get() ), "cuEventElapsedTime" );
-      return compute_dur;
-    }
-
-    virtual float get_var_compute_dur( string const & vn ) { 
-      var_info_t const & vi = must_find( *vis, vn );
-      float compute_dur = 0.0f;
-      cu_err_chk( cuEventElapsedTime( &compute_dur, *vi.b_ev, *vi.e_ev ), "cuEventElapsedTime" );
-      return compute_dur;
-    }
-    virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { 
-      CUevent const & e_ev1 = *must_find( *vis, vn1 ).e_ev;
-      CUevent const & e_ev2 = *must_find( *vis, vn2 ).e_ev;
-      float compute_dur = 0.0f;
-      cu_err_chk( cuEventElapsedTime( &compute_dur, e_ev1, e_ev2 ), "cuEventElapsedTime" );
-      return compute_dur;
-    }
-
     void add_args( vect_string const & args, vect_rp_void & cu_func_args ) {
       for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
 	p_cup_float const & cu_v = must_find( *vis, *i ).cup;
 	cu_func_args.push_back( &cu_v->p );
       }
+    }
+    void record_var_events( vect_string const & vars, rtc_func_call_t const & rfc ) {
+      for( vect_string::const_iterator i = vars.begin(); i != vars.end(); ++i ) { must_find( *vis, *i ).ev = rfc.e_ev; }
     }
 
     void run( rtc_func_call_t & rfc ) {
@@ -260,12 +248,18 @@ float const FLT_MAX = /*0x1.fffffep127f*/ 34028234663852885981170418348451692544
 				  &cu_func_args[0], // cu_func's args
 				  0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
       record_event( rfc.e_ev );
+      record_var_events( rfc.inout_args, rfc );
+      record_var_events( rfc.out_args, rfc );
     }
 
     void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }
 
     void profile_start( void ) { cuProfilerStart(); }
     void profile_stop( void ) { cuProfilerStop(); }
+
+  protected:
+    p_void make_event( void ) { return make_p_CUevent(); }
+    void record_event( p_void const & ev ) { cu_err_chk( cuEventRecord( *(CUevent*)ev.get(), 0 ), "cuEventRecord" ); }
 
   };
   struct nvrtc_compute_t; typedef shared_ptr< nvrtc_compute_t > p_nvrtc_compute_t; 
