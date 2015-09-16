@@ -126,7 +126,7 @@ class Convolution( object ):
             M = top.x*top.y*top.num # note: all-imgs M
 
         if net.args.per_layer_in_info:
-            print name, "input", bot.dims_info_str(), "filts", filts.dims_info_str()
+            print name, "input", bot.dims_info_str(), "filts", filts.dims_info_str(), "out", top.dims_info_str()
 
         forward_bytes = (in_pels + out_pels + filts.dims_prod() + biases.dims_prod()) * 4
         backward_bytes = (in_pels*2 + out_pels + filts.dims_prod()*2 + biases.dims_prod()*2) * 4
