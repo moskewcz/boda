@@ -492,8 +492,9 @@ namespace boda
   { 
     T * v = (T *)o;
     char const * tstr = 0;
-    string const s = nesi_leaf_val_init_helper(tstr,nia,tinfo)->leaf_val.str();  
+    string s = nesi_leaf_val_init_helper(tstr,nia,tinfo)->leaf_val.str();  
     vect_string parts;
+    for( string::iterator i = s.begin(); i != s.end(); ++i ) { if( *i == ':' ) { *i = ' '; } }
     boost::algorithm::split( parts, s, boost::algorithm::is_space(), boost::algorithm::token_compress_on );
     try { v->read_from_line_parts( parts, 0 ); }
     catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", s.c_str(), tstr ) ); }
