@@ -14,24 +14,24 @@ support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
 support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp4,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=256,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
-    ----  conv=(tag=pool2,type=Pooling,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=67 67 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=pool2,type=Pooling,in_pad=(0 0)(0 0),kern_sz=3 3,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
+support_sz=67 67 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=conv3,type=Convolution,in_pad=(0 0)(0 0),kern_sz=3 3,out_chans=384,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+support_sz=83 83 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp5,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=384,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+support_sz=83 83 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp6,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=384,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+support_sz=83 83 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=pool3,type=Pooling,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=131 131 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=conv4-1024,type=Convolution,in_pad=(0 0)(0 0),kern_sz=3 3,out_chans=1024,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+support_sz=131 131 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp7-1024,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=1024,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+support_sz=131 131 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp8-1024,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=1000,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+support_sz=131 131 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
 == END CONV PIPE ==
-CONV_IOS: sz=227 227 -> conv1 -> sz=55 55 -> cccp1 -> sz=55 55 -> cccp2 -> sz=55 55 -> pool0 -> sz=27 27 -> conv2 -> sz=23 23 -> cccp3 -> sz=23 23 -> cccp4 -> sz=23 23 -> pool2 -> sz=11 11 -> conv3 -> sz=9 9 -> cccp5 -> sz=9 9 -> cccp6 -> sz=9 9 -> pool3 -> sz=4 4 -> conv4-1024 -> sz=2 2 -> cccp7-1024 -> sz=2 2 -> cccp8-1024 -> sz=2 2 -> [DATA DISCARDED; used_sz=0 0] -> 
+CONV_IOS: sz=227 227 -> conv1 -> sz=55 55 -> cccp1 -> sz=55 55 -> cccp2 -> sz=55 55 -> pool0 -> sz=27 27 -> conv2 -> sz=23 23 -> cccp3 -> sz=23 23 -> cccp4 -> sz=23 23 -> pool2 -> sz=21 21 -> conv3 -> sz=19 19 -> cccp5 -> sz=19 19 -> cccp6 -> sz=19 19 -> pool3 -> sz=9 9 -> conv4-1024 -> sz=7 7 -> cccp7-1024 -> sz=7 7 -> cccp8-1024 -> sz=7 7 -> [DATA DISCARDED; used_sz=0 0] -> 
 == BEGIN CONV PIPE ==
 support_sz=1 1 support_stride=1 1 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=conv1,type=Convolution,in_pad=(0 0)(0 0),kern_sz=11 11,stride=4 4,out_chans=96,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
@@ -48,295 +48,943 @@ support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
 support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp4,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=256,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
-    ----  conv=(tag=pool2,type=Pooling,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=67 67 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+    ----  conv=(tag=pool2,type=Pooling,in_pad=(0 0)(0 0),kern_sz=3 3,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
+support_sz=67 67 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=conv3,type=Convolution,in_pad=(0 0)(0 0),kern_sz=3 3,out_chans=384,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+support_sz=83 83 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp5,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=384,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+support_sz=83 83 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp6,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=384,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
+support_sz=83 83 support_stride=8 8 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=pool3,type=Pooling,in_pad=(0 0)(0 0),kern_sz=3 3,stride=2 2,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=131 131 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+support_sz=99 99 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=conv4-1024,type=Convolution,in_pad=(0 0)(0 0),kern_sz=3 3,out_chans=1024,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+support_sz=131 131 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp7-1024,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=1024,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+support_sz=131 131 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
     ----  conv=(tag=cccp8-1024,type=Convolution,in_pad=(0 0)(0 0),kern_sz=1 1,out_chans=1000,lrn_local_size=0,lrn_alpha=0,lrn_k=0) 
-support_sz=195 195 support_stride=32 32 eff_tot_pad=(0 0)(0 0)
+support_sz=131 131 support_stride=16 16 eff_tot_pad=(0 0)(0 0)
 == END CONV PIPE ==
-CONV_IOS: sz=500 500 -> [DATA DISCARDED; used_sz=499 499] -> conv1 -> sz=123 123 -> cccp1 -> sz=123 123 -> cccp2 -> sz=123 123 -> pool0 -> sz=61 61 -> conv2 -> sz=57 57 -> cccp3 -> sz=57 57 -> cccp4 -> sz=57 57 -> pool2 -> sz=28 28 -> conv3 -> sz=26 26 -> cccp5 -> sz=26 26 -> cccp6 -> sz=26 26 -> [IMPLICIT PAD; used_sz=27 27] -> pool3 -> sz=13 13 -> conv4-1024 -> sz=11 11 -> cccp7-1024 -> sz=11 11 -> cccp8-1024 -> sz=11 11 -> [DATA DISCARDED; used_sz=0 0] -> 
+CONV_IOS: sz=500 500 -> [DATA DISCARDED; used_sz=499 499] -> conv1 -> sz=123 123 -> cccp1 -> sz=123 123 -> cccp2 -> sz=123 123 -> pool0 -> sz=61 61 -> conv2 -> sz=57 57 -> cccp3 -> sz=57 57 -> cccp4 -> sz=57 57 -> pool2 -> sz=55 55 -> conv3 -> sz=53 53 -> cccp5 -> sz=53 53 -> cccp6 -> sz=53 53 -> pool3 -> sz=26 26 -> conv4-1024 -> sz=24 24 -> cccp7-1024 -> sz=24 24 -> cccp8-1024 -> sz=24 24 -> [DATA DISCARDED; used_sz=0 0] -> 
 (*i)->sz=353 500
-feat_box_dense=(0 1)(2 3)
+feat_box_dense=(1 9)(8 16)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 7)(4 9)
+feat_box_dense=(0 2)(7 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 8)(3 10)
+feat_box_dense=(4 14)(11 21)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 8)(2 10)
+feat_box_dense=(0 11)(7 18)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 7)(5 9)
+feat_box_dense=(1 5)(8 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 0)(4 2)
+feat_box_dense=(7 7)(14 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 8)(4 10)
+feat_box_dense=(7 10)(14 17)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 8)(2 10)
+feat_box_dense=(3 8)(10 15)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 2)(2 4)
+feat_box_dense=(2 16)(9 23)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 0)(3 2)
+feat_box_dense=(0 16)(7 23)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 7)(4 9)
+feat_box_dense=(7 17)(14 24)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 17)(8 24)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 7)(7 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 8)(12 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 1)(10 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 0)(10 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 12)(8 19)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 14)(13 21)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 0)(11 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 16)(11 23)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 5)(11 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 10)(12 17)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 8)(12 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 16)(7 23)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 15)(13 22)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 4)(7 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 13)(10 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 0)(9 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 13)(14 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 2)(12 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 15)(8 22)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 2)(14 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 14)(11 21)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 0)(12 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=335 500
-feat_box_dense=(1 8)(3 10)
+feat_box_dense=(4 7)(11 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 7)(3 9)
+feat_box_dense=(2 16)(9 23)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 6)(4 8)
+feat_box_dense=(6 13)(13 20)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 0)(5 2)
+feat_box_dense=(2 14)(9 21)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 4)(2 6)
+feat_box_dense=(2 17)(9 24)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 0)(4 2)
+feat_box_dense=(4 12)(11 19)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 3)(4 5)
+feat_box_dense=(1 9)(8 16)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 0)(2 2)
+feat_box_dense=(3 7)(10 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 8)(2 10)
+feat_box_dense=(6 0)(13 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 3)(3 5)
+feat_box_dense=(0 8)(7 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 10)(10 17)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 17)(10 24)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 1)(11 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 15)(11 22)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 11)(10 18)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 3)(13 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 0)(11 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 3)(7 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 4)(8 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 8)(12 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 13)(9 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 13)(13 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 17)(8 24)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 16)(12 23)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 6)(11 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 0)(7 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 12)(10 19)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 10)(10 17)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 7)(8 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 2)(10 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 16)(7 23)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 17)(11 24)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 13)(9 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 1)(11 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 6)(9 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 10)(8 17)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 11)(11 18)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 1)(10 8)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=500 375
-feat_box_dense=(5 1)(7 3)
+feat_box_dense=(5 7)(12 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 2)(7 4)
+feat_box_dense=(7 7)(14 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 3)(7 5)
+feat_box_dense=(7 1)(14 8)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 3)(5 5)
+feat_box_dense=(5 0)(12 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 3)(9 5)
+feat_box_dense=(10 2)(17 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 0)(4 2)
+feat_box_dense=(10 4)(17 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 2)(3 4)
+feat_box_dense=(13 8)(20 15)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(6 3)(8 5)
+feat_box_dense=(11 4)(18 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 4)(2 6)
+feat_box_dense=(10 6)(17 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 3)(9 5)
+feat_box_dense=(17 4)(24 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 0)(6 2)
+feat_box_dense=(6 6)(13 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 4)(2 6)
+feat_box_dense=(14 6)(21 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 1)(9 3)
+feat_box_dense=(13 0)(20 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 4)(2 6)
+feat_box_dense=(4 0)(11 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 2)(4 4)
+feat_box_dense=(2 4)(9 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(8 0)(10 2)
+feat_box_dense=(6 5)(13 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 1)(4 3)
+feat_box_dense=(12 6)(19 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 2)(24 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 8)(7 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 6)(21 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 0)(15 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 8)(7 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 2)(21 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 8)(18 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 8)(7 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 3)(12 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 4)(11 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 1)(23 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 3)(21 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 3)(17 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 6)(18 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 3)(22 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 9)(10 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 0)(23 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 2)(11 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 7)(23 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 1)(15 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 1)(10 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 1)(21 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 5)(24 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 3)(17 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 7)(19 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 8)(14 15)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=500 406
-feat_box_dense=(2 5)(4 7)
+feat_box_dense=(11 5)(18 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 0)(4 2)
+feat_box_dense=(10 3)(17 10)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 2)(3 4)
+feat_box_dense=(7 8)(14 15)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 1)(5 3)
+feat_box_dense=(4 10)(11 17)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 4)(4 6)
+feat_box_dense=(8 1)(15 8)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(8 3)(10 5)
+feat_box_dense=(2 11)(9 18)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 1)(6 3)
+feat_box_dense=(5 7)(12 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 2)(9 4)
+feat_box_dense=(15 2)(22 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 8)(18 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 7)(20 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 5)(9 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 1)(19 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 1)(22 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 0)(11 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 3)(8 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 1)(15 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 1)(13 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 4)(24 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 4)(9 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 9)(13 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 7)(9 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 3)(21 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 2)(13 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 7)(13 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 11)(12 18)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 8)(11 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 7)(15 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 8)(8 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 3)(19 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 11)(8 18)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 6)(23 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 3)(8 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 2)(15 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 5)(18 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 4)(21 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 3)(16 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 5)(12 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 1)(21 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 1)(23 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 4)(10 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=500 375
-feat_box_dense=(2 0)(4 2)
+feat_box_dense=(4 0)(11 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(8 3)(10 5)
+feat_box_dense=(17 5)(24 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 2)(5 4)
+feat_box_dense=(1 3)(8 10)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 1)(4 3)
+feat_box_dense=(11 9)(18 16)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 3)(5 5)
+feat_box_dense=(16 6)(23 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 4)(7 6)
+feat_box_dense=(17 2)(24 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 2)(6 4)
+feat_box_dense=(5 9)(12 16)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(6 2)(8 4)
+feat_box_dense=(6 4)(13 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 0)(6 2)
+feat_box_dense=(3 6)(10 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 0)(3 2)
+feat_box_dense=(4 2)(11 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(6 2)(8 4)
+feat_box_dense=(1 7)(8 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 4)(3 6)
+feat_box_dense=(17 5)(24 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 1)(4 3)
+feat_box_dense=(6 6)(13 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 2)(7 4)
+feat_box_dense=(12 9)(19 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 7)(13 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 6)(20 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 2)(12 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 6)(20 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 5)(9 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 1)(17 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 9)(17 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 5)(19 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 1)(15 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 2)(18 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 3)(14 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 7)(8 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 5)(23 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 0)(10 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 8)(17 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 4)(15 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 4)(19 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 7)(11 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 1)(11 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 7)(14 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 0)(15 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 0)(9 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 9)(20 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 5)(17 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 4)(19 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 4)(18 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 6)(18 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 6)(20 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 2)(22 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 5)(9 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 7)(16 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 3)(8 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 3)(20 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 8)(9 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 2)(16 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 2)(11 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 4)(17 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=500 375
-feat_box_dense=(2 3)(4 5)
+feat_box_dense=(13 6)(20 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 4)(9 6)
+feat_box_dense=(15 0)(22 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(6 3)(8 5)
+feat_box_dense=(4 6)(11 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 4)(4 6)
+feat_box_dense=(9 4)(16 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 1)(3 3)
+feat_box_dense=(15 2)(22 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(8 4)(10 6)
+feat_box_dense=(5 6)(12 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 3)(4 5)
+feat_box_dense=(5 2)(12 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 2)(3 4)
+feat_box_dense=(15 7)(22 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 0)(5 2)
+feat_box_dense=(14 8)(21 15)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 1)(9 3)
+feat_box_dense=(14 7)(21 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 2)(2 4)
+feat_box_dense=(11 6)(18 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 2)(6 4)
+feat_box_dense=(12 6)(19 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 3)(6 5)
+feat_box_dense=(1 0)(8 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 2)(16 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 7)(10 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 8)(8 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 8)(11 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 4)(10 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 7)(22 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 3)(15 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 7)(12 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 2)(9 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 3)(24 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 5)(23 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 1)(11 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 4)(8 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 1)(9 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 7)(21 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 9)(10 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 9)(24 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 1)(12 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 1)(9 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 9)(9 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 2)(10 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 3)(13 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 8)(23 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 6)(11 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 4)(9 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 3)(18 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 8)(12 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 0)(13 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 7)(21 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 7)(21 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 1)(18 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 1)(23 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 2)(21 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 5)(12 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 4)(7 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 2)(12 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 4)(15 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 6)(22 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 7)(20 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 6)(15 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 4)(16 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 0)(8 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 3)(20 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 7)(23 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=354 480
-feat_box_dense=(3 6)(5 8)
+feat_box_dense=(6 12)(13 19)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 6)(5 8)
+feat_box_dense=(2 11)(9 18)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 4)(3 6)
+feat_box_dense=(2 15)(9 22)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 0)(5 2)
+feat_box_dense=(6 5)(13 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 4)(5 6)
+feat_box_dense=(1 8)(8 15)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 4)(2 6)
+feat_box_dense=(6 12)(13 19)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 7)(5 9)
+feat_box_dense=(2 8)(9 15)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 3)(5 5)
+feat_box_dense=(3 12)(10 19)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 0)(3 2)
+feat_box_dense=(7 4)(14 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 6)(4 8)
+feat_box_dense=(5 0)(12 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 5)(5 7)
+feat_box_dense=(7 3)(14 10)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 6)(2 8)
+feat_box_dense=(3 1)(10 8)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 5)(3 7)
+feat_box_dense=(7 0)(14 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 4)(3 6)
+feat_box_dense=(4 11)(11 18)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 3)(5 5)
+feat_box_dense=(7 9)(14 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 11)(12 18)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 0)(13 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 9)(9 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 8)(13 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 9)(8 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 8)(7 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 9)(8 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 14)(13 21)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 3)(14 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 6)(13 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 1)(10 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 8)(8 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 7)(12 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 3)(14 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 15)(9 22)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 9)(11 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 13)(8 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 0)(9 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 12)(11 19)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 3)(12 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 13)(12 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 10)(13 17)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 13)(10 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 11)(14 18)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 12)(10 19)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 11)(14 18)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 4)(10 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 4)(8 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 6)(12 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 12)(7 19)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 0)(8 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 10)(9 17)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 13)(9 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 3)(7 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 4)(8 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 8)(9 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 9)(14 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 5)(13 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 3)(7 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 6)(13 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 13)(7 20)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 9)(14 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 15)(7 22)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=500 324
-feat_box_dense=(3 1)(5 3)
+feat_box_dense=(11 0)(18 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 3)(3 5)
+feat_box_dense=(17 0)(24 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 3)(3 5)
+feat_box_dense=(6 2)(13 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 3)(4 5)
+feat_box_dense=(13 1)(20 8)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 0)(3 2)
+feat_box_dense=(15 4)(22 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 3)(4 5)
+feat_box_dense=(17 0)(24 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 2)(9 4)
+feat_box_dense=(15 1)(22 8)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(8 3)(10 5)
+feat_box_dense=(13 5)(20 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 0)(2 2)
+feat_box_dense=(15 2)(22 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 3)(9 5)
+feat_box_dense=(2 6)(9 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(7 2)(9 4)
+feat_box_dense=(7 4)(14 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(6 0)(8 2)
+feat_box_dense=(7 2)(14 9)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(2 2)(4 4)
+feat_box_dense=(2 6)(9 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 2)(2 4)
+feat_box_dense=(13 5)(20 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 3)(3 5)
+feat_box_dense=(4 6)(11 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 1)(7 3)
+feat_box_dense=(6 5)(13 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 0)(5 2)
+feat_box_dense=(2 0)(9 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 3)(6 5)
+feat_box_dense=(5 0)(12 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 3)(3 5)
+feat_box_dense=(4 6)(11 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 2)(10 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 4)(21 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 3)(18 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 5)(24 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 4)(22 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 6)(23 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 2)(24 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 0)(7 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 1)(10 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 5)(23 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 3)(16 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 4)(12 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 6)(21 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 4)(21 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 4)(24 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 1)(19 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 0)(19 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 4)(11 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 3)(20 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 4)(7 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(3 6)(10 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 6)(9 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 0)(16 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 2)(17 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(7 0)(14 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 5)(7 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 0)(13 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 6)(15 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 6)(9 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=500 375
-feat_box_dense=(3 2)(5 4)
+feat_box_dense=(6 4)(13 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(6 2)(8 4)
+feat_box_dense=(17 4)(24 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 2)(5 4)
+feat_box_dense=(12 4)(19 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(8 3)(10 5)
+feat_box_dense=(16 7)(23 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(8 0)(10 2)
+feat_box_dense=(5 6)(12 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 3)(5 5)
+feat_box_dense=(11 1)(18 8)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 3)(2 5)
+feat_box_dense=(6 4)(13 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(6 0)(8 2)
+feat_box_dense=(16 6)(23 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 1)(3 3)
+feat_box_dense=(6 9)(13 16)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(3 0)(5 2)
+feat_box_dense=(10 3)(17 10)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 0)(2 2)
+feat_box_dense=(1 0)(8 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 4)(6 6)
+feat_box_dense=(0 9)(7 16)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 1)(7 3)
+feat_box_dense=(15 4)(22 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 0)(18 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 7)(17 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 9)(24 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(4 9)(11 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 8)(22 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 1)(15 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 9)(17 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 9)(22 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 5)(12 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 4)(16 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 3)(24 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 0)(23 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 1)(15 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 5)(21 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 6)(13 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 9)(16 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 7)(19 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 3)(15 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 9)(24 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 6)(7 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 0)(19 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 2)(9 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 9)(21 16)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 5)(8 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 0)(13 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 2)(12 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 3)(12 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 2)(12 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(14 3)(21 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 4)(18 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 0)(7 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 8)(15 15)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 4)(20 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 2)(17 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 7)(7 14)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 7)(7 14)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
 (*i)->sz=500 333
-feat_box_dense=(5 2)(7 4)
+feat_box_dense=(13 0)(20 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 3)(6 5)
+feat_box_dense=(3 0)(10 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 0)(7 2)
+feat_box_dense=(10 4)(17 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 3)(6 5)
+feat_box_dense=(11 5)(18 12)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 2)(7 4)
+feat_box_dense=(13 4)(20 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(6 2)(8 4)
+feat_box_dense=(9 6)(16 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(8 1)(10 3)
+feat_box_dense=(8 6)(15 13)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(0 3)(2 5)
+feat_box_dense=(13 0)(20 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 1)(3 3)
+feat_box_dense=(6 3)(13 10)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(4 0)(6 2)
+feat_box_dense=(10 0)(17 7)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(1 2)(3 4)
+feat_box_dense=(5 4)(12 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
-feat_box_dense=(5 2)(7 4)
+feat_box_dense=(8 6)(15 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 4)(17 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(12 4)(19 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 3)(12 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 4)(8 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(13 2)(20 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 3)(17 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 2)(23 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(6 5)(13 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 3)(16 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 1)(17 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(0 6)(7 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 5)(23 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 6)(18 13)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 2)(9 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(1 3)(8 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 3)(22 10)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 0)(15 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(8 1)(15 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(5 2)(12 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(9 0)(16 7)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(11 2)(18 9)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(17 5)(24 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(16 1)(23 8)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(15 5)(22 12)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(2 4)(9 11)
+ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+feat_box_dense=(10 4)(17 11)
 ssds_str(from_dense,out_batch)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0

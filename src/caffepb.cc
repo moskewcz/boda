@@ -110,7 +110,7 @@ namespace boda
 	conv_op->lrn_local_size = p.local_size();
 	conv_op->lrn_k = p.k();
 
-      } else if( lp.type() == Softmax_str ) { // mostly ignored
+      } else if( lp.type() == Softmax_str ) {
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
@@ -131,8 +131,8 @@ namespace boda
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = ipp.num_output();
-      } else if( (lp.type() == Data_str) || (lp.type() == SoftmaxWithLoss_str) || (lp.type() == Accuracy_str) ) {
-	// for now, just silently ignore data, softmax, acc layers. we'd need to handle phase issues to deal with them anyway
+      } else if( (lp.type() == Data_str) || (lp.type() == Accuracy_str) ) {
+	// for now, just silently ignore data and acc layers.
       } else if( lp.type() == Concat_str ) {
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
@@ -155,6 +155,7 @@ namespace boda
     conv_pipe->calc_support_info( 1, in_chans );
     return conv_pipe;
   }
+#undef RF_TO_VEC
 
   p_net_param_t parse_and_upgrade_net_param_from_text_file( filename_t const & ptt_fn ) {
     p_string ptt_str = read_whole_fn( ptt_fn );

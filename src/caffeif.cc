@@ -179,7 +179,7 @@ namespace boda
     // UPDATE: we now do the removal of data layers and layers-after-out-layer-name unconditionally. should be okay?
     // assert_st( net_param->input_size() == 0 ); 
     // remove data, softmax, and accuracy layers
-    set_string layer_types_to_remove{ Data_str, Accuracy_str, SoftmaxWithLoss_str };
+    set_string layer_types_to_remove{ Data_str, Accuracy_str, SoftmaxWithLoss_str, Softmax_str };
     int o = 0;
     for( int i = 0; i < net_param->layer_size(); i++ ) {
       caffe::LayerParameter const * const lp = &net_param->layer(i);
@@ -187,10 +187,22 @@ namespace boda
 	// assume first top is name of data layer image data output blob
 	data_blob_name = lp->top(0);
       }
+
       if( has( layer_types_to_remove, lp->type() ) ) { continue; }
       // keep layer
-      if( i != o ) { *net_param->mutable_layer(o) = net_param->layer(i); } 
+      caffe::LayerParameter * const olp = net_param->mutable_layer(o);
+      if( i != o ) { *olp = net_param->layer(i); } 
       ++o; 
+
+      // convert regular SoftmaxWithLoss to Softmax on the thoery that we want to represent the 'deploy' net here.
+      if( olp->type() == SoftmaxWithLoss_str ) {
+	olp->set_type(Softmax_str);
+	assert_st( olp->bottom_size() == 2 ); olp->mutable_bottom()->RemoveLast(); // inputs: data,label --> just data
+	assert_st( olp->top_size() == 1 ); 
+	// HACK change output name from: loss --> pred if it is named loss
+	if( olp->top(0) == "loss" ) { olp->set_top(0,"prob"); }
+      }
+
       if( (!found_layer) && (out_layer_name == lp->name()) ) { found_layer = 1; break; }
     }
     if( !found_layer ) { rt_err( strprintf("run_cnet_t::create_net_param(): layer out_layer_name=%s not found in network\n",
@@ -422,7 +434,7 @@ namespace boda
   typedef map< i32_box_t, anno_t > anno_map_t;
 
   // example command line for testing/debugging detection code:
-  // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_layer_name=relu12)' --capture='(cap_res=640 480)'
+  // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/train_val.prototxt,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_layer_name=relu12)' --capture='(cap_res=640 480)'
 
   //p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) { }
 

@@ -25,7 +25,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
-    p_cnet_predict_t cnet_predict; //NESI(default="(ptt_fn=%(models_dir)/nin_imagenet_nopad/deploy.prototxt)",help="cnet running options")
+    p_cnet_predict_t cnet_predict; //NESI(default="(ptt_fn=%(models_dir)/nin_imagenet_nopad/train_val.prototxt)",help="cnet running options")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="output filename.")
     
     //filename_t img_in_fn; //xNESI(default="%(boda_test_dir)/pascal/000001.jpg",help="input image filename")
