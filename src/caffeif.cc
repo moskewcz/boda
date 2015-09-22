@@ -179,7 +179,7 @@ namespace boda
     // UPDATE: we now do the removal of data layers and layers-after-out-layer-name unconditionally. should be okay?
     // assert_st( net_param->input_size() == 0 ); 
     // remove data, softmax, and accuracy layers
-    set_string layer_types_to_remove{ Data_str, Accuracy_str, SoftmaxWithLoss_str, Softmax_str };
+    set_string layer_types_to_remove{ Data_str, Accuracy_str };
     int o = 0;
     for( int i = 0; i < net_param->layer_size(); i++ ) {
       caffe::LayerParameter const * const lp = &net_param->layer(i);

@@ -1536,6 +1536,8 @@ namespace boda
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
       // ignore for fwd
+    } else if( cop->type == Softmax_str ) {
+      // FIXME/TODO: for now, silently ignore (will output zeros)
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
