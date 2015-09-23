@@ -179,6 +179,8 @@ namespace boda
     // UPDATE: we now do the removal of data layers and layers-after-out-layer-name unconditionally. should be okay?
     // assert_st( net_param->input_size() == 0 ); 
     // remove data, softmax, and accuracy layers
+    string next_softmax_layer_and_blob_name = "prob";
+    uint32_t nslabn_ix = 1;
     set_string layer_types_to_remove{ Data_str, Accuracy_str };
     int o = 0;
     for( int i = 0; i < net_param->layer_size(); i++ ) {
@@ -202,9 +204,11 @@ namespace boda
 	assert_st( olp->bottom_size() == 2 ); olp->mutable_bottom()->RemoveLast(); // inputs: data,label --> just data
 	// HACK set output and layer name to "prob"
 	assert_st( olp->top_size() <= 1 );
-	if( olp->top_size() == 0 ) { olp->add_top("prob"); }
-	else { olp->set_top(0,"prob"); }
-	olp->set_name( "prob" );
+	if( olp->top_size() == 0 ) { olp->add_top(next_softmax_layer_and_blob_name); }
+	else { olp->set_top(0,next_softmax_layer_and_blob_name); }
+	olp->set_name( next_softmax_layer_and_blob_name );
+	++nslabn_ix;
+	next_softmax_layer_and_blob_name = "prob_" + str(nslabn_ix);
       }
 
       if( (!found_layer) && (out_layer_name == olp->name()) ) { found_layer = 1; break; }
