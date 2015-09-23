@@ -211,6 +211,7 @@ namespace boda
     rtc_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
     rtc_func_t & gen_op_lrn( p_op_info_t const & oi );
+    rtc_func_t & gen_op_softmax( p_op_info_t const & oi );
     rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     rtc_func_t & gen_op_relu( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
@@ -1176,6 +1177,31 @@ namespace boda
     return rf;
   }
 
+  rtc_func_t & conv_pipe_fwd_t::gen_op_softmax( p_op_info_t const & oi ) {
+    // note: oi->ni->cio and oi->no->cio are derived from cop->bots[0] and cop->tops[0]
+    assert_st( oi->ni->cio.sz == oi->no->cio.sz );
+    assert_st( oi->ni->cio.chans == oi->no->cio.chans );
+    // FIXME: make {alpha, beta, k} into passed params (and support that somehow)
+    rtc_func_gen_info_t rfgi{"softmax",
+      { {"num_imgs",str(num_imgs)},{"chans",str(oi->ni->cio.chans)},{"ysz",str(oi->ni->cio.sz.d[1])},{"xsz",str(oi->ni->cio.sz.d[0])}
+      } };
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
+    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    if( rf.finalized ) { return rf; } // already generated
+    vect_string const cio_dims{"img","chan","y","x"};
+    insert_nda_exprs( tf_exprs, "tix", vect_string{"img","y","x"}, 
+		      vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
+		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
+  }
+
   rtc_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
     // note: cio_in and oi->no->cio are derived from cop->bots[bi] and cop->tops[0]
     assert_st( cio_in.sz == oi->no->cio.sz );
@@ -1537,7 +1563,8 @@ namespace boda
       assert_st( oi->ni->name == oi->no->name );
       // ignore for fwd
     } else if( cop->type == Softmax_str ) {
-      // FIXME/TODO: for now, silently ignore (will output zeros)
+      rtc_func_t & rf = gen_op_softmax( oi );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(oi->ni->name)},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
