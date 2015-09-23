@@ -142,6 +142,7 @@ namespace boda
   p_nda_float_t copy_output_blob_data( p_Net_float net, string const & out_node_name ) {
     timer_t t("caffe_copy_output_blob_data");
     shared_ptr< Blob<float> > output_blob = net->blob_by_name( out_node_name );
+    assert_st( output_blob );
 
     dims_t out_batch_dims( 4 );
     out_batch_dims.dims(3) = output_blob->width();

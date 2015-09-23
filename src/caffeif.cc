@@ -197,13 +197,17 @@ namespace boda
       // convert regular SoftmaxWithLoss to Softmax on the thoery that we want to represent the 'deploy' net here.
       if( olp->type() == SoftmaxWithLoss_str ) {
 	olp->set_type(Softmax_str);
+	// don't set phase/include/exclude (i.e. use in 'all' phases).
+	olp->clear_phase(); olp->clear_include(); olp->clear_exclude();
 	assert_st( olp->bottom_size() == 2 ); olp->mutable_bottom()->RemoveLast(); // inputs: data,label --> just data
-	assert_st( olp->top_size() == 1 ); 
-	// HACK change output name from: loss --> pred if it is named loss
-	if( olp->top(0) == "loss" ) { olp->set_top(0,"prob"); }
+	// HACK set output and layer name to "prob"
+	assert_st( olp->top_size() <= 1 );
+	if( olp->top_size() == 0 ) { olp->add_top("prob"); }
+	else { olp->set_top(0,"prob"); }
+	olp->set_name( "prob" );
       }
 
-      if( (!found_layer) && (out_layer_name == lp->name()) ) { found_layer = 1; break; }
+      if( (!found_layer) && (out_layer_name == olp->name()) ) { found_layer = 1; break; }
     }
     if( !found_layer ) { rt_err( strprintf("run_cnet_t::create_net_param(): layer out_layer_name=%s not found in network\n",
 					   str(out_layer_name).c_str() )); }
