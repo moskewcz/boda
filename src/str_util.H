@@ -92,6 +92,15 @@ namespace boda
   }
 
   template< typename T >
+  inline std::ostream & operator << ( std::ostream & out, set< T > const & v ) {
+    for( typename set< T >::const_iterator i = v.begin(); i != v.end(); ++i ) {
+      if( i != v.begin() ) { out << " "; }
+      out << (*i);
+    }
+    return out;
+  }
+
+  template< typename T >
   inline std::ostream & operator << ( std::ostream & out, shared_ptr< T > const & v ) { return out << (*v); }
 
   struct string_scoped_prefixer_t {

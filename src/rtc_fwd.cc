@@ -1618,7 +1618,6 @@ namespace boda
     assert_st( num_imgs );
     cp = cp_;
     assert_st( cp );
-    assert_st( cp->finalized );
     op_infos.reset( new map_str_p_op_info_t );
     node_infos.reset( new map_str_p_node_info_t );
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
@@ -1638,7 +1637,7 @@ namespace boda
 
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
     cp->topo_visit_setup();
-    for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
+    for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
     rtc->compile( rtc_prog_str, show_compile_log, enable_lineinfo );
     for( rtc_funcs_t::iterator i = rtc_funcs.begin(); i != rtc_funcs.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
@@ -1688,7 +1687,7 @@ namespace boda
     timer_t t("conv_pipe_fwd_t::run_fwd");
     if( enable_prof ) { rtc->profile_start(); }
     //printf("run_fwd() begin\n");
-    rtc->copy_ndas_to_vars( cp->bots, *fwd ); // copy sources in. FIXME/note: implicit as_pyid() inside
+    rtc->copy_ndas_to_vars( vect_string{cp->bots.begin(),cp->bots.end()}, *fwd ); // copy sources in. FIXME/note: implicit as_pyid() inside
     //printf("run_fwd() exec\n");
     for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
     rtc->finish_and_sync();
@@ -1711,7 +1710,7 @@ namespace boda
 
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
-    rtc->copy_vars_to_ndas( cp->tops, *fwd ); // copy sinks out (FIXME/note: implicit as_pyid() inside)
+    rtc->copy_vars_to_ndas( vect_string{cp->tops.begin(),cp->tops.end()}, *fwd ); // copy sinks out (FIXME/note: implicit as_pyid() inside)
     update_stats();
     for( vect_string::const_iterator i = dump_vars.begin(); i != dump_vars.end(); ++i ) { dump_var( *i ); }
     //printf("run_fwd() done\n");

@@ -108,7 +108,6 @@ namespace boda
     assert_st( num_imgs );
     cp = cp_;
     assert_st( cp );
-    assert_st( cp->finalized );
     init_caffe( gpu_id ); // FIXME/note: only does something on first call
     net = caffe_create_net( cp );      
   }
@@ -175,10 +174,9 @@ namespace boda
 
   void caffe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     timer_t t("caffe_fwd_t::run_fwd");
-    assert_st( cp->finalized );
 
     assert( cp->bots.size() == 1 );
-    p_nda_float_t const & in = (*fwd)[cp->bots[0]];
+    p_nda_float_t const & in = (*fwd)[*cp->bots.begin()];
     string const & out_node_name = cp->get_single_top_node()->name;
     p_nda_float_t out = run_one_blob_in_one_blob_out( net, in, out_node_name, enable_prof );
     must_insert( *fwd, out_node_name, out );

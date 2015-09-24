@@ -46,30 +46,16 @@ namespace boda
     return no_pad_in_sz - in_pad.bnds_sum();
   }
 
-  void conv_pipe_t::finalize( void ) {
-    assert_st( !finalized ); // could relax
-    assert_st( tops.empty() );
-    assert_st( bots.empty() );
-    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
-      p_conv_node_t const & in = i->second;
-      if( in->top_for.empty() ) { bots.push_back( in->name ); }
-      if( in->bot_for.empty() ) { tops.push_back( in->name ); }
-    }
-    finalized = 1;
-  }
-
   p_conv_node_t conv_pipe_t::get_single_bot_node( void ) const {
-    assert_st( finalized );
     if( bots.size() != 1 ) { rt_err( "not exactly one source/input node in net; can't process. input nodes are: " + str(bots) ); }
-    return must_get_node( bots[0] ); 
+    return must_get_node( *bots.begin() ); 
   }
   // if out_layer_name is empty, this returns the single unique input node of the net or throws an error. if out_layer_name is
   // non-empty, it returns the single output node of the layer with name out_layer_name (or throws an error).
   p_conv_node_t conv_pipe_t::get_single_top_node( void ) const {
-    assert_st( finalized );
     if( out_layer_name.empty() ) {
       if( tops.size() != 1 ) { rt_err( "not exactly one sink/output node in net; can't process. output nodes are: " + str(tops) ); }
-      return must_get_node( tops[0] ); 
+      return must_get_node( *tops.begin() ); 
     } else {
       if( !has( *convs, out_layer_name ) ) { 
 	rt_err( "layer '"+out_layer_name+"' specified for use as producing the primary net output not found in net." ); 
@@ -80,9 +66,10 @@ namespace boda
     }
   }
   
-  p_conv_node_t conv_pipe_t::get_or_make_node( string const & name ) {
+  p_conv_node_t conv_pipe_t::get_or_make_node( string const & name, bool const is_bot, bool const is_top ) {
     p_conv_node_t & ret = (*nodes)[name];
-    if( !ret ) { ret.reset( new conv_node_t{name} ); }
+    if( !ret ) { ret.reset( new conv_node_t{name} ); tops.insert(name); bots.insert(name); }
+    if( is_bot ) { tops.erase(name); } if( is_top ) { bots.erase(name); }
     return ret;
   }
   p_conv_node_t conv_pipe_t::must_get_node( string const & name ) const {
@@ -96,21 +83,20 @@ namespace boda
     return i->second;
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
-    assert_st( !finalized );
     bool in_place = 0;
     if( (conv->type == "ReLU") || (conv->type == "Dropout") ) { 
       assert_st( conv->bots.size() == 1 ); assert_st( conv->tops == conv->bots );
-      get_or_make_node(conv->bots[0])->in_place_ops.push_back( conv );
+      get_or_make_node(conv->bots[0], 0, 0 )->in_place_ops.push_back( conv );
       in_place = 1;
     }
     bool did_ins = convs->insert( make_pair( conv->tag, conv ) ).second;
     if( !did_ins ) { rt_err( strprintf( "duplicate conv op '%s' seen; can't process net", conv->tag.c_str() ) ); }
     if( in_place ) { return; } // don't add in-place ops to top_for and bot_for
     for( vect_string::const_iterator i = conv->tops.begin(); i != conv->tops.end(); ++i ) {
-      get_or_make_node( *i )->top_for.push_back( conv->tag );
+      get_or_make_node( *i, 0, 1 )->top_for.push_back( conv->tag );
     }
     for( vect_string::const_iterator i = conv->bots.begin(); i != conv->bots.end(); ++i ) {
-      get_or_make_node( *i )->bot_for.push_back( conv->tag );
+      get_or_make_node( *i, 1, 0 )->bot_for.push_back( conv->tag );
     }
   }
 
@@ -211,7 +197,7 @@ namespace boda
     for( map_str_p_conv_node_t::iterator i = nodes->begin(); i != nodes->end(); ++i ) { i->second->cio = conv_io_t(); }
   }
   void conv_pipe_t::topo_visit_setup( void ) {
-    for( map_str_p_conv_op_t::iterator i = convs->begin(); i != convs->end(); ++i ) { i->second->bots_seen = 0; }
+    for( map_str_p_conv_op_t::iterator i = convs->begin(); i != convs->end(); ++i ) { i->second->seen = 0; }
   }
 
   void conv_pipe_t::calc_sizes_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding ) {
@@ -307,10 +293,9 @@ namespace boda
   }
 
   void conv_pipe_t::dump_pipe( std::ostream & out ) {
-    assert_st( finalized );
     out << strprintf( "== BEGIN CONV PIPE ==\n" );
     topo_visit_setup();
-    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_pipe_rec( out, *i ); }
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_pipe_rec( out, *i ); }
     out << strprintf( "== END CONV PIPE ==\n" );
   }
 
@@ -338,10 +323,9 @@ namespace boda
     }
   }
   void conv_pipe_t::dump_ios( std::ostream & out ) {
-    assert_st( finalized );
     out << "CONV_IOS: ";
     topo_visit_setup();
-    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ios_rec( out, *i ); }
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ios_rec( out, *i ); }
     out << "\n";
   }
 
@@ -431,11 +415,36 @@ namespace boda
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { dump_ops_rec( out, *j, expand_ops ); }
     }
   }
-
   void conv_pipe_t::dump_ops( std::ostream & out, bool const & expand_ops ) {
-    assert_st( finalized );
     topo_visit_setup();
-    for( vect_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i, expand_ops ); }
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i, expand_ops ); }
+  }
+
+
+  void conv_pipe_t::add_bck_ops_op( p_conv_op_t const & cop ) {
+    if( cop->type == Softmax_str ) {
+      assert_st( cop->bots.size() == 1 );
+      assert_st( cop->tops.size() == 1 );
+      printf( "cop->type=%s\n", str(cop->type).c_str() );
+    }
+  }
+  void conv_pipe_t::add_bck_ops_rec( string const & node_name ) {
+    p_conv_node_t node = must_get_node( node_name );
+    for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) {
+      p_conv_op_t const & ip_cop = *j;
+      // FIXME: handle bck for in_place_opts. note: as usual, in_place_ops seem to be problematic or at least special. 
+      add_bck_ops_op( ip_cop );
+    }
+    for( vect_string::const_iterator i = node->top_for.begin(); i != node->top_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_top() ) { continue; } // wait till we've seen all tops to process an op
+      add_bck_ops_op( cop );
+      for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) { add_bck_ops_rec( *j ); }
+    }
+  }
+  void conv_pipe_t::add_bck_ops( void ) {
+    topo_visit_setup();
+    for( set_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) { add_bck_ops_rec( *i ); }
   }
 
 
@@ -454,7 +463,7 @@ namespace boda
   p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd ) {
     p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>( *op_params );
     assert( bots.size() == 1 );
-    (*fwd)[bots[0]] = in;
+    (*fwd)[*bots.begin()] = in;
     assert( conv_fwd );
     conv_fwd->run_fwd( fwd );
     return must_find( *fwd, get_single_top_node()->name );
@@ -509,7 +518,6 @@ namespace boda
 	cop->tops.push_back( cur_node_name );
 	conv_pipe->add_conv( cop );
       }
-      conv_pipe->finalize();
 
       p_ofstream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";

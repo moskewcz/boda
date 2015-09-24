@@ -51,8 +51,14 @@ namespace boda
     u32_pt_t out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const;
     u32_pt_t in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const;
 
-    uint32_t bots_seen;
-    bool on_seen_bot( void ) { ++bots_seen; assert_st( bots_seen <= bots.size() ); return bots_seen == bots.size(); }
+    // seen is a temportary to allow exactly *one* topo visit at a time. callers should use *exactly one of*
+    // on_seen_bot()/on_seen_top() for a given traversal, depending on the traversal direction. FIXME: it would
+    // perhaps be cleaner to use a map from string->seen for each traversal, and this would allow multiple concurrent
+    // traversal. currently we don't seem to need that, though.
+    uint32_t seen;
+    bool on_seen_bot( void ) { ++seen; assert_st( seen <= bots.size() ); return seen == bots.size(); }
+    bool on_seen_top( void ) { ++seen; assert_st( seen <= tops.size() ); return seen == tops.size(); }
+
     bool has_one_top( void ) const { return tops.size() == 1; }
     bool has_one_top_one_bot( void ) const { return (tops.size() == 1) && (bots.size() == 1); }
     string const & get_single_in_place_arg( void ) const { assert_st( has_one_top_one_bot() ); assert_st( tops[0] == bots[0] ); return tops[0]; }  
@@ -94,17 +100,16 @@ namespace boda
     p_map_str_p_conv_op_t convs;
     p_map_str_p_conv_node_t nodes;
     // global top and bottom sets of nodes (sources and sinks of whole network)
-    vect_string tops;
-    vect_string bots;
+    set_string tops;
+    set_string bots;
 
     p_map_str_p_nda_float_t op_params; // layer blobs, as layer_BLOBIX->blob or 'pretty' names for some layer types like layer_filts->blob
     p_map_str_p_vect_p_nda_float_t layer_blobs; // same info as op_params, but in a generic layer_name->vect_blobs format
-    bool finalized;
 
     conv_pipe_t( void ) : convs( new map_str_p_conv_op_t ), nodes( new map_str_p_conv_node_t ), 
-			  op_params( new map_str_p_nda_float_t ), layer_blobs( new map_str_p_vect_p_nda_float_t ), finalized(0) { }
-    void finalize( void ); // call when finished building network
-    p_conv_node_t get_or_make_node( std::string const & name );
+			  op_params( new map_str_p_nda_float_t ), layer_blobs( new map_str_p_vect_p_nda_float_t ) { }
+
+    p_conv_node_t get_or_make_node( std::string const & name, bool const is_bot, bool const is_top );
     p_conv_node_t must_get_node( std::string const & name ) const;
     p_conv_op_t get_op( string const & name ) const;
     p_conv_node_t get_single_bot_node( void ) const;
@@ -130,6 +135,10 @@ namespace boda
     void dump_ios( std::ostream & out );
     void dump_ops_rec( std::ostream & out, string const & node_name, bool const & expand_ops );
     void dump_ops( std::ostream & out, bool const & expand_ops );
+
+    void add_bck_ops_op( p_conv_op_t const & cop );
+    void add_bck_ops_rec( string const & node_name );
+    void add_bck_ops( void );
 
     void fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only );
     p_nda_float_t run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd );

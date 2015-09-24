@@ -27,7 +27,6 @@ namespace boda
     assert_st( num_imgs );
     cp = cp_;
     assert_st( cp );
-    assert_st( cp->finalized );
   }
 
   void run_conv_op_one_img_conv( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
@@ -208,11 +207,10 @@ namespace boda
 
   void slow_cpu_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     timer_t t("slow_cpu_fwd_t::run_fwd");
-    assert_st( cp->finalized );
     cp->fwd_alloc_ndas( fwd, num_imgs, 0 );
     if( skip_work ) { return; }
     cp->topo_visit_setup();
-    for( vect_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { run_ops_rec( cp, fwd, *i ); }
+    for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { run_ops_rec( cp, fwd, *i ); }
   }  
 #include"gen/slow_cpu_fwd.cc.nesi_gen.cc"
 }

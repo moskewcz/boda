@@ -110,7 +110,8 @@ namespace boda
 	conv_op->lrn_local_size = p.local_size();
 	conv_op->lrn_k = p.k();
 
-      } else if( lp.type() == Softmax_str ) {
+      } else if( (lp.type() == Softmax_str) || (lp.type() == SoftmaxWithLoss_str) ) {
+	// note: we will later silently convert SoftmaxWithLoss_str -> Softmax_str
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
@@ -143,15 +144,24 @@ namespace boda
       if( conv_op ) { 
 	conv_op->tag = lp.name();
 	conv_op->type = lp.type();
+	// FIXME: dup'd with code in caffeif.cc that does this param->param ... pick one place to do this?
+	// silently convert SoftmaxWithLoss_str -> Softmax_str 
 	RF_TO_VEC( conv_op->bots, lp.bottom );
 	RF_TO_VEC( conv_op->tops, lp.top );
+	if( conv_op->type == SoftmaxWithLoss_str ) { 
+	  conv_op->type = Softmax_str; 
+	  // FIXME: using "prob" here and below doesn't handle multiple loss layers
+	  conv_op->tag = "prob";
+	  assert_st( conv_op->bots.size() == 2 ); conv_op->bots.resize(1); // data,label -> data
+	  if( conv_op->tops.empty() ) { conv_op->tops.resize(1); }
+	  assert_st( conv_op->tops.size() == 1 ); conv_op->tops[0] = "prob"; 
+	}
 	conv_pipe->add_conv( conv_op );
       }
       // FIXME: it's not generally correct to assume we can ignore layers after the layer with out_layer_name (but often true)
       if( (!found_layer) && (out_layer_name == lp.name()) ) { found_layer = 1; break; }
     }
     if( !found_layer ) { rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); }
-    conv_pipe->finalize();
     conv_pipe->calc_support_info( 1, in_chans );
     return conv_pipe;
   }
@@ -282,6 +292,7 @@ namespace boda
     uint32_t print_ops; //NESI(default=0,help="if non-zero, write ops to file with fn given by print_opts_fn. note: requires in_sz to be set.")
     filename_t print_ops_fn; //NESI(default="%(boda_output_dir)/out.py",help="print_opts output filename")
     uint32_t expand_ops; //NESI(default=0,help="if non-zero, write ops in expanded/elaborated form when possible.")
+    uint32_t add_bck_ops; //NESI(default=0,help="if non-zero, add bck (aka backwards/backprop/gradients) operations.")
 
     p_net_param_t net_param;
     
@@ -290,7 +301,7 @@ namespace boda
 
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
       p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_chans, out_layer_name );
-
+      if( add_bck_ops ) { conv_pipe->add_bck_ops(); }
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
       if( out_sz ) { 
