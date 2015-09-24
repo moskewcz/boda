@@ -120,7 +120,7 @@ namespace boda
   // pipe, then altering num_input_images input_dim field of the net_param, then setting up the
   // net. hmm.
   p_conv_pipe_t run_cnet_t::cache_pipe( p_net_param_t const & net_param ) {
-    return create_pipe_from_param( net_param, in_num_chans, out_layer_name ); 
+    return create_pipe_from_param( net_param, in_num_chans, out_layer_name, 0 ); 
   }
 
   struct synset_elem_t {

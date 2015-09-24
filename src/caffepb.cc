@@ -74,7 +74,8 @@ namespace boda
 
 #define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
 
-  p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, string const & out_layer_name ) { 
+  p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, 
+					string const & out_layer_name, bool const & add_bck_ops ) { 
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     conv_pipe->orig_net_param = net_param; // FIXME: see note/FIXME in conv_util.H
@@ -162,6 +163,7 @@ namespace boda
       if( (!found_layer) && (out_layer_name == lp.name()) ) { found_layer = 1; break; }
     }
     if( !found_layer ) { rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); }
+    if( add_bck_ops ) { conv_pipe->add_bck_ops(); }
     conv_pipe->calc_support_info( 1, in_chans );
     return conv_pipe;
   }
@@ -300,8 +302,7 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
 
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_chans, out_layer_name );
-      if( add_bck_ops ) { conv_pipe->add_bck_ops(); }
+      p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_chans, out_layer_name, add_bck_ops );
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
       if( out_sz ) { 
@@ -598,7 +599,7 @@ namespace boda
     void ensure_out_dir( nesi_init_arg_t * const nia ) { ensure_is_dir( nesi_filename_t_expand( nia, "%(models_dir)/%(out_model)" ), 1 ); }
     void create_net_params( void ) {
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      net_pipe = create_pipe_from_param( net_param, in_chans, "" );
+      net_pipe = create_pipe_from_param( net_param, in_chans, "", 0 );
       mod_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
     }
     void write_mod_pt( void ) {
@@ -607,7 +608,7 @@ namespace boda
       assert_st( pts_ret );
       write_whole_fn( mod_fn, mod_str );
       // assuming the mod net pt is now finalized, create the pipe for it
-      mod_net_pipe = create_pipe_from_param( mod_net_param, in_chans, "" );
+      mod_net_pipe = create_pipe_from_param( mod_net_param, in_chans, "", 0 );
     }
     void load_nets( void ) {
       trained_net = must_read_binary_proto( trained_fn );

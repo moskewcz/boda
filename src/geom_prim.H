@@ -116,6 +116,7 @@ namespace boda
     T p[2];
     T_box_t( void ) { }
     T_box_t( T const & p0, T const & p1 ) : p{p0,p1} { } 
+    bool is_zeros( void ) const { return p[0].is_zeros()&&p[1].is_zeros(); }
     bool is_normalized( void ) const { return (p[0].d[0]<=p[1].d[0]) && (p[0].d[1]<=p[1].d[1]); }
     bool is_strictly_normalized( void ) const { return (p[0].d[0]<p[1].d[0]) && (p[0].d[1]<p[1].d[1]); }
     void normalize( void ) { // for both dims, if lb>ub, swap them. afterwards, this->is_normalized() will hold

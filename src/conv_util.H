@@ -25,6 +25,9 @@ namespace boda
   std::string const Concat_str = "Concat";
   std::string const InnerProduct_str = "InnerProduct";
 
+  // boda specific (for bck)
+  std::string const ProbGradAndLoss_str = "ProbGradAndLoss";
+
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -118,13 +121,15 @@ namespace boda
     p_conv_op_t maybe_get_single_parent( p_conv_op_t const & cop ) const;
 
     void add_conv( p_conv_op_t const & conv );
-    void calc_support_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding );
+    void calc_support_forward_op( p_conv_op_t const & cop, bool const ignore_padding );
+    void calc_support_forward_rec( string const & node_name, bool const ignore_padding );
     void calc_support_info( bool const ignore_padding, uint32_t const & in_chans );
 
     void topo_visit_setup( void );
 
     void clear_sizes( void );
-    void calc_sizes_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding );
+    void calc_sizes_forward_op( p_conv_op_t const & cop, bool const ignore_padding );
+    void calc_sizes_forward_rec( string const & node_in, bool const ignore_padding );
     void calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding );
     void calc_sizes_back_rec( p_conv_node_t const & node_out, bool const ignore_padding );
     void calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );

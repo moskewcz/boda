@@ -119,25 +119,34 @@ namespace boda
     return maybe_get_single_writer( must_get_node(cop->bots[0]) );
   }
 
-  void conv_pipe_t::calc_support_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding ) {
-    // propogate support info forward from node to all ops that it feeds and thier outputs
-    for( vect_string::const_iterator i = node_in->bot_for.begin(); i != node_in->bot_for.end(); ++i ) {
-      p_conv_op_t const & cop = get_op( *i );
-      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      assert_st( cop->has_one_top() );
-      p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
-      conv_support_info_t & csi_out = node_out->csi;
-      conv_io_t & cio_out = node_out->cio;
-      if( csi_out.valid() ) { rt_err( "unhandled: node with multiple writers:"+node_out->name ); }
-      assert_st( cio_out.chans == uint32_t_const_max ); // should not be set yet
-      cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
-      // FIXME: move to own func
-      uint32_t const & out_chans = cop->out_chans; 
+
+  void conv_pipe_t::calc_support_forward_op( p_conv_op_t const & cop, bool const ignore_padding ) {
+    assert_st( cop->tops.size() >= 1 );
+    p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
+    conv_support_info_t & csi_out = node_out->csi;
+    conv_io_t & cio_out = node_out->cio;
+    if( csi_out.valid() ) { rt_err( "unhandled: node with multiple writers:"+node_out->name ); }
+    assert_st( cio_out.chans == uint32_t_const_max ); // should not be set yet
+    cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
+    uint32_t const & out_chans = cop->out_chans; 
+
+    if( cop->type == ProbGradAndLoss_str ) { 
+      assert_st( cop->bots.size() == 2 ); // prob, label
+      assert_st( cop->tops.size() == 2 ); // prob_grad, loss
+      csi_out.support_stride = u32_pt_t{};
+      assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
+      assert_st( out_chans == 0 ); cio_out.chans = must_get_node(cop->bots[0])->cio.chans;
+      p_conv_node_t const & loss_node = must_get_node( cop->tops[1] );
+      loss_node->csi.support_sz = u32_pt_t{};
+      loss_node->csi.eff_tot_pad = csi_out.eff_tot_pad; // FIXME: correct? needed? maybe set to bogus/sentinel value?
+      loss_node->cio.chans = 1;
+    } else {    
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
 	p_conv_node_t const & j_node = must_get_node(*j);
 	conv_support_info_t const & csi_in = j_node->csi;
 	conv_io_t const & cio_in = j_node->cio;
 	if( cop->type == Concat_str ) {
+	  assert_st( cop->has_one_top() );
 	  if( (j == cop->bots.begin()) || (csi_in.support_stride.dims_max() > csi_out.support_stride.dims_max()) ) { // first input or bigger stride
 	    if( j != cop->bots.begin() ) { 
 	      printf( "WARNING: unhandled Concat layer '%s' with different strided inputs. "
@@ -153,6 +162,7 @@ namespace boda
 	  cio_out.chans += cio_in.chans; // sum chans across all inputs
 	} else {
 	  if( j == cop->bots.begin() ) {
+	    assert_st( cop->has_one_top() );
 	    u32_pt_t const in_sz_1x1 = cop->out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
 	    if( in_sz_1x1.is_zeros() || csi_in.support_sz.is_zeros() )  { // special values that means use all input
 	      csi_out.support_sz = u32_pt_t{};
@@ -164,34 +174,36 @@ namespace boda
 	    csi_out.support_stride = csi_in.support_stride*cop->stride;
 	    csi_out.eff_tot_pad = csi_in.eff_tot_pad + cop->in_pad.scale_dims( csi_in.support_stride );
 	    cio_out.chans = out_chans ? out_chans : cio_in.chans; // reset or propogate num_chans
-
 	  } else { rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
 	}
       }
-
-#if 0
-      // traverse backward to root to calculate eff_tot_pad
-      for( p_conv_op_t cop_back = cop; cop_back; cop_back = maybe_get_single_parent(cop_back) ) {
-	csi_out.eff_tot_pad = cop_back->in_pad + csi_out.eff_tot_pad.scale_dims( cop_back->stride );	
-      }
-#endif
-      calc_support_forward_rec( node_out, ignore_padding ); // depth-first recursive processing for any outputs
+    }
+    // depth-first recursive processing for any outputs
+    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { calc_support_forward_rec( *i, ignore_padding ); }
+  }
+  void conv_pipe_t::calc_support_forward_rec( string const & node_name, bool const ignore_padding ) {
+    p_conv_node_t const & node = must_get_node( node_name );
+    // propogate support info forward from node to all ops that it feeds and thier outputs
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      calc_support_forward_op( cop, ignore_padding );
     }
   }
-
   // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
   void conv_pipe_t::calc_support_info( bool const ignore_padding, uint32_t const & in_chans ) {
-    // initialize support info for single root input
-    p_conv_node_t const & node = get_single_bot_node();
-    conv_support_info_t & csi = node->csi;
-    assert( !csi.valid() );
-    csi.support_sz = u32_pt_t(1,1);
-    csi.support_stride = u32_pt_t(1,1);
-    node->cio.chans = in_chans;
+    // initialize support info for all root inputs
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
+      p_conv_node_t const & node = must_get_node( *i );
+      conv_support_info_t & csi = node->csi;
+      assert( !csi.valid() );
+      csi.support_sz = u32_pt_t(1,1);
+      csi.support_stride = u32_pt_t(1,1);
+      node->cio.chans = in_chans; // FIXME: almost certainly wrong for multiple bottoms ....
+    }
     topo_visit_setup();
-    calc_support_forward_rec( node, ignore_padding ); // calculate support
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_support_forward_rec( *i, ignore_padding ); }
   }
-
   
   void conv_pipe_t::clear_sizes( void ) {
     for( map_str_p_conv_node_t::iterator i = nodes->begin(); i != nodes->end(); ++i ) { i->second->cio = conv_io_t(); }
@@ -200,17 +212,20 @@ namespace boda
     for( map_str_p_conv_op_t::iterator i = convs->begin(); i != convs->end(); ++i ) { i->second->seen = 0; }
   }
 
-  void conv_pipe_t::calc_sizes_forward_rec( p_conv_node_t const & node_in, bool const ignore_padding ) {
-    // propogate support info forward from node to all ops that it feeds and thier outputs
-    for( vect_string::const_iterator i = node_in->bot_for.begin(); i != node_in->bot_for.end(); ++i ) {
-      p_conv_op_t const & cop = get_op( *i );
-      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      assert_st( cop->has_one_top() );
-      p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
-      conv_io_t & cio_out = node_out->cio;
-      if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
+  void conv_pipe_t::calc_sizes_forward_op( p_conv_op_t const & cop, bool const ignore_padding ) {
+    assert_st( cop->tops.size() >= 1 );
+    p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
+    conv_io_t & cio_out = node_out->cio;
+    if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 
-      // FIXME: move to own func
+
+    if( cop->type == ProbGradAndLoss_str ) { 
+      assert_st( cop->bots.size() == 2 ); // prob, label
+      assert_st( cop->tops.size() == 2 ); // prob_grad, loss
+      cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
+      must_get_node( cop->tops[1] )->cio.sz = u32_pt_t{1,1};
+    } else {
+	assert_st( cop->has_one_top() );
       if( (cop->bots.size() != 1) && (cop->type != Concat_str) ) { 
 	rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
@@ -227,17 +242,28 @@ namespace boda
 	  assert_st( out_sz == cio_out.sz );
 	}
       }
-      calc_sizes_forward_rec( node_out, ignore_padding ); // depth-first recursive processing for any outputs
+    }
+    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { calc_sizes_forward_rec( *i, ignore_padding ); }
+  }
+  void conv_pipe_t::calc_sizes_forward_rec( string const & node_name, bool const ignore_padding ) {
+    p_conv_node_t const & node = must_get_node( node_name );
+    // propogate support info forward from node to all ops that it feeds and thier outputs
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      calc_sizes_forward_op( cop, ignore_padding );
     }
   }
   void conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding ) {
-    // initialize support info for single root input
-    p_conv_node_t const & node = get_single_bot_node();
-    conv_io_t & cio = node->cio;
-    assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
-    cio.sz = in_sz;
+    // initialize size info for all root inputs
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
+      p_conv_node_t const & node = must_get_node( *i );
+      conv_io_t & cio = node->cio;
+      assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
+      cio.sz = in_sz;
+    }
     topo_visit_setup();
-    calc_sizes_forward_rec( node, ignore_padding ); // calculate support
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { calc_sizes_forward_rec( *i, ignore_padding ); }
   }
 
   // note: recursively sturctured, but only works for chains currently. it's unclear what the
@@ -286,9 +312,7 @@ namespace boda
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
       out << strprintf( "    ----  conv=%s \n", str(*cop).c_str() );
-
-      assert_st( cop->has_one_top() );
-      dump_pipe_rec( out, cop->tops[0] );
+      for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { dump_pipe_rec( out, *i ); }
     }
   }
 
@@ -317,9 +341,18 @@ namespace boda
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      out << cop->tag << " -> ";
-      assert_st( cop->has_one_top() );
-      dump_ios_rec( out, cop->tops[0] );
+      if( cop->tops.size() == 1 ) {
+	out << cop->tag << " -> ";
+	dump_ios_rec( out, cop->tops[0] );
+      } else {
+	out << cop->tag << " (";
+	for( uint32_t i = 0; i != cop->tops.size(); ++i ) {
+	  out << cop->tag << " -> ";
+	  dump_ios_rec( out, cop->tops[i] );
+	  out << cop->tag << ",";
+	}
+	out << cop->tag << " )";
+      }
     }
   }
   void conv_pipe_t::dump_ios( std::ostream & out ) {
@@ -425,7 +458,15 @@ namespace boda
     if( cop->type == Softmax_str ) {
       assert_st( cop->bots.size() == 1 );
       assert_st( cop->tops.size() == 1 );
-      printf( "cop->type=%s\n", str(cop->type).c_str() );
+      p_conv_op_t bck_op( new conv_op_t );
+      bck_op->type = ProbGradAndLoss_str;
+      bck_op->tag = cop->tag + "_bck";
+      bck_op->bots.push_back( cop->tops[0] );
+      // yep, these names are semi-hard-coded ... hmm. FIXME? or is this part of the iface for bck/fwd?
+      bck_op->bots.push_back( cop->tops[0] + "_label" ); 
+      bck_op->tops.push_back( cop->tops[0] + "_grad_loss" );
+      bck_op->tops.push_back( cop->tops[0] + "_loss" );
+      add_conv( bck_op );
     }
   }
   void conv_pipe_t::add_bck_ops_rec( string const & node_name ) {
@@ -436,7 +477,7 @@ namespace boda
       add_bck_ops_op( ip_cop );
     }
     for( vect_string::const_iterator i = node->top_for.begin(); i != node->top_for.end(); ++i ) {
-      p_conv_op_t const & cop = get_op( *i );
+      p_conv_op_t cop = get_op( *i );
       if( !cop->on_seen_top() ) { continue; } // wait till we've seen all tops to process an op
       add_bck_ops_op( cop );
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) { add_bck_ops_rec( *j ); }
@@ -444,7 +485,8 @@ namespace boda
   }
   void conv_pipe_t::add_bck_ops( void ) {
     topo_visit_setup();
-    for( set_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) { add_bck_ops_rec( *i ); }
+    vect_string fwd_tops{ tops.begin(), tops.end() };
+    for( vect_string::const_iterator i = fwd_tops.begin(); i != fwd_tops.end(); ++i ) { add_bck_ops_rec( *i ); }
   }
 
 
