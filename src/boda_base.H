@@ -87,12 +87,12 @@ namespace boda
   template< typename T > bool has( T const & kvm, typename T::key_type const & k ) { return kvm.find( k ) != kvm.end(); }
   template< typename T > typename T::mapped_type const & must_find( T const & kvm, typename T::key_type const & k ) {
     typename T::const_iterator i = kvm.find( k );
-    assert_st( i != kvm.end() );
+    if( i == kvm.end() ) { rt_err( "missing key:" + str(k) ); }
     return i->second;
   }
   template< typename T > typename T::mapped_type & must_find( T & kvm, typename T::key_type const & k ) {
     typename T::iterator i = kvm.find( k );
-    assert_st( i != kvm.end() );
+    if( i == kvm.end() ) { rt_err( "missing key:" + str(k) ); }
     return i->second;
   }
 

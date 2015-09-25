@@ -112,23 +112,20 @@ namespace boda
     net = caffe_create_net( cp );      
   }
 
-  void raw_do_forward( p_Net_float net, vect_p_nda_float_t const & bottom, bool const enable_prof ) {
-    vector<caffe::Blob<float>*> const & input_blobs = net->input_blobs();
-    assert_st( bottom.size() == input_blobs.size() );
-    for (unsigned int i = 0; i < input_blobs.size(); ++i) {
-      assert_st( bottom[i]->elems.sz == uint32_t(input_blobs[i]->count()) );
-      const float* const data_ptr = &bottom[i]->elems[0];
+  void raw_do_forward( p_Net_float net, p_map_str_p_nda_float_t const & fwd, bool const enable_prof ) {
+    vector<int> const & ibixs = net->input_blob_indices();
+    //vector<caffe::Blob<float>*> const & input_blobs = net->input_blobs();
+    //assert_st( bottom.size() == input_blobs.size() );
+    for (unsigned int i = 0; i < ibixs.size(); ++i) {
+      string const & ib_name = net->blob_names()[ibixs[i]];
+      shared_ptr< caffe::Blob<float> > const & ib = net->blob_by_name( ib_name );
+      p_nda_float_t const & ib_nda = must_find( *fwd, ib_name );
+      assert_st( ib_nda->elems.sz == uint32_t(ib->count()) );
+      const float* const data_ptr = &ib_nda->elems[0];
       switch ( Caffe::mode() ) {
-      case Caffe::CPU:
-	memcpy(input_blobs[i]->mutable_cpu_data(), data_ptr,
-	       sizeof(float) * input_blobs[i]->count());
-	break;
-      case Caffe::GPU:
-	cudaMemcpy(input_blobs[i]->mutable_gpu_data(), data_ptr,
-		   sizeof(float) * input_blobs[i]->count(), cudaMemcpyHostToDevice);
-	break;
-      default:
-	rt_err( "Unknown Caffe mode." );
+        case Caffe::CPU:	memcpy(ib->mutable_cpu_data(), data_ptr, sizeof(float) * ib->count()); break;
+        case Caffe::GPU:	cudaMemcpy(ib->mutable_gpu_data(), data_ptr, sizeof(float) * ib->count(), cudaMemcpyHostToDevice); break;
+        default:	rt_err( "Unknown Caffe mode." );
       }  // switch (Caffe::mode())
     }
     //const vector<Blob<float>*>& output_blobs = net_->ForwardPrefilled();
@@ -158,27 +155,15 @@ namespace boda
 				cudaMemcpyDeviceToHost); break;
     default: LOG(FATAL) << "Unknown Caffe mode.";
     }  // switch (Caffe::mode())
-    
     return out_batch;
-
-  }
-
-  p_nda_float_t run_one_blob_in_one_blob_out( p_Net_float net, p_nda_float_t const & in, string const & out_node_name, bool const enable_prof ) {
-    timer_t t("boda::caffe::do_blob_io_and_fwd");
-    assert_st( net );
-    vect_p_nda_float_t in_data; 
-    in_data.push_back( in ); // assume single input blob
-    raw_do_forward( net, in_data, enable_prof );
-    return copy_output_blob_data( net, out_node_name );
   }
 
   void caffe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     timer_t t("caffe_fwd_t::run_fwd");
-
-    assert( cp->bots.size() == 1 );
-    p_nda_float_t const & in = (*fwd)[*cp->bots.begin()];
+    assert_st( net );
+    raw_do_forward( net, fwd, enable_prof );
     string const & out_node_name = cp->get_single_top_node()->name;
-    p_nda_float_t out = run_one_blob_in_one_blob_out( net, in, out_node_name, enable_prof );
+    p_nda_float_t out = copy_output_blob_data( net, out_node_name );
     must_insert( *fwd, out_node_name, out );
   }  
 

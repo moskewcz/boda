@@ -502,10 +502,22 @@ namespace boda
     }
   }
 
+  // assumes the single input blob is the 'data' blob (and there shouldn't be others)
   p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd ) {
     p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>( *op_params );
-    assert( bots.size() == 1 );
-    (*fwd)[*bots.begin()] = in;
+    //assert( bots.size() == 1 ); // FIXME/HACK for now, we'll ignore other blobs if present
+    uint32_t num_data = 0;
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {
+      if( startswith( (*i), "data" ) ) { ++num_data; (*fwd)[*i] = in; }
+      else if( endswith( (*i), "_label" ) ) { 
+	// FIXME/TODO just stubbed out here
+	assert( in->dims.sz() == 4 );
+	p_nda_float_t label( new nda_float_t( dims_t(vect_uint32_t{in->dims.dims(0)}) ) ); 	
+	(*fwd)[*i] = label;
+      } 
+      else { rt_err( "unhanded input node with name '"+str(*i)+"'; can't auto-detect as data or label from name." ); }
+    }
+    if( num_data != 1 ) { rt_err( "run_one_blob_in_one_blob_out can only handle exactly one data input, saw: " + str(num_data) ); } 
     assert( conv_fwd );
     conv_fwd->run_fwd( fwd );
     return must_find( *fwd, get_single_top_node()->name );

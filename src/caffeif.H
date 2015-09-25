@@ -53,6 +53,8 @@ namespace boda
     p_has_conv_fwd_t conv_fwd; //NESI(default="(mode=caffe)",help="fwd compute mode")
     p_has_conv_fwd_t conv_fwd_upsamp; //NESI(default="(mode=caffe)",help="fwd compute mode (for upsampled net)")
 
+    uint32_t add_bck_ops; //NESI(default=0,help="if non-zero, add bck (aka backwards/backprop/gradients) operations.")
+
     virtual void main( nesi_init_arg_t * nia );
     p_nda_float_t in_batch;
 
@@ -65,7 +67,6 @@ namespace boda
     p_nda_float_t run_one_blob_in_one_blob_out( void );
     p_nda_float_t run_one_blob_in_one_blob_out_upsamp( void );
 
-    // created/cached using cache_pipe().
     p_conv_pipe_t conv_pipe;
     p_conv_pipe_t conv_pipe_upsamp;
     conv_support_info_t const & get_out_csi( bool const & from_upsamp_net );
@@ -77,7 +78,6 @@ namespace boda
     p_net_param_t upsamp_net_param;
 
     void create_net_param( void );
-    p_conv_pipe_t cache_pipe( p_net_param_t const & net_param );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 

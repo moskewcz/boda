@@ -110,18 +110,6 @@ namespace boda
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out_upsamp( void ) { 
     return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, conv_fwd_upsamp );
   }
-  // note; there is an unfortunate potential circular dependency here: we may need the pipe info
-  // about the network before we have set it up if the desired size of the input image depends on
-  // the net architeture (i.e. support size / padding / etc ).  currently, the only thing we need
-  // the pipe for before setup is the number of images. this is determined by the blf_pack code
-  // which needs the supports sizes and padding info from the pipe. but, since the pipe doesn't care
-  // about the the number of input images (note: it does currently use in_sz to create the conv_ios
-  // here, but that could be delayed), we can get away with creating the net_param first, then the
-  // pipe, then altering num_input_images input_dim field of the net_param, then setting up the
-  // net. hmm.
-  p_conv_pipe_t run_cnet_t::cache_pipe( p_net_param_t const & net_param ) {
-    return create_pipe_from_param( net_param, in_num_chans, out_layer_name, 0 ); 
-  }
 
   struct synset_elem_t {
     string id;
@@ -183,6 +171,7 @@ namespace boda
     uint32_t nslabn_ix = 1;
     set_string layer_types_to_remove{ Data_str, Accuracy_str };
     int o = 0;
+    vect_string prob_node_names;
     for( int i = 0; i < net_param->layer_size(); i++ ) {
       caffe::LayerParameter const * const lp = &net_param->layer(i);
       if( lp->type() == Data_str ) {
@@ -197,11 +186,19 @@ namespace boda
       ++o; 
 
       // convert regular SoftmaxWithLoss to Softmax on the thoery that we want to represent the 'deploy' net here.
+      // FIXME/HACK/NOTE: but, *don't* do this if add_bck_ops; note that there is dup'd code in caffpb.cc that will do this same
+      // operation if we don't do it here. for caffe, it is the rough equivalent to add_bck_ops for a deploy model is to convert
+      // from Softmax->SoftmaxWithLoss. but, since we now assume we're reading the train_val net, we just *don't* do this
+      // conversion. sigh!
       if( olp->type() == SoftmaxWithLoss_str ) {
-	olp->set_type(Softmax_str);
-	// don't set phase/include/exclude (i.e. use in 'all' phases).
-	olp->clear_phase(); olp->clear_include(); olp->clear_exclude();
-	assert_st( olp->bottom_size() == 2 ); olp->mutable_bottom()->RemoveLast(); // inputs: data,label --> just data
+	if( add_bck_ops ) {
+	  prob_node_names.push_back( next_softmax_layer_and_blob_name );
+	} else {
+	  olp->set_type(Softmax_str);
+	  // don't set phase/include/exclude (i.e. use in 'all' phases).
+	  olp->clear_phase(); olp->clear_include(); olp->clear_exclude();
+	  assert_st( olp->bottom_size() == 2 ); olp->mutable_bottom()->RemoveLast(); // inputs: data,label --> just data
+	}
 	// HACK set output and layer name to "prob"
 	assert_st( olp->top_size() <= 1 );
 	if( olp->top_size() == 0 ) { olp->add_top(next_softmax_layer_and_blob_name); }
@@ -209,6 +206,10 @@ namespace boda
 	olp->set_name( next_softmax_layer_and_blob_name );
 	++nslabn_ix;
 	next_softmax_layer_and_blob_name = "prob_" + str(nslabn_ix);
+      }
+      if( (olp->type() == Softmax_str) && add_bck_ops ) {
+	// here's where we'd convert from Softmax->SoftmaxWithLoss if we wanted to handle that
+	rt_err( "unimplemented: reading caffe net with Softmax (not SoftmaxWithLoss) in add_bck_ops mode" );
       }
 
       if( (!found_layer) && (out_layer_name == olp->name()) ) { found_layer = 1; break; }
@@ -228,6 +229,15 @@ namespace boda
     net_param->set_input_dim(1,in_num_chans);
     net_param->set_input_dim(2,in_sz.d[1]);
     net_param->set_input_dim(3,in_sz.d[0]);
+    // add prob label inputs 
+    for( vect_string::const_iterator i = prob_node_names.begin(); i != prob_node_names.end(); ++i ) {
+      net_param->add_input( (*i) + "_label" );
+      net_param->add_input_dim(in_num_imgs);
+      net_param->add_input_dim(1);
+      net_param->add_input_dim(1);
+      net_param->add_input_dim(1);
+    }
+
     if( enable_upsamp_net ) {
       upsamp_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
       // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
@@ -271,10 +281,19 @@ namespace boda
     return from_pipe->get_single_top_node()->cio;
   }
 
+  // note; there is an unfortunate potential circular dependency here: we may need the pipe info
+  // about the network before we have set it up if the desired size of the input image depends on
+  // the net architeture (i.e. support size / padding / etc ).  currently, the only thing we need
+  // the pipe for before setup is the number of images. this is determined by the blf_pack code
+  // which needs the supports sizes and padding info from the pipe. but, since the pipe doesn't care
+  // about the the number of input images (note: it does currently use in_sz to create the conv_ios
+  // here, but that could be delayed), we can get away with creating the net_param first, then the
+  // pipe, then altering num_input_images input_dim field of the net_param, then setting up the
+  // net. hmm.
   void run_cnet_t::setup_cnet_param_and_pipe( void ) {
     assert( !net_param );
     create_net_param();
-    conv_pipe = cache_pipe( net_param );
+    conv_pipe = create_pipe_from_param( net_param, in_num_chans, out_layer_name, add_bck_ops );
     // note: we may or may not need the trained blobs in the conv_pipe, depending on the compute
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
     // the time ...
@@ -282,7 +301,8 @@ namespace boda
     copy_matching_layer_blobs_from_param_to_pipe( trained_net, net_param, conv_pipe );
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
-      conv_pipe_upsamp = cache_pipe( upsamp_net_param );
+      assert_st( !add_bck_ops ); // not sensible?
+      conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_num_chans, out_layer_name, add_bck_ops ); 
       copy_matching_layer_blobs_from_param_to_pipe( trained_net, upsamp_net_param, conv_pipe_upsamp );
       create_upsamp_layer_weights( conv_pipe, net_param->layer(0).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(0).name() ); // sets weights in conv_pipe_upsamp->layer_blobs

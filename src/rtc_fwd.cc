@@ -85,12 +85,19 @@ namespace boda
       cop = cop_;
       tag_id_str = as_pyid( cop->tag );
       //char const * const tag_id = tag_id_str.c_str();
-      assert_st( cop->tops.size() == 1 );
-      no = cp->must_get_node( cop->tops[0] );
-      if( cop->type != Concat_str ) {
-	assert_st( cop->bots.size() == 1 );
-	ni = cp->must_get_node( cop->bots[0] );
-      }
+      assert_st( cop->tops.size() >= 1 );
+      if( cop->type == ProbGradAndLoss_str ) {
+	assert_st( cop->bots.size() == 2 );
+	assert_st( cop->tops.size() == 2 );
+      } else {
+	assert_st( cop->tops.size() == 1 );
+	no = cp->must_get_node( cop->tops[0] );
+	if( cop->type != Concat_str ) {
+	  assert_st( cop->bots.size() == 1 );
+	  ni = cp->must_get_node( cop->bots[0] );
+	}
+      } 
+
       is_conv = cop->type == Convolution_str;
       is_pool = cop->type == Pooling_str;
       // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
@@ -1565,6 +1572,8 @@ namespace boda
     } else if( cop->type == Softmax_str ) {
       rtc_func_t & rf = gen_op_softmax( oi );
       fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(oi->ni->name)},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
+    } else if( cop->type == ProbGradAndLoss_str ) {
+      // FIXME/TODO: handle. for now, totally ignore
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 

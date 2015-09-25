@@ -151,11 +151,10 @@ namespace boda
 	RF_TO_VEC( conv_op->tops, lp.top );
 	if( conv_op->type == SoftmaxWithLoss_str ) { 
 	  conv_op->type = Softmax_str; 
-	  // FIXME: using "prob" here and below doesn't handle multiple loss layers
-	  conv_op->tag = "prob";
 	  assert_st( conv_op->bots.size() == 2 ); conv_op->bots.resize(1); // data,label -> data
-	  if( conv_op->tops.empty() ) { conv_op->tops.resize(1); }
-	  assert_st( conv_op->tops.size() == 1 ); conv_op->tops[0] = "prob"; 
+	  assert_st( conv_op->tops.size() <= 1 );
+	  // FIXME/HACK: if missing set output name to "prob". using "prob" here doesn't handle multiple loss layers
+	  if( conv_op->tops.empty() ) { conv_op->tops.push_back("prob"); }
 	}
 	conv_pipe->add_conv( conv_op );
       }
