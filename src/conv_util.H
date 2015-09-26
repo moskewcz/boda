@@ -118,6 +118,7 @@ namespace boda
     p_conv_node_t get_single_bot_node( void ) const;
     p_conv_node_t get_single_top_node( void ) const;
     p_conv_op_t maybe_get_single_writer( p_conv_node_t const & node ) const;
+    p_conv_op_t get_single_writer( p_conv_node_t const & node ) const;
     p_conv_op_t maybe_get_single_parent( p_conv_op_t const & cop ) const;
 
     void add_conv( p_conv_op_t const & conv );
@@ -156,6 +157,8 @@ namespace boda
     // general neither need be true; pipes could come from other sources, and the translation from input
     // net_param_t's is limited/inexact.
     p_net_param_t orig_net_param; 
+    zi_bool has_bck_ops; // extra 'cheating' var, so caffe_fwd can 'emulate' bck ops (i.e. by doing regular caffe-style backward)
+
   };
 
 

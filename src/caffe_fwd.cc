@@ -103,7 +103,7 @@ namespace boda
     net = caffe_create_net( cp );      
   }
 
-  void raw_do_forward( p_Net_float net, p_map_str_p_nda_float_t const & fwd, bool const enable_prof ) {
+  void raw_do_forward( p_Net_float net, p_map_str_p_nda_float_t const & fwd, bool const enable_prof, bool const do_bck ) {
     vector<int> const & ibixs = net->input_blob_indices();
     //vector<caffe::Blob<float>*> const & input_blobs = net->input_blobs();
     //assert_st( bottom.size() == input_blobs.size() );
@@ -122,13 +122,17 @@ namespace boda
     //const vector<Blob<float>*>& output_blobs = net_->ForwardPrefilled();
     if( enable_prof ) { cuProfilerStart(); }
     net->ForwardPrefilled();
+    if( do_bck ) { net->Backward(); }
     if( enable_prof ) { cuProfilerStop(); }
   }
 
 
-  p_nda_float_t copy_output_blob_data( p_Net_float net, string const & out_node_name ) {
+  p_nda_float_t copy_output_blob_data( p_Net_float net, string const & out_node_name, bool const & get_diff ) {
     timer_t t("caffe_copy_output_blob_data");
     shared_ptr< Blob<float> > output_blob = net->blob_by_name( out_node_name );
+    if( !output_blob ) { rt_err( strprintf("gettting output: node '%s' not found in network (note: get_diff=%s).\n",
+					   str(out_node_name).c_str(), str(get_diff).c_str() )); }
+
     assert_st( output_blob );
 
     dims_t out_batch_dims( 4 );
@@ -141,8 +145,8 @@ namespace boda
       
     float * const dest = &out_batch->elems[0];
     switch (Caffe::mode()) {
-    case Caffe::CPU: memcpy(dest, output_blob->cpu_data(), sizeof(float) * output_blob->count() ); break;
-    case Caffe::GPU: cudaMemcpy(dest, output_blob->gpu_data(), sizeof(float) * output_blob->count(), 
+    case Caffe::CPU: memcpy(dest, get_diff ? output_blob->cpu_diff() : output_blob->cpu_data(), sizeof(float) * output_blob->count() ); break;
+    case Caffe::GPU: cudaMemcpy(dest, get_diff ? output_blob->gpu_diff() : output_blob->gpu_data(), sizeof(float) * output_blob->count(), 
 				cudaMemcpyDeviceToHost); break;
     default: LOG(FATAL) << "Unknown Caffe mode.";
     }  // switch (Caffe::mode())
@@ -152,9 +156,11 @@ namespace boda
   void caffe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     timer_t t("caffe_fwd_t::run_fwd");
     assert_st( net );
-    raw_do_forward( net, fwd, enable_prof );
-    string const & out_node_name = cp->get_single_top_node()->name;
-    p_nda_float_t out = copy_output_blob_data( net, out_node_name );
+    raw_do_forward( net, fwd, enable_prof, cp->has_bck_ops.v );
+    string const out_node_name = cp->get_single_top_node()->name;
+    string caffe_node_name = out_node_name;
+    bool get_diff = maybe_strip_suffix( caffe_node_name, "_grad_loss" );
+    p_nda_float_t out = copy_output_blob_data( net, caffe_node_name, get_diff );
     must_insert( *fwd, out_node_name, out );
   }  
 

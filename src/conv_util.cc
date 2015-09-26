@@ -107,6 +107,12 @@ namespace boda
     }
     return get_op( node->top_for[0] );
   }
+  p_conv_op_t conv_pipe_t::get_single_writer( p_conv_node_t const & node ) const {
+    p_conv_op_t ret = maybe_get_single_writer( node );
+    if( !ret ) { rt_err( "unhandled no writer (i.e. was primary input) for node: " + node->name ); }
+    return ret;
+  }
+
   // if the op has one input, return maybe_get_single_writer() for than
   // input. otherwise throw an error.
   p_conv_op_t conv_pipe_t::maybe_get_single_parent( p_conv_op_t const & cop ) const {
@@ -197,7 +203,8 @@ namespace boda
       assert( !csi.valid() );
       csi.support_sz = u32_pt_t(1,1);
       csi.support_stride = u32_pt_t(1,1);
-      node->cio.chans = in_chans; // FIXME: almost certainly wrong for multiple bottoms ....
+      // FIXME: not the best multiple bottoms handling ....
+      if( endswith(*i,"_label") ) { node->cio.chans = 1; } else { node->cio.chans = in_chans; }  
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_support_forward_rec( *i, ignore_padding ); }
@@ -258,7 +265,8 @@ namespace boda
       p_conv_node_t const & node = must_get_node( *i );
       conv_io_t & cio = node->cio;
       assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
-      cio.sz = in_sz;
+      // FIXME: not the best multiple bottoms handling ....
+      if( endswith(*i,"_label") ) { cio.sz = u32_pt_t{1,1}; } else { cio.sz = in_sz; }
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { calc_sizes_forward_rec( *i, ignore_padding ); }
@@ -462,7 +470,8 @@ namespace boda
       bck_op->bots.push_back( cop->tops[0] );
       // yep, these names are semi-hard-coded ... hmm. FIXME? or is this part of the iface for bck/fwd?
       bck_op->bots.push_back( cop->tops[0] + "_label" ); 
-      bck_op->tops.push_back( cop->tops[0] + "_grad_loss" );
+      // instead of emmiting prob_grad_loss, we emit {input of softmax that produced prob}_grad_loss.
+      bck_op->tops.push_back( cop->bots[0] + "_grad_loss" );
       bck_op->tops.push_back( cop->tops[0] + "_loss" );
       add_conv( bck_op );
     }
@@ -482,9 +491,11 @@ namespace boda
     }
   }
   void conv_pipe_t::add_bck_ops( void ) {
+    assert( !has_bck_ops.v );
     topo_visit_setup();
     vect_string fwd_tops{ tops.begin(), tops.end() };
     for( vect_string::const_iterator i = fwd_tops.begin(); i != fwd_tops.end(); ++i ) { add_bck_ops_rec( *i ); }
+    has_bck_ops.v = 1;
   }
 
 
@@ -510,7 +521,7 @@ namespace boda
       else if( endswith( (*i), "_label" ) ) { 
 	// FIXME/TODO just stubbed out here
 	assert( in->dims.sz() == 4 );
-	p_nda_float_t label( new nda_float_t( dims_t(vect_uint32_t{in->dims.dims(0)}) ) ); 	
+	p_nda_float_t label( new nda_float_t( dims_t(vect_uint32_t{in->dims.dims(0),1,1,1}) ) ); 	
 	(*fwd)[*i] = label;
       } 
       else { rt_err( "unhanded input node with name '"+str(*i)+"'; can't auto-detect as data or label from name." ); }

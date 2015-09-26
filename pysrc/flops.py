@@ -182,6 +182,8 @@ class Dropout( object ):
     def __init__( self, **kwargs ): self.opts = kwargs
 class Softmax( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
+class ProbGradAndLoss( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
 def patches_to_rows( **kwargs ):
     pass
 def transpose( A ): return A

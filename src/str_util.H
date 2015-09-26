@@ -72,6 +72,10 @@ namespace boda
   {
     while( endswith(s,suff) ) { s = s.substr( 0, s.size() - suff.size() ); }
   }
+  inline bool maybe_strip_suffix( std::string & s, std::string const & suff )
+  {
+    if( endswith(s,suff) ) { s = s.substr( 0, s.size() - suff.size() ); return 1; } return 0;
+  }
 
 
   template< typename T >
