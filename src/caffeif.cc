@@ -101,7 +101,7 @@ namespace boda
 
   // note: assumes/includes chans_to_area conversion
   u32_pt_t run_cnet_t::get_one_blob_img_out_sz( void ) {
-    p_conv_node_t out_node = conv_pipe->must_get_node( out_layer_name );
+    p_conv_node_t out_node = conv_pipe->must_get_node( out_node_name );
     return out_node->cio.sz.scale( u32_ceil_sqrt( out_node->cio.chans ) );
   }
 
@@ -155,9 +155,9 @@ namespace boda
     // prototxt and adjust it as needed for our usage -- in particular by dropping data layers and
     // adding input dims (i.e. converting it on-the-fly to deploy format).
 
-    // also, if specified, delete any layers after (in declaration order) the specified one. note that if the layers aren't
-    // declared in a 'good' (i.e. topo-sort) order for this to be sensible, then you get what you get.
-    bool found_layer = out_layer_name.empty(); // if no layer name input, don't try to find a 'stopping/end' layer
+    // also, if specified, delete any layers after (in declaration order) the one that produces the specified node. note that if
+    // the layers aren't declared in a 'good' (i.e. topo-sort) order for this to be sensible, then you get what you get.
+    bool found_out_node = out_node_name.empty(); // if no layer name input, don't try to find a 'stopping/end' layer
 
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
 
@@ -211,11 +211,18 @@ namespace boda
 	// here's where we'd convert from Softmax->SoftmaxWithLoss if we wanted to handle that
 	rt_err( "unimplemented: reading caffe net with Softmax (not SoftmaxWithLoss) in add_bck_ops mode" );
       }
-
-      if( (!found_layer) && (out_layer_name == olp->name()) ) { found_layer = 1; break; }
+      bool layer_has_out_node = 0;
+      for( int32_t i = 0; i != olp->top_size(); ++i ) {
+	if( out_node_name == olp->top(i) ) { layer_has_out_node = 1; found_out_node = 1;}
+      }
+      // FIXME: in-place-op HACK/handling: if we're at the first layer *without* the desiered output node *after* seeing it prior,
+      // 'unkeep' this layer and terminate. in particular, if there is an in-place operation on a node after it is first output,
+      // this logic will keep it. however, the downside is that we can't *not* keep some subset of in-place layers on a given
+      // node. sigh.
+      if( found_out_node ) { if( !layer_has_out_node ) { --o; break; } } 
     }
-    if( !found_layer ) { rt_err( strprintf("run_cnet_t::create_net_param(): layer out_layer_name=%s not found in network\n",
-					   str(out_layer_name).c_str() )); }
+    // FIXME? this is too strong now, and will be checked later -- but check something here? can't?
+    // if( !found_out_node ) { rt_err( strprintf("run_cnet_t::create_net_param(): node out_node_name=%s not found as layer output in network\n", str(out_node_name).c_str() )); }
     while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
 
     if( net_param->input_dim_size() == 0 ) { // if train-val form, convert to deploy form
@@ -293,7 +300,7 @@ namespace boda
   void run_cnet_t::setup_cnet_param_and_pipe( void ) {
     assert( !net_param );
     create_net_param();
-    conv_pipe = create_pipe_from_param( net_param, in_num_chans, out_layer_name, add_bck_ops );
+    conv_pipe = create_pipe_from_param( net_param, in_num_chans, out_node_name, add_bck_ops );
     // note: we may or may not need the trained blobs in the conv_pipe, depending on the compute
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
     // the time ...
@@ -302,7 +309,7 @@ namespace boda
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       assert_st( !add_bck_ops ); // not sensible?
-      conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_num_chans, out_layer_name, add_bck_ops ); 
+      conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_num_chans, out_node_name, add_bck_ops ); 
       copy_matching_layer_blobs_from_param_to_pipe( trained_net, upsamp_net_param, conv_pipe_upsamp );
       create_upsamp_layer_weights( conv_pipe, net_param->layer(0).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(0).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
@@ -462,7 +469,7 @@ namespace boda
   typedef map< i32_box_t, anno_t > anno_map_t;
 
   // example command line for testing/debugging detection code:
-  // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/train_val.prototxt,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_layer_name=relu12)' --capture='(cap_res=640 480)'
+  // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/train_val.prototxt,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_node_name=cccp8)' --capture='(cap_res=640 480)'
 
   //p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) { }
 

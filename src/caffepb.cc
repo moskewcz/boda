@@ -75,13 +75,13 @@ namespace boda
 #define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
 
   p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, 
-					string const & out_layer_name, bool const & add_bck_ops ) { 
+					string const & out_node_name, bool const & add_bck_ops ) { 
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     conv_pipe->orig_net_param = net_param; // FIXME: see note/FIXME in conv_util.H
     //vect_string const & layer_names = net->layer_names();
-    conv_pipe->out_layer_name = out_layer_name;
-    bool found_layer = out_layer_name.empty(); // if no layer name input, don't try to find a 'stopping/end' layer
+    conv_pipe->out_node_name = out_node_name;
+    bool found_out_node = out_node_name.empty(); // if no layer name input, don't try to find a 'stopping/end' layer
     for( int32_t i = 0; i != net_param->layer_size(); ++i ) { 
       caffe::LayerParameter const & lp = net_param->layer(i);
       assert_st( lp.has_name() );
@@ -142,6 +142,14 @@ namespace boda
       } else {
 	printf( "warning: ignoring layer with lp.type()=%s\n", str(lp.type()).c_str() );
       }
+
+      // FIXME: dup'd with code in caffeif.cc, see additional FIXMEs there
+      bool layer_has_out_node = 0;
+      for( int32_t i = 0; i != lp.top_size(); ++i ) {
+	if( out_node_name == lp.top(i) ) { layer_has_out_node = 1; found_out_node = 1;}
+      }
+      if( found_out_node ) { if( !layer_has_out_node ) { break; } } 
+
       if( conv_op ) { 
 	conv_op->tag = lp.name();
 	conv_op->type = lp.type();
@@ -157,11 +165,11 @@ namespace boda
 	  if( conv_op->tops.empty() ) { conv_op->tops.push_back("prob"); }
 	}
 	conv_pipe->add_conv( conv_op );
-      }
-      // FIXME: it's not generally correct to assume we can ignore layers after the layer with out_layer_name (but often true)
-      if( (!found_layer) && (out_layer_name == lp.name()) ) { found_layer = 1; break; }
+      }      
+
     }
-    if( !found_layer ) { rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); }
+    // FIXME? this is too strong now, and will be checked later -- but check something here? can't?
+    //if( !found_out_node ) { rt_err( strprintf("node out_node_name=%s not found as layer output in network\n",str(out_node_name).c_str() )); }
     if( add_bck_ops ) { conv_pipe->add_bck_ops(); }
     conv_pipe->calc_support_info( 1, in_chans );
     return conv_pipe;
@@ -284,7 +292,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
-    string out_layer_name;//NESI(default="",help="trim off network after named layer (note: keeps whole network if empty string).")
+    string out_node_name;//NESI(default="",help="trim off network after named layer (note: keeps whole network if empty string).")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
     p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
@@ -301,7 +309,7 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
 
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_chans, out_layer_name, add_bck_ops );
+      p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_chans, out_node_name, add_bck_ops );
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
       if( out_sz ) { 

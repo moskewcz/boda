@@ -42,7 +42,7 @@ namespace boda
     u32_pt_t in_sz; //NESI(default="227 227",help="input size to use for caffe net")
     uint32_t in_num_imgs; //NESI(default="1",help="number of images to use for caffe net input layer/blob")
     uint32_t in_num_chans; //NESI(default="3",help="number of channels to use for caffe net input layer/blob")
-    string out_layer_name;//NESI(default="",help="output layer name of which to output top blob of")
+    string out_node_name;//NESI(default="",help="output layer name of which to output top blob of")
     uint32_t anno_mode; //NESI(default=1,help="annotation string mode: "
     //" <default>0=label plus probs"
     //" 1=label only"

@@ -48,10 +48,10 @@ namespace boda {
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
-                           // ,out_layer_name=relu12)",help="CNN model params")
+                           // ,out_node_name=cccp8)",help="CNN model params")
     p_run_cnet_t run_cnet_dense; //NESI(default="(in_sz=0 0,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt" 
                                  // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
-                                 // ",out_layer_name=relu12)",help="CNN model params")
+                                 // ",out_node_name=cccp8)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
 
     p_img_t in_img;
@@ -145,7 +145,7 @@ namespace boda {
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,enable_upsamp_net=1,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
-                           // ,out_layer_name=relu12)",help="CNN model params")
+                           // ,out_node_name=cccp8)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
 
     string upsamp_layer_name; //NESI(default="conv1",help="name of layer to downsample filters of into upsamp net")
@@ -229,7 +229,7 @@ namespace boda {
 
 
   // example test_compute command line for testing nvrtc:
-  // time boda test_compute --model-name=nin_imagenet_nopad --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=256,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_layer_name=pool4)' --use-nvrtc=1 --max-err=10 && cat test_compute.txt
+  // time boda test_compute --model-name=nin_imagenet_nopad --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=256,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4)' --use-nvrtc=1 --max-err=10 && cat test_compute.txt
 
   // matching cnet_ana+flops.py command line:
   // boda cnet_ana --in-model=nin_imagenet_nopad --print-ops=1 --in-sz=227 --out-layer-name=relu0  && python ../../pysrc/flops.py --per-layer=1 --backward=0 --runtime=.015 --num-imgs=20
@@ -243,7 +243,7 @@ namespace boda {
     string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
     p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt
                            // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
-                           // ,out_layer_name=conv1)",help="CNN model params")
+                           // ,out_node_name=conv1)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
 
     p_has_conv_fwd_t cf1; //NESI(default="(mode=caffe)",help="fwd compute mode 1; used if cm1==1")

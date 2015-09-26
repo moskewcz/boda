@@ -31,7 +31,7 @@ namespace boda
     //filename_t img_in_fn; //xNESI(default="%(boda_test_dir)/pascal/000001.jpg",help="input image filename")
     filename_t img_out_fn; // NESI(default="%(boda_output_dir)/out_%%s.png", help="format for filenames of"
                            //   " output image bin files. %%s will replaced with the bin index.")
-    string out_layer_name;//NESI(default="conv5",help="output layer name of which to output top blob of")
+    string out_node_name;//NESI(default="conv5",help="output layer name of which to output top blob of")
     //uint32_t write_output; //xNESI(default=0,help="if true, write output images/bins (slow)")
     uint32_t disp_feats; //NESI(default=1,help="if true, display output feature images/bins")
     p_img_pyra_pack_t ipp; //NESI(default="()",help="pyramid packing options")
@@ -125,7 +125,7 @@ namespace boda
       cnet_predict->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
 
       cnet_predict->in_num_imgs = 1; // temporary value, will be reset one we know how many planes we need
-      cnet_predict->out_layer_name = out_layer_name; // FIXME: too error prone? automate / check / inherit?
+      cnet_predict->out_node_name = out_node_name; // FIXME: too error prone? automate / check / inherit?
       cnet_predict->setup_cnet_param_and_pipe();
       ipp->do_place_imgs( cnet_predict->get_out_csi(0) );
       cnet_predict->setup_cnet_adjust_in_num_imgs( ipp->num_bins );

@@ -50,19 +50,17 @@ namespace boda
     if( bots.size() != 1 ) { rt_err( "not exactly one source/input node in net; can't process. input nodes are: " + str(bots) ); }
     return must_get_node( *bots.begin() ); 
   }
-  // if out_layer_name is empty, this returns the single unique input node of the net or throws an error. if out_layer_name is
-  // non-empty, it returns the single output node of the layer with name out_layer_name (or throws an error).
+  // if out_node_name is empty, this returns the single unique output node of the net or throws an error. if out_node_name is
+  // non-empty, it returns the single output node of the layer with name out_node_name (or throws an error).
   p_conv_node_t conv_pipe_t::get_single_top_node( void ) const {
-    if( out_layer_name.empty() ) {
+    if( out_node_name.empty() ) {
       if( tops.size() != 1 ) { rt_err( "not exactly one sink/output node in net; can't process. output nodes are: " + str(tops) ); }
       return must_get_node( *tops.begin() ); 
     } else {
-      if( !has( *convs, out_layer_name ) ) { 
-	rt_err( "layer '"+out_layer_name+"' specified for use as producing the primary net output not found in net." ); 
+      if( !has( *nodes, out_node_name ) ) { 
+	rt_err( "node '"+out_node_name+"' specified for use as producing the primary net output not found in net." ); 
       }
-      p_conv_op_t top_op = get_op(out_layer_name);
-      assert_st( top_op->tops.size() == 1 );
-      return must_get_node( top_op->tops[0] );
+      return must_get_node( out_node_name );
     }
   }
   

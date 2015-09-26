@@ -47,15 +47,10 @@ namespace boda
     }
   }
 
-  uint32_t get_layer_ix( p_Net_float net, string const & out_layer_name ) {
-    vect_string const & layer_names = net->layer_names();
-    for( uint32_t i = 0; i != layer_names.size(); ++i ) { if( out_layer_name == layer_names[i] ) { return i; } }
-    rt_err( strprintf("layer out_layer_name=%s not found in network\n",str(out_layer_name).c_str() )); 
-  }
-
-  void set_layer_blobs( p_Net_float net_, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
+  void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_set_layer_blob_data");
-    caffe::Layer<float>* layer = net_->layers()[ layer_ix ].get();
+    shared_ptr< caffe::Layer<float> > layer = net_->layer_by_name( layer_name );
+    if( !layer ) { rt_err( strprintf("setting parameters: layer '%s' not found in network\n",str(layer_name).c_str() )); }    
     const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     assert_st( blobs.size() == layer_blobs.size() );
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
@@ -74,10 +69,6 @@ namespace boda
       default: rt_err( "Unknown Caffe mode." );
       }  // switch (Caffe::mode())
     }
-  }
-  void set_layer_blobs( p_Net_float net, string const & layer_name, vect_p_nda_float_t & blobs ) {
-    uint32_t const layer_ix = get_layer_ix( net, layer_name );
-    set_layer_blobs( net, layer_ix, blobs );
   }
 
   p_Net_float caffe_create_net( p_conv_pipe_t const & cp ) {
