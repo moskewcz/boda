@@ -390,7 +390,7 @@ namespace boda
     rtc_func_t & init( rtc_funcs_t & rtc_funcs ) {
       rtc_func_name = op_tag;
       for( vect_rtc_func_param_info_t::const_iterator i = spec_params.begin(); i != spec_params.end(); ++i ) {
-	rtc_func_name += "__"+i->name+"_"+as_pyid(i->val);
+	rtc_func_name += "__"+i->name+"_"+as_pyid_fixme(i->val);
 	tf_exprs.push_back( make_pair( i->name, i->val ) );
       }
       tf_exprs.push_back( make_pair( "rtc_func_name", rtc_func_name ) );
