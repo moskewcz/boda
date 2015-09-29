@@ -13,6 +13,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const prob, GASQ fl
   for( int32_t off = 0, chan_ix = 0; chan_ix < %(out_ix_chan_dim); ++chan_ix, off += %(out_ix_chan_sz) ) { 
     float v = prob[base_ix + off];
     if( chan_ix == img_label ) { v -= 1.0f; }
+    v /= %(out_ix_img_dim); // divide/weight gradient by # of images in batch
     fwd_top_loss_grad[base_ix + off] = v;
   }
 }
