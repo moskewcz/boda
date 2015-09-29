@@ -41,7 +41,6 @@ namespace boda
   struct op_info_t {
     // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
     p_conv_op_t cop;
-    string tag_id_str;
     p_conv_node_t no;
     bool is_conv;
     bool is_pool;
@@ -83,8 +82,6 @@ namespace boda
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, 
 	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv, bool const & force_enable_tconv ) {
       cop = cop_;
-      tag_id_str = as_pyid( cop->tag );
-      //char const * const tag_id = tag_id_str.c_str();
       assert_st( cop->tops.size() >= 1 );
       if( cop->type == SoftmaxWithLoss_str ) {
 	assert_st( cop->bots.size() == 2 );
@@ -323,7 +320,7 @@ namespace boda
 
   void conv_pipe_fwd_t::update_stats( void ) {
     for( vect_string::const_iterator i = stats_names.begin(); i != stats_names.end(); ++i ) {
-      p_nda_float_t nda = rtc->copy_var_as_flat_nda( as_pyid( *i ) );
+      p_nda_float_t nda = rtc->copy_var_as_flat_nda( *i );
       assert_st( nda->elems.sz == 1 );
       float v = nda->elems[0];
       if( has( stats_map, *i ) ) { v = stats_reduce( *i, v, stats_map[*i] ); }
@@ -332,7 +329,7 @@ namespace boda
   }
 
   void conv_pipe_fwd_t::dump_var( string const & n ) {
-    p_nda_float_t nda = rtc->copy_var_as_flat_nda( as_pyid( n ) );
+    p_nda_float_t nda = rtc->copy_var_as_flat_nda( n );
     // dump nda
     printf( "dupming var '%s'\n", str(n).c_str() );
     for( uint32_t i = 0; i != nda->dims.dims_prod(); ++i ) {
@@ -347,7 +344,7 @@ namespace boda
   }
 
   void conv_pipe_fwd_t::add_op_param( string const & name, uint32_t const & sz ) {
-    rtc->create_var_with_sz_floats( as_pyid( name ), sz );
+    rtc->create_var_with_sz_floats( name, sz );
     op_param_names.push_back( name );
   }
   
@@ -1515,7 +1512,7 @@ namespace boda
 	assert_st( cio_in.sz == oi->no->cio.sz );
 	assert_st( chans_out_done+cio_in.chans <= oi->no->cio.chans );
 	rtc_func_t & rf = gen_op_copy( oi, cio_in, chans_out_done );
-	fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(cop->bots[bi])},{},{as_pyid(cop->tops[0])}, {}, oi->tag_id_str } );
+	fwd_calls.push_back( rtc_func_call_t{ rf.name, {cop->bots[bi]},{},{cop->tops[0]}, {}, oi->cop->tag } );
 	chans_out_done += cio_in.chans;
       }
       assert_st( chans_out_done == oi->no->cio.chans );
@@ -1523,15 +1520,15 @@ namespace boda
     }
 
     if( oi->is_pool ) {
-      string const in_id = as_pyid(cop->bots[0]);
+      string const in_id = cop->bots[0];
       rtc_func_t * rf = &gen_op_pool( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf->name, {in_id},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ rf->name, {in_id},{},{oi->no->name}, {}, oi->cop->tag } );
     } else if( oi->is_conv ) {
       vect_string in_arg_ids;
-      string const filts_id = oi->tag_id_str + "_filts";
+      string const filts_id = oi->cop->tag + "_filts";
       string const filtsxp_id = filts_id + "_xposed";
-      string const biases_id = oi->tag_id_str + "_biases";
-      string const in_id = as_pyid(cop->bots[0]);
+      string const biases_id = oi->cop->tag + "_biases";
+      string const in_id = cop->bots[0];
 
       in_arg_ids.push_back( filtsxp_id );
       in_arg_ids.push_back( biases_id );
@@ -1552,7 +1549,7 @@ namespace boda
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
 	  rtc->create_var_with_sz_floats( inxp_id, in_xpose_rf.arg_sizes[1] );
-	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id},{},{inxp_id}, {}, oi->tag_id_str + "_inxp" } );
+	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id},{},{inxp_id}, {}, oi->cop->tag + "_inxp" } );
 	}
 	in_arg_ids.push_back( inxp_id );
       } else if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
@@ -1562,13 +1559,13 @@ namespace boda
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
 	  rtc->create_var_with_sz_floats( inxp_id, in_xpose_rf.arg_sizes[1] );
-	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id},{},{inxp_id}, {}, oi->tag_id_str + "_inxp" } );
+	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id},{},{inxp_id}, {}, oi->cop->tag + "_inxp" } );
 	}
 	in_arg_ids.push_back( inxp_id );
       } else {
 	in_arg_ids.push_back( in_id );
       }
-      fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{oi->no->name}, {}, oi->cop->tag } );
       
       assert_st( oi->no->cio.chans == cop->out_chans );
       vect_uint32_t const & arg_sizes = rf->arg_sizes;
@@ -1586,17 +1583,17 @@ namespace boda
     } else if( cop->type == ReLU_str ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
-      fwd_calls.push_back( rtc_func_call_t{ gen_op_relu( oi ).name, {},{as_pyid(oi->no->name)},{}, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ gen_op_relu( oi ).name, {},{oi->no->name},{}, {}, oi->cop->tag } );
     } else if( cop->type == LRN_str ) {
       rtc_func_t & rf = gen_op_lrn( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(oi->ni->name)},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, {oi->ni->name},{},{oi->no->name}, {}, oi->cop->tag } );
     } else if( cop->type == Dropout_str ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
       // ignore for fwd
     } else if( cop->type == Softmax_str ) {
       rtc_func_t & rf = gen_op_softmax( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(oi->ni->name)},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, {oi->ni->name},{},{oi->no->name}, {}, oi->cop->tag } );
     } else if( cop->type == SoftmaxWithLoss_str ) {
       // FIXME/TODO: handle. for now, mostly ignore
       assert_st( cop->bots.size() == 2 ); // fwd_top, label
@@ -1607,11 +1604,11 @@ namespace boda
       rtc_func_t & rf = gen_op_softmax( oi );
       string const prob_node_name = cop->tag + "_prob";
       rtc->create_var_with_sz_floats( prob_node_name, rf.arg_sizes[1] );
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(cop->bots[0])},{},{as_pyid(prob_node_name)}, {}, oi->tag_id_str } );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, {cop->bots[0]},{},{prob_node_name}, {}, oi->cop->tag } );
 
       rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
       fwd_calls.push_back( rtc_func_call_t{ rf_smgal.name, {prob_node_name,
-	      as_pyid(cop->bots[1])},{},{as_pyid(cop->tops[0]),as_pyid(cop->tops[1])}, {}, oi->tag_id_str } );
+	      cop->bots[1]},{},{cop->tops[0],cop->tops[1]}, {}, oi->cop->tag } );
 
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
@@ -1620,7 +1617,7 @@ namespace boda
     conv_io_t & cio = node->cio;
     p_node_info_t const & ninfo = must_find( *node_infos, name );
     if( !ninfo->sz ) { ninfo->sz = num_imgs * cio.chans * cio.sz.dims_prod(); }
-    rtc->create_var_with_sz_floats( as_pyid(name), ninfo->sz ); 
+    rtc->create_var_with_sz_floats( name, ninfo->sz ); 
   }
 
   // quantize command line example:
@@ -1643,10 +1640,10 @@ namespace boda
     // printf( "node_name=%s\n", str(node_name).c_str() );
     for( vect_p_quantize_ops_t::const_iterator i = quantize.begin(); i != quantize.end(); ++i ) {
       if( node_name != (*i)->name ) { continue; }
-      gen_op_quantize( node->cio, as_pyid(node_name), (*i)->max_val, (*i)->keep_bits );
+      gen_op_quantize( node->cio, node_name, (*i)->max_val, (*i)->keep_bits );
     }
     if( enable_stats ) {
-      vect_string new_stats_names = gen_op_stats( node->cio, as_pyid(node_name) );
+      vect_string new_stats_names = gen_op_stats( node->cio, node_name );
       stats_names.insert( stats_names.end(), new_stats_names.begin(), new_stats_names.end() );
     }
 
@@ -1690,8 +1687,8 @@ namespace boda
     rtc->compile( rtc_prog_str, show_compile_log, enable_lineinfo );
     for( rtc_funcs_t::iterator i = rtc_funcs.begin(); i != rtc_funcs.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
 
-    rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit as_pyid() on names)
-    for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( as_pyid(*i) ); }
+    rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
+    for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( *i ); }
 
     // transpose filters ... and do any other init-time work added after this comment was written ;)
     for( vect_rtc_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); }
@@ -1735,7 +1732,7 @@ namespace boda
     timer_t t("conv_pipe_fwd_t::run_fwd");
     if( enable_prof ) { rtc->profile_start(); }
     //printf("run_fwd() begin\n");
-    rtc->copy_ndas_to_vars( vect_string{cp->bots.begin(),cp->bots.end()}, *fwd ); // copy sources in. FIXME/note: implicit as_pyid() inside
+    rtc->copy_ndas_to_vars( vect_string{cp->bots.begin(),cp->bots.end()}, *fwd ); // copy sources in. FIXME/note: implicit  inside
     //printf("run_fwd() exec\n");
     for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
     rtc->finish_and_sync();
@@ -1758,7 +1755,7 @@ namespace boda
 
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
-    rtc->copy_vars_to_ndas( vect_string{cp->tops.begin(),cp->tops.end()}, *fwd ); // copy sinks out (FIXME/note: implicit as_pyid() inside)
+    rtc->copy_vars_to_ndas( vect_string{cp->tops.begin(),cp->tops.end()}, *fwd ); // copy sinks out
     update_stats();
     for( vect_string::const_iterator i = dump_vars.begin(); i != dump_vars.end(); ++i ) { dump_var( *i ); }
     //printf("run_fwd() done\n");

@@ -33,7 +33,6 @@ namespace boda
   }
 
   // note: not reversable (i.e. just sanitization, not escaping)
-  string as_pyid( string const & s ) { return s; }
   string as_pyid_fixme( string const & s ) {
     string ret;
     for (string::const_iterator i = s.begin(); i != s.end(); ++i) {
@@ -45,9 +44,9 @@ namespace boda
     }
     return ret;
   }
-  string as_pylist( vect_string const & vs ) { 
+  string as_py_str_list( vect_string const & vs ) { 
     vect_string vs_id;
-    for( vect_string::const_iterator i = vs.begin(); i != vs.end(); ++i ) { vs_id.push_back( "\""+as_pyid(*i)+"\"" ); }
+    for( vect_string::const_iterator i = vs.begin(); i != vs.end(); ++i ) { vs_id.push_back( "\""+(*i)+"\"" ); }
     return "[ " + join(vs_id,", ") + " ]"; 
   }
 

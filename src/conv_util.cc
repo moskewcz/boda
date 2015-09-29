@@ -376,7 +376,7 @@ namespace boda
     if( node->bot_for.empty() ) { isss += " SINK"; }
     conv_io_t & cio = node->cio;
     out << strprintf( "net.ndas[\"%s\"] = NDA(\"%s\",num_img,%s,%s,%s) #%s num,chan,y,x\n", 
-		      as_pyid(bn).c_str(), as_pyid(bn).c_str(), str(cio.chans).c_str(), 
+		      bn.c_str(), bn.c_str(), str(cio.chans).c_str(), 
 		      str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), 
 		      isss.c_str() );
   }
@@ -399,8 +399,7 @@ namespace boda
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop, bool const expanded_ops ) {
     string extra_params;
     string expanded_op;
-    string const tag_id_str = as_pyid( cop->tag );
-    char const * const tag_id = tag_id_str.c_str();
+    char const * const tag_id = cop->tag.c_str();
     
     string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
     uint32_t M = 0, N = 0, K = 0;
@@ -424,7 +423,7 @@ namespace boda
       K = cop->out_chans;
 
       // get expanded op 
-      expanded_op = get_conv_as_sgemm(cop->tops[0],cop->bots[0],tag_id_str+"_filts",M,N,K,pad_and_stride);
+      expanded_op = get_conv_as_sgemm(cop->tops[0],cop->bots[0],cop->tag+"_filts",M,N,K,pad_and_stride);
     }
     // print decls for all of this ops output nodes here
     for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
@@ -434,7 +433,7 @@ namespace boda
     if( expanded_ops && !expanded_op.empty() ) { out << expanded_op; }
     else {
       out << strprintf( "%s(name=\"%s\",bot_names=%s,top_names=%s%s,\n\t%s)\n", 
-			cop->type.c_str(), tag_id, as_pylist(cop->bots).c_str(), as_pylist(cop->tops).c_str(),
+			cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(),
 			extra_params.c_str(), pad_and_stride.c_str() );
     }
   }
@@ -447,7 +446,7 @@ namespace boda
     // print in-place ops for this node
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) {
       p_conv_op_t const & ip_cop = *j;
-      out << strprintf( "%s(name=\"%s\",in_place=[\"%s\"])\n", ip_cop->type.c_str(), as_pyid(ip_cop->tag).c_str(), as_pyid(node->name).c_str() );
+      out << strprintf( "%s(name=\"%s\",in_place=[\"%s\"])\n", ip_cop->type.c_str(), ip_cop->tag.c_str(), node->name.c_str() );
     }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
@@ -510,7 +509,7 @@ namespace boda
       node_dims.calc_strides(); // for now, assume no padding
       if( node->top_for.empty() ) { assert_st( must_find( *fwd, node->name )->dims == node_dims ); }
       else if( (!sinks_only) || node->bot_for.empty() ) {
-	must_insert( *fwd, as_pyid(node->name), make_shared<nda_float_t>( node_dims ) );
+	must_insert( *fwd, node->name, make_shared<nda_float_t>( node_dims ) );
       }
     }
   }
@@ -537,13 +536,12 @@ namespace boda
   }
 
   void conv_pipe_t::add_layer_blobs( string const & rln, p_vect_p_nda_float_t const & blobs ) {
-    string const tag_id_str = as_pyid( rln );
     p_conv_op_t const & cop = get_op( rln );
     vect_string bsb_names;
     if( cop->type == Convolution_str ) { 
       assert( blobs->size() == 2 );
-      bsb_names.push_back( tag_id_str + "_filts" ); 
-      bsb_names.push_back( tag_id_str + "_biases" ); 
+      bsb_names.push_back( cop->tag + "_filts" ); 
+      bsb_names.push_back( cop->tag + "_biases" ); 
       dims_t & bd = blobs->at(1)->dims;
       // for 'old style' bias blobs, squwish out leading size 1 dims
       if( bd.sz() == 4 ) {
@@ -552,7 +550,7 @@ namespace boda
       }
       assert( blobs->at(1)->dims.sz() == 1 );
     }
-    else { for( uint32_t i = 0; i != blobs->size(); ++i ) { bsb_names.push_back( tag_id_str + "_" + str(i) ); } }
+    else { for( uint32_t i = 0; i != blobs->size(); ++i ) { bsb_names.push_back( cop->tag + "_" + str(i) ); } }
     assert_st( bsb_names.size() == blobs->size() );
     for( uint32_t i = 0; i != bsb_names.size(); ++i ) { 
       assert_st( op_params->insert( std::make_pair( bsb_names[i], blobs->at(i) ) ).second );

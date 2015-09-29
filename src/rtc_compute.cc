@@ -33,14 +33,12 @@ namespace boda
   // batch nda_float<->var copies
   void rtc_compute_t::copy_ndas_to_vars( vect_string const & names, map_str_p_nda_float_t const & ndas ) {
     for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
-      string const pyid = as_pyid( *i ); // FIXME: move to callers/outside?
-      copy_nda_to_var( pyid, must_find( ndas, pyid ) );
+      copy_nda_to_var( *i, must_find( ndas, *i ) );
     }
   }
   void rtc_compute_t::copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas ) {
     for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
-      string const pyid = as_pyid( *i );
-      copy_var_to_nda( must_find( ndas, pyid ), pyid );
+      copy_var_to_nda( must_find( ndas, *i ), *i );
     }
   }
 }
