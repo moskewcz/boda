@@ -86,7 +86,7 @@ namespace boda
       tag_id_str = as_pyid( cop->tag );
       //char const * const tag_id = tag_id_str.c_str();
       assert_st( cop->tops.size() >= 1 );
-      if( cop->type == ProbGradAndLoss_str ) {
+      if( cop->type == SoftmaxWithLoss_str ) {
 	assert_st( cop->bots.size() == 2 );
 	assert_st( cop->tops.size() == 2 );
       } else {
@@ -1572,8 +1572,12 @@ namespace boda
     } else if( cop->type == Softmax_str ) {
       rtc_func_t & rf = gen_op_softmax( oi );
       fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(oi->ni->name)},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
-    } else if( cop->type == ProbGradAndLoss_str ) {
-      // FIXME/TODO: handle. for now, totally ignore
+    } else if( cop->type == SoftmaxWithLoss_str ) {
+      // FIXME/TODO: handle. for now, mostly ignore
+      assert_st( cop->tops.size() == 2 );
+      p_node_info_t const & loss_ninfo = must_find( *node_infos, cop->tops[1] );
+      assert_st( !loss_ninfo->sz );
+      loss_ninfo->sz = 1;
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 

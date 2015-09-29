@@ -21,7 +21,8 @@ namespace boda
     u32_pt_t sz;
     u32_pt_t used_sz;
     uint32_t chans;
-    conv_io_t( void ) : chans( uint32_t_const_max ) {}
+    bool per_batch; // if true, per batch. otherwise per image (normal)
+    conv_io_t( void ) : chans( uint32_t_const_max ), per_batch(0) {}
     uint32_t const num_pels( void ) const { return chans * sz.dims_prod(); }
   };
   

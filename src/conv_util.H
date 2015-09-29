@@ -25,9 +25,6 @@ namespace boda
   std::string const Concat_str = "Concat";
   std::string const InnerProduct_str = "InnerProduct";
 
-  // boda specific (for bck)
-  std::string const ProbGradAndLoss_str = "ProbGradAndLoss";
-
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support

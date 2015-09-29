@@ -161,6 +161,8 @@
   <li test_name="test_compute_nin_opt" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4)' --cf1='(mode=rtc,per_call_fn=plt.py,enable_s1conv=1,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
   <li test_name="test_compute_googlenet_conv_opt" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=cls3_fc)' --cf1='(mode=rtc,per_call_fn=plt.py,enable_s1conv=1,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
 
+<!-- FIXME: add a test that uses Softmax and/or remove support for it
   <li test_name="test_compute_alexnet_prob" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=prob)' --cf1='(mode=rtc,per_call_fn=plt.py)' --max-err=1 "/>
+-->
 
 </root>

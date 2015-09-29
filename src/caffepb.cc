@@ -110,11 +110,14 @@ namespace boda
 	conv_op->lrn_beta = p.beta();
 	conv_op->lrn_local_size = p.local_size();
 	conv_op->lrn_k = p.k();
-
-      } else if( (lp.type() == Softmax_str) || (lp.type() == SoftmaxWithLoss_str) ) {
-	// note: we will later silently convert SoftmaxWithLoss_str -> Softmax_str
+      } else if( lp.type() == Softmax_str ) {
+	// this may be inconvieniently strong; it's probably okay to ignore this here
+	rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );
+      } else if( lp.type() == SoftmaxWithLoss_str ) {
+	// this layer should only be present when add_bck_ops==1, and all outputs should be produced by it
+	if( !add_bck_ops ) { rt_err( "Saw unexpected SoftmaxWithLoss layer in caffpb caffe->boda net conversion given add_bck_ops==0." ); }
 	conv_op.reset( new conv_op_t );
-	conv_op->stride = {1,1};
+	conv_op->stride = {1,1}; // sensible, but currently unused
 	conv_op->out_chans = 0; // no effect on chans
       } else if( lp.type() == Pooling_str ) {
 	assert_st( lp.has_pooling_param() );
@@ -158,11 +161,10 @@ namespace boda
 	RF_TO_VEC( conv_op->bots, lp.bottom );
 	RF_TO_VEC( conv_op->tops, lp.top );
 	if( conv_op->type == SoftmaxWithLoss_str ) { 
-	  conv_op->type = Softmax_str; 
-	  assert_st( conv_op->bots.size() == 2 ); conv_op->bots.resize(1); // data,label -> data
-	  assert_st( conv_op->tops.size() <= 1 );
-	  // FIXME/HACK: if missing set output name to "prob". using "prob" here doesn't handle multiple loss layers
-	  if( conv_op->tops.empty() ) { conv_op->tops.push_back("prob"); }
+	  assert_st( conv_op->bots.size() == 2 ); // fwd_top, label
+	  assert_st( conv_op->tops.size() == 1 ); // loss
+	  // add gradient output for fwd_top input
+	  conv_op->tops.insert( conv_op->tops.begin(), conv_op->bots[0] + "_grad_loss" );
 	}
 	conv_pipe->add_conv( conv_op );
       }      

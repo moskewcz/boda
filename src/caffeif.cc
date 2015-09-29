@@ -163,51 +163,44 @@ namespace boda
 
     // we assume there is single input blob named 'data', unless we see (and remove) a Data layer,
     // then we use the first top blob name from the last such removed layer. FIXME: do better?
-    string data_blob_name = "data";
-    // UPDATE: we now do the removal of data layers and layers-after-out-layer-name unconditionally. should be okay?
-    // assert_st( net_param->input_size() == 0 ); 
-    // remove data, softmax, and accuracy layers
-    string next_softmax_layer_and_blob_name = "prob";
-    uint32_t nslabn_ix = 1;
-    set_string layer_types_to_remove{ Data_str, Accuracy_str };
+    string data_node_name = "data";
+    string label_node_name = "label";
+    string next_loss_node_name = "loss"; // name any un-unamed loss layers "loss", "loss_2", ... 
+    uint32_t nlnn_ix = 1;
     int o = 0;
-    vect_string prob_node_names;
     for( int i = 0; i < net_param->layer_size(); i++ ) {
       caffe::LayerParameter const * const lp = &net_param->layer(i);
       if( lp->type() == Data_str ) {
 	// assume first top is name of data layer image data output blob
-	data_blob_name = lp->top(0);
+	if( lp->top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
+	data_node_name = lp->top(0);
+	label_node_name = lp->top(1);
+	continue; // drop layer
+      } else if( lp->type() == Accuracy_str ) {
+	continue; // drop layer
+      } else if( (lp->type() == SoftmaxWithLoss_str) || (lp->type() == Softmax_str) ) {
+	if( !add_bck_ops ) { continue; } // drop layer unless we're doing bck 
       }
-
-      if( has( layer_types_to_remove, lp->type() ) ) { continue; }
-      // keep layer
+      // if we got here, we keep layer (but may modify it)
       caffe::LayerParameter * const olp = net_param->mutable_layer(o);
-      if( i != o ) { *olp = net_param->layer(i); } 
-      ++o; 
+      if( i != o ) { *olp = net_param->layer(i); } ++o; // keep layer
 
-      // convert regular SoftmaxWithLoss to Softmax on the thoery that we want to represent the 'deploy' net here.
-      // FIXME/HACK/NOTE: but, *don't* do this if add_bck_ops; note that there is dup'd code in caffpb.cc that will do this same
-      // operation if we don't do it here. for caffe, it is the rough equivalent to add_bck_ops for a deploy model is to convert
-      // from Softmax->SoftmaxWithLoss. but, since we now assume we're reading the train_val net, we just *don't* do this
-      // conversion. sigh!
+      // we don't use caffe's layer filtering, so strip any filtering info out (i.e. use this layer in 'all' phases).
+      // FIXME/HACK/NOTE: this is not in general correct/sound. but generally the only layer with phase info that we keep is
+      // SoftmaxWithLoss_str, and we only keep it when we want to run it (when add_bck_ops==1). we could probably at least error
+      // check this better.
+      olp->clear_phase(); olp->clear_include(); olp->clear_exclude(); 
+
+      // keep SoftmaxWithLoss only when add_bck_ops==1; add a named loss output if it doesn't exists so we can reference it by
+      // name consistently from from both the boda and caffe versions of the net.
       if( olp->type() == SoftmaxWithLoss_str ) {
-	if( add_bck_ops ) {
-	  prob_node_names.push_back( next_softmax_layer_and_blob_name );
-	} else {
-	  olp->set_type(Softmax_str);
-	  // don't set phase/include/exclude (i.e. use in 'all' phases).
-	  olp->clear_phase(); olp->clear_include(); olp->clear_exclude();
-	  assert_st( olp->bottom_size() == 2 ); olp->mutable_bottom()->RemoveLast(); // inputs: data,label --> just data
-	}
-	// HACK set output and layer name to "prob"
+	assert_st( add_bck_ops );
 	assert_st( olp->top_size() <= 1 );
-	if( olp->top_size() == 0 ) { olp->add_top(next_softmax_layer_and_blob_name); }
-	else { olp->set_top(0,next_softmax_layer_and_blob_name); }
-	olp->set_name( next_softmax_layer_and_blob_name );
-	++nslabn_ix;
-	next_softmax_layer_and_blob_name = "prob_" + str(nslabn_ix);
-      }
-      if( (olp->type() == Softmax_str) && add_bck_ops ) {
+	if( olp->top_size() == 0 ) { olp->add_top(next_loss_node_name); }
+	++nlnn_ix;
+	next_loss_node_name = "loss_" + str(nlnn_ix);
+      } else if( olp->type() == Softmax_str ) {
+	assert_st( add_bck_ops );
 	// here's where we'd convert from Softmax->SoftmaxWithLoss if we wanted to handle that
 	rt_err( "unimplemented: reading caffe net with Softmax (not SoftmaxWithLoss) in add_bck_ops mode" );
       }
@@ -226,7 +219,7 @@ namespace boda
     while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
 
     if( net_param->input_dim_size() == 0 ) { // if train-val form, convert to deploy form
-      net_param->add_input(data_blob_name);
+      net_param->add_input(data_node_name);
       for( uint32_t i = 0; i != 4; ++i ) { net_param->add_input_dim(0); }
     }
     // FIXME: handle shape for input?
@@ -236,9 +229,9 @@ namespace boda
     net_param->set_input_dim(1,in_num_chans);
     net_param->set_input_dim(2,in_sz.d[1]);
     net_param->set_input_dim(3,in_sz.d[0]);
-    // add prob label inputs 
-    for( vect_string::const_iterator i = prob_node_names.begin(); i != prob_node_names.end(); ++i ) {
-      net_param->add_input( (*i) + "_label" );
+    // add label input if needed
+    if( add_bck_ops ) {
+      net_param->add_input(label_node_name);
       net_param->add_input_dim(in_num_imgs);
       net_param->add_input_dim(1);
       net_param->add_input_dim(1);

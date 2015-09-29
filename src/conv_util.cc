@@ -134,7 +134,7 @@ namespace boda
     cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
     uint32_t const & out_chans = cop->out_chans; 
 
-    if( cop->type == ProbGradAndLoss_str ) { 
+    if( cop->type == SoftmaxWithLoss_str ) { 
       assert_st( cop->bots.size() == 2 ); // prob, label
       assert_st( cop->tops.size() == 2 ); // prob_grad, loss
       csi_out.support_stride = u32_pt_t{};
@@ -204,7 +204,7 @@ namespace boda
       csi.support_sz = u32_pt_t(1,1);
       csi.support_stride = u32_pt_t(1,1);
       // FIXME: not the best multiple bottoms handling ....
-      if( endswith(*i,"_label") ) { node->cio.chans = 1; } else { node->cio.chans = in_chans; }  
+      if( startswith(*i,"label") ) { node->cio.chans = 1; } else { node->cio.chans = in_chans; }  
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_support_forward_rec( *i, ignore_padding ); }
@@ -224,11 +224,13 @@ namespace boda
     if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 
 
-    if( cop->type == ProbGradAndLoss_str ) { 
+    if( cop->type == SoftmaxWithLoss_str ) { 
       assert_st( cop->bots.size() == 2 ); // prob, label
       assert_st( cop->tops.size() == 2 ); // prob_grad, loss
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
-      must_get_node( cop->tops[1] )->cio.sz = u32_pt_t{1,1};
+      conv_io_t & loss_cio = must_get_node( cop->tops[1] )->cio;
+      loss_cio.sz = u32_pt_t{1,1};
+      loss_cio.per_batch = 1;
     } else {
 	assert_st( cop->has_one_top() );
       if( (cop->bots.size() != 1) && (cop->type != Concat_str) ) { 
@@ -266,7 +268,7 @@ namespace boda
       conv_io_t & cio = node->cio;
       assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
       // FIXME: not the best multiple bottoms handling ....
-      if( endswith(*i,"_label") ) { cio.sz = u32_pt_t{1,1}; } else { cio.sz = in_sz; }
+      if( startswith(*i,"label") ) { cio.sz = u32_pt_t{1,1}; } else { cio.sz = in_sz; }
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { calc_sizes_forward_rec( *i, ignore_padding ); }
@@ -461,19 +463,11 @@ namespace boda
 
 
   void conv_pipe_t::add_bck_ops_op( p_conv_op_t const & cop ) {
-    if( cop->type == Softmax_str ) {
-      assert_st( cop->bots.size() == 1 );
-      assert_st( cop->tops.size() == 1 );
-      p_conv_op_t bck_op( new conv_op_t );
-      bck_op->type = ProbGradAndLoss_str;
-      bck_op->tag = cop->tag + "_bck";
-      bck_op->bots.push_back( cop->tops[0] );
-      // yep, these names are semi-hard-coded ... hmm. FIXME? or is this part of the iface for bck/fwd?
-      bck_op->bots.push_back( cop->tops[0] + "_label" ); 
-      // instead of emmiting prob_grad_loss, we emit {input of softmax that produced prob}_grad_loss.
-      bck_op->tops.push_back( cop->bots[0] + "_grad_loss" );
-      bck_op->tops.push_back( cop->tops[0] + "_loss" );
-      add_conv( bck_op );
+    if( cop->type == Softmax_str ) { assert_st(0 ); }
+    else if( cop->type == SoftmaxWithLoss_str ) {
+      assert_st( cop->bots.size() == 2 );
+      assert_st( cop->tops.size() == 2 );
+      assert_st( cop->bots[0]+"_grad_loss" == cop->tops[0] );
     }
   }
   void conv_pipe_t::add_bck_ops_rec( string const & node_name ) {
@@ -494,7 +488,17 @@ namespace boda
     assert( !has_bck_ops.v );
     topo_visit_setup();
     vect_string fwd_tops{ tops.begin(), tops.end() };
-    for( vect_string::const_iterator i = fwd_tops.begin(); i != fwd_tops.end(); ++i ) { add_bck_ops_rec( *i ); }
+    for( vect_string::const_iterator i = fwd_tops.begin(); i != fwd_tops.end(); ++i ) {
+      // when add_bck_ops==1, we assume that all tops should be produced by a SoftmaxWithLoss operation. that is, we
+      // assume that the 'real' or raw outputs of the fwd net are already 'capped' with a combo
+      // loss-function/fwd-top-gradient-producing node. we check that here:
+      p_conv_node_t node = must_get_node( *i );
+      assert_st( node->top_for.size() == 1 );
+      if( get_op(node->top_for[0])->type != SoftmaxWithLoss_str ) {
+	rt_err( strprintf( "add_bck_ops: unhandled: top node %s not produced by SoftmaxWithLoss op", str(*i).c_str() ) );
+      }
+      add_bck_ops_rec( *i ); 
+    }
     has_bck_ops.v = 1;
   }
 
@@ -502,7 +506,7 @@ namespace boda
   void conv_pipe_t::fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only ) {
     for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
       p_conv_node_t const & node = i->second;
-      dims_t node_dims( vect_uint32_t{num_imgs,node->cio.chans,node->cio.sz.d[1],node->cio.sz.d[0]} ); 
+      dims_t node_dims( vect_uint32_t{node->cio.per_batch?1:num_imgs,node->cio.chans,node->cio.sz.d[1],node->cio.sz.d[0]} ); 
       node_dims.calc_strides(); // for now, assume no padding
       if( node->top_for.empty() ) { assert_st( must_find( *fwd, node->name )->dims == node_dims ); }
       else if( (!sinks_only) || node->bot_for.empty() ) {
@@ -518,7 +522,7 @@ namespace boda
     uint32_t num_data = 0;
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {
       if( startswith( (*i), "data" ) ) { ++num_data; (*fwd)[*i] = in; }
-      else if( endswith( (*i), "_label" ) ) { 
+      else if( startswith( (*i), "label" ) ) { 
 	// FIXME/TODO just stubbed out here
 	assert( in->dims.sz() == 4 );
 	p_nda_float_t label( new nda_float_t( dims_t(vect_uint32_t{in->dims.dims(0),1,1,1}) ) ); 	
