@@ -134,6 +134,7 @@ namespace boda
 typedef int int32_t;
 //typedef long long int64_t;
 float const FLT_MAX = /*0x1.fffffep127f*/ 340282346638528859811704183484516925440.0f;
+float const FLT_MIN = 1.175494350822287507969e-38f;
 #define CUCL_GLOBAL_KERNEL extern "C" __global__
 #define GASQ
 #define GLOB_ID_1D (blockDim.x * blockIdx.x + threadIdx.x)

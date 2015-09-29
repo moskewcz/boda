@@ -1,0 +1,19 @@
+// each thread: computes outputs across chan dim, using inputs across chan dim
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const prob, GASQ float const * const label, 
+					  GASQ float * const fwd_top_loss_grad, GASQ float * const loss ) {
+  int32_t const tix = GLOB_ID_1D;
+  if( tix >= %(tix_sz) ) { return; }
+  int32_t const base_ix = %(tix_img)*%(out_ix_img_sz) + %(tix_y)*%(out_ix_y_sz) + %(tix_x)*%(out_ix_x_sz);
+  int const img_label = 0; // int( label[ %(tix_img) ] ); // FIXME
+  float pel_loss = -log( max( prob[base_ix + img_label*%(out_ix_chan_sz)], FLT_MIN ) );
+  // FIXME 1: loss should have dims of 1*1*x*y (or maybe num_images*1*x*y)
+  // FIXME 2: need to average loss overs image to get final per-batch loss
+  if( %(tix_img) == 0 ) { *loss = pel_loss; } 
+  // iteratate over chans for all operations
+  for( int32_t off = 0, chan_ix = 0; chan_ix < %(out_ix_chan_dim); ++chan_ix, off += %(out_ix_chan_sz) ) { 
+    float v = prob[base_ix + off];
+    if( chan_ix == img_label ) { v -= 1.0f; }
+    fwd_top_loss_grad[base_ix + off] = v;
+  }
+}
+

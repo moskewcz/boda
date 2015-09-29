@@ -91,12 +91,11 @@ namespace boda
 	assert_st( cop->tops.size() == 2 );
       } else {
 	assert_st( cop->tops.size() == 1 );
-	no = cp->must_get_node( cop->tops[0] );
-	if( cop->type != Concat_str ) {
-	  assert_st( cop->bots.size() == 1 );
-	  ni = cp->must_get_node( cop->bots[0] );
-	}
-      } 
+	if( cop->type != Concat_str ) { assert_st( cop->bots.size() == 1 ); }
+	else { assert_st( cop->bots.size() >= 1 ); }
+      }
+      no = cp->must_get_node( cop->tops[0] );
+      if( cop->type != Concat_str ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
 
       is_conv = cop->type == Convolution_str;
       is_pool = cop->type == Pooling_str;
@@ -219,6 +218,7 @@ namespace boda
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
     rtc_func_t & gen_op_lrn( p_op_info_t const & oi );
     rtc_func_t & gen_op_softmax( p_op_info_t const & oi );
+    rtc_func_t & gen_op_sm_grad_and_loss( p_op_info_t const & oi );
     rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     rtc_func_t & gen_op_relu( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
@@ -1209,6 +1209,31 @@ namespace boda
     return rf;
   }
 
+  rtc_func_t & conv_pipe_fwd_t::gen_op_sm_grad_and_loss( p_op_info_t const & oi ) {
+    p_conv_node_t const & fwd_top = cp->must_get_node( oi->cop->bots[0] ); // same size as prob and grad
+
+    rtc_func_gen_info_t rfgi{"sm_grad_and_loss",
+      { {"num_imgs",str(num_imgs)},{"chans",str(fwd_top->cio.chans)},{"ysz",str(fwd_top->cio.sz.d[1])},{"xsz",str(fwd_top->cio.sz.d[0])}
+      } };
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
+    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    if( rf.finalized ) { return rf; } // already generated
+    vect_string const cio_dims{"img","chan","y","x"};
+    insert_nda_exprs( tf_exprs, "tix", vect_string{"img","y","x"}, 
+		      vect_uint32_t{num_imgs,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
+		      vect_uint32_t{num_imgs,fwd_top->cio.chans,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.arg_sizes.push_back( num_imgs );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.arg_sizes.push_back( 1 );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
+  }
+
   rtc_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
     // note: cio_in and oi->no->cio are derived from cop->bots[bi] and cop->tops[0]
     assert_st( cio_in.sz == oi->no->cio.sz );
@@ -1574,10 +1599,20 @@ namespace boda
       fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(oi->ni->name)},{},{as_pyid(oi->no->name)}, {}, oi->tag_id_str } );
     } else if( cop->type == SoftmaxWithLoss_str ) {
       // FIXME/TODO: handle. for now, mostly ignore
-      assert_st( cop->tops.size() == 2 );
+      assert_st( cop->bots.size() == 2 ); // fwd_top, label
+      assert_st( cop->tops.size() == 2 ); // fwd_top_grad_loss, loss
       p_node_info_t const & loss_ninfo = must_find( *node_infos, cop->tops[1] );
       assert_st( !loss_ninfo->sz );
       loss_ninfo->sz = 1;
+      rtc_func_t & rf = gen_op_softmax( oi );
+      string const prob_node_name = cop->tag + "_prob";
+      rtc->create_var_with_sz_floats( prob_node_name, rf.arg_sizes[1] );
+      fwd_calls.push_back( rtc_func_call_t{ rf.name, {as_pyid(cop->bots[0])},{},{as_pyid(prob_node_name)}, {}, oi->tag_id_str } );
+
+      rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
+      fwd_calls.push_back( rtc_func_call_t{ rf_smgal.name, {prob_node_name,
+	      as_pyid(cop->bots[1])},{},{as_pyid(cop->tops[0]),as_pyid(cop->tops[1])}, {}, oi->tag_id_str } );
+
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
