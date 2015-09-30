@@ -216,6 +216,7 @@ namespace boda
     rtc_func_t & gen_op_lrn( p_op_info_t const & oi );
     rtc_func_t & gen_op_softmax( p_op_info_t const & oi );
     rtc_func_t & gen_op_sm_grad_and_loss( p_op_info_t const & oi );
+    rtc_func_t & gen_op_slow_sum( p_op_info_t const & oi );
     rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     rtc_func_t & gen_op_relu( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
@@ -1231,6 +1232,21 @@ namespace boda
     return rf;
   }
 
+  rtc_func_t & conv_pipe_fwd_t::gen_op_slow_sum( p_op_info_t const & oi ) {
+    uint32_t const sz = cp->must_get_node( oi->cop->bots[1] )->cio.dims(num_imgs).dims_prod(); // size of label, same size as loss
+    rtc_func_gen_info_t rfgi{"slow_sum", { {"sz",str(sz)} } };
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
+    //vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    if( rf.finalized ) { return rf; } // already generated
+    uint32_t const out_ix_sz = 1;
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); // one thread. one.
+    rf.arg_sizes.push_back( sz );
+    rf.arg_sizes.push_back( 1 );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
+  }
+
   rtc_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
     // note: cio_in and oi->no->cio are derived from cop->bots[bi] and cop->tops[0]
     assert_st( cio_in.sz == oi->no->cio.sz );
@@ -1598,17 +1614,23 @@ namespace boda
       // FIXME/TODO: handle. for now, mostly ignore
       assert_st( cop->bots.size() == 2 ); // fwd_top, label
       assert_st( cop->tops.size() == 2 ); // fwd_top_grad_loss, loss
-      p_node_info_t const & loss_ninfo = must_find( *node_infos, cop->tops[1] );
-      assert_st( !loss_ninfo->sz );
-      loss_ninfo->sz = 1;
       rtc_func_t & rf = gen_op_softmax( oi );
       string const prob_node_name = cop->tag + "_prob";
       rtc->create_var_with_sz_floats( prob_node_name, rf.arg_sizes[1] );
       fwd_calls.push_back( rtc_func_call_t{ rf.name, {cop->bots[0]},{},{prob_node_name}, {}, oi->cop->tag } );
 
+      string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
+      rtc->create_var_with_sz_floats( loss_per_pel, cp->must_get_node(cop->bots[1])->cio.dims(num_imgs).dims_prod() );
+
       rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf_smgal.name, {prob_node_name,
-	      cop->bots[1]},{},{cop->tops[0],cop->tops[1]}, {}, oi->cop->tag } );
+      fwd_calls.push_back( rtc_func_call_t{ rf_smgal.name, {prob_node_name, cop->bots[1]},{},{cop->tops[0],loss_per_pel}, {}, oi->cop->tag } );
+
+      rtc_func_t & rf_lr = gen_op_slow_sum( oi );
+      fwd_calls.push_back( rtc_func_call_t{ rf_lr.name, {loss_per_pel},{},{cop->tops[1]}, {}, oi->cop->tag } );
+
+      // FIXME/TODO: reduce loss
+      // loss_per_pel -> cop->tops[1] (singleton)
+      
 
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
@@ -1616,7 +1638,7 @@ namespace boda
   void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) {
     conv_io_t & cio = node->cio;
     p_node_info_t const & ninfo = must_find( *node_infos, name );
-    if( !ninfo->sz ) { ninfo->sz = num_imgs * cio.chans * cio.sz.dims_prod(); }
+    if( !ninfo->sz ) { ninfo->sz = cio.dims( num_imgs ).dims_prod(); }
     rtc->create_var_with_sz_floats( name, ninfo->sz ); 
   }
 

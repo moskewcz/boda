@@ -235,7 +235,7 @@ namespace boda
       assert_st( cop->tops.size() == 2 ); // prob_grad, loss
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
       conv_io_t & loss_cio = must_get_node( cop->tops[1] )->cio;
-      loss_cio.sz = u32_pt_t{1,1};
+      loss_cio.sz = u32_pt_t{1,1}; // loss is a singleton
       loss_cio.per_batch = 1;
     } else {
 	assert_st( cop->has_one_top() );
