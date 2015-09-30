@@ -197,14 +197,20 @@ namespace boda
   // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
   void conv_pipe_t::calc_support_info( bool const ignore_padding, uint32_t const & in_chans ) {
     // initialize support info for all root inputs
+    bool saw_data_node = 0;
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
       p_conv_node_t const & node = must_get_node( *i );
       conv_support_info_t & csi = node->csi;
       assert( !csi.valid() );
       csi.support_sz = u32_pt_t(1,1);
       csi.support_stride = u32_pt_t(1,1);
-      // FIXME: not the best multiple bottoms handling ....
-      if( startswith(*i,"label") ) { node->cio.chans = 1; } else { node->cio.chans = in_chans; }  
+      if( get_fwd_top_for_label(*i) ) { 
+	node->cio.chans = 1; 
+      } else {
+	if( saw_data_node ) { rt_err( "calc_support_info(): unhandled multiple non-label inputs" ); }
+	node->cio.chans = in_chans; 
+	saw_data_node = 1;
+      }  
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_support_forward_rec( *i, ignore_padding ); }
@@ -261,17 +267,60 @@ namespace boda
       calc_sizes_forward_op( cop, ignore_padding );
     }
   }
+
+
+  // we consider a node a 'label' if it is the second input to one or more SoftmaxWithLoss ops (and no other ops). if it
+  // is, we a representtive of the other input(s) of the SoftmaxWithLoss layers (or an error if they
+  // disagree in size or chans).  otherwise, we return 0.
+  p_conv_node_t conv_pipe_t::get_fwd_top_for_label( string const & n ) const {
+    p_conv_node_t const & node = must_get_node( n );
+    bool has_non_sm_uses = 0;
+    p_conv_node_t rep_fwd_top;
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( cop->type == SoftmaxWithLoss_str ) { 
+	p_conv_node_t fwd_top = must_get_node( cop->bots[0] );
+	if( rep_fwd_top ) { 
+	  if( rep_fwd_top->cio.sz != fwd_top->cio.sz ) {
+	    rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing xy size." );
+	  }
+	  if( rep_fwd_top->cio.chans != fwd_top->cio.chans ) {
+	    rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing #s of chans." );
+	  }
+	}
+	if( !rep_fwd_top ) { rep_fwd_top = fwd_top; }
+      }
+      else { has_non_sm_uses = 1; }
+    }
+    if( rep_fwd_top && has_non_sm_uses ) { rt_err( "unhandled: input node '" + n + "' used by SoftmaxWithLoss *and* other layer types" ); }
+    return rep_fwd_top;
+  }
+
   void conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding ) {
     // initialize size info for all root inputs
+    bool saw_data_node = 0;
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
-      p_conv_node_t const & node = must_get_node( *i );
-      conv_io_t & cio = node->cio;
+      conv_io_t & cio = must_get_node( *i )->cio;
       assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
-      // FIXME: not the best multiple bottoms handling ....
-      if( startswith(*i,"label") ) { cio.sz = u32_pt_t{1,1}; } else { cio.sz = in_sz; }
+      p_conv_node_t fwd_top = get_fwd_top_for_label( *i );
+      if( !fwd_top ) { 
+	if( saw_data_node ) { rt_err( "calc_sizes_forward(): unhandled multiple non-label inputs" ); }
+	cio.sz = in_sz; 
+	saw_data_node = 1;
+      }
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { calc_sizes_forward_rec( *i, ignore_padding ); }
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
+      conv_io_t & cio = must_get_node( *i )->cio;
+      p_conv_node_t fwd_top = get_fwd_top_for_label( *i );
+      if( fwd_top ) { 
+	assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
+	cio.sz = fwd_top->cio.sz;
+	cio.max_val = fwd_top->cio.chans;
+      } 
+      assert_st( !cio.sz.is_zeros() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
+    } 
   }
 
   // note: recursively sturctured, but only works for chains currently. it's unclear what the
@@ -505,7 +554,7 @@ namespace boda
   void conv_pipe_t::fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only ) {
     for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
       p_conv_node_t const & node = i->second;
-      dims_t node_dims( vect_uint32_t{node->cio.per_batch?1:num_imgs,node->cio.chans,node->cio.sz.d[1],node->cio.sz.d[0]} ); 
+      dims_t node_dims = node->cio.dims( num_imgs );
       node_dims.calc_strides(); // for now, assume no padding
       if( node->top_for.empty() ) { assert_st( must_find( *fwd, node->name )->dims == node_dims ); }
       else if( (!sinks_only) || node->bot_for.empty() ) {
@@ -520,14 +569,21 @@ namespace boda
     //assert( bots.size() == 1 ); // FIXME/HACK for now, we'll ignore other blobs if present
     uint32_t num_data = 0;
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {
-      if( startswith( (*i), "data" ) ) { ++num_data; (*fwd)[*i] = in; }
-      else if( startswith( (*i), "label" ) ) { 
+      if( get_fwd_top_for_label( *i ) ) {
 	// FIXME/TODO just stubbed out here
+	conv_io_t const & label_cio = must_get_node( *i )->cio;
 	assert( in->dims.sz() == 4 );
-	p_nda_float_t label( new nda_float_t( dims_t(vect_uint32_t{in->dims.dims(0),1,1,1}) ) ); 	
+	uint32_t const num_imgs = in->dims.dims(0);
+	dims_t label_dims = label_cio.dims( num_imgs );
+	p_nda_float_t label( new nda_float_t( label_dims ) );
+	uint32_t lix = 0;
+	for( dims_iter_t di( label->dims ) ; ; ) { label->at(di.di) = lix % label_cio.max_val; ++lix; if( !di.next() ) { break; } } // all biases 0
 	(*fwd)[*i] = label;
       } 
-      else { rt_err( "unhanded input node with name '"+str(*i)+"'; can't auto-detect as data or label from name." ); }
+      else { 	
+	(*fwd)[*i] = in; // we error check later that we only used in once (although it's not illegal and not neccessarily wrong to do so)
+	++num_data; 
+      }
     }
     if( num_data != 1 ) { rt_err( "run_one_blob_in_one_blob_out can only handle exactly one data input, saw: " + str(num_data) ); } 
     assert( conv_fwd );

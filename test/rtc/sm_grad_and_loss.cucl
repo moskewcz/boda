@@ -4,7 +4,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const prob, GASQ fl
   int32_t const tix = GLOB_ID_1D;
   if( tix >= %(tix_sz) ) { return; }
   int32_t const base_ix = %(tix_img)*%(out_ix_img_sz) + %(tix_y)*%(out_ix_y_sz) + %(tix_x)*%(out_ix_x_sz);
-  int const img_label = 0; // int( label[ %(tix_img) ] ); // FIXME
+  int const img_label = int( label[ %(tix_img) ] );
   float pel_loss = -log( max( prob[base_ix + img_label*%(out_ix_chan_sz)], FLT_MIN ) );
   // FIXME 1: loss should have dims of 1*1*x*y (or maybe num_images*1*x*y)
   // FIXME 2: need to average loss overs image to get final per-batch loss

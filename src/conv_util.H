@@ -111,6 +111,7 @@ namespace boda
 
     p_conv_node_t get_or_make_node( std::string const & name, bool const is_bot, bool const is_top );
     p_conv_node_t must_get_node( std::string const & name ) const;
+    p_conv_node_t get_fwd_top_for_label( string const & n ) const;
     p_conv_op_t get_op( string const & name ) const;
     p_conv_node_t get_single_bot_node( void ) const;
     p_conv_node_t get_single_top_node( void ) const;

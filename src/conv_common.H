@@ -22,8 +22,10 @@ namespace boda
     u32_pt_t used_sz;
     uint32_t chans;
     bool per_batch; // if true, per batch. otherwise per image (normal)
-    conv_io_t( void ) : chans( uint32_t_const_max ), per_batch(0) {}
+    uint32_t max_val; // used only for error-checking/testing on label inputs; each single value for this node must be < this value.
+    conv_io_t( void ) : chans( uint32_t_const_max ), per_batch(0), max_val(0) {}
     uint32_t const num_pels( void ) const { return chans * sz.dims_prod(); }
+    dims_t dims( uint32_t const & num_imgs ) const { return vect_uint32_t{per_batch?1:num_imgs,chans,sz.d[1],sz.d[0]}; }
   };
   
   typedef vector< conv_io_t > vect_conv_io_t; 
