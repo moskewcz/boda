@@ -5,10 +5,22 @@
 #include<assert.h>
 #include<malloc.h>
 #include<boost/lexical_cast.hpp>
+#include<boost/algorithm/string.hpp>
 
 namespace boda
 {
   using std::string;
+
+  string get_part_before( string const & s, string const & to_find ) {
+    size_t const ix = s.find( to_find );
+    if( ix == string::npos ) { return s; }
+    else { return string( s, 0, ix ); }
+  }
+  string get_part_after( string const & s, string const & to_find ) {
+    size_t const ix = s.find( to_find );
+    if( ix == string::npos ) { return string(); }
+    else { return string( s, ix+to_find.size(), string::npos ); }
+  }
 
   double lc_str_d( char const * const s )
   { 
@@ -64,6 +76,15 @@ namespace boda
     return ret;
   }
 
+  vect_string split_ws( std::string const & s ) {
+    vect_string parts;
+    boost::algorithm::split( parts, s, boost::algorithm::is_space(), boost::algorithm::token_compress_on );
+    return parts;
+  }
+
+  string strip_ws( std::string const & s ) { return boost::algorithm::trim_copy( s ); }
+
+
   string strprintf( char const * const format, ... )
   {
     va_list ap;
@@ -108,6 +129,15 @@ namespace boda
   void printstr( string const & str )
   {
     printf( "%s", str.c_str() );
+  }
+
+  string replace_chars_with_char( string const & s, string const & chars_to_find, char const rep_with ) {
+    string ret;
+    for (string::const_iterator i = s.begin(); i != s.end(); ++i) {
+      if( chars_to_find.find(*i) != string::npos ) { ret.push_back( rep_with ); }
+      else { ret.push_back( *i ); }
+    }
+    return ret;
   }
 
   string xml_escape( string const & str )

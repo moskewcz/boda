@@ -393,6 +393,7 @@ namespace boda
       }
       tf_exprs.push_back( make_pair( "rtc_func_name", rtc_func_name ) );
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (op_tag+".cucl")).string() );
+      parse_template();
       rf = &rtc_funcs.insert( make_pair( rtc_func_name, rtc_func_t{rtc_func_name,0,0} ) ).first->second;
       //printf( "rf->name=%s\n", str(rf->name).c_str() );
       return *rf;
@@ -421,6 +422,41 @@ namespace boda
       rf->tpb = 256;
       rf->blks = u32_ceil_div( out_sz, rf->tpb );
     }
+    void parse_template( void ) {
+      vect_string lines = split( *rtc_func_template, '\n' );
+      for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
+	// find magic CUCL comment (if any) and process it
+	string const mmc = get_part_after( *i, "//" );
+	vect_string mmc_parts = split_ws( strip_ws( mmc ) );
+	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
+	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
+	  string const & cd = mmc_parts[1];
+	  vect_string dim_names;
+	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "IX") ) { 
+	    string ix_name;
+	    string arg_name;
+	    if( cd == "IX" ) {
+	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
+	      ix_name = mmc_parts[2];
+	      arg_name = mmc_parts[3];
+	    } else {
+	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
+	      string const & nda_spec = mmc_parts[2];
+	      dim_names = split( nda_spec, ':' );
+	      // get var name 
+	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);", ' ' ) ) );
+	      arg_name = arg_decl.back();
+	      ix_name = arg_name + "_ix";
+	    }
+
+	    printf( "cd=%s arg_name=%s ix_name=%s dim_names=%s\n", 
+		    str(cd).c_str(), str(arg_name).c_str(), str(ix_name).c_str(), str(dim_names).c_str() );
+
+	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
+	}
+      }
+    }
+
   };
 
   rtc_func_t & conv_pipe_fwd_t::gen_op_pool( p_op_info_t const & oi ) {
@@ -1217,7 +1253,7 @@ namespace boda
     vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
     if( rf.finalized ) { return rf; } // already generated
     vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "tix", vect_string{"img","y","x"}, 
+    insert_nda_exprs( tf_exprs, "GLOB_ID_1D", vect_string{"img","y","x"}, 
 		      vect_uint32_t{num_imgs,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
     insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
 		      vect_uint32_t{num_imgs,fwd_top->cio.chans,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
