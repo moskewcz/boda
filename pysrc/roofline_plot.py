@@ -95,12 +95,12 @@ AXIS_ASPECT_RATIO=log10(X_MAX/X_MIN)/log10(Y_MAX/Y_MIN)
 
 
 aiois = [ 
-    (8.95,"alexnet-1-image",[20.3,8.5],2.27),(135,"alexnet-20-images",[51.4,31.0],2.27*20),
-    (51.3,"nin-1-image",[10.5,5.1],2.21),(156.0,"nin-20-images",[43.3,27.3],2.21*20),
-    (37.6,"googlenet-1-image",[38.7,15.4],3.2),(92.8,"googlenet-20-images",[91.8,71.7],3.2*20),
+    (8.95,"alexnet-1-image",[20.3,8.5,11.7],2.27),(135,"alexnet-20-images",[51.4,31.0,28.8],2.27*20),
+    (51.3,"nin-1-image",[10.5,5.1,3.4],2.21),(156.0,"nin-20-images",[43.3,27.3,19.6],2.21*20),
+    (37.6,"googlenet-1-image",[38.7,15.4,18.3],3.2),(92.8,"googlenet-20-images",[91.8,71.7,52.3],3.2*20),
 
-    (1.1,".\hspace{6mm}stratos-1-image\hspace{5mm}",[13.6,6.0],0.286),(19.1,"stratos-20-images",[20.5,10.8],0.286*20),
-    (0.7,"bigstride-1-image\hspace{4mm}",[8.0,3.6],0.097),(11.9,"bigstride-20-images",[12.5,6.8],0.097*20),
+#    (1.1,".\hspace{6mm}stratos-1-image\hspace{5mm}",[13.6,6.0],0.286),(19.1,"stratos-20-images",[20.5,10.8],0.286*20),
+#    (0.7,"bigstride-1-image\hspace{4mm}",[8.0,3.6],0.097),(11.9,"bigstride-20-images",[12.5,6.8],0.097*20),
 ]
 
 fig = plt.figure()
@@ -155,8 +155,14 @@ for i in range(minloc,maxloc):
         newlabels.append(r'$10^ %d$' %i)
 yticks(newlocs, newlabels)
 
-algs = [("boda-nvrtc (GTX 980)","go"),("cuDNNv2 (GTX 980)","gx")]
-arts = [ plt.Line2D((0,0),(0,0), color='g', marker='o', linestyle=''), plt.Line2D((0,0),(0,0), color='g', marker='x', linestyle='') ]
+algs = [("boda-nvrtc (GTX 980) Q2","go"),("cuDNNv2 (GTX 980)","gx"),
+        ("boda-rtc OpenCL (GTX 980) Q3","gd"),("boda-rtc CUDA (GTX 980) Q3","gd"),
+    ]
+arts = [ plt.Line2D((0,0),(0,0), color='g', marker='o', linestyle=''), 
+         plt.Line2D((0,0),(0,0), color='g', marker='x', linestyle=''),
+         plt.Line2D((0,0),(0,0), color='g', marker='d', linestyle=''),
+         plt.Line2D((0,0),(0,0), color='g', marker='d', linestyle=''),
+     ]
 
 for ai, lab, mss, gfs in aiois: 
     perfs = [ gfs * 1000.0 / ms for ms in mss ]
