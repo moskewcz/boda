@@ -25,7 +25,12 @@ namespace boda
     uint32_t max_val; // used only for error-checking/testing on label inputs; each single value for this node must be < this value.
     conv_io_t( void ) : chans( uint32_t_const_max ), per_batch(0), max_val(0) {}
     uint32_t const num_pels( void ) const { return chans * sz.dims_prod(); }
-    dims_t dims( uint32_t const & num_imgs ) const { return vect_uint32_t{per_batch?1:num_imgs,chans,sz.d[1],sz.d[0]}; }
+    dims_t dims( uint32_t const & num_imgs ) const { 
+      dims_t ret;
+      if( !per_batch ) { ret.add_dims( "img", num_imgs); }
+      ret.add_dims( "chan", chans, "y", sz.d[1], "x", sz.d[0] ); 
+      return ret;
+    }
   };
   
   typedef vector< conv_io_t > vect_conv_io_t; 

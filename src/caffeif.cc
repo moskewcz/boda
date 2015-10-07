@@ -327,11 +327,7 @@ namespace boda
 
   void run_cnet_t::setup_cnet_net_and_batch( void ) {
     assert_st( !in_batch );
-    dims_t in_batch_dims( 4 );
-    in_batch_dims.dims(3) = in_sz.d[0];
-    in_batch_dims.dims(2) = in_sz.d[1];
-    in_batch_dims.dims(1) = in_num_chans; 
-    in_batch_dims.dims(0) = in_num_imgs;
+    dims_t in_batch_dims( vect_uint32_t{ in_num_imgs, in_num_chans, in_sz.d[1], in_sz.d[0] }, vect_string{ "img", "chan", "y", "x" }, 1 );
     in_batch.reset( new nda_float_t( in_batch_dims ) );
   }
 

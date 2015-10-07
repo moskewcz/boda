@@ -1676,10 +1676,7 @@ namespace boda
   void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) {
     conv_io_t & cio = node->cio;
     p_node_info_t const & ninfo = must_find( *node_infos, name );
-    if( ninfo->empty() ) { 
-      if( !cio.per_batch ) { ninfo->add_dims( "img", num_imgs); }
-      ninfo->add_dims( "chan", cio.chans, "y", cio.sz.d[1], "x", cio.sz.d[0] ); 
-    }
+    if( ninfo->empty() ) { (dims_t &)(*ninfo) = cio.dims(num_imgs); }
     rtc->create_var_with_sz_floats( name, ninfo->dims_prod() ); 
   }
 
