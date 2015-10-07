@@ -1,4 +1,7 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, GASQ float * const out ) {
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN out_chan:in_chan:y:x
+					  GASQ float * const out ) // CUCL OUT out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
+{
+  // CUCL IX fioc out.out_chan_blk:out.out_chan_tile:out.out_chan_reg
   int32_t const filts_ix = GLOB_ID_1D;
   if( filts_ix >= %(filts_ix_sz) ) { return; }
   int32_t const fioc = %(filts_ix_out_chan);

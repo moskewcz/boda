@@ -1,10 +1,11 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( 
 		   GASQ float const * const prob, // CUCL IN img:y:x
 		   GASQ float const * const label, // CUCL IN img:y:x
-		   GASQ float * const fwd_top_loss_grad, // CUCL OUT img:y:x
-		   GASQ float * const loss_per_img ) // CUCL OUT img:chan:y:x
+		   GASQ float * const fwd_top_loss_grad, // CUCL OUT img:chan:y:x
+		   GASQ float * const loss_per_img ) // CUCL OUT img:y:x
 {
   // CUCL IX GLOB_ID_1D prob
+  // CUCL IX out fwd_top_loss_grad
 
   if( GLOB_ID_1D >= %(GLOB_ID_1D_sz) ) { return; }
   int32_t const base_ix = %(GLOB_ID_1D_img)*%(out_ix_img_sz) + %(GLOB_ID_1D_y)*%(out_ix_y_sz) + %(GLOB_ID_1D_x)*%(out_ix_x_sz);
