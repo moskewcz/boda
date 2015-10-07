@@ -591,6 +591,9 @@ namespace boda
     return must_find( *fwd, get_single_top_node()->name );
   }
 
+  // FIXME: we *alter* the dims (especially the names) of blobs here. does that makes sense? generally, the blobs are
+  // unused after this by the caller *and* the modifications are correct/sensible. but maybe the caller should have done
+  // these modifications, not us?
   void conv_pipe_t::add_layer_blobs( string const & rln, p_vect_p_nda_float_t const & blobs ) {
     p_conv_op_t const & cop = get_op( rln );
     vect_string bsb_names;
@@ -598,13 +601,6 @@ namespace boda
       assert( blobs->size() == 2 );
       bsb_names.push_back( cop->tag + "_filts" ); 
       bsb_names.push_back( cop->tag + "_biases" ); 
-      dims_t & bd = blobs->at(1)->dims;
-      // for 'old style' bias blobs, squwish out leading size 1 dims
-      if( bd.sz() == 4 ) {
-	for( uint32_t i = 0; i != bd.sz()-1; ++i ) { assert_st( bd.dims(i) == 1 ); }
-	bd = dims_t( vect_uint32_t{ bd.dims(3) }, 1 );
-      }
-      assert( blobs->at(1)->dims.sz() == 1 );
     }
     else { for( uint32_t i = 0; i != blobs->size(); ++i ) { bsb_names.push_back( cop->tag + "_" + str(i) ); } }
     assert_st( bsb_names.size() == blobs->size() );

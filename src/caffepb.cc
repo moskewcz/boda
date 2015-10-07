@@ -363,9 +363,10 @@ namespace boda
       conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
       u32_pt_t kern_sz = cop->kern_sz;
       if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
-      dims_t filt_dims( vect_uint32_t{ cop->out_chans, cio_in.chans, kern_sz.d[1], kern_sz.d[0] } );
+      dims_t filt_dims( vect_uint32_t{ cop->out_chans, cio_in.chans, kern_sz.d[1], kern_sz.d[0] },
+			vect_string{ "out_chan", "in_chan", "y", "x" } );
       blobs.push_back( p_nda_float_t( new nda_float_t( filt_dims ) ) );
-      dims_t bias_dims( vect_uint32_t{ cop->out_chans } );
+      dims_t bias_dims( vect_uint32_t{ cop->out_chans }, vect_string{ "out_chan" } );
       blobs.push_back( p_nda_float_t( new nda_float_t( bias_dims ) ) );
     } else {
       rt_err( "don't know how to alloc blobs for layer of type" + cop->type );
@@ -397,6 +398,24 @@ namespace boda
       for( uint32_t i = 0; i != blob->elems.sz ; ++i ) { dest[i] = src[i]; }
       blobs.push_back( blob );
     }
+
+    // add dim names (and maybe do other fixups) for specific known layer types
+    if( dest_lp.type() == Convolution_str ) {
+      assert( blobs.size() == 2 ); // filts, biases
+      dims_t & fd = blobs.at(0)->dims;
+      // for filter blobs, assume they are in the following format:
+      assert_st( fd.sz() == 4 );
+      fd.names(0) = "out_chan"; fd.names(1) = "in_chan"; fd.names(2) = "y"; fd.names(3) = "x";
+
+      dims_t & bd = blobs.at(1)->dims;
+      // for 'old style' bias blobs, squwish out leading size 1 dims
+      if( bd.sz() == 4 ) {
+	for( uint32_t i = 0; i != bd.sz()-1; ++i ) { assert_st( bd.dims(i) == 1 ); }
+	bd = dims_t( vect_uint32_t{ bd.dims(3) }, vect_string{ "out_chan" }, 1 );
+      }
+      assert( bd.sz() == 1 );
+    }
+
   }
   void copy_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     assert_st( layer_ix < (uint32_t)net->layer_size() );

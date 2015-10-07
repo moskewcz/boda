@@ -344,10 +344,17 @@ namespace boda
     }
     dims_t( void ) { }
     dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
-    dims_t( vect_uint32_t const dims_, bool const & calc_no_pad_strides = 0 ) { 
+    dims_t( vect_uint32_t const & dims_, bool const & calc_no_pad_strides = 0 ) { init( dims_, 0, calc_no_pad_strides ); }
+    dims_t( vect_uint32_t const & dims_, vect_string const & names_, bool const & calc_no_pad_strides = 0 ) { 
+      init( dims_, &names_, calc_no_pad_strides ); }
+    void init( vect_uint32_t const & dims_, vect_string const * const names_, bool const & calc_no_pad_strides = 0 ) { 
       resize_and_zero( dims_.size() ); 
       for( uint32_t i = 0; i != dims_.size(); ++i ) { dims(i) = dims_[i]; }
       if( calc_no_pad_strides ) { calc_strides(); }
+      if( names_ ) {
+	assert_st( names_->size() == size() );
+	for( uint32_t i = 0; i != size(); ++i ) { names(i) = names_->at(i); }
+      }
     }
 
     void resize_and_zero( uint32_t const num_dims ) { resize(num_dims); }
@@ -359,9 +366,13 @@ namespace boda
       return ret;
     }
     uint32_t sz( void ) const { return size(); }
+
     uint32_t & dims( uint32_t const ix ) { return at(ix).sz; }
+    string & names( uint32_t const ix ) { return at(ix).name; }
     uint32_t & strides( uint32_t const ix ) { return at(ix).stride; }
+
     uint32_t const & dims( uint32_t const ix ) const { return at(ix).sz; }
+    string const & names( uint32_t const ix ) const { return at(ix).name; }
     uint32_t const & strides( uint32_t const ix ) const { return at(ix).stride; }
 
     void make_dims_vect( vect_uint32_t & dv ) const { 
