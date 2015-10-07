@@ -182,7 +182,6 @@ namespace boda
     hunk_T( uint32_t const sz_ ) : sz(sz_), p( ma_p_T<T>( sz_ ) ) { } // hunk owns whole block
     T & operator []( uint32_t const & ix ) { assert_st( ix < sz ); return p.get()[ix]; }
     T const & operator []( uint32_t const & ix ) const { assert_st( ix < sz ); return p.get()[ix]; }
-    uint64_t serial_sz( void ) const { return sizeof(uint32_t) + (sz * sizeof(T)); }
     bool operator == ( hunk_T<T> const & o ) const { 
       if( sz != o.sz ) { return 0; }
       for( uint32_t ix = 0; ix < sz; ++ix ) { if( (*this)[ix] != o[ix] ) { return 0; } }
@@ -302,16 +301,42 @@ namespace boda
     bread_bytes( in, (char *)o.p.get(), o.sz*sizeof(T) );
   }
 
+  // (note: experimental/unfinished) as opposed to dims_t/nda_float_t, these struct are intended for metaprogramming
+  // use, and thus compactness and speed are less of a concern, and convenience/functionality more of a concern.
+  struct dim_t {
+    uint32_t sz; // in elements; sz=0 is unspecified/wildcard
+    uint32_t stride; // in elements; stride=0 is uncomupted (/ treat as unpadded)
+    // uint32_t pad_sz; // in bytes? elements?
+    string name; // if empty, unspecified/wildcard
+    dim_t( void ) : sz(0), stride(0) { }
+    dim_t( string const & name_ ) : sz(0), stride(0), name(name_) { }
+    dim_t( uint32_t const & sz_ ) : sz(sz), stride(0) { }
+    dim_t( string const & name_, uint32_t const & sz_ ) : sz(sz_), stride(0), name(name_) { }
+    bool operator == ( dim_t const & o ) const { return (sz==o.sz) && (stride==o.stride) && (name==o.name); }
+  };
+  typedef vector< dim_t > vect_dim_t; 
 
   // row-major dimensions holder
   // cm_ variants implicitly operate on the reversed dims list to provide column-major access
   // using less than the full # of dims uses a prefix (or suffix for the cm_ variants) of the dims
-  struct dims_t {
-    hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
-    dims_t clone( void ) const { dims_t ret; ret.dss = dss.clone(); return ret; }
-    void copy_from( dims_t const & o ) { dss = o.dss.clone(); }
+  struct dims_t : public vect_dim_t {
+    // ah, the irony of code like this in a code generation framework ... sigh.
+    void add_dims( string const & name_, uint32_t const & sz_  ) { push_back( dim_t( name_, sz_ ) ); }
+    void add_dims( string const & name1_, uint32_t const & sz1_, string const & name2_, uint32_t const & sz2_ ) { 
+      add_dims( name1_, sz1_ ); add_dims( name2_, sz2_ ); }
+    void add_dims( string const & name1_, uint32_t const & sz1_, string const & name2_, uint32_t const & sz2_,
+		   string const & name3_, uint32_t const & sz3_ ) {
+      add_dims( name1_, sz1_ ); add_dims( name2_, sz2_ ); add_dims( name3_, sz3_ ); }
+    void add_dims( string const & name1_, uint32_t const & sz1_, string const & name2_, uint32_t const & sz2_,
+		   string const & name3_, uint32_t const & sz3_, string const & name4_, uint32_t const & sz4_ ) { 
+      add_dims( name1_, sz1_ ); add_dims( name2_, sz2_ ); add_dims( name3_, sz3_ ); add_dims( name4_, sz4_ ); }
+    // string type;  // i.e. "float", "uint32_t", "int8_t", etc ...
 
-    bool operator == ( dims_t const & o ) const { return dss == o.dss; } // note: compares dims *and* strides
+
+    //hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
+    dims_t clone( void ) const { return *this; }
+
+    bool operator == ( dims_t const & o ) const { return ((vect_dim_t const &)(*this)) == ((vect_dim_t const &)(o)); } // note: compares dims *and* strides *and* names
     bool fits_in( dims_t const & o ) const { 
       if( sz() != o.sz() ) { return 0; }
       for( uint32_t ix = 0; ix != sz(); ++ix ) { if( dims(ix) > o.dims(ix) ) { return 0; } }
@@ -324,40 +349,34 @@ namespace boda
       for( uint32_t i = 0; i != dims_.size(); ++i ) { dims(i) = dims_[i]; }
       if( calc_no_pad_strides ) { calc_strides(); }
     }
-    dims_t( dims_t const & o ) { copy_from(o); }
-    void operator = ( dims_t const & o ) { copy_from(o); }
 
-    void resize_and_zero( uint32_t const num_dims ) { 
-      dss = hunk_uint32_t( num_dims*2 ); 
-      for( uint32_t ix = 0; ix != num_dims; ++ix ) { dims(ix) = 0; strides(ix) = 0; }
-    }
+    void resize_and_zero( uint32_t const num_dims ) { resize(num_dims); }
+
     dims_t operator - ( dims_t const & o ) const { 
       assert_st( o.fits_in( *this ) );
       dims_t ret( sz() );
       for( uint32_t ix = 0; ix != sz(); ++ix ) { ret.dims(ix) = dims(ix) - o.dims(ix); } 
       return ret;
     }
-    uint32_t sz( void ) const { return dss.sz>>1; }
-    uint32_t & dims( uint32_t const ix ) { return dss[ix+sz()]; }
+    uint32_t sz( void ) const { return size(); }
+    uint32_t & dims( uint32_t const ix ) { return at(ix).sz; }
+    uint32_t & strides( uint32_t const ix ) { return at(ix).stride; }
+    uint32_t const & dims( uint32_t const ix ) const { return at(ix).sz; }
+    uint32_t const & strides( uint32_t const ix ) const { return at(ix).stride; }
+
     void make_dims_vect( vect_uint32_t & dv ) const { 
       dv.resize(sz()); for( uint32_t ix = 0; ix != sz(); ++ix ) { dv[ix] = dims(ix); } }
     // aka 'number of elements' / size / count. 
     // note: doesn't use strides(0)*dims(0) (which wouldn't be generally right).
-    uint32_t dims_prod( void ) const { 
-      uint32_t ret = 1; for( uint32_t ix = 0; ix != sz(); ++ix ) { ret *= dims(ix); } 
-      return ret; 
-    }
+    uint32_t dims_prod( void ) const { uint32_t ret = 1; for( uint32_t ix = 0; ix != sz(); ++ix ) { ret *= dims(ix); } return ret; }
+    //uint32_t nda_sz( void ) { uint32_t ret = 1; for( vect_dim_t::const_iterator i = begin(); i != end(); ++i ) { ret *= i->sz; } return ret; }
 
-    uint32_t & strides( uint32_t const ix ) { return dss[ix]; }
-    uint32_t const & dims( uint32_t const ix ) const { return dss[ix+sz()]; }
-    uint32_t const & strides( uint32_t const ix ) const { return dss[ix]; }
 
     uint32_t calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
       strides(sz()-1) = 1;
       for( uint32_t d = 1; d < sz(); ++d ) { strides(sz()-d-1) = strides(sz()-d)*dims(sz()-d); }
       return strides(0)*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
     }
-    uint64_t serial_sz( void ) const { return dss.serial_sz(); }
 
     uint32_t cm_ix1( uint32_t const d0i ) const {
       return strides(sz()-1)*d0i; }
@@ -425,8 +444,12 @@ namespace boda
   }
 
 
-  template< typename STREAM > inline void bwrite( STREAM & out, dims_t const & o ) { bwrite( out, o.dss ); }
-  template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { bread( in, o.dss ); }
+  template< typename STREAM > inline void bwrite( STREAM & out, dim_t const & o ) { 
+    bwrite( out, o.sz ); bwrite( out, o.stride ); bwrite( out, o.name ); 
+  }
+  template< typename STREAM > inline void bread( STREAM & in, dim_t & o ) {
+    bread( in, o.sz ); bread( in, o.stride ); bread( in, o.name );  
+  }
 
   template< typename T > struct nda_T {
     nda_T( void ) { }
@@ -435,7 +458,7 @@ namespace boda
     dims_t dims;
   private:
     void set_dims( dims_t const & dims_ ) { 
-      dims.copy_from( dims_ );
+      dims = dims_;
       uint32_t strides_sz = 0;
       if( !dims.strides(0) ) { strides_sz = dims.calc_strides(); } 
       else { strides_sz = (dims.dims(0) * dims.strides(0)); }
@@ -446,7 +469,6 @@ namespace boda
       }
     }
   public:
-    uint64_t serial_sz( void ) const { return dims.serial_sz() + elems.serial_sz(); }
 
     T & cm_at1( uint32_t const d0i ) { 
       uint32_t const ix = dims.cm_ix1( d0i ); return elems[ix]; }

@@ -143,35 +143,8 @@ namespace boda
   typedef map< string, p_op_info_t > map_str_p_op_info_t;
   typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
 
-  // (note: experimental/unfinished) as opposed to dims_t/nda_float_t, these struct are intended for metaprogramming
-  // use, and thus compactness and speed are less of a concern, and convenience/functionality more of a concern.
-  struct dim_info_t {
-    uint32_t sz; // in elements; sz=0 is unspecified/wildcard
-    // uint32_t stride; // in bytes? elements?
-    // uint32_t pad_sz; // in bytes? elements?
-    string name; // if empty, unspecified/wildcard
-    dim_info_t( void ) : sz(0) { }
-    dim_info_t( string const & name_ ) : sz(0), name(name_) { }
-    dim_info_t( uint32_t const & sz_ ) : sz(sz) { }
-    dim_info_t( string const & name_, uint32_t const & sz_ ) : sz(sz_), name(name_) { }
-  };
-  typedef vector< dim_info_t > vect_dim_info_t; 
-  struct nda_dims_t : public vect_dim_info_t {
-    uint32_t nda_sz( void ) { uint32_t ret = 1; for( vect_dim_info_t::const_iterator i = begin(); i != end(); ++i ) { ret *= i->sz; } return ret; }
-    // ah, the irony of code like this in a code generation framework ... sigh.
-    void add_dims( string const & name_, uint32_t const & sz_  ) { push_back( dim_info_t( name_, sz_ ) ); }
-    void add_dims( string const & name1_, uint32_t const & sz1_, string const & name2_, uint32_t const & sz2_ ) { 
-      add_dims( name1_, sz1_ ); add_dims( name2_, sz2_ ); }
-    void add_dims( string const & name1_, uint32_t const & sz1_, string const & name2_, uint32_t const & sz2_,
-		   string const & name3_, uint32_t const & sz3_ ) {
-      add_dims( name1_, sz1_ ); add_dims( name2_, sz2_ ); add_dims( name3_, sz3_ ); }
-    void add_dims( string const & name1_, uint32_t const & sz1_, string const & name2_, uint32_t const & sz2_,
-		   string const & name3_, uint32_t const & sz3_, string const & name4_, uint32_t const & sz4_ ) { 
-      add_dims( name1_, sz1_ ); add_dims( name2_, sz2_ ); add_dims( name3_, sz3_ ); add_dims( name4_, sz4_ ); }
-    // string type;  // i.e. "float", "uint32_t", "int8_t", etc ...
-  };
 
-  struct node_info_t : public nda_dims_t {
+  struct node_info_t : public dims_t {
 
   };
   typedef shared_ptr< node_info_t > p_node_info_t; 
@@ -855,7 +828,7 @@ namespace boda
     }
     
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    assert_st( out_ix_sz == no_ninfo->nda_sz() );
+    assert_st( out_ix_sz == no_ninfo->dims_prod() );
     //no_ninfo->sz = out_ix_sz;
 
     rf.tpb = oi->tpb;
@@ -1707,7 +1680,7 @@ namespace boda
       if( !cio.per_batch ) { ninfo->add_dims( "img", num_imgs); }
       ninfo->add_dims( "chan", cio.chans, "y", cio.sz.d[1], "x", cio.sz.d[0] ); 
     }
-    rtc->create_var_with_sz_floats( name, ninfo->nda_sz() ); 
+    rtc->create_var_with_sz_floats( name, ninfo->dims_prod() ); 
   }
 
   // quantize command line example:
