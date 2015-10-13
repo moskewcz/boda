@@ -17,6 +17,8 @@ namespace boda {
   typedef shared_ptr< net_param_t > p_net_param_t;
 
   p_net_param_t must_read_binary_proto( filename_t const & fn );
+  void massage_net_param( p_net_param_t const & net_param, string const & out_node_name, bool const add_bck_ops,
+			  uint32_t const & in_num_imgs, uint32_t const & in_num_chans, u32_pt_t const & in_sz );
 
   p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, 
 					std::string const & out_node_name, bool const & add_bck_ops );
