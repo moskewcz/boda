@@ -53,8 +53,9 @@ namespace boda
 
   struct cl_var_info_t {
     Buffer buf;
+    dims_t dims;
     p_void ev; // when ready
-    cl_var_info_t( Buffer const & buf_ ) : buf(buf_), ev( new Event ) {}
+    cl_var_info_t( Buffer const & buf_, dims_t const & dims_ ) : buf(buf_), dims(dims_), ev( new Event ) {}
   };
   typedef map< string, cl_var_info_t > map_str_cl_var_info_t;
   typedef shared_ptr< map_str_cl_var_info_t > p_map_str_cl_var_info_t;
@@ -139,12 +140,13 @@ typedef int int32_t;
       cl_int const err = cq.enqueueReadBuffer( buf, 1, 0, buf.getInfo<CL_MEM_SIZE>(), &v[0], 0, 0 ); // note: blocking_read=1
       cl_err_chk( err, "cq->enqueueReadBuffer()" );
     }
-    void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { 
+    void create_var_with_dims_floats( string const & vn, dims_t const & dims ) { 
+      uint32_t const sz = dims.dims_prod();
       uint32_t const bytes_sz = sizeof(float)*sz;
       cl_int err;
       Buffer buf( context, CL_MEM_READ_WRITE, bytes_sz, 0, &err ); 
       cl_err_chk( err, "Buffer() from vect_float" );
-      must_insert( *vis, vn, cl_var_info_t{buf} ); 
+      must_insert( *vis, vn, cl_var_info_t{buf,dims} ); 
     }
     uint32_t get_var_sz_floats( string const & vn ) { 
       uint32_t const bytes_sz = must_find( *vis, vn ).buf.getInfo<CL_MEM_SIZE>(); 

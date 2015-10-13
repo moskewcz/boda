@@ -122,8 +122,9 @@ namespace boda
 
   struct var_info_t {
     p_cup_float cup;
+    dims_t dims;
     p_void ev; // when ready
-    var_info_t( uint32_t const & sz ) : cup( make_shared<cup_float>( sz ) ), ev( make_p_CUevent() ) { }
+    var_info_t( dims_t const & dims_ ) : cup( make_shared<cup_float>( dims_.dims_prod() ) ), dims(dims_), ev( make_p_CUevent() ) { }
   };
 
   typedef map< string, var_info_t > map_str_var_info_t;
@@ -198,8 +199,8 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       p_cup_float const & cup = must_find( *vis, vn ).cup;
       cu_err_chk( cuMemcpyDtoH( v, cup->p, cup->sz*sizeof(float) ), "cuMemcpyDtoH" );
     }
-    void create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { 
-      must_insert( *vis, vn, var_info_t( sz ) ); 
+    void create_var_with_dims_floats( string const & vn, dims_t const & dims ) { 
+      must_insert( *vis, vn, var_info_t( dims ) ); 
     }
     uint32_t get_var_sz_floats( string const & vn ) { return must_find( *vis, vn ).cup->sz; }
     void set_var_to_zero( string const & vn ) { must_find( *vis, vn ).cup->set_to_zero(); }
