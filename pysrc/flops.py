@@ -77,6 +77,8 @@ class Net( object ):
         self.tot_forward_bytes = 0
         self.tot_backward_flops = 0
         self.tot_backward_bytes = 0
+        self.tot_filt_bytes = 0;
+        self.tot_in_bytes = 0;
         self.ndas = {}
 
     def print_stats( self ):
@@ -95,6 +97,9 @@ class Net( object ):
         print pp_flops(flops), pp_fps(flops/args.runtime)
         print pp_bytes(bytes_), pp_bps(bytes_/args.runtime), "AI="+pp_fpb(flops / float(bytes_))
         print pp_joules(args.power*args.runtime), pp_fpspw(flops/args.runtime/args.power) 
+        if self.args.print_tex_table_entry:
+            print( "%-20s & %-20s & %-20s & %-20s \\hline" % (self.args.net_name,pp_bytes(self.tot_in_bytes),pp_bytes(self.tot_filt_bytes),
+                                                              pp_val_part(float(self.tot_in_bytes)/float(self.tot_filt_bytes), 1) ) )
 
 
 class Convolution( object ): 
@@ -130,6 +135,9 @@ class Convolution( object ):
 
         if net.args.per_layer_in_info:
             print name, "input", bot.dims_info_str(), "filts", filts.dims_info_str(), "out", top.dims_info_str()
+
+        net.tot_filt_bytes += filts.dims_prod() * 4
+        net.tot_in_bytes += in_pels * 4
 
         forward_bytes = (in_pels + out_pels + filts.dims_prod() + biases.dims_prod()) * 4
         backward_bytes = (in_pels*2 + out_pels + filts.dims_prod()*2 + biases.dims_prod()*2) * 4
@@ -195,6 +203,7 @@ def reshape( A, *args ): return A
 import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--net-fn', metavar="FN", type=str, default="out.py", help="filename of network-definition python script" )
+parser.add_argument('--net-name', metavar="STR", type=str, default="ANON_NET", help="name of network (for printouts)" )
 parser.add_argument('--num-imgs', metavar='N', type=int, default=1, help='an integer for the accumulator')
 parser.add_argument('--runtime', metavar='SECONDS', type=float, default=1, help='time taken for power/energy calculations')
 parser.add_argument('--power', metavar='WATTS', type=float, default=200, help='average power used over runtime')
@@ -203,6 +212,7 @@ parser.add_argument('--ai-mnk', metavar='BOOL', type=int, default=0, help='1:sho
 parser.add_argument('--per-layer', metavar='BOOL', type=int, default=0, help='1:print per-layer info; 0:only summary')
 parser.add_argument('--per-layer-in-info', metavar='BOOL', type=int, default=0, help='if non-zero print per-layer input dims info')
 parser.add_argument('--profile', metavar='BOOL', type=int, default=0, help='if non-zero print per-layer sorted profile')
+parser.add_argument('--print-tex-table-entry', metavar='BOOL', type=int, default=0, help='if non-zero print one-off tex table entry')
 args = parser.parse_args()
 net = Net(args)
 # set num_img and source cnet decl
