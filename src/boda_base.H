@@ -260,13 +260,13 @@ namespace boda
   template< typename STREAM > inline void bwrite( STREAM & out, string const & o ) {
     uint32_t const sz = o.size();
     bwrite( out, sz );
-    bwrite_bytes( out, (char *)&o[0], o.size()*sizeof(string::value_type) );
+    if( sz ) { bwrite_bytes( out, (char *)&o[0], o.size()*sizeof(string::value_type) ); }
   }
   template< typename STREAM > inline void bread( STREAM & in, string & o ) {
     uint32_t sz = 0;
     bread( in, sz );
     o.resize( sz );
-    bread_bytes( in, (char *)&o[0], o.size()*sizeof(string::value_type) );
+    if( sz ) { bread_bytes( in, (char *)&o[0], o.size()*sizeof(string::value_type) ); }
   }
 
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, shared_ptr< T > const & o ) { 
@@ -461,6 +461,10 @@ namespace boda
   template< typename STREAM > inline void bread( STREAM & in, dim_t & o ) {
     bread( in, o.sz ); bread( in, o.stride ); bread( in, o.name );  
   }
+
+  // for dims_t, let bread/bwrite template magic know to use standard vector bread/bwrite
+  template< typename STREAM > inline void bwrite( STREAM & out, dims_t const & o ) { bwrite( out, (vect_dim_t const &)o ); }
+  template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { bread( in, (vect_dim_t &)o ); }
 
   template< typename T > struct nda_T {
     nda_T( void ) { }
