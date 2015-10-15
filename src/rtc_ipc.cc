@@ -102,6 +102,7 @@ namespace boda
     zi_bool init_done;
     string remote_rtc; //NESI(default="(be=ocl)",help="remote rtc configuration")
     p_string fifo_fn; //NESI(help="if set, use a named fifo for communication instead of a socketpair.")
+    uint32_t print_dont_fork; //NESI(default=0,help="if set, don't actually fork to create a fifo-based worker, just print the command to do so.")
 
     p_map_str_ipc_var_info_t vis;
 
@@ -115,7 +116,7 @@ namespace boda
 	int const worker_fd = create_boda_worker( {"boda","ipc_compute_worker","--rtc="+remote_rtc} );
 	worker.reset( new fd_stream_t( worker_fd ) );
       } else {
-	create_boda_worker_fifo( {"boda","ipc_compute_worker","--rtc="+remote_rtc}, *fifo_fn );
+	create_boda_worker_fifo( {"boda","ipc_compute_worker","--rtc="+remote_rtc}, *fifo_fn, print_dont_fork );
 	worker.reset( new fd_stream_t( *fifo_fn, 0 ) );	
       }
 

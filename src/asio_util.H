@@ -142,7 +142,7 @@ namespace boda {
     return img;
   }
 
-  void create_boda_worker_fifo( vect_string const & args, string const & fifo_fn );
+  void create_boda_worker_fifo( vect_string const & args, string const & fifo_fn, bool const & dry_run );
   int create_boda_worker( vect_string const & args );
   void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args );
 
