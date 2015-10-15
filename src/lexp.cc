@@ -95,13 +95,13 @@ namespace boda {
     rt_err( strprintf( "no kid with name %s", n ) );
   }
 
-#if 0 // unused
   void lexp_t::deep_inc_use_cnt( void ) {
     ++use_cnt;
     for( vect_lexp_nv_t::iterator i = kids.begin(); i != kids.end(); ++i ) {
       i->v->deep_inc_use_cnt();
     }
   }
+#if 0 // unused
   void lexp_t::add_all_kids_from( p_lexp_t lexp ) {
     kids.insert( kids.end(), lexp->kids.begin(), lexp->kids.end() );
   }

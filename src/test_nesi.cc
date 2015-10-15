@@ -115,7 +115,8 @@ namespace boda
     { "no_req_val_t3", "", ntb+")", "error: missing required value for var 'dpf'"},
     { "bad_list_as_val_t1", "", ntb+",dpf=(li_0=3.4,li_1=34.0))", "var 'dpf': error: invalid attempt to use name/value list as double (double precision floating point number) value. list was:(li_0=3.4,li_1=34.0)"},
     { "bad_val_t1", "", ntb+",dpf=2jj2)", "var 'dpf': error: can't convert '2jj2' to double (double precision floating point number)."},
-    { "bad_val_t2", "", ntb+",dpf=23.1,vstr=(li_0=sdf,li_1=(li_0=biz)))", "var 'vstr': list elem 1: error: invalid attempt to use name/value list as string value. list was:(li_0=biz)"},
+    // for the moment we're allowing this case:
+    //{ "bad_val_t2", "", ntb+",dpf=23.1,vstr=(li_0=sdf,li_1=(li_0=biz)))", "var 'vstr': list elem 1: error: invalid attempt to use name/value list as string value. list was:(li_0=biz)"},
     { "fn_t1", "", ntb_fn+"foo.txt)", 0},
     { "fn_t2", "", ntb_fn+"%(boda_output_dir)/foo.txt)", 0},
     { "fn_t3", "", ntb_fn+"%(boda_test_dir)/foo.txt)", "var 'fn': error: unable to expand ref 'boda_test_dir' in filename, ref not found"}, // note: boda_test_dir is generally valid, but should indeed be unavailable when run in this context

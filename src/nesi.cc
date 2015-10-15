@@ -545,10 +545,14 @@ namespace boda
     string * v = (string *)o;
     lexp_t * l = nia->l.get();
     if( !l->leaf_val.exists() ) {
-      rt_err( "invalid attempt to use name/value list as string value. list was:" + str(*l) );
+      //rt_err( "invalid attempt to use name/value list as string value. list was:" + str(*l) ); // too strong?
+      l->deep_inc_use_cnt();
+      *v = l->src.str();
+    } else {
+      ++l->use_cnt;
+      *v = l->leaf_val.str();
     }
-    ++l->use_cnt;
-    *v = l->leaf_val.str();
+
   }
   make_p_t * string_make_p = &has_def_ctor_make_p< string >;
   vect_push_back_t * string_vect_push_back = &has_def_ctor_vect_push_back_t< string >;

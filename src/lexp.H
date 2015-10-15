@@ -75,9 +75,9 @@ namespace boda {
     p_lexp_t get_kid_by_name( char const * const n );
     void add_key_val( std::string const & k, std::string const & v );
     void add_key_lexp_val( std::string const & k, p_lexp_t const & v );
+    void deep_inc_use_cnt( void );
 #if 0 // unused   
     void add_all_kids_from( p_lexp_t lexp );
-    void deep_inc_use_cnt( void );
     void expand_include_xml( void ); 
 #endif
 
