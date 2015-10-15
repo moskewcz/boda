@@ -7,6 +7,12 @@ namespace boda
 
   string get_boda_shm_filename( void ) { return strprintf( "/boda-rev-%s-pid-%s-top.shm", get_build_rev(), 
 							   str(getpid()).c_str() ); }
+  void create_boda_worker_fifo( vect_string const & args, string const & fifo_fn ) {
+    vect_string fin_args = args;
+    fin_args.push_back( "--boda-parent-socket-fd=-1" );
+    fin_args.push_back( strprintf("--boda-parent-fifo=%s",fifo_fn.c_str() ) );
+    fork_and_exec_self( fin_args );
+  }
   int create_boda_worker( vect_string const & args ) {
     int sp_fds[2];
     neg_one_fail( socketpair( AF_LOCAL, SOCK_STREAM, 0, sp_fds ), "socketpair" );
