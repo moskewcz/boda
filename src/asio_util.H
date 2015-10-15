@@ -142,6 +142,7 @@ namespace boda {
     return img;
   }
 
+  int create_boda_worker( vect_string const & args );
   void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args );
 
 }
