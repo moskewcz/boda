@@ -69,6 +69,21 @@ namespace boda
   struct fd_stream_t {
     io::stream<io::file_descriptor_source> r;
     io::stream<io::file_descriptor_sink> w;
+    fd_stream_t( string const & fifo_fn, bool const & is_worker ) {
+      string pfn = fifo_fn + "_to_parent";
+      string wfn = fifo_fn + "_to_worker";
+      int read_fd = -1;
+      int write_fd = -1;
+      if( is_worker ) {
+	neg_one_fail( read_fd = open( wfn.c_str(), O_RDONLY ), "open" ); 
+	neg_one_fail( write_fd = open( pfn.c_str(), O_WRONLY ), "open" );
+      } else {
+	neg_one_fail( write_fd = open( wfn.c_str(), O_WRONLY ), "open" );
+	neg_one_fail( read_fd = open( pfn.c_str(), O_RDONLY ), "open" ); 
+      }
+      r.open( io::file_descriptor_source( read_fd, io::never_close_handle ) );
+      w.open( io::file_descriptor_sink( write_fd, io::never_close_handle ) );
+    }
     fd_stream_t( int const fd ) : r( io::file_descriptor_source( fd, io::never_close_handle ) ), 
 				  w( io::file_descriptor_sink( fd, io::never_close_handle ) ) {}
     void write( char const * const & d, size_t const & sz ) { w.write( d, sz ); }
@@ -86,6 +101,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     zi_bool init_done;
     string remote_rtc; //NESI(default="(be=ocl)",help="remote rtc configuration")
+    p_string fifo_fn; //NESI(help="if set, use a named fifo for communication instead of a socketpair.")
 
     p_map_str_ipc_var_info_t vis;
 
@@ -95,8 +111,13 @@ namespace boda
       assert_st( !init_done.v );
       vis.reset( new map_str_ipc_var_info_t );
 
-      int const worker_fd = create_boda_worker( {"boda","ipc_compute_worker","--rtc="+remote_rtc} );
-      worker.reset( new fd_stream_t( worker_fd ) );
+      if( !fifo_fn ) {
+	int const worker_fd = create_boda_worker( {"boda","ipc_compute_worker","--rtc="+remote_rtc} );
+	worker.reset( new fd_stream_t( worker_fd ) );
+      } else {
+	create_boda_worker_fifo( {"boda","ipc_compute_worker","--rtc="+remote_rtc}, *fifo_fn );
+	worker.reset( new fd_stream_t( *fifo_fn, 0 ) );	
+      }
 
       bwrite( *worker, string("init") );
       worker->flush();
@@ -160,6 +181,7 @@ namespace boda
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
 
     int32_t boda_parent_socket_fd; //NESI(help="an open fd created by socketpair() in the parent process.",req=1)
+    p_string boda_parent_fifo; //NESI(help="if fd==-1, use a named fifo instead.")
 
     p_map_str_ipc_var_info_t vis;
 
@@ -176,8 +198,13 @@ namespace boda
       global_timer_log_set_disable_finalize( 1 );
 
       vis.reset( new map_str_ipc_var_info_t );
-
-      parent.reset( new fd_stream_t( boda_parent_socket_fd ) );
+      if( boda_parent_socket_fd == -1 ) {
+	assert( boda_parent_fifo );
+	parent.reset( new fd_stream_t( *boda_parent_fifo, 1 ) );
+      } else {
+	assert_st( !boda_parent_fifo );
+	parent.reset( new fd_stream_t( boda_parent_socket_fd ) );
+      }
 
       string cmd;
       while( 1 ) {
