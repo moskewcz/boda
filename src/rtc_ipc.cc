@@ -69,23 +69,33 @@ namespace boda
   struct fd_stream_t {
     io::stream<io::file_descriptor_source> r;
     io::stream<io::file_descriptor_sink> w;
-    fd_stream_t( string const & fifo_fn, bool const & is_worker ) {
-      string pfn = fifo_fn + "_to_parent";
-      string wfn = fifo_fn + "_to_worker";
+    fd_stream_t( string const & boda_parent_addr, bool const & is_worker ) { init( boda_parent_addr, is_worker ); }
+    void init( string const & boda_parent_addr, bool const & is_worker ) {
+      vect_string bpa_parts = split( boda_parent_addr, ':' );
+      if( bpa_parts.size() != 3 ) { rt_err( "boda_parent_addr must consist of three ':' seperated fields, in the form method:to_parent:to_worker"
+					    " where method is 'fns' of 'fds' (sorry, no ':' allowed in filenames for the fns method)." ); }
+      // format is method:to_parent:to_worker
       int read_fd = -1;
       int write_fd = -1;
-      if( is_worker ) {
-	neg_one_fail( read_fd = open( wfn.c_str(), O_RDONLY ), "open" ); 
-	neg_one_fail( write_fd = open( pfn.c_str(), O_WRONLY ), "open" );
-      } else {
-	neg_one_fail( write_fd = open( wfn.c_str(), O_WRONLY ), "open" );
-	neg_one_fail( read_fd = open( pfn.c_str(), O_RDONLY ), "open" ); 
-      }
+      
+      if( bpa_parts[0] == "fns" ) {
+	string pfn = bpa_parts[1];
+	string wfn = bpa_parts[2];
+	if( is_worker ) {
+	  neg_one_fail( read_fd = open( wfn.c_str(), O_RDONLY ), "open" ); 
+	  neg_one_fail( write_fd = open( pfn.c_str(), O_WRONLY ), "open" );
+	} else {
+	  neg_one_fail( write_fd = open( wfn.c_str(), O_WRONLY ), "open" );
+	  neg_one_fail( read_fd = open( pfn.c_str(), O_RDONLY ), "open" ); 
+	}
+      } else if( bpa_parts[0] == "fds" ) {
+	read_fd = lc_str_u32( bpa_parts[is_worker?2:1] );
+	write_fd = lc_str_u32( bpa_parts[is_worker?1:2] );
+      } else { rt_err( "unknown boda_parent_addr type %s, should be either 'fns' (filenames) or 'fds' (open file descriptor integers)" ); }
+
       r.open( io::file_descriptor_source( read_fd, io::never_close_handle ) );
       w.open( io::file_descriptor_sink( write_fd, io::never_close_handle ) );
     }
-    fd_stream_t( int const fd ) : r( io::file_descriptor_source( fd, io::never_close_handle ) ), 
-				  w( io::file_descriptor_sink( fd, io::never_close_handle ) ) {}
     void write( char const * const & d, size_t const & sz ) { w.write( d, sz ); }
     void read( char * const & d, size_t const & sz ) { r.read( d, sz ); }
     bool good( void ) { return r.good() && w.good(); }
@@ -112,13 +122,14 @@ namespace boda
       assert_st( !init_done.v );
       vis.reset( new map_str_ipc_var_info_t );
 
+      string bpa;
       if( !fifo_fn ) {
 	int const worker_fd = create_boda_worker( {"boda","ipc_compute_worker","--rtc="+remote_rtc} );
-	worker.reset( new fd_stream_t( worker_fd ) );
+        bpa = strprintf("fds:%s:%s", str(worker_fd).c_str(), str(worker_fd).c_str() );
       } else {
-	create_boda_worker_fifo( {"boda","ipc_compute_worker","--rtc="+remote_rtc}, *fifo_fn, print_dont_fork );
-	worker.reset( new fd_stream_t( *fifo_fn, 0 ) );	
+	bpa = create_boda_worker_fifo( {"boda","ipc_compute_worker","--rtc="+remote_rtc}, *fifo_fn, print_dont_fork );
       }
+      worker.reset( new fd_stream_t( bpa, 0 ) );	
 
       bwrite( *worker, string("init") );
       worker->flush();
@@ -181,8 +192,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
 
-    int32_t boda_parent_socket_fd; //NESI(help="an open fd created by socketpair() in the parent process.",req=1)
-    p_string boda_parent_fifo; //NESI(help="if fd==-1, use a named fifo instead.")
+    string boda_parent_addr; //NESI(help="how to communicate with boda parent process; either open fds (perhaps created by socketpair() in the parent process, or perhaps stdin/stdout), or the names of a pair of named files/fifos to open.",req=1)
 
     p_map_str_ipc_var_info_t vis;
 
@@ -199,13 +209,7 @@ namespace boda
       global_timer_log_set_disable_finalize( 1 );
 
       vis.reset( new map_str_ipc_var_info_t );
-      if( boda_parent_socket_fd == -1 ) {
-	assert( boda_parent_fifo );
-	parent.reset( new fd_stream_t( *boda_parent_fifo, 1 ) );
-      } else {
-	assert_st( !boda_parent_fifo );
-	parent.reset( new fd_stream_t( boda_parent_socket_fd ) );
-      }
+      parent.reset( new fd_stream_t( boda_parent_addr, 1 ) );
 
       string cmd;
       while( 1 ) {

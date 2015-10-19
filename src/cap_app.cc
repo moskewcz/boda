@@ -128,7 +128,7 @@ namespace boda
 			  // bases=["has_main_t"], type_id="proc_ipc")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    int32_t boda_parent_socket_fd; //NESI(help="an open fd created by socketpair() in the parent process.",req=1)
+    string boda_parent_addr; //NESI(help="how to communicate with boda parent process; either open fds (perhaps created by socketpair() in the parent process, or perhaps stdin/stdout), or the names of a pair of named files/fifos to open.",req=1)
 
     p_asio_alss_t alss;
 
@@ -186,6 +186,7 @@ namespace boda
       global_timer_log_set_disable_finalize( 1 );
       io_service_t io;
       alss.reset( new asio_alss_t(io)  );
+      int const boda_parent_socket_fd = get_single_parent_fd( boda_parent_addr );
       alss->assign( stream_protocol(), boda_parent_socket_fd );
       in_img = recv_shared_p_img_t( *alss );
       out_img = recv_shared_p_img_t( *alss );
@@ -198,7 +199,7 @@ namespace boda
 			  // bases=["has_main_t"], type_id="display_ipc")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    int32_t boda_parent_socket_fd; //NESI(help="an open fd created by socketpair() in the parent process.",req=1)
+    string boda_parent_addr; //NESI(help="how to communicate with boda parent process; either open fds (perhaps created by socketpair() in the parent process, or perhaps stdin/stdout), or the names of a pair of named files/fifos to open.",req=1)
 
     uint8_t parent_cmd;
     disp_win_t disp_win;
@@ -223,6 +224,7 @@ namespace boda
       global_timer_log_set_disable_finalize( 1 );
       io_service_t & io( get_io( &disp_win ) );
       alss.reset( new asio_alss_t(io)  );
+      int const boda_parent_socket_fd = get_single_parent_fd( boda_parent_addr );
       alss->assign( stream_protocol(), boda_parent_socket_fd );
       p_img_t img = recv_shared_p_img_t( *alss );
       p_img_t img2 = recv_shared_p_img_t( *alss );
