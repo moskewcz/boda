@@ -9,7 +9,7 @@ namespace boda
     create_var_with_dims_floats( vn, dims_t( vect_uint32_t{sz}, 1) ); 
   }
   void rtc_compute_t::init_var_from_vect_float( string const & vn, vect_float const & v ) { 
-    create_var_with_sz_floats( vn, v.size() ); 
+    create_var_with_dims_floats( vn, dims_t( vect_uint32_t{uint32_t(v.size())}, 1) ); 
     copy_to_var( vn, &v[0] );
   }
   void rtc_compute_t::set_vect_float_from_var( vect_float & v, string const & vn) {
