@@ -845,6 +845,7 @@ namespace boda
     }
   };
 
+  // FIXME: we might want to enhance cnet_fc_to_conv_t so that the weights file is optional.
   struct cnet_fc_to_conv_t : virtual public nesi, public cnet_mod_t, public has_main_t // NESI(help="utility to modify caffe nets",
 			     // bases=["cnet_mod_t","has_main_t"], type_id="cnet_fc_to_conv")
   {
