@@ -149,11 +149,7 @@ typedef int int32_t;
       cl_err_chk( err, "Buffer() from vect_float" );
       must_insert( *vis, vn, cl_var_info_t{buf,dims} ); 
     }
-    uint32_t get_var_sz_floats( string const & vn ) { 
-      uint32_t const bytes_sz = must_find( *vis, vn ).buf.getInfo<CL_MEM_SIZE>(); 
-      assert_st( (bytes_sz%sizeof(float)) == 0 );
-      return bytes_sz / sizeof(float);
-    }
+    dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { 
       Buffer const & buf = must_find( *vis, vn ).buf;
 #if 0

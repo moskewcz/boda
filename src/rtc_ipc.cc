@@ -150,7 +150,7 @@ namespace boda
       bwrite( *worker, string("create_var_with_dims_floats") ); bwrite( *worker, vn ); bwrite( *worker, dims ); 
       worker->flush();
     }
-    uint32_t get_var_sz_floats( string const & vn ) { return must_find( *vis, vn ).dims.dims_prod(); }
+    dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { bwrite( *worker, string("set_var_to_zero") ); bwrite( *worker, vn ); worker->flush(); }
     
 

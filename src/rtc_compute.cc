@@ -5,15 +5,20 @@
 
 namespace boda 
 {
+  // deprecated / to-remove
   void rtc_compute_t::create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { 
     create_var_with_dims_floats( vn, dims_t( vect_uint32_t{sz}, 1) ); 
   }
+  uint32_t rtc_compute_t::get_var_sz_floats( string const & vn ){ return get_var_dims_floats( vn ).dims_prod(); }
+    
   void rtc_compute_t::init_var_from_vect_float( string const & vn, vect_float const & v ) { 
     create_var_with_dims_floats( vn, dims_t( vect_uint32_t{uint32_t(v.size())}, 1) ); 
     copy_to_var( vn, &v[0] );
   }
   void rtc_compute_t::set_vect_float_from_var( vect_float & v, string const & vn) {
-    assert_st( v.size() == get_var_sz_floats( vn ) );
+    dims_t vn_dims = get_var_dims_floats( vn );
+    assert_st( vn_dims.sz() == 1 );
+    assert_st( v.size() == vn_dims.dims(0) );
     copy_from_var( &v[0], vn );
   }
   // nda_float <-> var copies
