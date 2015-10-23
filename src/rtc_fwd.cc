@@ -52,6 +52,7 @@ namespace boda
     uint32_t kern_sz;
     uint32_t stride;
     uint32_t out_to_in( uint32_t const & osz ) { assert( osz ); return (osz - 1)*stride + kern_sz; }
+    dims_t no_dims; // dims for conv output. defaults to dims for no from conv_pipe, may be overidden in op generation
 
     bool is_k1conv;
     bool is_s1conv;
@@ -79,7 +80,7 @@ namespace boda
     // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
     bool single_k1conv_output;
 
-    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, 
+    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, uint32_t const & num_imgs,
 	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv, bool const & force_enable_tconv ) {
       cop = cop_;
       assert_st( cop->tops.size() >= 1 );
@@ -99,6 +100,7 @@ namespace boda
       // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
 
       if( is_conv || is_pool ) {
+	no_dims = no->cio.dims(num_imgs);
 	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->type == ReLU_str);
 	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
 	// for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
@@ -143,15 +145,6 @@ namespace boda
   typedef map< string, p_op_info_t > map_str_p_op_info_t;
   typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
 
-
-  struct node_info_t : public dims_t {
-
-  };
-  typedef shared_ptr< node_info_t > p_node_info_t; 
-  typedef map< string, p_node_info_t > map_str_p_node_info_t;
-  typedef shared_ptr< map_str_p_node_info_t > p_map_str_p_node_info_t; 
-
-
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
 			   // bases=["has_conv_fwd_t"], type_id="rtc" )
 
@@ -181,7 +174,6 @@ namespace boda
 
     p_conv_pipe_t cp;
     p_map_str_p_op_info_t op_infos;
-    p_map_str_p_node_info_t node_infos;
 
     uint32_t num_imgs;
     vect_string op_param_names;
@@ -796,7 +788,11 @@ namespace boda
       if( noi->is_k1conv ) { oi->single_k1conv_output = enable_write_xpose; }
     }
     bool const write_xposed = oi->single_k1conv_output;
-
+    if( write_xposed ) {
+      oi->no_dims.clear();
+      oi->no_dims.add_dims( "blk", noi->bix_pels_blk_sz, "blk_iter", noi->in_chan_tile_dim, 
+			    "blk_iter_chan", noi->in_chan_tile, "blk_pel", noi->tix_pels_tile_sz*t_tile_sz );
+    }
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
 	,{"conv_has_relu",str(oi->conv_has_relu)},{"out_chans",str(oi->no->cio.chans)}
@@ -809,12 +805,7 @@ namespace boda
 
     tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
 
-    p_node_info_t const & no_ninfo = must_find( *node_infos, oi->no->name );
-    assert_st( no_ninfo->empty() );
-
     if( write_xposed ) {
-      no_ninfo->add_dims( "blk", noi->bix_pels_blk_sz, "blk_iter", noi->in_chan_tile_dim, 
-			  "blk_iter_chan", noi->in_chan_tile, "blk_pel", noi->tix_pels_tile_sz*t_tile_sz );
       insert_nda_exprs( tf_exprs, "out_ix", 
 			vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
 			vect_uint32_t{noi->bix_pels_blk_sz,noi->in_chan_tile_dim,noi->in_chan_tile,noi->tix_pels_tile_sz*t_tile_sz} );
@@ -822,14 +813,11 @@ namespace boda
       insert_nda_exprs( tf_exprs, "out_pel", vect_string{"blk","blk_pel"},
 			vect_uint32_t{noi->bix_pels_blk_sz,noi->tix_pels_tile_sz*t_tile_sz} );
     } else {
-      no_ninfo->add_dims( "img", num_imgs, "chan", oi->no->cio.chans, "y", oi->no->cio.sz.d[1], "x", oi->no->cio.sz.d[0] );
       insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
 			vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
     }
     
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    assert_st( out_ix_sz == no_ninfo->dims_prod() );
-    //no_ninfo->sz = out_ix_sz;
 
     rf.tpb = oi->tpb;
     rf.blks = oi->blks;
@@ -1620,6 +1608,7 @@ namespace boda
 	in_arg_ids.push_back( in_id );
       }
       fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{oi->no->name}, {}, oi->cop->tag } );
+      rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); 
       
       assert_st( oi->no->cio.chans == cop->out_chans );
       vect_uint32_t const & arg_sizes = rf->arg_sizes;
@@ -1674,10 +1663,7 @@ namespace boda
   }
 
   void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) {
-    conv_io_t & cio = node->cio;
-    p_node_info_t const & ninfo = must_find( *node_infos, name );
-    if( ninfo->empty() ) { (dims_t &)(*ninfo) = cio.dims(num_imgs); }
-    rtc->create_var_with_sz_floats( name, ninfo->dims_prod() ); 
+    rtc->create_var_with_dims_floats( name, node->cio.dims(num_imgs) ); 
   }
 
   // quantize command line example:
@@ -1711,7 +1697,7 @@ namespace boda
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
       gen_op( cop );
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { 
-	gen_node( *j, cp->must_get_node(*j) );
+	if( cop->type != Convolution_str ) { gen_node( *j, cp->must_get_node(*j) ); } // only if not conv (which explicitly/manually creates node var)
 	gen_ops_rec( *j ); 
       }
     }
@@ -1723,18 +1709,12 @@ namespace boda
     cp = cp_;
     assert_st( cp );
     op_infos.reset( new map_str_p_op_info_t );
-    node_infos.reset( new map_str_p_node_info_t );
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
-      oi->init( cp, i->second, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv );
+      oi->init( cp, i->second, num_imgs, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv );
       if( oi->is_conv ) { calc_blocking_conv( oi ); }
-    }
-    for( map_str_p_conv_node_t::iterator i = cp->nodes->begin(); i != cp->nodes->end(); ++i ) { 
-      p_node_info_t & ninfo = (*node_infos)[i->first];
-      assert_st( !ninfo );
-      ninfo = make_shared< node_info_t >();
     }
 
     rtc->init();
