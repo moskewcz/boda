@@ -24,6 +24,7 @@ namespace boda
   using cl::Event;
 
   typedef shared_ptr< Event > p_Event; 
+  typedef vector< p_Event > vect_p_Event; 
 
   void cl_err_chk_build( cl_int const & ret, Program const & program, vect_Device const & use_devices ) {
     if( ret != CL_SUCCESS ) {
@@ -54,8 +55,8 @@ namespace boda
   struct cl_var_info_t {
     Buffer buf;
     dims_t dims;
-    p_void ev; // when ready
-    cl_var_info_t( Buffer const & buf_, dims_t const & dims_ ) : buf(buf_), dims(dims_), ev( new Event ) {}
+    // p_void ev; // when ready
+    cl_var_info_t( Buffer const & buf_, dims_t const & dims_ ) : buf(buf_), dims(dims_) {} // , ev( new Event ) {}
   };
   typedef map< string, cl_var_info_t > map_str_cl_var_info_t;
   typedef shared_ptr< map_str_cl_var_info_t > p_map_str_cl_var_info_t;
@@ -180,14 +181,18 @@ typedef int int32_t;
       must_insert( *kerns, name, kern );
     }
 
+    vect_p_Event call_evs;
+    Event & get_call_ev( uint32_t const & call_id ) { assert_st( call_id < call_evs.size() ); return *call_evs[call_id]; }
+    uint32_t alloc_call_id( void ) { call_evs.push_back( p_Event( new Event ) ); return call_evs.size() - 1; }
+    virtual void release_per_call_id_data( void ) { call_evs.clear(); } // invalidates all call_ids inside rtc_func_call_t's
 
     virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) {
       float compute_dur = 0.0f;
       cl_int err = 0;
-      cl_ulong const et = ((Event*)e.e_ev.get())->getProfilingInfo<CL_PROFILING_COMMAND_END>(&err);
+      cl_ulong const et = get_call_ev(e.call_id).getProfilingInfo<CL_PROFILING_COMMAND_END>(&err);
       cl_err_chk( err, "cl::Event::getProfilingInfo() (end time)" );
       err = 0;
-      cl_ulong const bt = ((Event*)b.e_ev.get())->getProfilingInfo<CL_PROFILING_COMMAND_START>(&err);
+      cl_ulong const bt = get_call_ev(b.call_id).getProfilingInfo<CL_PROFILING_COMMAND_START>(&err);
       cl_err_chk( err, "cl::Event::getProfilingInfo() (start time)" );
       compute_dur = float(et - bt) / 1e6;
       //cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b.b_ev.get(), *(CUevent*)e.e_ev.get() ), "cuEventElapsedTime" );
@@ -216,10 +221,9 @@ typedef int int32_t;
 	++cur_arg_ix;
       }
 
-      // note/FIXME rfc.b_ev not used
-      if( !rfc.e_ev ) { rfc.e_ev.reset( new Event ); }
+      rfc.call_id = alloc_call_id();
       cl_int const err = cq.enqueueNDRangeKernel( kern, cl::NullRange, NDRange(rfc.tpb.v*rfc.blks.v), NDRange(rfc.tpb.v), 0, 
-						  (Event*)rfc.e_ev.get() );
+						  &get_call_ev(rfc.call_id) );
       cl_err_chk( err, "cl::CommandQueue::enqueueNDRangeKernel()" );
     }
 

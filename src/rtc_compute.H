@@ -7,6 +7,7 @@
 namespace boda 
 {
   struct rtc_func_call_t;
+
   struct rtc_compute_t : virtual public nesi // NESI(help="modes that can be used for rtc",is_abstract=1,tid_vn="be")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -25,15 +26,17 @@ namespace boda
     
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()
     virtual void check_runnable( string const name, bool const show_func_attrs ) = 0;
-    virtual void run( rtc_func_call_t & rfc ) = 0;
+    // note: run() overwrites / fills in the call_id field. it is valid after run() returns until realease_per_call_id_data() is called.
+    virtual void run( rtc_func_call_t & rfc ) = 0; 
     virtual void finish_and_sync( void ) = 0;
+    virtual void release_per_call_id_data( void ) = 0; // invalidates all call_ids inside rtc_func_call_t's
 
     // get duration from start of call b to end of call e (where b may == e to time a single call).
 
     // we almost-only need to get the timing of a single call, but we allow spanning calls for convenience and/or to allow
     // detecting inconsistencies/overheads between the sum of per-call times and the overall all-calls time (as proxied by
     // calling get_dur( first_call, last_call ) ).
-    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) = 0;
+    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) = 0; // note: uses call_id field, which must be valid
 
     virtual void profile_start( void ) = 0;
     virtual void profile_stop( void ) = 0;
@@ -63,8 +66,7 @@ namespace boda
     zi_uint32_t tpb;
     zi_uint32_t blks;
 
-    p_void b_ev; 
-    p_void e_ev;
+    uint32_t call_id;
   };
   typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
 

@@ -140,6 +140,7 @@
   <li test_name="test_rtc_ocl" cli_str="boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl'"/>
   <li test_name="test_rtc_cucl_nvrtc" cli_str="boda rtc_test --rtc='(be=nvrtc)' --prog-fn='%(boda_test_dir)/rtc/dot.cucl"/>
   <li test_name="test_rtc_cucl_ocl" cli_str="boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/rtc/dot.cucl'"/>
+  <li test_name="test_rtc_cucl_ipc" cli_str="boda rtc_test --rtc='(be=ipc)' --prog-fn='%(boda_test_dir)/rtc/dot.cucl'"/>
 
   <li test_name="test_dense_1"> <command mode="test_dense" model_name="nin_imagenet_nopad" wins_per_image="10000"/></li>
   <li test_name="test_dense_2"> <command mode="test_dense" model_name="nin_imagenet" wins_per_image="10000"/></li>

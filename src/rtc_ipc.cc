@@ -15,22 +15,6 @@
 
 namespace boda 
 {
-#if 0
-  struct rtc_func_call_t { 
-    string rtc_func_name; 
-    vect_string in_args; 
-    vect_string inout_args; 
-    vect_string out_args; 
-    vect_uint32_t u32_args;
-    string call_tag;
-
-    zi_uint32_t tpb;
-    zi_uint32_t blks;
-
-    p_void b_ev; 
-    p_void e_ev;
-  };
-#endif
   template< typename STREAM > inline void bwrite( STREAM & out, rtc_func_call_t const & o ) { 
     bwrite( out, o.rtc_func_name );
     bwrite( out, o.in_args );
@@ -40,6 +24,7 @@ namespace boda
     bwrite( out, o.call_tag );
     bwrite( out, o.tpb.v );
     bwrite( out, o.blks.v );
+    bwrite( out, o.call_id );
   }
   template< typename STREAM > inline void bread( STREAM & in, rtc_func_call_t & o ) { 
     bread( in, o.rtc_func_name );
@@ -50,6 +35,7 @@ namespace boda
     bread( in, o.call_tag );
     bread( in, o.tpb.v );
     bread( in, o.blks.v );
+    bread( in, o.call_id );
   }
 
   struct ipc_var_info_t {
@@ -173,15 +159,20 @@ namespace boda
       bwrite( *worker, string("check_runnable") ); bwrite( *worker, name ); bwrite( *worker, show_func_attrs ); worker->flush();
     }
 
-    // TODO/FIXME: for this, we'd need to serialize events? some of the 'new' event model plans that remove the ugly
-    // p_void's in the cfc would fix this, so maybe we can ignore it for now?
-    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) { return 0.0f; } 
+    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) { 
+      float ret;
+      bwrite( *worker, string("get_dur") ); bwrite( *worker, b ); bwrite( *worker, e ); worker->flush(); bread( *worker, ret );
+      return ret; 
+    } 
     virtual float get_var_compute_dur( string const & vn ) { assert_st(0); } // not-yet-used-iface at higher level
     virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { assert_st(0); } // not-yet-used-iface at higher level
 
-    void run( rtc_func_call_t & rfc ) { bwrite( *worker, string("run") ); bwrite( *worker, rfc ); worker->flush(); } 
+    void run( rtc_func_call_t & rfc ) { 
+      bwrite( *worker, string("run") ); bwrite( *worker, rfc ); worker->flush(); bread( *worker, rfc.call_id );
+    } 
 
     void finish_and_sync( void ) { bwrite( *worker, string("finish_and_sync") ); worker->flush(); }
+    void release_per_call_id_data( void ) { bwrite( *worker, string("release_per_call_id_data") ); worker->flush(); }
 
     void profile_start( void ) { bwrite( *worker, string("profile_start") ); worker->flush(); }
     void profile_stop( void ) { bwrite( *worker, string("profile_stop") ); worker->flush(); }
@@ -258,10 +249,16 @@ namespace boda
 	  bread( *parent, name ); bread( *parent, show_func_attrs );
 	  rtc->check_runnable( name, show_func_attrs );
 	}
-	else if( cmd == "run" ) { rtc_func_call_t rfc; bread( *parent, rfc ); rtc->run( rfc ); }
+	else if( cmd == "get_dur" ) { 
+	  rtc_func_call_t b,e; bread( *parent, b ); bread( *parent, e ); 
+	  float const ret = rtc->get_dur( b, e ); 
+	  bwrite( *parent, ret ); parent->flush(); 
+	}
+	else if( cmd == "run" ) { rtc_func_call_t rfc; bread( *parent, rfc ); rtc->run( rfc ); bwrite( *parent, rfc.call_id ); parent->flush(); }
 	else if( cmd == "finish_and_sync" ) { rtc->finish_and_sync(); }
 	else if( cmd == "profile_start" ) { rtc->profile_start(); }
 	else if( cmd == "profile_stop" ) { rtc->profile_stop(); }
+	else if( cmd == "release_per_call_id_data" ) { rtc->release_per_call_id_data(); }
 	else { rt_err("bad command:"+cmd); }
       }
     }

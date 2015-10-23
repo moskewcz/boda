@@ -107,6 +107,8 @@ namespace boda
   typedef shared_ptr< map_str_p_cup_float_t > p_map_str_p_cup_float_t;
 
   typedef shared_ptr< CUevent > p_CUevent; 
+  typedef vector< p_CUevent > vect_p_CUevent; 
+
   void cuEventDestroy_wrap( CUevent const * const p ) { 
     if(!p){return;} 
     cu_err_chk( cuEventDestroy( *p ), "cuEventDestroy" ); 
@@ -120,11 +122,18 @@ namespace boda
   typedef map< string, CUfunction > map_str_CUfunction_t;
   typedef shared_ptr< map_str_CUfunction_t > p_map_str_CUfunction_t;
 
+  struct call_ev_t {
+    p_CUevent b_ev;
+    p_CUevent e_ev;
+    call_ev_t( void ) : b_ev( make_p_CUevent() ), e_ev( make_p_CUevent() ) { }
+  };
+  typedef vector< call_ev_t > vect_call_ev_t; 
+
   struct var_info_t {
     p_cup_float cup;
     dims_t dims;
-    p_void ev; // when ready
-    var_info_t( dims_t const & dims_ ) : cup( make_shared<cup_float>( dims_.dims_prod() ) ), dims(dims_), ev( make_p_CUevent() ) { }
+    //p_void ev; // when ready
+    var_info_t( dims_t const & dims_ ) : cup( make_shared<cup_float>( dims_.dims_prod() ) ), dims(dims_) {} // , ev( make_p_CUevent() ) { }
   };
 
   typedef map< string, var_info_t > map_str_var_info_t;
@@ -184,16 +193,21 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     p_map_str_var_info_t vis;
     p_map_str_CUfunction_t cu_funcs;
 
+    vect_call_ev_t call_evs;
+    call_ev_t & get_call_ev( uint32_t const & call_id ) { assert_st( call_id < call_evs.size() ); return call_evs[call_id]; }
+    uint32_t alloc_call_id( void ) { call_evs.push_back( call_ev_t() ); return call_evs.size() - 1; }
+    virtual void release_per_call_id_data( void ) { call_evs.clear(); } // invalidates all call_ids inside rtc_func_call_t's
+
     virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) {
       float compute_dur = 0.0f;
-      cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b.b_ev.get(), *(CUevent*)e.e_ev.get() ), "cuEventElapsedTime" );
+      cu_err_chk( cuEventElapsedTime( &compute_dur, *get_call_ev(b.call_id).b_ev, *get_call_ev(e.call_id).e_ev ), "cuEventElapsedTime" );
       return compute_dur;
     }
 
     void copy_to_var( string const & vn, float const * const v ) {
       var_info_t const & vi = must_find( *vis, vn );
       cu_err_chk( cuMemcpyHtoDAsync( vi.cup->p, v, vi.cup->sz*sizeof(float), 0 ), "cuMemcpyHtoD" );
-      record_event( vi.ev );
+      //record_event( vi.ev );
     }
     void copy_from_var( float * const v, string const & vn ) {
       p_cup_float const & cup = must_find( *vis, vn ).cup;
@@ -227,10 +241,11 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 	cu_func_args.push_back( &cu_v->p );
       }
     }
+#if 0
     void record_var_events( vect_string const & vars, rtc_func_call_t const & rfc ) {
       for( vect_string::const_iterator i = vars.begin(); i != vars.end(); ++i ) { must_find( *vis, *i ).ev = rfc.e_ev; }
     }
-
+#endif
     void run( rtc_func_call_t & rfc ) {
       CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() );
       vect_rp_void cu_func_args;
@@ -238,20 +253,19 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       add_args( rfc.inout_args, cu_func_args );
       add_args( rfc.out_args, cu_func_args );
       for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
-      if( !rfc.b_ev ) { rfc.b_ev = make_event(); } 
-      if( !rfc.e_ev ) { rfc.e_ev = make_event(); }
+      rfc.call_id = alloc_call_id();
 
       timer_t t("cu_launch_and_sync");
-      record_event( rfc.b_ev );
+      record_event( get_call_ev(rfc.call_id).b_ev );
       cu_err_chk( cuLaunchKernel( cu_func,
 				  rfc.blks.v, 1, 1, // grid x,y,z dims
 				  rfc.tpb.v, 1, 1, // block x,y,z dims
 				  0, 0, // smem_bytes, stream_ix
 				  &cu_func_args[0], // cu_func's args
 				  0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
-      record_event( rfc.e_ev );
-      record_var_events( rfc.inout_args, rfc );
-      record_var_events( rfc.out_args, rfc );
+      record_event( get_call_ev(rfc.call_id).e_ev );
+      //record_var_events( rfc.inout_args, rfc );
+      //record_var_events( rfc.out_args, rfc );
     }
 
     void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }
@@ -260,7 +274,6 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     void profile_stop( void ) { cuProfilerStop(); }
 
   protected:
-    p_void make_event( void ) { return make_p_CUevent(); }
     void record_event( p_void const & ev ) { cu_err_chk( cuEventRecord( *(CUevent*)ev.get(), 0 ), "cuEventRecord" ); }
 
   };

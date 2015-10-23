@@ -1817,6 +1817,7 @@ namespace boda
     rtc->copy_vars_to_ndas( vect_string{cp->tops.begin(),cp->tops.end()}, *fwd ); // copy sinks out
     update_stats();
     for( vect_string::const_iterator i = dump_vars.begin(); i != dump_vars.end(); ++i ) { dump_var( *i ); }
+    rtc->release_per_call_id_data();
     //printf("run_fwd() done\n");
   }
   
