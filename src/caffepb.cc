@@ -201,13 +201,18 @@ namespace boda
 	conv_op->lrn_k = p.k();
       } else if( lp.type() == Softmax_str ) {
 	// this may be inconvieniently strong; it's probably okay to ignore this here
-	rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );
+	//rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );
+	printf( "Warning, Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out? ignoring.\n" );
       } else if( lp.type() == SoftmaxWithLoss_str ) {
 	// this layer should only be present when add_bck_ops==1, and all outputs should be produced by it
-	if( !add_bck_ops ) { rt_err( "Saw unexpected SoftmaxWithLoss layer in caffpb caffe->boda net conversion given add_bck_ops==0." ); }
-	conv_op.reset( new conv_op_t );
-	conv_op->stride = {1,1}; // sensible, but currently unused
-	conv_op->out_chans = 0; // no effect on chans
+	if( !add_bck_ops ) { 
+	  //rt_err( "Saw unexpected SoftmaxWithLoss layer in caffpb caffe->boda net conversion given add_bck_ops==0." ); 
+	  printf( "Warning, Saw unexpected SoftmaxWithLoss layer in caffpb caffe->boda net conversion given add_bck_ops==0. ignoring.\n" ); 
+	} else {
+	  conv_op.reset( new conv_op_t );
+	  conv_op->stride = {1,1}; // sensible, but currently unused
+	  conv_op->out_chans = 0; // no effect on chans
+	}
       } else if( lp.type() == Pooling_str ) {
 	assert_st( lp.has_pooling_param() );
 	caffe::PoolingParameter const & pp = lp.pooling_param();
