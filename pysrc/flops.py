@@ -98,8 +98,10 @@ class Net( object ):
         print pp_bytes(bytes_), pp_bps(bytes_/args.runtime), "AI="+pp_fpb(flops / float(bytes_))
         print pp_joules(args.power*args.runtime), pp_fpspw(flops/args.runtime/args.power) 
         if self.args.print_tex_table_entry:
-            print( "%-20s & %-20s & %-20s & %-20s \\hline" % (self.args.net_name,pp_bytes(self.tot_in_bytes),pp_bytes(self.tot_filt_bytes),
-                                                              pp_val_part(float(self.tot_in_bytes)/float(self.tot_filt_bytes), 1) ) )
+            print( "%-20s & %-20s & %-20s & %-20s & %-20s\\hline" % 
+                   (self.args.net_name,pp_bytes(self.tot_in_bytes),pp_bytes(self.tot_filt_bytes),
+                    pp_val_part(float(self.tot_in_bytes)/float(self.tot_filt_bytes), 1), 
+                    pp_flops(flops)  ) )
 
 
 class Convolution( object ): 
