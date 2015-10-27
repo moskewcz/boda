@@ -58,6 +58,7 @@ namespace boda
 
   struct rtc_func_call_t { 
     string rtc_func_name; 
+    // note/FIXME: currently, the split between {in,inout,out}_args is unused.
     vect_string in_args; 
     vect_string inout_args; 
     vect_string out_args; 
