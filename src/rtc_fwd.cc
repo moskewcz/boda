@@ -145,6 +145,36 @@ namespace boda
   typedef map< string, p_op_info_t > map_str_p_op_info_t;
   typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
 
+  struct rtc_func_sig_t { 
+    string fn;
+    vect_dims_t args;
+    bool operator < ( rtc_func_sig_t const & o ) const { return (fn != o.fn) ? (fn < o.fn) : (args < o.args); }
+
+    string gen_unused_fn( set_string & fns ) {
+      string maybe_fn_base = fn;
+      set_string unique_dims;
+      for( vect_dims_t::const_iterator i = args.begin(); i != args.end(); ++i ) {
+	dims_t const & dims = *i;
+	for( uint32_t i = 0; i != dims.sz(); ++i ) {
+	  string const & dn = dims.names(i);
+	  bool const did_ins = unique_dims.insert( dn ).second;
+	  if( did_ins ) { maybe_fn_base += "__"+dn+"_"+str(dims.dims(i)); }
+	}
+      }
+      string maybe_fn = maybe_fn_base;
+      uint32_t uix = 0;
+      while( has( fns, maybe_fn ) ) { ++uix; maybe_fn = maybe_fn_base + "__namegenconflict_" + str(uix); }
+      must_insert( fns, maybe_fn );
+      return maybe_fn;
+    }
+  };
+  inline std::ostream & operator << ( std::ostream & out, rtc_func_sig_t const & o ) {
+    return out << strprintf( "o.fn=%s o.args=%s", str(o.fn).c_str(), str(o.args).c_str() );
+  }
+
+
+  typedef map< rtc_func_sig_t, string > rtc_func_sigs_map_t;
+
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
 			   // bases=["has_conv_fwd_t"], type_id="rtc" )
 
@@ -216,6 +246,11 @@ namespace boda
     rtc_func_t & gen_op_xpose( p_op_info_t const & oi );
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
+
+    // gen_call() related data
+    set_string used_rtc_func_names;
+    rtc_func_sigs_map_t rtc_func_sigs_map;
+    void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args );
 
     void gen_node( string const & name, p_conv_node_t const & node );
     void add_op_param( string const & name, uint32_t const & sz );
@@ -385,7 +420,6 @@ namespace boda
       }
       tf_exprs.push_back( make_pair( "rtc_func_name", rtc_func_name ) );
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (op_tag+".cucl")).string() );
-      parse_template();
       rf = &rtc_funcs.insert( make_pair( rtc_func_name, rtc_func_t{rtc_func_name,0,0} ) ).first->second;
       //printf( "rf->name=%s\n", str(rf->name).c_str() );
       return *rf;
@@ -414,38 +448,6 @@ namespace boda
       rf->tpb = 256;
       rf->blks = u32_ceil_div( out_sz, rf->tpb );
     }
-    void parse_template( void ) {
-      vect_string lines = split( *rtc_func_template, '\n' );
-      for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
-	// find magic CUCL comment (if any) and process it
-	string const mmc = get_part_after( *i, "//" );
-	vect_string mmc_parts = split_ws( strip_ws( mmc ) );
-	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
-	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
-	  string const & cd = mmc_parts[1];
-	  vect_string dim_names;
-	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "IX") ) { 
-	    string ix_name;
-	    string arg_name;
-	    if( cd == "IX" ) {
-	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
-	      ix_name = mmc_parts[2];
-	      arg_name = mmc_parts[3];
-	    } else {
-	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
-	      string const & nda_spec = mmc_parts[2];
-	      dim_names = split( nda_spec, ':' );
-	      // get var name 
-	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);", ' ' ) ) );
-	      arg_name = arg_decl.back();
-	      ix_name = arg_name + "_ix";
-	    }
-	    //printf( "cd=%s arg_name=%s ix_name=%s dim_names=%s\n", str(cd).c_str(), str(arg_name).c_str(), str(ix_name).c_str(), str(dim_names).c_str() );
-	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
-	}
-      }
-    }
-
   };
 
   rtc_func_t & conv_pipe_fwd_t::gen_op_pool( p_op_info_t const & oi ) {
@@ -1233,31 +1235,6 @@ namespace boda
     return rf;
   }
 
-  rtc_func_t & conv_pipe_fwd_t::gen_op_sm_grad_and_loss( p_op_info_t const & oi ) {
-    p_conv_node_t const & fwd_top = cp->must_get_node( oi->cop->bots[0] ); // same size as prob and grad
-
-    rtc_func_gen_info_t rfgi{"sm_grad_and_loss",
-      { {"num_imgs",str(num_imgs)},{"chans",str(fwd_top->cio.chans)},{"ysz",str(fwd_top->cio.sz.d[1])},{"xsz",str(fwd_top->cio.sz.d[0])}
-      } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-    vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "GLOB_ID_1D", vect_string{"img","y","x"}, 
-		      vect_uint32_t{num_imgs,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
-		      vect_uint32_t{num_imgs,fwd_top->cio.chans,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
-    rf.arg_sizes.push_back( out_ix_sz );
-    rf.arg_sizes.push_back( num_imgs );
-    rf.arg_sizes.push_back( out_ix_sz );
-    rf.arg_sizes.push_back( 1 );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
   rtc_func_t & conv_pipe_fwd_t::gen_op_slow_sum( p_op_info_t const & oi ) {
     uint32_t const sz = cp->must_get_node( oi->cop->bots[1] )->cio.dims(num_imgs).dims_prod(); // size of label, same size as loss
     rtc_func_gen_info_t rfgi{"slow_sum", { {"sz",str(sz)} } };
@@ -1643,11 +1620,14 @@ namespace boda
       assert_st( cop->tops.size() == 2 ); // fwd_top_grad_loss, loss
       rtc_func_t & rf = gen_op_softmax( oi );
       string const prob_node_name = cop->tag + "_prob";
-      rtc->create_var_with_sz_floats( prob_node_name, rf.arg_sizes[1] );
+      gen_node( prob_node_name, cp->must_get_node(cop->bots[0]) );
+      //rtc->create_var_with_sz_floats( prob_node_name, rf.arg_sizes[1] );
       fwd_calls.push_back( rtc_func_call_t{ rf.name, {cop->bots[0]},{},{prob_node_name}, {}, oi->cop->tag } );
 
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
-      rtc->create_var_with_sz_floats( loss_per_pel, cp->must_get_node(cop->bots[1])->cio.dims(num_imgs).dims_prod() );
+      gen_node( loss_per_pel, cp->must_get_node(cop->bots[1]) );
+
+      gen_call( "sm_grad_and_loss", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
 
       rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
       fwd_calls.push_back( rtc_func_call_t{ rf_smgal.name, {prob_node_name, cop->bots[1]},{},{cop->tops[0],loss_per_pel}, {}, oi->cop->tag } );
@@ -1662,9 +1642,159 @@ namespace boda
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
-  void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) {
-    rtc->create_var_with_dims_floats( name, node->cio.dims(num_imgs) ); 
+  struct arg_decl_t {
+    string vn;
+    string io_type;
+    dims_t dims;
+  };
+  inline std::ostream & operator << ( std::ostream & out, arg_decl_t const & o ) {
+    return out << strprintf( "o.vn=%s o.io_type=%s o.dims=%s", str(o.vn).c_str(), str(o.io_type).c_str(), str(o.dims).c_str() );
   }
+
+
+  typedef vector< arg_decl_t > vect_arg_decl_t; 
+
+  struct rtc_call_gen_t {
+    rtc_func_sig_t rfs;
+    void init( rtc_func_sig_t const & rfs_, string const & gen_fn ) {
+      rfs = rfs_;
+      tf_exprs.push_back( make_pair( "rtc_func_name", gen_fn ) );
+      rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
+      parse_template();
+      check_args();
+    }
+    vect_pair_str_str tf_exprs;
+    p_string rtc_func_template;
+
+    void check_args( void ) {
+      string arg_check_error;
+      if( rfs.args.size() != arg_decls.size() ) { arg_check_error = "declared/called argument count mismatch"; }
+      else {
+	for( uint32_t i = 0; i != rfs.args.size(); ++i ) {
+	  if( !rfs.args[i].matches_template( arg_decls[i].dims ) ) {
+	    arg_check_error += "call arg "+str(i)+" incompatible with decl arg (dim count mismatch or dim (req'd) name/size/stride mismatch; ";
+	  }
+	}
+      }
+      if( !arg_check_error.empty() ) {
+	rt_err( strprintf( "RTC call argument error: %s: %s\n  Called Signature:=%s\n  Declared Arguments:%s\n", 
+			   rfs.fn.c_str(), str(arg_check_error).c_str(), str(rfs.args).c_str(), str(arg_decls).c_str() ) );
+      }
+    }
+
+    void instantiate_template( string & rtc_prog_str ) {
+      lexp_name_val_map_t tf_nvm{ p_lexp_t() };
+      tf_nvm.insert_leafs_from( tf_exprs );
+      string rtc_func_str;
+      str_format_from_nvm( rtc_func_str, *rtc_func_template, tf_nvm );
+      rtc_prog_str += rtc_func_str;
+      rtc_prog_str += "// -- template substituion table used: --\n";
+      for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
+	rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
+      }
+      //printf( "rtc_func_name=%s rf.tpb=%s rf.blks=%s\n", str(rtc_func_name).c_str(), str(rf->tpb).c_str(), str(rf->blks).c_str()); 
+      //rf->finalized = 1;
+    }
+  // note: also adds the output as a parameter
+    void set_tpb_blks_for_one_output_per_thread( uint32_t out_sz ) {
+      // note: rf.arg_sizes might or might not be empty here
+#if 0
+      rf->arg_sizes.push_back( out_sz );
+      rf->tpb = 256;
+      rf->blks = u32_ceil_div( out_sz, rf->tpb );
+#endif
+    }
+    vect_arg_decl_t arg_decls;
+
+    void parse_template( void ) {
+      vect_string lines = split( *rtc_func_template, '\n' );
+      for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
+	// find magic CUCL comment (if any) and process it
+	string const mmc = get_part_after( *i, "//" );
+	vect_string mmc_parts = split_ws( strip_ws( mmc ) );
+	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
+	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
+	  string const & cd = mmc_parts[1];
+	  vect_string dim_names;
+	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "IX") ) { 
+	    string ix_name;
+	    string arg_name;
+	    if( cd == "IX" ) {
+	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
+	      ix_name = mmc_parts[2];
+	      arg_name = mmc_parts[3];
+	    } else {
+	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
+	      string const & nda_spec = mmc_parts[2];
+	      dim_names = split( nda_spec, ':' );
+	      dims_t arg_dims;
+	      // for now, assume template: (1) can handle any size for all nda dims (to relax, could allow spec of size,
+	      // then use that instead of 0/wild for sz below) (2) all dims are static (to relax: unclear what
+	      // syntax/encoding would be)
+	      for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
+	      // get var name 
+	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);", ' ' ) ) );
+	      arg_name = arg_decl.back();
+	      ix_name = arg_name + "_ix";
+	      arg_decls.push_back( arg_decl_t{ arg_name, cd, arg_dims } );
+	    }
+	    printf( "cd=%s arg_name=%s ix_name=%s dim_names=%s\n", str(cd).c_str(), str(arg_name).c_str(), str(ix_name).c_str(), str(dim_names).c_str() );
+	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
+	}
+      }
+    }
+
+  };
+
+  rtc_func_t & conv_pipe_fwd_t::gen_op_sm_grad_and_loss( p_op_info_t const & oi ) {
+    p_conv_node_t const & fwd_top = cp->must_get_node( oi->cop->bots[0] ); // same size as prob and grad
+
+    rtc_func_gen_info_t rfgi{"sm_grad_and_loss",
+      { {"num_imgs",str(num_imgs)},{"chans",str(fwd_top->cio.chans)},{"ysz",str(fwd_top->cio.sz.d[1])},{"xsz",str(fwd_top->cio.sz.d[0])}
+      } };
+    rtc_func_t & rf = rfgi.init( rtc_funcs );
+    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
+    if( rf.finalized ) { return rf; } // already generated
+    vect_string const cio_dims{"img","chan","y","x"};
+    insert_nda_exprs( tf_exprs, "GLOB_ID_1D", vect_string{"img","y","x"}, 
+		      vect_uint32_t{num_imgs,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
+		      vect_uint32_t{num_imgs,fwd_top->cio.chans,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    rf.tpb = 256;
+    rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.arg_sizes.push_back( num_imgs );
+    rf.arg_sizes.push_back( out_ix_sz );
+    rf.arg_sizes.push_back( 1 );
+    rfgi.instantiate_template( rtc_prog_str );
+    return rf;
+  }
+
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args ) { 
+    // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
+    // this is the best idea ...  
+    // note: we assume that all arg dims are already availible
+    rtc_func_sig_t rfs;
+    rfs.fn = fn;
+    for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { rfs.args.push_back( rtc->get_var_dims_floats( *i ) ); }
+    // note: we assume the generated function only work for exactly these input/output sizes. if not, we'd set some dims to 0/wild
+    string & gen_fn = rtc_func_sigs_map[rfs];
+    if( gen_fn.empty() ) {
+      // need to instatiate function and pick unused name
+      gen_fn = rfs.gen_unused_fn( used_rtc_func_names );
+      rtc_call_gen_t rcg;
+      rcg.init( rfs, gen_fn );
+    }
+    
+    printf( "gen_fn=%s\n", str(gen_fn).c_str() );
+    //gen_call( "sm_grad_and_loss", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
+    //rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
+    //fwd_calls.push_back( rtc_func_call_t{ gen_fn, args, {}, oi->cop->tag } );
+
+  }
+
+  void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) { rtc->create_var_with_dims_floats( name, node->cio.dims(num_imgs) );}
 
   // quantize command line example:
   // export QOPTS="keep_bits=8,quantize=(_=(name=conv1,max_val=4096),_=(name=conv2,max_val=1024),_=(name=conv3,max_val=1024),_=(name=conv4,max_val=512),_=(name=conv5,max_val=512))
@@ -1695,11 +1825,11 @@ namespace boda
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = cp->get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      gen_op( cop );
-      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { 
+      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) {  // generate output nodes
 	if( cop->type != Convolution_str ) { gen_node( *j, cp->must_get_node(*j) ); } // only if not conv (which explicitly/manually creates node var)
-	gen_ops_rec( *j ); 
       }
+      gen_op( cop );
+      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { gen_ops_rec( *j ); }
     }
   }
 
