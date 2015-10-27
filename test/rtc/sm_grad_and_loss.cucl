@@ -1,5 +1,5 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( 
-		   GASQ float const * const prob, // CUCL IN img:y:x
+		   GASQ float const * const prob, // CUCL IN img:chan:y:x
 		   GASQ float const * const label, // CUCL IN img:y:x
 		   GASQ float * const fwd_top_loss_grad, // CUCL OUT img:chan:y:x
 		   GASQ float * const loss_per_img ) // CUCL OUT img:y:x
