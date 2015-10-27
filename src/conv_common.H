@@ -27,8 +27,9 @@ namespace boda
     uint32_t const num_pels( void ) const { return chans * sz.dims_prod(); }
     dims_t dims( uint32_t const & num_imgs ) const { 
       dims_t ret;
-      if( !per_batch ) { ret.add_dims( "img", num_imgs); }
-      ret.add_dims( "chan", chans, "y", sz.d[1], "x", sz.d[0] ); 
+      if( !per_batch ) { ret.add_dims( "img", num_imgs); } // may not have img dim
+      if( chans != uint32_t_const_max ) { ret.add_dims( "chan", chans ); } // may not have chans dim
+      ret.add_dims( "y", sz.d[1], "x", sz.d[0] ); 
       return ret;
     }
   };

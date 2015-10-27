@@ -205,7 +205,7 @@ namespace boda
       csi.support_sz = u32_pt_t(1,1);
       csi.support_stride = u32_pt_t(1,1);
       if( get_fwd_top_for_label(*i) ) { 
-	node->cio.chans = 1; 
+	// node->cio.chans = uint32_t_const_max; // labels have no chans dim, so it at the default/unset of uint32_t_const_max
       } else {
 	if( saw_data_node ) { rt_err( "calc_support_info(): unhandled multiple non-label inputs" ); }
 	node->cio.chans = in_chans; 
