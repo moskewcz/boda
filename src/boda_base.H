@@ -80,6 +80,10 @@ namespace boda
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   p_vect_rp_void get_backtrace( void );
 
+  template< typename T > void must_insert( T & kvm, typename T::key_type const & k ) {
+    bool const did_ins = kvm.insert( k ).second;
+    assert_st( did_ins );
+  }		      
   template< typename T > void must_insert( T & kvm, typename T::key_type const & k, typename T::mapped_type const & v ) {
     bool const did_ins = kvm.insert( std::make_pair( k, v ) ).second;
     assert_st( did_ins );
@@ -313,6 +317,12 @@ namespace boda
     dim_t( uint32_t const & sz_ ) : sz(sz), stride(0) { }
     dim_t( string const & name_, uint32_t const & sz_ ) : sz(sz_), stride(0), name(name_) { }
     bool operator == ( dim_t const & o ) const { return (sz==o.sz) && (stride==o.stride) && (name==o.name); }
+    bool operator < ( dim_t const & o ) const { 
+      if( sz != o.sz ) { return sz < o.sz; }
+      if( stride != o.stride ) { return stride < o.stride; }
+      if( name != o.name ) { return name < o.name; }
+      return 0;
+    }
   };
   typedef vector< dim_t > vect_dim_t; 
 
@@ -336,7 +346,10 @@ namespace boda
     //hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
     dims_t clone( void ) const { return *this; }
 
-    bool operator == ( dims_t const & o ) const { return ((vect_dim_t const &)(*this)) == ((vect_dim_t const &)(o)); } // note: compares dims *and* strides *and* names
+    // note: == and < compare: dims *and* strides *and* names
+    bool operator == ( dims_t const & o ) const { return ((vect_dim_t const &)(*this)) == ((vect_dim_t const &)(o)); } 
+    bool operator < ( dims_t const & o ) const { return ((vect_dim_t const &)(*this)) < ((vect_dim_t const &)(o)); } 
+
     bool fits_in( dims_t const & o ) const { 
       if( sz() != o.sz() ) { return 0; }
       for( uint32_t ix = 0; ix != sz(); ++ix ) { if( dims(ix) > o.dims(ix) ) { return 0; } }
@@ -420,6 +433,8 @@ namespace boda
     uint32_t ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2) + d3i*strides(3); }
   };
+
+  typedef vector< dims_t > vect_dims_t; 
 
   // note: iterates over last/fast dim innermost.
   struct dims_iter_t {
