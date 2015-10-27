@@ -556,7 +556,10 @@ namespace boda
       p_conv_node_t const & node = i->second;
       dims_t node_dims = node->cio.dims( num_imgs );
       node_dims.calc_strides(); // for now, assume no padding
-      if( node->top_for.empty() ) { assert_st( must_find( *fwd, node->name )->dims == node_dims ); }
+      if( node->top_for.empty() ) { 
+	//printf( "must_find(*fwd,node->name)->dims=%s node_dims=%s\n", str(must_find(*fwd,node->name)->dims).c_str(), str(node_dims).c_str() );
+	assert_st( must_find( *fwd, node->name )->dims == node_dims ); 
+      }
       else if( (!sinks_only) || node->bot_for.empty() ) {
 	must_insert( *fwd, node->name, make_shared<nda_float_t>( node_dims ) );
       }
