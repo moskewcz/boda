@@ -109,9 +109,9 @@ namespace boda
     if( add_bck_ops ) {
       net_param->add_input(label_node_name);
       net_param->add_input_dim(in_num_imgs);
-      net_param->add_input_dim(1);
-      net_param->add_input_dim(1);
-      net_param->add_input_dim(1);
+      net_param->add_input_dim(1); // note: label doesn't have a meaningful chan dim
+      net_param->add_input_dim(1); // assume label y dim == 1
+      net_param->add_input_dim(1); // assume label x dim == 1
     }
   }
 
