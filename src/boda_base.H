@@ -323,6 +323,13 @@ namespace boda
       if( name != o.name ) { return name < o.name; }
       return 0;
     }
+    // like ==, but treats zero/empty sz/stride/names as wild in the passed template/'o' dim_t (NOT in the *this dim_t)
+    bool matches_template( dim_t const & o ) const { // note: o is the template, not *this
+      if( o.sz && (sz != o.sz) ) { return 0; }
+      if( o.stride && (stride != o.stride) ) { return 0; }
+      if( (!o.name.empty()) && (name != o.name) ) { return 0; }
+      return 1;
+    }
   };
   typedef vector< dim_t > vect_dim_t; 
 
@@ -350,6 +357,12 @@ namespace boda
     bool operator == ( dims_t const & o ) const { return ((vect_dim_t const &)(*this)) == ((vect_dim_t const &)(o)); } 
     bool operator < ( dims_t const & o ) const { return ((vect_dim_t const &)(*this)) < ((vect_dim_t const &)(o)); } 
 
+    // like ==, but treats zero/empty sz/stride/names as wild in the passed template/'o' dims_t (NOT in the *this dims_t)
+    bool matches_template( dims_t const & o ) const { // note: o is the template, not *this
+      if( sz() != o.sz() ) { return 0; }
+      for( uint32_t i = 0; i != sz(); ++i ) { if( !at(i).matches_template( o.at(i) ) ) { return 0; } }
+      return 1;
+    }
     bool fits_in( dims_t const & o ) const { 
       if( sz() != o.sz() ) { return 0; }
       for( uint32_t ix = 0; ix != sz(); ++ix ) { if( dims(ix) > o.dims(ix) ) { return 0; } }
