@@ -388,6 +388,9 @@ namespace boda
     string const & names( uint32_t const ix ) const { return at(ix).name; }
     uint32_t const & strides( uint32_t const ix ) const { return at(ix).stride; }
 
+    bool has_any_strides( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( strides(i) ) { return 1; } } return 0; }
+    bool has_any_names( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( !names(i).empty() ) { return 1; } } return 0; }
+
     void make_dims_vect( vect_uint32_t & dv ) const { 
       dv.resize(sz()); for( uint32_t ix = 0; ix != sz(); ++ix ) { dv[ix] = dims(ix); } }
     // aka 'number of elements' / size / count. 
@@ -464,8 +467,14 @@ namespace boda
   inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) {
     out << "RM_DIMS=";
     for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?"*":"") << o.dims(ix); }
-    out << " STRIDES=";
-    for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?",":"") << o.strides(ix); }
+    if( o.has_any_strides() ) {
+      out << " STRIDES=";
+      for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?",":"") << o.strides(ix); }
+    }
+    if( o.has_any_names() ) {
+      out << " NAMES=";
+      for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?",":"") << o.names(ix); }
+    }
     return out;
   }
 
