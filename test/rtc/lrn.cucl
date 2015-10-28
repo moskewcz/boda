@@ -1,15 +1,17 @@
 // each thread: computes outputs across chan dim, using inputs across chan dim
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, GASQ float * const out ) {
-  int32_t const tix = GLOB_ID_1D;
-  if( tix >= %(tix_sz) ) { return; }
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float * const out ) // CUCL OUT img:chan:y:x
+{
+  // CUCL IX GLOB_ID_1D out remove_dim=chan
+  if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
   // iteratate over chans
   float ls_buf[%(local_size)] = {0.0f};
   int32_t const hls = %(local_size) >> 1;
-  int32_t const out_base_ix = %(tix_img)*%(out_ix_img_sz) + %(tix_y)*%(out_ix_y_sz) + %(tix_x)*%(out_ix_x_sz);  
-  for( int32_t in_chan_ix = 0; in_chan_ix < %(out_ix_chan_dim) + hls; ++in_chan_ix ) {
-    int32_t const in_off = in_chan_ix*%(out_ix_chan_sz);
+  int32_t const out_base_ix = %(GLOB_ID_1D_img)*%(out_img_sz) + %(GLOB_ID_1D_y)*%(out_y_sz) + %(GLOB_ID_1D_x)*%(out_x_sz);  
+  for( int32_t in_chan_ix = 0; in_chan_ix < %(out_chan_dim) + hls; ++in_chan_ix ) {
+    int32_t const in_off = in_chan_ix*%(out_chan_sz);
     int32_t const lsb_ix = in_chan_ix %% %(local_size);
-    ls_buf[lsb_ix] = (in_chan_ix < %(out_ix_chan_dim)) ? in[out_base_ix + in_off] : 0.0f;
+    ls_buf[lsb_ix] = (in_chan_ix < %(out_chan_dim)) ? in[out_base_ix + in_off] : 0.0f;
     
     if( in_chan_ix >= hls ) {
       int32_t const out_chan_ix = in_chan_ix - hls;
@@ -18,7 +20,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, GASQ floa
 
       float const scale = powf( (%(k) + %(alpha)*ls_sum/%(local_size)), -%(beta) );
       
-      out[out_base_ix + out_chan_ix*%(out_ix_chan_sz)] = ls_buf[(lsb_ix+%(local_size)-hls) %% %(local_size)] * scale;
+      out[out_base_ix + out_chan_ix*%(out_chan_sz)] = ls_buf[(lsb_ix+%(local_size)-hls) %% %(local_size)] * scale;
     }
   }
 }

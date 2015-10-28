@@ -38,8 +38,22 @@ namespace boda
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
+  struct rtc_func_param_info_t { 
+    string name; 
+    string val; 
+    bool operator == ( rtc_func_param_info_t const & o ) const { return name == o.name && val == o.val; }
+    bool operator < ( rtc_func_param_info_t const & o ) const { 
+      if( name != o.name ) { return name < o.name; }
+      if( val != o.val ) { return val < o.val; }
+      return 0;
+    }
+  };
+  struct rtc_u32_param_info_t { string name; uint32_t val; };
+  typedef vector< rtc_func_param_info_t > vect_rtc_func_param_info_t; 
+
   struct op_info_t {
     // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
+    vect_rtc_func_param_info_t template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     p_conv_op_t cop;
     p_conv_node_t no;
     bool is_conv;
@@ -148,7 +162,13 @@ namespace boda
   struct rtc_func_sig_t { 
     string fn;
     vect_dims_t args;
-    bool operator < ( rtc_func_sig_t const & o ) const { return (fn != o.fn) ? (fn < o.fn) : (args < o.args); }
+    vect_rtc_func_param_info_t template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
+    bool operator < ( rtc_func_sig_t const & o ) const { 
+      if( fn != o.fn ) { return fn < o.fn; }
+      if( args != o.args ) { return args < o.args; }
+      if( template_var_values != o.template_var_values ) { return template_var_values < o.template_var_values; }
+      return 0;
+    }
 
     string gen_unused_fn( set_string & fns ) {
       string maybe_fn_base = fn;
@@ -235,7 +255,6 @@ namespace boda
     void calc_blocking_conv( p_op_info_t const & oi );
     rtc_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
-    rtc_func_t & gen_op_lrn( p_op_info_t const & oi );
     rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     rtc_func_t & gen_op_relu( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
@@ -402,9 +421,6 @@ namespace boda
   }
   uint32_t get_sz( vect_pair_str_str & mss, string const & ix ) { return get_expr( mss, ix+"_sz" ); }
 
-  struct rtc_func_param_info_t { string name; string val; };
-  struct rtc_u32_param_info_t { string name; uint32_t val; };
-  typedef vector< rtc_func_param_info_t > vect_rtc_func_param_info_t; 
   struct rtc_func_gen_info_t {
     string op_tag;
     vect_rtc_func_param_info_t spec_params;
@@ -1181,32 +1197,6 @@ namespace boda
     return rf;
   }
 
-  rtc_func_t & conv_pipe_fwd_t::gen_op_lrn( p_op_info_t const & oi ) {
-    // note: oi->ni->cio and oi->no->cio are derived from cop->bots[0] and cop->tops[0]
-    assert_st( oi->ni->cio.sz == oi->no->cio.sz );
-    assert_st( oi->ni->cio.chans == oi->no->cio.chans );
-    // FIXME: make {alpha, beta, k} into passed params (and support that somehow)
-    rtc_func_gen_info_t rfgi{"lrn",
-      { {"num_imgs",str(num_imgs)},{"chans",str(oi->ni->cio.chans)},{"ysz",str(oi->ni->cio.sz.d[1])},{"xsz",str(oi->ni->cio.sz.d[0])}
-	,{"local_size",str(oi->cop->lrn_local_size)},{"alpha",str(oi->cop->lrn_alpha)},{"beta",str(oi->cop->lrn_beta)},{"k",str(oi->cop->lrn_k)} } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-    assert_st( oi->cop->lrn_local_size & 1 ); // we're only supporting centerable windows
-    vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "tix", vect_string{"img","y","x"}, 
-		      vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
-		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
-    rf.arg_sizes.push_back( out_ix_sz );
-    rf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
   rtc_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
     // note: cio_in and oi->no->cio are derived from cop->bots[bi] and cop->tops[0]
     assert_st( cio_in.sz == oi->no->cio.sz );
@@ -1562,8 +1552,10 @@ namespace boda
       assert_st( oi->ni->name == oi->no->name );
       fwd_calls.push_back( rtc_func_call_t{ gen_op_relu( oi ).name, {},{oi->no->name},{}, {}, oi->cop->tag } );
     } else if( cop->type == LRN_str ) {
-      rtc_func_t & rf = gen_op_lrn( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, {oi->ni->name},{},{oi->no->name}, {}, oi->cop->tag } );
+      oi->template_var_values = {{"local_size",str(cop->lrn_local_size)},{"alpha",str(cop->lrn_alpha)},{"beta",str(cop->lrn_beta)},{"k",str(cop->lrn_k)}};
+      assert_st( oi->ni->cio.sz == oi->no->cio.sz );
+      assert_st( oi->ni->cio.chans == oi->no->cio.chans );
+      gen_call( "lrn", oi, { oi->ni->name, oi->no->name } );
     } else if( cop->type == Dropout_str ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
@@ -1639,6 +1631,9 @@ namespace boda
     void init( rtc_func_sig_t const & rfs_, string const & gen_fn, rtc_funcs_t & rtc_funcs, string & rtc_prog_str ) {
       rfs = rfs_;
       tf_exprs.push_back( make_pair( "rtc_func_name", gen_fn ) );
+      for( vect_rtc_func_param_info_t::const_iterator i = rfs.template_var_values.begin(); i != rfs.template_var_values.end(); ++i ) {
+	tf_exprs.push_back( make_pair( i->name, i->val ) );
+      }
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
       check_args();
@@ -1763,6 +1758,7 @@ namespace boda
     // note: we assume that all arg dims are already availible
     rtc_func_sig_t rfs;
     rfs.fn = fn;
+    rfs.template_var_values = oi->template_var_values;
     for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { rfs.args.push_back( rtc->get_var_dims_floats( *i ) ); }
     // note: we assume the generated function only work for exactly these input/output sizes. if not, we'd set some dims to 0/wild
     string & gen_fn = rtc_func_sigs_map[rfs];
