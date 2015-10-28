@@ -237,7 +237,6 @@ namespace boda
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
     rtc_func_t & gen_op_lrn( p_op_info_t const & oi );
     rtc_func_t & gen_op_softmax( p_op_info_t const & oi );
-    rtc_func_t & gen_op_sm_grad_and_loss( p_op_info_t const & oi );
     rtc_func_t & gen_op_slow_sum( p_op_info_t const & oi );
     rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     rtc_func_t & gen_op_relu( p_op_info_t const & oi );
@@ -1626,12 +1625,7 @@ namespace boda
 
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node( loss_per_pel, cp->must_get_node(cop->bots[1]) );
-#if 1 // enable gen_call() flow
-      gen_call( "sm_grad_and_loss_CG", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
-#else
-      rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf_smgal.name, {prob_node_name, cop->bots[1]},{},{cop->tops[0],loss_per_pel}, {}, oi->cop->tag } );
-#endif
+      gen_call( "sm_grad_and_loss", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
       rtc_func_t & rf_lr = gen_op_slow_sum( oi );
       fwd_calls.push_back( rtc_func_call_t{ rf_lr.name, {loss_per_pel},{},{cop->tops[1]}, {}, oi->cop->tag } );
 
@@ -1794,33 +1788,7 @@ namespace boda
 	}
       }
     }
-
   };
-
-  rtc_func_t & conv_pipe_fwd_t::gen_op_sm_grad_and_loss( p_op_info_t const & oi ) {
-    p_conv_node_t const & fwd_top = cp->must_get_node( oi->cop->bots[0] ); // same size as prob and grad
-
-    rtc_func_gen_info_t rfgi{"sm_grad_and_loss",
-      { {"num_imgs",str(num_imgs)},{"chans",str(fwd_top->cio.chans)},{"ysz",str(fwd_top->cio.sz.d[1])},{"xsz",str(fwd_top->cio.sz.d[0])}
-      } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-    vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "GLOB_ID_1D", vect_string{"img","y","x"}, 
-		      vect_uint32_t{num_imgs,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "prob", cio_dims, 
-		      vect_uint32_t{num_imgs,fwd_top->cio.chans,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "prob" );
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
-    rf.arg_sizes.push_back( out_ix_sz );
-    rf.arg_sizes.push_back( num_imgs );
-    rf.arg_sizes.push_back( out_ix_sz );
-    rf.arg_sizes.push_back( 1 );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
 
   // running test case for gen_call():
   // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,per_call_fn=out.py)" --max-err=1 && cat test_compute.txt 
