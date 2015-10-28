@@ -1654,6 +1654,25 @@ namespace boda
 
   typedef vector< arg_decl_t > vect_arg_decl_t; 
 
+  void insert_nda_dims_sz( vect_pair_str_str & mss, string const & nda_vn, dims_t const & dims ) {
+    for( uint32_t i = 0; i != dims.sz(); ++i ) {
+      assert_st( dims[i].has_sz_and_stride_and_name() );
+      mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_dim", str(dims[i].sz) ) );
+      mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_sz", str(dims[i].stride) ) );
+    }
+    //mss.push_back( make_pair( nda_vn+"_sz", str(dims.dims_prod()) ) ); // too confusing? unneeded?
+  }
+
+  void insert_nda_ix_exprs( vect_pair_str_str & mss, string const & ix_vn, dims_t const & dims ) {
+    for( uint32_t i = 0; i != dims.sz(); ++i ) {
+      assert_st( dims[i].has_sz_and_stride_and_name() );
+      string v = (dims[i].stride > 1) ? "("+ix_vn+"/"+str(dims[i].stride)+")" : ix_vn;
+      mss.push_back( make_pair( ix_vn+"_"+dims[i].name+"_nomod", v ) );      
+      if( i ) { v = "("+v+"%%"+str(dims[i].sz)+")"; }
+      mss.push_back( make_pair( ix_vn+"_"+dims[i].name, v ) );
+    }
+  }
+
   struct rtc_call_gen_t {
     rtc_func_sig_t rfs;
     void init( rtc_func_sig_t const & rfs_, string const & gen_fn ) {
@@ -1662,6 +1681,15 @@ namespace boda
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
       check_args();
+      for( uint32_t i = 0; i != rfs.args.size(); ++i ) { 
+	insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i] ); 
+	insert_nda_ix_exprs( tf_exprs, "ix_"+arg_decls[i].vn, rfs.args[i] ); 
+      }
+
+      for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
+	printf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
+      }
+
     }
     vect_pair_str_str tf_exprs;
     p_string rtc_func_template;
@@ -1671,8 +1699,12 @@ namespace boda
       if( rfs.args.size() != arg_decls.size() ) { arg_check_error = "declared/called argument count mismatch"; }
       else {
 	for( uint32_t i = 0; i != rfs.args.size(); ++i ) {
-	  if( !rfs.args[i].matches_template( arg_decls[i].dims ) ) {
-	    arg_check_error += "call arg "+str(i)+" incompatible with decl arg (dim count mismatch or dim (req'd) name/size/stride mismatch; ";
+	  if( !rfs.args[i].has_sz_and_stride_and_name() ) { arg_check_error += "call arg "+str(i)+ " must have sz, stride, and name; "; }
+	  else if( rfs.args[i].has_padding() ) { arg_check_error += "call args "+str(i)+ " must not have padding; "; } // FIXME: maybe too strong
+	  else {
+	    if( !rfs.args[i].matches_template( arg_decls[i].dims ) ) {
+	      arg_check_error += "call arg "+str(i)+" incompatible with decl arg (dim count mismatch or dim (req'd) name/size/stride mismatch; ";
+	    }
 	  }
 	}
       }
@@ -1681,6 +1713,7 @@ namespace boda
 			   rfs.fn.c_str(), str(arg_check_error).c_str(), str(rfs.args).c_str(), str(arg_decls).c_str() ) );
       }
     }
+
 
     void instantiate_template( string & rtc_prog_str ) {
       lexp_name_val_map_t tf_nvm{ p_lexp_t() };
