@@ -1627,7 +1627,7 @@ namespace boda
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node( loss_per_pel, cp->must_get_node(cop->bots[1]) );
 
-      gen_call( "sm_grad_and_loss", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
+      gen_call( "sm_grad_and_loss_CG", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
 
       rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
       fwd_calls.push_back( rtc_func_call_t{ rf_smgal.name, {prob_node_name, cop->bots[1]},{},{cop->tops[0],loss_per_pel}, {}, oi->cop->tag } );
@@ -1650,9 +1650,13 @@ namespace boda
   inline std::ostream & operator << ( std::ostream & out, arg_decl_t const & o ) {
     return out << strprintf( "o.vn=%s o.io_type=%s o.dims=%s", str(o.vn).c_str(), str(o.io_type).c_str(), str(o.dims).c_str() );
   }
-
-
   typedef vector< arg_decl_t > vect_arg_decl_t; 
+  
+  struct ix_decl_t {
+    string ix_vn;
+    string arg_vn;
+  };
+  typedef vector< ix_decl_t > vect_ix_decl_t; 
 
   void insert_nda_dims_sz( vect_pair_str_str & mss, string const & nda_vn, dims_t const & dims ) {
     for( uint32_t i = 0; i != dims.sz(); ++i ) {
@@ -1660,7 +1664,7 @@ namespace boda
       mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_dim", str(dims[i].sz) ) );
       mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_sz", str(dims[i].stride) ) );
     }
-    //mss.push_back( make_pair( nda_vn+"_sz", str(dims.dims_prod()) ) ); // too confusing? unneeded?
+    mss.push_back( make_pair( nda_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
   }
 
   void insert_nda_ix_exprs( vect_pair_str_str & mss, string const & ix_vn, dims_t const & dims ) {
@@ -1675,24 +1679,55 @@ namespace boda
 
   struct rtc_call_gen_t {
     rtc_func_sig_t rfs;
-    void init( rtc_func_sig_t const & rfs_, string const & gen_fn ) {
+    p_string rtc_func_template; // read from file
+    vect_arg_decl_t arg_decls; // parsed out of rtc_func_template
+    vect_ix_decl_t ix_decls; // parsed out of rtc_func_template
+    vect_pair_str_str tf_exprs;
+
+    dims_t const & get_arg_dims_by_name( string const & arg_vn ) {
+      for( uint32_t i = 0; i != arg_decls.size(); ++i ) { if( arg_decls[i].vn == arg_vn ) { return rfs.args.at(i); } }
+      rt_err( strprintf( "referenced arg '%s' not declared\n", str(arg_vn).c_str() ) );
+    }
+    
+    void init( rtc_func_sig_t const & rfs_, string const & gen_fn, rtc_funcs_t & rtc_funcs, string & rtc_prog_str ) {
       rfs = rfs_;
       tf_exprs.push_back( make_pair( "rtc_func_name", gen_fn ) );
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
       check_args();
       for( uint32_t i = 0; i != rfs.args.size(); ++i ) { 
-	insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i] ); 
-	insert_nda_ix_exprs( tf_exprs, "ix_"+arg_decls[i].vn, rfs.args[i] ); 
+	insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i] );
       }
 
+      rtc_func_t & rf = rtc_funcs.insert( make_pair( gen_fn, rtc_func_t{gen_fn,0,0} ) ).first->second;
+      assert_st( !rf.finalized );
+      rf.arg_sizes.resize( arg_decls.size() ); // values unused, but size must match # args at call time
+      rf.tpb = 0;
+      rf.blks = 0;
+
+      for( uint32_t i = 0; i != ix_decls.size(); ++i ) { 
+	dims_t const & ix_dims = get_arg_dims_by_name( ix_decls[i].arg_vn );
+	insert_nda_ix_exprs( tf_exprs, ix_decls[i].ix_vn, ix_dims );
+	// special cases for index var names
+	if( ix_decls[i].ix_vn == "GLOB_ID_1D" ) { 
+	  // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
+	  // size doesn't matter (so use a reasonable default )
+	  rf.tpb = 256;
+	  rf.blks = u32_ceil_div( ix_dims.dims_prod(), rf.tpb );
+	}
+      }
       for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
 	printf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
+      // rf.has_final_flags_arg = 0; // TODO
+      // for now, assume+check tpb/blks have been set by some case above
+      assert_st( rf.tpb ); 
+      assert_st( rf.blks );
+      rf.finalized = 1;
+
+      instantiate_template( rtc_prog_str );
 
     }
-    vect_pair_str_str tf_exprs;
-    p_string rtc_func_template;
 
     void check_args( void ) {
       string arg_check_error;
@@ -1714,7 +1749,6 @@ namespace boda
       }
     }
 
-
     void instantiate_template( string & rtc_prog_str ) {
       lexp_name_val_map_t tf_nvm{ p_lexp_t() };
       tf_nvm.insert_leafs_from( tf_exprs );
@@ -1728,16 +1762,6 @@ namespace boda
       //printf( "rtc_func_name=%s rf.tpb=%s rf.blks=%s\n", str(rtc_func_name).c_str(), str(rf->tpb).c_str(), str(rf->blks).c_str()); 
       //rf->finalized = 1;
     }
-  // note: also adds the output as a parameter
-    void set_tpb_blks_for_one_output_per_thread( uint32_t out_sz ) {
-      // note: rf.arg_sizes might or might not be empty here
-#if 0
-      rf->arg_sizes.push_back( out_sz );
-      rf->tpb = 256;
-      rf->blks = u32_ceil_div( out_sz, rf->tpb );
-#endif
-    }
-    vect_arg_decl_t arg_decls;
 
     void parse_template( void ) {
       vect_string lines = split( *rtc_func_template, '\n' );
@@ -1750,12 +1774,11 @@ namespace boda
 	  string const & cd = mmc_parts[1];
 	  vect_string dim_names;
 	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "IX") ) { 
-	    string ix_name;
-	    string arg_name;
 	    if( cd == "IX" ) {
 	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
-	      ix_name = mmc_parts[2];
-	      arg_name = mmc_parts[3];
+	      string const ix_name = mmc_parts[2];
+	      string const arg_name = mmc_parts[3];
+	      ix_decls.push_back( ix_decl_t{ ix_name, arg_name } );
 	    } else {
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
 	      string const & nda_spec = mmc_parts[2];
@@ -1767,11 +1790,9 @@ namespace boda
 	      for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
 	      // get var name 
 	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);", ' ' ) ) );
-	      arg_name = arg_decl.back();
-	      ix_name = arg_name + "_ix";
+	      string const arg_name = arg_decl.back();
 	      arg_decls.push_back( arg_decl_t{ arg_name, cd, arg_dims } );
 	    }
-	    printf( "cd=%s arg_name=%s ix_name=%s dim_names=%s\n", str(cd).c_str(), str(arg_name).c_str(), str(ix_name).c_str(), str(dim_names).c_str() );
 	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
 	}
       }
@@ -1817,7 +1838,7 @@ namespace boda
       // need to instatiate function and pick unused name
       gen_fn = rfs.gen_unused_fn( used_rtc_func_names );
       rtc_call_gen_t rcg;
-      rcg.init( rfs, gen_fn );
+      rcg.init( rfs, gen_fn, rtc_funcs, rtc_prog_str );
     }
     
     printf( "gen_fn=%s\n", str(gen_fn).c_str() );

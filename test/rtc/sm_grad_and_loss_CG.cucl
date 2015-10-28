@@ -1,0 +1,22 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( 
+		   GASQ float const * const prob, // CUCL IN img:chan:y:x
+		   GASQ float const * const label, // CUCL IN img:y:x
+		   GASQ float * const fwd_top_loss_grad, // CUCL OUT img:chan:y:x
+		   GASQ float * const loss_per_img ) // CUCL OUT img:y:x
+{
+  // CUCL IX GLOB_ID_1D label
+
+  if( GLOB_ID_1D >= %(label_dims_prod) ) { return; }
+  int32_t const base_ix = %(GLOB_ID_1D_img)*%(prob_img_sz) + %(GLOB_ID_1D_y)*%(prob_y_sz) + %(GLOB_ID_1D_x)*%(prob_x_sz);
+  int const img_label = int( label[ %(GLOB_ID_1D_img) ] );
+  float const pel_loss = -log( max( prob[base_ix + img_label*%(prob_chan_sz)], FLT_MIN ) );
+  loss_per_img[GLOB_ID_1D] = pel_loss;
+  // iteratate over chans for all operations
+  for( int32_t off = 0, chan_ix = 0; chan_ix < %(prob_chan_dim); ++chan_ix, off += %(prob_chan_sz) ) { 
+    float v = prob[base_ix + off];
+    if( chan_ix == img_label ) { v -= 1.0f; }
+    v /= %(prob_img_dim); // divide/weight gradient by # of images in batch
+    fwd_top_loss_grad[base_ix + off] = v;
+  }
+}
+
