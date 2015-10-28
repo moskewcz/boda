@@ -249,7 +249,6 @@ namespace boda
     void dump_var( string const & n );
     virtual ~conv_pipe_fwd_t( void );
   protected:
-    rtc_func_t & gen_op_pool( p_op_info_t const & oi );
     rtc_func_t & gen_op_conv( p_op_info_t const & oi );
     rtc_func_t & gen_op_s1conv( p_op_info_t const & oi ); // stride 1, kern_sz >2 <~5, ... case (see use)
     void calc_blocking_conv( p_op_info_t const & oi );
@@ -462,37 +461,6 @@ namespace boda
       rf->blks = u32_ceil_div( out_sz, rf->tpb );
     }
   };
-
-  rtc_func_t & conv_pipe_fwd_t::gen_op_pool( p_op_info_t const & oi ) {
-    assert_st( oi->is_pool );
-    rtc_func_gen_info_t rfgi{"",
-      { {"num_imgs",str(num_imgs)},{"in_pad",str(oi->in_pad)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
-	,{"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"out_chans",str(oi->no->cio.chans)} } };
-    rfgi.op_tag="pool"; rfgi.spec_params.push_back( rtc_func_param_info_t{"avg_pool",str(oi->cop->avg_pool)} );
-    
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-
-    tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
-
-    vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
-
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); 
-
-    tf_exprs.push_back( std::make_pair( "op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" ) );
-    tf_exprs.push_back( std::make_pair( "op_post", oi->cop->avg_pool ? "out_v /= (float)("+str(oi->kern_sz*oi->kern_sz)+")" : "" ) );
-
-    rf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
-    rf.arg_sizes.push_back( out_ix_sz );
-
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
 
   rtc_func_t & conv_pipe_fwd_t::gen_op_conv( p_op_info_t const & oi ) {
     assert_st( oi->is_conv ); // also assert not special conv?
@@ -1486,9 +1454,11 @@ namespace boda
     }
 
     if( oi->is_pool ) {
-      string const in_id = cop->bots[0];
-      rtc_func_t * rf = &gen_op_pool( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf->name, {in_id},{},{oi->no->name}, {}, oi->cop->tag } );
+      oi->template_var_values = { {"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},
+				  {"avg_pool",str(oi->cop->avg_pool)},{"t_tile_sz", str(t_tile_sz)},{"in_pad",str(oi->in_pad)} };
+      oi->template_var_values.push_back( {"op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" } );
+      oi->template_var_values.push_back( {"op_post", oi->cop->avg_pool ? "out_v /= (float)("+str(oi->kern_sz*oi->kern_sz)+")" : "" } );
+      gen_call( "pool", oi, {oi->ni->name,oi->no->name} );
     } else if( oi->is_conv ) {
       vect_string in_arg_ids;
       string const filts_id = oi->cop->tag + "_filts";
