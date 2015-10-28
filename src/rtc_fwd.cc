@@ -1709,7 +1709,7 @@ namespace boda
 	      // syntax/encoding would be)
 	      for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
 	      // get var name 
-	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);", ' ' ) ) );
+	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{", ' ' ) ) );
 	      string const arg_name = arg_decl.back();
 	      arg_decls.push_back( arg_decl_t{ arg_name, cd, arg_dims } );
 	    }
