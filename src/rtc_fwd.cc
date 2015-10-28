@@ -1791,9 +1791,9 @@ namespace boda
     vect_string const cio_dims{"img","chan","y","x"};
     insert_nda_exprs( tf_exprs, "GLOB_ID_1D", vect_string{"img","y","x"}, 
 		      vect_uint32_t{num_imgs,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
+    insert_nda_exprs( tf_exprs, "prob", cio_dims, 
 		      vect_uint32_t{num_imgs,fwd_top->cio.chans,fwd_top->cio.sz.d[1],fwd_top->cio.sz.d[0]} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
+    uint32_t const out_ix_sz = get_sz( tf_exprs, "prob" );
     rf.tpb = 256;
     rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
     rf.arg_sizes.push_back( out_ix_sz );
