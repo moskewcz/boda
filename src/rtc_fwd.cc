@@ -1626,12 +1626,12 @@ namespace boda
 
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node( loss_per_pel, cp->must_get_node(cop->bots[1]) );
-
+#if 1 // enable gen_call() flow
       gen_call( "sm_grad_and_loss_CG", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
-
+#else
       rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
       fwd_calls.push_back( rtc_func_call_t{ rf_smgal.name, {prob_node_name, cop->bots[1]},{},{cop->tops[0],loss_per_pel}, {}, oi->cop->tag } );
-
+#endif
       rtc_func_t & rf_lr = gen_op_slow_sum( oi );
       fwd_calls.push_back( rtc_func_call_t{ rf_lr.name, {loss_per_pel},{},{cop->tops[1]}, {}, oi->cop->tag } );
 
@@ -1715,9 +1715,6 @@ namespace boda
 	  rf.tpb = 256;
 	  rf.blks = u32_ceil_div( ix_dims.dims_prod(), rf.tpb );
 	}
-      }
-      for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
-	printf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
       // rf.has_final_flags_arg = 0; // TODO
       // for now, assume+check tpb/blks have been set by some case above
@@ -1843,12 +1840,7 @@ namespace boda
       rtc_call_gen_t rcg;
       rcg.init( rfs, gen_fn, rtc_funcs, rtc_prog_str );
     }
-    
-    printf( "gen_fn=%s\n", str(gen_fn).c_str() );
-    //gen_call( "sm_grad_and_loss", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
-    //rtc_func_t & rf_smgal = gen_op_sm_grad_and_loss( oi );
-    //fwd_calls.push_back( rtc_func_call_t{ gen_fn, args, {}, oi->cop->tag } );
-
+    fwd_calls.push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag } );
   }
 
   void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) { rtc->create_var_with_dims_floats( name, node->cio.dims(num_imgs) );}
