@@ -143,7 +143,7 @@ namespace boda
       p_conv_node_t const & loss_node = must_get_node( cop->tops[1] );
       loss_node->csi.support_sz = u32_pt_t{};
       loss_node->csi.eff_tot_pad = csi_out.eff_tot_pad; // FIXME: correct? needed? maybe set to bogus/sentinel value?
-      loss_node->cio.chans = 1;
+      // node->cio.chans = uint32_t_const_max; // loss has no chans dim, so it at the default/unset of uint32_t_const_max
     } else {    
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
 	p_conv_node_t const & j_node = must_get_node(*j);

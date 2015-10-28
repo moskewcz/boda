@@ -1,0 +1,11 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const loss_per_pel, // CUCL IN img:y:x
+					  GASQ float * const loss ) // CUCL OUT y:x
+{
+  // CUCL IX GLOB_ID_1D loss
+  if( GLOB_ID_1D >= %(loss_dims_prod) ) { return; }
+  int32_t const base_ix = %(GLOB_ID_1D_y)*%(loss_per_pel_y_sz) + %(GLOB_ID_1D_x)*%(loss_per_pel_x_sz);
+  float v = 0.0f;
+  for( int32_t i = 0; i != %(loss_per_pel_img_dim); ++i ) { v += loss_per_pel[base_ix + i*%(loss_per_pel_img_sz)]; }
+  loss[ GLOB_ID_1D ] = v / %(loss_per_pel_img_dim);
+}
+

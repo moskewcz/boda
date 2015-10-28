@@ -237,7 +237,6 @@ namespace boda
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
     rtc_func_t & gen_op_lrn( p_op_info_t const & oi );
     rtc_func_t & gen_op_softmax( p_op_info_t const & oi );
-    rtc_func_t & gen_op_slow_sum( p_op_info_t const & oi );
     rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     rtc_func_t & gen_op_relu( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
@@ -1234,21 +1233,6 @@ namespace boda
     return rf;
   }
 
-  rtc_func_t & conv_pipe_fwd_t::gen_op_slow_sum( p_op_info_t const & oi ) {
-    uint32_t const sz = cp->must_get_node( oi->cop->bots[1] )->cio.dims(num_imgs).dims_prod(); // size of label, same size as loss
-    rtc_func_gen_info_t rfgi{"slow_sum", { {"sz",str(sz)} } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    //vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-    uint32_t const out_ix_sz = 1;
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); // one thread. one.
-    rf.arg_sizes.push_back( sz );
-    rf.arg_sizes.push_back( 1 );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
   rtc_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
     // note: cio_in and oi->no->cio are derived from cop->bots[bi] and cop->tops[0]
     assert_st( cio_in.sz == oi->no->cio.sz );
@@ -1625,13 +1609,8 @@ namespace boda
 
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node( loss_per_pel, cp->must_get_node(cop->bots[1]) );
-      gen_call( "sm_grad_and_loss", oi, {prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
-      rtc_func_t & rf_lr = gen_op_slow_sum( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf_lr.name, {loss_per_pel},{},{cop->tops[1]}, {}, oi->cop->tag } );
-
-      // FIXME/TODO: reduce loss
-      // loss_per_pel -> cop->tops[1] (singleton)
-      
+      gen_call( "sm_grad_and_loss", oi, { prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
+      gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
 
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
