@@ -330,6 +330,7 @@ namespace boda
       if( (!o.name.empty()) && (name != o.name) ) { return 0; }
       return 1;
     }
+    bool has_sz_and_stride_and_name( void ) const { return sz && stride && (!name.empty()); }
   };
   typedef vector< dim_t > vect_dim_t; 
 
@@ -363,6 +364,11 @@ namespace boda
       for( uint32_t i = 0; i != sz(); ++i ) { if( !at(i).matches_template( o.at(i) ) ) { return 0; } }
       return 1;
     }
+    bool has_sz_and_stride_and_name( void ) const { 
+      for( uint32_t i = 0; i != sz(); ++i ) { if( !at(i).has_sz_and_stride_and_name() ) { return 0; } }
+      return 1;
+    }
+
     bool fits_in( dims_t const & o ) const { 
       if( sz() != o.sz() ) { return 0; }
       for( uint32_t ix = 0; ix != sz(); ++ix ) { if( dims(ix) > o.dims(ix) ) { return 0; } }
@@ -411,6 +417,16 @@ namespace boda
     uint32_t dims_prod( void ) const { uint32_t ret = 1; for( uint32_t ix = 0; ix != sz(); ++ix ) { ret *= dims(ix); } return ret; }
     //uint32_t nda_sz( void ) { uint32_t ret = 1; for( vect_dim_t::const_iterator i = begin(); i != end(); ++i ) { ret *= i->sz; } return ret; }
 
+    // return true if the strides are different from the no-padding-strides as would be calculated by calc_strides()
+    // FIXME: untested
+    bool has_padding( void ) const {
+      uint32_t stride;
+      for( uint32_t d = 0; d < sz(); ++d ) { 
+	stride = d ? (stride * dims(sz()-d)) : 1;
+	if( stride != strides(sz()-d-1) ) { return 1; }
+      }
+      return 0;
+    }
 
     uint32_t calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
       strides(sz()-1) = 1;
