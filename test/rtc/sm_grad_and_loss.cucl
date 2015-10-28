@@ -5,7 +5,6 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)(
 		   GASQ float * const loss_per_img ) // CUCL OUT img:y:x
 {
   // CUCL IX GLOB_ID_1D label
-
   if( GLOB_ID_1D >= %(label_dims_prod) ) { return; }
   int32_t const base_ix = %(GLOB_ID_1D_img)*%(prob_img_sz) + %(GLOB_ID_1D_y)*%(prob_y_sz) + %(GLOB_ID_1D_x)*%(prob_x_sz);
   int const img_label = int( label[ %(GLOB_ID_1D_img) ] );

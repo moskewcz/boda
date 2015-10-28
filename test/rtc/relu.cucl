@@ -1,4 +1,5 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const out ) {
-  int32_t const ix = GLOB_ID_1D;
-  if( ix < %(out_sz) ) { out[ix] = (out[ix] <= 0) ? 0.0f : out[ix]; }
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const inout ) { // CUCL INOUT img:chan:y:x
+  // CUCL IX GLOB_ID_1D inout
+  if( GLOB_ID_1D >= %(inout_dims_prod) ) { return; }
+  inout[GLOB_ID_1D] = (inout[GLOB_ID_1D] <= 0) ? 0.0f : inout[GLOB_ID_1D];
 }

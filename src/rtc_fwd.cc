@@ -249,16 +249,18 @@ namespace boda
     void dump_var( string const & n );
     virtual ~conv_pipe_fwd_t( void );
   protected:
+    void calc_blocking_conv( p_op_info_t const & oi );
     rtc_func_t & gen_op_conv( p_op_info_t const & oi );
     rtc_func_t & gen_op_s1conv( p_op_info_t const & oi ); // stride 1, kern_sz >2 <~5, ... case (see use)
-    void calc_blocking_conv( p_op_info_t const & oi );
     rtc_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
+
     rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
-    rtc_func_t & gen_op_relu( p_op_info_t const & oi );
+
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_tile_xpose( p_op_info_t const & oi );
     rtc_func_t & gen_op_xpose( p_op_info_t const & oi );
+
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
@@ -1189,17 +1191,6 @@ namespace boda
     return rf;
   }
 
-  rtc_func_t & conv_pipe_fwd_t::gen_op_relu( p_op_info_t const & oi ) {
-    uint32_t const out_sz = oi->no->cio.sz.dims_prod() * oi->no->cio.chans * num_imgs;
-    rtc_func_gen_info_t rfgi{"relu", { {"out_sz",str(out_sz)} } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    //vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-    rfgi.set_tpb_blks_for_one_output_per_thread( out_sz );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
   struct red_op_t {
     string tag;
     string iv;
@@ -1516,11 +1507,9 @@ namespace boda
 	rtc->create_var_with_sz_floats( filtsxp_id, xpose_rf.arg_sizes[1] );
       } 
       add_op_param( biases_id, arg_sizes[1] );
-
     } else if( cop->type == ReLU_str ) {
-      // check that this is a single in-out in-place operation
-      assert_st( oi->ni->name == oi->no->name );
-      fwd_calls.push_back( rtc_func_call_t{ gen_op_relu( oi ).name, {},{oi->no->name},{}, {}, oi->cop->tag } );
+      assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
+      gen_call( "relu", oi, { oi->no->name } );
     } else if( cop->type == LRN_str ) {
       oi->template_var_values = {{"local_size",str(cop->lrn_local_size)},{"alpha",str(cop->lrn_alpha)},{"beta",str(cop->lrn_beta)},{"k",str(cop->lrn_k)}};
       assert_st( oi->ni->cio.sz == oi->no->cio.sz );
