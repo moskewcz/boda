@@ -1,20 +1,22 @@
 // each thread: computes outputs across chan dim, using inputs across chan dim
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, GASQ float * const out ) {
-  int32_t const tix = GLOB_ID_1D;
-  if( tix >= %(tix_sz) ) { return; }
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float * const out ) // CUCL OUT img:chan:y:x
+{
+  // CUCL IX GLOB_ID_1D out remove_dim=chan
+  if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
   float pel_sum = {0.0f};
   float pel_max = {0.0f};
   // iteratate over chans for all operations
-  int32_t const base_ix = %(tix_img)*%(out_ix_img_sz) + %(tix_y)*%(out_ix_y_sz) + %(tix_x)*%(out_ix_x_sz);
-  for( int32_t off = 0, chan_ix = 0; chan_ix < %(out_ix_chan_dim); ++chan_ix, off += %(out_ix_chan_sz) ) { 
+  int32_t const base_ix = %(GLOB_ID_1D_img)*%(out_img_sz) + %(GLOB_ID_1D_y)*%(out_y_sz) + %(GLOB_ID_1D_x)*%(out_x_sz);
+  for( int32_t off = 0, chan_ix = 0; chan_ix < %(out_chan_dim); ++chan_ix, off += %(out_chan_sz) ) { 
     pel_max = max(pel_max, in[base_ix + off] ); 
   }
-  for( int32_t off = 0, chan_ix = 0; chan_ix < %(out_ix_chan_dim); ++chan_ix, off += %(out_ix_chan_sz) ) { 
+  for( int32_t off = 0, chan_ix = 0; chan_ix < %(out_chan_dim); ++chan_ix, off += %(out_chan_sz) ) { 
     float const v = exp( in[base_ix + off] - pel_max );
     out[base_ix + off] = v; 
     pel_sum += v;
   }
-  for( int32_t off = 0, chan_ix = 0; chan_ix < %(out_ix_chan_dim); ++chan_ix, off += %(out_ix_chan_sz) ) { 
+  for( int32_t off = 0, chan_ix = 0; chan_ix < %(out_chan_dim); ++chan_ix, off += %(out_chan_sz) ) { 
     out[base_ix + off] /= pel_sum;
   }
 }

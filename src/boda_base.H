@@ -89,6 +89,8 @@ namespace boda
     assert_st( did_ins );
   }		      
   template< typename T > bool has( T const & kvm, typename T::key_type const & k ) { return kvm.find( k ) != kvm.end(); }
+  template< typename T > bool vect_has( T const & vect, typename T::value_type const & v ) { 
+    return std::find( vect.begin(), vect.end(), v ) != vect.end(); }
   template< typename T > typename T::mapped_type const & must_find( T const & kvm, typename T::key_type const & k ) {
     typename T::const_iterator i = kvm.find( k );
     if( i == kvm.end() ) { rt_err( "missing key:" + str(k) ); }

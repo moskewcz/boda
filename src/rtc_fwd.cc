@@ -236,7 +236,6 @@ namespace boda
     rtc_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
     rtc_func_t & gen_op_lrn( p_op_info_t const & oi );
-    rtc_func_t & gen_op_softmax( p_op_info_t const & oi );
     rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
     rtc_func_t & gen_op_relu( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
@@ -1208,31 +1207,6 @@ namespace boda
     return rf;
   }
 
-  rtc_func_t & conv_pipe_fwd_t::gen_op_softmax( p_op_info_t const & oi ) {
-    // note: oi->ni->cio and oi->no->cio are derived from cop->bots[0] and cop->tops[0]
-    assert_st( oi->ni->cio.sz == oi->no->cio.sz );
-    assert_st( oi->ni->cio.chans == oi->no->cio.chans );
-    // FIXME: make {alpha, beta, k} into passed params (and support that somehow)
-    rtc_func_gen_info_t rfgi{"softmax",
-      { {"num_imgs",str(num_imgs)},{"chans",str(oi->ni->cio.chans)},{"ysz",str(oi->ni->cio.sz.d[1])},{"xsz",str(oi->ni->cio.sz.d[0])}
-      } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-    vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "tix", vect_string{"img","y","x"}, 
-		      vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
-		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( out_ix_sz / oi->no->cio.chans, rf.tpb ); // handle one img,y,x per thread (across chans)
-    rf.arg_sizes.push_back( out_ix_sz );
-    rf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
   rtc_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
     // note: cio_in and oi->no->cio are derived from cop->bots[bi] and cop->tops[0]
     assert_st( cio_in.sz == oi->no->cio.sz );
@@ -1595,17 +1569,15 @@ namespace boda
       assert_st( oi->ni->name == oi->no->name );
       // ignore for fwd
     } else if( cop->type == Softmax_str ) {
-      rtc_func_t & rf = gen_op_softmax( oi );
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, {oi->ni->name},{},{oi->no->name}, {}, oi->cop->tag } );
+      gen_call( "softmax", oi, { oi->ni->name, oi->no->name } );
     } else if( cop->type == SoftmaxWithLoss_str ) {
       // FIXME/TODO: handle. for now, mostly ignore
       assert_st( cop->bots.size() == 2 ); // fwd_top, label
       assert_st( cop->tops.size() == 2 ); // fwd_top_grad_loss, loss
-      rtc_func_t & rf = gen_op_softmax( oi );
+
       string const prob_node_name = cop->tag + "_prob";
       gen_node( prob_node_name, cp->must_get_node(cop->bots[0]) );
-      //rtc->create_var_with_sz_floats( prob_node_name, rf.arg_sizes[1] );
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, {cop->bots[0]},{},{prob_node_name}, {}, oi->cop->tag } );
+      gen_call( "softmax", oi, { cop->bots[0], prob_node_name } );
 
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node( loss_per_pel, cp->must_get_node(cop->bots[1]) );
@@ -1628,6 +1600,7 @@ namespace boda
   struct ix_decl_t {
     string ix_vn;
     string arg_vn;
+    vect_string remove_dims;
   };
   typedef vector< ix_decl_t > vect_ix_decl_t; 
 
@@ -1648,6 +1621,7 @@ namespace boda
       if( i ) { v = "("+v+"%%"+str(dims[i].sz)+")"; }
       mss.push_back( make_pair( ix_vn+"_"+dims[i].name, v ) );
     }
+    mss.push_back( make_pair( ix_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
   }
 
   struct rtc_call_gen_t {
@@ -1678,11 +1652,16 @@ namespace boda
       rf.tpb = 0;
       rf.blks = 0;
 
-      for( uint32_t i = 0; i != ix_decls.size(); ++i ) { 
-	dims_t const & ix_dims = get_arg_dims_by_name( ix_decls[i].arg_vn );
-	insert_nda_ix_exprs( tf_exprs, ix_decls[i].ix_vn, ix_dims );
+      for( vect_ix_decl_t::const_iterator i = ix_decls.begin(); i != ix_decls.end(); ++i ) {
+	dims_t const & ix_arg_dims = get_arg_dims_by_name( i->arg_vn );
+	dims_t ix_dims;
+	for( dims_t::const_iterator j = ix_arg_dims.begin(); j != ix_arg_dims.end(); ++j ) {
+	  if( !vect_has( i->remove_dims, (*j).name ) ) { ix_dims.push_back( *j ); }
+	}
+	ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
+	insert_nda_ix_exprs( tf_exprs, i->ix_vn, ix_dims );
 	// special cases for index var names
-	if( ix_decls[i].ix_vn == "GLOB_ID_1D" ) { 
+	if( i->ix_vn == "GLOB_ID_1D" ) { 
 	  // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
 	  // size doesn't matter (so use a reasonable default )
 	  rf.tpb = 256;
@@ -1749,6 +1728,12 @@ namespace boda
 	      string const ix_name = mmc_parts[2];
 	      string const arg_name = mmc_parts[3];
 	      ix_decls.push_back( ix_decl_t{ ix_name, arg_name } );
+	      for( uint32_t i = 4; i != mmc_parts.size(); ++i ) {	
+		vect_string const opt_parts = split( mmc_parts[i], '=' );
+		if( opt_parts.size() != 2 ) { rt_err( "invalid CUCL IX decl option '"+mmc_parts[i]+"', should have exactly 2 '=' seperated parts" ); }
+		if( opt_parts[0] == "remove_dim" ) { ix_decls.back().remove_dims.push_back( opt_parts[1] ); }
+		else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: remove_dim" ); }
+	      }
 	    } else {
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
 	      string const & nda_spec = mmc_parts[2];
