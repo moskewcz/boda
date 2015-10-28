@@ -255,8 +255,6 @@ namespace boda
     rtc_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
 
-    rtc_func_t & gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix );
-
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_tile_xpose( p_op_info_t const & oi );
     rtc_func_t & gen_op_xpose( p_op_info_t const & oi );
@@ -1167,30 +1165,6 @@ namespace boda
     return rf;
   }
 
-  rtc_func_t & conv_pipe_fwd_t::gen_op_copy( p_op_info_t const & oi, conv_io_t const & cio_in, uint32_t const ocix ) {
-    // note: cio_in and oi->no->cio are derived from cop->bots[bi] and cop->tops[0]
-    assert_st( cio_in.sz == oi->no->cio.sz );
-    rtc_func_gen_info_t rfgi{"copy",
-      { {"num_imgs",str(num_imgs)},{"in_chans",str(cio_in.chans)},{"ysz",str(cio_in.sz.d[1])},{"xsz",str(cio_in.sz.d[0])}
-	,{"out_chans",str(oi->no->cio.chans)},{"ocix",str(ocix)} } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-    vect_string const cio_dims{"img","chan","y","x"};
-    insert_nda_exprs( tf_exprs, "in_ix", vect_string{"img","chan","y","x"}, 
-		      vect_uint32_t{num_imgs,cio_in.chans,cio_in.sz.d[1],cio_in.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "out_ix", cio_dims, 
-		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-    uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( in_ix_sz, rf.tpb ); // handle one img,y,x per thread (across chans)
-    rf.arg_sizes.push_back( in_ix_sz );
-    rf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
   struct red_op_t {
     string tag;
     string iv;
@@ -1436,8 +1410,9 @@ namespace boda
 	conv_io_t & cio_in = cp->must_get_node( cop->bots[bi] )->cio;
 	assert_st( cio_in.sz == oi->no->cio.sz );
 	assert_st( chans_out_done+cio_in.chans <= oi->no->cio.chans );
-	rtc_func_t & rf = gen_op_copy( oi, cio_in, chans_out_done );
-	fwd_calls.push_back( rtc_func_call_t{ rf.name, {cop->bots[bi]},{},{cop->tops[0]}, {}, oi->cop->tag } );
+	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag is reused for all calls (FIXME either/both?)
+        oi->template_var_values = { {"ocix",str(chans_out_done)} }; 
+	gen_call( "copy", oi, {cop->bots[bi], cop->tops[0]} );
 	chans_out_done += cio_in.chans;
       }
       assert_st( chans_out_done == oi->no->cio.chans );

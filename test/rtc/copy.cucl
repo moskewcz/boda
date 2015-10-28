@@ -1,9 +1,10 @@
-// each thread: computes outputs across chan dim, using inputs across chan dim
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, GASQ float * const out ) {
-  int32_t const in_ix = GLOB_ID_1D;
-  if( in_ix >= %(in_ix_sz) ) { return; }
-  int32_t const out_ix = %(in_ix_img)*%(out_ix_img_sz) + (%(in_ix_chan)+%(ocix))*%(out_ix_chan_sz) +
-    %(in_ix_y)*%(out_ix_y_sz) + %(in_ix_x)*%(out_ix_x_sz);  
-  out[out_ix] = in[in_ix];
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float * const out ) // CUCL OUT img:chan:y:x
+{
+  // CUCL IX GLOB_ID_1D in
+  if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }
+  int32_t const out_ix = %(GLOB_ID_1D_img)*%(out_img_sz) + (%(GLOB_ID_1D_chan)+%(ocix))*%(out_chan_sz) +
+    %(GLOB_ID_1D_y)*%(out_y_sz) + %(GLOB_ID_1D_x)*%(out_x_sz);  
+  out[out_ix] = in[GLOB_ID_1D];
 }
 
