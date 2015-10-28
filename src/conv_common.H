@@ -30,6 +30,7 @@ namespace boda
       if( !per_batch ) { ret.add_dims( "img", num_imgs); } // may not have img dim
       if( chans != uint32_t_const_max ) { ret.add_dims( "chan", chans ); } // may not have chans dim
       ret.add_dims( "y", sz.d[1], "x", sz.d[0] ); 
+      ret.calc_strides();
       return ret;
     }
   };
