@@ -1825,6 +1825,9 @@ namespace boda
     return rf;
   }
 
+  // running test case for gen_call():
+  // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,per_call_fn=out.py)" --max-err=1 && cat test_compute.txt 
+
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea ...  
