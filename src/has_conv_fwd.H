@@ -20,6 +20,7 @@ namespace boda
     string mode; //NESI(help="name of mode to use for fwd computation of conv pipe",req=1)
     virtual void init( p_conv_pipe_t const & cp, uint32_t const & num_imgs_ ) = 0;
     virtual void run_fwd( p_map_str_p_nda_float_t const & fwd ) = 0;
+    virtual string get_info_log( void ) = 0;
   };
   typedef shared_ptr< has_conv_fwd_t > p_has_conv_fwd_t; 
 }

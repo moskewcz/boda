@@ -32,6 +32,7 @@ namespace boda
 
     virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
     virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
+    virtual string get_info_log( void ) { return string(); }
   };
 
 

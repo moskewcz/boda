@@ -146,6 +146,7 @@
   <li test_name="test_dense_2"> <command mode="test_dense" model_name="nin_imagenet" wins_per_image="10000"/></li>
   <li test_name="test_upsamp_1"> <command mode="test_upsamp" model_name="nin_imagenet_nopad" wins_per_image="3"/></li>
   <li test_name="test_quantize_1" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=1,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=conv1)' --cf2='(mode=rtc,quantize=(_=(name=conv1,max_val=1024,keep_bits=9)))' --max-err=10" />
+  <li test_name="test_stats_1" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=1,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=conv1)' --cf2='(mode=rtc,enable_stats=1)' --max-err=10" />
 
   <li test_name="test_upsamp_1_nvrtc" cli_str="boda test_upsamp --model-name nin_imagenet_nopad --wins-per-image=3 --run-cnet='(in_sz=516 516,enable_upsamp_net=1,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=cccp8,conv_fwd=(mode=rtc),conv_fwd_upsamp=(mode=rtc,enable_tconv=1))'"/>
 

@@ -303,6 +303,9 @@ namespace boda {
 	  }
 	}
       }
+      // FIXME: delimit the two info logs somehow? but if they are empty, we don't want to output clutter ...
+      (*out) << cf1->get_info_log();
+      (*out) << cf2->get_info_log();
       if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
       else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
       out.reset();

@@ -1,0 +1,13 @@
+(*i)->sz=353 500
+ssds_str(out_batch_1,out_batch_2)=cnt=0 sum_squared_diffs=0 avg_abs_diff=0 max_abs_diff=0 sum_diffs=0 avg_diff=0
+conv1_cnt_out_sz_1=290400
+conv1_hist_out_sz_1=0
+conv1_max_out_sz_1=992.794
+conv1_min_out_sz_1=0
+conv1_sum_out_sz_1=1.17846e+07
+data_cnt_out_sz_1=154587
+data_hist_out_sz_1=0
+data_max_out_sz_1=151
+data_min_out_sz_1=-123
+data_sum_out_sz_1=-2.81068e+06
+***ALL IS WELL***

@@ -245,8 +245,8 @@ namespace boda
     virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
 
     void update_stats( void );
-    void dump_var( string const & n );
-    virtual ~conv_pipe_fwd_t( void );
+    string dump_var( string const & n );
+    virtual string get_info_log( void );
   protected:
     void calc_blocking_conv( p_op_info_t const & oi );
     rtc_func_t & gen_op_conv( p_op_info_t const & oi );
@@ -369,19 +369,26 @@ namespace boda
     }
   }
 
-  void conv_pipe_fwd_t::dump_var( string const & n ) {
+  string conv_pipe_fwd_t::dump_var( string const & n ) {
+    string ret;
     p_nda_float_t nda = rtc->copy_var_as_flat_nda( n );
     // dump nda
-    printf( "dupming var '%s'\n", str(n).c_str() );
+    ret += strprintf( "dupming var '%s'\n", str(n).c_str() );
     for( uint32_t i = 0; i != nda->dims.dims_prod(); ++i ) {
-      printf( "i=%s v=%s\n", str(i).c_str(), str(nda->cm_at1(i)).c_str() );
+      ret += strprintf( "i=%s v=%s\n", str(i).c_str(), str(nda->cm_at1(i)).c_str() );
     }
+    return ret;
   }
 
-  conv_pipe_fwd_t::~conv_pipe_fwd_t( void ) {
-    for( map_str_float_t::const_iterator i = stats_map.begin(); i != stats_map.end(); ++i ) {
-      printf( "%s=%s\n", str(i->first).c_str(), str(i->second).c_str() );
+  string conv_pipe_fwd_t::get_info_log( void ) {
+    string ret;
+    for( vect_string::const_iterator i = dump_vars.begin(); i != dump_vars.end(); ++i ) { 
+      ret += dump_var( *i ); 
     }
+    for( map_str_float_t::const_iterator i = stats_map.begin(); i != stats_map.end(); ++i ) {
+      ret += strprintf( "%s=%s\n", str(i->first).c_str(), str(i->second).c_str() );
+    }
+    return ret;
   }
 
   void insert_nda_exprs( vect_pair_str_str & mss, string const & ix, vect_string const & dns, vect_uint32_t const & dss,
@@ -1765,7 +1772,6 @@ namespace boda
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     rtc->copy_vars_to_ndas( vect_string{cp->tops.begin(),cp->tops.end()}, *fwd ); // copy sinks out
     update_stats();
-    for( vect_string::const_iterator i = dump_vars.begin(); i != dump_vars.end(); ++i ) { dump_var( *i ); }
     rtc->release_per_call_id_data();
     //printf("run_fwd() done\n");
   }
