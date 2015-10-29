@@ -170,7 +170,7 @@ namespace boda
       return 0;
     }
 
-    string gen_unused_fn( set_string & fns ) {
+    string gen_unused_fn( set_string & fns ) const {
       string maybe_fn_base = fn;
       set_string unique_dims;
       for( vect_dims_t::const_iterator i = args.begin(); i != args.end(); ++i ) {
@@ -256,7 +256,6 @@ namespace boda
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
 
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
-    rtc_func_t & gen_op_in_tile_xpose( p_op_info_t const & oi );
 
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
@@ -264,6 +263,7 @@ namespace boda
     // gen_call() related data
     set_string used_rtc_func_names;
     rtc_func_sigs_map_t rtc_func_sigs_map;
+    string gen_func( rtc_func_sig_t const & rfs );
     void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, bool const is_init_call = 0 );
 
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
@@ -1330,47 +1330,6 @@ namespace boda
     return rf;
   }
 
-
-  // for use when both oi->ni->cio.sz.d[0/1] are small multiple of t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too
-  // much work). each block will handle a (x,y) window of the output of size (t_tile_sz,tix_pels_tile_sz) across
-  // bix_pels_blk_sz*t_tile_sz output chans. in this case, we do not unroll across input chans, but we do unroll across kern_sz in X
-  // (and maybe in Y too for small kernels).
-  rtc_func_t & conv_pipe_fwd_t::gen_op_in_tile_xpose( p_op_info_t const & oi ) {
-    assert_st( oi->in_chan_tile == 1 );
-    // note: input size+stride+kern_sz+in_pad uniquely determines output size, so it can be ommited from the func name
-    rtc_func_gen_info_t rfgi{"in_tile_xpose", {
-	{"num_imgs",str(num_imgs)},{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}
-	,{"in_chans",str(oi->ni->cio.chans)},{"ysz",str(oi->ni->cio.sz.d[1])},{"xsz",str(oi->ni->cio.sz.d[0])} 
-	,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)},{"t_tile_sz",str(t_tile_sz)}
-	,{"bix_pels_blk_sz",str(oi->bix_pels_blk_sz)}
-      } };
-    
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-
-    insert_nda_exprs( tf_exprs, "out_ix", 
-		      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"},
-		      vect_uint32_t{oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
-			  oi->ni->cio.chans, oi->tconv_blk_max_in_lines(), oi->out_to_in(t_tile_sz)} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    insert_nda_exprs( tf_exprs, "out_line", vect_string{"img","y"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1]}); 
-
-    insert_nda_exprs( tf_exprs, "in_ix", vect_string{"img","chan","y","x"},
-		      vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
-    uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
-
-    if( rf.finalized ) { return rf; } // already generated
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); // handle one pel per thread
-    rf.arg_sizes.push_back( in_ix_sz );
-    rf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
-
-
-
   // setup nodes and xforms for conv op filts/biases. note: tracks oi->cop->tag (operation name) to do this only
   // once-per-op. since currently each op has a unique name and unique set of filts, this is okay/correct. but we'd need
   // to adjust it accordingly if various things are sharable/custom-namable.
@@ -1390,8 +1349,8 @@ namespace boda
     rtc->create_var_with_dims_floats( filts_id, filts_dims );
     op_param_names.push_back( filts_id );
     rtc->create_var_with_dims_floats( filtsxp_id, filtsxp_dims );
-    // FIXME: probably not right to use the conv op's oi here. but params should be empty; and the conv op's
-    // oi->call_tag is okay to use? let's revisit when we're further along with gen_call() refactoring ...
+    // FIXME: probably not right to use the conv op's oi here. but params should be empty; oi->call_tag is okay to use
+    // (since the called func is appended). let's revisit when we're further along with gen_call() refactoring ...
     gen_call( "xpose_filts", oi, { filts_id, filtsxp_id }, 1 ); 
     rtc->create_var_with_dims_floats( biases_id, biases_dims );
     op_param_names.push_back( biases_id );
@@ -1411,7 +1370,7 @@ namespace boda
 	conv_io_t & cio_in = cp->must_get_node( cop->bots[bi] )->cio;
 	assert_st( cio_in.sz == oi->no->cio.sz );
 	assert_st( chans_out_done+cio_in.chans <= oi->no->cio.chans );
-	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag is reused for all calls (FIXME either/both?)
+	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->template_var_values = { {"ocix",str(chans_out_done)} }; 
 	gen_call( "copy", oi, {cop->bots[bi], cop->tops[0]} );
 	chans_out_done += cio_in.chans;
@@ -1433,6 +1392,7 @@ namespace boda
       string const filtsxp_id = filts_id + "_xposed";
       string const biases_id = oi->cop->tag + "_biases";
       string const in_id = cop->bots[0];
+      dims_t const & in_dims = rtc->get_var_dims_floats( in_id );
 
       vect_string in_arg_ids{ filtsxp_id, biases_id };
 
@@ -1446,13 +1406,22 @@ namespace boda
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
 
       if( oi->is_tconv ) {
-	rtc_func_t & in_xpose_rf = gen_op_in_tile_xpose( oi );
-	string const inxp_id = in_id + "_inxp_" + in_xpose_rf.name; // depends on particular function applied
-	assert_st( in_xpose_rf.arg_sizes.size() == 2 ); // in, out
+	// in_tile_xpose format is for use when both oi->ni->cio.sz.d[0/1] are small multiple of
+	// t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
+	// window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
+	// this case, we do not unroll across input chans, but we do unroll across kern_sz in X (and maybe in Y too for
+	// small kernels).
+	dims_t const inxp_dims( vect_uint32_t{
+	    oi->tconv_blk_xy_sz.d[1], oi->tconv_blk_xy_sz.d[0], oi->ni->cio.chans, oi->tconv_blk_max_in_lines(), oi->out_to_in(t_tile_sz) },
+	  vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,inxp_dims,oi->no->cio.dims(num_imgs)}, // 'normal' out dims are for ref
+	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}
+	      ,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)},{"t_tile_sz",str(t_tile_sz)}} } );
+	string const inxp_id = in_id + "__" + xp_fn; // depends on particular function applied
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
-	  rtc->create_var_with_sz_floats( inxp_id, in_xpose_rf.arg_sizes[1] );
-	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id},{},{inxp_id}, {}, oi->cop->tag + "_inxp" } );
+	  rtc->create_var_with_dims_floats( inxp_id, inxp_dims );
+	  fwd_calls.push_back( rtc_func_call_t{ xp_fn, {in_id,inxp_id}, {}, {}, {}, oi->cop->tag + "__" + "in_tile_xpose" } );
 	}
 	in_arg_ids.push_back( inxp_id );
       } else if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
@@ -1560,13 +1529,16 @@ namespace boda
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
       check_args();
+      uint32_t num_nonref_args = 0;
       for( uint32_t i = 0; i != rfs.args.size(); ++i ) { 
 	insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i] );
+	if( arg_decls[i].io_type != "REF" ) { ++num_nonref_args; }
       }
 
       rtc_func_t & rf = rtc_funcs.insert( make_pair( gen_fn, rtc_func_t{gen_fn,0,0} ) ).first->second;
       assert_st( !rf.finalized );
-      rf.arg_sizes.resize( arg_decls.size() ); // values unused, but size must match # args at call time
+      rf.arg_sizes.resize( num_nonref_args ); // values unused, but size must match # args at call time
+      // FIXME: gen_call() doesn't handle num_nonref_args != arg_decls.size() case yet
       rf.tpb = 0;
       rf.blks = 0;
 
@@ -1647,7 +1619,7 @@ namespace boda
 	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
 	  string const & cd = mmc_parts[1];
 	  vect_string dim_names;
-	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "IX") ) { 
+	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { 
 	    if( cd == "IX" ) {
 	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
 	      string const ix_name = mmc_parts[2];
@@ -1669,7 +1641,7 @@ namespace boda
 	      // syntax/encoding would be)
 	      for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
 	      // get var name 
-	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{", ' ' ) ) );
+	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{*/", ' ' ) ) );
 	      string const arg_name = arg_decl.back();
 	      arg_decls.push_back( arg_decl_t{ arg_name, cd, arg_dims } );
 	    }
@@ -1682,23 +1654,24 @@ namespace boda
   // running test case for gen_call():
   // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,per_call_fn=out.py)" --max-err=1 && cat test_compute.txt 
 
+  string conv_pipe_fwd_t::gen_func( rtc_func_sig_t const & rfs ) {
+    string & gen_fn = rtc_func_sigs_map[rfs];
+    if( gen_fn.empty() ) { // need to instatiate function and pick unused name
+      gen_fn = rfs.gen_unused_fn( used_rtc_func_names );
+      rtc_call_gen_t().init( rfs, gen_fn, rtc_funcs, rtc_prog_str );
+    }    
+    return gen_fn;
+  }
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, bool const is_init_call ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
-    // this is the best idea ...  
-    // note: we assume that all arg dims are already availible
+    // this is the best idea. note: we assume that all arg dims are already availible
     rtc_func_sig_t rfs;
     rfs.fn = fn;
     rfs.template_var_values = oi->template_var_values;
     for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { rfs.args.push_back( rtc->get_var_dims_floats( *i ) ); }
     // note: we assume the generated function only work for exactly these input/output sizes. if not, we'd set some dims to 0/wild
-    string & gen_fn = rtc_func_sigs_map[rfs];
-    if( gen_fn.empty() ) {
-      // need to instatiate function and pick unused name
-      gen_fn = rfs.gen_unused_fn( used_rtc_func_names );
-      rtc_call_gen_t rcg;
-      rcg.init( rfs, gen_fn, rtc_funcs, rtc_prog_str );
-    }
-    (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag } );
+    string const & gen_fn = gen_func( rfs );
+    (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag + "__" + fn } );
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in

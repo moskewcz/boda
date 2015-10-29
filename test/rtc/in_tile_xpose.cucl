@@ -1,33 +1,39 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, GASQ float * const out ) {
-  int32_t const out_ix = GLOB_ID_1D;
-  if( out_ix >= %(out_ix_sz) ) { return; }
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float * const out ) // CUCL OUT blk_bline:blk_bx:blk_in_chan:blk_y:blk_x
+                                                    /* conv_out */ // CUCL REF img:chan:y:x
+{
+  // note: dim(in.chan) == dim(out.blk_in_chan)
+  // note: for out, blk_y and blk_x are in input space, but blk_bline and blk_bx are in output space. 
+  // CUCL IX GLOB_ID_1D out
+  if( GLOB_ID_1D >= %(out_dims_prod) ) { return; }
 
-  int32_t const out_line = %(out_ix_blk_bline)*%(tix_pels_tile_sz);
+  int32_t const conv_out_line = %(GLOB_ID_1D_blk_bline)*%(tix_pels_tile_sz);
+  // CUCL IX conv_out_line conv_out use_dims=img:y 
 
-  int32_t const fi_skip_in_lines = %(out_line_y)*%(stride); 
-  int32_t const in_line = (%(out_ix_blk_y)+fi_skip_in_lines);
+  int32_t const fi_skip_in_lines = %(conv_out_line_y)*%(stride); 
+  int32_t const in_line = (%(GLOB_ID_1D_blk_y)+fi_skip_in_lines);
 
-  int32_t const img_in_lines = (%(out_line_y_dim) - 1)*%(stride) + %(kern_sz);
+  int32_t const img_in_lines = (%(conv_out_y_dim) - 1)*%(stride) + %(kern_sz);
 
   int32_t const img_off = in_line/img_in_lines;
-  int32_t const img = %(out_line_img) + img_off;
+  int32_t const img = %(conv_out_line_img) + img_off;
 
-  int32_t const iy = (in_line %% img_in_lines) - %(in_pad); //%(out_line_y)*%(stride) + %(out_ix_blk_y) - %(in_pad);
-  int32_t const ix = %(out_ix_blk_bx)*%(t_tile_sz)*%(stride) + %(out_ix_blk_x) - %(in_pad);
+  int32_t const iy = (in_line %% img_in_lines) - %(in_pad); //%(conv_out_line_y)*%(stride) + %(GLOB_ID_1D_blk_y) - %(in_pad);
+  int32_t const ix = %(GLOB_ID_1D_blk_bx)*%(t_tile_sz)*%(stride) + %(GLOB_ID_1D_blk_x) - %(in_pad);
   
   float v = 0.0f;
   if(  1 
        && ( ix >= 0 )
        && ( iy >= 0 )
-       && ( ix < %(in_ix_x_dim) )
-       && ( iy < %(in_ix_y_dim) )
-       && ( img < %(in_ix_img_dim) )
+       && ( ix < %(in_x_dim) )
+       && ( iy < %(in_y_dim) )
+       && ( img < %(in_img_dim) )
        )
   {
-    v = in[ img*%(in_ix_img_sz) +
-	    %(out_ix_blk_in_chan)*%(in_ix_chan_sz) +
-	    iy*%(in_ix_y_sz) +
-	    ix*%(in_ix_x_sz) ];
+    v = in[ img*%(in_img_sz) +
+	    %(GLOB_ID_1D_blk_in_chan)*%(in_chan_sz) +
+	    iy*%(in_y_sz) +
+	    ix*%(in_x_sz) ];
   }
-  out[out_ix] = v;
+  out[GLOB_ID_1D] = v;
 }
