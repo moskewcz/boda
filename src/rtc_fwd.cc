@@ -255,8 +255,6 @@ namespace boda
     rtc_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
 
-    rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
-
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
@@ -1297,39 +1295,6 @@ namespace boda
     fwd_calls.push_back( rtc_func_call_t{ rf.name, {},{top_in},{}, {in_sz,max_val,drop_mask} } );
   }
 
-  rtc_func_t & conv_pipe_fwd_t::gen_op_in_xpose( p_op_info_t const & oi ) {
-    uint32_t const pad_in_chans = oi->in_chan_tile_dim * oi->in_chan_tile;
-    rtc_func_gen_info_t rfgi{"xpose_in", {
-	{"num_imgs",str(num_imgs)}, {"in_chan_tile",str(oi->in_chan_tile)}, {"pad_in_chans",str(pad_in_chans)}
-	,{"in_chans",str(oi->ni->cio.chans)},{"ysz",str(oi->ni->cio.sz.d[1])},{"xsz",str(oi->ni->cio.sz.d[0])}
-	,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)}
-	,{"bix_pels_blk_sz",str(oi->bix_pels_blk_sz)}
-      } };
-    
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-
-    //insert_nda_exprs( tf_exprs, "out_ix", cio_dims, vect_uint32_t{num_imgs,pad_in_chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
-    insert_nda_exprs( tf_exprs, "out_ix", 
-		      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"},
-		      vect_uint32_t{oi->bix_pels_blk_sz,oi->in_chan_tile_dim,oi->in_chan_tile,oi->tix_pels_tile_sz*t_tile_sz} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-    insert_nda_exprs( tf_exprs, "pel_ix", vect_string{"img","y","x"},
-		      vect_uint32_t{num_imgs,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} ); 
-    
-    insert_nda_exprs( tf_exprs, "in_ix", vect_string{"img","chan","y","x"},
-		      vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
-    uint32_t const in_ix_sz = get_sz( tf_exprs, "in_ix" );
-
-    if( rf.finalized ) { return rf; } // already generated
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( out_ix_sz, rf.tpb ); // handle one pel per thread
-    rf.arg_sizes.push_back( in_ix_sz );
-    rf.arg_sizes.push_back( out_ix_sz );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
   // setup nodes and xforms for conv op filts/biases. note: tracks oi->cop->tag (operation name) to do this only
   // once-per-op. since currently each op has a unique name and unique set of filts, this is okay/correct. but we'd need
   // to adjust it accordingly if various things are sharable/custom-namable.
@@ -1425,13 +1390,16 @@ namespace boda
 	}
 	in_arg_ids.push_back( inxp_id );
       } else if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
-	rtc_func_t & in_xpose_rf = gen_op_in_xpose( oi );
-	string const inxp_id = in_id + "_inxp_" + in_xpose_rf.name; // depends on particular function applied
-	assert_st( in_xpose_rf.arg_sizes.size() == 2 ); // in, out
+	// the xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
+	// vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
+	dims_t const inxp_dims( vect_uint32_t{oi->bix_pels_blk_sz,oi->in_chan_tile_dim,oi->in_chan_tile,oi->tix_pels_tile_sz*t_tile_sz},
+				vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 );
+	string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,inxp_dims}, {} } );
+	string const inxp_id = in_id + "__" + xp_fn; // depends on particular function applied
 	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
 	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
-	  rtc->create_var_with_sz_floats( inxp_id, in_xpose_rf.arg_sizes[1] );
-	  fwd_calls.push_back( rtc_func_call_t{ in_xpose_rf.name, {in_id},{},{inxp_id}, {}, oi->cop->tag + "_inxp" } );
+	  rtc->create_var_with_dims_floats( inxp_id, inxp_dims );
+	  fwd_calls.push_back( rtc_func_call_t{ xp_fn, {in_id,inxp_id}, {}, {}, {}, oi->cop->tag + "__" + "xpose_in" } );
 	}
 	in_arg_ids.push_back( inxp_id );
       } else {
