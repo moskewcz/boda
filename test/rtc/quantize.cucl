@@ -1,10 +1,10 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const out, uint32_t const out_sz, uint32_t const max_val, uint32_t const drop_mask ) {
-  uint32_t const ix = GLOB_ID_1D;
-  if( ix < out_sz ) { 
-    int32_t v = out[ix];
-    v = max(0,v);
-    v = min(max_val,v);
-    v &= ~drop_mask;
-    out[ix] = v;
-  }
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const out, // CUCL INOUT img:chan:y:x
+					  int32_t const max_val, int32_t const drop_mask ) {
+  // CUCL IX GLOB_ID_1D out
+  if( GLOB_ID_1D >= %(out_dims_prod) ) { return; }
+  int32_t v = out[GLOB_ID_1D];
+  v = max(0,v);
+  v = min(max_val,v);
+  v &= ~drop_mask;
+  out[GLOB_ID_1D] = v;
 }

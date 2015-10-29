@@ -208,7 +208,6 @@ namespace boda
     string per_call_fn; //NESI(default="",help="if non-empty, write per-call profiling (timing via events) to given file.")
     vect_string def; // NESI(help="#define STR 1 in generated code")
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
-    uint32_t quantize_keep_bits; //NESI(default=8,help="number of bits to keep when quantizing")
     uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
@@ -256,7 +255,7 @@ namespace boda
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
 
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
-    void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
+    void gen_op_quantize( string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
     // gen_call() related data
     set_string used_rtc_func_names;
@@ -1274,26 +1273,12 @@ namespace boda
     return cur_ins;
   }
 
-  void conv_pipe_fwd_t::gen_op_quantize( conv_io_t const & cio_in, string const & top_in, 
-					 uint32_t const & max_val, uint32_t const & keep_bits ) {
+  void conv_pipe_fwd_t::gen_op_quantize( string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits ) {
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-
-    uint32_t in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;
-    assert_st( in_sz );
-    rtc_func_gen_info_t rfgi{"quantize", { } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    if( !rf.finalized ) { 
-      rf.tpb = 256;
-      // FIXME: handle dynamic block sizes better?
-      //rf.blks = u32_ceil_div( in_sz, rf.tpb );
-      rf.blks = 0;
-      vect_string body;
-      rfgi.tf_exprs.push_back( std::make_pair( "body", join(body,"\n") ) );
-      rfgi.instantiate_template( rtc_prog_str );
-    }
-    fwd_calls.push_back( rtc_func_call_t{ rf.name, {},{top_in},{}, {in_sz,max_val,drop_mask} } );
+    string const func = gen_func( rtc_func_sig_t{ "quantize", {rtc->get_var_dims_floats(top_in)}, {} } );
+    fwd_calls.push_back( rtc_func_call_t{ func, {},{top_in},{}, {max_val,drop_mask} } );
   }
 
   // setup nodes and xforms for conv op filts/biases. note: tracks oi->cop->tag (operation name) to do this only
@@ -1669,7 +1654,7 @@ namespace boda
     // printf( "node_name=%s\n", str(node_name).c_str() );
     for( vect_p_quantize_ops_t::const_iterator i = quantize.begin(); i != quantize.end(); ++i ) {
       if( node_name != (*i)->name ) { continue; }
-      gen_op_quantize( node->cio, node_name, (*i)->max_val, (*i)->keep_bits );
+      gen_op_quantize( node_name, (*i)->max_val, (*i)->keep_bits );
     }
     if( enable_stats ) {
       vect_string new_stats_names = gen_op_stats( node->cio, node_name );
