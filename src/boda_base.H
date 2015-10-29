@@ -390,6 +390,10 @@ namespace boda
 	for( uint32_t i = 0; i != size(); ++i ) { names(i) = names_->at(i); }
       }
     }
+    dim_t const * get_dim_by_name( string const & name ) const {
+      for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return &at(i); } }
+      return 0; // not found
+    }
 
     void resize_and_zero( uint32_t const num_dims ) { resize(num_dims); }
 
