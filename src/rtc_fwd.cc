@@ -1521,7 +1521,6 @@ namespace boda
   struct ix_decl_t {
     string ix_vn;
     string arg_vn;
-    vect_string remove_dims;
     vect_string use_dims;
   };
   typedef vector< ix_decl_t > vect_ix_decl_t; 
@@ -1581,12 +1580,8 @@ namespace boda
 	dims_t const & ix_arg_dims = get_arg_dims_by_name( i->arg_vn );
 	dims_t ix_dims;
 
-	if( i->use_dims.empty() ) { 
-	  for( dims_t::const_iterator j = ix_arg_dims.begin(); j != ix_arg_dims.end(); ++j ) {
-	    if( !vect_has( i->remove_dims, (*j).name ) ) { ix_dims.push_back( *j ); }
-	  }
-	  //ix_dims = ix_arg_dims;
-	} else {
+	if( i->use_dims.empty() ) { ix_dims = ix_arg_dims; } 
+	else {
 	  for( vect_string::const_iterator j = i->use_dims.begin(); j != i->use_dims.end(); ++j ) {
 	    dim_t const * use_dim = ix_arg_dims.get_dim_by_name( *j );
 	    if( !use_dim ) { rt_err( "specified use_dim '"+*j+"' not found in target arg's dims" ); }
@@ -1667,9 +1662,8 @@ namespace boda
 	      for( uint32_t i = 4; i != mmc_parts.size(); ++i ) {	
 		vect_string const opt_parts = split( mmc_parts[i], '=' );
 		if( opt_parts.size() != 2 ) { rt_err( "invalid CUCL IX decl option '"+mmc_parts[i]+"', should have exactly 2 '=' seperated parts" ); }
-		if( opt_parts[0] == "remove_dim" ) { ix_decls.back().remove_dims.push_back( opt_parts[1] ); }
 		else if( opt_parts[0] == "use_dims" ) { ix_decls.back().use_dims = split( opt_parts[1], ':' ); }
-		else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: remove_dim use_dims" ); }
+		else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: use_dims" ); }
 	      }
 	    } else {
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
