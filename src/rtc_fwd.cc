@@ -265,6 +265,7 @@ namespace boda
     void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, bool const is_init_call = 0 );
 
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
+    string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
 
     void gen_node_var( string const & name, string const & node_name );
     void gen_op( p_conv_op_t const & cop );
@@ -1321,6 +1322,19 @@ namespace boda
     op_param_names.push_back( biases_id );
   }
 
+  // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
+  // unary operator (with two args: {in,out}), so that only one unique ret_var need only be generated per unique
+  // in_var/func<ret_dims> pair. ret_var is named in_var+"__"+func
+  string conv_pipe_fwd_t::gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func ) {
+    string const ret_var = in_var + "__" + func;
+    bool const did_ins = inxp_names.insert( ret_var ).second;
+    if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
+      rtc->create_var_with_dims_floats( ret_var, ret_dims );
+      fwd_calls.push_back( rtc_func_call_t{ func, {in_var,ret_var}, {}, {}, {}, "calc__" + ret_var } );
+    }
+    return ret_var;
+  }
+
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
     p_op_info_t poi;
@@ -1382,26 +1396,14 @@ namespace boda
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,inxp_dims,oi->no->cio.dims(num_imgs)}, // 'normal' out dims are for ref
 	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}
 	      ,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)},{"t_tile_sz",str(t_tile_sz)}} } );
-	string const inxp_id = in_id + "__" + xp_fn; // depends on particular function applied
-	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
-	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
-	  rtc->create_var_with_dims_floats( inxp_id, inxp_dims );
-	  fwd_calls.push_back( rtc_func_call_t{ xp_fn, {in_id,inxp_id}, {}, {}, {}, oi->cop->tag + "__" + "in_tile_xpose" } );
-	}
-	in_arg_ids.push_back( inxp_id );
+	in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
       } else if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
 	// the xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	// vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
 	dims_t const inxp_dims( vect_uint32_t{oi->bix_pels_blk_sz,oi->in_chan_tile_dim,oi->in_chan_tile,oi->tix_pels_tile_sz*t_tile_sz},
 				vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 );
 	string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,inxp_dims}, {} } );
-	string const inxp_id = in_id + "__" + xp_fn; // depends on particular function applied
-	bool const did_ins = inxp_names.insert( inxp_id ).second; // track inxp names
-	if( did_ins ) { // newly-seen/used xp of in, so create and calc it here
-	  rtc->create_var_with_dims_floats( inxp_id, inxp_dims );
-	  fwd_calls.push_back( rtc_func_call_t{ xp_fn, {in_id,inxp_id}, {}, {}, {}, oi->cop->tag + "__" + "xpose_in" } );
-	}
-	in_arg_ids.push_back( inxp_id );
+	in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
       } else {
 	in_arg_ids.push_back( in_id );
       }
