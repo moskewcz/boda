@@ -257,7 +257,6 @@ namespace boda
 
     rtc_func_t & gen_op_in_xpose( p_op_info_t const & oi );
     rtc_func_t & gen_op_in_tile_xpose( p_op_info_t const & oi );
-    rtc_func_t & gen_op_xpose( p_op_info_t const & oi );
 
     vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
     void gen_op_quantize( conv_io_t const & cio_in, string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
@@ -265,9 +264,11 @@ namespace boda
     // gen_call() related data
     set_string used_rtc_func_names;
     rtc_func_sigs_map_t rtc_func_sigs_map;
-    void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args );
+    void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, bool const is_init_call = 0 );
 
-    void gen_node( string const & name, p_conv_node_t const & node );
+    void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
+
+    void gen_node_var( string const & name, string const & node_name );
     void add_op_param( string const & name, uint32_t const & sz );
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
@@ -775,6 +776,7 @@ namespace boda
       oi->no_dims.clear();
       oi->no_dims.add_dims( "blk", noi->bix_pels_blk_sz, "blk_iter", noi->in_chan_tile_dim, 
 			    "blk_iter_chan", noi->in_chan_tile, "blk_pel", noi->tix_pels_tile_sz*t_tile_sz );
+      // FIXME: calc dims?
     }
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
@@ -1301,30 +1303,6 @@ namespace boda
     fwd_calls.push_back( rtc_func_call_t{ rf.name, {},{top_in},{}, {in_sz,max_val,drop_mask} } );
   }
 
-  rtc_func_t & conv_pipe_fwd_t::gen_op_xpose( p_op_info_t const & oi ) {
-    rtc_func_gen_info_t rfgi{"xpose_filts", {
-	{"out_chans",str(oi->cop->out_chans)},{"in_chans",str(oi->ni->cio.chans)},{"kysz",str(oi->kern_sz)},{"kxsz",str(oi->kern_sz)} 
-      } };
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-    tf_exprs.push_back( make_pair( "t_tile_sz", str(t_tile_sz) ) );
-    insert_nda_exprs( tf_exprs, "filts_ix", vect_string{"out_chan","in_chan","y","x"}, 
-		      vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
-    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
-		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,
-			  t_tile_sz,oi->tix_out_chan_tile_sz} );
-    insert_nda_exprs( tf_exprs, "fioc", vect_string{"out_chan_blk","out_chan_tile","out_chan_reg"}, 
-		      vect_uint32_t{ oi->bix_out_chan_blk_sz,oi->tix_out_chan_tile_sz,t_tile_sz} );
-    uint32_t const filts_ix_sz = get_sz( tf_exprs, "filts_ix" );
-    rf.tpb = 256;
-    rf.blks = u32_ceil_div( filts_ix_sz, rf.tpb ); // handle one img,y,x per thread (across chans)
-    rf.arg_sizes.push_back( filts_ix_sz );
-    rf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
-
   rtc_func_t & conv_pipe_fwd_t::gen_op_in_xpose( p_op_info_t const & oi ) {
     uint32_t const pad_in_chans = oi->in_chan_tile_dim * oi->in_chan_tile;
     rtc_func_gen_info_t rfgi{"xpose_in", {
@@ -1396,6 +1374,35 @@ namespace boda
     return rf;
   }
 
+
+
+
+  // setup nodes and xforms for conv op filts/biases. note: tracks oi->cop->tag (operation name) to do this only
+  // once-per-op. since currently each op has a unique name and unique set of filts, this is okay/correct. but we'd need
+  // to adjust it accordingly if various things are sharable/custom-namable.
+  void conv_pipe_fwd_t::gen_conv_filts( p_op_info_t const & oi ) {
+    bool const did_ins = filts_names.insert( oi->cop->tag ).second; 
+    if( !did_ins ) { return; } // filts already set up for this op
+
+    string const filts_id = oi->cop->tag + "_filts";
+    dims_t const filts_dims( vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz}, 
+			     vect_string{"out_chan","in_chan","y","x"}, 1 );
+    string const filtsxp_id = filts_id + "_xposed";
+    dims_t const filtsxp_dims( vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz}, 
+				vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
+    string const biases_id = oi->cop->tag + "_biases";
+    dims_t const biases_dims( vect_uint32_t{oi->cop->out_chans}, vect_string{"out_chan"}, 1 );
+
+    rtc->create_var_with_dims_floats( filts_id, filts_dims );
+    op_param_names.push_back( filts_id );
+    rtc->create_var_with_dims_floats( filtsxp_id, filtsxp_dims );
+    // FIXME: probably not right to use the conv op's oi here. but params should be empty; and the conv op's
+    // oi->call_tag is okay to use? let's revisit when we're further along with gen_call() refactoring ...
+    gen_call( "xpose_filts", oi, { filts_id, filtsxp_id }, 1 ); 
+    rtc->create_var_with_dims_floats( biases_id, biases_dims );
+    op_param_names.push_back( biases_id );
+  }
+
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
     p_op_info_t poi;
@@ -1426,14 +1433,14 @@ namespace boda
       oi->template_var_values.push_back( {"op_post", oi->cop->avg_pool ? "out_v /= (float)("+str(oi->kern_sz*oi->kern_sz)+")" : "" } );
       gen_call( "pool", oi, {oi->ni->name,oi->no->name} );
     } else if( oi->is_conv ) {
-      vect_string in_arg_ids;
+      gen_conv_filts( oi );
+      // FIXME: decls dup'd with gen_conv_filts()
       string const filts_id = oi->cop->tag + "_filts";
       string const filtsxp_id = filts_id + "_xposed";
       string const biases_id = oi->cop->tag + "_biases";
       string const in_id = cop->bots[0];
 
-      in_arg_ids.push_back( filtsxp_id );
-      in_arg_ids.push_back( biases_id );
+      vect_string in_arg_ids{ filtsxp_id, biases_id };
 
       rtc_func_t * rf = 0;
       if( oi->is_k1conv ) { rf = &gen_op_k1conv( oi ); }
@@ -1468,20 +1475,8 @@ namespace boda
 	in_arg_ids.push_back( in_id );
       }
       fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{oi->no->name}, {}, oi->cop->tag } );
-      rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); 
-      
+      rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );       
       assert_st( oi->no->cio.chans == cop->out_chans );
-      vect_uint32_t const & arg_sizes = rf->arg_sizes;
-      assert_st( arg_sizes.size() == 4 );
-      rtc_func_t & xpose_rf = gen_op_xpose( oi );
-      assert_st( xpose_rf.arg_sizes.size() == 2 ); // in, out
-      add_op_param( filts_id, xpose_rf.arg_sizes[0] );
-      bool const did_ins = filts_names.insert( filts_id ).second; // track filt names
-      if( did_ins ) { // newly-seen/used filter, so set up to transpose it
-	init_calls.push_back( rtc_func_call_t{ xpose_rf.name, {filts_id},{},{filtsxp_id} } );
-	rtc->create_var_with_sz_floats( filtsxp_id, xpose_rf.arg_sizes[1] );
-      } 
-      add_op_param( biases_id, arg_sizes[1] );
     } else if( cop->type == ReLU_str ) {
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
       gen_call( "relu", oi, { oi->no->name } );
@@ -1502,11 +1497,11 @@ namespace boda
       assert_st( cop->tops.size() == 2 ); // fwd_top_grad_loss, loss
 
       string const prob_node_name = cop->tag + "_prob";
-      gen_node( prob_node_name, cp->must_get_node(cop->bots[0]) );
+      gen_node_var( prob_node_name, cop->bots[0] );
       gen_call( "softmax", oi, { cop->bots[0], prob_node_name } );
 
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
-      gen_node( loss_per_pel, cp->must_get_node(cop->bots[1]) );
+      gen_node_var( loss_per_pel, cop->bots[1] );
       gen_call( "sm_grad_and_loss", oi, { prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
       gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
 
@@ -1527,6 +1522,7 @@ namespace boda
     string ix_vn;
     string arg_vn;
     vect_string remove_dims;
+    vect_string use_dims;
   };
   typedef vector< ix_decl_t > vect_ix_decl_t; 
 
@@ -1584,9 +1580,20 @@ namespace boda
       for( vect_ix_decl_t::const_iterator i = ix_decls.begin(); i != ix_decls.end(); ++i ) {
 	dims_t const & ix_arg_dims = get_arg_dims_by_name( i->arg_vn );
 	dims_t ix_dims;
-	for( dims_t::const_iterator j = ix_arg_dims.begin(); j != ix_arg_dims.end(); ++j ) {
-	  if( !vect_has( i->remove_dims, (*j).name ) ) { ix_dims.push_back( *j ); }
+
+	if( i->use_dims.empty() ) { 
+	  for( dims_t::const_iterator j = ix_arg_dims.begin(); j != ix_arg_dims.end(); ++j ) {
+	    if( !vect_has( i->remove_dims, (*j).name ) ) { ix_dims.push_back( *j ); }
+	  }
+	  //ix_dims = ix_arg_dims;
+	} else {
+	  for( vect_string::const_iterator j = i->use_dims.begin(); j != i->use_dims.end(); ++j ) {
+	    dim_t const * use_dim = ix_arg_dims.get_dim_by_name( *j );
+	    if( !use_dim ) { rt_err( "specified use_dim '"+*j+"' not found in target arg's dims" ); }
+	    ix_dims.push_back( *use_dim );
+	  }
 	}
+
 	ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
 	insert_nda_ix_exprs( tf_exprs, i->ix_vn, ix_dims );
 	// special cases for index var names
@@ -1661,7 +1668,8 @@ namespace boda
 		vect_string const opt_parts = split( mmc_parts[i], '=' );
 		if( opt_parts.size() != 2 ) { rt_err( "invalid CUCL IX decl option '"+mmc_parts[i]+"', should have exactly 2 '=' seperated parts" ); }
 		if( opt_parts[0] == "remove_dim" ) { ix_decls.back().remove_dims.push_back( opt_parts[1] ); }
-		else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: remove_dim" ); }
+		else if( opt_parts[0] == "use_dims" ) { ix_decls.back().use_dims = split( opt_parts[1], ':' ); }
+		else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: remove_dim use_dims" ); }
 	      }
 	    } else {
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
@@ -1686,7 +1694,7 @@ namespace boda
   // running test case for gen_call():
   // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,per_call_fn=out.py)" --max-err=1 && cat test_compute.txt 
 
-  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args ) { 
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, bool const is_init_call ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea ...  
     // note: we assume that all arg dims are already availible
@@ -1702,10 +1710,14 @@ namespace boda
       rtc_call_gen_t rcg;
       rcg.init( rfs, gen_fn, rtc_funcs, rtc_prog_str );
     }
-    fwd_calls.push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag } );
+    (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag } );
   }
 
-  void conv_pipe_fwd_t::gen_node( string const & name, p_conv_node_t const & node ) { rtc->create_var_with_dims_floats( name, node->cio.dims(num_imgs) );}
+  // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
+  // that case the var is directly mirroring a pipe node
+  void conv_pipe_fwd_t::gen_node_var( string const & name, string const & node_name ) { 
+    rtc->create_var_with_dims_floats( name, cp->must_get_node(node_name)->cio.dims(num_imgs) );
+  }
 
   // quantize command line example:
   // export QOPTS="keep_bits=8,quantize=(_=(name=conv1,max_val=4096),_=(name=conv2,max_val=1024),_=(name=conv3,max_val=1024),_=(name=conv4,max_val=512),_=(name=conv5,max_val=512))
@@ -1715,7 +1727,7 @@ namespace boda
 
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
     p_conv_node_t node = cp->must_get_node( node_name );
-    if( node->top_for.empty() ) { gen_node( node_name, node ); }
+    if( node->top_for.empty() ) { gen_node_var( node_name, node_name ); }
     else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
 
     // in-place ops for this node
@@ -1737,7 +1749,7 @@ namespace boda
       p_conv_op_t const & cop = cp->get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) {  // generate output nodes
-	if( cop->type != Convolution_str ) { gen_node( *j, cp->must_get_node(*j) ); } // only if not conv (which explicitly/manually creates node var)
+	if( cop->type != Convolution_str ) { gen_node_var( *j, *j ); } // only if not conv (which explicitly/manually creates node var)
       }
       gen_op( cop );
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { gen_ops_rec( *j ); }

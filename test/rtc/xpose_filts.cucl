@@ -1,25 +1,26 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN out_chan:in_chan:y:x
 					  GASQ float * const out ) // CUCL OUT out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
 {
-  // CUCL IX fioc out.out_chan_blk:out.out_chan_tile:out.out_chan_reg
-  int32_t const filts_ix = GLOB_ID_1D;
-  if( filts_ix >= %(filts_ix_sz) ) { return; }
-  int32_t const fioc = %(filts_ix_out_chan);
+  // CUCL IX GLOB_ID_1D in
+  if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }
+  int32_t const fioc = %(GLOB_ID_1D_out_chan);
+  // CUCL IX fioc out use_dims=out_chan_blk:out_chan_tile:out_chan_reg
+
   float val = 0.0f;  
   int32_t const filts_xp_ix  = 
-    %(fioc_out_chan_blk)*%(filts_xp_ix_out_chan_blk_sz) +
-    %(fioc_out_chan_reg)*%(filts_xp_ix_out_chan_reg_sz) +
-    %(fioc_out_chan_tile)*%(filts_xp_ix_out_chan_tile_sz) +
-    %(filts_ix_in_chan)*%(filts_xp_ix_in_chan_sz) +
-    %(filts_ix_y)*%(filts_xp_ix_y_sz) +
-    %(filts_ix_x)*%(filts_xp_ix_x_sz);
+    %(fioc_out_chan_blk)*%(out_out_chan_blk_sz) +
+    %(fioc_out_chan_reg)*%(out_out_chan_reg_sz) +
+    %(fioc_out_chan_tile)*%(out_out_chan_tile_sz) +
+    %(GLOB_ID_1D_in_chan)*%(out_in_chan_sz) +
+    %(GLOB_ID_1D_y)*%(out_y_sz) +
+    %(GLOB_ID_1D_x)*%(out_x_sz);
 #if 1
-  val = in[filts_ix];
+  val = in[GLOB_ID_1D];
 #else
-  if( %(filts_ix_in_chan) == 0 ) {
-//    if( (%(filts_ix_x) == 5) && (%(filts_ix_y) == 5) ) 
+  if( %(GLOB_ID_1D_in_chan) == 0 ) {
+//    if( (%(GLOB_ID_1D_x) == 5) && (%(GLOB_ID_1D_y) == 5) ) 
     {
-      val = %(filts_ix_x)*100 + %(filts_ix_y);
+      val = %(GLOB_ID_1D_x)*100 + %(GLOB_ID_1D_y);
     }
   }
 #endif
