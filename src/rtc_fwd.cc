@@ -269,7 +269,6 @@ namespace boda
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
 
     void gen_node_var( string const & name, string const & node_name );
-    void add_op_param( string const & name, uint32_t const & sz );
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
 
@@ -387,11 +386,6 @@ namespace boda
     }
   }
 
-  void conv_pipe_fwd_t::add_op_param( string const & name, uint32_t const & sz ) {
-    rtc->create_var_with_sz_floats( name, sz );
-    op_param_names.push_back( name );
-  }
-  
   void insert_nda_exprs( vect_pair_str_str & mss, string const & ix, vect_string const & dns, vect_uint32_t const & dss,
 			 bool const src_is_expr = 0 ) {
     assert_st( dns.size() );
