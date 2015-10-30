@@ -102,6 +102,15 @@ namespace boda
     return i->second;
   }
 
+  // raise runtime error. captures stack and raises exception with
+  // given string as error message. as a perf. compromise, while the
+  // top frames of the stack are always captured, they are not
+  // processed into a full trace at throw time.
+  void rt_err( string const & err_msg ) __attribute__((noreturn));
+  // like above, but assumes PyErr_Occured(). currently just calls
+  // PyErr_Print() then calls rt_err(...)
+  void rt_py_err( string const & err_msg ) __attribute__((noreturn));
+  void rt_err_errno( char const * const func_name ); // like rt_err, but prints errno
 
   // NESI types
   struct filename_t { string in; string exp; };
@@ -399,6 +408,11 @@ namespace boda
       for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return &at(i); } }
       return 0; // not found
     }
+    uint32_t must_get_dim_sz_by_name( string const & name ) const {
+      for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return dims(i); } }
+      rt_err( "dim not found:" + name );
+    }
+    uint32_t dsz( string const & name ) const { return must_get_dim_sz_by_name( name ); } // shorter alias
 
     void resize_and_zero( uint32_t const num_dims ) { resize(num_dims); }
 
@@ -690,15 +704,6 @@ namespace boda
     string what_and_stacktrace( void ) const;
     int get_ret_code( void ) const;
   };
-  // raise runtime error. captures stack and raises exception with
-  // given string as error message. as a perf. compromise, while the
-  // top frames of the stack are always captured, they are not
-  // processed into a full trace at throw time.
-  void rt_err( string const & err_msg ) __attribute__((noreturn));
-  // like above, but assumes PyErr_Occured(). currently just calls
-  // PyErr_Print() then calls rt_err(...)
-  void rt_py_err( string const & err_msg ) __attribute__((noreturn));
-  void rt_err_errno( char const * const func_name ); // like rt_err, but prints errno
 
   // for any class to have nesi support, it must inherit ": public
   // virtual nesi", and *declare* get_cinfo() (which will be generated
