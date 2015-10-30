@@ -169,6 +169,13 @@ namespace boda
       if( template_var_values != o.template_var_values ) { return template_var_values < o.template_var_values; }
       return 0;
     }
+    
+    uint32_t get_u32_tvv( string const & tvn ) {
+      for( vect_rtc_func_param_info_t::const_iterator i = template_var_values.begin(); i != template_var_values.end(); ++i ) {
+	if( i->name == tvn ) { return lc_str_u32( i->val ); }
+      }
+      rt_err("INTERNAL_ERROR: unknown template var name in codegen: '"+tvn+"'. typo?");
+    }
 
     string gen_unused_fn( set_string & fns ) const {
       string maybe_fn_base = fn;
@@ -261,7 +268,8 @@ namespace boda
     set_string used_rtc_func_names;
     rtc_func_sigs_map_t rtc_func_sigs_map;
     string gen_func( rtc_func_sig_t const & rfs );
-    void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, bool const is_init_call = 0 );
+    void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
+		   vect_dims_t const & ref_dims = vect_dims_t(), bool const is_init_call = 0 );
 
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
     string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
@@ -296,7 +304,7 @@ namespace boda
     uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( rf.tpb ) above, more or less, but tweakable
     //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= rf.tpb target/max above (asserted below)
     // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
-    // over patch_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
+    // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
     // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the oi->no->cio.chans.
     oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
     oi->tix_pels_tile_sz = 0; // goal_tix_pels_tile_sz;
@@ -462,6 +470,7 @@ namespace boda
     }
   };
 
+
   rtc_func_t & conv_pipe_fwd_t::gen_op_conv( p_op_info_t const & oi ) {
     assert_st( oi->is_conv ); // also assert not special conv?
     assert_st( oi->in_chan_tile == 1 );
@@ -482,9 +491,9 @@ namespace boda
     uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
     insert_nda_exprs( tf_exprs, "in_ix", cio_dims, vect_uint32_t{num_imgs,oi->ni->cio.chans,oi->ni->cio.sz.d[1],oi->ni->cio.sz.d[0]} );
 
-    insert_nda_exprs( tf_exprs, "t_smem_patch_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
+    insert_nda_exprs( tf_exprs, "t_smem_pel_ix", vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
     insert_nda_exprs( tf_exprs, "filts_ix_out_chan_elem", vect_string{"in_chan","y","x"}, vect_uint32_t{oi->ni->cio.chans,oi->kern_sz,oi->kern_sz} );
-    insert_nda_exprs( tf_exprs, "LOC_ID_1D", vect_string{"patch_tile","out_chan_tile"}, vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
+    insert_nda_exprs( tf_exprs, "LOC_ID_1D", vect_string{"pel_tile","out_chan_tile"}, vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
 
     insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
 		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
@@ -495,36 +504,36 @@ namespace boda
     // check that we have enough threads per block to load smem using one-elem-per-thread.
     // FIXME: allow for cases when this does not hold
     assert_st( oi->tpb >= (t_tile_sz * oi->tix_out_chan_tile_sz) ); 
-    uint32_t const patch_smem_load_iter = u32_ceil_div( (t_tile_sz * oi->tix_pels_tile_sz), oi->tpb );
-    tf_exprs.push_back( std::make_pair( "patch_smem_load_iter", str(patch_smem_load_iter) ) );
-    // printf( "patch_smem_load_iter=%s\n", str(patch_smem_load_iter).c_str() );
-    // assert_st( oi->tpb*2 >= (t_tile_sz * tix_patch_tile_sz) ); // fixed load loop of size 2
+    uint32_t const pel_smem_load_iter = u32_ceil_div( (t_tile_sz * oi->tix_pels_tile_sz), oi->tpb );
+    tf_exprs.push_back( std::make_pair( "pel_smem_load_iter", str(pel_smem_load_iter) ) );
+    // printf( "pel_smem_load_iter=%s\n", str(pel_smem_load_iter).c_str() );
+    // assert_st( oi->tpb*2 >= (t_tile_sz * tix_pel_tile_sz) ); // fixed load loop of size 2
       
-    insert_nda_exprs( tf_exprs, "GRP_ID_1D", vect_string{"patch_blk","out_chan_blk"}, vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
+    insert_nda_exprs( tf_exprs, "GRP_ID_1D", vect_string{"pel_blk","out_chan_blk"}, vect_uint32_t{oi->bix_pels_blk_sz,oi->bix_out_chan_blk_sz}); 
 
     tf_exprs.push_back( std::make_pair( "out_chan_tile", 
 					"(%(LOC_ID_1D_out_chan_tile)+%(GRP_ID_1D_out_chan_blk)*%(LOC_ID_1D_out_chan_tile_dim))"));
-    tf_exprs.push_back( std::make_pair( "patch_tile",
-					"(%(LOC_ID_1D_patch_tile)+%(GRP_ID_1D_patch_blk)*%(LOC_ID_1D_patch_tile_dim))"));
+    tf_exprs.push_back( std::make_pair( "pel_tile",
+					"(%(LOC_ID_1D_pel_tile)+%(GRP_ID_1D_pel_blk)*%(LOC_ID_1D_pel_tile_dim))"));
 
     tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(t_tile_sz))" ) );
       
     for( uint32_t i = 0; i != t_tile_sz; ++i ) {
-      tf_exprs.push_back( std::make_pair( "patch_ix_" + str(i), 
-					  strprintf( "(%%(patch_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
-      insert_nda_exprs( tf_exprs, "patch_ix_" + str(i), 
+      tf_exprs.push_back( std::make_pair( "pel_ix_" + str(i), 
+					  strprintf( "(%%(pel_tile)*%%(t_tile_sz)+%s)", str(i).c_str() ) ) );
+      insert_nda_exprs( tf_exprs, "pel_ix_" + str(i), 
 			vect_string{"img","y","x"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]},
 			1 );
     }
 #if 1
     string const get_in = strprintf( 
       "float v = 0;\n"
-      "      int const smem_in_ix_y = %%(t_smem_patch_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
-      "      int const smem_in_ix_x = %%(t_smem_patch_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
+      "      int const smem_in_ix_y = %%(t_smem_pel_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
+      "      int const smem_in_ix_x = %%(t_smem_pel_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
       "      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
-      "          %%(t_smem_patch_ix_img) < %%(in_ix_img_dim) && \n"
+      "          %%(t_smem_pel_ix_img) < %%(in_ix_img_dim) && \n"
       "         smem_in_ix_x < %%(in_ix_x_dim) && smem_in_ix_y < %%(in_ix_y_dim) ) {\n"
-      "        v = in[%%(t_smem_patch_ix_img)*%%(in_ix_img_sz) +\n"
+      "        v = in[%%(t_smem_pel_ix_img)*%%(in_ix_img_sz) +\n"
       "          %%(filts_ix_out_chan_elem_in_chan)*%%(in_ix_chan_sz) +\n"
       "          smem_in_ix_y*%%(in_ix_y_sz) +\n"
       "          smem_in_ix_x*%%(in_ix_x_sz)];\n" 
@@ -548,17 +557,17 @@ namespace boda
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
       t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(LOC_ID_1D %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
-      t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(LOC_ID_1D_patch_tile)+%s];\n",
+      t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(t_tile_sz)*%%(LOC_ID_1D_pel_tile)+%s];\n",
 				 str(ty).c_str(), str(ty).c_str() );
     }
 
     t_tile_stores += "  int32_t tpix[%(t_tile_sz)];\n";
     t_tile_stores += "  int32_t tcix[%(t_tile_sz)];\n";
 
-    // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
+    // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
-      t_tile_stores += strprintf( "  tpix[%s] = %%(patch_ix_%s_img)*%%(out_ix_img_sz) + \n"
-				  "   ( %%(patch_ix_%s) %%%% %%(patch_ix_%s_img_sz) ); // cache out patch ixs\n ",
+      t_tile_stores += strprintf( "  tpix[%s] = %%(pel_ix_%s_img)*%%(out_ix_img_sz) + \n"
+				  "   ( %%(pel_ix_%s) %%%% %%(pel_ix_%s_img_sz) ); // cache out pel ixs\n ",
 				  str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
@@ -568,8 +577,8 @@ namespace boda
 	
     t_tile_dummy_stores += " out[0] = 0.0f\n";
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-      t_tile_stores += "  if( %(patch_ix_"+str(ty)+") >= %(patch_ix_0_sz) ) { return; } "
-	"// this patch and the following are off-the-end patches, so don't store them.\n";
+      t_tile_stores += "  if( %(pel_ix_"+str(ty)+") >= %(pel_ix_0_sz) ) { return; } "
+	"// this pel and the following are off-the-end pels, so don't store them.\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
 				  str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
@@ -707,11 +716,11 @@ namespace boda
 
     t_tile_stores += "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; } ";
 
-    // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
+    // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
       t_tile_stores += strprintf( "  tpix[%s] = %%(out_line_img)*%%(out_ix_img_sz) + \n"
 				  "             %%(out_line_y)*%%(out_ix_y_sz) + \n"
-				  "   (%%(t_tile_sz)*%%(LOC_ID_1D_line_x_tile)+%s)*%%(out_ix_x_sz); // cache out patch ixs\n ",
+				  "   (%%(t_tile_sz)*%%(LOC_ID_1D_line_x_tile)+%s)*%%(out_ix_x_sz); // cache out pel ixs\n ",
 				  str(ty).c_str(), str(ty).c_str() );
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
@@ -720,7 +729,7 @@ namespace boda
     }
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
       t_tile_stores += "  if( (%(t_tile_sz)*%(LOC_ID_1D_line_x_tile)+"+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
-	"// this patch and the following are off-the-end patches, so don't store them.\n";
+	"// this pel and the following are off-the-end pels, so don't store them.\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
 				     str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
@@ -875,7 +884,7 @@ namespace boda
     // not possible due to no-partial-imgs-per-block
     //t_tile_stores += "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; } "; 
 
-    // FIXME: should somehow assert that both out_ix and patch_ix_N have the same dims here
+    // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
     // FIXME: out_pel must be per-tpix (again)
     if( write_xposed ) {
       // padded # of in chans of next layer  == noi->in_chan_tile_dim * noi->in_chan_tile
@@ -945,7 +954,7 @@ namespace boda
 	insert_nda_exprs( tf_exprs, "out_pel_"+str(ty), vect_string{"img","pel"}, vect_uint32_t{num_imgs,oi->no->cio.sz.dims_prod()}, 1); 
 	t_tile_stores += strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_ix_img_sz) + "
 				    " %%(out_pel_%s_pel)*%%(out_ix_x_sz)"
-				    "  ; // cache out patch ixs\n ",
+				    "  ; // cache out pel ixs\n ",
 				    str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) { 
@@ -954,7 +963,7 @@ namespace boda
       }
       for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
 	t_tile_stores += "  if( %(out_pel_"+str(ty)+"_img) >= %(out_ix_img_dim) ) { return; } "
-	  "// this patch and the following are off-the-end patches, so don't store them.\n";
+	  "// this pel and the following are off-the-end pels, so don't store them.\n";
 	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
 				       str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
@@ -1139,7 +1148,7 @@ namespace boda
 
     for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
       t_tile_stores += "  if( (out_x + "+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
-	"// this x value and the following are off-the-end patches, so don't store them.\n";
+	"// this x value and the following are off-the-end pels, so don't store them.\n";
       for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
 #if 1
 	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
@@ -1226,7 +1235,7 @@ namespace boda
     rtc->create_var_with_dims_floats( filtsxp_id, filtsxp_dims );
     // FIXME: probably not right to use the conv op's oi here. but params should be empty; oi->call_tag is okay to use
     // (since the called func is appended). let's revisit when we're further along with gen_call() refactoring ...
-    gen_call( "xpose_filts", oi, { filts_id, filtsxp_id }, 1 ); 
+    gen_call( "xpose_filts", oi, { filts_id, filtsxp_id }, {}, 1 ); 
     rtc->create_var_with_dims_floats( biases_id, biases_dims );
     op_param_names.push_back( biases_id );
   }
@@ -1316,9 +1325,21 @@ namespace boda
       if( oi->is_k1conv ) { rf = &gen_op_k1conv( oi ); }
       else if( oi->is_s1conv ) { rf = &gen_op_s1conv( oi ); }
       else if( oi->is_tconv ) { rf = &gen_op_tconv( oi ); }
-      else { rf = &gen_op_conv( oi ); }
-      fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{oi->no->name}, {}, oi->cop->tag } );
-      rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );       
+      else { 
+	assert_st( oi->in_chan_tile == 1 );
+	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}};
+	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. conv)
+	in_arg_ids.push_back( oi->no->name );
+	dims_t const work_dims( /* blocks/call (2D) */                             /* threads/block (2D) */                  /* work/thread (2D) */
+	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,   t_tile_sz, t_tile_sz },  
+	  vect_string{  "pels_blk","out_chan_blk",                       "pels_tile","out_chan_tile",                      "pels","out_chan"},   1 );
+	gen_call( "conv", oi, in_arg_ids, {work_dims} );
+	//rf = &gen_op_conv( oi ); 
+      }
+      if( rf ) { // FIXME: transitionally use old flow for some conv types
+	fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{oi->no->name}, {}, oi->cop->tag } );
+	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );       
+      }
       assert_st( oi->no->cio.chans == cop->out_chans );
     } else if( cop->type == ReLU_str ) {
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
@@ -1377,16 +1398,19 @@ namespace boda
     mss.push_back( make_pair( nda_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
   }
 
-  void insert_nda_ix_exprs( vect_pair_str_str & mss, string const & ix_vn, dims_t const & dims ) {
+  void insert_nda_ix_exprs( vect_pair_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr = string() ) {
+    if( ix_expr.empty() ) { ix_expr = ix_vn; } // if no custom ix expression, use ix_vn directly as ix expr
     for( uint32_t i = 0; i != dims.sz(); ++i ) {
       assert_st( dims[i].has_sz_and_stride_and_name() );
-      string v = (dims[i].stride > 1) ? "("+ix_vn+"/"+str(dims[i].stride)+")" : ix_vn;
+      string v = (dims[i].stride > 1) ? "("+ix_expr+"/"+str(dims[i].stride)+")" : ix_expr;
       mss.push_back( make_pair( ix_vn+"_"+dims[i].name+"_nomod", v ) );      
       if( i ) { v = "("+v+"%%"+str(dims[i].sz)+")"; }
       mss.push_back( make_pair( ix_vn+"_"+dims[i].name, v ) );
     }
     mss.push_back( make_pair( ix_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
   }
+  
+  typedef map< string, dims_t > map_str_dims_t;
 
   struct rtc_call_gen_t {
     rtc_func_sig_t rfs;
@@ -1394,6 +1418,8 @@ namespace boda
     vect_arg_decl_t arg_decls; // parsed out of rtc_func_template
     vect_ix_decl_t ix_decls; // parsed out of rtc_func_template
     vect_pair_str_str tf_exprs;
+    rtc_func_t * rf;
+    map_str_dims_t all_ix_dims;
 
     dims_t const & get_arg_dims_by_name( string const & arg_vn ) {
       for( uint32_t i = 0; i != arg_decls.size(); ++i ) { if( arg_decls[i].vn == arg_vn ) { return rfs.args.at(i); } }
@@ -1401,6 +1427,7 @@ namespace boda
     }
     
     void init( rtc_func_sig_t const & rfs_, string const & gen_fn, rtc_funcs_t & rtc_funcs, string & rtc_prog_str ) {
+      rf = 0;
       rfs = rfs_;
       tf_exprs.push_back( make_pair( "rtc_func_name", gen_fn ) );
       for( vect_rtc_func_param_info_t::const_iterator i = rfs.template_var_values.begin(); i != rfs.template_var_values.end(); ++i ) {
@@ -1415,13 +1442,13 @@ namespace boda
 	if( arg_decls[i].io_type != "REF" ) { ++num_nonref_args; }
       }
 
-      rtc_func_t & rf = rtc_funcs.insert( make_pair( gen_fn, rtc_func_t{gen_fn,0,0} ) ).first->second;
-      assert_st( !rf.finalized );
-      rf.arg_sizes.resize( num_nonref_args ); // values unused, but size must match # args at call time
+      rf = &rtc_funcs.insert( make_pair( gen_fn, rtc_func_t{gen_fn,0,0} ) ).first->second;
+      assert_st( !rf->finalized );
+      rf->arg_sizes.resize( num_nonref_args ); // values unused, but size must match # args at call time
       // FIXME: gen_call() doesn't handle num_nonref_args != arg_decls.size() case yet
-      rf.tpb = 256;
-      rf.blks = 0;
-
+      rf->tpb = 0;
+      rf->blks = 0;
+      uint32_t const default_tpb = 256; // FIXME: make 'reasonable default' tpb configurable/heurisitic
       for( vect_ix_decl_t::const_iterator i = ix_decls.begin(); i != ix_decls.end(); ++i ) {
 	dims_t const & ix_arg_dims = get_arg_dims_by_name( i->arg_vn );
 	if( !ix_arg_dims.has_sz_and_stride_and_name() ) { rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" ); }
@@ -1435,24 +1462,36 @@ namespace boda
 	  }
 	}
 	ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
+	must_insert( all_ix_dims, i->ix_vn, ix_dims );
 	insert_nda_ix_exprs( tf_exprs, i->ix_vn, ix_dims );
 	// special cases for index var names
 	if( i->ix_vn == "GLOB_ID_1D" ) { 
 	  // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
-	  // size doesn't matter (so use the already-set reasonable default )
-	  rf.blks = u32_ceil_div( ix_dims.dims_prod(), rf.tpb );
+	  // size doesn't matter, so use a reasonable default.
+	  if( rf->tpb || rf->blks ) { rt_err( "CUCL error: GLOB_ID_1D IX encoutered after setting tpb or blks (some other way(s))" ); }
+	  rf->tpb = default_tpb;
+	  rf->blks = u32_ceil_div( ix_dims.dims_prod(), rf->tpb );
+	} else if( i->ix_vn == "GRP_ID_1D" ) {
+	  if( rf->blks ) { rt_err( "CUCL error: GRP_ID_1D IX encoutered after setting blks (some other way)" ); }
+	  rf->blks = ix_dims.dims_prod();
+	} else if( i->ix_vn == "LOC_ID_1D" ) {
+	  if( rf->tpb ) { rt_err( "CUCL error: LOC_ID_1D IX encoutered after setting tpb (some other way)" ); }
+	  rf->tpb = ix_dims.dims_prod();
 	}
       }
+      // rf->has_final_flags_arg = 0; // TODO/FIXME: will be handled in custom codegen funcs?
+      if( !rf->tpb ) { rf->tpb = default_tpb; } // if not set, use a reasonable default
+      // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
 
-      // rf.has_final_flags_arg = 0; // TODO
-      // for now, assume+check tpb/blks have been set by some case above
-      assert_st( rf.tpb ); 
-      // assert_st( rf.blks ); // if not set, dynamic # blks case
+      // *** custom codegen hooks ***
+      if( rfs.fn == "conv" ) { gen_op_conv(); } 
+
       // make these always availible as template vars, since why not?
-      tf_exprs.push_back( make_pair( "tpb", str(rf.tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
-      tf_exprs.push_back( make_pair( "blks", str(rf.blks) ) ); // may be 0 if # of blocks is dynamic
-      tf_exprs.push_back( make_pair( "warp_sz", str("UNKNOWN") ) ); // yeah, not the best, but probably not exactly wrong. don't use it for real.
-      rf.finalized = 1;
+      tf_exprs.push_back( make_pair( "tpb", str(rf->tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
+      tf_exprs.push_back( make_pair( "blks", str(rf->blks) ) ); // may be 0 if # of blocks is dynamic
+      tf_exprs.push_back( make_pair( "warp_sz", str("UNKNOWN") ) ); // yeah, not the best, but probably not exactly wrong. don't use it for real
+
+      rf->finalized = 1;
       instantiate_template( rtc_prog_str );
     }
 
@@ -1484,7 +1523,7 @@ namespace boda
       for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
 	rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
-      //printf( "rtc_func_name=%s rf.tpb=%s rf.blks=%s\n", str(rtc_func_name).c_str(), str(rf->tpb).c_str(), str(rf->blks).c_str()); 
+      //printf( "rtc_func_name=%s rf->tpb=%s rf->blks=%s\n", str(rtc_func_name).c_str(), str(rf->tpb).c_str(), str(rf->blks).c_str()); 
       //rf->finalized = 1;
     }
 
@@ -1528,6 +1567,106 @@ namespace boda
 	}
       }
     }
+
+    void gen_op_conv( ) {
+      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of work_pels_dim/work_out_chan_dim
+      uint32_t const work_pels_dim = work.must_get_dim_sz_by_name( "pels" );
+      uint32_t const work_out_chan_dim = work.must_get_dim_sz_by_name( "out_chan" );
+
+      // check that we have enough threads per block to load smem using one-elem-per-thread. FIXME: allow for cases when this does not hold.
+      assert_st( rf->tpb >= (work.dsz( "out_chan" ) * work.dsz("out_chan_tile") ) ); 
+      uint32_t const pel_smem_load_iter = u32_ceil_div( (work.dsz( "pels" ) * work.dsz( "pels_tile" )), rf->tpb );
+      tf_exprs.push_back( std::make_pair( "pel_smem_load_iter", str(pel_smem_load_iter) ) );
+      // printf( "pel_smem_load_iter=%s\n", str(pel_smem_load_iter).c_str() );
+      
+      tf_exprs.push_back( std::make_pair( "out_chan_tile", 
+					  "(%(LOC_ID_1D_out_chan_tile)+%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim))"));
+      tf_exprs.push_back( std::make_pair( "pel_tile",
+					  "(%(LOC_ID_1D_pels_tile)+%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim))"));
+      tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(work_out_chan_dim))" ) );
+      for( uint32_t i = 0; i != work_pels_dim; ++i ) {
+	insert_nda_ix_exprs( tf_exprs, "pel_ix_" + str(i), must_find(all_ix_dims,"t_smem_pel_ix"),
+			     strprintf( "(%%(pel_tile)*%%(work_pels_dim)+%s)", str(i).c_str() ) );
+      }
+#if 1
+      string const get_in = strprintf( 
+	"float v = 0;\n"
+	"      int const smem_in_ix_y = %%(t_smem_pel_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
+	"      int const smem_in_ix_x = %%(t_smem_pel_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
+	"      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
+	"          %%(t_smem_pel_ix_img) < %%(in_img_dim) && \n"
+	"         smem_in_ix_x < %%(in_x_dim) && smem_in_ix_y < %%(in_y_dim) ) {\n"
+	"        v = in[%%(t_smem_pel_ix_img)*%%(in_img_sz) +\n"
+	"          %%(filts_ix_out_chan_elem_in_chan)*%%(in_chan_sz) +\n"
+	"          smem_in_ix_y*%%(in_y_sz) +\n"
+	"          smem_in_ix_x*%%(in_x_sz)];\n" 
+	"      }"
+				       );
+#else // hack for testing overhead of above
+      string const get_in = strprintf("float v = in[LOC_ID_1D];\n");
+#endif				      
+      tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
+			
+      string t_tile_fmas("// begin t_tile_fmas\n");
+      string t_tile_loads("// begin t_tile_loads\n");
+      string t_tile_dummy_loads("// begin t_tile_dummy_loads\n");
+      string t_tile_stores("// begin t_tile_stores\n");
+      string t_tile_dummy_stores("// begin t_tile_dummy_stores\n");
+
+      for( uint32_t tx = 0; tx != work_out_chan_dim; ++tx ) {
+	t_tile_dummy_loads += strprintf( "    filts_strip[%s] = filts_smem[(LOC_ID_1D %%%% 32) + %s];\n", str(tx).c_str(), str(tx).c_str() );
+	t_tile_loads += strprintf( "    filts_strip[%s] = filts_smem[%%(LOC_ID_1D_out_chan_tile)+%s*%%(work_out_chan_tile_dim)];\n",
+				   str(tx).c_str(), str(tx).c_str() );
+      }
+      for( uint32_t ty = 0; ty != work_pels_dim; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
+	t_tile_dummy_loads += strprintf( "    in_strip[%s] = in_smem[(LOC_ID_1D %%%% 32) + %s];\n", str(ty).c_str(), str(ty).c_str() );
+	t_tile_loads += strprintf( "    in_strip[%s] = in_smem[%%(LOC_ID_1D_pels_tile)*%%(work_pels_dim)+%s];\n",
+				   str(ty).c_str(), str(ty).c_str() );
+      }
+
+      t_tile_stores += "  int32_t tpix[%(work_pels_dim)];\n";
+      t_tile_stores += "  int32_t tcix[%(work_out_chan_dim)];\n";
+
+      // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
+      for( uint32_t ty = 0; ty != work_pels_dim; ++ty ) { 
+	t_tile_stores += strprintf( "  tpix[%s] = %%(pel_ix_%s_img)*%%(out_img_sz) + \n"
+				    "   ( %%(pel_ix_%s_x_nomod) %%%% (%%(out_y_dim)*%%(out_x_dim)) ); // cache out pel ixs\n ", // note: y:x adj-dim opt.
+				    str(ty).c_str(), str(ty).c_str(), str(ty).c_str() );
+      }
+      for( uint32_t ty = 0; ty != work_out_chan_dim; ++ty ) { 
+	t_tile_stores += strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_chan_sz); // cache out chan ixs\n",
+				    str(ty).c_str(), str(ty).c_str() );
+      }
+	
+      t_tile_dummy_stores += " out[0] = 0.0f\n";
+      for( uint32_t ty = 0; ty != work_pels_dim; ++ty ) {
+	t_tile_stores += "  if( %(pel_ix_"+str(ty)+"_x_nomod) >= %(pel_ix_0_dims_prod) ) { return; } "
+	  "// this pel and the following are off-the-end pels, so don't store them.\n";
+	for( uint32_t tx = 0; tx != work_out_chan_dim; ++tx ) {
+	  t_tile_fmas += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
+				    str((ty*work_out_chan_dim+tx)).c_str(), str(tx).c_str(), str(ty).c_str() );
+	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
+				       str((ty*work_out_chan_dim+tx)).c_str(), str(tx).c_str() );
+	  t_tile_stores += strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { "
+				      "out[ tpix[%s] + tcix[%s] ] = %s; }\n",
+				      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() );
+	  t_tile_dummy_stores += " + " + ve + "\n";
+	}
+      }
+      t_tile_dummy_stores += ";\n";
+
+      // note: newline (and semi-unwanted semi-colon) from src will go after blocks, hence no newline on these lines
+      t_tile_fmas += "    // end t_tile_fmas"; 
+      t_tile_loads += "    // end t_tile_loads";
+      t_tile_dummy_loads += "    // end t_tile_dummy_loads";
+      t_tile_stores += "  // end t_tile_stores";
+      t_tile_dummy_stores += "  // end t_tile_dummy_stores";
+      tf_exprs.push_back( std::make_pair( "t_tile_fmas", t_tile_fmas ) );
+      tf_exprs.push_back( std::make_pair( "t_tile_loads", t_tile_loads ) );
+      tf_exprs.push_back( std::make_pair( "t_tile_dummy_loads", t_tile_dummy_loads ) );
+      tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
+      tf_exprs.push_back( std::make_pair( "t_tile_dummy_stores", t_tile_dummy_stores ) );
+    }
   };
 
   // running test case for gen_call():
@@ -1541,13 +1680,15 @@ namespace boda
     }    
     return gen_fn;
   }
-  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, bool const is_init_call ) { 
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
+				  vect_dims_t const & ref_dims, bool const is_init_call ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
     rtc_func_sig_t rfs;
     rfs.fn = fn;
     rfs.template_var_values = oi->template_var_values;
     for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { rfs.args.push_back( rtc->get_var_dims_floats( *i ) ); }
+    rfs.args.insert( rfs.args.end(), ref_dims.begin(), ref_dims.end() );
     // note: we assume the generated function only work for exactly these input/output sizes. if not, we'd set some dims to 0/wild
     string const & gen_fn = gen_func( rfs );
     (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag + "__" + fn } );

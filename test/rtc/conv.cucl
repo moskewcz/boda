@@ -1,23 +1,34 @@
 // 256 tbp
 // each thread: computes 8x8 block of out
 // loop over k dim
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, GASQ float const * const biases, GASQ float const * const in, GASQ float * const out ) {
-  LOCSHAR_MEM float in_smem[%(LOC_ID_1D_patch_tile_dim)*%(t_tile_sz)];
-  int32_t const blk_filt_ix_sz = %(LOC_ID_1D_out_chan_tile_dim)*%(t_tile_sz);
-  LOCSHAR_MEM float filts_smem[%(LOC_ID_1D_out_chan_tile_dim)*%(t_tile_sz)]; // aka blk_filt_ix_sz, which wasn't const enough OpenCL 
-  float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
-  // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
-  float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
-  float in_strip[%(t_tile_sz)]; // across patches (approx square block in x/y space, favoring x if sqrt() not integer)
-  int32_t const blk_filt_ix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_xp_ix_out_chan_blk_sz);
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
+					  GASQ float const * const biases, // CUCL IN out_chan
+					  GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float * const out )  // CUCL OUT img:chan:y:x
+/* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
+{
+  // CUCL IX t_smem_pel_ix out use_dims=img:y:x
+  // CUCL IX filts_ix_out_chan_elem filts use_dims=in_chan:y:x
+  // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
+  // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
+  // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently)
 
-  int32_t const blk_patch_ix_sz = %(LOC_ID_1D_patch_tile_dim)*%(t_tile_sz);
-  int32_t const blk_patch_ix_base = %(GRP_ID_1D_patch_blk)*blk_patch_ix_sz;
+  LOCSHAR_MEM float in_smem[%(work_pels_tile_dim)*%(work_pels_dim)];
+  int32_t const blk_filt_ix_sz = %(work_out_chan_tile_dim)*%(work_out_chan_dim);
+  LOCSHAR_MEM float filts_smem[%(work_out_chan_tile_dim)*%(work_out_chan_dim)]; // aka blk_filt_ix_sz, which wasn't const enough OpenCL 
+  float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
+  // reg. buffers for one strip each from in and filts, for the same filts_ix_out_chan_elem
+  float filts_strip[%(work_out_chan_dim)]; // across output chans (stride is blk_filt_ix_sz )
+  float in_strip[%(work_pels_dim)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
+  int32_t const blk_filt_ix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_out_chan_blk_sz);
+
+  int32_t const blk_pel_ix_sz = %(work_pels_tile_dim)*%(work_pels_dim);
+  int32_t const blk_pel_ix_base = %(GRP_ID_1D_pels_blk)*blk_pel_ix_sz;
 
   // iteratate over filter elements
   int32_t filts_off = blk_filt_ix_base;
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != 
-	 (%(filts_xp_ix_in_chan_dim) * %(filts_xp_ix_x_dim) * %(filts_xp_ix_y_dim)); ++filts_ix_out_chan_elem ) {
+	 (%(filts_in_chan_dim) * %(filts_x_dim) * %(filts_y_dim)); ++filts_ix_out_chan_elem ) {
     BARRIER_SYNC;
     if( LOC_ID_1D < blk_filt_ix_sz ) { 
 #ifdef NO_IOX // by default, we don't ever disable this, since it's seems about as good as it can be already
@@ -27,9 +38,9 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, GASQ f
       filts_smem[LOC_ID_1D] = filts[filts_off + LOC_ID_1D];
 #endif
     }
-    for( int32_t i = 0; i != %(patch_smem_load_iter); ++i ) {
-      if( (LOC_ID_1D+LOC_SZ_1D*i) < blk_patch_ix_sz ) { 
-	int32_t const t_smem_patch_ix = (blk_patch_ix_base+LOC_ID_1D+LOC_SZ_1D*i);
+    for( int32_t i = 0; i != %(pel_smem_load_iter); ++i ) {
+      if( (LOC_ID_1D+LOC_SZ_1D*i) < blk_pel_ix_sz ) { 
+	int32_t const t_smem_pel_ix = (blk_pel_ix_base+LOC_ID_1D+LOC_SZ_1D*i);
 
 #ifdef NO_IO
 	//float v = LOC_ID_1D;
@@ -41,14 +52,14 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, GASQ f
 	in_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
       }
     }
-    filts_off += %(filts_xp_ix_x_sz);
+    filts_off += %(filts_x_sz);
     BARRIER_SYNC;
 #ifdef NO_IO
     %(t_tile_dummy_loads);
 #else
     %(t_tile_loads);
 #endif
-    // (2) do %(t_tile_sz)^2 fmas into out_tile
+    // (2) do %(work_pels_dim)*%(work_out_chan_dim) fmas into out_tile
     %(t_tile_fmas);
   }
 
@@ -56,13 +67,13 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, GASQ f
   BARRIER_SYNC;
   if( LOC_ID_1D < blk_filt_ix_sz ) { 
     int32_t const ocix_base = %(GRP_ID_1D_out_chan_blk)*blk_filt_ix_sz;
-    int32_t const load_reg = LOC_ID_1D / %(LOC_ID_1D_out_chan_tile_dim);
-    int32_t const load_tile = LOC_ID_1D %% %(LOC_ID_1D_out_chan_tile_dim);
-    int32_t const ocix = ocix_base + load_tile*%(t_tile_sz) + load_reg;
-    if( ocix < %(out_ix_chan_dim) ) { filts_smem[LOC_ID_1D] = biases[ ocix ]; }
-    //int32_t const ocix_tile = (ocix / %(t_tile_sz)) %% %(LOC_ID_1D_out_chan_tile_dim);
-    //int32_t const ocix_reg = ocix %% %(t_tile_sz);
-    //filts_smem[ocix_tile * %(filts_xp_ix_out_chan_tile_sz) + ocix_reg * %(filts_xp_ix_out_chan_reg_sz)] = biases[ocix];
+    int32_t const load_reg = LOC_ID_1D / %(work_out_chan_tile_dim);
+    int32_t const load_tile = LOC_ID_1D %% %(work_out_chan_tile_dim);
+    int32_t const ocix = ocix_base + load_tile*%(work_out_chan_dim) + load_reg;
+    if( ocix < %(out_chan_dim) ) { filts_smem[LOC_ID_1D] = biases[ ocix ]; }
+    //int32_t const ocix_tile = (ocix / %(work_out_chan_dim)) %% %(work_out_chan_tile_dim);
+    //int32_t const ocix_reg = ocix %% %(work_out_chan_dim);
+    //filts_smem[ocix_tile * %(filts_out_chan_tile_sz) + ocix_reg * %(filts_out_chan_reg_sz)] = biases[ocix];
   }
   BARRIER_SYNC;
   // load biases into filts_strip
