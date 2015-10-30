@@ -333,6 +333,7 @@ namespace boda
       return 1;
     }
     bool has_sz_and_stride_and_name( void ) const { return sz && stride && (!name.empty()); }
+    bool has_name( void ) const { return (!name.empty()); }
   };
   typedef vector< dim_t > vect_dim_t; 
 
@@ -368,6 +369,10 @@ namespace boda
     }
     bool has_sz_and_stride_and_name( void ) const { 
       for( uint32_t i = 0; i != sz(); ++i ) { if( !at(i).has_sz_and_stride_and_name() ) { return 0; } }
+      return 1;
+    }
+    bool has_name( void ) const { 
+      for( uint32_t i = 0; i != sz(); ++i ) { if( !at(i).has_name() ) { return 0; } }
       return 1;
     }
 
