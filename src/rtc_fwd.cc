@@ -635,10 +635,8 @@ namespace boda
     }
     bool const write_xposed = oi->single_k1conv_output;
     if( write_xposed ) {
-      oi->no_dims.clear();
-      oi->no_dims.add_dims( "blk", noi->bix_pels_blk_sz, "blk_iter", noi->in_chan_tile_dim, 
-			    "blk_iter_chan", noi->in_chan_tile, "blk_pel", noi->tix_pels_tile_sz*t_tile_sz );
-      // FIXME: calc dims?
+      oi->no_dims = dims_t{ vect_uint32_t{noi->bix_pels_blk_sz, noi->in_chan_tile_dim, noi->in_chan_tile, noi->tix_pels_tile_sz*t_tile_sz }, 
+			    { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
     }
     rtc_func_gen_info_t rfgi{"",
       { {"num_imgs",str(num_imgs)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
@@ -1151,6 +1149,10 @@ namespace boda
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
 
+      // convert input to proper format. FIXME: we used to be more clever about this, but transitionally, we're
+      // reverting to each layer having a single output type (was not true before for k1conv) and input type (was true
+      // before), and we just add input-side conversions as needed. the plan is to maybe-later make this fancier again.
+
       if( oi->is_tconv ) {
 	// in_tile_xpose format is for use when both oi->ni->cio.sz.d[0/1] are small multiple of
 	// t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
@@ -1164,13 +1166,15 @@ namespace boda
 	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}
 	      ,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)},{"t_tile_sz",str(t_tile_sz)}} } );
 	in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
-      } else if( oi->is_k1conv && ((!poi) || (!poi->single_k1conv_output)) ) {
+      } else if( oi->is_k1conv ) {
 	// the xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	// vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
 	dims_t const inxp_dims( vect_uint32_t{oi->bix_pels_blk_sz,oi->in_chan_tile_dim,oi->in_chan_tile,oi->tix_pels_tile_sz*t_tile_sz},
 				vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 );
-	string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,inxp_dims}, {} } );
-	in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
+	if( in_dims != inxp_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
+	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,inxp_dims}, {} } );
+	  in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
+	} else { in_arg_ids.push_back( in_id ); }
       } else {
 	in_arg_ids.push_back( in_id );
       }
