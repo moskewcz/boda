@@ -1284,11 +1284,6 @@ namespace boda
 
       vect_string in_arg_ids{ filtsxp_id, biases_id };
 
-      rtc_func_t * rf = 0;
-      if( oi->is_k1conv ) { rf = &gen_op_k1conv( oi ); }
-      else if( oi->is_s1conv ) { rf = &gen_op_s1conv( oi ); }
-      else if( oi->is_tconv ) { rf = &gen_op_tconv( oi ); }
-      else { rf = &gen_op_conv( oi ); }
       // printf( "rf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(rf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
@@ -1316,6 +1311,12 @@ namespace boda
       } else {
 	in_arg_ids.push_back( in_id );
       }
+
+      rtc_func_t * rf = 0;
+      if( oi->is_k1conv ) { rf = &gen_op_k1conv( oi ); }
+      else if( oi->is_s1conv ) { rf = &gen_op_s1conv( oi ); }
+      else if( oi->is_tconv ) { rf = &gen_op_tconv( oi ); }
+      else { rf = &gen_op_conv( oi ); }
       fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{oi->no->name}, {}, oi->cop->tag } );
       rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );       
       assert_st( oi->no->cio.chans == cop->out_chans );
