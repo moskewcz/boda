@@ -1051,7 +1051,7 @@ namespace boda
 	cur_outs.push_back( cur_out );
 	args.push_back( cur_out );
       }
-      fwd_calls.push_back( rtc_func_call_t{ func, args,{},{}, {in_sz, primary_in} } );
+      fwd_calls.push_back( rtc_func_call_t{ func, args,{},{}, {in_sz, primary_in}, "var_stats" } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -1065,7 +1065,7 @@ namespace boda
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
     string const func = gen_func( rtc_func_sig_t{ "quantize", {rtc->get_var_dims_floats(top_in)}, {} } );
-    fwd_calls.push_back( rtc_func_call_t{ func, {},{top_in},{}, {max_val,drop_mask} } );
+    fwd_calls.push_back( rtc_func_call_t{ func, {},{top_in},{}, {max_val,drop_mask}, "quantize" } );
   }
 
   // setup nodes and xforms for conv op filts/biases. note: tracks oi->cop->tag (operation name) to do this only
@@ -1102,7 +1102,7 @@ namespace boda
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
       rtc->create_var_with_dims_floats( ret_var, ret_dims );
-      fwd_calls.push_back( rtc_func_call_t{ func, {in_var,ret_var}, {}, {}, {}, "calc__" + ret_var } );
+      fwd_calls.push_back( rtc_func_call_t{ func, {in_var,ret_var}, {}, {}, {}, in_var + "__inxp" } );
     }
     return ret_var;
   }
@@ -1526,7 +1526,7 @@ namespace boda
     rfs.args.insert( rfs.args.end(), ref_dims.begin(), ref_dims.end() );
     // note: we assume the generated function only work for exactly these input/output sizes. if not, we'd set some dims to 0/wild
     string const & gen_fn = gen_func( rfs );
-    (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag + "__" + fn } );
+    (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag } );
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
@@ -1653,8 +1653,8 @@ namespace boda
 	rtc_func_call_t & rfc = *i;
 	if( rfc.call_tag.empty() ) { continue; }
 	float const rfc_dur = rtc->get_dur( rfc, rfc );
-	(*out) << strprintf( "per_layer_time['%s']=%s # %s \n", 
-			     str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), rfc.rtc_func_name.c_str() );
+	(*out) << strprintf( "per_layer_time['%s']=per_layer_time.get('%s',0.0) + %s # %s \n", 
+			     str(rfc.call_tag).c_str(), str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), rfc.rtc_func_name.c_str() );
       }
       cp->dump_ops( *out, 0 );
     }
