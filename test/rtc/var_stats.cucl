@@ -1,0 +1,80 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const * const min_in, // CUCL IN v
+					  float const * const max_in, // CUCL IN v
+					  float const * const sum_in, // CUCL IN v
+					  float const * const hist_in, // CUCL IN v
+					  float const * const cnt_in, // CUCL IN v
+					  float * const min_out, // CUCL OUT v
+					  float * const max_out, // CUCL OUT v
+					  float * const sum_out, // CUCL OUT v
+					  float * const hist_out, // CUCL OUT v
+					  float * const cnt_out, // CUCL OUT v
+					  int32_t const in_sz, int32_t const primary_in ) 
+{
+  // note: all input v dims are == to each other and == to in_sz; output v dims are all u32_ceil_div(in_sz,%(tpb))
+  int32_t const tid = LOC_ID_1D;
+  int32_t const ix = %(tpb) * GRP_ID_1D + tid;
+
+  LOCSHAR_MEM float min_smem[%(tpb)];
+  LOCSHAR_MEM float max_smem[%(tpb)];
+  LOCSHAR_MEM float sum_smem[%(tpb)];
+  LOCSHAR_MEM float hist_smem[%(tpb)];
+  LOCSHAR_MEM float cnt_smem[%(tpb)];
+
+  // load data for block into smem (starting with indentity value for
+  // each reduction, in case we load nothing for this thread)
+  float min_v = FLT_MAX;
+  float max_v = -FLT_MAX;
+  float sum_v = 0;
+  float hist_v = 0;
+  float cnt_v = 0;
+  if( ix < in_sz ) {
+    min_v = min_in[ix];
+    max_v = max_in[ix];
+    sum_v = sum_in[ix];
+    hist_v = hist_in[ix];
+    cnt_v = cnt_in[ix];
+    if( primary_in ) {
+      hist_v = hist_v > 1000;
+      cnt_v = 1; // note: primary input value discarded
+    }
+  }
+  // write per-thread-loaded value into smem
+  min_smem[tid] = min_v;
+  max_smem[tid] = max_v;
+  sum_smem[tid] = sum_v;
+  hist_smem[tid] = hist_v;
+  cnt_smem[tid] = cnt_v;
+  BARRIER_SYNC;
+
+  // shared-memory reductions
+#ifdef WARP_REDUCE
+  for( int32_t smb = %(tpb) / 2; smb > %(warp_sz); smb /= 2 ) // if we want to do warp-local reductions, use this version (faster)
+#else
+  for( int32_t smb = %(tpb) / 2; smb > 0; smb /= 2 ) // slower, but portable, all-shared-mem redution
+#endif
+  {
+    if( tid < smb ) {
+      min_smem[tid] = min_v = min( min_v, min_smem[tid+smb] );
+      max_smem[tid] = max_v = max( max_v, max_smem[tid+smb] );
+      sum_smem[tid] = sum_v += sum_smem[tid+smb];
+      hist_smem[tid] = hist_v += hist_smem[tid+smb];
+      cnt_smem[tid] = cnt_v += cnt_smem[tid+smb];
+    }
+    BARRIER_SYNC;
+  }
+#if WARP_REDUCE // (needs codegen? nasty macros? old codegen method here for reference:). note: %% --> P in printfs below for CUCL parseablilty :/
+  if( tid < %(warp_sz) ) { 
+    for( int32_t i = 0; i != reds.size(); ++i ) {
+      body.push_back( reds[i].update_v_str( strprintf( "Ps_smem[tid+Ps]", reds[i].tag.c_str(), str(warp_sz).c_str() )));
+      for( int32_t wb = %(warp_sz) / 2; wb; wb /= 2 ) {
+	body.push_back( reds[i].update_v_str( strprintf( "__shfl_down( Ps_v,Ps )", reds[i].tag.c_str(), str(wb).c_str() ) ) );
+      }
+    }
+  }
+#endif
+  if( !tid ) { min_out[GRP_ID_1D] = min_v; }
+  if( !tid ) { max_out[GRP_ID_1D] = max_v; }
+  if( !tid ) { sum_out[GRP_ID_1D] = sum_v; }
+  if( !tid ) { hist_out[GRP_ID_1D] = hist_v; }
+  if( !tid ) { cnt_out[GRP_ID_1D] = cnt_v; }
+}

@@ -254,7 +254,7 @@ namespace boda
     rtc_func_t & gen_op_k1conv( p_op_info_t const & oi ); // stride 1, kern_sz 1, no pad, ... special case
     rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
 
-    vect_string gen_op_stats( conv_io_t const & cio_in, string const & top_in );
+    vect_string gen_op_stats( string const & top_in );
     void gen_op_quantize( string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
     // gen_call() related data
@@ -1166,112 +1166,29 @@ namespace boda
     return rf;
   }
 
-  struct red_op_t {
-    string tag;
-    string iv;
-    string ts;
-    red_op_t( string const & tag_ ) { 
-      tag = tag_; ts = "float"; 
-      if( 0 ) { }
-      else if( tag == "min" ) { iv = "FLT_MAX"; }
-      else if( tag == "max" ) { iv = "-FLT_MAX"; }
-      else if( tag == "sum" ) { iv = "0"; }
-      else if( tag == "hist" ) { iv = "0"; }
-      else if( tag == "cnt" ) { iv = "0"; }
-      else { assert_st(0); } // unknown tag/op
-    }
-    string in_param_str( void ) { return strprintf( "%s const * %s_in", ts.c_str(), tag.c_str() ); }
-    string out_param_str( void ) { return strprintf( "%s * %s_out", ts.c_str(), tag.c_str() ); }
-    string decl_str( void ) { return strprintf( "    %s %s_v = %s; __shared__ %s %s_smem[tbp];", 
-						ts.c_str(), tag.c_str(), iv.c_str(), ts.c_str(), tag.c_str() ); }
-    string in_proc_str( void ) { 
-      if( tag == "hist" ) { return strprintf( " (%s_in[ix]>1000) ", tag.c_str() ); }
-      if( tag == "cnt" ) { return strprintf( "1" ); }
-      else { return strprintf( " %s_in[ix]", tag.c_str() ); }
-    }
-    string load_str( void ) { return strprintf( "    if( ix < in_sz ) { "
-						"if(primary_in) { %s_v = %s; } else { %s_v = %s_in[ix]; } } %s_smem[tid] = %s_v;", 
-						tag.c_str(), in_proc_str().c_str(), tag.c_str(), tag.c_str(), tag.c_str(), 
-						tag.c_str() ); }
-    string update_v_str( string const & from_expr ) {
-      if( tag == "min" || tag == "max" ) {
-	return strprintf( "%s_v = %s( %s_v, %s );", tag.c_str(), tag.c_str(), tag.c_str(), from_expr.c_str() ); 
-      } else if( tag == "sum" || tag == "hist" || tag == "cnt" ) {
-      	return strprintf( "%s_v += %s;", tag.c_str(), from_expr.c_str() ); 
-      } else { assert_st(0); }
-    }
-    string store_str( void ) {
-      return strprintf( "    if( !tid ) { %s_out[GRP_ID_1D] = %s_v; }", tag.c_str(), tag.c_str() ); }
-
-  };
-  typedef vector< red_op_t > vect_red_op_t; 
-
-  vect_string conv_pipe_fwd_t::gen_op_stats( conv_io_t const & cio_in, string const & top_in ) {
-    vect_red_op_t reds{ red_op_t("min"), red_op_t("max"), red_op_t("sum"), red_op_t("hist"), red_op_t("cnt")  };
-    uint32_t in_sz = cio_in.sz.dims_prod() * cio_in.chans * num_imgs;
+  vect_string conv_pipe_fwd_t::gen_op_stats( string const & top_in ) {
+    vect_string const reds{ "min","max","sum","hist","cnt" }; // FIXME: dup'd with kernel code
+    uint32_t in_sz = rtc->get_var_dims_floats( top_in ).dims_prod(); // treat input as flat
     uint32_t primary_in = 1;
     assert_st( in_sz );
+    dims_t arg_dims( {0}, {"v"}, 1 ); // all vars are single-dim with wild/any size
+    vect_dims_t args_dims; // note:constant after initial setup
     vect_string cur_ins;
-    for( uint32_t i = 0; i != reds.size(); ++i ) { cur_ins.push_back( top_in ); }
-    
+    for( uint32_t i = 0; i != reds.size(); ++i ) { args_dims.push_back( arg_dims ); cur_ins.push_back( top_in ); } // input dims (const); initial inputs
+    for( uint32_t i = 0; i != reds.size(); ++i ) { args_dims.push_back( arg_dims ); } // output dims (const)
     while( in_sz > 1 ) {
-      rtc_func_gen_info_t rfgi{"stats", { } };
-      rtc_func_t & rf = rfgi.init( rtc_funcs );
-      if( !rf.finalized ) { 
-	rf.tpb = 256;
-	// FIXME: handle dynamic block sizes better?
-	//rf.blks = u32_ceil_div( in_sz, rf.tpb );
-	rf.blks = 0;
-	vect_string params;
-	vect_string body;
-	for( uint32_t i = 0; i != reds.size(); ++i ) { params.push_back(reds[i].in_param_str()); }
-	for( uint32_t i = 0; i != reds.size(); ++i ) { params.push_back(reds[i].out_param_str()); }
-	for( uint32_t i = 0; i != reds.size(); ++i ) { 
-	  // FIXME: for now, we disable these size checks ...
-	  //rf.arg_sizes.push_back( in_sz );
-	  //rf.arg_sizes.push_back( rf.blks );
-	  body.push_back(reds[i].decl_str());
-	  body.push_back(reds[i].load_str());
-	}
-	body.push_back( "  BARRIER_SYNC;" );
-	uint32_t const tbp = 256;
-	uint32_t const warp_sz = 32;
-	for( uint32_t smb = tbp / 2; smb > warp_sz; smb /= 2 ) {
-	  body.push_back( strprintf( "  if( tid < %s ) {", str(smb).c_str() ) );
-	  for( uint32_t i = 0; i != reds.size(); ++i ) { 
-	    body.push_back( strprintf("    %s_smem[tid] = ",reds[i].tag.c_str()) +
-			    reds[i].update_v_str( strprintf( "%s_smem[tid+%s]", reds[i].tag.c_str(), str(smb).c_str() )));
-	  }
-	  body.push_back( "  }" );
-	  body.push_back( "  BARRIER_SYNC;" );
-	}
-	body.push_back( strprintf( "  if( tid < %s ) {", str(warp_sz).c_str() ) );
-	for( uint32_t i = 0; i != reds.size(); ++i ) {
-	  body.push_back( reds[i].update_v_str( strprintf( "%s_smem[tid+%s]", reds[i].tag.c_str(), str(warp_sz).c_str() )));
-	  for( uint32_t wb = warp_sz / 2; wb; wb /= 2 ) {
-	    body.push_back( reds[i].update_v_str( strprintf( "__shfl_down( %s_v,%s )", reds[i].tag.c_str(), str(wb).c_str() ) ) );
-	  }
-	} 
-	body.push_back( "  }" );
-	for( uint32_t i = 0; i != reds.size(); ++i ) { body.push_back( reds[i].store_str() ); }
-
-	rfgi.tf_exprs.push_back( std::make_pair( "params", join(params,", ") ) );
-	rfgi.tf_exprs.push_back( std::make_pair( "body", join(body,"\n") ) );
-
-	rfgi.instantiate_template( rtc_prog_str );
-      }
-      uint32_t const out_sz = u32_ceil_div( in_sz, rf.tpb );
+      string const func = gen_func( rtc_func_sig_t{ "var_stats", args_dims, {} } );
       vect_string cur_outs;
-      vect_string in_args;
+      vect_string args = cur_ins;
       vect_string out_args;
+      uint32_t const out_sz = u32_ceil_div( in_sz, must_find(rtc_funcs,func).tpb );
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
-	string cur_out = top_in + "_" + reds[i].tag + "_out_sz_" + str(out_sz);
-	rtc->create_var_with_sz_floats( cur_out, out_sz );
+	string cur_out = top_in + "_" + reds[i] + "_out_sz_" + str(out_sz);
+	rtc->create_var_with_dims_floats( cur_out, dims_t{ {out_sz}, {"v"}, 1 } );
 	cur_outs.push_back( cur_out );
-	in_args.push_back( cur_ins[i] );
-	out_args.push_back( cur_out );
+	args.push_back( cur_out );
       }
-      fwd_calls.push_back( rtc_func_call_t{ rf.name, in_args,{},out_args, {in_sz, primary_in} } );
+      fwd_calls.push_back( rtc_func_call_t{ func, args,{},{}, {in_sz, primary_in} } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -1493,7 +1410,7 @@ namespace boda
       check_args();
       uint32_t num_nonref_args = 0;
       for( uint32_t i = 0; i != rfs.args.size(); ++i ) { 
-	insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i] );
+	if( rfs.args[i].has_sz_and_stride_and_name() ) { insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i] ); }
 	if( arg_decls[i].io_type != "REF" ) { ++num_nonref_args; }
       }
 
@@ -1501,13 +1418,13 @@ namespace boda
       assert_st( !rf.finalized );
       rf.arg_sizes.resize( num_nonref_args ); // values unused, but size must match # args at call time
       // FIXME: gen_call() doesn't handle num_nonref_args != arg_decls.size() case yet
-      rf.tpb = 0;
+      rf.tpb = 256;
       rf.blks = 0;
 
       for( vect_ix_decl_t::const_iterator i = ix_decls.begin(); i != ix_decls.end(); ++i ) {
 	dims_t const & ix_arg_dims = get_arg_dims_by_name( i->arg_vn );
+	if( !ix_arg_dims.has_sz_and_stride_and_name() ) { rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" ); }
 	dims_t ix_dims;
-
 	if( i->use_dims.empty() ) { ix_dims = ix_arg_dims; } 
 	else {
 	  for( vect_string::const_iterator j = i->use_dims.begin(); j != i->use_dims.end(); ++j ) {
@@ -1516,25 +1433,26 @@ namespace boda
 	    ix_dims.push_back( *use_dim );
 	  }
 	}
-
 	ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
 	insert_nda_ix_exprs( tf_exprs, i->ix_vn, ix_dims );
 	// special cases for index var names
 	if( i->ix_vn == "GLOB_ID_1D" ) { 
 	  // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
-	  // size doesn't matter (so use a reasonable default )
-	  rf.tpb = 256;
+	  // size doesn't matter (so use the already-set reasonable default )
 	  rf.blks = u32_ceil_div( ix_dims.dims_prod(), rf.tpb );
 	}
       }
+
       // rf.has_final_flags_arg = 0; // TODO
       // for now, assume+check tpb/blks have been set by some case above
       assert_st( rf.tpb ); 
-      assert_st( rf.blks );
+      // assert_st( rf.blks ); // if not set, dynamic # blks case
+      // make these always availible as template vars, since why not?
+      tf_exprs.push_back( make_pair( "tpb", str(rf.tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
+      tf_exprs.push_back( make_pair( "blks", str(rf.blks) ) ); // may be 0 if # of blocks is dynamic
+      tf_exprs.push_back( make_pair( "warp_sz", str("UNKNOWN") ) ); // yeah, not the best, but probably not exactly wrong. don't use it for real.
       rf.finalized = 1;
-
       instantiate_template( rtc_prog_str );
-
     }
 
     void check_args( void ) {
@@ -1542,13 +1460,11 @@ namespace boda
       if( rfs.args.size() != arg_decls.size() ) { arg_check_error = "declared/called argument count mismatch"; }
       else {
 	for( uint32_t i = 0; i != rfs.args.size(); ++i ) {
-	  if( !rfs.args[i].has_sz_and_stride_and_name() ) { arg_check_error += "call arg "+str(i)+ " must have sz, stride, and name; "; }
-	  else if( rfs.args[i].has_padding() ) { arg_check_error += "call args "+str(i)+ " must not have padding; "; } // FIXME: maybe too strong
-	  else {
-	    if( !rfs.args[i].matches_template( arg_decls[i].dims ) ) {
-	      arg_check_error += "call arg "+str(i)+" incompatible with decl arg (dim count mismatch or dim (req'd) name/size/stride mismatch; ";
-	    }
-	  }
+	  if( !rfs.args[i].has_name() ) { arg_check_error += "call arg "+str(i)+ " must have names for all dims; "; }
+	  if( rfs.args[i].has_sz_and_stride_and_name() && rfs.args[i].has_padding() ) { 
+	    arg_check_error += "call args "+str(i)+ " must not have padding; "; } // FIXME: maybe too strong
+	  if( !rfs.args[i].matches_template( arg_decls[i].dims ) ) {
+	    arg_check_error += "call arg "+str(i)+" incompatible with decl arg (dim count mismatch or dim (req'd) name/size/stride mismatch; "; }
 	}
       }
       if( !arg_check_error.empty() ) {
@@ -1647,7 +1563,6 @@ namespace boda
 
   // CUDA_VISIBLE_DEVICES=0 DISABLE_CUDNN=0 time boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=1000 --run-cnet="(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=fc8-conv,compute_mode=1,conv_fwd=(mode=rtc,enable_stats=0,show_rtc_calls=0,${QOPTS}))"
 
-
   void conv_pipe_fwd_t::gen_ops_rec( string const & node_name ) {
     p_conv_node_t node = cp->must_get_node( node_name );
     if( node->top_for.empty() ) { gen_node_var( node_name, node_name ); }
@@ -1664,7 +1579,7 @@ namespace boda
       gen_op_quantize( node_name, (*i)->max_val, (*i)->keep_bits );
     }
     if( enable_stats ) {
-      vect_string new_stats_names = gen_op_stats( node->cio, node_name );
+      vect_string new_stats_names = gen_op_stats( node_name );
       stats_names.insert( stats_names.end(), new_stats_names.begin(), new_stats_names.end() );
     }
 
@@ -1738,7 +1653,6 @@ namespace boda
     if( rf.has_final_flags_arg ) { rfc.u32_args.pop_back(); }
   }
 
-
   void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
     if( enable_double_run ) {
       // optional: run fwd rfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
@@ -1767,7 +1681,6 @@ namespace boda
       }
       cp->dump_ops( *out, 0 );
     }
-
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     rtc->copy_vars_to_ndas( vect_string{cp->tops.begin(),cp->tops.end()}, *fwd ); // copy sinks out

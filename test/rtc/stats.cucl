@@ -1,6 +1,0 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( %(params), int32_t const in_sz, int32_t const primary_in ) {
-  int32_t const tbp = 256;
-  int32_t const tid = LOC_ID_1D;
-  int32_t const ix = LOC_SZ_1D * GRP_ID_1D + tid;
-  %(body)
-}
