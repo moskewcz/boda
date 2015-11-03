@@ -1,4 +1,3 @@
-// 256 tbp ; each thread: computes 8x8 block of out ; loop over k dim
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
 					  GASQ float const * const biases, // CUCL IN out_chan
 					  GASQ float const * const in, // CUCL IN img:chan:y:x
@@ -9,7 +8,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // CUCL IX filts_ix_out_chan_elem filts use_dims=in_chan:y:x
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
   // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
-  // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently)
+  // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
   LOCSHAR_MEM float in_smem[%(work_pels_tile_dim)*%(work_pels_dim)];
   int32_t const blk_filt_ix_sz = %(work_out_chan_tile_dim)*%(work_out_chan_dim);
   LOCSHAR_MEM float filts_smem[%(work_out_chan_tile_dim)*%(work_out_chan_dim)]; // aka blk_filt_ix_sz, which wasn't const enough OpenCL 
