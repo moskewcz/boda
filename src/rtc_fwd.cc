@@ -1449,17 +1449,17 @@ namespace boda
 					  "(%(LOC_ID_1D_pels_tile)+%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim))"));
       tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(work_out_chan_dim))" ) );
       for( uint32_t i = 0; i != work_pels_dim; ++i ) {
-	insert_nda_ix_exprs( tf_exprs, "pel_ix_" + str(i), must_find(all_ix_dims,"t_smem_pel_ix"),
+	insert_nda_ix_exprs( tf_exprs, "pel_ix_" + str(i), must_find(all_ix_dims,"out_pel_ix"),
 			     strprintf( "(%%(pel_tile)*%%(work_pels_dim)+%s)", str(i).c_str() ) );
       }
       string const get_in = strprintf( 
 	"float v = 0;\n"
-	"      int const smem_in_ix_y = %%(t_smem_pel_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
-	"      int const smem_in_ix_x = %%(t_smem_pel_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
+	"      int const smem_in_ix_y = %%(out_pel_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
+	"      int const smem_in_ix_x = %%(out_pel_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
 	"      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
-	"          %%(t_smem_pel_ix_img) < %%(in_img_dim) && \n"
+	"          %%(out_pel_ix_img) < %%(in_img_dim) && \n"
 	"         smem_in_ix_x < %%(in_x_dim) && smem_in_ix_y < %%(in_y_dim) ) {\n"
-	"        v = in[%%(t_smem_pel_ix_img)*%%(in_img_sz) +\n"
+	"        v = in[%%(out_pel_ix_img)*%%(in_img_sz) +\n"
 	"          %%(filts_ix_out_chan_elem_in_chan)*%%(in_chan_sz) +\n"
 	"          smem_in_ix_y*%%(in_y_sz) +\n"
 	"          smem_in_ix_x*%%(in_x_sz)];\n" 

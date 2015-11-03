@@ -4,7 +4,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 					  GASQ float * const out )  // CUCL OUT img:chan:y:x
 /* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
 {
-  // CUCL IX t_smem_pel_ix out use_dims=img:y:x
+  // CUCL IX out_pel_ix out use_dims=img:y:x
   // CUCL IX filts_ix_out_chan_elem filts use_dims=in_chan:y:x
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
   // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
@@ -34,7 +34,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
     }
     for( int32_t i = 0; i != %(pel_smem_load_iter); ++i ) {
       if( (LOC_ID_1D+LOC_SZ_1D*i) < blk_pel_ix_sz ) { 
-	int32_t const t_smem_pel_ix = (blk_pel_ix_base+LOC_ID_1D+LOC_SZ_1D*i);
+	int32_t const out_pel_ix = (blk_pel_ix_base+LOC_ID_1D+LOC_SZ_1D*i);
 #ifdef NO_IO
 	//float v = LOC_ID_1D;
 	//float v = in[LOC_ID_1D];
