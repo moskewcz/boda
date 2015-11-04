@@ -408,11 +408,12 @@ namespace boda
       for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return &at(i); } }
       return 0; // not found
     }
-    uint32_t must_get_dim_sz_by_name( string const & name ) const {
-      for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return dims(i); } }
+    dim_t const & must_get_dim_by_name( string const & name ) const {
+      for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return at(i); } }
       rt_err( "dim not found:" + name );
     }
-    uint32_t dsz( string const & name ) const { return must_get_dim_sz_by_name( name ); } // shorter alias
+    uint32_t dsz( string const & name ) const { return must_get_dim_by_name( name ).sz; } 
+    uint32_t dstride( string const & name ) const { return must_get_dim_by_name( name ).stride; }
 
     void resize_and_zero( uint32_t const num_dims ) { resize(num_dims); }
 
