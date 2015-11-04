@@ -1,7 +1,9 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
 					  GASQ float const * const biases, // CUCL IN out_chan
 					  GASQ float const * const in, // CUCL IN blk:blk_iter:blk_iter_chan:blk_pel
-					  GASQ float * const out ) // CUCL OUT img:chan:y:x OR blk:blk_iter:blk_iter_chan:blk_pel
+  // note: there are two possible output formats, so there are two allowed/valid dims for out:--v          OR ---v
+					  GASQ float * const out, // CUCL OUT                  img:chan:y:x     blk:blk_iter:blk_iter_chan:blk_pel
+					  int32_t const flags )
 /* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
 /* out_ref */  // CUCL REF img:chan:y:x
 {
@@ -15,7 +17,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // note: all_smem_sz is max(filts+in,out) == max((%(filts_in_chan_sz)*%(in_blk_iter_chan_dim))+%(in_blk_iter_sz),%(out_smem_sz))
   LOCSHAR_MEM float all_smem[%(all_smem_sz)]; 
   LSMASQ float * const filts_smem = all_smem;
-  LSMASQ float * const in_smem = filts_smem + %(filts_in_chan_sz)*%(in_blk_iter_chan_dim) // aka "+ filts_smem_sz"
+  LSMASQ float * const in_smem = filts_smem + %(filts_in_chan_sz)*%(in_blk_iter_chan_dim); // aka "+ filts_smem_sz"
 
   float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts, for the same filts_ix_out_chan_elem
@@ -34,7 +36,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
     BARRIER_SYNC;
     %(smem_loads);
     BARRIER_SYNC;
-    filts_off += %(filts_in_chan_sz)*%(in_blk_iter_chan_dim));
+    filts_off += %(filts_in_chan_sz)*%(in_blk_iter_chan_dim);
     blk_in_ix_base += %(in_blk_iter_sz);
     %(inner_loop_body);
   }
@@ -53,13 +55,13 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   }
   BARRIER_SYNC;
   // load biases into filts_strip
-  %(t_tile_bias_loads);
+  %(bias_loads);
   if( flags == 1 ) { 
     GASQ float * const out_off = out + LOC_ID_1D;
-    %(t_tile_dummy_stores);
+    %(dummy_stores);
     return; 
   }
   // add bias to each elem of out_tile[] and store the results to out[]
-  %(t_tile_stores);
+  %(stores);
 }
 

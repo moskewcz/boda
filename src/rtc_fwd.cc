@@ -1109,10 +1109,13 @@ namespace boda
   struct arg_decl_t {
     string vn;
     string io_type;
-    dims_t dims;
+    vect_dims_t ok_dims;
   };
   inline std::ostream & operator << ( std::ostream & out, arg_decl_t const & o ) {
-    return out << strprintf( "%s --- vn=%s io_type=%s ", str(o.dims).c_str(), str(o.vn).c_str(), str(o.io_type).c_str() );
+    for( vect_dims_t::const_iterator i = o.ok_dims.begin(); i != o.ok_dims.end(); ++i ) {
+      out << strprintf( "%s --- vn=%s io_type=%s ", str(*i).c_str(), str(o.vn).c_str(), str(o.io_type).c_str() );
+    }
+    return out;
   }
   typedef vector< arg_decl_t > vect_arg_decl_t; 
   
@@ -1243,8 +1246,11 @@ namespace boda
 	  if( !rfs.args[i].has_name() ) { arg_check_error += "call arg "+str(i)+ " must have names for all dims; "; }
 	  if( rfs.args[i].has_sz_and_stride_and_name() && rfs.args[i].has_padding() ) { 
 	    arg_check_error += "call args "+str(i)+ " must not have padding; "; } // FIXME: maybe too strong
-	  if( !rfs.args[i].matches_template( arg_decls[i].dims ) ) {
-	    arg_check_error += "call arg "+str(i)+" incompatible with decl arg "
+	  bool matches_decl = 0;
+	  for( uint32_t j = 0; j != arg_decls[i].ok_dims.size(); ++j ) {
+	    if( rfs.args[i].matches_template( arg_decls[i].ok_dims[j] ) ) { matches_decl = 1; }
+	  }
+	  if( !matches_decl ) { arg_check_error += "call arg "+str(i)+" incompatible with decl arg "
 	      "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
 	}
       }
@@ -1277,6 +1283,16 @@ namespace boda
       //rf->finalized = 1;
     }
 
+    static dims_t dims_from_nda_spec( string const & nda_spec ) {
+      vect_string const dim_names = split( nda_spec, ':' );
+      dims_t arg_dims;
+      // for now, assume template: (1) can handle any size for all nda dims (to relax, could allow spec of size,
+      // then use that instead of 0/wild for sz below) (2) all dims are static (to relax: unclear what
+      // syntax/encoding would be)
+      for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
+      return arg_dims;
+    }
+
     void parse_template( void ) {
       vect_string lines = split( *rtc_func_template, '\n' );
       for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
@@ -1286,7 +1302,6 @@ namespace boda
 	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
 	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
 	  string const & cd = mmc_parts[1];
-	  vect_string dim_names;
 	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { 
 	    if( cd == "IX" ) {
 	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
@@ -1301,17 +1316,12 @@ namespace boda
 	      }
 	    } else {
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
-	      string const & nda_spec = mmc_parts[2];
-	      dim_names = split( nda_spec, ':' );
-	      dims_t arg_dims;
-	      // for now, assume template: (1) can handle any size for all nda dims (to relax, could allow spec of size,
-	      // then use that instead of 0/wild for sz below) (2) all dims are static (to relax: unclear what
-	      // syntax/encoding would be)
-	      for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
 	      // get var name 
 	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{*/", ' ' ) ) );
 	      string const arg_name = arg_decl.back();
-	      arg_decls.push_back( arg_decl_t{ arg_name, cd, arg_dims } );
+	      vect_dims_t ok_dims;
+	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { ok_dims.push_back( dims_from_nda_spec( mmc_parts[i] ) ); }
+	      arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims } );
 	    }
 	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
 	}
@@ -1574,8 +1584,8 @@ namespace boda
 	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { 
 	  insert_nda_ix_exprs( tf_exprs, "out_pel_" + str(ty), must_find(all_ix_dims,"out_ref_pel"),
 			       "( (%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile))*%(work_pels_dim) + "+str(ty)+" )" );
-	  cg_add_line( "stores", strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_ix_img_sz) + "
-					    " %%(out_pel_%s_x)*%%(out_ix_x_sz) + %%(out_pel_%s_y)*%%(out_ix_y_sz) " // FIXME_WXP:restore: y:x adj-dim opt?
+	  cg_add_line( "stores", strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_img_sz) + "
+					    " %%(out_pel_%s_x)*%%(out_x_sz) + %%(out_pel_%s_y)*%%(out_y_sz) " // FIXME_WXP:restore: y:x adj-dim opt?
 					    "  ; // cache out pel ixs",
 					    str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(ty).c_str() ) );
 	}
@@ -1589,7 +1599,7 @@ namespace boda
 	  for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
 	    string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
 					 str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
-	    cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
+	    cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { "
 					"out[ tpix[%s] + tcix[%s] ] = %s; }",
 					      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() ) );
 	  }
@@ -1606,7 +1616,7 @@ namespace boda
 	cg_add_line( "bias_loads", strprintf( "filts_strip[%s] = filts_smem_off[%s*%%(work_out_chan_tile_dim)];", 
 					      str(tx).c_str(), str(tx).c_str() ) );
       }
-      assert_st( in.dsz("blk_pel") == work.dsz("work_pels_tile")*work.dsz("work_pels_dim") ); // by input xform design
+      assert_st( in.dsz("blk_pel") == work.dsz("pels_tile")*work.dsz("pels") ); // by input xform design
       for( uint32_t ict = 0; ict != in.dsz("blk_iter_chan"); ++ict ) {
 	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
 	  cg_add_line( "inner_loop_body", strprintf( "filts_strip[%s] = filts_smem_off[(%s*%%(filts_in_chan_sz))+%s*%%(work_out_chan_tile_dim)];", 
