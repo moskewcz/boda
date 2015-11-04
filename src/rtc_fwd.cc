@@ -1016,13 +1016,36 @@ namespace boda
 	if( in_dims != inxp_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
 	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,inxp_dims}, {} } );
 	  in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
-	} else { in_arg_ids.push_back( in_id ); }
+	} else { in_arg_ids.push_back( in_id ); }	
       } else {
 	in_arg_ids.push_back( in_id );
       }
 
       rtc_func_t * rf = 0;
-      if( oi->is_k1conv ) { rf = &gen_op_k1conv( oi ); }
+      if( oi->is_k1conv ) { 
+	
+	assert_st( oi->in_pad == 0 );
+	assert_st( oi->kern_sz == 1 );
+	assert_st( oi->stride == 1 );
+	p_op_info_t noi;
+	if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
+	  noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
+	  if( noi->is_k1conv ) { oi->single_k1conv_output = enable_write_xpose; }
+	}
+	bool const write_xposed = oi->single_k1conv_output;
+	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"write_xposed",str(write_xposed)}};
+	dims_t orig_out_dims = oi->no_dims;
+	if( write_xposed ) {
+	  oi->no_dims = dims_t{ vect_uint32_t{noi->bix_pels_blk_sz, noi->in_chan_tile_dim, noi->in_chan_tile, noi->tix_pels_tile_sz*t_tile_sz }, 
+				{ "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 }; // FIXME: remove usage of t_tile_sz here ...
+	}
+	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );
+	in_arg_ids.push_back( oi->no->name );
+	dims_t const work_dims( /* blocks/call (2D) */                             /* threads/block (2D) */                  /* work/thread (2D) */
+	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,   t_tile_sz, t_tile_sz },  
+	  vect_string{  "pels_blk","out_chan_blk",                       "pels_tile","out_chan_tile",                      "pels","out_chan"},   1 );
+	gen_call( "k1conv", oi, in_arg_ids, {work_dims} );
+      }
       else if( oi->is_s1conv ) { 
 	assert_st( oi->stride == 1 );
 	assert_st( oi->in_chan_tile == 1 );
@@ -1196,13 +1219,13 @@ namespace boda
 	  rf->tpb = ix_dims.dims_prod();
 	}
       }
-      // rf->has_final_flags_arg = 0; // TODO/FIXME: will be handled in custom codegen funcs?
       if( !rf->tpb ) { rf->tpb = default_tpb; } // if not set, use a reasonable default
       // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
 
       // *** custom codegen hooks ***
       if( rfs.fn == "conv" ) { gen_op_conv(); } 
       else if( rfs.fn == "s1conv" ) { gen_op_s1conv(); } 
+      else if( rfs.fn == "k1conv" ) { gen_op_k1conv(); } 
 
       // make these always availible as template vars, since why not?
       tf_exprs.push_back( make_pair( "tpb", str(rf->tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
@@ -1448,6 +1471,158 @@ namespace boda
 	}
       }
     }
+
+    void gen_op_k1conv( void ) {
+      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
+      dims_t const & filts = get_arg_dims_by_name( "filts" );
+      dims_t const & in = get_arg_dims_by_name( "in" );
+      dims_t const & out_xp = get_arg_dims_by_name( "out_xp" );
+      //dims_t const & out = get_arg_dims_by_name( "out" );
+      // calculate needed smem sizes (and total kernel needed smem size)
+      // note: filts and in smem are used concurrently, then just all of all_smem as an output buffer
+      uint32_t const filts_smem_sz = filts.dstride("in_chan")*in.dsz("blk_iter_chan");
+      tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
+      uint32_t const out_smem_sz = work.dsz("pels_tile")*work.dsz("out_chan_tile")*work.dsz("pels"); // note: == oi->tpb*t_tile_sz
+      tf_exprs.push_back( std::make_pair( "out_smem_sz", str(out_smem_sz) )); // note: unused, but assumed that all_smem_sz >= out_smem_sz
+      uint32_t const all_smem_sz = std::max( out_smem_sz, filts_smem_sz+in.dstride("blk_iter") ); // note: %(in_blk_iter_sz) == in_smem_sz
+      tf_exprs.push_back( std::make_pair( "all_smem_sz", str(all_smem_sz) ));
+
+      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( filts.dstride("x"), rf->tpb );
+      tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
+
+      // generate smem loads
+      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rf->tpb );    
+      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string eif;
+	if( (i+1)*rf->tpb > filts_smem_sz ) { cg_add_line( "smem_loads", "if( "+ixe+" < %(filts_smem_sz) ) {" );eif = "}";}
+	// note: load is (always) contiguous
+	cg_add_line( "smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s",ixe.c_str(),str(i).c_str(),eif.c_str()) );
+      }
+      uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_iter"), rf->tpb );    
+      for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string eif;
+	if( (i+1)*rf->tpb > in.dstride("blk_iter") ) { cg_add_line( "smem_loads", "if( "+ixe+" < %(in_blk_iter_sz)) { ");eif = "}";}
+	cg_add_line( "smem_loads", strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
+					     ixe.c_str(),str(i).c_str(),eif.c_str()) );
+      }
+      tf_exprs.push_back( std::make_pair( "out_chan_tile", "(%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim)+%(LOC_ID_1D_out_chan_tile))"));
+      tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(work_out_chan_dim))" ) );
+
+      // cg_add_line( "stores", "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; } "; // not possible due to no-partial-imgs-per-block
+      // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
+      // FIXME: out_pel must be per-tpix (again)
+      if( rfs.get_u32_tvv("write_xposed") ) {
+	// padded # of in chans of next layer  == out_xp.dsz("blk_iter")*out_xp.dsz("blk_iter_chan")
+	// padded # of out chans of this layer == work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan")
+	// if these are ==, we don't have to worry about bounds-checking our writes to out in the chan dim
+	assert_st( work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan") == out_xp.dsz("blk_iter")*out_xp.dsz("blk_iter_chan") );
+	// padded # of in pels of next layer:  == out_xp.dsz("blk")*out_xp.dsz("blk_pel")
+	// padded # of out pels of this layer: == work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels")
+	// if these are ==, we don't have to worry about bounds-checking our writes to out in the pel dim
+	assert_st( work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels") == out_xp.dsz("blk")*out_xp.dsz("blk_pel") );
+
+	// we assume out_blk_pel_dim (== noi->tix_pels_tile_sz*t_tile_sz) is divisible by t_tile_sz. but let's check it explicitly:
+	// FIXME_WXP: i don't see where we assume this, and hence i dunno what t_tile_sz refers to below. poop. assert is removed for now:
+	// assert_st( (out_xp.dsz("blk_pel") % t_tile_sz) == 0 );
+	// we assume the out chans are a single (span of) dims in out_xp. FIXME: check this?. FIXME_WXP: what does this even mean?
+
+	//cg_add_line( "stores", "  int32_t xpbuf[%(t_tile_sz)];\n";
+	// FIXME: assumes (for GRP_ID_1D_pels_blk*... term) that input and output block have same # of pels ... too strong?
+	assert_st( out_xp.dsz("blk_pel") == in.dsz("blk_pel") );
+	cg_add_line( "stores", "int32_t const out_ix = (%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim)*%(work_out_chan_dim))*%(out_xp_blk_iter_chan_sz) + %(GRP_ID_1D_pels_blk)*%(out_xp_blk_sz);" ); 
+	cg_add_line( "stores", "int32_t xpbuf_rd_pel;" );
+	cg_add_line( "stores", "int32_t xpbuf_rd_chan;" );
+
+	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	  // transpose each thread's tx'th out_chan (= t_tile_sz out chans across all threads) into xpbuf (again across all threads)
+	  // such that we can do (mostly) sequential writes to global memory for this set of t_tile_sz out chans
+	  cg_add_line( "stores", "  BARRIER_SYNC;" );
+	  for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { // out_tile[] (registers) -> all_smem[]
+	    string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
+					 str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
+	    cg_add_line( "stores", strprintf( "out_smem_off[%%(tpb)*%s] = %s;", str(ty).c_str(), ve.c_str() ) );
+	  }
+	  cg_add_line( "stores", "  BARRIER_SYNC;" );
+	  for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { // all_smem[] -> [xpbuf[] (registers)] -> out[] (global)
+	    // here, we reshape the threads so that the total threads across iterations (%(tbp)*work.dsz("pels")) covers
+	    // the space of the data in out_smem as a (simple) 2D array ordered as chan:pel. thus, for each thread, we
+	    // have a single chan and pel index that we must read from smem and write to global memory. this mapping is
+	    // such that the writes to global memory are somewhat sequential (with jumps at chan boundaries). however,
+	    // for the reads from smem we just calculate the correct index and hope for the best. note that the actual
+	    // output chan indexes read/written to here are strided by %(work_out_chan_dim) and offset by tx.
+	    string const obe = "(LOC_ID_1D + %(tpb)*"+str(ty)+")";
+	    cg_add_line( "stores", "  xpbuf_rd_pel = "+obe+" %% %(out_xp_blk_pel_dim) ;" );
+	    cg_add_line( "stores", "  xpbuf_rd_chan = "+obe+" / %(out_xp_blk_pel_dim) ;" );
+	    cg_add_line( "stores", strprintf( "out_xp[out_ix + xpbuf_rd_pel + (xpbuf_rd_chan*%%(work_out_chan_dim)+%s)*%%(out_xp_blk_iter_chan_sz)] = "
+					      "all_smem[xpbuf_rd_chan+(xpbuf_rd_pel %%%% %%(work_pels_dim))*%%(tpb)"
+					      "+ (xpbuf_rd_pel / %%(work_pels_dim))*%%(work_out_chan_tile_dim) ];",
+					      str(tx).c_str() ) );
+	  }
+	  for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { // xpbuf[] registers -> out[] (global)
+	    // TODO/UNUSED?
+	  }	
+	}
+      } else {
+	cg_add_line( "stores", "  int32_t tpix[%(work_pels_dim)];" );
+	cg_add_line( "stores", "  int32_t tcix[%(work_out_chan_dim)];" );
+	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { 
+	  insert_nda_ix_exprs( tf_exprs, "out_pel_" + str(ty), must_find(all_ix_dims,"out_pel"),
+			       "( (%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile))*%(work_pels_dim) + "+str(ty)+" )" );
+	  cg_add_line( "stores", strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_ix_img_sz) + "
+					    " %%(out_pel_%s_x)*%%(out_ix_x_sz) + %%(out_pel_%s_y)*%%(out_ix_y_sz) " // FIXME_WXP:restore: y:x adj-dim opt?
+					    "  ; // cache out pel ixs",
+					    str(ty).c_str(), str(ty).c_str(), str(ty).c_str(), str(ty).c_str() ) );
+	}
+	for( uint32_t ty = 0; ty != work.dsz("out_chan"); ++ty ) { 
+	  cg_add_line( "stores", strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_chan_sz); // cache out chan ixs",
+					    str(ty).c_str(), str(ty).c_str() ) );
+	}
+	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
+	  cg_add_line( "stores", "  if( %(out_pel_"+str(ty)+"_img) >= %(out_img_dim) ) { return; } "
+		       "// this pel and the following are off-the-end pels, so don't store them." );
+	  for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	    string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
+					 str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
+	    cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_ix_chan_dim)*%%(out_ix_chan_sz)) ) { "
+					"out[ tpix[%s] + tcix[%s] ] = %s; }",
+					      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() ) );
+	  }
+	}
+      }
+      for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
+	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	  string const ve = strprintf( "%sout_tile[%s]+filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
+				       str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
+	  cg_add_line( "dummy_stores", strprintf( "out_off[%s] = %s;", str((ty*work.dsz("out_chan")+tx)*rf->tpb).c_str(), ve.c_str() ) );
+	}
+      }
+      for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	cg_add_line( "bias_loads", strprintf( "filts_strip[%s] = filts_smem_off[%s*%%(work_out_chan_tile_dim)];", 
+					      str(tx).c_str(), str(tx).c_str() ) );
+      }
+      assert_st( in.dsz("blk_pel") == work.dsz("work_pels_tile")*work.dsz("work_pels_dim") ); // by input xform design
+      for( uint32_t ict = 0; ict != in.dsz("blk_iter_chan"); ++ict ) {
+	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	  cg_add_line( "inner_loop_body", strprintf( "filts_strip[%s] = filts_smem_off[(%s*%%(filts_in_chan_sz))+%s*%%(work_out_chan_tile_dim)];", 
+						     str(tx).c_str(), str(ict).c_str(), str(tx).c_str() ) );
+	}
+	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { 
+	  cg_add_line( "inner_loop_body", strprintf( "in_strip[%s] = in_smem_off[(%s*%%(in_blk_pel_dim)+%s)];",
+						     str(ty).c_str(), str(ict).c_str(), str(ty).c_str() ) );
+	}
+	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
+	  for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	    cg_add_line( "inner_loop_body", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];", 
+						       str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str(), str(ty).c_str() ) );
+	  }
+	}
+      }
+      rf->has_final_flags_arg = 1;
+    }
+
+
   };
 
   // running test case for gen_call():
