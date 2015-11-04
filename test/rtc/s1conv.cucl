@@ -1,55 +1,67 @@
-// each thread: computes 8x8 block of out
-// loop over k dim
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, GASQ float const * const biases, GASQ float const * const in, GASQ float * const out, int32_t const flags ) {
-  // for in_sem, only %(line_buf_sz) == (%(in_pad) + %(in_ix_x_dim) + %(in_pad)) is needed/valid,
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
+					  GASQ float const * const biases, // CUCL IN out_chan
+					  GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float * const out, // CUCL OUT img:chan:y:x
+					  int32_t const flags )
+/* work */  // CUCL REF lines_blk:out_chan_blk:line:line_x_tile:out_chan_tile:pels:out_chan
+{
+  // CUCL IX filts_ix_out_chan_elem filts use_dims=in_chan:y
+  // CUCL IX GRP_ID_1D work use_dims=lines_blk:out_chan_blk
+  // CUCL IX LOC_ID_1D work use_dims=line:line_x_tile:out_chan_tile
+  // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
+  // also, each block handles exactly work_line_x_tile_sz lines of the output.
+
+  // note: %(work_out_chan_tile_dim)*%(work_out_chan_dim) == %(filts_x_sz)
+  // CUCL IX out_line out use_dims=img:y
+
+  // for in_sem, only %(line_buf_sz) == (%(in_pad) + %(in_x_dim) + %(in_pad)) is needed/valid,
   // but allocate extra so we don't read off the end
-  LOCSHAR_MEM float in_smem[%(line_buf_sz)*%(LOC_ID_1D_line_dim) + %(t_tile_sz)+%(filts_xp_ix_x_dim)-1];
+  LOCSHAR_MEM float in_smem[%(line_buf_sz)*%(work_line_dim) + %(work_pels_dim)+%(filts_x_dim)-1];
 #if (%(in_pad) > 0)
   // zero init padding part of in_smem
-  if( LOC_ID_1D < ( 2*%(in_pad)*%(LOC_ID_1D_line_dim) ) ) {
+  if( LOC_ID_1D < ( 2*%(in_pad)*%(work_line_dim) ) ) {
     int32_t const pad_ix = LOC_ID_1D %% (2*%(in_pad));
     int32_t const line_off = (LOC_ID_1D / (2*%(in_pad))) * %(line_buf_sz); 
-    in_smem[ line_off + pad_ix + ((pad_ix < %(in_pad)) ? 0 : %(in_ix_x_dim))] = 0.0f; 
+    in_smem[ line_off + pad_ix + ((pad_ix < %(in_pad)) ? 0 : %(in_x_dim))] = 0.0f; 
   }  
 #endif
-  int32_t const blk_filt_ix_sz = %(LOC_ID_1D_out_chan_tile_dim)*%(t_tile_sz);
-  LOCSHAR_MEM float filts_smem[%(LOC_ID_1D_out_chan_tile_dim)*%(t_tile_sz)*%(filts_xp_ix_x_dim)];// note: blk_filt_ix_sz not const enough for OpenCL
-  float out_tile[%(t_tile_sz)*%(t_tile_sz)] = {0}; // tile of output for this thread to compute, stored in registers
-  // reg. buffers for one strip each from in and filts of %(t_tile_sz) elements, for the same filts_ix_out_chan_elem
-  float filts_strip[%(t_tile_sz)]; // across output chans (stride is blk_filt_ix_sz )
-  float in_strip[%(t_tile_sz)+%(filts_xp_ix_x_dim)-1]; // segment of input line sufficient for one inner loop iter
-  int32_t const blk_filt_ix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_xp_ix_out_chan_blk_sz); // index of first out chan
+  LOCSHAR_MEM float filts_smem[%(filts_y_sz)]; // aka %(filts_x_sz)*%(filts_x_dim); one row of kernel across all this blocks out_chans (for one in_chan)
+  float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
+  // reg. buffers for one strip each from in and filts (for one filts_ix_out_chan_elem)
+  float filts_strip[%(work_out_chan_dim)];
+  float in_strip[%(work_pels_dim)+%(filts_x_dim)-1]; // segment of input line sufficient for one inner loop iter (bearing in mind stride==1)
+  int32_t const blk_filt_ix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_out_chan_blk_sz); // index of first out chan
 
   // iteratate over filter elements
   int32_t filts_smem_off = 0;
   int32_t filts_off = blk_filt_ix_base + %(filts_off_adj); // adj is either 0 or LOC_ID_1D;
 
-  int32_t const t_smem_line = LOC_ID_1D / %(in_ix_x_dim);
-  int32_t const t_smem_line_x = LOC_ID_1D %% %(in_ix_x_dim);
+  int32_t const t_smem_line = LOC_ID_1D / %(in_x_dim);
+  int32_t const t_smem_line_x = LOC_ID_1D %% %(in_x_dim);
   int32_t const t_smem_ix = t_smem_line*%(line_buf_sz)+%(in_pad)+t_smem_line_x;
   // note: this out_line is for this thread's smem reading, not this thread's calc
-  int32_t out_line = %(GRP_ID_1D_lines_blk)*%(LOC_ID_1D_line_dim) + t_smem_line; 
+  int32_t out_line = %(GRP_ID_1D_lines_blk)*%(work_line_dim) + t_smem_line; 
   int32_t in_line = %(out_line_y) - %(in_pad);
   int32_t filt_ky = 0;
-  int32_t in_off = %(out_line_img)*%(in_ix_img_sz) + t_smem_line_x*%(in_ix_x_sz);
+  int32_t in_off = %(out_line_img)*%(in_img_sz) + t_smem_line_x*%(in_x_sz);
   // if out of bounds, the values read into in_smem[] will be unused; we prefer reading in-bounds useless data to out-of-bounds garbage
-  if( !( %(out_line_img) < %(in_ix_img_dim) ) ) { in_off = 0; } 
-  for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_elem_sz); ++filts_ix_out_chan_elem ) {
+  if( !( %(out_line_img) < %(in_img_dim) ) ) { in_off = 0; } 
+  for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != %(filts_ix_out_chan_elem_dims_prod); ++filts_ix_out_chan_elem ) {
     BARRIER_SYNC;
     %(filts_smem_loads);
-    filts_off += %(filts_xp_ix_y_sz);
-    if( t_smem_line < %(LOC_ID_1D_line_dim) ) { 
+    filts_off += %(filts_y_sz);
+    if( t_smem_line < %(work_line_dim) ) { 
       float v;
-      if( in_line >= 0 && in_line < %(in_ix_y_dim) ) {
-	v = in[ in_off + in_line*%(in_ix_y_sz) ];
+      if( in_line >= 0 && in_line < %(in_y_dim) ) {
+	v = in[ in_off + in_line*%(in_y_sz) ];
       } else { v = 0.0f; }
       in_smem[t_smem_ix] = v;
     }
     BARRIER_SYNC;
     %(inner_loop_body);
     filt_ky++; in_line++;
-    if( filt_ky == %(filts_ix_out_chan_elem_y_dim) ) { 
-      filt_ky = 0; in_line -= %(filts_ix_out_chan_elem_y_dim); in_off += %(in_ix_chan_sz); 
+    if( filt_ky == %(filts_y_dim) ) { 
+      filt_ky = 0; in_line -= %(filts_y_dim); in_off += %(in_chan_sz); 
     }
   }
   // load per-block biases into smem
@@ -57,20 +69,20 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, GASQ f
   filts_smem_off = 0;
   for( int32_t i = 0; i != %(out_chan_bias_smem_load_iter); ++i ) {
     int32_t const t_smem_bias_ix = LOC_ID_1D+LOC_SZ_1D*i;
-    if( t_smem_bias_ix < blk_filt_ix_sz ) { 
-      int32_t const ocix_base = %(GRP_ID_1D_out_chan_blk)*blk_filt_ix_sz;
-      int32_t const load_reg = t_smem_bias_ix / %(LOC_ID_1D_out_chan_tile_dim);
-      int32_t const load_tile = t_smem_bias_ix %% %(LOC_ID_1D_out_chan_tile_dim);
-      int32_t const ocix = ocix_base + load_tile*%(t_tile_sz) + load_reg;
-      if( ocix < %(out_ix_chan_dim) ) { filts_smem[filts_smem_off+t_smem_bias_ix] = biases[ ocix ]; }
+    if( t_smem_bias_ix < %(filts_x_sz) ) { 
+      int32_t const ocix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_x_sz);
+      int32_t const load_reg = t_smem_bias_ix / %(work_out_chan_tile_dim);
+      int32_t const load_tile = t_smem_bias_ix %% %(work_out_chan_tile_dim);
+      int32_t const ocix = ocix_base + load_tile*%(work_out_chan_dim) + load_reg;
+      if( ocix < %(out_chan_dim) ) { filts_smem[filts_smem_off+t_smem_bias_ix] = biases[ ocix ]; }
     }
   }
   BARRIER_SYNC;
   // load biases into filts_strip
-  %(t_tile_filt_loads);
+  %(filt_loads);
   // note: this out_line is for this thread's calculation/output region, used to guard writes
-  out_line = %(GRP_ID_1D_lines_blk)*%(LOC_ID_1D_line_dim) + %(LOC_ID_1D_line);
+  out_line = %(GRP_ID_1D_lines_blk)*%(work_line_dim) + %(LOC_ID_1D_line);
   // add bias to each elem of out_tile[] and store the results to out[]
-  %(t_tile_stores);
+  %(stores);
 }
 
