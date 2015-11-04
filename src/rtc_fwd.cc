@@ -1436,9 +1436,7 @@ namespace boda
     }
 
     void gen_op_conv( void ) {
-      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of work_pels_dim/work_out_chan_dim
-      uint32_t const work_pels_dim = work.must_get_dim_sz_by_name( "pels" );
-      uint32_t const work_out_chan_dim = work.must_get_dim_sz_by_name( "out_chan" );
+      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
       // check that we have enough threads per block to load smem using one-elem-per-thread. FIXME: allow for cases when this does not hold.
       assert_st( rf->tpb >= (work.dsz( "out_chan" ) * work.dsz("out_chan_tile") ) ); 
       uint32_t const pel_smem_load_iter = u32_ceil_div( (work.dsz( "pels" ) * work.dsz( "pels_tile" )), rf->tpb );
@@ -1448,7 +1446,7 @@ namespace boda
       tf_exprs.push_back( std::make_pair( "pel_tile",
 					  "(%(LOC_ID_1D_pels_tile)+%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim))"));
       tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(work_out_chan_dim))" ) );
-      for( uint32_t i = 0; i != work_pels_dim; ++i ) {
+      for( uint32_t i = 0; i != work.dsz( "pels" ); ++i ) {
 	insert_nda_ix_exprs( tf_exprs, "pel_ix_" + str(i), must_find(all_ix_dims,"out_pel_ix"),
 			     strprintf( "(%%(pel_tile)*%%(work_pels_dim)+%s)", str(i).c_str() ) );
       }
@@ -1466,12 +1464,12 @@ namespace boda
 	"      }"
 				       );
       tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
-      for( uint32_t tx = 0; tx != work_out_chan_dim; ++tx ) {
+      for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
 	cg_add_line( "dummy_loads", strprintf( "filts_strip[%s] = filts_smem[(LOC_ID_1D %%%% 32) + %s];", str(tx).c_str(), str(tx).c_str() ) );
 	cg_add_line( "loads", strprintf( "filts_strip[%s] = filts_smem[%%(LOC_ID_1D_out_chan_tile)+%s*%%(work_out_chan_tile_dim)];",
 					 str(tx).c_str(), str(tx).c_str() ) );
       }
-      for( uint32_t ty = 0; ty != work_pels_dim; ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
 	cg_add_line( "dummy_loads", strprintf( "in_strip[%s] = in_smem[(LOC_ID_1D %%%% 32) + %s];", str(ty).c_str(), str(ty).c_str() ));
 	cg_add_line( "loads", strprintf( "in_strip[%s] = in_smem[%%(LOC_ID_1D_pels_tile)*%%(work_pels_dim)+%s];",
 					 str(ty).c_str(), str(ty).c_str() ) );
@@ -1479,25 +1477,25 @@ namespace boda
       cg_add_line( "stores", "int32_t tpix[%(work_pels_dim)];");
       cg_add_line( "stores", "int32_t tcix[%(work_out_chan_dim)];");
       // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
-      for( uint32_t ty = 0; ty != work_pels_dim; ++ty ) { 
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) { 
 	cg_add_line( "stores", 
 		     strprintf( "tpix[%s] = %%(pel_ix_%s_img)*%%(out_img_sz) + "
 				"( %%(pel_ix_%s_x_nomod) %%%% (%%(out_y_dim)*%%(out_x_dim)) ); // cache out pel ixs ", // note: y:x adj-dim opt.
 				str(ty).c_str(), str(ty).c_str(), str(ty).c_str() ) );
       }
-      for( uint32_t ty = 0; ty != work_out_chan_dim; ++ty ) { 
+      for( uint32_t ty = 0; ty != work.dsz( "out_chan" ); ++ty ) { 
 	cg_add_line( "stores", strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_chan_sz); // cache out chan ixs",
 					  str(ty).c_str(), str(ty).c_str() ) );
       }	
       cg_add_line( "dummy_stores", "out[0] = 0.0f");
-      for( uint32_t ty = 0; ty != work_pels_dim; ++ty ) {
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) {
 	cg_add_line( "stores", "if( %(pel_ix_"+str(ty)+"_x_nomod) >= %(pel_ix_0_dims_prod) ) { return; } "
 		     "// this pel and the following are off-the-end pels, so don't store them." );
-	for( uint32_t tx = 0; tx != work_out_chan_dim; ++tx ) {
+	for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
 	  cg_add_line( "fmas", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];", 
-					  str((ty*work_out_chan_dim+tx)).c_str(), str(tx).c_str(), str(ty).c_str() ) );
+					  str((ty*work.dsz( "out_chan" )+tx)).c_str(), str(tx).c_str(), str(ty).c_str() ) );
 	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
-				       str((ty*work_out_chan_dim+tx)).c_str(), str(tx).c_str() );
+				       str((ty*work.dsz( "out_chan" )+tx)).c_str(), str(tx).c_str() );
 	  cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { "
 					    "out[ tpix[%s] + tcix[%s] ] = %s; }",
 					    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() ) );
