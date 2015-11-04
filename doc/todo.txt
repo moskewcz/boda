@@ -1,7 +1,6 @@
 ** sz->dims refactoring backlog:
  -- TO_RENAME blk_iter --> in_chan_tile; blk_iter_chan --> in_chan  (also in_chan_tile -> in_chan_dim)
  -- factor out relu wrapper
- -- remove unused template params for pool.cucl 
 
 ** rtc tasks
 -- allow inexact division in chan dim

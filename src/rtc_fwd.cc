@@ -718,8 +718,7 @@ namespace boda
     }
 
     if( oi->is_pool ) {
-      oi->template_var_values = { {"conv_has_relu",str(oi->conv_has_relu)},{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},
-				  {"avg_pool",str(oi->cop->avg_pool)},{"t_tile_sz", str(t_tile_sz)},{"in_pad",str(oi->in_pad)} };
+      oi->template_var_values = {{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"avg_pool",str(oi->cop->avg_pool)},{"in_pad",str(oi->in_pad)}};
       oi->template_var_values.push_back( {"op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" } );
       oi->template_var_values.push_back( {"op_post", oi->cop->avg_pool ? "out_v /= (float)("+str(oi->kern_sz*oi->kern_sz)+")" : "" } );
       gen_call( "pool", oi, {oi->ni->name,oi->no->name} );
