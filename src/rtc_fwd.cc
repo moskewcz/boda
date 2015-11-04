@@ -1023,7 +1023,6 @@ namespace boda
 
       rtc_func_t * rf = 0;
       if( oi->is_k1conv ) { 
-	
 	assert_st( oi->in_pad == 0 );
 	assert_st( oi->kern_sz == 1 );
 	assert_st( oi->stride == 1 );
@@ -1034,7 +1033,7 @@ namespace boda
 	}
 	bool const write_xposed = oi->single_k1conv_output;
 	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"write_xposed",str(write_xposed)}};
-	dims_t orig_out_dims = oi->no_dims;
+	dims_t out_ref_dims = oi->no_dims;
 	if( write_xposed ) {
 	  oi->no_dims = dims_t{ vect_uint32_t{noi->bix_pels_blk_sz, noi->in_chan_tile_dim, noi->in_chan_tile, noi->tix_pels_tile_sz*t_tile_sz }, 
 				{ "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 }; // FIXME: remove usage of t_tile_sz here ...
@@ -1044,7 +1043,7 @@ namespace boda
 	dims_t const work_dims( /* blocks/call (2D) */                             /* threads/block (2D) */                  /* work/thread (2D) */
 	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,   t_tile_sz, t_tile_sz },  
 	  vect_string{  "pels_blk","out_chan_blk",                       "pels_tile","out_chan_tile",                      "pels","out_chan"},   1 );
-	gen_call( "k1conv", oi, in_arg_ids, {work_dims} );
+	gen_call( "k1conv", oi, in_arg_ids, {work_dims,out_ref_dims} );
       }
       else if( oi->is_s1conv ) { 
 	assert_st( oi->stride == 1 );
@@ -1113,7 +1112,7 @@ namespace boda
     dims_t dims;
   };
   inline std::ostream & operator << ( std::ostream & out, arg_decl_t const & o ) {
-    return out << strprintf( "o.vn=%s o.io_type=%s o.dims=%s", str(o.vn).c_str(), str(o.io_type).c_str(), str(o.dims).c_str() );
+    return out << strprintf( "%s --- vn=%s io_type=%s ", str(o.dims).c_str(), str(o.vn).c_str(), str(o.io_type).c_str() );
   }
   typedef vector< arg_decl_t > vect_arg_decl_t; 
   
@@ -1245,12 +1244,18 @@ namespace boda
 	  if( rfs.args[i].has_sz_and_stride_and_name() && rfs.args[i].has_padding() ) { 
 	    arg_check_error += "call args "+str(i)+ " must not have padding; "; } // FIXME: maybe too strong
 	  if( !rfs.args[i].matches_template( arg_decls[i].dims ) ) {
-	    arg_check_error += "call arg "+str(i)+" incompatible with decl arg (dim count mismatch or dim (req'd) name/size/stride mismatch; "; }
+	    arg_check_error += "call arg "+str(i)+" incompatible with decl arg "
+	      "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
 	}
       }
       if( !arg_check_error.empty() ) {
-	rt_err( strprintf( "RTC call argument error: %s: %s\n  Called Signature:=%s\n  Declared Arguments:%s\n", 
-			   rfs.fn.c_str(), str(arg_check_error).c_str(), str(rfs.args).c_str(), str(arg_decls).c_str() ) );
+	string arg_err = "RTC call argument error: " + rfs.fn + ": " + arg_check_error + "\n";
+	for( uint32_t i = 0; i != std::max(rfs.args.size(),arg_decls.size()); ++i ) {
+	  arg_err += strprintf( "ARG[%s]:\n", str(i).c_str() );
+	  if( i < arg_decls.size() ) { arg_err += strprintf( "  DECL: %s\n", str(arg_decls[i]).c_str() ); }
+	  if( i < rfs.args.size() ) {  arg_err += strprintf( "  CALL: %s\n", str(rfs.args[i]).c_str() ); }
+	}
+	rt_err( arg_err );
       }
     }
 
@@ -1476,8 +1481,7 @@ namespace boda
       dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
       dims_t const & filts = get_arg_dims_by_name( "filts" );
       dims_t const & in = get_arg_dims_by_name( "in" );
-      dims_t const & out_xp = get_arg_dims_by_name( "out_xp" );
-      //dims_t const & out = get_arg_dims_by_name( "out" );
+      dims_t const & out = get_arg_dims_by_name( "out" );
       // calculate needed smem sizes (and total kernel needed smem size)
       // note: filts and in smem are used concurrently, then just all of all_smem as an output buffer
       uint32_t const filts_smem_sz = filts.dstride("in_chan")*in.dsz("blk_iter_chan");
@@ -1514,24 +1518,24 @@ namespace boda
       // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
       // FIXME: out_pel must be per-tpix (again)
       if( rfs.get_u32_tvv("write_xposed") ) {
-	// padded # of in chans of next layer  == out_xp.dsz("blk_iter")*out_xp.dsz("blk_iter_chan")
+	// padded # of in chans of next layer  == out.dsz("blk_iter")*out.dsz("blk_iter_chan")
 	// padded # of out chans of this layer == work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan")
 	// if these are ==, we don't have to worry about bounds-checking our writes to out in the chan dim
-	assert_st( work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan") == out_xp.dsz("blk_iter")*out_xp.dsz("blk_iter_chan") );
-	// padded # of in pels of next layer:  == out_xp.dsz("blk")*out_xp.dsz("blk_pel")
+	assert_st( work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan") == out.dsz("blk_iter")*out.dsz("blk_iter_chan") );
+	// padded # of in pels of next layer:  == out.dsz("blk")*out.dsz("blk_pel")
 	// padded # of out pels of this layer: == work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels")
 	// if these are ==, we don't have to worry about bounds-checking our writes to out in the pel dim
-	assert_st( work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels") == out_xp.dsz("blk")*out_xp.dsz("blk_pel") );
+	assert_st( work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels") == out.dsz("blk")*out.dsz("blk_pel") );
 
 	// we assume out_blk_pel_dim (== noi->tix_pels_tile_sz*t_tile_sz) is divisible by t_tile_sz. but let's check it explicitly:
 	// FIXME_WXP: i don't see where we assume this, and hence i dunno what t_tile_sz refers to below. poop. assert is removed for now:
-	// assert_st( (out_xp.dsz("blk_pel") % t_tile_sz) == 0 );
-	// we assume the out chans are a single (span of) dims in out_xp. FIXME: check this?. FIXME_WXP: what does this even mean?
+	// assert_st( (out.dsz("blk_pel") % t_tile_sz) == 0 );
+	// we assume the out chans are a single (span of) dims in out. FIXME: check this?. FIXME_WXP: what does this even mean?
 
 	//cg_add_line( "stores", "  int32_t xpbuf[%(t_tile_sz)];\n";
 	// FIXME: assumes (for GRP_ID_1D_pels_blk*... term) that input and output block have same # of pels ... too strong?
-	assert_st( out_xp.dsz("blk_pel") == in.dsz("blk_pel") );
-	cg_add_line( "stores", "int32_t const out_ix = (%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim)*%(work_out_chan_dim))*%(out_xp_blk_iter_chan_sz) + %(GRP_ID_1D_pels_blk)*%(out_xp_blk_sz);" ); 
+	assert_st( out.dsz("blk_pel") == in.dsz("blk_pel") );
+	cg_add_line( "stores", "int32_t const out_ix = (%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim)*%(work_out_chan_dim))*%(out_blk_iter_chan_sz) + %(GRP_ID_1D_pels_blk)*%(out_blk_sz);" ); 
 	cg_add_line( "stores", "int32_t xpbuf_rd_pel;" );
 	cg_add_line( "stores", "int32_t xpbuf_rd_chan;" );
 
@@ -1553,9 +1557,9 @@ namespace boda
 	    // for the reads from smem we just calculate the correct index and hope for the best. note that the actual
 	    // output chan indexes read/written to here are strided by %(work_out_chan_dim) and offset by tx.
 	    string const obe = "(LOC_ID_1D + %(tpb)*"+str(ty)+")";
-	    cg_add_line( "stores", "  xpbuf_rd_pel = "+obe+" %% %(out_xp_blk_pel_dim) ;" );
-	    cg_add_line( "stores", "  xpbuf_rd_chan = "+obe+" / %(out_xp_blk_pel_dim) ;" );
-	    cg_add_line( "stores", strprintf( "out_xp[out_ix + xpbuf_rd_pel + (xpbuf_rd_chan*%%(work_out_chan_dim)+%s)*%%(out_xp_blk_iter_chan_sz)] = "
+	    cg_add_line( "stores", "  xpbuf_rd_pel = "+obe+" %% %(out_blk_pel_dim) ;" );
+	    cg_add_line( "stores", "  xpbuf_rd_chan = "+obe+" / %(out_blk_pel_dim) ;" );
+	    cg_add_line( "stores", strprintf( "out[out_ix + xpbuf_rd_pel + (xpbuf_rd_chan*%%(work_out_chan_dim)+%s)*%%(out_blk_iter_chan_sz)] = "
 					      "all_smem[xpbuf_rd_chan+(xpbuf_rd_pel %%%% %%(work_pels_dim))*%%(tpb)"
 					      "+ (xpbuf_rd_pel / %%(work_pels_dim))*%%(work_out_chan_tile_dim) ];",
 					      str(tx).c_str() ) );
@@ -1568,7 +1572,7 @@ namespace boda
 	cg_add_line( "stores", "  int32_t tpix[%(work_pels_dim)];" );
 	cg_add_line( "stores", "  int32_t tcix[%(work_out_chan_dim)];" );
 	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { 
-	  insert_nda_ix_exprs( tf_exprs, "out_pel_" + str(ty), must_find(all_ix_dims,"out_pel"),
+	  insert_nda_ix_exprs( tf_exprs, "out_pel_" + str(ty), must_find(all_ix_dims,"out_ref_pel"),
 			       "( (%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile))*%(work_pels_dim) + "+str(ty)+" )" );
 	  cg_add_line( "stores", strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_ix_img_sz) + "
 					    " %%(out_pel_%s_x)*%%(out_ix_x_sz) + %%(out_pel_%s_y)*%%(out_ix_y_sz) " // FIXME_WXP:restore: y:x adj-dim opt?

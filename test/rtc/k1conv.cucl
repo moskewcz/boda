@@ -1,12 +1,11 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
 					  GASQ float const * const biases, // CUCL IN out_chan
 					  GASQ float const * const in, // CUCL IN blk:blk_iter:blk_iter_chan:blk_pel
-					  GASQ float * const out, // CUCL OUT img:chan:y:x
-					  GASQ float * const out_xp ) // CUCL OUT blk:blk_iter:blk_iter_chan:blk_pel
+					  GASQ float * const out ) // CUCL OUT img:chan:y:x OR blk:blk_iter:blk_iter_chan:blk_pel
 /* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
+/* out_ref */  // CUCL REF img:chan:y:x
 {
-  // note: only one of out/out_xp will be non-null and used below ...
-  // CUCL IX out_pel out use_dims=img:y:x 
+  // CUCL IX out_ref_pel out_ref use_dims=img:y:x 
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
   // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
   // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
