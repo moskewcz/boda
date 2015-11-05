@@ -863,7 +863,10 @@ namespace boda
 	}
       }
     }
-
+    string add_bias_then_maybe_relu( dims_t const & work, uint32_t const & tx, uint32_t const ty ) { 
+      string const ve = strprintf( "(out_tile[%s] + filts_strip[%s])", str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
+      return rfs.get_u32_tvv("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
+    }    
     void gen_op_conv( void ) {
       dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
       // check that we have enough threads per block to load smem using one-elem-per-thread. FIXME: allow for cases when this does not hold.
@@ -923,12 +926,9 @@ namespace boda
 	for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
 	  cg_add_line( "fmas", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];", 
 					  str((ty*work.dsz( "out_chan" )+tx)).c_str(), str(tx).c_str(), str(ty).c_str() ) );
-	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
-				       str((ty*work.dsz( "out_chan" )+tx)).c_str(), str(tx).c_str() );
-	  cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { "
-					    "out[ tpix[%s] + tcix[%s] ] = %s; }",
-					    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() ) );
-	  cg_add_line( "dummy_stores", " + " + ve);
+	  cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { out[ tpix[%s] + tcix[%s] ] = %s; }",
+					    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
+	  cg_add_line( "dummy_stores", " + " + add_bias_then_maybe_relu(work,tx,ty));
 	}
       }
       cg_add_line( "dummy_stores", ";");
@@ -1002,11 +1002,8 @@ namespace boda
 	cg_add_line( "stores", "  if( (%(work_pels_dim)*%(LOC_ID_1D_line_x_tile)+"+str(ty)+") >= %(out_x_dim) ) { return; } "
 		     "// this pel and the following are off-the-end pels, so don't store them." );
 	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
-	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
-				       str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
-	  cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { "
-					    "out[ tpix[%s] + tcix[%s] ] = %s; }",
-					    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() ) );
+	  cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { out[ tpix[%s] + tcix[%s] ] = %s; }",
+					    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
 	}
       }
       cg_add_line( "inner_loop_body", "filts_smem_off = 0;" );
@@ -1090,9 +1087,7 @@ namespace boda
 	  // such that we can do (mostly) sequential writes to global memory for this set of t_tile_sz out chans
 	  cg_add_line( "stores", "  BARRIER_SYNC;" );
 	  for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { // out_tile[] (registers) -> all_smem[]
-	    string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
-					 str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
-	    cg_add_line( "stores", strprintf( "out_smem_off[%%(tpb)*%s] = %s;", str(ty).c_str(), ve.c_str() ) );
+	    cg_add_line( "stores", strprintf( "out_smem_off[%%(tpb)*%s] = %s;", str(ty).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
 	  }
 	  cg_add_line( "stores", "  BARRIER_SYNC;" );
 	  for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { // all_smem[] -> [xpbuf[] (registers)] -> out[] (global)
@@ -1133,19 +1128,15 @@ namespace boda
 	  cg_add_line( "stores", "  if( %(out_pel_"+str(ty)+"_img) >= %(out_img_dim) ) { return; } "
 		       "// this pel and the following are off-the-end pels, so don't store them." );
 	  for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
-	    string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
-					 str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
-	    cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { "
-					"out[ tpix[%s] + tcix[%s] ] = %s; }",
-					      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), ve.c_str() ) );
+	    cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { out[ tpix[%s] + tcix[%s] ] = %s; }",
+					      str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
 	  }
 	}
       }
       for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
 	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
-	  string const ve = strprintf( "%sout_tile[%s]+filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
-				       str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
-	  cg_add_line( "dummy_stores", strprintf( "out_off[%s] = %s;", str((ty*work.dsz("out_chan")+tx)*rf->tpb).c_str(), ve.c_str() ) );
+	  cg_add_line( "dummy_stores", strprintf( "out_off[%s] = %s;", 
+						  str((ty*work.dsz("out_chan")+tx)*rf->tpb).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
 	}
       }
       for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
@@ -1230,8 +1221,8 @@ namespace boda
 		     "// this x value and the following are off-the-end pels, so don't store them." );
 	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
 #if 1
-	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
-				       str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
+	  string const ve = add_bias_then_maybe_relu(work,tx,ty);
+
 #else
 	  string const ve = strprintf( "(filts_strip[%s])", str(tx).c_str() );
 #endif
