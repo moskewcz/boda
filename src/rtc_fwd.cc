@@ -747,6 +747,9 @@ namespace boda
 	// window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
 	// this case, we do not unroll across input chans, but we do unroll across kern_sz in X (and maybe in Y too for
 	// small kernels).
+	// note: "out_ix" from in_tile_xpose becomes "in_ix" for tconv; 
+	// from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are in output space
+	// image space. other x/y's (in thread and block indexes) are all in output image space.
 	dims_t const inxp_dims( vect_uint32_t{
 	    oi->tconv_blk_xy_sz.d[1], oi->tconv_blk_xy_sz.d[0], oi->ni->cio.chans, oi->tconv_blk_max_in_lines(), oi->out_to_in(t_tile_sz) },
 	  vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
@@ -790,8 +793,7 @@ namespace boda
 	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,   t_tile_sz, t_tile_sz },  
 	  vect_string{  "pels_blk","out_chan_blk",                       "pels_tile","out_chan_tile",                      "pels","out_chan"},   1 );
 	gen_call( "k1conv", oi, in_arg_ids, {work_dims,out_ref_dims} );
-      }
-      else if( oi->is_s1conv ) { 
+      } else if( oi->is_s1conv ) { 
 	assert_st( oi->stride == 1 );
 	assert_st( oi->in_chan_tile == 1 );
 	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"in_pad",str(oi->in_pad)}};
@@ -800,13 +802,22 @@ namespace boda
 	uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
 	uint32_t const blk_num_lines = u32_ceil_div( oi->tix_pels_tile_sz, line_x_tile_sz );
 	assert_st( blk_num_lines * line_x_tile_sz == oi->tix_pels_tile_sz ); // should be exact div by construction
+
 	dims_t const work_dims( /* blocks/call (2D) */                      /* threads/block (3D) */                          /* work/thread (2D) */
 	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz, blk_num_lines,line_x_tile_sz,oi->tix_out_chan_tile_sz,  t_tile_sz, t_tile_sz },  
 	  vect_string{  "lines_blk","out_chan_blk",                       "line","line_x_tile","out_chan_tile",                "pels","out_chan"},   1 );
 	gen_call( "s1conv", oi, in_arg_ids, {work_dims} );
-      }
-      else if( oi->is_tconv ) { rf = &gen_op_tconv( oi ); }
-      else { 
+      } else if( oi->is_tconv ) { 
+	assert_st( oi->in_chan_tile == 1 );
+	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}};
+	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. tconv)
+	in_arg_ids.push_back( oi->no->name );
+	dims_t const work_dims( /* blocks/call (3D) */                             /* threads/block (2D) */  /* -->line-wrapped-->  work/thread (2D) */
+	  vect_uint32_t{ oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,  
+	      t_tile_sz, t_tile_sz },  
+	  vect_string{  "blk_bline","blk_bx","out_chan_blk",                "blk_y","out_chan_tile",                      "pels","out_chan"},   1 );
+	gen_call( "tconv", oi, in_arg_ids, {work_dims,in_dims} ); // original in_dims for reference (not xformed)
+      } else { 
 	assert_st( oi->in_chan_tile == 1 );
 	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}};
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. conv)
@@ -974,6 +985,7 @@ namespace boda
       if( rfs.fn == "conv" ) { gen_op_conv(); } 
       else if( rfs.fn == "s1conv" ) { gen_op_s1conv(); } 
       else if( rfs.fn == "k1conv" ) { gen_op_k1conv(); } 
+      else if( rfs.fn == "tconv" ) { gen_op_tconv(); } 
 
       // make these always availible as template vars, since why not?
       tf_exprs.push_back( make_pair( "tpb", str(rf->tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
@@ -1382,7 +1394,76 @@ namespace boda
       rf->has_final_flags_arg = 1;
     }
 
+    void gen_op_tconv( void ) {
+      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
+      dims_t const & filts = get_arg_dims_by_name( "filts" );
+      dims_t const & in = get_arg_dims_by_name( "in" );
+      //dims_t const & out = get_arg_dims_by_name( "out" );
+      // uint32_t const in_ix_blk_x_dim = oi->out_to_in(t_tile_sz); --> in_blk_x_dim / in.dsz("blk_x")
+      // uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz; --> filts_x_sz / filts.dsz("x")
+      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts.dstride("y"), rf->tpb );  // filt smem loads
+      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string eif; // note: load is (always) contiguous
+	if( (i+1)*rf->tpb > filts.dstride("y") ) { cg_add_line( "filt_smem_loads", "if( "+ixe+" < %(filts_y_sz) ) { " );eif = "}";}
+	cg_add_line( "filt_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s",ixe.c_str(),str(i).c_str(),eif.c_str()));
+      }
+      cg_add_line( "filt_smem_loads", "filts_off += %(filts_y_sz);" );
 
+      uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_in_chan"), rf->tpb );  // in smem loads
+      for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string eif;
+	if( (i+1)*rf->tpb > in.dstride("blk_in_chan") ) { cg_add_line( "in_smem_loads", "if( "+ixe+" < %(in_blk_in_chan_sz)) { " );eif = "}";}
+	cg_add_line( "in_smem_loads", strprintf("in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s",	ixe.c_str(),str(i).c_str(),eif.c_str()));
+      }
+      cg_add_line( "in_smem_loads", "blk_in_ix_base += %(in_blk_in_chan_sz);" );
+
+      for( uint32_t i = 0; i != in.dsz("blk_x"); ++i ) {
+	cg_add_line( "inner_loop_body", strprintf( "in_strip[%s] = in_smem_off[%s];", str(i).c_str(), str(i).c_str() ) );
+      }
+      assert_st( work.dsz("out_chan_tile") == filts.dsz("out_chan_tile") ); // also == %(filts_out_chan_reg_sz)
+      for( uint32_t kx = 0; kx != filts.dsz("x"); ++kx ) {
+	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	  cg_add_line( "inner_loop_body", strprintf( "filts_strip[%s] = filts_smem_off[%s*%%(filts_x_sz)+%s*%%(filts_out_chan_reg_sz)];", 
+						     str(tx).c_str(), str(kx).c_str(), str(tx).c_str() ) );
+	}
+	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
+	  for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	    cg_add_line( "inner_loop_body", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];", str((ty*work.dsz("out_chan")+tx)).c_str(), 
+						       str(tx).c_str(), str(ty*rfs.get_u32_tvv("stride")+kx).c_str() ) );
+	  }
+	}
+      }
+      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( filts.dsz("x"), rf->tpb );
+      tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
+      for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+	cg_add_line( "bias_loads", strprintf( "filts_strip[%s] = filts_smem_off[%s*%%(filts_out_chan_reg_sz)];", str(tx).c_str(), str(tx).c_str() ) );
+      }
+      //cg_add_line( "stores", "  if( %(out_line_y) >= %(out_ix_y_sz) ) { return; }" ); // not possible
+      cg_add_line( "stores", "if( %(out_line_img) >= %(out_img_dim) ) { return; }" );
+      cg_add_line( "stores", "int32_t out_x = %(GRP_ID_1D_blk_bx)*%(work_pels_dim);" );
+      cg_add_line( "stores", "int32_t out_chan = (%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile))*%(work_out_chan_dim);" );
+      cg_add_line( "stores", "GASQ float * out_off = out + %(out_line_img)*%(out_img_sz) + out_chan*%(out_chan_sz) + "
+		   "%(out_line_y)*%(out_y_sz) + out_x*%(out_x_sz) ;" );
+
+      for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
+	cg_add_line( "stores", "if( (out_x + "+str(ty)+") >= %(out_x_dim) ) { return; } "
+		     "// this x value and the following are off-the-end pels, so don't store them." );
+	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
+#if 1
+	  string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", rfs.get_u32_tvv("conv_has_relu") ? "max(0.0f," : "(",
+				       str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
+#else
+	  string const ve = strprintf( "(filts_strip[%s])", str(tx).c_str() );
+#endif
+	  cg_add_line( "stores", strprintf( "if( (out_chan + %s) < %%(out_chan_dim) ) { "
+						   "out_off[ %s*%%(out_chan_sz) + %s*%%(out_x_sz) ] = %s; }",
+						   str(tx).c_str(), str(tx).c_str(), str(ty).c_str(), ve.c_str() ) );
+	}
+      }
+      rf->has_final_flags_arg = 1;
+    }
   };
 
   // running test case for gen_call():
