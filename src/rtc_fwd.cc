@@ -255,9 +255,6 @@ namespace boda
     string dump_var( string const & n );
     virtual string get_info_log( void );
   protected:
-    void calc_blocking_conv( p_op_info_t const & oi );
-    rtc_func_t & gen_op_tconv( p_op_info_t const & oi ); // tiled input case
-
     vect_string gen_op_stats( string const & top_in );
     void gen_op_quantize( string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
@@ -268,6 +265,7 @@ namespace boda
     void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
 		   vect_dims_t const & ref_dims = vect_dims_t(), bool const is_init_call = 0 );
 
+    void calc_blocking_conv( p_op_info_t const & oi );
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
     string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
 
@@ -466,155 +464,6 @@ namespace boda
       rf->blks = u32_ceil_div( out_sz, rf->tpb );
     }
   };
-
-  rtc_func_t & conv_pipe_fwd_t::gen_op_tconv( p_op_info_t const & oi ) {
-    rtc_func_gen_info_t rfgi{"",
-      { {"num_imgs",str(num_imgs)},{"in_dim_0",str(oi->ni->cio.sz.d[0])},{"in_dim_1",str(oi->ni->cio.sz.d[1])}
-	,{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)},{"t_tile_sz",str(t_tile_sz)}
-	,{"conv_has_relu",str(oi->conv_has_relu)},{"out_chans",str(oi->no->cio.chans)} } };
-    rfgi.op_tag="tconv"; rfgi.spec_params.push_back( rtc_func_param_info_t{"in_chans",str(oi->ni->cio.chans)} );
-    
-    rtc_func_t & rf = rfgi.init( rtc_funcs );
-    vect_pair_str_str & tf_exprs = rfgi.tf_exprs;
-    if( rf.finalized ) { return rf; } // already generated
-
-    insert_nda_exprs( tf_exprs, "out_ix", vect_string{"img","chan","y","x"}, 
-		      vect_uint32_t{num_imgs,oi->no->cio.chans,oi->no->cio.sz.d[1],oi->no->cio.sz.d[0]} );
-    uint32_t const out_ix_sz = get_sz( tf_exprs, "out_ix" );
-
-    rf.tpb = oi->tpb;
-    rf.blks = oi->blks;
-
-    tf_exprs.push_back( std::make_pair( "tpb", str(oi->tpb) ) );
-
-    // note: "in_ix" here is "out_ix" from in_tile_xpose; for in_ix, blk_y and blk_x are in input image space, others are output
-    // image space. other x/y's (in thread and block indexes) are all in output image space.
-    insert_nda_exprs( tf_exprs, "out_line", vect_string{"img","y"}, vect_uint32_t{num_imgs,oi->no->cio.sz.d[1]}); 
-    insert_nda_exprs( tf_exprs, "in_ix", 
-		      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"},
-		      vect_uint32_t{oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],
-			  oi->ni->cio.chans, oi->tconv_blk_max_in_lines(), oi->out_to_in(t_tile_sz)} );
-
-
-    uint32_t const in_ix_blk_x_dim = oi->out_to_in(t_tile_sz);
-
-    insert_nda_exprs( tf_exprs, "LOC_ID_1D", vect_string{"blk_y","out_chan_tile"}, 
-		      vect_uint32_t{oi->tix_pels_tile_sz,oi->tix_out_chan_tile_sz} );
-    insert_nda_exprs( tf_exprs, "GRP_ID_1D", vect_string{"blk_bline","blk_bx","out_chan_blk"}, 
-		      vect_uint32_t{oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],oi->bix_out_chan_blk_sz}); 
-
-    uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz;
-    tf_exprs.push_back( std::make_pair( "blk_filt_ix_sz", str(blk_filt_ix_sz) ));
-
-    // calculate needed smem sizes (and total kernel needed smem size)
-    // note: filts and in smem are used concurrently, then just all of all_smem as an output buffer
-    uint32_t const filts_smem_sz = blk_filt_ix_sz*oi->kern_sz; // unroll over kernel x size in inner loop
-    tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
-    uint32_t const in_smem_sz = oi->tconv_blk_max_in_lines() * oi->out_to_in(t_tile_sz);
-    tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
-    uint32_t const out_smem_sz = oi->tix_pels_tile_sz*oi->tix_out_chan_tile_sz*t_tile_sz; // note: == oi->tpb*t_tile_sz ( == 1/t_tile_sz of outs)
-    tf_exprs.push_back( std::make_pair( "out_smem_sz", str(out_smem_sz) )); // note: unused, but assumed that all_smem_sz >= out_smem_sz
-    uint32_t const all_smem_sz = std::max( out_smem_sz, filts_smem_sz+in_smem_sz );
-    tf_exprs.push_back( std::make_pair( "all_smem_sz", str(all_smem_sz) ));
-
-    insert_nda_exprs( tf_exprs, "filts_xp_ix", vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 
-		      vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz} );
-
-    uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_filt_ix_sz, oi->tpb );
-    tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
-
-    // filt smem loads
-    string filt_smem_loads("// begin filt_smem_loads\n");
-    uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, oi->tpb );    
-    tf_exprs.push_back( std::make_pair( "filts_off_adj", "LOC_ID_1D" ));
-    for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-      string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
-      string eif;
-      if( (i+1)*oi->tpb > filts_smem_sz ) { filt_smem_loads+="if( "+ixe+" < %(filts_smem_sz) ) { ";eif = "}";}
-      // note: load is (always) contiguous
-      filt_smem_loads += strprintf("    filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s\n",ixe.c_str(),str(i).c_str(),eif.c_str());
-    }
-    filt_smem_loads += "  filts_off += %(filts_xp_ix_y_sz);\n";
-    filt_smem_loads += "  // end filt_smem_loads";
-    tf_exprs.push_back( std::make_pair( "filt_smem_loads", filt_smem_loads ) );
-
-    // in smem loads
-    string in_smem_loads("// begin in_smem_loads\n");
-    uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, oi->tpb );    
-    for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
-      string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
-      string eif;
-      if( (i+1)*oi->tpb > in_smem_sz ) { in_smem_loads+="if( "+ixe+" < %(in_smem_sz)) { ";eif = "}";}
-      in_smem_loads += strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
-			      ixe.c_str(),str(i).c_str(),eif.c_str());
-    }
-    in_smem_loads += "  blk_in_ix_base += %(in_ix_blk_in_chan_sz);\n";
-    in_smem_loads += "  // end in_smem_loads";
-    tf_exprs.push_back( std::make_pair( "in_smem_loads", in_smem_loads ) );
-
-
-    string inner_loop_body("// begin inner_loop_body\n");
-    for( uint32_t i = 0; i != in_ix_blk_x_dim; ++i ) {
-	inner_loop_body += strprintf( "    in_strip[%s] = in_smem_off[%s];\n", str(i).c_str(), str(i).c_str() );      
-    }
-    for( uint32_t kx = 0; kx != oi->kern_sz; ++kx ) {
-      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	inner_loop_body += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(blk_filt_ix_sz)+%s*%%(LOC_ID_1D_out_chan_tile_dim)];\n", 
-				      str(tx).c_str(), str(kx).c_str(), str(tx).c_str() );
-      }
-      for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-	for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-	  inner_loop_body += strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];\n", 
-					str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str(), str(ty*oi->stride+kx).c_str() );
-	}
-      }
-    }
-    tf_exprs.push_back( std::make_pair( "inner_loop_body", inner_loop_body ) );
-
-    string t_tile_bias_loads("// begin t_tile_bias_loads\n");
-    for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-      t_tile_bias_loads += strprintf( "    filts_strip[%s] = filts_smem_off[%s*%%(LOC_ID_1D_out_chan_tile_dim)];\n", str(tx).c_str(), str(tx).c_str() );
-    }
-    t_tile_bias_loads += "  // end t_tile_bias_loads";
-    tf_exprs.push_back( std::make_pair( "t_tile_bias_loads", t_tile_bias_loads ) );
-
-    string t_tile_stores("// begin t_tile_stores\n");
-
-    //t_tile_stores += "  if( %(out_line_y) >= %(out_ix_y_sz) ) { return; }\n"; // not possible
-    t_tile_stores += "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; }\n";
-    t_tile_stores += "  int32_t out_x = %(GRP_ID_1D_blk_bx)*%(t_tile_sz);\n";
-    t_tile_stores += "  int32_t out_chan = (%(GRP_ID_1D_out_chan_blk)*%(LOC_ID_1D_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile))*%(t_tile_sz);\n";
-    t_tile_stores += "  GASQ float * out_off = out + %(out_line_img)*%(out_ix_img_sz) + out_chan*%(out_ix_chan_sz) + "
-      "%(out_line_y)*%(out_ix_y_sz) + out_x*%(out_ix_x_sz) ;\n";
-
-    for( uint32_t ty = 0; ty != t_tile_sz; ++ty ) {
-      t_tile_stores += "  if( (out_x + "+str(ty)+") >= %(out_ix_x_dim) ) { return; } "
-	"// this x value and the following are off-the-end pels, so don't store them.\n";
-      for( uint32_t tx = 0; tx != t_tile_sz; ++tx ) {
-#if 1
-	string const ve = strprintf( "%sout_tile[%s] + filts_strip[%s])", oi->conv_has_relu ? "max(0.0f," : "(",
-				     str((ty*t_tile_sz+tx)).c_str(), str(tx).c_str() );
-#else
-	string const ve = strprintf( "(filts_strip[%s])", str(tx).c_str() );
-#endif
-	t_tile_stores += strprintf( "if( (out_chan + %s) < %%(out_ix_chan_dim) ) { "
-				    "out_off[ %s*%%(out_ix_chan_sz) + %s*%%(out_ix_x_sz) ] = %s; }\n",
-				    str(tx).c_str(), str(tx).c_str(), str(ty).c_str(), ve.c_str() );
-      }
-    }
-    t_tile_stores += "  // end t_tile_stores";
-    tf_exprs.push_back( std::make_pair( "t_tile_stores", t_tile_stores ) );
-
-    // for error checking, (re-) calculate the sizes of the arguments (note: in elements, not bytes)
-    rf.arg_sizes.push_back( get_sz( tf_exprs, "filts_xp_ix" ) );
-    rf.arg_sizes.push_back( oi->no->cio.chans ); // biases_sz
-    rf.arg_sizes.push_back( get_sz( tf_exprs, "in_ix" ) );
-    rf.arg_sizes.push_back( out_ix_sz );
-    rf.has_final_flags_arg = 1;
-
-    rfgi.instantiate_template( rtc_prog_str );
-    return rf;
-  }
 
   vect_string conv_pipe_fwd_t::gen_op_stats( string const & top_in ) {
     vect_string const reds{ "min","max","sum","hist","cnt" }; // FIXME: dup'd with kernel code
