@@ -515,10 +515,6 @@ namespace boda
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
 
-      // convert input to proper format. FIXME: we used to be more clever about this, but transitionally, we're
-      // reverting to each layer having a single output type (was not true before for k1conv) and input type (was true
-      // before), and we just add input-side conversions as needed. the plan is to maybe-later make this fancier again.
-
       if( oi->is_tconv ) {
 	// in_tile_xpose format is for use when both oi->ni->cio.sz.d[0/1] are small multiple of
 	// t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
@@ -548,18 +544,14 @@ namespace boda
 	in_arg_ids.push_back( in_id );
       }
 
-      rtc_func_t * rf = 0;
+      oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}};
       if( oi->is_k1conv ) { 
-	assert_st( oi->in_pad == 0 );
-	assert_st( oi->kern_sz == 1 );
-	assert_st( oi->stride == 1 );
 	p_op_info_t noi;
 	if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
 	  noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
 	  if( noi->is_k1conv ) { oi->single_k1conv_output = enable_write_xpose; }
 	}
 	bool const write_xposed = oi->single_k1conv_output;
-	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"write_xposed",str(write_xposed)}};
 	dims_t out_ref_dims = oi->no_dims;
 	if( write_xposed ) {
 	  oi->no_dims = dims_t{ vect_uint32_t{noi->bix_pels_blk_sz, noi->in_chan_tile_dim, noi->in_chan_tile, noi->tix_pels_tile_sz*t_tile_sz }, 
@@ -572,9 +564,7 @@ namespace boda
 	  vect_string{  "pels_blk","out_chan_blk",                       "pels_tile","out_chan_tile",                      "pels","out_chan"},   1 );
 	gen_call( "k1conv", oi, in_arg_ids, {work_dims,out_ref_dims} );
       } else if( oi->is_s1conv ) { 
-	assert_st( oi->stride == 1 );
 	assert_st( oi->in_chan_tile == 1 );
-	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"in_pad",str(oi->in_pad)}};
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for s1conv)
 	in_arg_ids.push_back( oi->no->name );
 	uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
@@ -587,7 +577,6 @@ namespace boda
 	gen_call( "s1conv", oi, in_arg_ids, {work_dims} );
       } else if( oi->is_tconv ) { 
 	assert_st( oi->in_chan_tile == 1 );
-	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}};
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. tconv)
 	in_arg_ids.push_back( oi->no->name );
 	dims_t const work_dims( /* blocks/call (3D) */                             /* threads/block (2D) */  /* -->line-wrapped-->  work/thread (2D) */
@@ -597,17 +586,12 @@ namespace boda
 	gen_call( "tconv", oi, in_arg_ids, {work_dims,in_dims} ); // original in_dims for reference (not xformed)
       } else { 
 	assert_st( oi->in_chan_tile == 1 );
-	oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}};
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. conv)
 	in_arg_ids.push_back( oi->no->name );
 	dims_t const work_dims( /* blocks/call (2D) */                             /* threads/block (2D) */                  /* work/thread (2D) */
 	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,   t_tile_sz, t_tile_sz },  
 	  vect_string{  "pels_blk","out_chan_blk",                       "pels_tile","out_chan_tile",                      "pels","out_chan"},   1 );
 	gen_call( "conv", oi, in_arg_ids, {work_dims} );
-      }
-      if( rf ) { // FIXME: transitionally use old flow for some conv types
-	fwd_calls.push_back( rtc_func_call_t{ rf->name, in_arg_ids,{},{oi->no->name}, {}, oi->cop->tag } );
-	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );       
       }
       assert_st( oi->no->cio.chans == cop->out_chans );
     } else if( cop->type == ReLU_str ) {
@@ -935,6 +919,7 @@ namespace boda
     }
 
     void gen_op_s1conv( void ) {
+      assert_st( rfs.get_u32_tvv("stride") == 1 );
       rf->has_final_flags_arg = 1;
       dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
       tf_exprs.push_back( std::make_pair( "line_buf_sz", "(%(in_pad)+%(in_x_dim)+%(in_pad))"));
@@ -1021,8 +1006,11 @@ namespace boda
     }
 
     void gen_op_k1conv( void ) {
+      assert_st( rfs.get_u32_tvv("in_pad") == 0 );
+      assert_st( rfs.get_u32_tvv("stride") == 1 );
       dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
       dims_t const & filts = get_arg_dims_by_name( "filts" );
+      assert_st( filts.dsz("x") == 1 ); assert_st( filts.dsz("y") == 1 );
       dims_t const & in = get_arg_dims_by_name( "in" );
       dims_t const & out = get_arg_dims_by_name( "out" );
       // calculate needed smem sizes (and total kernel needed smem size)
@@ -1060,7 +1048,7 @@ namespace boda
       // cg_add_line( "stores", "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; } "; // not possible due to no-partial-imgs-per-block
       // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
       // FIXME: out_pel must be per-tpix (again)
-      if( rfs.get_u32_tvv("write_xposed") ) {
+      if( out.get_dim_by_name("blk") ) {
 	// padded # of in chans of next layer  == out.dsz("blk_iter")*out.dsz("blk_iter_chan")
 	// padded # of out chans of this layer == work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan")
 	// if these are ==, we don't have to worry about bounds-checking our writes to out in the chan dim
