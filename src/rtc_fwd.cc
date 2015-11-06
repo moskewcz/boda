@@ -54,6 +54,8 @@ namespace boda
   struct op_info_t {
     // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
     vect_rtc_func_param_info_t template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
+    dims_t work;
+
     p_conv_op_t cop;
     p_conv_node_t no;
     bool is_conv;
@@ -73,14 +75,13 @@ namespace boda
     bool is_tconv; // FIXME/TODO: mostly unused
 
     // blocking values 
+  protected:
     uint32_t tpb;
-    uint32_t blks;
+  public:
     uint32_t in_chan_tile;
     uint32_t in_chan_tile_dim;
     uint32_t tix_out_chan_tile_sz;
     uint32_t tix_pels_tile_sz;
-    uint32_t bix_out_chan_blk_sz;
-    uint32_t bix_pels_blk_sz;
 
     // tconv only/specific
     u32_pt_t tconv_blk_xy_sz; 
@@ -95,7 +96,8 @@ namespace boda
     bool single_k1conv_output;
 
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, uint32_t const & num_imgs,
-	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv, bool const & force_enable_tconv ) {
+	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv, bool const & force_enable_tconv,
+	       uint32_t const t_tile_sz ) {
       cop = cop_;
       assert_st( cop->tops.size() >= 1 );
       if( cop->type == SoftmaxWithLoss_str ) {
@@ -153,7 +155,97 @@ namespace boda
 	single_k1conv_output = 0; // may be set to 1 in phase 2, but default to 0 here
 
       }
-    }    
+     
+      if( !is_conv ) { return; }
+      // calc_blocking_conv()
+      op_info_t * const oi = this;
+      uint32_t const out_ix_sz = num_imgs * oi->no->cio.num_pels();
+
+      // for reg blocking
+      uint32_t const out_chan_tile_sz = u32_ceil_div( oi->no->cio.chans, t_tile_sz );
+
+      uint32_t tix_pels_tile_sz_incr = 1;
+      if( oi->is_s1conv ) {
+	uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
+	tix_pels_tile_sz_incr = line_x_tile_sz;
+      }
+
+      // note: in_chan_tile unused except in k1conv
+      oi->in_chan_tile = 1;
+      if( oi->is_k1conv ) { oi->in_chan_tile = 8; }
+      oi->in_chan_tile_dim = u32_ceil_div( oi->ni->cio.chans, oi->in_chan_tile );
+
+      //uint32_t const pad_in_chans = in_chan_tile_dim * in_chan_tile;
+
+      oi->tpb = 128; // treated as a target, but not be exceeded
+      uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( rf.tpb ) above, more or less, but tweakable
+      //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= rf.tpb target/max above (asserted below)
+      // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
+      // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
+      // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the oi->no->cio.chans.
+      oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
+      oi->tix_pels_tile_sz = 0; // goal_tix_pels_tile_sz;
+      //uint32_t best_tbp = tix_pels_tile_sz * tix_out_chan_tile_sz;
+      uint32_t best_tbp = 0;
+      while( 1 ) {
+	uint32_t const maybe_tbp = (oi->tix_pels_tile_sz+tix_pels_tile_sz_incr) * oi->tix_out_chan_tile_sz; // recalculate proposed tpb
+	if( maybe_tbp > oi->tpb ) { break; }
+	oi->tix_pels_tile_sz += tix_pels_tile_sz_incr;
+	best_tbp = maybe_tbp;
+      }
+      assert_st( best_tbp );
+      assert_st( best_tbp <= oi->tpb );
+      oi->tpb = best_tbp;
+
+      uint32_t const lines_sz = num_imgs * oi->no->cio.sz.d[1];
+      if( oi->is_s1conv ) {
+	assert_st( lines_sz * oi->no->cio.sz.d[0] * oi->no->cio.chans == out_ix_sz ); // by construction
+	work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, oi->tix_pels_tile_sz ) );
+      } else if( oi->is_tconv ) {
+	assert( oi->tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
+	oi->tconv_blk_xy_sz = ceil_div( u32_pt_t( oi->no->cio.sz.d[0], lines_sz ), 
+					u32_pt_t( t_tile_sz, oi->tix_pels_tile_sz ) );
+	work.add_dims( "blk_bline", tconv_blk_xy_sz.d[1], "blk_bx", tconv_blk_xy_sz.d[0] );
+	oi->tconv_blk_max_imgs = 0;
+	uint32_t blk_b_line = 0;
+	for( uint32_t i = 0; i != oi->tconv_blk_xy_sz.d[1]; ++i ) {
+	  uint32_t const blk_e_line = blk_b_line + oi->tix_pels_tile_sz - 1;
+	  uint32_t const blk_b_img = blk_b_line / oi->no->cio.sz.d[1];
+	  uint32_t const blk_e_img = std::min( num_imgs - 1, blk_e_line / oi->no->cio.sz.d[1] );
+	  uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
+	  assert_st( blk_num_img );
+	  max_eq( oi->tconv_blk_max_imgs, blk_num_img );
+	  blk_b_line = blk_e_line + 1;
+	}
+	assert_st( oi->tconv_blk_max_imgs );
+	// calc conservative value (may be lower in general or for some num_imgs) and use as check:
+	uint32_t const conservative_conv_max_img_per_blk = 2 + ((oi->tix_pels_tile_sz - 2)/oi->no->cio.sz.d[1]); 
+	assert_st( oi->tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
+	//printf( "oi->no->cio.sz.d[1]=%s oi->tix_pels_tile_sz=%s\n", str(oi->no->cio.sz.d[1]).c_str(), str(oi->tix_pels_tile_sz).c_str() );
+	//printf( "oi->tconv_max_img_per_blk=%s\n", str(oi->tconv_blk_max_imgs).c_str() );
+      } else {
+	uint32_t const pels_sz = out_ix_sz / oi->no->cio.chans;
+	assert_st( pels_sz * oi->no->cio.chans == out_ix_sz ); // by construction
+	uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, t_tile_sz );
+	work.add_dims( "pels_blk", u32_ceil_div( pels_tile_sz, oi->tix_pels_tile_sz ) );
+      }
+      work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz ) );
+
+      // dims of per-group work (defines # threads per local group)
+      if( oi->is_s1conv ) { 
+	uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
+	uint32_t const blk_num_lines = u32_ceil_div( oi->tix_pels_tile_sz, line_x_tile_sz );
+	assert_st( blk_num_lines * line_x_tile_sz == oi->tix_pels_tile_sz ); // should be exact div by construction
+	work.add_dims( "line", blk_num_lines, "line_x_tile", line_x_tile_sz );
+      } 
+      else if( oi->is_tconv ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
+      else { work.add_dims( "pels_tile", tix_pels_tile_sz ); }
+      work.add_dims(   "out_chan_tile",oi->tix_out_chan_tile_sz );
+
+      work.add_dims( "pels",t_tile_sz,   "out_chan",t_tile_sz   ); // dims of per-thread work
+      work.calc_strides();
+      template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
+    }   
   };
   typedef shared_ptr< op_info_t > p_op_info_t; 
   typedef map< string, p_op_info_t > map_str_p_op_info_t;
@@ -265,7 +357,6 @@ namespace boda
     void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
 		   vect_dims_t const & ref_dims = vect_dims_t(), bool const is_init_call = 0 );
 
-    void calc_blocking_conv( p_op_info_t const & oi );
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
     string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
 
@@ -275,81 +366,6 @@ namespace boda
 
     void run_rfc( rtc_func_call_t & rfc );
   };
-
-  void conv_pipe_fwd_t::calc_blocking_conv( p_op_info_t const & oi ) {
-    uint32_t const out_ix_sz = num_imgs * oi->no->cio.num_pels();
-
-    // for reg blocking
-    uint32_t const out_chan_tile_sz = u32_ceil_div( oi->no->cio.chans, t_tile_sz );
-
-    uint32_t tix_pels_tile_sz_incr = 1;
-    if( oi->is_s1conv ) {
-      uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
-      tix_pels_tile_sz_incr = line_x_tile_sz;
-    }
-
-    // note: in_chan_tile unused except in k1conv
-    oi->in_chan_tile = 1;
-    if( oi->is_k1conv ) { oi->in_chan_tile = 8; }
-    oi->in_chan_tile_dim = u32_ceil_div( oi->ni->cio.chans, oi->in_chan_tile );
-
-    //uint32_t const pad_in_chans = in_chan_tile_dim * in_chan_tile;
-
-    oi->tpb = 128; // treated as a target, but not be exceeded
-    uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( rf.tpb ) above, more or less, but tweakable
-    //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= rf.tpb target/max above (asserted below)
-    // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
-    // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
-    // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the oi->no->cio.chans.
-    oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-    oi->tix_pels_tile_sz = 0; // goal_tix_pels_tile_sz;
-    //uint32_t best_tbp = tix_pels_tile_sz * tix_out_chan_tile_sz;
-    uint32_t best_tbp = 0;
-    while( 1 ) {
-      uint32_t const maybe_tbp = (oi->tix_pels_tile_sz+tix_pels_tile_sz_incr) * oi->tix_out_chan_tile_sz; // recalculate proposed tpb
-      if( maybe_tbp > oi->tpb ) { break; }
-      oi->tix_pels_tile_sz += tix_pels_tile_sz_incr;
-      best_tbp = maybe_tbp;
-    }
-    assert_st( best_tbp );
-    assert_st( best_tbp <= oi->tpb );
-    oi->tpb = best_tbp;
-    oi->bix_out_chan_blk_sz = u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz );
-
-    uint32_t const lines_sz = num_imgs * oi->no->cio.sz.d[1];
-    if( oi->is_s1conv ) {
-      assert_st( lines_sz * oi->no->cio.sz.d[0] * oi->no->cio.chans == out_ix_sz ); // by construction
-      oi->bix_pels_blk_sz = u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, oi->tix_pels_tile_sz );
-    } else if( oi->is_tconv ) {
-      assert( oi->tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
-      oi->tconv_blk_xy_sz = ceil_div( u32_pt_t( oi->no->cio.sz.d[0], lines_sz ), 
-				      u32_pt_t( t_tile_sz, oi->tix_pels_tile_sz ) );
-      oi->bix_pels_blk_sz = oi->tconv_blk_xy_sz.dims_prod();
-      oi->tconv_blk_max_imgs = 0;
-      uint32_t blk_b_line = 0;
-      for( uint32_t i = 0; i != oi->tconv_blk_xy_sz.d[1]; ++i ) {
-	uint32_t const blk_e_line = blk_b_line + oi->tix_pels_tile_sz - 1;
-	uint32_t const blk_b_img = blk_b_line / oi->no->cio.sz.d[1];
-	uint32_t const blk_e_img = std::min( num_imgs - 1, blk_e_line / oi->no->cio.sz.d[1] );
-	uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
-	assert_st( blk_num_img );
-	max_eq( oi->tconv_blk_max_imgs, blk_num_img );
-	blk_b_line = blk_e_line + 1;
-      }
-      assert_st( oi->tconv_blk_max_imgs );
-      // calc conservative value (may be lower in general or for some num_imgs) and use as check:
-      uint32_t const conservative_conv_max_img_per_blk = 2 + ((oi->tix_pels_tile_sz - 2)/oi->no->cio.sz.d[1]); 
-      assert_st( oi->tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
-      //printf( "oi->no->cio.sz.d[1]=%s oi->tix_pels_tile_sz=%s\n", str(oi->no->cio.sz.d[1]).c_str(), str(oi->tix_pels_tile_sz).c_str() );
-      //printf( "oi->tconv_max_img_per_blk=%s\n", str(oi->tconv_blk_max_imgs).c_str() );
-    } else {
-      uint32_t const pels_sz = out_ix_sz / oi->no->cio.chans;
-      assert_st( pels_sz * oi->no->cio.chans == out_ix_sz ); // by construction
-      uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, t_tile_sz );
-      oi->bix_pels_blk_sz = u32_ceil_div( pels_tile_sz, oi->tix_pels_tile_sz );
-    }
-    oi->blks = oi->bix_pels_blk_sz * oi->bix_out_chan_blk_sz;
-  }
 
   // FIXME: i'm not too happy about the duplication between here and the kernel version
   float stats_reduce( string const & stats_name, float const & v1, float const & v2 ) { 
@@ -444,7 +460,7 @@ namespace boda
     dims_t const filts_dims( vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz}, 
 			     vect_string{"out_chan","in_chan","y","x"}, 1 );
     string const filtsxp_id = filts_id + "_xposed";
-    dims_t const filtsxp_dims( vect_uint32_t{oi->bix_out_chan_blk_sz,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz}, 
+    dims_t const filtsxp_dims( vect_uint32_t{oi->work.dsz("out_chan_blk"),oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz}, 
 				vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
     string const biases_id = oi->cop->tag + "_biases";
     dims_t const biases_dims( vect_uint32_t{oi->cop->out_chans}, vect_string{"out_chan"}, 1 );
@@ -534,8 +550,8 @@ namespace boda
       } else if( oi->is_k1conv ) {
 	// the xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	// vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
-	dims_t const inxp_dims( vect_uint32_t{oi->bix_pels_blk_sz,oi->in_chan_tile_dim,oi->in_chan_tile,oi->tix_pels_tile_sz*t_tile_sz},
-				vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 );
+	dims_t const inxp_dims( vect_uint32_t{oi->work.dsz("pels_blk"),oi->in_chan_tile_dim,oi->in_chan_tile,
+	      oi->work.dsz("pels_tile")*oi->work.dsz("pels")}, vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 );
 	if( in_dims != inxp_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
 	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,inxp_dims}, {} } );
 	  in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
@@ -544,7 +560,6 @@ namespace boda
 	in_arg_ids.push_back( in_id );
       }
 
-      oi->template_var_values = {{"conv_has_relu",str(oi->conv_has_relu)},{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}};
       if( oi->is_k1conv ) { 
 	p_op_info_t noi;
 	if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
@@ -554,44 +569,27 @@ namespace boda
 	bool const write_xposed = oi->single_k1conv_output;
 	dims_t out_ref_dims = oi->no_dims;
 	if( write_xposed ) {
-	  oi->no_dims = dims_t{ vect_uint32_t{noi->bix_pels_blk_sz, noi->in_chan_tile_dim, noi->in_chan_tile, noi->tix_pels_tile_sz*t_tile_sz }, 
-				{ "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 }; // FIXME: remove usage of t_tile_sz here ...
+	  oi->no_dims = dims_t{ vect_uint32_t{noi->work.dsz("pels_blk"), noi->in_chan_tile_dim, noi->in_chan_tile, 
+					      noi->work.dsz("pels_tile")*noi->work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
 	}
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );
 	in_arg_ids.push_back( oi->no->name );
-	dims_t const work_dims( /* blocks/call (2D) */                             /* threads/block (2D) */                  /* work/thread (2D) */
-	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,   t_tile_sz, t_tile_sz },  
-	  vect_string{  "pels_blk","out_chan_blk",                       "pels_tile","out_chan_tile",                      "pels","out_chan"},   1 );
-	gen_call( "k1conv", oi, in_arg_ids, {work_dims,out_ref_dims} );
+	gen_call( "k1conv", oi, in_arg_ids, {oi->work,out_ref_dims} );
       } else if( oi->is_s1conv ) { 
 	assert_st( oi->in_chan_tile == 1 );
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for s1conv)
 	in_arg_ids.push_back( oi->no->name );
-	uint32_t const line_x_tile_sz = u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz );
-	uint32_t const blk_num_lines = u32_ceil_div( oi->tix_pels_tile_sz, line_x_tile_sz );
-	assert_st( blk_num_lines * line_x_tile_sz == oi->tix_pels_tile_sz ); // should be exact div by construction
-
-	dims_t const work_dims( /* blocks/call (2D) */                      /* threads/block (3D) */                          /* work/thread (2D) */
-	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz, blk_num_lines,line_x_tile_sz,oi->tix_out_chan_tile_sz,  t_tile_sz, t_tile_sz },  
-	  vect_string{  "lines_blk","out_chan_blk",                       "line","line_x_tile","out_chan_tile",                "pels","out_chan"},   1 );
-	gen_call( "s1conv", oi, in_arg_ids, {work_dims} );
+	gen_call( "s1conv", oi, in_arg_ids, {oi->work} );
       } else if( oi->is_tconv ) { 
 	assert_st( oi->in_chan_tile == 1 );
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. tconv)
 	in_arg_ids.push_back( oi->no->name );
-	dims_t const work_dims( /* blocks/call (3D) */                             /* threads/block (2D) */  /* -->line-wrapped-->  work/thread (2D) */
-	  vect_uint32_t{ oi->tconv_blk_xy_sz.d[1],oi->tconv_blk_xy_sz.d[0],oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,  
-	      t_tile_sz, t_tile_sz },  
-	  vect_string{  "blk_bline","blk_bx","out_chan_blk",                "blk_y","out_chan_tile",                      "pels","out_chan"},   1 );
-	gen_call( "tconv", oi, in_arg_ids, {work_dims,in_dims} ); // original in_dims for reference (not xformed)
+	gen_call( "tconv", oi, in_arg_ids, {oi->work,in_dims} ); // original in_dims for reference (not xformed)
       } else { 
 	assert_st( oi->in_chan_tile == 1 );
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. conv)
 	in_arg_ids.push_back( oi->no->name );
-	dims_t const work_dims( /* blocks/call (2D) */                             /* threads/block (2D) */                  /* work/thread (2D) */
-	  vect_uint32_t{ oi->bix_pels_blk_sz, oi->bix_out_chan_blk_sz,   oi->tix_pels_tile_sz, oi->tix_out_chan_tile_sz,   t_tile_sz, t_tile_sz },  
-	  vect_string{  "pels_blk","out_chan_blk",                       "pels_tile","out_chan_tile",                      "pels","out_chan"},   1 );
-	gen_call( "conv", oi, in_arg_ids, {work_dims} );
+	gen_call( "conv", oi, in_arg_ids, {oi->work} );
       }
       assert_st( oi->no->cio.chans == cop->out_chans );
     } else if( cop->type == ReLU_str ) {
@@ -1300,8 +1298,7 @@ namespace boda
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
-      oi->init( cp, i->second, num_imgs, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv );
-      if( oi->is_conv ) { calc_blocking_conv( oi ); }
+      oi->init( cp, i->second, num_imgs, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv, t_tile_sz );
     }
 
     rtc->init();
