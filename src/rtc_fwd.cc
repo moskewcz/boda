@@ -55,6 +55,7 @@ namespace boda
     // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
     vect_rtc_func_param_info_t template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     dims_t work;
+    dims_t in_dims;
 
     p_conv_op_t cop;
     p_conv_node_t no;
@@ -67,7 +68,6 @@ namespace boda
     uint32_t in_pad;
     uint32_t kern_sz;
     uint32_t stride;
-    uint32_t out_to_in( uint32_t const & osz ) { assert( osz ); return (osz - 1)*stride + kern_sz; }
     dims_t no_dims; // dims for conv output. defaults to dims for no from conv_pipe, may be overidden in op generation
 
     bool is_k1conv;
@@ -86,10 +86,6 @@ namespace boda
     // tconv only/specific
     u32_pt_t tconv_blk_xy_sz; 
     uint32_t tconv_blk_max_imgs;
-    uint32_t tconv_blk_max_in_lines( void ) const { 
-      assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
-      return (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz*tconv_blk_max_imgs;
-    }
 
     // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
     // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
@@ -117,6 +113,7 @@ namespace boda
 
       if( is_conv || is_pool ) {
 	no_dims = no->cio.dims(num_imgs);
+	in_dims = ni->cio.dims(num_imgs);
 	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->type == ReLU_str);
 	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
 	// for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
@@ -223,6 +220,20 @@ namespace boda
 	assert_st( oi->tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
 	//printf( "oi->no->cio.sz.d[1]=%s oi->tix_pels_tile_sz=%s\n", str(oi->no->cio.sz.d[1]).c_str(), str(oi->tix_pels_tile_sz).c_str() );
 	//printf( "oi->tconv_max_img_per_blk=%s\n", str(oi->tconv_blk_max_imgs).c_str() );
+	assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
+	uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz*tconv_blk_max_imgs;
+	uint32_t const tconv_blk_x_sz = (t_tile_sz - 1)*stride + kern_sz;
+	// the tconv/in_tile_xpose format is for use when both oi->ni->cio.sz.d[0/1] are small multiple of
+	// t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
+	// window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
+	// this case, we do not unroll across input chans, but we do unroll across kern_sz in X (and maybe in Y too for
+	// small kernels).
+	// note: "out_ix" from in_tile_xpose becomes "in_ix" for tconv; 
+	// from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are in output space
+	// image space. other x/y's (in thread and block indexes) are all in output image space.
+	in_dims = dims_t( vect_uint32_t{
+	    oi->tconv_blk_xy_sz.d[1], oi->tconv_blk_xy_sz.d[0], oi->ni->cio.chans, tconv_blk_max_in_lines, tconv_blk_x_sz },
+	  vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
       } else {
 	uint32_t const pels_sz = out_ix_sz / oi->no->cio.chans;
 	assert_st( pels_sz * oi->no->cio.chans == out_ix_sz ); // by construction
@@ -245,6 +256,14 @@ namespace boda
       work.add_dims( "pels",t_tile_sz,   "out_chan",t_tile_sz   ); // dims of per-thread work
       work.calc_strides();
       template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
+
+      if( is_k1conv ) { 
+	// the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
+	// vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
+	in_dims = dims_t( vect_uint32_t{oi->work.dsz("pels_blk"),oi->in_chan_tile_dim,oi->in_chan_tile,
+		oi->work.dsz("pels_tile")*oi->work.dsz("pels")}, vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
+      }
+
     }   
   };
   typedef shared_ptr< op_info_t > p_op_info_t; 
@@ -532,29 +551,14 @@ namespace boda
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
 
       if( oi->is_tconv ) {
-	// in_tile_xpose format is for use when both oi->ni->cio.sz.d[0/1] are small multiple of
-	// t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
-	// window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
-	// this case, we do not unroll across input chans, but we do unroll across kern_sz in X (and maybe in Y too for
-	// small kernels).
-	// note: "out_ix" from in_tile_xpose becomes "in_ix" for tconv; 
-	// from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are in output space
-	// image space. other x/y's (in thread and block indexes) are all in output image space.
-	dims_t const inxp_dims( vect_uint32_t{
-	    oi->tconv_blk_xy_sz.d[1], oi->tconv_blk_xy_sz.d[0], oi->ni->cio.chans, oi->tconv_blk_max_in_lines(), oi->out_to_in(t_tile_sz) },
-	  vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,inxp_dims,oi->no->cio.dims(num_imgs)}, // 'normal' out dims are for ref
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,oi->in_dims,oi->no->cio.dims(num_imgs)}, // 'normal' out dims are for ref
 	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}
 	      ,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)},{"t_tile_sz",str(t_tile_sz)}} } );
-	in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
+	in_arg_ids.push_back( gen_apply_func_to_var( in_id, oi->in_dims, xp_fn ) );
       } else if( oi->is_k1conv ) {
-	// the xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
-	// vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
-	dims_t const inxp_dims( vect_uint32_t{oi->work.dsz("pels_blk"),oi->in_chan_tile_dim,oi->in_chan_tile,
-	      oi->work.dsz("pels_tile")*oi->work.dsz("pels")}, vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 );
-	if( in_dims != inxp_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
-	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,inxp_dims}, {} } );
-	  in_arg_ids.push_back( gen_apply_func_to_var( in_id, inxp_dims, xp_fn ) );
+	if( in_dims != oi->in_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
+	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,oi->in_dims}, {} } );
+	  in_arg_ids.push_back( gen_apply_func_to_var( in_id, oi->in_dims, xp_fn ) );
 	} else { in_arg_ids.push_back( in_id ); }	
       } else {
 	in_arg_ids.push_back( in_id );
