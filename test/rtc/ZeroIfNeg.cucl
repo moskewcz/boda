@@ -1,0 +1,10 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float const * const cond, // CUCL IN img:chan:y:x
+					  GASQ float * const out ) // CUCL OUT img:chan:y:x
+// note: in/cond/out dims are all the same. 
+{
+  // write a single output pixel per thread
+  // CUCL IX GLOB_ID_1D out
+  if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
+  out[GLOB_ID_1D] = (cond[GLOB_ID_1D] > 0) ? in[GLOB_ID_1D] : 0.0f;
+}

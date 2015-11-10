@@ -94,8 +94,9 @@ namespace boda
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
     bool in_place = 0;
-    if( (conv->type == "ReLU") || (conv->type == "Dropout") ) { 
-      assert_st( conv->bots.size() == 1 ); assert_st( conv->tops == conv->bots );
+    if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNeg_coi) ) { 
+      if( conv->is(ZeroIfNeg_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }
+      else { assert_st( conv->tops == conv->bots ); }
       get_or_make_node(conv->bots[0], 0, 0 )->in_place_ops.push_back( conv );
       in_place = 1;
     }
@@ -146,9 +147,9 @@ namespace boda
     cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
     uint32_t const & out_chans = cop->out_chans; 
 
-    if( cop->is( Spreading_coi ) ) { 
+    if( cop->is( Spreading_coi ) || cop->is( ZeroIfNeg_coi ) ) { 
       assert_st( out_chans == 0 ); 
-      cio_out.chans = must_get_node(cop->bots[1])->cio.chans; // propogate # chans
+      cio_out.chans = must_get_node(cop->bots[0])->cio.chans; // propogate # chans
       // FIXME?: for now, we don't try to calculate support info for bck operations 
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
@@ -244,7 +245,9 @@ namespace boda
     conv_io_t & cio_out = node_out->cio;
     if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 
-    if( cop->is( Spreading_coi ) ) { 
+    if( cop->is( ZeroIfNeg_coi ) ) { 
+      cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
+    } else if( cop->is( Spreading_coi ) ) { 
       cio_out.sz = must_get_node(cop->bots[1])->cio.sz; // in_grad_loss output is same size as reference fwd_in
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
@@ -536,6 +539,17 @@ namespace boda
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input (need size and which-elem-is-max per window) could use mask instead)
       bcop->bots[0] += "_grad_loss";
       bcop->tops[0] += "_grad_loss"; // note: pooling has no params, so there is second output for parameter gradients (as with some bck ops)
+      if( !has( *nodes, bcop->bots[0] ) ) { printf( "FIXME: missing bot: bcop->bots[0]=%s -- op dropped.\n", str(bcop->bots[0]).c_str() ); }
+      else { add_conv( bcop ); }
+    } else if( cop->is( ReLU_coi ) ) {
+      p_conv_op_t bcop( new conv_op_t );
+      *bcop = *cop;
+      bcop->type = ZeroIfNeg_coi.type;
+      bcop->tag += "_bck";
+      swap( bcop->tops, bcop->bots );
+      bcop->bots.push_back( bcop->tops[0] ); // take original input as input
+      bcop->bots[0] += "_grad_loss";
+      bcop->tops[0] += "_grad_loss"; // note: ReLU has no params, so there is second output for parameter gradients (as with some bck ops)
       if( !has( *nodes, bcop->bots[0] ) ) { printf( "FIXME: missing bot: bcop->bots[0]=%s -- op dropped.\n", str(bcop->bots[0]).c_str() ); }
       else { add_conv( bcop ); }
     } else {

@@ -96,13 +96,7 @@ namespace boda
 	       uint32_t const t_tile_sz ) {
       cop = cop_;
       assert_st( cop->tops.size() >= 1 );
-      if( cop->is( SoftmaxWithLoss_coi ) ) { }
-      else {
-	assert_st( cop->tops.size() == 1 );
-	if( cop->is( Concat_coi ) ) {  }
-	else if( cop->is( Spreading_coi ) ) { }
-	else { assert_st( cop->bots.size() == 1 ); }
-      }
+      assert_st( cop->bots.size() >= 1 );
       no = cp->must_get_node( cop->tops[0] );
       if( !cop->is(Concat_coi) ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
 
@@ -618,9 +612,10 @@ namespace boda
       gen_call( "sm_grad_and_loss", oi, { prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
       gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
     } else if( cop->is( Spreading_coi ) ) {
-      // FIXME/TODO: handle. for now, mostly ignore
       oi->template_var_values = {{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"avg_pool",str(oi->cop->avg_pool)},{"in_pad",str(oi->in_pad)}};
       gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
+    } else if( cop->is( ZeroIfNeg_coi ) ) {
+      gen_call( cop->type, oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
