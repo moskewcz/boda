@@ -27,20 +27,20 @@ namespace boda
 
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
     if( kern_sz.is_zeros() ) { // handle non-conv cases
-      assert( type != Convolution_str ); 
-      if( (type == Pooling_str) || (type == InnerProduct_str) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
+      assert( !is(Convolution_coi) ); 
+      if( is(Pooling_coi) || is(InnerProduct_coi) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
     }
     u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum());
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
-    if( type == Convolution_str ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
-    else if( type == Pooling_str ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
+    if( is(Convolution_coi) ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
+    else if( is(Pooling_coi) ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
     else { rt_err("unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
     if( kern_sz.is_zeros() ) { // handle non-conv cases
-      assert( type != Convolution_str );
-      if( (type == Pooling_str) || (type == InnerProduct_str) ) { // inner product and global pooling special cases
+      assert( !is(Convolution_coi) );
+      if( is(Pooling_coi) || is(InnerProduct_coi) ) { // inner product and global pooling special cases
 	if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
 	return u32_pt_t{0,0};  // special value means all input will be used ...
       } else { // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
@@ -253,7 +253,7 @@ namespace boda
       loss_cio.per_batch = 1;
     } else {
       assert_st( cop->has_one_top() );
-      if( (cop->bots.size() != 1) && (cop->type != Concat_str) ) { 
+      if( (cop->bots.size() != 1) && !cop->is(Concat_coi) ) { 
 	rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
 	conv_io_t & cio_in = must_get_node(*j)->cio; // note: non-const since cio_in.used_sz is updated
@@ -530,7 +530,7 @@ namespace boda
     } else if( cop->is( Pooling_coi ) ) {
       p_conv_op_t bcop( new conv_op_t );
       *bcop = *cop;
-      bcop->type = Spreading_str;
+      bcop->type = Spreading_coi.type;
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input (need size and which-elem-is-max per window) could use mask instead)
@@ -566,7 +566,7 @@ namespace boda
       // loss-function/fwd-top-gradient-producing node. we check that here:
       p_conv_node_t node = must_get_node( *i );
       assert_st( node->top_for.size() == 1 );
-      if( get_op(node->top_for[0])->type != SoftmaxWithLoss_str ) {
+      if( !get_op(node->top_for[0])->is(SoftmaxWithLoss_coi) ) {
 	rt_err( strprintf( "add_bck_ops: unhandled: top node %s not produced by SoftmaxWithLoss op", str(*i).c_str() ) );
       }
       add_bck_ops_rec( *i ); 

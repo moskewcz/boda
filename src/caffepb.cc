@@ -46,15 +46,15 @@ namespace boda
     int o = 0;
     for( int i = 0; i < net_param->layer_size(); i++ ) {
       caffe::LayerParameter const * const lp = &net_param->layer(i);
-      if( lp->type() == Data_str ) {
+      if( lp->type() == Data_coi.type ) {
 	// assume first top is name of data layer image data output blob
 	if( lp->top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
 	data_node_name = lp->top(0);
 	label_node_name = lp->top(1);
 	continue; // drop layer
-      } else if( lp->type() == Accuracy_str ) {
+      } else if( lp->type() == Accuracy_coi.type ) {
 	continue; // drop layer
-      } else if( (lp->type() == SoftmaxWithLoss_str) || (lp->type() == Softmax_str) ) {
+      } else if( (lp->type() == SoftmaxWithLoss_coi.type) || (lp->type() == Softmax_coi.type) ) {
 	if( !add_bck_ops ) { continue; } // drop layer unless we're doing bck 
       }
       // if we got here, we keep layer (but may modify it)
@@ -63,19 +63,19 @@ namespace boda
 
       // we don't use caffe's layer filtering, so strip any filtering info out (i.e. use this layer in 'all' phases).
       // FIXME/HACK/NOTE: this is not in general correct/sound. but generally the only layer with phase info that we keep is
-      // SoftmaxWithLoss_str, and we only keep it when we want to run it (when add_bck_ops==1). we could probably at least error
+      // SoftmaxWithLoss_coi.type, and we only keep it when we want to run it (when add_bck_ops==1). we could probably at least error
       // check this better.
       olp->clear_phase(); olp->clear_include(); olp->clear_exclude(); 
 
       // keep SoftmaxWithLoss only when add_bck_ops==1; add a named loss output if it doesn't exists so we can reference it by
       // name consistently from from both the boda and caffe versions of the net.
-      if( olp->type() == SoftmaxWithLoss_str ) {
+      if( olp->type() == SoftmaxWithLoss_coi.type ) {
 	assert_st( add_bck_ops );
 	assert_st( olp->top_size() <= 1 );
 	if( olp->top_size() == 0 ) { olp->add_top(next_loss_node_name); }
 	++nlnn_ix;
 	next_loss_node_name = "loss_" + str(nlnn_ix);
-      } else if( olp->type() == Softmax_str ) {
+      } else if( olp->type() == Softmax_coi.type ) {
 	assert_st( add_bck_ops );
 	// here's where we'd convert from Softmax->SoftmaxWithLoss if we wanted to handle that
 	rt_err( "unimplemented: reading caffe net with Softmax (not SoftmaxWithLoss) in add_bck_ops mode" );
@@ -177,18 +177,18 @@ namespace boda
       assert_st( lp.has_type() );
       p_conv_op_t conv_op;
       if( 0 ) {
-      } else if( lp.type() == Convolution_str ) {
+      } else if( lp.type() == Convolution_coi.type ) {
 	assert_st( lp.has_convolution_param() );
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
 	conv_op = get_conv_op_from_param( cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
 	conv_op->out_chans = cp.num_output();
-      } else if( (lp.type() == ReLU_str) || (lp.type() == Dropout_str) ) {
+      } else if( (lp.type() == ReLU_coi.type) || (lp.type() == Dropout_coi.type) ) {
 	// in-place layers to mostly-ignore
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1}; // sensible, but currently unused
 	conv_op->out_chans = 0; // no effect on chans
-      } else if( lp.type() == LRN_str ) {
+      } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	
 	conv_op.reset( new conv_op_t );
@@ -199,11 +199,11 @@ namespace boda
 	conv_op->lrn_beta = p.beta();
 	conv_op->lrn_local_size = p.local_size();
 	conv_op->lrn_k = p.k();
-      } else if( lp.type() == Softmax_str ) {
+      } else if( lp.type() == Softmax_coi.type ) {
 	// this may be inconvieniently strong; it's probably okay to ignore this here
 	//rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );
 	printf( "Warning, Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out? ignoring.\n" );
-      } else if( lp.type() == SoftmaxWithLoss_str ) {
+      } else if( lp.type() == SoftmaxWithLoss_coi.type ) {
 	// this layer should only be present when add_bck_ops==1, and all outputs should be produced by it
 	if( !add_bck_ops ) { 
 	  //rt_err( "Saw unexpected SoftmaxWithLoss layer in caffpb caffe->boda net conversion given add_bck_ops==0." ); 
@@ -213,7 +213,7 @@ namespace boda
 	  conv_op->stride = {1,1}; // sensible, but currently unused
 	  conv_op->out_chans = 0; // no effect on chans
 	}
-      } else if( lp.type() == Pooling_str ) {
+      } else if( lp.type() == Pooling_coi.type ) {
 	assert_st( lp.has_pooling_param() );
 	caffe::PoolingParameter const & pp = lp.pooling_param();
 	conv_op = get_conv_op_from_param( pp );
@@ -224,15 +224,15 @@ namespace boda
 	else { printf( "warning: unhanded pooling method pp.pool()=%s\n", str(pp.pool()).c_str() ); }
 	// global pooling iff kernel size is all zeros (we use as a special value)
 	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
-      } else if( lp.type() == InnerProduct_str ) {
+      } else if( lp.type() == InnerProduct_coi.type ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = ipp.num_output();
-      } else if( (lp.type() == Data_str) || (lp.type() == Accuracy_str) ) {
+      } else if( (lp.type() == Data_coi.type) || (lp.type() == Accuracy_coi.type) ) {
 	// for now, just silently ignore data and acc layers.
-      } else if( lp.type() == Concat_str ) {
+      } else if( lp.type() == Concat_coi.type ) {
 	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
@@ -251,12 +251,10 @@ namespace boda
 	conv_op->tag = lp.name();
 	conv_op->type = lp.type();
 	// FIXME: dup'd with code in caffeif.cc that does this param->param ... pick one place to do this?
-	// silently convert SoftmaxWithLoss_str -> Softmax_str 
+	// silently convert SoftmaxWithLoss_coi.type -> Softmax_coi.type 
 	RF_TO_VEC( conv_op->bots, lp.bottom );
 	RF_TO_VEC( conv_op->tops, lp.top );
-	if( conv_op->type == SoftmaxWithLoss_str ) { 
-	  assert_st( conv_op->bots.size() == 2 ); // fwd_top, label
-	  assert_st( conv_op->tops.size() == 1 ); // loss
+	if( conv_op->is(SoftmaxWithLoss_coi) ) { 
 	  // add gradient output for fwd_top input
 	  conv_op->tops.insert( conv_op->tops.begin(), conv_op->bots[0] + "_grad_loss" );
 	}
@@ -495,7 +493,7 @@ namespace boda
     }
 
     // add dim names (and maybe do other fixups) for specific known layer types
-    if( dest_lp.type() == Convolution_str ) {
+    if( dest_lp.type() == Convolution_coi.type ) {
       assert( blobs.size() == 2 ); // filts, biases
       dims_t & fd = blobs.at(0)->dims;
       // for filter blobs, assume they are in the following format:
@@ -835,7 +833,7 @@ namespace boda
       // find and rename all fc layers
       for( uint32_t i = to_resize_ix + 1; i != numl; ++i ) {
 	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
-	if( lp->type() == InnerProduct_str ) {
+	if( lp->type() == InnerProduct_coi.type ) {
 	  // FIXME: convert to conv layer. for now, just rename.
 	  printf("WARNING: renaming fc/InnerProduct %s layer to avoid size mismatch when loading weights. note that the renamed layer in the output model will *not* get any copied weights from the input model!\n",lp->name().c_str()); 
 	  lp->set_name( lp->name() + "-renamed-due-to-resize" );
@@ -864,14 +862,14 @@ namespace boda
       // find and rename all fc layers
       for( uint32_t i = 0; i != numl; ++i ) {
 	caffe::LayerParameter * lp = mod_net_param->mutable_layer(i);
-	if( lp->type() != InnerProduct_str ) { continue; }
+	if( lp->type() != InnerProduct_coi.type ) { continue; }
 	vect_p_nda_float_t blobs;
 	copy_layer_blobs( trained_net, lp->name(), blobs );
 
 	caffe::InnerProductParameter * ipp = lp->mutable_inner_product_param();
 	converted_layer_names.push_back( lp->name() );
 	lp->set_name( lp->name() + "-conv" );
-	lp->set_type( Convolution_str );
+	lp->set_type( Convolution_coi.type );
 
 	caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
 	assert_st( ipp->has_num_output() );
@@ -971,7 +969,7 @@ namespace boda
       if( add_before_ix+1 > orig_num_layers ) {
 	rt_err( "unhandled: expecting at least 1 layer (a ReLU) after add_before_ln"); }
       caffe::LayerParameter const & post_relu_layer = net_param->layer( add_before_ix + 1 );
-      if( post_relu_layer.type() != ReLU_str ) {
+      if( post_relu_layer.type() != ReLU_coi.type ) {
 	rt_err( "unhandled: layer prior to add_before_ln is not RELU"); }
 
       if( add_before_ix < 2 ) { rt_err( "unhandled: expecting at least 2 layers prior to add_before_ln"); }

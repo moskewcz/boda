@@ -104,7 +104,7 @@ namespace boda
 	else { assert_st( cop->bots.size() == 1 ); }
       }
       no = cp->must_get_node( cop->tops[0] );
-      if( cop->type != Concat_str ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
+      if( !cop->is(Concat_coi) ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
 
       is_conv = cop->is( Convolution_coi );
       is_pool = cop->is( Pooling_coi );
@@ -113,7 +113,7 @@ namespace boda
       if( is_conv || is_pool || (cop->is( Spreading_coi )) ) {
 	no_dims = no->cio.dims(num_imgs);
 	in_dims = ni->cio.dims(num_imgs);
-	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->type == ReLU_str);
+	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
 	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
 	// for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
 	assert_st( cop->in_pad.bnds_are_same() );
@@ -1282,7 +1282,7 @@ namespace boda
       p_conv_op_t const & cop = cp->get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) {  // generate output nodes
-	if( cop->type != Convolution_str ) { gen_node_var( *j, *j ); } // only if not conv (which explicitly/manually creates node var)
+	if( !cop->is(Convolution_coi) ) { gen_node_var( *j, *j ); } // only if not conv (which explicitly/manually creates node var)
       }
       gen_op( cop );
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { gen_ops_rec( *j ); }
