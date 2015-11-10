@@ -212,6 +212,7 @@ namespace boda
 	  conv_op.reset( new conv_op_t );
 	  conv_op->stride = {1,1}; // sensible, but currently unused
 	  conv_op->out_chans = 0; // no effect on chans
+	  conv_op->tops.push_back( lp.bottom(0) + "_grad_loss" ); // add gradient output for fwd_top input
 	}
       } else if( lp.type() == Pooling_coi.type ) {
 	assert_st( lp.has_pooling_param() );
@@ -254,13 +255,8 @@ namespace boda
 	// silently convert SoftmaxWithLoss_coi.type -> Softmax_coi.type 
 	RF_TO_VEC( conv_op->bots, lp.bottom );
 	RF_TO_VEC( conv_op->tops, lp.top );
-	if( conv_op->is(SoftmaxWithLoss_coi) ) { 
-	  // add gradient output for fwd_top input
-	  conv_op->tops.insert( conv_op->tops.begin(), conv_op->bots[0] + "_grad_loss" );
-	}
 	conv_pipe->add_conv( conv_op );
       }      
-
     }
     // FIXME? this is too strong now, and will be checked later -- but check something here? can't?
     //if( !found_out_node ) { rt_err( strprintf("node out_node_name=%s not found as layer output in network\n",str(out_node_name).c_str() )); }
