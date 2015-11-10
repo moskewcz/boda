@@ -96,23 +96,21 @@ namespace boda
 	       uint32_t const t_tile_sz ) {
       cop = cop_;
       assert_st( cop->tops.size() >= 1 );
-      if( cop->type == SoftmaxWithLoss_str ) {
-	assert_st( cop->bots.size() == 2 );
-	assert_st( cop->tops.size() == 2 );
-      } else {
+      if( cop->is( SoftmaxWithLoss_coi ) ) { }
+      else {
 	assert_st( cop->tops.size() == 1 );
-	if( cop->type == Concat_str ) { assert_st( cop->bots.size() >= 1 ); }
-	else if( cop->type == Spreading_str ) { assert_st( cop->bots.size() == 2 ); }
+	if( cop->is( Concat_coi ) ) {  }
+	else if( cop->is( Spreading_coi ) ) { }
 	else { assert_st( cop->bots.size() == 1 ); }
       }
       no = cp->must_get_node( cop->tops[0] );
       if( cop->type != Concat_str ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
 
-      is_conv = cop->type == Convolution_str;
-      is_pool = cop->type == Pooling_str;
+      is_conv = cop->is( Convolution_coi );
+      is_pool = cop->is( Pooling_coi );
       // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
 
-      if( is_conv || is_pool || (cop->type == Spreading_str) ) {
+      if( is_conv || is_pool || (cop->is( Spreading_coi )) ) {
 	no_dims = no->cio.dims(num_imgs);
 	in_dims = ni->cio.dims(num_imgs);
 	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->type == ReLU_str);
@@ -516,7 +514,7 @@ namespace boda
       poi = must_find( *op_infos, oi->ni->top_for[0] ); // single unique parent operation, needed for poi->single_k1conv_output
     }
 
-    if( cop->type == Concat_str ) {      
+    if( cop->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
 	conv_io_t & cio_in = cp->must_get_node( cop->bots[bi] )->cio;
@@ -597,36 +595,30 @@ namespace boda
 	gen_call( "conv", oi, in_arg_ids, {oi->work} );
       }
       assert_st( oi->no->cio.chans == cop->out_chans );
-    } else if( cop->type == ReLU_str ) {
+    } else if( cop->is( ReLU_coi ) ) {
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
       gen_call( "relu", oi, { oi->no->name } );
-    } else if( cop->type == LRN_str ) {
+    } else if( cop->is( LRN_coi ) ) {
       oi->template_var_values = {{"local_size",str(cop->lrn_local_size)},{"alpha",str(cop->lrn_alpha)},{"beta",str(cop->lrn_beta)},{"k",str(cop->lrn_k)}};
       assert_st( oi->ni->cio.sz == oi->no->cio.sz );
       assert_st( oi->ni->cio.chans == oi->no->cio.chans );
       gen_call( "lrn", oi, { oi->ni->name, oi->no->name } );
-    } else if( cop->type == Dropout_str ) {
+    } else if( cop->is( Dropout_coi ) ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
       // ignore for fwd
-    } else if( cop->type == Softmax_str ) {
+    } else if( cop->is( Softmax_coi ) ) {
       gen_call( "softmax", oi, { oi->ni->name, oi->no->name } );
-    } else if( cop->type == SoftmaxWithLoss_str ) {
-      assert_st( cop->bots.size() == 2 ); // fwd_top, label
-      assert_st( cop->tops.size() == 2 ); // fwd_top_grad_loss, loss
-
+    } else if( cop->is( SoftmaxWithLoss_coi ) ) {
       string const prob_node_name = cop->tag + "_prob";
       gen_node_var( prob_node_name, cop->bots[0] );
       gen_call( "softmax", oi, { cop->bots[0], prob_node_name } );
-
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node_var( loss_per_pel, cop->bots[1] );
       gen_call( "sm_grad_and_loss", oi, { prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
       gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
-    } else if( cop->type == Spreading_str ) {
+    } else if( cop->is( Spreading_coi ) ) {
       // FIXME/TODO: handle. for now, mostly ignore
-      assert_st( cop->bots.size() == 2 ); // fwd_in, out_grad_loss
-      assert_st( cop->tops.size() == 1 ); // in_grad_loss
       oi->template_var_values = {{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"avg_pool",str(oi->cop->avg_pool)},{"in_pad",str(oi->in_pad)}};
       gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }

@@ -1,4 +1,3 @@
--- factor out type-check function for conv_op_t, and put asserts on sizes of tops/bots inside it
 -- Spreading: fix mask semantics, add max support, more testing
 
 ** sz->dims refactoring backlog:

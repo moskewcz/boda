@@ -454,8 +454,7 @@ namespace boda
 
   void alloc_layer_blobs( p_conv_pipe_t const & pipe, string const & layer_name, vect_p_nda_float_t & blobs ) {
     p_conv_op_t const & cop = pipe->get_op( layer_name );
-    if( cop->type == Convolution_str ) { 
-      assert_st( cop->bots.size() == 1 );
+    if( cop->is( Convolution_coi ) ) { 
       conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
       u32_pt_t kern_sz = cop->kern_sz;
       if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case

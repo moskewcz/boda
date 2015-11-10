@@ -98,33 +98,29 @@ namespace boda
 			    p_map_str_p_nda_float_t const & fwd, p_nda_float_t const & bot, p_nda_float_t const & top ) {
     assert( bot->dims.dims(0) == top->dims.dims(0) );
     for( uint32_t i = 0; i != bot->dims.dims(0); ++i ) {
-      if( cop->type == Convolution_str) { run_conv_op_one_img_conv( cop, fwd, i, bot, top ); }
-      else if( cop->type == Pooling_str) { run_conv_op_one_img_pool( cop, fwd, i, bot, top ); }
+      if( cop->is( Convolution_coi )) { run_conv_op_one_img_conv( cop, fwd, i, bot, top ); }
+      else if( cop->is( Pooling_coi )) { run_conv_op_one_img_pool( cop, fwd, i, bot, top ); }
       else { assert_st(0); }
     }
   }
 
   void run_conv_op( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd ) { 
     if( 0 ) {
-    } else if( (cop->type == Convolution_str) || (cop->type == Pooling_str) ) {
-      assert_st( cop->bots.size() == 1 );
+    } else if( (cop->is( Convolution_coi )) || (cop->is( Pooling_coi )) ) {
       p_nda_float_t const & bot = must_find( *fwd, cop->bots[0] );
       assert_st( bot->dims.sz() == 4 );
-      assert_st( cop->tops.size() == 1 );
       p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
       assert_st( top->dims.sz() == 4 );
       assert_st( bot->dims.dims(0) == top->dims.dims(0) );
       run_conv_op_per_img( cop, fwd, bot, top );
-    } else if( cop->type == ReLU_str ) {
+    } else if( cop->is( ReLU_coi ) ) {
       p_nda_float_t const & top = must_find( *fwd, cop->get_single_in_place_arg() );
       float * const r_top = &top->elems[0];
       for( uint32_t i = 0; i != top->elems.sz; ++i ) { if( r_top[i] <= 0 ) { r_top[i] = 0; } }
-    } else if( cop->type == Dropout_str ) {
+    } else if( cop->is( Dropout_coi ) ) {
       // ingore 
-    } else if( cop->type == Softmax_str ) {
-      assert_st( cop->bots.size() == 1 );
+    } else if( cop->is( Softmax_coi ) ) {
       p_nda_float_t const & bot = must_find( *fwd, cop->bots[0] );
-      assert_st( cop->tops.size() == 1 );
       p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
       assert( bot->dims == top->dims );
       assert( bot->dims.sz() == 4 );
@@ -141,10 +137,8 @@ namespace boda
 	  }
 	}
       }
-    } else if( cop->type == LRN_str ) {
-      assert_st( cop->bots.size() == 1 );
+    } else if( cop->is( LRN_coi ) ) {
       p_nda_float_t const & bot = must_find( *fwd, cop->bots[0] );
-      assert_st( cop->tops.size() == 1 );
       p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
       assert( bot->dims == top->dims );
       assert( bot->dims.sz() == 4 );
@@ -167,8 +161,7 @@ namespace boda
 	  }
 	}
       }
-    } else if( cop->type == Concat_str ) {
-      assert_st( cop->tops.size() == 1 );
+    } else if( cop->is( Concat_coi ) ) {
       p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
       assert( top->dims.sz() == 4 );
       uint32_t chans_out_done = 0;

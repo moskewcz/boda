@@ -12,7 +12,7 @@ namespace boda
   typedef shared_ptr< net_param_t > p_net_param_t;
 
   // caffe-compatible layer type strings
-  // raw list: Pooling Convolution ReLU Dropout LRN Accuracy SoftmaxWithLoss Data Concat InnerProduct
+  // raw list: Pooling Convolution ReLU Dropout LRN Accuracy Softmax SoftmaxWithLoss Data Concat InnerProduct Spreading
   std::string const Pooling_str = "Pooling"; // Max or Avg
   std::string const Convolution_str = "Convolution";
   std::string const ReLU_str = "ReLU";
@@ -29,6 +29,25 @@ namespace boda
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
   // other ops. so we try to understand what they do functionally and name them accordingly.
   std::string const Spreading_str = "Spreading"; // Max or Avg
+
+  struct conv_op_info_t {
+    std::string type;
+    u32_pt_t num_bots; // min,max
+    u32_pt_t num_tops; // min,max
+  };
+
+  conv_op_info_t const Pooling_coi{ "Pooling", {1,1}, {1,1} };
+  conv_op_info_t const Convolution_coi{ "Convolution", {1,1}, {1,1} };
+  conv_op_info_t const ReLU_coi{ "ReLU", {1,1}, {1,1} };
+  conv_op_info_t const Dropout_coi{ "Dropout", {1,1}, {1,1} };
+  conv_op_info_t const LRN_coi{ "LRN", {1,1}, {1,1} };
+  conv_op_info_t const Accuracy_coi{ "Accuracy", {1,1}, {1,1} };
+  conv_op_info_t const Softmax_coi{ "Softmax", {1,1}, {1,1} };
+  conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", {2,2}, {2,2} }; // { prob, label } --> { prob_grad, loss }
+  conv_op_info_t const Data_coi{ "Data", {0,0}, {1,1} }; // note: no inputs / source
+  conv_op_info_t const Concat_coi{ "Concat", {1,uint32_t_const_max}, {1,1} };
+  conv_op_info_t const InnerProduct_coi{ "InnerProduct", {1,1}, {1,1} };
+  conv_op_info_t const Spreading_coi{ "Spreading", {2,2}, {1,1} }; // { in, mask } --> { out } // note: dims(mask)==dims(out)
 
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
   {
@@ -73,6 +92,7 @@ namespace boda
     //using NESI to init conv_op_t's (2) custom-printing conv_op_t's to avoid printing ununsed/invalid fields (3)
     //actually use some hierarchy here (gasp!)?
     conv_op_t( void ) : out_chans(0), avg_pool(0), lrn_local_size(0), lrn_alpha(0), lrn_beta(0), lrn_k(0) { }
+    bool is( conv_op_info_t const & coi ) const; // type string checking + verify input/output argument count and other sanity checks
   };
 
   typedef vector< conv_op_t > vect_conv_op_t; 

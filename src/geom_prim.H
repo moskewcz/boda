@@ -43,6 +43,7 @@ namespace boda
     bool both_dims_gt( T_pt_t const & o ) const { return d[0] >  o.d[0] && d[1] >  o.d[1]; }
     bool both_dims_le( T_pt_t const & o ) const { return d[0] <= o.d[0] && d[1] <= o.d[1]; }
     bool both_dims_ge( T_pt_t const & o ) const { return d[0] >= o.d[0] && d[1] >= o.d[1]; }
+    bool bnds_check_gele( T const & o ) const { return (o >= d[0]) && (o <= d[1]); }
   };
 
   template< typename T > inline T_pt_t<T> min( T_pt_t<T> const &a, T_pt_t<T> const & b ) { 

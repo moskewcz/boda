@@ -13,6 +13,18 @@
 namespace boda 
 {
 
+  // type string checking + verify input/output argument count and other sanity checks
+  bool conv_op_t::is( conv_op_info_t const & coi ) const { 
+    if( type != coi.type ) { return 0; }
+    if( !coi.num_tops.bnds_check_gele( tops.size() ) || !coi.num_bots.bnds_check_gele( bots.size() ) ) {
+      rt_err( strprintf( "Wrong number of input or output arguments for operation of type '%s'. "
+			 "had: tops.size()=%s bots.size()=%s, bnds are: coi.num_tops=%s coi.num_bots=%s\n", 
+			 str(coi.type).c_str(), str(tops.size()).c_str(), str(bots.size()).c_str(), 
+			 str(coi.num_tops).c_str(), str(coi.num_bots).c_str() ) );
+    }
+    return 1;
+  }
+
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
     if( kern_sz.is_zeros() ) { // handle non-conv cases
       assert( type != Convolution_str ); 
@@ -134,15 +146,11 @@ namespace boda
     cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
     uint32_t const & out_chans = cop->out_chans; 
 
-    if( cop->type == Spreading_str ) { 
-      assert_st( cop->bots.size() == 2 ); // in (out_grad_loss), mask (same dims as out)
-      assert_st( cop->tops.size() == 1 ); // out (in_grad_loss) (same dims as mask)
+    if( cop->is( Spreading_coi ) ) { 
       assert_st( out_chans == 0 ); 
       cio_out.chans = must_get_node(cop->bots[1])->cio.chans; // propogate # chans
       // FIXME?: for now, we don't try to calculate support info for bck operations 
-    } else if( cop->type == SoftmaxWithLoss_str ) { 
-      assert_st( cop->bots.size() == 2 ); // prob, label
-      assert_st( cop->tops.size() == 2 ); // prob_grad, loss
+    } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
       assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
       assert_st( out_chans == 0 ); 
@@ -156,7 +164,7 @@ namespace boda
 	p_conv_node_t const & j_node = must_get_node(*j);
 	conv_support_info_t const & csi_in = j_node->csi;
 	conv_io_t const & cio_in = j_node->cio;
-	if( cop->type == Concat_str ) {
+	if( cop->is( Concat_coi ) ) {
 	  assert_st( cop->has_one_top() );
 	  if( (j == cop->bots.begin()) || (csi_in.support_stride.dims_max() > csi_out.support_stride.dims_max()) ) { // first input or bigger stride
 	    if( j != cop->bots.begin() ) { 
@@ -236,13 +244,9 @@ namespace boda
     conv_io_t & cio_out = node_out->cio;
     if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 
-    if( cop->type == Spreading_str ) { 
-      assert_st( cop->bots.size() == 2 ); // in (out_grad_loss), mask (same dims as out)
-      assert_st( cop->tops.size() == 1 ); // out (in_grad_loss) (same dims as mask)
+    if( cop->is( Spreading_coi ) ) { 
       cio_out.sz = must_get_node(cop->bots[1])->cio.sz; // in_grad_loss output is same size as reference fwd_in
-    } else if( cop->type == SoftmaxWithLoss_str ) { 
-      assert_st( cop->bots.size() == 2 ); // prob, label
-      assert_st( cop->tops.size() == 2 ); // prob_grad, loss
+    } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
       conv_io_t & loss_cio = must_get_node( cop->tops[1] )->cio;
       loss_cio.sz = u32_pt_t{1,1}; // loss is a singleton
@@ -259,7 +263,7 @@ namespace boda
 	    cio_in.used_sz.max_eq( cop->out_sz_to_in_sz( cio_out.sz, ignore_padding ) );
 	  } // else if there's no output, we used no input (used_sz left at zero)
 	} else { // handle multiple inputs for concat layer (only!)
-	  assert( cop->type == Concat_str );
+	  assert( cop->is( Concat_coi ) );
 	  // x/y dims must agree across all inputs
 	  u32_pt_t const out_sz = cop->in_sz_to_out_sz( cio_in.sz, ignore_padding );
 	  assert_st( out_sz == cio_out.sz );
@@ -288,7 +292,7 @@ namespace boda
     p_conv_node_t rep_fwd_top;
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
-      if( cop->type == SoftmaxWithLoss_str ) { 
+      if( cop->is( SoftmaxWithLoss_coi ) ) { 
 	p_conv_node_t fwd_top = must_get_node( cop->bots[0] );
 	if( rep_fwd_top ) { 
 	  if( rep_fwd_top->cio.sz != fwd_top->cio.sz ) {
@@ -462,8 +466,7 @@ namespace boda
     
     string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
     uint32_t M = 0, N = 0, K = 0;
-    if( cop->type == Convolution_str || cop->type == InnerProduct_str ) {
-      assert_st( cop->bots.size() == 1 );
+    if( cop->is( Convolution_coi ) || cop->is( InnerProduct_coi ) ) {
       conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
       u32_pt_t kern_sz = cop->kern_sz;
       if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
@@ -521,19 +524,15 @@ namespace boda
 
 
   void conv_pipe_t::add_bck_ops_op( p_conv_op_t const & cop ) {
-    if( cop->type == Softmax_str ) { assert_st(0 ); }
-    else if( cop->type == SoftmaxWithLoss_str ) {
-      assert_st( cop->bots.size() == 2 );
-      assert_st( cop->tops.size() == 2 );
+    if( cop->is( Softmax_coi ) ) { assert_st(0 ); }
+    else if( cop->is( SoftmaxWithLoss_coi ) ) {
       assert_st( cop->bots[0]+"_grad_loss" == cop->tops[0] );
-    } else if( cop->type == Pooling_str ) {
+    } else if( cop->is( Pooling_coi ) ) {
       p_conv_op_t bcop( new conv_op_t );
       *bcop = *cop;
       bcop->type = Spreading_str;
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
-      assert_st( bcop->bots.size() == 1 );
-      assert_st( bcop->tops.size() == 1 );
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input (need size and which-elem-is-max per window) could use mask instead)
       bcop->bots[0] += "_grad_loss";
       bcop->tops[0] += "_grad_loss"; // note: pooling has no params, so there is second output for parameter gradients (as with some bck ops)
@@ -625,7 +624,7 @@ namespace boda
   void conv_pipe_t::add_layer_blobs( string const & rln, p_vect_p_nda_float_t const & blobs ) {
     p_conv_op_t const & cop = get_op( rln );
     vect_string bsb_names;
-    if( cop->type == Convolution_str ) { 
+    if( cop->is( Convolution_coi ) ) { 
       assert( blobs->size() == 2 );
       bsb_names.push_back( cop->tag + "_filts" ); 
       bsb_names.push_back( cop->tag + "_biases" ); 
