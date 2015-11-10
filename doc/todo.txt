@@ -1,4 +1,5 @@
 -- factor out type-check function for conv_op_t, and put asserts on sizes of tops/bots inside it
+-- Spreading: fix mask semantics, add max support, more testing
 
 ** sz->dims refactoring backlog:
  -- TO_RENAME blk_iter --> in_chan_tile; blk_iter_chan --> in_chan  (also in_chan_tile -> in_chan_dim)
