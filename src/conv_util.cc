@@ -134,12 +134,19 @@ namespace boda
     cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
     uint32_t const & out_chans = cop->out_chans; 
 
-    if( cop->type == SoftmaxWithLoss_str ) { 
+    if( cop->type == Spreading_str ) { 
+      assert_st( cop->bots.size() == 2 ); // in (out_grad_loss), mask (same dims as out)
+      assert_st( cop->tops.size() == 1 ); // out (in_grad_loss) (same dims as mask)
+      assert_st( out_chans == 0 ); 
+      cio_out.chans = must_get_node(cop->bots[1])->cio.chans; // propogate # chans
+      // FIXME?: for now, we don't try to calculate support info for bck operations 
+    } else if( cop->type == SoftmaxWithLoss_str ) { 
       assert_st( cop->bots.size() == 2 ); // prob, label
       assert_st( cop->tops.size() == 2 ); // prob_grad, loss
       csi_out.support_stride = u32_pt_t{};
       assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
-      assert_st( out_chans == 0 ); cio_out.chans = must_get_node(cop->bots[0])->cio.chans;
+      assert_st( out_chans == 0 ); 
+      cio_out.chans = must_get_node(cop->bots[0])->cio.chans; // propogate # chans
       p_conv_node_t const & loss_node = must_get_node( cop->tops[1] );
       loss_node->csi.support_sz = u32_pt_t{};
       loss_node->csi.eff_tot_pad = csi_out.eff_tot_pad; // FIXME: correct? needed? maybe set to bogus/sentinel value?
@@ -182,8 +189,6 @@ namespace boda
 	}
       }
     }
-    // depth-first recursive processing for any outputs
-    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { calc_support_forward_rec( *i, ignore_padding ); }
   }
   void conv_pipe_t::calc_support_forward_rec( string const & node_name, bool const ignore_padding ) {
     p_conv_node_t const & node = must_get_node( node_name );
@@ -192,6 +197,8 @@ namespace boda
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
       calc_support_forward_op( cop, ignore_padding );
+      // depth-first recursive processing for any outputs
+      for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { calc_support_forward_rec( *i, ignore_padding ); }
     }
   }
   // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
@@ -229,8 +236,11 @@ namespace boda
     conv_io_t & cio_out = node_out->cio;
     if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 
-
-    if( cop->type == SoftmaxWithLoss_str ) { 
+    if( cop->type == Spreading_str ) { 
+      assert_st( cop->bots.size() == 2 ); // in (out_grad_loss), mask (same dims as out)
+      assert_st( cop->tops.size() == 1 ); // out (in_grad_loss) (same dims as mask)
+      cio_out.sz = must_get_node(cop->bots[1])->cio.sz; // in_grad_loss output is same size as reference fwd_in
+    } else if( cop->type == SoftmaxWithLoss_str ) { 
       assert_st( cop->bots.size() == 2 ); // prob, label
       assert_st( cop->tops.size() == 2 ); // prob_grad, loss
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
@@ -238,7 +248,7 @@ namespace boda
       loss_cio.sz = u32_pt_t{1,1}; // loss is a singleton
       loss_cio.per_batch = 1;
     } else {
-	assert_st( cop->has_one_top() );
+      assert_st( cop->has_one_top() );
       if( (cop->bots.size() != 1) && (cop->type != Concat_str) ) { 
 	rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
@@ -516,11 +526,26 @@ namespace boda
       assert_st( cop->bots.size() == 2 );
       assert_st( cop->tops.size() == 2 );
       assert_st( cop->bots[0]+"_grad_loss" == cop->tops[0] );
+    } else if( cop->type == Pooling_str ) {
+      p_conv_op_t bcop( new conv_op_t );
+      *bcop = *cop;
+      bcop->type = Spreading_str;
+      bcop->tag += "_bck";
+      swap( bcop->tops, bcop->bots );
+      assert_st( bcop->bots.size() == 1 );
+      assert_st( bcop->tops.size() == 1 );
+      bcop->bots.push_back( bcop->tops[0] ); // take original input as input (need size and which-elem-is-max per window) could use mask instead)
+      bcop->bots[0] += "_grad_loss";
+      bcop->tops[0] += "_grad_loss"; // note: pooling has no params, so there is second output for parameter gradients (as with some bck ops)
+      if( !has( *nodes, bcop->bots[0] ) ) { printf( "FIXME: missing bot: bcop->bots[0]=%s -- op dropped.\n", str(bcop->bots[0]).c_str() ); }
+      else { add_conv( bcop ); }
+    } else {
+      printf( "add_bck_ops: cop->type=%s\n", str(cop->type).c_str() );
     }
   }
   void conv_pipe_t::add_bck_ops_rec( string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
-    for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) {
+    for( vect_p_conv_op_t::const_reverse_iterator j = node->in_place_ops.rbegin(); j != node->in_place_ops.rend(); ++j ) {
       p_conv_op_t const & ip_cop = *j;
       // FIXME: handle bck for in_place_opts. note: as usual, in_place_ops seem to be problematic or at least special. 
       add_bck_ops_op( ip_cop );

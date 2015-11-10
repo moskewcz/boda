@@ -1,8 +1,12 @@
+-- factor out type-check function for conv_op_t, and put asserts on sizes of tops/bots inside it
+
 ** sz->dims refactoring backlog:
  -- TO_RENAME blk_iter --> in_chan_tile; blk_iter_chan --> in_chan  (also in_chan_tile -> in_chan_dim)
  -- replace blk_filt_ix_sz with filts_x_sz (?) in conv, elsewhere?
  -- rename one/both of the "blk_y" dims in tconv (in.blk_y and work.blk_y) (too confusing)
  -- replace %(work_out_chan_tile_dim) with (the equivalent but saner?) %(filts_out_chan_reg_sz) where appropriate (i.e. indexing into filts/filts_smem)
+
+
 ** rtc tasks
 -- allow inexact division in chan dim
 -- support 'small'/non-specialized param passing (and fix LRN fudged params)

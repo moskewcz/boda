@@ -1,0 +1,31 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float const * const mask, // CUCL IN img:chan:y:x
+					  GASQ float * const out ) // CUCL OUT img:chan:y:x
+// note: mask and out dims are the same. we spread out the values of in into out, based on the values in mask and the type of pooling
+{
+  // write a single output pixel per thread
+  // CUCL IX GLOB_ID_1D out
+  if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
+  float out_v = 0.0f;
+  // we want ceil of (%(GLOB_ID_1D_x) + %(in_pad) - %(kern_sz) + 1)/%(stride); so use ceil->floor transform:
+  int32_t in_xb = max( 0, int32_t(%(GLOB_ID_1D_x)) + %(in_pad) - %(kern_sz) + %(stride) ) / %(stride); // clamp to numerator zero and take floor
+  int32_t in_xe = min( (((%(GLOB_ID_1D_x) + %(in_pad))/ %(stride)))+1, %(in_x_dim) ); // take floor, then add 1 to convert open bound, then clamp to dim
+  // dup'd for y
+  int32_t in_yb = max( 0, int32_t(%(GLOB_ID_1D_y)) + %(in_pad) - %(kern_sz) + %(stride) ) / %(stride);
+  int32_t in_ye = min( (((%(GLOB_ID_1D_y) + %(in_pad))/ %(stride)))+1, %(in_y_dim) );
+
+  // FIXME: not right (too large) on borders, where the pooling region is truncated and/or uses padding. we want this to be, per
+  // input pel, the number of output pels the value is to be spread over. (note: put val in mask for avg. pooling?)
+  float spread_sz = %(kern_sz)*%(kern_sz);
+  // range of in that can be spread into this thread's output pixel
+  for( int32_t in_x = in_xb; in_x < in_xe; ++in_x ) {
+    for( int32_t in_y = in_yb; in_y < in_ye; ++in_y ) {
+      // note: to avoid negative integer div issues, we've pre clamped values so negative ix/iy are not possible here,
+      // so we need not check for them here. we've also clamped the upper bounds to the dims. finally, in the event the
+      // LBs are >= the UB, we will not iterate. so, no bounds checks are needed here.
+      int32_t const in_ix = %(GLOB_ID_1D_img)*%(in_img_sz) + %(GLOB_ID_1D_chan)*%(in_chan_sz) + in_y*%(in_y_sz) + in_x*%(in_x_sz);
+      out_v += in[in_ix] / spread_sz;
+    }
+  }
+  out[GLOB_ID_1D] = out_v;
+}

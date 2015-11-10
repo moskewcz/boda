@@ -13,7 +13,7 @@ namespace boda
 
   // caffe-compatible layer type strings
   // raw list: Pooling Convolution ReLU Dropout LRN Accuracy SoftmaxWithLoss Data Concat InnerProduct
-  std::string const Pooling_str = "Pooling";
+  std::string const Pooling_str = "Pooling"; // Max or Avg
   std::string const Convolution_str = "Convolution";
   std::string const ReLU_str = "ReLU";
   std::string const Dropout_str = "Dropout";
@@ -24,6 +24,11 @@ namespace boda
   std::string const Data_str = "Data";
   std::string const Concat_str = "Concat";
   std::string const InnerProduct_str = "InnerProduct";
+
+  // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
+  // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
+  // other ops. so we try to understand what they do functionally and name them accordingly.
+  std::string const Spreading_str = "Spreading"; // Max or Avg
 
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
   {

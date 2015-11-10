@@ -101,8 +101,9 @@ namespace boda
 	assert_st( cop->tops.size() == 2 );
       } else {
 	assert_st( cop->tops.size() == 1 );
-	if( cop->type != Concat_str ) { assert_st( cop->bots.size() == 1 ); }
-	else { assert_st( cop->bots.size() >= 1 ); }
+	if( cop->type == Concat_str ) { assert_st( cop->bots.size() >= 1 ); }
+	else if( cop->type == Spreading_str ) { assert_st( cop->bots.size() == 2 ); }
+	else { assert_st( cop->bots.size() == 1 ); }
       }
       no = cp->must_get_node( cop->tops[0] );
       if( cop->type != Concat_str ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
@@ -111,7 +112,7 @@ namespace boda
       is_pool = cop->type == Pooling_str;
       // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
 
-      if( is_conv || is_pool ) {
+      if( is_conv || is_pool || (cop->type == Spreading_str) ) {
 	no_dims = no->cio.dims(num_imgs);
 	in_dims = ni->cio.dims(num_imgs);
 	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->type == ReLU_str);
@@ -611,7 +612,6 @@ namespace boda
     } else if( cop->type == Softmax_str ) {
       gen_call( "softmax", oi, { oi->ni->name, oi->no->name } );
     } else if( cop->type == SoftmaxWithLoss_str ) {
-      // FIXME/TODO: handle. for now, mostly ignore
       assert_st( cop->bots.size() == 2 ); // fwd_top, label
       assert_st( cop->tops.size() == 2 ); // fwd_top_grad_loss, loss
 
@@ -623,7 +623,12 @@ namespace boda
       gen_node_var( loss_per_pel, cop->bots[1] );
       gen_call( "sm_grad_and_loss", oi, { prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
       gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
-
+    } else if( cop->type == Spreading_str ) {
+      // FIXME/TODO: handle. for now, mostly ignore
+      assert_st( cop->bots.size() == 2 ); // fwd_in, out_grad_loss
+      assert_st( cop->tops.size() == 1 ); // in_grad_loss
+      oi->template_var_values = {{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"avg_pool",str(oi->cop->avg_pool)},{"in_pad",str(oi->in_pad)}};
+      gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
