@@ -1,3 +1,4 @@
+-- add gradients as conv_op_t level inputs?
 -- take another shot at removing in-place/inplace ops?
 -- Spreading: fix mask semantics, add max support, more testing
 
