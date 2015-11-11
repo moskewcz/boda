@@ -147,7 +147,13 @@ namespace boda
     cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
     uint32_t const & out_chans = cop->out_chans; 
 
-    if( cop->is( Spreading_coi ) || cop->is( ZeroIfNeg_coi ) ) { 
+    if( cop->is( BckConv_coi ) ) { // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
+      for( uint32_t i = 0; i != 3; ++i ) { // propogate # chans
+	uint32_t & oc = must_get_node(cop->tops[i])->cio.chans;
+	assert_st( oc == uint32_t_const_max );
+	oc = must_get_node(cop->bots[i])->cio.chans; 
+      }
+    } else if( cop->is( Spreading_coi ) || cop->is( ZeroIfNeg_coi ) ) { 
       assert_st( out_chans == 0 ); 
       cio_out.chans = must_get_node(cop->bots[0])->cio.chans; // propogate # chans
       // FIXME?: for now, we don't try to calculate support info for bck operations 
@@ -245,7 +251,13 @@ namespace boda
     conv_io_t & cio_out = node_out->cio;
     if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 
-    if( cop->is( ZeroIfNeg_coi ) ) { 
+    if( cop->is( BckConv_coi ) ) { 
+      for( uint32_t i = 0; i != 3; ++i ) { // propogate sizes
+	u32_pt_t & osz = must_get_node(cop->tops[i])->cio.sz;
+	if( !osz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
+	osz = must_get_node(cop->bots[i])->cio.sz; 
+      }
+    } else if( cop->is( ZeroIfNeg_coi ) ) { 
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
     } else if( cop->is( Spreading_coi ) ) { 
       cio_out.sz = must_get_node(cop->bots[1])->cio.sz; // in_grad_loss output is same size as reference fwd_in
@@ -552,8 +564,23 @@ namespace boda
       bcop->tops[0] += "_grad_loss"; // note: ReLU has no params, so there is second output for parameter gradients (as with some bck ops)
       if( !has( *nodes, bcop->bots[0] ) ) { printf( "FIXME: missing bot: bcop->bots[0]=%s -- op dropped.\n", str(bcop->bots[0]).c_str() ); }
       else { add_conv( bcop ); }
+    } else if( cop->is( Convolution_coi ) ) {
+      p_conv_op_t bcop( new conv_op_t );
+      *bcop = *cop;
+      bcop->type = BckConv_coi.type;
+      // currently, the 'regular' fwd conv has implicit filts/biases inputs. for now, we're going to make them explicit
+      // here for BckConv. see TODO item. FIXME: note dup'd code with rtc_fwd.cc
+      bcop->bots.push_back( bcop->tag + "_filts" );
+      bcop->bots.push_back( bcop->tag + "_biases" );
+      bcop->bots.push_back( bcop->tops[0] + "_grad_loss" ); // take _grad_loss of fwd conv output as input as well
+      bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { bcop->tops.push_back( bcop->bots[i] + "_grad_loss" ); } // outputs grads
+      bcop->tag += "_bck";
+      if( !has( *nodes, bcop->bots[3] ) ) { printf( "FIXME: BckConv: missing bot: bcop->bots[3]=%s -- op dropped.\n", str(bcop->bots[3]).c_str() ); }
+      else { 
+	// add_conv( bcop ); // FIXME: broken due to the explicit filter inputs
+      }
     } else {
-      printf( "add_bck_ops: cop->type=%s\n", str(cop->type).c_str() );
+      printf( "add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
     }
   }
   void conv_pipe_t::add_bck_ops_rec( string const & node_name ) {
