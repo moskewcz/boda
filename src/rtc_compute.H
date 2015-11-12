@@ -21,7 +21,6 @@ namespace boda
     virtual void copy_from_var( float * const v, string const & vn ) = 0;
     virtual void create_var_with_dims_floats( string const & vn, dims_t const & dims ) = 0;
     virtual dims_t get_var_dims_floats( string const & vn ) = 0;
-    void create_var_with_sz_floats( string const & vn, uint32_t const & sz );
     uint32_t get_var_sz_floats( string const & vn );
     virtual void set_var_to_zero( string const & vn ) = 0;
     

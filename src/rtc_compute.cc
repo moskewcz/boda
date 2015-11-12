@@ -5,10 +5,6 @@
 
 namespace boda 
 {
-  // deprecated / to-remove
-  void rtc_compute_t::create_var_with_sz_floats( string const & vn, uint32_t const & sz ) { 
-    create_var_with_dims_floats( vn, dims_t( vect_uint32_t{sz}, 1) ); 
-  }
   uint32_t rtc_compute_t::get_var_sz_floats( string const & vn ){ return get_var_dims_floats( vn ).dims_prod(); }
     
   void rtc_compute_t::init_var_from_vect_float( string const & vn, vect_float const & v ) { 
