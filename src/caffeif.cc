@@ -161,7 +161,8 @@ namespace boda
       caffe::LayerParameter * lp = upsamp_net_param->mutable_layer(0);
       if( !lp->has_convolution_param() ) { rt_err( "first layer of net not conv layer; don't know how to create upsampled network"); }
       caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
-      p_conv_op_t conv_op = get_conv_op_from_param( *cp );
+      p_conv_op_t conv_op( new conv_op_t );
+      fill_in_conv_op_from_param( conv_op, *cp );
       // FIXME: we probably need to deal with padding better here?
       conv_op->kern_sz = ceil_div( conv_op->kern_sz, u32_pt_t{2,2} );
       assert_st( conv_op->in_pad.bnds_are_same() );

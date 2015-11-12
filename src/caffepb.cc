@@ -134,8 +134,7 @@ namespace boda
   }
   template void set_param_from_conv_op< caffe::ConvolutionParameter >( caffe::ConvolutionParameter & cp, p_conv_op_t conv_op );
 
-  template< typename CP > p_conv_op_t get_conv_op_from_param( CP const & cp ) {
-    p_conv_op_t conv_op( new conv_op_t );
+  template< typename CP > void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, CP const & cp ) {
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){ 
@@ -153,10 +152,9 @@ namespace boda
     } else { assert_st( cp.has_kernel_w() && cp.has_kernel_h() && (!cp.has_kernel_size()) );
       conv_op->kern_sz = u32_pt_t( cp.kernel_w(), cp.kernel_h() );
     }
-    return conv_op;
   }
-  template p_conv_op_t get_conv_op_from_param< caffe::ConvolutionParameter >( caffe::ConvolutionParameter const & cp );
-  template p_conv_op_t get_conv_op_from_param< caffe::PoolingParameter >( caffe::PoolingParameter const & cp );
+  template void fill_in_conv_op_from_param< caffe::ConvolutionParameter >( p_conv_op_t const & conv_op, caffe::ConvolutionParameter const & cp );
+  template void fill_in_conv_op_from_param< caffe::PoolingParameter >( p_conv_op_t const & conv_op, caffe::PoolingParameter const & cp );
 
   p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
@@ -175,23 +173,28 @@ namespace boda
       caffe::LayerParameter const & lp = net_param->layer(i);
       assert_st( lp.has_name() );
       assert_st( lp.has_type() );
-      p_conv_op_t conv_op;
+      p_conv_op_t conv_op( new conv_op_t );
+      conv_op->tag = lp.name();
+      conv_op->type = lp.type();
+      RF_TO_VEC( conv_op->bots, lp.bottom );
+      RF_TO_VEC( conv_op->tops, lp.top );
+
       if( 0 ) {
       } else if( lp.type() == Convolution_coi.type ) {
 	assert_st( lp.has_convolution_param() );
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
-	conv_op = get_conv_op_from_param( cp );
+	fill_in_conv_op_from_param( conv_op, cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
 	conv_op->out_chans = cp.num_output();
+	//conv_op->bots.push_back( lp.name() + "_filts" ); // add (make explicit) filts input // FIXME_EFB
+	//conv_op->bots.push_back( lp.name() + "_biases" ); // add (make explicit) filts input // FIXME_EFB
       } else if( (lp.type() == ReLU_coi.type) || (lp.type() == Dropout_coi.type) ) {
 	// in-place layers to mostly-ignore
-	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1}; // sensible, but currently unused
 	conv_op->out_chans = 0; // no effect on chans
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	
-	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
 
@@ -203,21 +206,22 @@ namespace boda
 	// this may be inconvieniently strong; it's probably okay to ignore this here
 	//rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );
 	printf( "Warning, Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out? ignoring.\n" );
+	conv_op.reset();
       } else if( lp.type() == SoftmaxWithLoss_coi.type ) {
 	// this layer should only be present when add_bck_ops==1, and all outputs should be produced by it
 	if( !add_bck_ops ) { 
 	  //rt_err( "Saw unexpected SoftmaxWithLoss layer in caffpb caffe->boda net conversion given add_bck_ops==0." ); 
 	  printf( "Warning, Saw unexpected SoftmaxWithLoss layer in caffpb caffe->boda net conversion given add_bck_ops==0. ignoring.\n" ); 
+	  conv_op.reset();
 	} else {
-	  conv_op.reset( new conv_op_t );
 	  conv_op->stride = {1,1}; // sensible, but currently unused
 	  conv_op->out_chans = 0; // no effect on chans
-	  conv_op->tops.push_back( lp.bottom(0) + "_grad_loss" ); // add gradient output for fwd_top input
+	  conv_op->tops.insert( conv_op->tops.begin(), conv_op->bots[0] + "_grad_loss" ); // add gradient output for fwd_top input
 	}
       } else if( lp.type() == Pooling_coi.type ) {
 	assert_st( lp.has_pooling_param() );
 	caffe::PoolingParameter const & pp = lp.pooling_param();
-	conv_op = get_conv_op_from_param( pp );
+	fill_in_conv_op_from_param( conv_op, pp );
 	conv_op->out_chans = 0; // no effect on chans
 	conv_op->avg_pool = 0;
 	if( pp.pool() == caffe::PoolingParameter_PoolMethod_AVE ) { conv_op->avg_pool = 1; } 
@@ -228,17 +232,15 @@ namespace boda
       } else if( lp.type() == InnerProduct_coi.type ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
-	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = ipp.num_output();
       } else if( (lp.type() == Data_coi.type) || (lp.type() == Accuracy_coi.type) ) {
-	// for now, just silently ignore data and acc layers.
+	conv_op.reset(); // for now, just silently ignore data and acc layers.
       } else if( lp.type() == Concat_coi.type ) {
-	conv_op.reset( new conv_op_t );
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
       } else {
-	printf( "warning: ignoring layer with lp.type()=%s\n", str(lp.type()).c_str() );
+	conv_op.reset(); printf( "warning: ignoring layer with lp.type()=%s\n", str(lp.type()).c_str() );
       }
 
       // FIXME: dup'd with code in caffeif.cc, see additional FIXMEs there
@@ -247,16 +249,7 @@ namespace boda
 	if( out_node_name == lp.top(i) ) { layer_has_out_node = 1; found_out_node = 1;}
       }
       if( found_out_node ) { if( !layer_has_out_node ) { break; } } 
-
-      if( conv_op ) { 
-	conv_op->tag = lp.name();
-	conv_op->type = lp.type();
-	// FIXME: dup'd with code in caffeif.cc that does this param->param ... pick one place to do this?
-	// silently convert SoftmaxWithLoss_coi.type -> Softmax_coi.type 
-	RF_TO_VEC( conv_op->bots, lp.bottom );
-	RF_TO_VEC( conv_op->tops, lp.top );
-	conv_pipe->add_conv( conv_op );
-      }      
+      if( conv_op ) { conv_pipe->add_conv( conv_op ); }      
     }
     // FIXME? this is too strong now, and will be checked later -- but check something here? can't?
     //if( !found_out_node ) { rt_err( strprintf("node out_node_name=%s not found as layer output in network\n",str(out_node_name).c_str() )); }
@@ -818,7 +811,8 @@ namespace boda
       if( !lp->has_convolution_param() ) { 
 	rt_err( strprintf("layer %s of net not conv layer; don't know how to resize",to_resize_ln.c_str())); }
       caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
-      p_conv_op_t conv_op = get_conv_op_from_param( *cp );
+      p_conv_op_t conv_op( new conv_op_t );
+      fill_in_conv_op_from_param( conv_op, *cp );
       conv_op->kern_sz = targ_sz;
 
       set_param_from_conv_op( *cp, conv_op );

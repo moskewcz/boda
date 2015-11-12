@@ -148,7 +148,7 @@ namespace boda
     uint32_t const & out_chans = cop->out_chans; 
 
     if( cop->is( BckConv_coi ) ) { // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
-      for( uint32_t i = 0; i != 3; ++i ) { // propogate # chans
+      for( uint32_t i = 0; i != 1; ++i ) { // propogate # chans
 	uint32_t & oc = must_get_node(cop->tops[i])->cio.chans;
 	assert_st( oc == uint32_t_const_max );
 	oc = must_get_node(cop->bots[i])->cio.chans; 
@@ -217,9 +217,14 @@ namespace boda
     }
   }
   // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
+  // FIXME: our support for inputs isn't the best. currently, we:
+  //  1) figure out 'label' inputs by looking at how a node is used
+  //  1) treat the first otherwise unknown input as data
+  // and then give up if there are more unknown inputs
   void conv_pipe_t::calc_support_info( bool const ignore_padding, uint32_t const & in_chans ) {
     // initialize support info for all root inputs
     bool saw_data_node = 0;
+    vect_string unhandled_inputs;
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
       p_conv_node_t const & node = must_get_node( *i );
       conv_support_info_t & csi = node->csi;
@@ -229,10 +234,12 @@ namespace boda
       if( get_fwd_top_for_label(*i) ) { 
 	// node->cio.chans = uint32_t_const_max; // labels have no chans dim, so it at the default/unset of uint32_t_const_max
       } else {
-	if( saw_data_node ) { rt_err( "calc_support_info(): unhandled multiple non-label inputs" ); }
-	node->cio.chans = in_chans; 
-	saw_data_node = 1;
+	if( saw_data_node ) { unhandled_inputs.push_back( *i ); }
+	else { node->cio.chans = in_chans;  saw_data_node = 1; }
       }  
+    }
+    if( !unhandled_inputs.empty() ) {
+      rt_err( "calc_support_info(): had unhandled/unknown inputs (not label, not data, not filts/biases): " + str(unhandled_inputs) ); 
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_support_forward_rec( *i, ignore_padding ); }
@@ -252,7 +259,7 @@ namespace boda
     if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 
     if( cop->is( BckConv_coi ) ) { 
-      for( uint32_t i = 0; i != 3; ++i ) { // propogate sizes
+      for( uint32_t i = 0; i != 1; ++i ) { // propogate sizes
 	u32_pt_t & osz = must_get_node(cop->tops[i])->cio.sz;
 	if( !osz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
 	osz = must_get_node(cop->bots[i])->cio.sz; 
@@ -570,17 +577,18 @@ namespace boda
       bcop->type = BckConv_coi.type;
       // currently, the 'regular' fwd conv has implicit filts/biases inputs. for now, we're going to make them explicit
       // here for BckConv. see TODO item. FIXME: note dup'd code with rtc_fwd.cc
-      bcop->bots.push_back( bcop->tag + "_filts" );
-      bcop->bots.push_back( bcop->tag + "_biases" );
+      //bcop->bots.push_back( bcop->tag + "_filts" ); // FIXME_EFB
+      //bcop->bots.push_back( bcop->tag + "_biases" ); // FIXME_EFB
       bcop->bots.push_back( bcop->tops[0] + "_grad_loss" ); // take _grad_loss of fwd conv output as input as well
-      bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { bcop->tops.push_back( bcop->bots[i] + "_grad_loss" ); } // outputs grads
+      bcop->tops.clear(); for( uint32_t i = 0; i != 1; ++i ) { bcop->tops.push_back( bcop->bots[i] + "_grad_loss" ); } // outputs grads
       bcop->tag += "_bck";
-      if( !has( *nodes, bcop->bots[3] ) ) { printf( "FIXME: BckConv: missing bot: bcop->bots[3]=%s -- op dropped.\n", str(bcop->bots[3]).c_str() ); }
+      if( !has( *nodes, bcop->bots[1] ) ) { printf( "FIXME: BckConv: missing bot: bcop->bots[3]=%s -- op dropped.\n", str(bcop->bots[1]).c_str() ); }
       else { 
+	printf( "FIXME_EFB: not adding BckConv: cop->tag=%s\n", str(cop->tag).c_str() );
 	// add_conv( bcop ); // FIXME: broken due to the explicit filter inputs
       }
     } else {
-      printf( "add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
+      printf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
     }
   }
   void conv_pipe_t::add_bck_ops_rec( string const & node_name ) {
