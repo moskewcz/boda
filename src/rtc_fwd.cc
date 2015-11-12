@@ -616,6 +616,17 @@ namespace boda
       gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
     } else if( cop->is( ZeroIfNeg_coi ) ) {
       gen_call( cop->type, oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
+    } else if( cop->is( BckConv_coi ) ) {
+      // FIXME_EFB: { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
+      // current: { in, out_grad_loss } --> { in_grad_loss }
+      // FIXME_WFB: since filts/biases are implict inputs/outputs, we need to fabricate/recreate thier var names here
+      string fwd_tag = cop->tag;
+      bool const did_strip = maybe_strip_suffix( fwd_tag, "_bck" );
+      assert_st( did_strip );
+      string const filts_id = fwd_tag + "_filts";
+      string const biases_id = fwd_tag + "_biases";
+      oi->template_var_values = {{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}}; 
+      gen_call( "BckConv_in_grad_loss", oi, { cop->bots[0], filts_id, biases_id, cop->bots[1], cop->tops[0] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 

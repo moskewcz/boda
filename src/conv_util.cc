@@ -145,22 +145,22 @@ namespace boda
     if( csi_out.valid() ) { rt_err( "unhandled: node with multiple writers:"+node_out->name ); }
     assert_st( cio_out.chans == uint32_t_const_max ); // should not be set yet
     cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
-    uint32_t const & out_chans = cop->out_chans; 
 
     if( cop->is( BckConv_coi ) ) { // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
+      printf( "cop->tag=%s cop->tops=%s cop->bots=%s\n", str(cop->tag).c_str(), str(cop->tops).c_str(), str(cop->bots).c_str() );
       for( uint32_t i = 0; i != 1; ++i ) { // propogate # chans
 	uint32_t & oc = must_get_node(cop->tops[i])->cio.chans;
-	assert_st( oc == uint32_t_const_max );
+	assert_st( oc == (i ? uint32_t_const_max : 0) ); // FIXME: too ugly/weird? due to special-casing of first output above ...
 	oc = must_get_node(cop->bots[i])->cio.chans; 
       }
     } else if( cop->is( Spreading_coi ) || cop->is( ZeroIfNeg_coi ) ) { 
-      assert_st( out_chans == 0 ); 
+      assert_st( cop->out_chans == 0 ); 
       cio_out.chans = must_get_node(cop->bots[0])->cio.chans; // propogate # chans
       // FIXME?: for now, we don't try to calculate support info for bck operations 
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
       assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
-      assert_st( out_chans == 0 ); 
+      assert_st( cop->out_chans == 0 ); 
       cio_out.chans = must_get_node(cop->bots[0])->cio.chans; // propogate # chans
       p_conv_node_t const & loss_node = must_get_node( cop->tops[1] );
       loss_node->csi.support_sz = u32_pt_t{};
@@ -184,7 +184,7 @@ namespace boda
 	    if( csi_in.support_stride == csi_out.support_stride ) { csi_out.support_sz.max_eq( csi_in.support_sz ); }
 	  }
 	  csi_out.eff_tot_pad.max_eq( csi_in.eff_tot_pad );
-	  assert( !out_chans ); // concat shouldn't have a # of output chans specified
+	  assert( !cop->out_chans ); // concat shouldn't have a # of output chans specified
 	  cio_out.chans += cio_in.chans; // sum chans across all inputs
 	} else {
 	  if( j == cop->bots.begin() ) {
@@ -199,7 +199,7 @@ namespace boda
 	    assert_st( cop->stride.both_dims_non_zero() );
 	    csi_out.support_stride = csi_in.support_stride*cop->stride;
 	    csi_out.eff_tot_pad = csi_in.eff_tot_pad + cop->in_pad.scale_dims( csi_in.support_stride );
-	    cio_out.chans = out_chans ? out_chans : cio_in.chans; // reset or propogate num_chans
+	    cio_out.chans = cop->out_chans ? cop->out_chans : cio_in.chans; // reset or propogate num_chans
 	  } else { rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
 	}
       }
@@ -584,8 +584,8 @@ namespace boda
       bcop->tag += "_bck";
       if( !has( *nodes, bcop->bots[1] ) ) { printf( "FIXME: BckConv: missing bot: bcop->bots[3]=%s -- op dropped.\n", str(bcop->bots[1]).c_str() ); }
       else { 
-	printf( "FIXME_EFB: not adding BckConv: cop->tag=%s\n", str(cop->tag).c_str() );
-	// add_conv( bcop ); // FIXME: broken due to the explicit filter inputs
+	//printf( "FIXME_EFB: not adding BckConv: cop->tag=%s\n", str(cop->tag).c_str() );
+	add_conv( bcop ); 
       }
     } else {
       printf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
