@@ -31,7 +31,7 @@ namespace boda
     p_Net_float net;
 
     virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
-    virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
+    virtual void run_fwd( p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
   };
 
@@ -154,15 +154,17 @@ namespace boda
     return out_batch;
   }
 
-  void caffe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
+  void caffe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     timer_t t("caffe_fwd_t::run_fwd");
     assert_st( net );
     raw_do_forward( net, fwd, enable_prof, cp->has_bck_ops.v );
-    string const out_node_name = cp->get_single_top_node()->name;
-    string caffe_node_name = out_node_name;
-    bool get_diff = maybe_strip_suffix( caffe_node_name, "_grad_loss" );
-    p_nda_float_t out = copy_output_blob_data( net, caffe_node_name, get_diff );
-    must_insert( *fwd, out_node_name, out );
+    for( vect_string::const_iterator i = to_get_vns.begin(); i != to_get_vns.end(); ++i ) {
+      string const out_node_name = *i;
+      string caffe_node_name = out_node_name;
+      bool get_diff = maybe_strip_suffix( caffe_node_name, "_grad_loss" );
+      p_nda_float_t out = copy_output_blob_data( net, caffe_node_name, get_diff );
+      must_insert( *fwd, out_node_name, out );
+    }
   }  
 
 

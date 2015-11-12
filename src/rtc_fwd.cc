@@ -353,7 +353,7 @@ namespace boda
     
 
     virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
-    virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
+    virtual void run_fwd( p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
 
     void update_stats( void );
     string dump_var( string const & n );
@@ -1353,7 +1353,7 @@ namespace boda
     if( rf.has_final_flags_arg ) { rfc.u32_args.pop_back(); }
   }
 
-  void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
+  void conv_pipe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     if( enable_double_run ) {
       // optional: run fwd rfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
       for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
@@ -1383,7 +1383,7 @@ namespace boda
     }
     //printf("run_fwd() copy out\n");
     cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
-    rtc->copy_vars_to_ndas( vect_string{cp->tops.begin(),cp->tops.end()}, *fwd ); // copy sinks out
+    rtc->copy_vars_to_ndas( to_get_vns, *fwd ); // copy requested vars out
     update_stats();
     rtc->release_per_call_id_data();
     //printf("run_fwd() done\n");

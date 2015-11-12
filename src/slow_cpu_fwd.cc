@@ -19,7 +19,7 @@ namespace boda
     uint32_t num_imgs;
 
     virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
-    virtual void run_fwd( p_map_str_p_nda_float_t const & fwd );
+    virtual void run_fwd( p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
   };
 
@@ -198,12 +198,15 @@ namespace boda
     }
   }
 
-  void slow_cpu_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd ) {
+  void slow_cpu_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     timer_t t("slow_cpu_fwd_t::run_fwd");
     cp->fwd_alloc_ndas( fwd, num_imgs, 0 );
     if( skip_work ) { return; }
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { run_ops_rec( cp, fwd, *i ); }
+    for( vect_string::const_iterator i = to_get_vns.begin(); i != to_get_vns.end(); ++i ) {
+      if( !has( *fwd, *i ) ) { rt_err( "slow_cpu_fwd: requested output var '"+*i+"' was not computed." ); }
+    }
   }  
 #include"gen/slow_cpu_fwd.cc.nesi_gen.cc"
 }

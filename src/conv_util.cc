@@ -663,7 +663,7 @@ namespace boda
     }
     if( num_data != 1 ) { rt_err( "run_one_blob_in_one_blob_out can only handle exactly one data input, saw: " + str(num_data) ); } 
     assert( conv_fwd );
-    conv_fwd->run_fwd( fwd );
+    conv_fwd->run_fwd( fwd, {get_single_top_node()->name} );
     return must_find( *fwd, get_single_top_node()->name );
   }
 
