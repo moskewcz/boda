@@ -493,9 +493,10 @@ namespace boda
       // for 'old style' bias blobs, squwish out leading size 1 dims
       if( bd.sz() == 4 ) {
 	for( uint32_t i = 0; i != bd.sz()-1; ++i ) { assert_st( bd.dims(i) == 1 ); }
-	bd = dims_t( vect_uint32_t{ bd.dims(3) }, vect_string{ "out_chan" }, 1 );
+	bd = dims_t( vect_uint32_t{ bd.dims(3) }, 1 );
       }
       assert( bd.sz() == 1 );
+      bd.names(0) = "out_chan";
     }
 
   }
