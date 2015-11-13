@@ -1,11 +1,38 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
                                           GASQ float const * const filts, // CUCL IN out_chan:in_chan:y:x
-					  GASQ float const * const biases, // CUCL IN out_chan
 					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
 					 
 					  GASQ float * const in_grad_loss ) // CUCL OUT img:chan:y:x
+// note: in and in_grad_loss have the same dims
 {
   // CUCL IX GLOB_ID_1D in_grad_loss
-  in_grad_loss[GLOB_ID_1D] = 0.0f;
+  // write a single output pixel per thread
+  if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
+  float in_grad_loss_v = 0.0f;
+  // we want ceil of (%(GLOB_ID_1D_x) + %(in_pad) - %(filts_x_sz) + 1)/%(stride); so use ceil->floor transform:
+  int32_t out_xb = max( 0, int32_t(%(GLOB_ID_1D_x)) + %(in_pad) - %(filts_x_dim) + %(stride) ) / %(stride); // clamp to numerator zero and take floor
+  int32_t out_xe = min( (((%(GLOB_ID_1D_x) + %(in_pad))/ %(stride)))+1, %(out_grad_loss_x_dim) ); // take floor, then add 1 to convert open bound, then clamp to dim
+  // dup'd for y
+  int32_t out_yb = max( 0, int32_t(%(GLOB_ID_1D_y)) + %(in_pad) - %(filts_y_dim) + %(stride) ) / %(stride);
+  int32_t out_ye = min( (((%(GLOB_ID_1D_y) + %(in_pad))/ %(stride)))+1, %(out_grad_loss_y_dim) );
+
+  for( int32_t out_chan = 0; out_chan < %(filts_out_chan_dim); ++out_chan ) {
+    int32_t filts_x = %(GLOB_ID_1D_x) + %(in_pad) - out_xb*%(stride); // must be in [0,%(filts_x_dim)]  
+    for( int32_t out_x = out_xb; out_x < out_xe; ++out_x ) {
+      int32_t filts_y = %(GLOB_ID_1D_y) + %(in_pad) - out_yb*%(stride); // must be in [0,%(filts_y_dim)]
+      for( int32_t out_y = out_yb; out_y < out_ye; ++out_y ) {
+	// note: to avoid negative integer div issues, we've pre clamped values so negative ix/iy are not possible here,
+	// so we need not check for them here. we've also clamped the upper bounds to the dims. finally, in the event the
+	// LBs are >= the UB, we will not iterate. so, no bounds checks are needed here.
+	int32_t const out_ix = 
+	  %(GLOB_ID_1D_img)*%(out_grad_loss_img_sz) + out_chan*%(out_grad_loss_chan_sz) + out_y*%(out_grad_loss_y_sz) + out_x*%(out_grad_loss_x_sz);
+	in_grad_loss_v += out_grad_loss[out_ix] * 
+	  filts[ out_chan*%(filts_out_chan_sz) + %(GLOB_ID_1D_chan)*%(filts_in_chan_sz) + filts_y*%(filts_y_sz) + filts_x*%(filts_x_sz) ];
+	filts_y -= %(stride);
+      }
+      filts_x -= %(stride);
+    }
+  }
+  in_grad_loss[GLOB_ID_1D] = in_grad_loss_v;
 }
 

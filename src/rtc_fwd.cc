@@ -104,7 +104,7 @@ namespace boda
       is_pool = cop->is( Pooling_coi );
       // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
 
-      if( is_conv || is_pool || (cop->is( Spreading_coi )) ) {
+      if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
 	no_dims = no->cio.dims(num_imgs);
 	in_dims = ni->cio.dims(num_imgs);
 	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
@@ -624,9 +624,9 @@ namespace boda
       bool const did_strip = maybe_strip_suffix( fwd_tag, "_bck" );
       assert_st( did_strip );
       string const filts_id = fwd_tag + "_filts";
-      string const biases_id = fwd_tag + "_biases";
+      //string const biases_id = fwd_tag + "_biases";
       oi->template_var_values = {{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}}; 
-      gen_call( "BckConv_in_grad_loss", oi, { cop->bots[0], filts_id, biases_id, cop->bots[1], cop->tops[0] } );
+      gen_call( "BckConv_in_grad_loss", oi, { cop->bots[0], filts_id, /*biases_id,*/ cop->bots[1], cop->tops[0] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
