@@ -5,6 +5,7 @@
 
 namespace boda 
 {
+
   uint32_t rtc_compute_t::get_var_sz_floats( string const & vn ){ return get_var_dims_floats( vn ).dims_prod(); }
     
   void rtc_compute_t::init_var_from_vect_float( string const & vn, vect_float const & v ) { 
@@ -27,6 +28,17 @@ namespace boda
     assert_st( nda->dims == get_var_dims_floats( vn ) );
     copy_from_var( &nda->elems[0], vn );
   }
+
+  void rtc_compute_t::create_var_from_nda( p_nda_float_t const & nda, string const & vn ) {
+    create_var_with_dims_floats( vn, nda->dims );
+    copy_nda_to_var( vn, nda );
+  }
+  p_nda_float_t rtc_compute_t::create_nda_from_var( string const & vn ) {
+    p_nda_float_t ret( new nda_float_t( get_var_dims_floats( vn ) ) );
+    copy_var_to_nda( ret, vn );
+    return ret;
+  }
+
   // create new flat nda from var
   p_nda_float_t rtc_compute_t::copy_var_as_flat_nda( string const & vn ) {
     dims_t cup_dims( vect_uint32_t{get_var_sz_floats( vn )} ); 
@@ -43,10 +55,9 @@ namespace boda
       copy_nda_to_var( *i, must_find( ndas, *i ) );
     }
   }
+  // assumes that names do not exist in ndas
   void rtc_compute_t::copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas ) {
-    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
-      copy_var_to_nda( must_find( ndas, *i ), *i );
-    }
+    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) { must_insert( ndas, *i, create_nda_from_var( *i ) ); } 
   }
 }
 

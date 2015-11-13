@@ -1382,7 +1382,6 @@ namespace boda
       cp->dump_ops( *out, 0 );
     }
     //printf("run_fwd() copy out\n");
-    cp->fwd_alloc_ndas( fwd, num_imgs, 1 ); // sinks_only=1
     rtc->copy_vars_to_ndas( to_get_vns, *fwd ); // copy requested vars out
     update_stats();
     rtc->release_per_call_id_data();

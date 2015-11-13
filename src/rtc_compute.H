@@ -52,6 +52,9 @@ namespace boda
     void copy_ndas_to_vars( vect_string const & names, map_str_p_nda_float_t const & ndas );
     void copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas );
 
+    void create_var_from_nda( p_nda_float_t const & nda, string const & vn );
+    p_nda_float_t create_nda_from_var( string const & vn );
+
   };
   struct rtc_compute_t; typedef shared_ptr< rtc_compute_t > p_rtc_compute_t; 
 
