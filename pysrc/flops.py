@@ -197,6 +197,12 @@ class Softmax( object ):
     def __init__( self, **kwargs ): self.opts = kwargs
 class SoftmaxWithLoss( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
+class Spreading( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
+class ZeroIfNeg( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
+class BckConv( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
 def patches_to_rows( **kwargs ):
     pass
 def transpose( A ): return A
