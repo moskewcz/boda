@@ -19,11 +19,12 @@ namespace boda
   }
   // nda_float <-> var copies
   void rtc_compute_t::copy_nda_to_var( string const & vn, p_nda_float_t const & nda ) {
-    assert_st( nda->elems.sz == get_var_sz_floats( vn ) );
+    //printf( "vn=%s nda->dims=%s get_var_dims_floats(vn)=%s\n", str(vn).c_str(), str(nda->dims).c_str(), str(get_var_dims_floats(vn)).c_str() );
+    assert_st( nda->dims == get_var_dims_floats( vn ) );
     copy_to_var( vn, &nda->elems[0] );
   }
   void rtc_compute_t::copy_var_to_nda( p_nda_float_t const & nda, string const & vn ) {
-    assert_st( nda->elems.sz == get_var_sz_floats( vn ) );
+    assert_st( nda->dims == get_var_dims_floats( vn ) );
     copy_from_var( &nda->elems[0], vn );
   }
   // create new flat nda from var
@@ -31,7 +32,9 @@ namespace boda
     dims_t cup_dims( vect_uint32_t{get_var_sz_floats( vn )} ); 
     cup_dims.calc_strides();
     p_nda_float_t nda = make_shared<nda_float_t>( cup_dims );
-    copy_var_to_nda( nda, vn );
+    // note: may reshape var, so we can only check the size (FIXME: deal with padding here? at least check there is none?)
+    assert_st( nda->elems.sz == get_var_sz_floats( vn ) );
+    copy_from_var( &nda->elems[0], vn );
     return nda;
   }
   // batch nda_float<->var copies
