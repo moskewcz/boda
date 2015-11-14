@@ -613,7 +613,7 @@ namespace boda
       gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
     } else if( cop->is( Spreading_coi ) ) {
       oi->template_var_values = {{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"avg_pool",str(oi->cop->avg_pool)},{"in_pad",str(oi->in_pad)}};
-      gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
+      gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->bots[2], cop->tops[0] } );
     } else if( cop->is( ZeroIfNeg_coi ) ) {
       gen_call( cop->type, oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
     } else if( cop->is( BckConv_coi ) ) {

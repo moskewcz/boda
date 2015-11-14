@@ -155,7 +155,7 @@ namespace boda
       }
     } else if( cop->is( Spreading_coi ) || cop->is( ZeroIfNeg_coi ) ) { 
       assert_st( cop->out_chans == 0 ); 
-      cio_out.chans = must_get_node(cop->bots[0])->cio.chans; // propogate # chans
+      cio_out.chans = must_get_node(cop->bots[2])->cio.chans; // propogate # chans
       // FIXME?: for now, we don't try to calculate support info for bck operations 
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
@@ -267,7 +267,7 @@ namespace boda
     } else if( cop->is( ZeroIfNeg_coi ) ) { 
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
     } else if( cop->is( Spreading_coi ) ) { 
-      cio_out.sz = must_get_node(cop->bots[1])->cio.sz; // in_grad_loss output is same size as reference fwd_in
+      cio_out.sz = must_get_node(cop->bots[2])->cio.sz; // in_grad_loss output is same size as in
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
       conv_io_t & loss_cio = must_get_node( cop->tops[1] )->cio;
@@ -555,10 +555,10 @@ namespace boda
       bcop->type = Spreading_coi.type;
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
+      bcop->bots.push_back( bcop->bots[0] + "_grad_loss" );
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input (need size and which-elem-is-max per window) could use mask instead)
-      bcop->bots[0] += "_grad_loss";
       bcop->tops[0] += "_grad_loss"; // note: pooling has no params, so there is second output for parameter gradients (as with some bck ops)
-      if( !has( *nodes, bcop->bots[0] ) ) { printf( "FIXME: missing bot: bcop->bots[0]=%s -- op dropped.\n", str(bcop->bots[0]).c_str() ); }
+      if( !has( *nodes, bcop->bots[1] ) ) { printf( "FIXME: missing bot: bcop->bots[1]=%s -- op dropped.\n", str(bcop->bots[1]).c_str() ); }
       else { add_conv( bcop ); }
     } else if( cop->is( ReLU_coi ) ) {
       p_conv_op_t bcop( new conv_op_t );
