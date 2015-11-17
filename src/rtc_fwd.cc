@@ -81,9 +81,6 @@ namespace boda
     uint32_t tix_out_chan_tile_sz;
     uint32_t tix_pels_tile_sz;
 
-    // tconv only/specific
-    uint32_t tconv_blk_max_imgs;
-
     // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
     // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
     bool single_k1conv_output;
@@ -190,7 +187,7 @@ namespace boda
       } else if( oi->is_tconv ) {
 	assert( oi->tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
 	work.add_dims( "blk_bline", u32_ceil_div( lines_sz, oi->tix_pels_tile_sz ), "blk_bx", u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz ) );
-	oi->tconv_blk_max_imgs = 0;
+	uint32_t tconv_blk_max_imgs = 0;
 	uint32_t blk_b_line = 0;
 	for( uint32_t i = 0; i != work.dsz("blk_bline"); ++i ) {
 	  uint32_t const blk_e_line = blk_b_line + oi->tix_pels_tile_sz - 1;
@@ -198,15 +195,15 @@ namespace boda
 	  uint32_t const blk_e_img = std::min( num_imgs - 1, blk_e_line / oi->no->cio.sz.d[1] );
 	  uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
 	  assert_st( blk_num_img );
-	  max_eq( oi->tconv_blk_max_imgs, blk_num_img );
+	  max_eq( tconv_blk_max_imgs, blk_num_img );
 	  blk_b_line = blk_e_line + 1;
 	}
-	assert_st( oi->tconv_blk_max_imgs );
+	assert_st( tconv_blk_max_imgs );
 	// calc conservative value (may be lower in general or for some num_imgs) and use as check:
 	uint32_t const conservative_conv_max_img_per_blk = 2 + ((oi->tix_pels_tile_sz - 2)/oi->no->cio.sz.d[1]); 
-	assert_st( oi->tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
+	assert_st( tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
 	//printf( "oi->no->cio.sz.d[1]=%s oi->tix_pels_tile_sz=%s\n", str(oi->no->cio.sz.d[1]).c_str(), str(oi->tix_pels_tile_sz).c_str() );
-	//printf( "oi->tconv_max_img_per_blk=%s\n", str(oi->tconv_blk_max_imgs).c_str() );
+	//printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
 	assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
 	uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz*tconv_blk_max_imgs;
 	uint32_t const tconv_blk_x_sz = (t_tile_sz - 1)*stride + kern_sz;
