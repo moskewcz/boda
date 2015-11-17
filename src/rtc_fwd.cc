@@ -619,7 +619,7 @@ namespace boda
     } else if( cop->is( BckConv_coi ) ) {
       // FIXME_EFB: { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
       // current: { in, out_grad_loss } --> { in_grad_loss }
-      // FIXME_WFB: since filts/biases are implict inputs/outputs, we need to fabricate/recreate thier var names here
+      // FIXME_EFB: since filts/biases are implict inputs/outputs, we need to fabricate/recreate thier var names here
       string fwd_tag = cop->tag;
       bool const did_strip = maybe_strip_suffix( fwd_tag, "_bck" );
       assert_st( did_strip );
