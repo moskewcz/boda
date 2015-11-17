@@ -128,9 +128,7 @@ namespace boda
 	{ 
 	  is_s1conv = 1;
 	}
-
 	single_k1conv_output = 0; // may be set to 1 in phase 2, but default to 0 here
-
       }
      
       if( !is_conv ) { return; }
@@ -479,11 +477,6 @@ namespace boda
 
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
-    p_op_info_t poi;
-    if( oi->ni && !oi->ni->top_for.empty() ) {
-      assert_st( oi->ni->top_for.size() == 1 );
-      poi = must_find( *op_infos, oi->ni->top_for[0] ); // single unique parent operation, needed for poi->single_k1conv_output
-    }
 
     if( cop->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
@@ -515,8 +508,6 @@ namespace boda
       dims_t const & in_dims = rtc->get_var_dims_floats( in_id );
 
       vect_string in_arg_ids{ filtsxp_id, biases_id };
-
-      // printf( "rf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(rf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
       if( oi->is_tconv ) {
