@@ -75,8 +75,6 @@ namespace boda
     bool is_tconv; // FIXME/TODO: mostly unused
 
     // blocking values 
-  protected:
-    uint32_t tpb;
   public:
     uint32_t in_chan_tile;
     uint32_t in_chan_tile_dim;
@@ -167,25 +165,24 @@ namespace boda
 
       //uint32_t const pad_in_chans = in_chan_tile_dim * in_chan_tile;
 
-      oi->tpb = 128; // treated as a target, but not be exceeded
-      uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( rf.tpb ) above, more or less, but tweakable
-      //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= rf.tpb target/max above (asserted below)
+      uint32_t const max_tpb = 128; // treated as a target, but not be exceeded
+      uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( tpb ) above, more or less, but tweakable
+      //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= tpb target/max above (asserted below)
       // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
       // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
       // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the oi->no->cio.chans.
-      oi->tix_out_chan_tile_sz = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
+      uint32_t const work_out_chan_tile_dim = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
       oi->tix_pels_tile_sz = 0; // goal_tix_pels_tile_sz;
       //uint32_t best_tbp = tix_pels_tile_sz * tix_out_chan_tile_sz;
       uint32_t best_tbp = 0;
       while( 1 ) {
-	uint32_t const maybe_tbp = (oi->tix_pels_tile_sz+tix_pels_tile_sz_incr) * oi->tix_out_chan_tile_sz; // recalculate proposed tpb
-	if( maybe_tbp > oi->tpb ) { break; }
+	uint32_t const maybe_tbp = (oi->tix_pels_tile_sz+tix_pels_tile_sz_incr) * work_out_chan_tile_dim; // recalculate proposed tpb
+	if( maybe_tbp > max_tpb ) { break; }
 	oi->tix_pels_tile_sz += tix_pels_tile_sz_incr;
 	best_tbp = maybe_tbp;
       }
       assert_st( best_tbp );
-      assert_st( best_tbp <= oi->tpb );
-      oi->tpb = best_tbp;
+      assert_st( best_tbp <= max_tpb );
 
       uint32_t const lines_sz = num_imgs * oi->no->cio.sz.d[1];
       if( oi->is_s1conv ) {
@@ -233,7 +230,7 @@ namespace boda
 	uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, t_tile_sz );
 	work.add_dims( "pels_blk", u32_ceil_div( pels_tile_sz, oi->tix_pels_tile_sz ) );
       }
-      work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, oi->tix_out_chan_tile_sz ) );
+      work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, work_out_chan_tile_dim ) );
 
       // dims of per-group work (defines # threads per local group)
       if( oi->is_s1conv ) { 
@@ -244,7 +241,7 @@ namespace boda
       } 
       else if( oi->is_tconv ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
       else { work.add_dims( "pels_tile", tix_pels_tile_sz ); }
-      work.add_dims(   "out_chan_tile",oi->tix_out_chan_tile_sz );
+      work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
 
       work.add_dims( "pels",t_tile_sz,   "out_chan",t_tile_sz   ); // dims of per-thread work
       work.calc_strides();
@@ -472,7 +469,8 @@ namespace boda
     dims_t const filts_dims( vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz}, 
 			     vect_string{"out_chan","in_chan","y","x"}, 1 );
     string const filtsxp_id = filts_id + "_xposed";
-    dims_t const filtsxp_dims( vect_uint32_t{oi->work.dsz("out_chan_blk"),oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,oi->tix_out_chan_tile_sz}, 
+    dims_t const filtsxp_dims( vect_uint32_t{oi->work.dsz("out_chan_blk"),oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,
+	  oi->work.dsz("out_chan_tile")}, 
 				vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
     string const biases_id = oi->cop->tag + "_biases";
     dims_t const biases_dims( vect_uint32_t{oi->cop->out_chans}, vect_string{"out_chan"}, 1 );
@@ -542,11 +540,9 @@ namespace boda
       // printf( "rf->name=%s oi->single_k1conv_output=%s poi->single_k1conv_output=%s oi->is_k1conv=%s\n", str(rf->name).c_str(), str(oi->single_k1conv_output).c_str(), poi ? str(poi->single_k1conv_output).c_str() : "<null>", str(oi->is_k1conv).c_str() );
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
-
       if( oi->is_tconv ) {
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,oi->in_dims,oi->no->cio.dims(num_imgs)}, // 'normal' out dims are for ref
-	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}
-	      ,{"tix_pels_tile_sz",str(oi->tix_pels_tile_sz)},{"t_tile_sz",str(t_tile_sz)}} } );
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,oi->in_dims,oi->no->cio.dims(num_imgs),oi->work}, // 'normal' out dims are for ref
+	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}} } );
 	in_arg_ids.push_back( gen_apply_func_to_var( in_id, oi->in_dims, xp_fn ) );
       } else if( oi->is_k1conv ) {
 	if( in_dims != oi->in_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
@@ -1162,7 +1158,7 @@ namespace boda
       dims_t const & in = get_arg_dims_by_name( "in" );
       //dims_t const & out = get_arg_dims_by_name( "out" );
       // uint32_t const in_ix_blk_x_dim = oi->out_to_in(t_tile_sz); --> in_blk_x_dim / in.dsz("blk_x")
-      // uint32_t const blk_filt_ix_sz = oi->tix_out_chan_tile_sz * t_tile_sz; --> filts_x_sz / filts.dsz("x")
+      // uint32_t const blk_filt_ix_sz = work_out_chan_tile_dim * t_tile_sz; --> filts_x_sz / filts.dsz("x")
       uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts.dstride("y"), rf->tpb );  // filt smem loads
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";

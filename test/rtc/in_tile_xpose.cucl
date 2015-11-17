@@ -1,13 +1,14 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
 					  GASQ float * const out ) // CUCL OUT blk_bline:blk_bx:blk_in_chan:blk_y:blk_x
                                                     /* conv_out */ // CUCL REF img:chan:y:x
+/* work */  // CUCL REF blk_bline:blk_bx:out_chan_blk:blk_y:out_chan_tile:pels:out_chan
 {
   // note: dim(in.chan) == dim(out.blk_in_chan)
   // note: for out, blk_y and blk_x are in input space, but blk_bline and blk_bx are in output space. 
   // CUCL IX GLOB_ID_1D out
   if( GLOB_ID_1D >= %(out_dims_prod) ) { return; }
 
-  int32_t const conv_out_line = %(GLOB_ID_1D_blk_bline)*%(tix_pels_tile_sz);
+  int32_t const conv_out_line = %(GLOB_ID_1D_blk_bline)*%(work_blk_y_dim);
   // CUCL IX conv_out_line conv_out use_dims=img:y 
 
   int32_t const fi_skip_in_lines = %(conv_out_line_y)*%(stride); 
@@ -19,7 +20,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
   int32_t const img = %(conv_out_line_img) + img_off;
 
   int32_t const iy = (in_line %% img_in_lines) - %(in_pad); //%(conv_out_line_y)*%(stride) + %(GLOB_ID_1D_blk_y) - %(in_pad);
-  int32_t const ix = %(GLOB_ID_1D_blk_bx)*%(t_tile_sz)*%(stride) + %(GLOB_ID_1D_blk_x) - %(in_pad);
+  int32_t const ix = %(GLOB_ID_1D_blk_bx)*%(work_pels_dim)*%(stride) + %(GLOB_ID_1D_blk_x) - %(in_pad);
   
   float v = 0.0f;
   if(  1 
