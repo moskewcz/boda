@@ -78,7 +78,6 @@ namespace boda
   public:
     uint32_t in_chan_tile;
     uint32_t in_chan_tile_dim;
-    uint32_t tix_out_chan_tile_sz;
     uint32_t tix_pels_tile_sz;
 
     // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
@@ -162,14 +161,13 @@ namespace boda
       //uint32_t const pad_in_chans = in_chan_tile_dim * in_chan_tile;
 
       uint32_t const max_tpb = 128; // treated as a target, but not be exceeded
-      uint32_t const goal_tix_out_chan_tile_sz = 16; // sqrt( tpb ) above, more or less, but tweakable
+      uint32_t const goal_work_out_chan_tile_dim = 16; // sqrt( tpb ) above, more or less, but tweakable
       //uint32_t const goal_tix_pels_tile_sz = 8; // note: product of goal sizes should be <= tpb target/max above (asserted below)
       // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
       // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
       // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the oi->no->cio.chans.
-      uint32_t const work_out_chan_tile_dim = std::min( goal_tix_out_chan_tile_sz, out_chan_tile_sz );
-      oi->tix_pels_tile_sz = 0; // goal_tix_pels_tile_sz;
-      //uint32_t best_tbp = tix_pels_tile_sz * tix_out_chan_tile_sz;
+      uint32_t const work_out_chan_tile_dim = std::min( goal_work_out_chan_tile_dim, out_chan_tile_sz );
+      oi->tix_pels_tile_sz = 0;
       uint32_t best_tbp = 0;
       while( 1 ) {
 	uint32_t const maybe_tbp = (oi->tix_pels_tile_sz+tix_pels_tile_sz_incr) * work_out_chan_tile_dim; // recalculate proposed tpb
