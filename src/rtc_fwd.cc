@@ -82,7 +82,6 @@ namespace boda
     uint32_t tix_pels_tile_sz;
 
     // tconv only/specific
-    u32_pt_t tconv_blk_xy_sz; 
     uint32_t tconv_blk_max_imgs;
 
     // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
@@ -190,12 +189,10 @@ namespace boda
 	work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, oi->tix_pels_tile_sz ) );
       } else if( oi->is_tconv ) {
 	assert( oi->tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
-	oi->tconv_blk_xy_sz = ceil_div( u32_pt_t( oi->no->cio.sz.d[0], lines_sz ), 
-					u32_pt_t( t_tile_sz, oi->tix_pels_tile_sz ) );
-	work.add_dims( "blk_bline", tconv_blk_xy_sz.d[1], "blk_bx", tconv_blk_xy_sz.d[0] );
+	work.add_dims( "blk_bline", u32_ceil_div( lines_sz, oi->tix_pels_tile_sz ), "blk_bx", u32_ceil_div( oi->no->cio.sz.d[0], t_tile_sz ) );
 	oi->tconv_blk_max_imgs = 0;
 	uint32_t blk_b_line = 0;
-	for( uint32_t i = 0; i != oi->tconv_blk_xy_sz.d[1]; ++i ) {
+	for( uint32_t i = 0; i != work.dsz("blk_bline"); ++i ) {
 	  uint32_t const blk_e_line = blk_b_line + oi->tix_pels_tile_sz - 1;
 	  uint32_t const blk_b_img = blk_b_line / oi->no->cio.sz.d[1];
 	  uint32_t const blk_e_img = std::min( num_imgs - 1, blk_e_line / oi->no->cio.sz.d[1] );
@@ -222,7 +219,7 @@ namespace boda
 	// from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are in output space
 	// image space. other x/y's (in thread and block indexes) are all in output image space.
 	in_dims = dims_t( vect_uint32_t{
-	    oi->tconv_blk_xy_sz.d[1], oi->tconv_blk_xy_sz.d[0], oi->ni->cio.chans, tconv_blk_max_in_lines, tconv_blk_x_sz },
+	    work.dsz("blk_bline"), work.dsz("blk_bx"), oi->ni->cio.chans, tconv_blk_max_in_lines, tconv_blk_x_sz },
 	  vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
       } else {
 	uint32_t const pels_sz = out_ix_sz / oi->no->cio.chans;
