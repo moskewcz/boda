@@ -1,3 +1,6 @@
+-- replace usage of kern_sz scalar with filts x/y dims
+-- use dims_t in conv_io instead of sz/chans (good/req'd for FIXME_EFB fix below?)
+-- fix explicit filts/biases FIXME_EFB's 
 -- add gradients as conv_op_t level inputs?
 -- take another shot at removing in-place/inplace ops?
 -- Spreading: fix mask semantics, add max support, more testing
