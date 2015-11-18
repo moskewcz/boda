@@ -123,6 +123,10 @@ namespace boda
 	} else { // pool/spread
 	  template_var_values = {{"kern_sz",str(kern_sz)},{"stride",str(stride)},{"avg_pool",str(cop->avg_pool)},{"in_pad",str(in_pad)}};
 	}
+	if( is_pool ) { // this would perhaps be in a custom-codegen function, but it's simple enough to stuff in here
+	  template_var_values.push_back( {"op", cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" } );
+	  template_var_values.push_back( {"op_post", cop->avg_pool ? "out_v /= (float)("+str(kern_sz*kern_sz)+")" : "" } );
+	}
       }
 
       if( !is_conv ) { return; }
@@ -483,12 +487,7 @@ namespace boda
 	chans_out_done += cio_in.chans;
       }
       assert_st( chans_out_done == oi->no->cio.chans );
-      return;
-    }
-
-    if( oi->is_pool ) {
-      oi->template_var_values.push_back( {"op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" } );
-      oi->template_var_values.push_back( {"op_post", oi->cop->avg_pool ? "out_v /= (float)("+str(oi->kern_sz*oi->kern_sz)+")" : "" } );
+    } else if( oi->is_pool ) {
       gen_call( "pool", oi, {oi->ni->name,oi->no->name} );
     } else if( oi->is_conv ) {
       gen_conv_filts( oi );
