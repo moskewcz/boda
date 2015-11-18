@@ -51,6 +51,7 @@ namespace boda
   struct rtc_u32_param_info_t { string name; uint32_t val; };
   typedef vector< rtc_func_param_info_t > vect_rtc_func_param_info_t; 
 
+  string const k1conv_str = "k1conv"; string const s1conv_str = "s1conv"; string const tconv_str = "tconv"; string const conv_str = "conv";
   struct op_info_t {
     // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
     vect_rtc_func_param_info_t template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
@@ -72,9 +73,7 @@ namespace boda
 
 
     vect_dims_t conv_ref_dims; // work + conv-type specific dims
-    bool is_k1conv;
-    bool is_s1conv;
-    bool is_tconv; // FIXME/TODO: mostly unused
+    string cts; // cts --> conv-type-str
 
     // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
     // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
@@ -88,11 +87,9 @@ namespace boda
       assert_st( cop->bots.size() >= 1 );
       no = cp->must_get_node( cop->tops[0] );
       if( !cop->is(Concat_coi) ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
-
       is_conv = cop->is( Convolution_coi );
       is_pool = cop->is( Pooling_coi );
       // if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
-
       if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
 	no_dims = no->cio.dims(num_imgs);
 	in_dims = ni->cio.dims(num_imgs);
@@ -111,37 +108,26 @@ namespace boda
 	stride = cop->stride.d[0];
 	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
 	assert_st( ni->cio.sz.dims_are_same() );
-	is_k1conv = 0;
-	is_s1conv = 0;
-	is_tconv = 0;
 	if( is_conv && enable_k1conv && (kern_sz == 1) && (stride == 1) 
 	    && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) 
 	{ 
-	  if( in_pad != 0 ) {
-	    printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" );
-	  } else { is_k1conv = 1; }
+	  if( in_pad != 0 ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); cts = conv_str; }
+	  else { cts = k1conv_str; }
 	}
-	else if( is_conv && enable_tconv && (force_enable_tconv || ((kern_sz <= 11) && (kern_sz > 1) && (no->cio.sz.d[0] >= 6))) )
-	{ 
-	  is_tconv = 1;
-	}
+	else if( is_conv && enable_tconv && (force_enable_tconv || ((kern_sz <= 11) && (kern_sz > 1) && (no->cio.sz.d[0] >= 6))) ) { cts = tconv_str; }
 	else if( is_conv && enable_s1conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) 
-		 && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) 
-	{ 
-	  is_s1conv = 1;
-	}
+		 && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) { cts = s1conv_str; }
+	else { cts = conv_str; }
 	single_k1conv_output = 0; // may be set to 1 in phase 2, but default to 0 here
       }
-     
       if( !is_conv ) { return; }
+
       // calc_blocking_conv()
       uint32_t const out_ix_sz = num_imgs * no->cio.num_pels();
-
       // for reg blocking
       uint32_t const out_chan_tile_sz = u32_ceil_div( no->cio.chans, t_tile_sz );
-
       uint32_t tix_pels_tile_sz_incr = 1;
-      if( is_s1conv ) {
+      if( cts == s1conv_str ) {
 	uint32_t const line_x_tile_sz = u32_ceil_div( no->cio.sz.d[0], t_tile_sz );
 	tix_pels_tile_sz_incr = line_x_tile_sz;
       }
@@ -164,10 +150,10 @@ namespace boda
       assert_st( best_tbp <= max_tpb );
 
       uint32_t const lines_sz = num_imgs * no->cio.sz.d[1];
-      if( is_s1conv ) {
+      if( cts == s1conv_str ) {
 	assert_st( lines_sz * no->cio.sz.d[0] * no->cio.chans == out_ix_sz ); // by construction
 	work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, tix_pels_tile_sz ) );
-      } else if( is_tconv ) {
+      } else if( cts == tconv_str ) {
 	assert( tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
 	work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), "blk_bx", u32_ceil_div( no->cio.sz.d[0], t_tile_sz ) );
 	uint32_t tconv_blk_max_imgs = 0;
@@ -210,13 +196,13 @@ namespace boda
       work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, work_out_chan_tile_dim ) );
 
       // dims of per-group work (defines # threads per local group)
-      if( is_s1conv ) { 
+      if( cts == s1conv_str ) { 
 	uint32_t const line_x_tile_sz = u32_ceil_div( no->cio.sz.d[0], t_tile_sz );
 	uint32_t const blk_num_lines = u32_ceil_div( tix_pels_tile_sz, line_x_tile_sz );
 	assert_st( blk_num_lines * line_x_tile_sz == tix_pels_tile_sz ); // should be exact div by construction
 	work.add_dims( "line", blk_num_lines, "line_x_tile", line_x_tile_sz );
       } 
-      else if( is_tconv ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
+      else if( cts == tconv_str ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
       else { work.add_dims( "pels_tile", tix_pels_tile_sz ); }
       work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
 
@@ -224,7 +210,7 @@ namespace boda
       work.calc_strides();
       template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
 
-      if( is_k1conv ) { 
+      if( cts == k1conv_str ) { 
 	uint32_t const in_blk_iter_chan_dim = 8; // FIXME: make into param?
 	// the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	// vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
@@ -233,8 +219,8 @@ namespace boda
 	  vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
       }
       conv_ref_dims.push_back( work );
-      if( is_k1conv ) { conv_ref_dims.push_back( no->cio.dims(num_imgs) ); } // k1conv needs the standard output dims for refe
-      if( is_tconv ) { conv_ref_dims.push_back( ni->cio.dims(num_imgs) ); } // tconv needs the standard input dims for ref
+      if( cts == k1conv_str ) { conv_ref_dims.push_back( no->cio.dims(num_imgs) ); } // k1conv needs the standard output dims for refe
+      if( cts == tconv_str ) { conv_ref_dims.push_back( ni->cio.dims(num_imgs) ); } // tconv needs the standard input dims for ref
     }   
   };
   typedef shared_ptr< op_info_t > p_op_info_t; 
@@ -514,11 +500,11 @@ namespace boda
       vect_string in_arg_ids{ filtsxp_id, biases_id };
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
-      if( oi->is_tconv ) {
+      if( oi->cts == tconv_str ) {
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,oi->in_dims,oi->no->cio.dims(num_imgs),oi->work}, // 'normal' out dims are for ref
 	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}} } );
 	in_arg_ids.push_back( gen_apply_func_to_var( in_id, oi->in_dims, xp_fn ) );
-      } else if( oi->is_k1conv ) {
+      } else if( oi->cts == k1conv_str ) {
 	if( in_dims != oi->in_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
 	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,oi->in_dims}, {} } );
 	  in_arg_ids.push_back( gen_apply_func_to_var( in_id, oi->in_dims, xp_fn ) );
@@ -527,11 +513,11 @@ namespace boda
 	in_arg_ids.push_back( in_id );
       }
 
-      if( oi->is_k1conv ) { 
+      if( oi->cts == k1conv_str ) { 
 	p_op_info_t noi;
 	if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
 	  noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
-	  if( noi->is_k1conv ) { oi->single_k1conv_output = enable_write_xpose; }
+	  if( noi->cts == k1conv_str ) { oi->single_k1conv_output = enable_write_xpose; }
 	}
 	bool const write_xposed = oi->single_k1conv_output;
 	if( write_xposed ) {
@@ -539,24 +525,9 @@ namespace boda
 					      noi->work.dsz("pels_tile")*noi->work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
 	}
       }
-
-      if( oi->is_k1conv ) { 
-	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );
-	in_arg_ids.push_back( oi->no->name );
-	gen_call( "k1conv", oi, in_arg_ids, oi->conv_ref_dims );
-      } else if( oi->is_s1conv ) { 
-	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for s1conv)
-	in_arg_ids.push_back( oi->no->name );
-	gen_call( "s1conv", oi, in_arg_ids, oi->conv_ref_dims );
-      } else if( oi->is_tconv ) { 
-	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. tconv)
-	in_arg_ids.push_back( oi->no->name );
-	gen_call( "tconv", oi, in_arg_ids, oi->conv_ref_dims ); // original in_dims for reference (not xformed)
-      } else { 
-	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. conv)
-	in_arg_ids.push_back( oi->no->name );
-	gen_call( "conv", oi, in_arg_ids, oi->conv_ref_dims );
-      }
+      rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );
+      in_arg_ids.push_back( oi->no->name );
+      gen_call( oi->cts, oi, in_arg_ids, oi->conv_ref_dims );
       assert_st( oi->no->cio.chans == cop->out_chans );
     } else if( cop->is( ReLU_coi ) ) {
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
