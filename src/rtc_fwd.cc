@@ -519,8 +519,7 @@ namespace boda
 	  noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
 	  if( noi->cts == k1conv_str ) { oi->single_k1conv_output = enable_write_xpose; }
 	}
-	bool const write_xposed = oi->single_k1conv_output;
-	if( write_xposed ) {
+	if( oi->single_k1conv_output ) {
 	  oi->no_dims = dims_t{ vect_uint32_t{noi->work.dsz("pels_blk"), oi->in_dims.dsz("blk_iter"),oi->in_dims.dsz("blk_iter_chan"),
 					      noi->work.dsz("pels_tile")*noi->work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
 	}
@@ -993,7 +992,7 @@ namespace boda
       // cg_add_line( "stores", "  if( %(out_line_img) >= %(out_ix_img_dim) ) { return; } "; // not possible due to no-partial-imgs-per-block
       // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
       // FIXME: out_pel must be per-tpix (again)
-      if( out.get_dim_by_name("blk") ) {
+      if( out.get_dim_by_name("blk") ) { // aka if(write_xposed) -- if this dim names exists in the output, we know to write in xposed format
 	// padded # of in chans of next layer  == out.dsz("blk_iter")*out.dsz("blk_iter_chan")
 	// padded # of out chans of this layer == work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan")
 	// if these are ==, we don't have to worry about bounds-checking our writes to out in the chan dim
