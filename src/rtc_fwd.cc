@@ -70,6 +70,8 @@ namespace boda
     uint32_t stride;
     dims_t no_dims; // dims for conv output. defaults to dims for no from conv_pipe, may be overidden in op generation
 
+
+    vect_dims_t conv_ref_dims; // work + conv-type specific dims
     bool is_k1conv;
     bool is_s1conv;
     bool is_tconv; // FIXME/TODO: mostly unused
@@ -230,7 +232,9 @@ namespace boda
   work.dsz("pels_blk"), u32_ceil_div(ni->cio.chans,in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	  vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
       }
-
+      conv_ref_dims.push_back( work );
+      if( is_k1conv ) { conv_ref_dims.push_back( no->cio.dims(num_imgs) ); } // k1conv needs the standard output dims for refe
+      if( is_tconv ) { conv_ref_dims.push_back( ni->cio.dims(num_imgs) ); } // tconv needs the standard input dims for ref
     }   
   };
   typedef shared_ptr< op_info_t > p_op_info_t; 
@@ -530,26 +534,28 @@ namespace boda
 	  if( noi->is_k1conv ) { oi->single_k1conv_output = enable_write_xpose; }
 	}
 	bool const write_xposed = oi->single_k1conv_output;
-	dims_t out_ref_dims = oi->no_dims;
 	if( write_xposed ) {
 	  oi->no_dims = dims_t{ vect_uint32_t{noi->work.dsz("pels_blk"), oi->in_dims.dsz("blk_iter"),oi->in_dims.dsz("blk_iter_chan"),
 					      noi->work.dsz("pels_tile")*noi->work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
 	}
+      }
+
+      if( oi->is_k1conv ) { 
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );
 	in_arg_ids.push_back( oi->no->name );
-	gen_call( "k1conv", oi, in_arg_ids, {oi->work,out_ref_dims} );
+	gen_call( "k1conv", oi, in_arg_ids, oi->conv_ref_dims );
       } else if( oi->is_s1conv ) { 
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for s1conv)
 	in_arg_ids.push_back( oi->no->name );
-	gen_call( "s1conv", oi, in_arg_ids, {oi->work} );
+	gen_call( "s1conv", oi, in_arg_ids, oi->conv_ref_dims );
       } else if( oi->is_tconv ) { 
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. tconv)
 	in_arg_ids.push_back( oi->no->name );
-	gen_call( "tconv", oi, in_arg_ids, {oi->work,in_dims} ); // original in_dims for reference (not xformed)
+	gen_call( "tconv", oi, in_arg_ids, oi->conv_ref_dims ); // original in_dims for reference (not xformed)
       } else { 
 	rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims ); // note: using default output dims here (okay for reg. conv)
 	in_arg_ids.push_back( oi->no->name );
-	gen_call( "conv", oi, in_arg_ids, {oi->work} );
+	gen_call( "conv", oi, in_arg_ids, oi->conv_ref_dims );
       }
       assert_st( oi->no->cio.chans == cop->out_chans );
     } else if( cop->is( ReLU_coi ) ) {
