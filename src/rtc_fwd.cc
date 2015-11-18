@@ -65,12 +65,10 @@ namespace boda
     p_conv_node_t ni;
 
     // valid if: is_conv == 1
-    bool conv_has_relu;
     uint32_t in_pad;
     uint32_t kern_sz;
     uint32_t stride;
     dims_t no_dims; // dims for conv output. defaults to dims for no from conv_pipe, may be overidden in op generation
-
 
     vect_dims_t conv_ref_dims; // work + conv-type specific dims
     string cts; // cts --> conv-type-str
@@ -93,7 +91,7 @@ namespace boda
       if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
 	no_dims = no->cio.dims(num_imgs);
 	in_dims = ni->cio.dims(num_imgs);
-	conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
+	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
 	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
 	// for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
 	assert_st( cop->in_pad.bnds_are_same() );
@@ -119,9 +117,15 @@ namespace boda
 		 && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) { cts = s1conv_str; }
 	else { cts = conv_str; }
 	single_k1conv_output = 0; // may be set to 1 in phase 2, but default to 0 here
-      }
-      if( !is_conv ) { return; }
 
+	if( is_conv || cop->is( BckConv_coi ) ) { // bckconv/conv
+	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
+	} else { // pool/spread
+	  template_var_values = {{"kern_sz",str(kern_sz)},{"stride",str(stride)},{"avg_pool",str(cop->avg_pool)},{"in_pad",str(in_pad)}};
+	}
+      }
+
+      if( !is_conv ) { return; }
       // calc_blocking_conv()
       uint32_t const out_ix_sz = num_imgs * no->cio.num_pels();
       // for reg blocking
@@ -208,7 +212,6 @@ namespace boda
 
       work.add_dims( "pels",t_tile_sz,   "out_chan",t_tile_sz   ); // dims of per-thread work
       work.calc_strides();
-      template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
 
       if( cts == k1conv_str ) { 
 	uint32_t const in_blk_iter_chan_dim = 8; // FIXME: make into param?
@@ -484,7 +487,6 @@ namespace boda
     }
 
     if( oi->is_pool ) {
-      oi->template_var_values = {{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"avg_pool",str(oi->cop->avg_pool)},{"in_pad",str(oi->in_pad)}};
       oi->template_var_values.push_back( {"op", oi->cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" } );
       oi->template_var_values.push_back( {"op_post", oi->cop->avg_pool ? "out_v /= (float)("+str(oi->kern_sz*oi->kern_sz)+")" : "" } );
       gen_call( "pool", oi, {oi->ni->name,oi->no->name} );
@@ -551,7 +553,6 @@ namespace boda
       gen_call( "sm_grad_and_loss", oi, { prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
       gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
     } else if( cop->is( Spreading_coi ) ) {
-      oi->template_var_values = {{"kern_sz",str(oi->kern_sz)},{"stride",str(oi->stride)},{"avg_pool",str(oi->cop->avg_pool)},{"in_pad",str(oi->in_pad)}};
       gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->bots[2], cop->tops[0] } );
     } else if( cop->is( ZeroIfNeg_coi ) ) {
       gen_call( cop->type, oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
@@ -564,7 +565,6 @@ namespace boda
       assert_st( did_strip );
       string const filts_id = fwd_tag + "_filts";
       //string const biases_id = fwd_tag + "_biases";
-      oi->template_var_values = {{"stride",str(oi->stride)},{"in_pad",str(oi->in_pad)}}; 
       gen_call( "BckConv_in_grad_loss", oi, { cop->bots[0], filts_id, /*biases_id,*/ cop->bots[1], cop->tops[0] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
