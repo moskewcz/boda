@@ -16,6 +16,7 @@ namespace boda
 
   typedef map< string, uint32_t > map_str_u32_t;
   typedef map< string, float > map_str_float_t;
+  typedef map< string, dims_t > map_str_dims_t;
 
   struct rtc_func_t { 
     string name;
@@ -38,23 +39,10 @@ namespace boda
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
-  struct rtc_func_param_info_t { 
-    string name; 
-    string val; 
-    bool operator == ( rtc_func_param_info_t const & o ) const { return name == o.name && val == o.val; }
-    bool operator < ( rtc_func_param_info_t const & o ) const { 
-      if( name != o.name ) { return name < o.name; }
-      if( val != o.val ) { return val < o.val; }
-      return 0;
-    }
-  };
-  struct rtc_u32_param_info_t { string name; uint32_t val; };
-  typedef vector< rtc_func_param_info_t > vect_rtc_func_param_info_t; 
-
   string const k1conv_str = "k1conv"; string const s1conv_str = "s1conv"; string const tconv_str = "tconv"; string const conv_str = "conv";
   struct op_info_t {
     // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
-    vect_rtc_func_param_info_t template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
+    map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     dims_t work;
     dims_t in_dims;
 
@@ -124,8 +112,8 @@ namespace boda
 	  template_var_values = {{"kern_sz",str(kern_sz)},{"stride",str(stride)},{"avg_pool",str(cop->avg_pool)},{"in_pad",str(in_pad)}};
 	}
 	if( is_pool ) { // this would perhaps be in a custom-codegen function, but it's simple enough to stuff in here
-	  template_var_values.push_back( {"op", cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )" } );
-	  template_var_values.push_back( {"op_post", cop->avg_pool ? "out_v /= (float)("+str(kern_sz*kern_sz)+")" : "" } );
+	  template_var_values["op"] = cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )";
+	  template_var_values["op_post"] = cop->avg_pool ? "out_v /= (float)("+str(kern_sz*kern_sz)+")" : "";
 	}
       }
 
@@ -237,21 +225,14 @@ namespace boda
   struct rtc_func_sig_t { 
     string fn;
     vect_dims_t args;
-    vect_rtc_func_param_info_t template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
+    map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     bool operator < ( rtc_func_sig_t const & o ) const { 
       if( fn != o.fn ) { return fn < o.fn; }
       if( args != o.args ) { return args < o.args; }
       if( template_var_values != o.template_var_values ) { return template_var_values < o.template_var_values; }
       return 0;
     }
-    
-    uint32_t get_u32_tvv( string const & tvn ) {
-      for( vect_rtc_func_param_info_t::const_iterator i = template_var_values.begin(); i != template_var_values.end(); ++i ) {
-	if( i->name == tvn ) { return lc_str_u32( i->val ); }
-      }
-      rt_err("INTERNAL_ERROR: unknown template var name in codegen: '"+tvn+"'. typo?");
-    }
-
+    uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( template_var_values, tvn ) ); }
     string gen_unused_fn( set_string & fns ) const {
       string maybe_fn_base = fn;
       set_string unique_dims;
@@ -609,8 +590,6 @@ namespace boda
     mss.push_back( make_pair( ix_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
   }
   
-  typedef map< string, dims_t > map_str_dims_t;
-
   struct rtc_call_gen_t {
     rtc_func_sig_t rfs;
     p_string rtc_func_template; // read from file
@@ -634,8 +613,8 @@ namespace boda
       rf = 0;
       rfs = rfs_;
       tf_exprs.push_back( make_pair( "rtc_func_name", gen_fn ) );
-      for( vect_rtc_func_param_info_t::const_iterator i = rfs.template_var_values.begin(); i != rfs.template_var_values.end(); ++i ) {
-	tf_exprs.push_back( make_pair( i->name, i->val ) );
+      for( map_str_str::const_iterator i = rfs.template_var_values.begin(); i != rfs.template_var_values.end(); ++i ) {
+	tf_exprs.push_back( make_pair( i->first, i->second ) );
       }
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
