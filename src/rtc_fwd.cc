@@ -58,7 +58,7 @@ namespace boda
     uint32_t stride;
     dims_t no_dims; // dims for conv output. defaults to dims for no from conv_pipe, may be overidden in op generation
 
-    vect_dims_t conv_ref_dims; // work + conv-type specific dims
+    map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     string cts; // cts --> conv-type-str
 
     // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
@@ -213,22 +213,24 @@ namespace boda
   work.dsz("pels_blk"), u32_ceil_div(ni->cio.chans,in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	  vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
       }
-      conv_ref_dims.push_back( work );
-      if( cts == k1conv_str ) { conv_ref_dims.push_back( no->cio.dims(num_imgs) ); } // k1conv needs the standard output dims for refe
-      if( cts == tconv_str ) { conv_ref_dims.push_back( ni->cio.dims(num_imgs) ); } // tconv needs the standard input dims for ref
-    }   
+      conv_ref_dims["work"] = work;
+      if( cts == k1conv_str ) { conv_ref_dims["out_ref"] = no->cio.dims(num_imgs); } // k1conv needs the standard output dims for refe
+      if( cts == tconv_str ) { conv_ref_dims["in_ref"] = ni->cio.dims(num_imgs); } // tconv needs the standard input dims for ref
+    }
   };
   typedef shared_ptr< op_info_t > p_op_info_t; 
   typedef map< string, p_op_info_t > map_str_p_op_info_t;
   typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
-
+  
   struct rtc_func_sig_t { 
     string fn;
     vect_dims_t args;
+    map_str_dims_t ref_dims;
     map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     bool operator < ( rtc_func_sig_t const & o ) const { 
       if( fn != o.fn ) { return fn < o.fn; }
       if( args != o.args ) { return args < o.args; }
+      if( ref_dims != o.ref_dims ) { return ref_dims < o.ref_dims; }
       if( template_var_values != o.template_var_values ) { return template_var_values < o.template_var_values; }
       return 0;
     }
@@ -236,6 +238,8 @@ namespace boda
     string gen_unused_fn( set_string & fns ) const {
       string maybe_fn_base = fn;
       set_string unique_dims;
+      vect_dims_t all_dims = args;
+      for( map_str_dims_t::const_iterator i = ref_dims.begin(); i != ref_dims.end(); ++i ) { all_dims.push_back( i->second ); } // note: name ignores
       for( vect_dims_t::const_iterator i = args.begin(); i != args.end(); ++i ) {
 	dims_t const & dims = *i;
 	for( uint32_t i = 0; i != dims.sz(); ++i ) {
@@ -319,7 +323,7 @@ namespace boda
     rtc_func_sigs_map_t rtc_func_sigs_map;
     string gen_func( rtc_func_sig_t const & rfs );
     void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
-		   vect_dims_t const & ref_dims = vect_dims_t(), bool const is_init_call = 0 );
+		   map_str_dims_t const & ref_dims = map_str_dims_t(), bool const is_init_call = 0 );
 
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
     string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
@@ -483,7 +487,8 @@ namespace boda
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
       if( oi->cts == tconv_str ) {
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,oi->in_dims,oi->no->cio.dims(num_imgs),oi->work}, // 'normal' out dims are for ref
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,oi->in_dims},
+	    {{"conv_out",oi->no->cio.dims(num_imgs)},{"work",oi->work}}, // 'normal' out dims are for ref
 	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}} } );
 	in_arg_ids.push_back( gen_apply_func_to_var( in_id, oi->in_dims, xp_fn ) );
       } else if( oi->cts == k1conv_str ) {
@@ -618,6 +623,12 @@ namespace boda
       }
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
+      for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
+	if( arg_decls[i].io_type == "REF" ) {
+	  assert_st( rfs.args.size() == i ); // all non-ref args must preceed the (all-by-name) ref args
+	  rfs.args.push_back( must_find( rfs.ref_dims, arg_decls[i].vn ) );
+	}
+      }
       check_args();
       uint32_t num_nonref_args = 0;
       for( uint32_t i = 0; i != rfs.args.size(); ++i ) { 
@@ -1157,14 +1168,14 @@ namespace boda
     return gen_fn;
   }
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
-				  vect_dims_t const & ref_dims, bool const is_init_call ) { 
+				  map_str_dims_t const & ref_dims, bool const is_init_call ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
     rtc_func_sig_t rfs;
     rfs.fn = fn;
     rfs.template_var_values = oi->template_var_values;
     for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { rfs.args.push_back( rtc->get_var_dims_floats( *i ) ); }
-    rfs.args.insert( rfs.args.end(), ref_dims.begin(), ref_dims.end() );
+    rfs.ref_dims = ref_dims;
     // note: we assume the generated function only work for exactly these input/output sizes. if not, we'd set some dims to 0/wild
     string const & gen_fn = gen_func( rfs );
     (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag } );
