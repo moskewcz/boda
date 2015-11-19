@@ -51,10 +51,6 @@ namespace boda
     p_conv_node_t ni;
 
     // valid if: is_conv == 1
-    uint32_t in_pad;
-    uint32_t kern_sz;
-    uint32_t stride;
-
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     string cts; // cts --> conv-type-str
 
@@ -87,9 +83,9 @@ namespace boda
 	if( kern_sz_.is_zeros() ) { kern_sz_ = ni->cio.sz; } // 'global' input special case
 	assert_st( kern_sz_.dims_are_same() );
 
-	in_pad = cop->in_pad.p[0].d[0];
-	kern_sz = kern_sz_.d[0];
-	stride = cop->stride.d[0];
+	uint32_t const in_pad = cop->in_pad.p[0].d[0];
+	uint32_t const kern_sz = kern_sz_.d[0];
+	uint32_t const stride = cop->stride.d[0];
 	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
 	assert_st( ni->cio.sz.dims_are_same() );
 	if( is_conv && enable_k1conv && (kern_sz == 1) && (stride == 1) 
@@ -113,108 +109,113 @@ namespace boda
 	  template_var_values["op"] = cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )";
 	  template_var_values["op_post"] = cop->avg_pool ? "out_v /= (float)("+str(kern_sz*kern_sz)+")" : "";
 	}
+	if( is_conv ) {
+	  // calc_blocking_conv()
+	  uint32_t const out_ix_sz = num_imgs * no->cio.num_pels();
+	  // for reg blocking
+	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->cio.chans, t_tile_sz );
+	  uint32_t tix_pels_tile_sz_incr = 1;
+	  if( cts == s1conv_str ) {
+	    uint32_t const line_x_tile_sz = u32_ceil_div( no->cio.sz.d[0], t_tile_sz );
+	    tix_pels_tile_sz_incr = line_x_tile_sz;
+	  }
+
+	  uint32_t const max_tpb = 128; // treated as a target, but not be exceeded
+	  uint32_t const goal_work_out_chan_tile_dim = 16; // sqrt( tpb ) above, more or less, but tweakable
+	  // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
+	  // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
+	  // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the no->cio.chans.
+	  uint32_t const work_out_chan_tile_dim = std::min( goal_work_out_chan_tile_dim, out_chan_tile_sz );
+	  uint32_t tix_pels_tile_sz = 0;
+	  uint32_t best_tbp = 0;
+	  while( 1 ) {
+	    uint32_t const maybe_tbp = (tix_pels_tile_sz+tix_pels_tile_sz_incr) * work_out_chan_tile_dim; // recalculate proposed tpb
+	    if( maybe_tbp > max_tpb ) { break; }
+	    tix_pels_tile_sz += tix_pels_tile_sz_incr;
+	    best_tbp = maybe_tbp;
+	  }
+	  assert_st( best_tbp );
+	  assert_st( best_tbp <= max_tpb );
+
+	  dims_t work;
+	  uint32_t const lines_sz = num_imgs * no->cio.sz.d[1];
+	  if( cts == s1conv_str ) {
+	    assert_st( lines_sz * no->cio.sz.d[0] * no->cio.chans == out_ix_sz ); // by construction
+	    work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, tix_pels_tile_sz ) );
+	  } else if( cts == tconv_str ) {
+	    assert( tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
+	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), "blk_bx", u32_ceil_div( no->cio.sz.d[0], t_tile_sz ) );
+	    uint32_t tconv_blk_max_imgs = 0;
+	    uint32_t blk_b_line = 0;
+	    for( uint32_t i = 0; i != work.dsz("blk_bline"); ++i ) {
+	      uint32_t const blk_e_line = blk_b_line + tix_pels_tile_sz - 1;
+	      uint32_t const blk_b_img = blk_b_line / no->cio.sz.d[1];
+	      uint32_t const blk_e_img = std::min( num_imgs - 1, blk_e_line / no->cio.sz.d[1] );
+	      uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
+	      assert_st( blk_num_img );
+	      max_eq( tconv_blk_max_imgs, blk_num_img );
+	      blk_b_line = blk_e_line + 1;
+	    }
+	    assert_st( tconv_blk_max_imgs );
+	    // calc conservative value (may be lower in general or for some num_imgs) and use as check:
+	    uint32_t const conservative_conv_max_img_per_blk = 2 + ((tix_pels_tile_sz - 2)/no->cio.sz.d[1]); 
+	    assert_st( tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
+	    //printf( "no->cio.sz.d[1]=%s tix_pels_tile_sz=%s\n", str(no->cio.sz.d[1]).c_str(), str(tix_pels_tile_sz).c_str() );
+	    //printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
+	    assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
+	    uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz*tconv_blk_max_imgs;
+	    uint32_t const tconv_blk_x_sz = (t_tile_sz - 1)*stride + kern_sz;
+	    // the tconv/in_tile_xpose format is for use when both ni->cio.sz.d[0/1] are small multiple of
+	    // t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
+	    // window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
+	    // this case, we do not unroll across input chans, but we do unroll across kern_sz in X (and maybe in Y too for
+	    // small kernels).
+	    // note: "out_ix" from in_tile_xpose becomes "in_ix" for tconv; 
+	    // from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are in output space
+	    // image space. other x/y's (in thread and block indexes) are all in output image space.
+	    in_dims = dims_t( vect_uint32_t{
+		work.dsz("blk_bline"), work.dsz("blk_bx"), ni->cio.chans, tconv_blk_max_in_lines, tconv_blk_x_sz },
+	      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
+	  } else {
+	    uint32_t const pels_sz = out_ix_sz / no->cio.chans;
+	    assert_st( pels_sz * no->cio.chans == out_ix_sz ); // by construction
+	    uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, t_tile_sz );
+	    work.add_dims( "pels_blk", u32_ceil_div( pels_tile_sz, tix_pels_tile_sz ) );
+	  }
+	  work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, work_out_chan_tile_dim ) );
+
+	  // dims of per-group work (defines # threads per local group)
+	  if( cts == s1conv_str ) { 
+	    uint32_t const line_x_tile_sz = u32_ceil_div( no->cio.sz.d[0], t_tile_sz );
+	    uint32_t const blk_num_lines = u32_ceil_div( tix_pels_tile_sz, line_x_tile_sz );
+	    assert_st( blk_num_lines * line_x_tile_sz == tix_pels_tile_sz ); // should be exact div by construction
+	    work.add_dims( "line", blk_num_lines, "line_x_tile", line_x_tile_sz );
+	  } 
+	  else if( cts == tconv_str ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
+	  else { work.add_dims( "pels_tile", tix_pels_tile_sz ); }
+	  work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
+
+	  work.add_dims( "pels",t_tile_sz,   "out_chan",t_tile_sz   ); // dims of per-thread work
+	  work.calc_strides();
+
+	  if( cts == k1conv_str ) { 
+	    uint32_t const in_blk_iter_chan_dim = 8; // FIXME: make into param?
+	    // the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
+	    // vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
+	    in_dims = dims_t( vect_uint32_t{
+		work.dsz("pels_blk"), u32_ceil_div(ni->cio.chans,in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
+	      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
+	  }
+	  conv_ref_dims["work"] = work;
+	  conv_ref_dims["out_ref"] = no->cio.dims(num_imgs); // k1conv and in_tile_xpose need the standard output dims for reference
+	  conv_ref_dims["in"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
+	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
+	  conv_ref_dims["filts"] = dims_t( vect_uint32_t{ cop->out_chans, ni->cio.chans, kern_sz,kern_sz}, vect_string{"out_chan","in_chan","y","x"}, 1 );
+	  conv_ref_dims["filtsxp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->cio.chans,kern_sz,kern_sz,
+		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
+	  conv_ref_dims["biases"] = dims_t( vect_uint32_t{cop->out_chans}, vect_string{"out_chan"}, 1 );
+	} // end if(is_conv)
       }
-
-      if( !is_conv ) { return; }
-      // calc_blocking_conv()
-      uint32_t const out_ix_sz = num_imgs * no->cio.num_pels();
-      // for reg blocking
-      uint32_t const out_chan_tile_sz = u32_ceil_div( no->cio.chans, t_tile_sz );
-      uint32_t tix_pels_tile_sz_incr = 1;
-      if( cts == s1conv_str ) {
-	uint32_t const line_x_tile_sz = u32_ceil_div( no->cio.sz.d[0], t_tile_sz );
-	tix_pels_tile_sz_incr = line_x_tile_sz;
-      }
-
-      uint32_t const max_tpb = 128; // treated as a target, but not be exceeded
-      uint32_t const goal_work_out_chan_tile_dim = 16; // sqrt( tpb ) above, more or less, but tweakable
-      // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
-      // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
-      // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the no->cio.chans.
-      uint32_t const work_out_chan_tile_dim = std::min( goal_work_out_chan_tile_dim, out_chan_tile_sz );
-      uint32_t tix_pels_tile_sz = 0;
-      uint32_t best_tbp = 0;
-      while( 1 ) {
-	uint32_t const maybe_tbp = (tix_pels_tile_sz+tix_pels_tile_sz_incr) * work_out_chan_tile_dim; // recalculate proposed tpb
-	if( maybe_tbp > max_tpb ) { break; }
-	tix_pels_tile_sz += tix_pels_tile_sz_incr;
-	best_tbp = maybe_tbp;
-      }
-      assert_st( best_tbp );
-      assert_st( best_tbp <= max_tpb );
-
-      dims_t work;
-      uint32_t const lines_sz = num_imgs * no->cio.sz.d[1];
-      if( cts == s1conv_str ) {
-	assert_st( lines_sz * no->cio.sz.d[0] * no->cio.chans == out_ix_sz ); // by construction
-	work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, tix_pels_tile_sz ) );
-      } else if( cts == tconv_str ) {
-	assert( tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
-	work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), "blk_bx", u32_ceil_div( no->cio.sz.d[0], t_tile_sz ) );
-	uint32_t tconv_blk_max_imgs = 0;
-	uint32_t blk_b_line = 0;
-	for( uint32_t i = 0; i != work.dsz("blk_bline"); ++i ) {
-	  uint32_t const blk_e_line = blk_b_line + tix_pels_tile_sz - 1;
-	  uint32_t const blk_b_img = blk_b_line / no->cio.sz.d[1];
-	  uint32_t const blk_e_img = std::min( num_imgs - 1, blk_e_line / no->cio.sz.d[1] );
-	  uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
-	  assert_st( blk_num_img );
-	  max_eq( tconv_blk_max_imgs, blk_num_img );
-	  blk_b_line = blk_e_line + 1;
-	}
-	assert_st( tconv_blk_max_imgs );
-	// calc conservative value (may be lower in general or for some num_imgs) and use as check:
-	uint32_t const conservative_conv_max_img_per_blk = 2 + ((tix_pels_tile_sz - 2)/no->cio.sz.d[1]); 
-	assert_st( tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
-	//printf( "no->cio.sz.d[1]=%s tix_pels_tile_sz=%s\n", str(no->cio.sz.d[1]).c_str(), str(tix_pels_tile_sz).c_str() );
-	//printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
-	assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
-	uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz*tconv_blk_max_imgs;
-	uint32_t const tconv_blk_x_sz = (t_tile_sz - 1)*stride + kern_sz;
-	// the tconv/in_tile_xpose format is for use when both ni->cio.sz.d[0/1] are small multiple of
-	// t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
-	// window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
-	// this case, we do not unroll across input chans, but we do unroll across kern_sz in X (and maybe in Y too for
-	// small kernels).
-	// note: "out_ix" from in_tile_xpose becomes "in_ix" for tconv; 
-	// from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are in output space
-	// image space. other x/y's (in thread and block indexes) are all in output image space.
-	in_dims = dims_t( vect_uint32_t{
-	    work.dsz("blk_bline"), work.dsz("blk_bx"), ni->cio.chans, tconv_blk_max_in_lines, tconv_blk_x_sz },
-	  vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
-      } else {
-	uint32_t const pels_sz = out_ix_sz / no->cio.chans;
-	assert_st( pels_sz * no->cio.chans == out_ix_sz ); // by construction
-	uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, t_tile_sz );
-	work.add_dims( "pels_blk", u32_ceil_div( pels_tile_sz, tix_pels_tile_sz ) );
-      }
-      work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, work_out_chan_tile_dim ) );
-
-      // dims of per-group work (defines # threads per local group)
-      if( cts == s1conv_str ) { 
-	uint32_t const line_x_tile_sz = u32_ceil_div( no->cio.sz.d[0], t_tile_sz );
-	uint32_t const blk_num_lines = u32_ceil_div( tix_pels_tile_sz, line_x_tile_sz );
-	assert_st( blk_num_lines * line_x_tile_sz == tix_pels_tile_sz ); // should be exact div by construction
-	work.add_dims( "line", blk_num_lines, "line_x_tile", line_x_tile_sz );
-      } 
-      else if( cts == tconv_str ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
-      else { work.add_dims( "pels_tile", tix_pels_tile_sz ); }
-      work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
-
-      work.add_dims( "pels",t_tile_sz,   "out_chan",t_tile_sz   ); // dims of per-thread work
-      work.calc_strides();
-
-      if( cts == k1conv_str ) { 
-	uint32_t const in_blk_iter_chan_dim = 8; // FIXME: make into param?
-	// the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
-	// vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
-	in_dims = dims_t( vect_uint32_t{
-  work.dsz("pels_blk"), u32_ceil_div(ni->cio.chans,in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
-	  vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
-      }
-      conv_ref_dims["work"] = work;
-      conv_ref_dims["out_ref"] = no->cio.dims(num_imgs); // k1conv and in_tile_xpose need the standard output dims for reference
-      conv_ref_dims["in"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
     }
   };
   typedef shared_ptr< op_info_t > p_op_info_t; 
@@ -422,24 +423,16 @@ namespace boda
   void conv_pipe_fwd_t::gen_conv_filts( p_op_info_t const & oi ) {
     bool const did_ins = filts_names.insert( oi->cop->tag ).second; 
     if( !did_ins ) { return; } // filts already set up for this op
-
     string const filts_id = oi->cop->tag + "_filts";
-    dims_t const filts_dims( vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz}, 
-			     vect_string{"out_chan","in_chan","y","x"}, 1 );
     string const filtsxp_id = filts_id + "_xposed";
-    dims_t const filtsxp_dims( vect_uint32_t{oi->conv_ref_dims["work"].dsz("out_chan_blk"),oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,
-	  oi->conv_ref_dims["work"].dsz("out_chan_tile")}, 
-				vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
     string const biases_id = oi->cop->tag + "_biases";
-    dims_t const biases_dims( vect_uint32_t{oi->cop->out_chans}, vect_string{"out_chan"}, 1 );
-
-    rtc->create_var_with_dims_floats( filts_id, filts_dims );
+    rtc->create_var_with_dims_floats( filts_id, oi->conv_ref_dims["filts"] );
     op_param_names.push_back( filts_id );
-    rtc->create_var_with_dims_floats( filtsxp_id, filtsxp_dims );
+    rtc->create_var_with_dims_floats( filtsxp_id, oi->conv_ref_dims["filtsxp"] );
     // FIXME: probably not right to use the conv op's oi here. but params should be empty; oi->call_tag is okay to use
     // (since the called func is appended). let's revisit when we're further along with gen_call() refactoring ...
     gen_call( "xpose_filts", oi, { filts_id, filtsxp_id }, {}, 1 ); 
-    rtc->create_var_with_dims_floats( biases_id, biases_dims );
+    rtc->create_var_with_dims_floats( biases_id, oi->conv_ref_dims["biases"] );
     op_param_names.push_back( biases_id );
   }
 
