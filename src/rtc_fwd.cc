@@ -43,7 +43,6 @@ namespace boda
   struct op_info_t {
     // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
     map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
-    dims_t work;
     dims_t in_dims;
 
     p_conv_op_t cop;
@@ -145,6 +144,7 @@ namespace boda
       assert_st( best_tbp );
       assert_st( best_tbp <= max_tpb );
 
+      dims_t work;
       uint32_t const lines_sz = num_imgs * no->cio.sz.d[1];
       if( cts == s1conv_str ) {
 	assert_st( lines_sz * no->cio.sz.d[0] * no->cio.chans == out_ix_sz ); // by construction
@@ -214,8 +214,8 @@ namespace boda
 	  vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
       }
       conv_ref_dims["work"] = work;
-      if( cts == k1conv_str ) { conv_ref_dims["out_ref"] = no->cio.dims(num_imgs); } // k1conv needs the standard output dims for refe
-      if( cts == tconv_str ) { conv_ref_dims["in_ref"] = ni->cio.dims(num_imgs); } // tconv needs the standard input dims for ref
+      conv_ref_dims["out_ref"] = no->cio.dims(num_imgs); // k1conv and in_tile_xpose need the standard output dims for reference
+      conv_ref_dims["in_ref"] = ni->cio.dims(num_imgs); // tconv needs the standard input dims for ref
     }
   };
   typedef shared_ptr< op_info_t > p_op_info_t; 
@@ -428,8 +428,8 @@ namespace boda
     dims_t const filts_dims( vect_uint32_t{oi->cop->out_chans,oi->ni->cio.chans,oi->kern_sz,oi->kern_sz}, 
 			     vect_string{"out_chan","in_chan","y","x"}, 1 );
     string const filtsxp_id = filts_id + "_xposed";
-    dims_t const filtsxp_dims( vect_uint32_t{oi->work.dsz("out_chan_blk"),oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,
-	  oi->work.dsz("out_chan_tile")}, 
+    dims_t const filtsxp_dims( vect_uint32_t{oi->conv_ref_dims["work"].dsz("out_chan_blk"),oi->ni->cio.chans,oi->kern_sz,oi->kern_sz,t_tile_sz,
+	  oi->conv_ref_dims["work"].dsz("out_chan_tile")}, 
 				vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
     string const biases_id = oi->cop->tag + "_biases";
     dims_t const biases_dims( vect_uint32_t{oi->cop->out_chans}, vect_string{"out_chan"}, 1 );
@@ -487,8 +487,7 @@ namespace boda
 
       if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
       if( oi->cts == tconv_str ) {
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,oi->in_dims},
-	    {{"conv_out",oi->no->cio.dims(num_imgs)},{"work",oi->work}}, // 'normal' out dims are for ref
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,oi->in_dims}, oi->conv_ref_dims,
 	    {{"stride",str(oi->stride)},{"kern_sz",str(oi->kern_sz)},{"in_pad",str(oi->in_pad)}} } );
 	in_arg_ids.push_back( gen_apply_func_to_var( in_id, oi->in_dims, xp_fn ) );
       } else if( oi->cts == k1conv_str ) {
@@ -507,8 +506,9 @@ namespace boda
 	  if( noi->cts == k1conv_str ) { oi->single_k1conv_output = enable_write_xpose; }
 	}
 	if( oi->single_k1conv_output ) {
-	  oi->no_dims = dims_t{ vect_uint32_t{noi->work.dsz("pels_blk"), oi->in_dims.dsz("blk_iter"),oi->in_dims.dsz("blk_iter_chan"),
-					      noi->work.dsz("pels_tile")*noi->work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
+	  dims_t const & noi_work = noi->conv_ref_dims["work"];
+	  oi->no_dims = dims_t{ vect_uint32_t{noi_work.dsz("pels_blk"), oi->in_dims.dsz("blk_iter"),oi->in_dims.dsz("blk_iter_chan"),
+					      noi_work.dsz("pels_tile")*noi_work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
 	}
       }
       rtc->create_var_with_dims_floats( oi->no->name, oi->no_dims );
