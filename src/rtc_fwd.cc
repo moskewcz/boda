@@ -41,15 +41,12 @@ namespace boda
 
   string const k1conv_str = "k1conv"; string const s1conv_str = "s1conv"; string const tconv_str = "tconv"; string const conv_str = "conv";
   struct op_info_t {
-    // --- phase 1 info --- filled in during init, independantly for all operations, in no particular order
-    map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
-
     p_conv_op_t cop;
     p_conv_node_t no;
     bool is_conv;
     bool is_pool;
     p_conv_node_t ni;
-
+    map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     // valid if: is_conv == 1
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     string cts; // cts --> conv-type-str
@@ -1220,21 +1217,15 @@ namespace boda
       oi = make_shared< op_info_t >();
       oi->init( cp, i->second, num_imgs, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv, t_tile_sz );
     }
-
     rtc->init();
-
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
-
     rtc->compile( rtc_prog_str, show_compile_log, enable_lineinfo );
     for( rtc_funcs_t::iterator i = rtc_funcs.begin(); i != rtc_funcs.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
-
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
     for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( *i ); }
-
-    // transpose filters ... and do any other init-time work added after this comment was written ;)
-    for( vect_rtc_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); }
+    for( vect_rtc_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); } // init-time-only calls
     rtc->finish_and_sync();
   }
 
