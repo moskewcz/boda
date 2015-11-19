@@ -54,10 +54,6 @@ namespace boda
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     string cts; // cts --> conv-type-str
 
-    // --- phase 2 info --- filled in during breadth-first inputs->outputs creation phase (i.e. gen_op())
-    // when filling these in, we can assume all phase 1 + phase 2 parent info exists.
-    bool single_k1conv_output;
-
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, uint32_t const & num_imgs,
 	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
@@ -98,7 +94,6 @@ namespace boda
 	else if( is_conv && enable_s1conv && (stride == 1) && kern_sz.both_dims_le(u32_pt_t{5,5}) && kern_sz.both_dims_ge(u32_pt_t{1,1})
 		 && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) { cts = s1conv_str; }
 	else { cts = conv_str; }
-	single_k1conv_output = 0; // may be set to 1 in phase 2, but default to 0 here
 
 	if( is_conv || cop->is( BckConv_coi ) ) { // bckconv/conv
 	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
@@ -494,12 +489,11 @@ namespace boda
 	p_op_info_t noi;
 	if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
 	  noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
-	  if( noi->cts == k1conv_str ) { oi->single_k1conv_output = enable_write_xpose; }
-	}
-	if( oi->single_k1conv_output ) {
-	  dims_t const & noi_work = noi->conv_ref_dims["work"];
-	  no_dims = dims_t{ vect_uint32_t{noi_work.dsz("pels_blk"), conv_in_dims.dsz("blk_iter"), conv_in_dims.dsz("blk_iter_chan"),
-					  noi_work.dsz("pels_tile")*noi_work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
+	  if( enable_write_xpose && (noi->cts == k1conv_str) ) { 
+	    dims_t const & noi_work = noi->conv_ref_dims["work"];
+	    no_dims = dims_t{ vect_uint32_t{noi_work.dsz("pels_blk"), conv_in_dims.dsz("blk_iter"), conv_in_dims.dsz("blk_iter_chan"),
+					    noi_work.dsz("pels_tile")*noi_work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
+	  }
 	}
       }
       rtc->create_var_with_dims_floats( oi->no->name, no_dims );
