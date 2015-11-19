@@ -79,35 +79,32 @@ namespace boda
 	assert_st( cop->in_pad.bnds_are_same() );
 	assert_st( cop->in_pad.p[0].dims_are_same() );
 	assert_st( cop->stride.dims_are_same() );
-	u32_pt_t kern_sz_ = cop->kern_sz;
-	if( kern_sz_.is_zeros() ) { kern_sz_ = ni->cio.sz; } // 'global' input special case
-	assert_st( kern_sz_.dims_are_same() );
+	u32_pt_t kern_sz = cop->kern_sz;
+	if( kern_sz.is_zeros() ) { kern_sz = ni->cio.sz; } // 'global' input special case
 
 	uint32_t const in_pad = cop->in_pad.p[0].d[0];
-	uint32_t const kern_sz = kern_sz_.d[0];
 	uint32_t const stride = cop->stride.d[0];
 	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
 	assert_st( ni->cio.sz.dims_are_same() );
-	if( is_conv && enable_k1conv && (kern_sz == 1) && (stride == 1) 
+	if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == 1) 
 	    && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) 
 	{ 
 	  if( in_pad != 0 ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); cts = conv_str; }
 	  else { cts = k1conv_str; }
 	}
-	else if( is_conv && enable_tconv && (force_enable_tconv || ((kern_sz <= 11) && (kern_sz > 1) && (no->cio.sz.d[0] >= 6))) ) { cts = tconv_str; }
-	else if( is_conv && enable_s1conv && (stride == 1) && (kern_sz <= 5) && (kern_sz > 1) 
+	else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz.both_dims_le(u32_pt_t{11,11})
+								     && (kern_sz.both_dims_ge(u32_pt_t{1,1}) && (no->cio.sz.d[0] >= 6))))) {
+		   cts = tconv_str; }
+	else if( is_conv && enable_s1conv && (stride == 1) && kern_sz.both_dims_le(u32_pt_t{5,5}) && kern_sz.both_dims_ge(u32_pt_t{1,1})
 		 && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->cio.chans >= 64) ) { cts = s1conv_str; }
 	else { cts = conv_str; }
 	single_k1conv_output = 0; // may be set to 1 in phase 2, but default to 0 here
 
 	if( is_conv || cop->is( BckConv_coi ) ) { // bckconv/conv
-	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)},{"kern_sz",str(kern_sz)}}; 
+	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
 	} else { // pool/spread
-	  template_var_values = {{"kern_sz",str(kern_sz)},{"stride",str(stride)},{"avg_pool",str(cop->avg_pool)},{"in_pad",str(in_pad)}};
-	}
-	if( is_pool ) { // this would perhaps be in a custom-codegen function, but it's simple enough to stuff in here
-	  template_var_values["op"] = cop->avg_pool ? "out_v += v" : "out_v = max( out_v, v )";
-	  template_var_values["op_post"] = cop->avg_pool ? "out_v /= (float)("+str(kern_sz*kern_sz)+")" : "";
+	  template_var_values = {{"stride",str(stride)},{"avg_pool",str(cop->avg_pool)},{"in_pad",str(in_pad)},
+				 {"kern_y_dim",str(kern_sz.d[1])},{"kern_x_dim",str(kern_sz.d[0])}};
 	}
 	if( is_conv ) {
 	  // calc_blocking_conv()
@@ -163,8 +160,8 @@ namespace boda
 	    //printf( "no->cio.sz.d[1]=%s tix_pels_tile_sz=%s\n", str(no->cio.sz.d[1]).c_str(), str(tix_pels_tile_sz).c_str() );
 	    //printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
 	    assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
-	    uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz*tconv_blk_max_imgs;
-	    uint32_t const tconv_blk_x_sz = (t_tile_sz - 1)*stride + kern_sz;
+	    uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz.d[1]*tconv_blk_max_imgs;
+	    uint32_t const tconv_blk_x_sz = (t_tile_sz - 1)*stride + kern_sz.d[0];
 	    // the tconv/in_tile_xpose format is for use when both ni->cio.sz.d[0/1] are small multiple of
 	    // t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
 	    // window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
@@ -210,8 +207,9 @@ namespace boda
 	  conv_ref_dims["out_ref"] = no->cio.dims(num_imgs); // k1conv and in_tile_xpose need the standard output dims for reference
 	  conv_ref_dims["in"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-	  conv_ref_dims["filts"] = dims_t( vect_uint32_t{ cop->out_chans, ni->cio.chans, kern_sz,kern_sz}, vect_string{"out_chan","in_chan","y","x"}, 1 );
-	  conv_ref_dims["filtsxp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->cio.chans,kern_sz,kern_sz,
+	  conv_ref_dims["filts"] = dims_t( vect_uint32_t{ cop->out_chans, ni->cio.chans, kern_sz.d[1], kern_sz.d[0] }, 
+					   vect_string{"out_chan","in_chan","y","x"}, 1 );
+	  conv_ref_dims["filtsxp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->cio.chans, kern_sz.d[1], kern_sz.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
 	  conv_ref_dims["biases"] = dims_t( vect_uint32_t{cop->out_chans}, vect_string{"out_chan"}, 1 );
 	} // end if(is_conv)
@@ -465,7 +463,7 @@ namespace boda
       }
       assert_st( chans_out_done == oi->no->cio.chans );
     } else if( oi->is_pool ) {
-      gen_call( "pool", oi, {oi->ni->name,oi->no->name} );
+      gen_call( "pool", oi, {oi->ni->name,oi->no->name}, oi->conv_ref_dims );
     } else if( oi->is_conv ) {
       gen_conv_filts( oi );
       // FIXME: decls dup'd with gen_conv_filts()
