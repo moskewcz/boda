@@ -116,21 +116,18 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("conv_prya_top");
-      //p_img_t img_in( new img_t );
-      //img_in->load_fn( img_in_fn.exp );
-      //u32_pt_t const img_in_sz( img_in->w, img_in->h );
+      // create temp net just to get output support size info, for use in determining padding and such for the image pyramid plane packing
+      conv_support_info_t const out_csi = get_out_csi_for_net( cnet_predict->ptt_fn, cnet_predict->in_sz, cnet_predict->out_node_name );
+
       ipp->in_sz = cnet_predict->in_sz; // 'nominal' scale=1.0 desired image size ...
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( ipp->in_sz );
+      ipp->do_place_imgs( out_csi );
+
       cnet_predict->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
-
-      cnet_predict->in_num_imgs = 1; // temporary value, will be reset one we know how many planes we need
+      cnet_predict->in_num_imgs = ipp->num_bins; // how many planes we need
       cnet_predict->out_node_name = out_node_name; // FIXME: too error prone? automate / check / inherit?
-      cnet_predict->setup_cnet_param_and_pipe();
-      ipp->do_place_imgs( cnet_predict->get_out_csi(0) );
-      cnet_predict->setup_cnet_adjust_in_num_imgs( ipp->num_bins );
-      cnet_predict->setup_cnet_net_and_batch();
-
+      cnet_predict->setup_cnet();
 
       vect_p_img_t disp_imgs;
       if( disp_feats ) { 

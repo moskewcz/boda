@@ -149,6 +149,17 @@ namespace boda
     p_nda_float_t out_batch_1 = run_one_blob_in_one_blob_out();
   }
 
+  // minimal function using placeholder/stub in_num_chans and in_num_imgs (both == 1) to create a temporary conv_pipe_t and get
+  // the output conv support info. this replaces the need to be able to adjust in_num_imgs after setup in the conv_prya
+  // use-case. note: add_bck_ops is hard-coded to 0 here as well.
+  conv_support_info_t get_out_csi_for_net( filename_t const & ptt_fn, u32_pt_t const & in_sz, string const & out_node_name ) {
+    uint32_t const in_num_imgs = 1; uint32_t const in_num_chans = 1;  bool const add_bck_ops = 0; // stub/dummy values
+    p_net_param_t net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
+    massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
+    p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_num_chans, out_node_name, add_bck_ops );
+    return conv_pipe->get_single_top_node()->csi;
+  }
+
   void run_cnet_t::create_net_param( void ) {
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
 
@@ -178,13 +189,6 @@ namespace boda
     }
   }
 
-  // most clients call this. others might inline it to be able to call setup_cnet_adjust_in_num_imgs()
-  void run_cnet_t::setup_cnet( void ) {
-    setup_cnet_param_and_pipe();
-    // optionally, could call setup_cnet_adjust_in_num_imgs( ... ) here
-    setup_cnet_net_and_batch();
-  }
-
   conv_support_info_t const & run_cnet_t::get_out_csi( bool const & from_upsamp_net ) {
     p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
     if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
@@ -198,16 +202,7 @@ namespace boda
     return from_pipe->get_single_top_node()->cio;
   }
 
-  // note; there is an unfortunate potential circular dependency here: we may need the pipe info
-  // about the network before we have set it up if the desired size of the input image depends on
-  // the net architeture (i.e. support size / padding / etc ).  currently, the only thing we need
-  // the pipe for before setup is the number of images. this is determined by the blf_pack code
-  // which needs the supports sizes and padding info from the pipe. but, since the pipe doesn't care
-  // about the the number of input images (note: it does currently use in_sz to create the conv_ios
-  // here, but that could be delayed), we can get away with creating the net_param first, then the
-  // pipe, then altering num_input_images input_dim field of the net_param, then setting up the
-  // net. hmm.
-  void run_cnet_t::setup_cnet_param_and_pipe( void ) {
+  void run_cnet_t::setup_cnet( void ) {
     assert( !net_param );
     create_net_param();
     conv_pipe = create_pipe_from_param( net_param, in_num_chans, out_node_name, add_bck_ops );
@@ -233,16 +228,7 @@ namespace boda
     conv_fwd->init( conv_pipe, in_num_imgs );
     if( enable_upsamp_net ) { conv_fwd_upsamp->init( conv_pipe_upsamp, in_num_imgs ); } 
 
-  }
-  void run_cnet_t::setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ ) {
-    assert_st( net_param && conv_pipe );
-    assert_st( net_param->input_dim_size() == 4 );
-    in_num_imgs = in_num_imgs_;
-    net_param->set_input_dim(0,in_num_imgs);
-    if( enable_upsamp_net ) { upsamp_net_param->set_input_dim(0,in_num_imgs); } // FIXME/TODO: for now, run upsamp on all planes
-  }
-
-  void run_cnet_t::setup_cnet_net_and_batch( void ) {
+    // setup batch
     assert_st( !in_batch );
     dims_t in_batch_dims( vect_uint32_t{ in_num_imgs, in_num_chans, in_sz.d[1], in_sz.d[0] }, vect_string{ "img", "chan", "y", "x" }, 1 );
     in_batch.reset( new nda_float_t( in_batch_dims ) );

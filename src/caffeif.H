@@ -10,6 +10,7 @@
 
 namespace boda 
 {
+  conv_support_info_t get_out_csi_for_net( filename_t const & ptt_fn, u32_pt_t const & in_sz, string const & out_node_name );
   void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img );
   void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region, 
 			  float const & out_max  );
@@ -59,9 +60,6 @@ namespace boda
     p_nda_float_t in_batch;
 
     void setup_cnet( void );
-    void setup_cnet_param_and_pipe( void );
-    void setup_cnet_adjust_in_num_imgs( uint32_t const in_num_imgs_ );
-    void setup_cnet_net_and_batch( void );
 
     u32_pt_t get_one_blob_img_out_sz( void ); // note: assumes/includes chans_to_area conversion
     p_nda_float_t run_one_blob_in_one_blob_out( void );
