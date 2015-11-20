@@ -96,6 +96,7 @@ namespace boda
 
   struct conv_node_t {
     std::string name;
+    // dims_t dims; // TODO: to replace cio.
     vect_string bot_for;
     vect_string top_for;
     conv_support_info_t csi;
