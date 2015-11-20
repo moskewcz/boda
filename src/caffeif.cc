@@ -160,11 +160,24 @@ namespace boda
     return conv_pipe->get_single_top_node()->csi;
   }
 
-  void run_cnet_t::create_net_param( void ) {
+  conv_support_info_t const & run_cnet_t::get_out_csi( bool const & from_upsamp_net ) {
+    p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
+    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
+    assert_st( from_pipe );
+    return from_pipe->get_single_top_node()->csi;
+  }
+  conv_io_t const & run_cnet_t::get_out_cio( bool const & from_upsamp_net ) {
+    p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
+    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
+    assert_st( from_pipe );
+    return from_pipe->get_single_top_node()->cio;
+  }
+
+  void run_cnet_t::setup_cnet( void ) {
+    // inlined create_net_param()
+    assert( !net_param );
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-
     massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
-
     if( enable_upsamp_net ) {
       upsamp_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
       // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
@@ -187,24 +200,7 @@ namespace boda
       assert_st( lp->has_name() );
       lp->set_name( lp->name() + "-in-2X-us" );
     }
-  }
 
-  conv_support_info_t const & run_cnet_t::get_out_csi( bool const & from_upsamp_net ) {
-    p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
-    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
-    assert_st( from_pipe );
-    return from_pipe->get_single_top_node()->csi;
-  }
-  conv_io_t const & run_cnet_t::get_out_cio( bool const & from_upsamp_net ) {
-    p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
-    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
-    assert_st( from_pipe );
-    return from_pipe->get_single_top_node()->cio;
-  }
-
-  void run_cnet_t::setup_cnet( void ) {
-    assert( !net_param );
-    create_net_param();
     conv_pipe = create_pipe_from_param( net_param, in_num_chans, out_node_name, add_bck_ops );
     // note: we may or may not need the trained blobs in the conv_pipe, depending on the compute
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all

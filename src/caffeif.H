@@ -74,8 +74,6 @@ namespace boda
     p_net_param_t net_param;
   private:
     p_net_param_t upsamp_net_param;
-
-    void create_net_param( void );
   };
   struct run_cnet_t; typedef shared_ptr< run_cnet_t > p_run_cnet_t; 
 
