@@ -1,16 +1,26 @@
+# ----v updated 2015.11.19 v----
+
+# capture classify (alexnet_conv classification, 227x227 input size)
+MODEL=alexnet_ng_conv; boda capture_classify  --cnet_predict="(max_num_disp=10,in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/train_val.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_node_name=fc8)" --capture='(cap_res=320 240)'
+
+
+# conv_pyra nin_imagenet_nopad (8x8 at nominal size)
+# MODEL=nin_imagenet_nopad; boda conv_pyra --cnet_predict="(in_sz=419 419,ptt_fn=%(models_dir)/${MODEL}/train_val.prototxt,trained_fn=%(models_dir)/${MODE#}/best.caffemodel)" --capture='(cap_res=640 480)' --out_layer_name=relu12 --ipp="(bin_sz=1200 1200)"
+
+# smaller version of above
+MODEL=nin_imagenet_nopad; boda conv_pyra --cnet_predict="(in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/train_val.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel)" --capture='(cap_res=320 240)' --out_node_name=cccp8 --ipp="(bin_sz=600 600)"
+
+# ----v not up to date v----
+
 # choose MODEL from this list: alexnet, alexnet_conv, nin_imagenet, nin_imagenet_nopad
 
 # typical capture_feats command (alexnet_conv, 227x227 input size):
 MODEL=alexnet_conv; boda capture_feats --run_cnet="(in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_layer_name=conv2)" --capture='(cap_res=320 240)'
 
-# capture classify (alexnet_conv classification, 227x227 input size)
-MODEL=alexnet_conv; boda capture_classify  --cnet_predict="(max_num_disp=10,in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_layer_name=prob)" --capture='(cap_res=320 240)'
 
 # capture detection (alexnet_conv 8x8 detection, 451x451 input size)
 MODEL=alexnet_conv; boda capture_classify  --cnet_predict="(max_num_disp=30,in_sz=451 451,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_layer_name=prob)" --capture='(cap_res=640 480)'
 
-# conv_pyra nin_imagenet_nopad (8x8 at nominal size)
-MODEL=nin_imagenet_nopad; boda conv_pyra --cnet_predict="(in_sz=419 419,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel)" --capture='(cap_res=640 480)' --out_layer_name=relu12 --ipp="(bin_sz=1200 1200)"
 
 # conv_pyra alexnet_conv  (8x8 at nominal size)
 MODEL=alexnet_conv; boda conv_pyra --cnet_predict="(in_sz=451 451,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel)" --capture='(cap_res=640 480)' --out_layer_name=prob --ipp="(bin_sz=1500 1500,num_upsamp_octaves=0)" 
