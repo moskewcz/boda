@@ -937,5 +937,53 @@ bool UpgradeNetAsNeeded(const string& param_file, NetParameter* param) {
   return success;
 }
 
+// mwm: modified versions of Net::StateMeetsRule() and Net::FilterNet() from net.cpp:
+
+  bool StateMeetsRule( const NetState & state, const NetStateRule & rule ) {
+    // Check whether the rule is broken due to phase.
+    if(rule.has_phase()) { if (rule.phase() != state.phase()) { return false; } }
+    // Check whether the rule is broken due to min level.
+    if (rule.has_min_level()) { if (state.level() < rule.min_level()) { return false; } }
+    // Check whether the rule is broken due to max level.
+    if (rule.has_max_level()) { if (state.level() > rule.max_level()) { return false; } }
+    // Check whether the rule is broken due to stage. The NetState must
+    // contain ALL of the rule's stages to meet it.
+    for (int i = 0; i < rule.stage_size(); ++i) {
+      // Check that the NetState contains the rule's ith stage.
+      bool has_stage = false;
+      for (int j = 0; !has_stage && j < state.stage_size(); ++j) {
+	if (rule.stage(i) == state.stage(j)) { has_stage = true; }
+      }
+      if (!has_stage) { return false; }
+    }
+    // Check whether the rule is broken due to not_stage. The NetState must
+    // contain NONE of the rule's not_stages to meet it.
+    for (int i = 0; i < rule.not_stage_size(); ++i) {
+      // Check that the NetState contains the rule's ith not_stage.
+      bool has_stage = false;
+      for (int j = 0; !has_stage && j < state.stage_size(); ++j) {
+	if (rule.not_stage(i) == state.stage(j)) { has_stage = true; }
+      }
+      if (has_stage) { return false; }
+    }
+    return true;
+  }
+  bool layer_included_for_state( LayerParameter const & layer_param, NetState const & net_state ) {   // modified from inner loop of from FilterNet()
+    if( layer_param.include_size() && layer_param.exclude_size() ) { rt_err("Specify either include rules or exclude rules; not both."); }
+    // If no include rules are specified, the layer is included by default and
+    // only excluded if it meets one of the exclude rules.
+    bool layer_included = (layer_param.include_size() == 0);
+    for (int j = 0; layer_included && j < layer_param.exclude_size(); ++j) {
+      if (StateMeetsRule(net_state, layer_param.exclude(j))) {
+        layer_included = false;
+      }
+    }
+    for (int j = 0; !layer_included && j < layer_param.include_size(); ++j) {
+      if (StateMeetsRule(net_state, layer_param.include(j))) {
+        layer_included = true;
+      }
+    }
+    return layer_included;
+  }
 
 }  // namespace boda_caffe

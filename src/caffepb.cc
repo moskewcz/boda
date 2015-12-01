@@ -23,6 +23,8 @@
 // general we're a little stricter and less verbose than the original
 // code.
 namespace boda_caffe { bool UpgradeNetAsNeeded(const std::string& param_file, boda::net_param_t* param); }
+// similarly, we have a mostly-copied version of StateMeetsRule extracted from the Net class:
+namespace boda_caffe { bool layer_included_for_state( caffe::LayerParameter const & layer_param, caffe::NetState const & net_state ); }
 
 namespace boda 
 {
@@ -162,6 +164,8 @@ namespace boda
 
   p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, 
 					string const & out_node_name, bool const & add_bck_ops ) { 
+    caffe::NetState net_state;
+    if( add_bck_ops ) { net_state.set_phase( caffe::TRAIN ); }
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     conv_pipe->orig_net_param = net_param; // FIXME: see note/FIXME in conv_util.H
@@ -173,6 +177,7 @@ namespace boda
       caffe::LayerParameter const & lp = net_param->layer(i);
       assert_st( lp.has_name() );
       assert_st( lp.has_type() );
+      if( !boda_caffe::layer_included_for_state( lp, net_state ) ) { continue; } // skip layer if not included for state
       p_conv_op_t conv_op( new conv_op_t );
       conv_op->tag = lp.name();
       conv_op->type = lp.type();
