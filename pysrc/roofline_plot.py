@@ -93,6 +93,13 @@ Y_LABEL="Performance [GFlops/second]"
 ANNOTATE_POINTS=1
 AXIS_ASPECT_RATIO=log10(X_MAX/X_MIN)/log10(Y_MAX/Y_MIN)
 
+# with 2015.05 version of caffe
+cudnnv3_2015_05_caffe = {
+    "alexnet-1-image"2.4:,"alexnet-20-images":17.5, # note: alexnet is to conv5 only here, not fc8
+    "nin-1-image":2.9,"nin-20-images":20.8,
+    "googlenet-1-image":15.4,"googlenet-20-images":,66.3,
+}
+
 
 aiois = [ 
     (8.95,"alexnet-1-image",[20.3,8.5,11.7],2.27),(135,"alexnet-20-images",[51.4,31.0,28.8],2.27*20),
