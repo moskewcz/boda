@@ -42,7 +42,7 @@ namespace boda {
   uint32_t parse_datum_into( p_nda_float_t & out, uint32_t const out_ix, void const * const bytes, uint32_t const bytes_sz );
   struct img_t; typedef shared_ptr< img_t > p_img_t; 
   p_img_t datum_to_img( p_datum_t datum );
-  void copy_matching_layer_blobs_from_param_to_pipe( p_net_param_t const & blob_src, p_net_param_t const & pipe_src, p_conv_pipe_t const & cp );
+  void copy_matching_layer_blobs_from_param_to_pipe( p_net_param_t const & blob_src, p_conv_pipe_t const & cp );
 
 }
 

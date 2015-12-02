@@ -178,12 +178,17 @@ namespace boda
     assert( !net_param );
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
     massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
+    int32_t upsamp_layer_ix = 0;
     if( enable_upsamp_net ) {
       upsamp_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
       // halve the stride and kernel size for the first layer and rename it to avoid caffe trying to load weights for it
       assert_st( upsamp_net_param->layer_size() ); // better have at least one layer
-      caffe::LayerParameter * lp = upsamp_net_param->mutable_layer(0);
-      if( !lp->has_convolution_param() ) { rt_err( "first layer of net not conv layer; don't know how to create upsampled network"); }
+      caffe::LayerParameter * lp = 0;
+      for( ;upsamp_layer_ix != upsamp_net_param->layer_size(); ++upsamp_layer_ix ) {
+	lp = upsamp_net_param->mutable_layer(upsamp_layer_ix);
+	if( lp->type() != Data_coi.type ) { break; }
+      }
+      if( !lp->has_convolution_param() ) { rt_err( "no non-data layers or first non-data layer of net not conv layer; don't know how to create upsampled network"); }
       caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
       p_conv_op_t conv_op( new conv_op_t );
       fill_in_conv_op_from_param( conv_op, *cp );
@@ -206,18 +211,18 @@ namespace boda
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
     // the time ...
     p_net_param_t trained_net = must_read_binary_proto( trained_fn );
-    copy_matching_layer_blobs_from_param_to_pipe( trained_net, net_param, conv_pipe );
+    copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       assert_st( !add_bck_ops ); // not sensible?
       conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_num_chans, out_node_name, add_bck_ops ); 
-      copy_matching_layer_blobs_from_param_to_pipe( trained_net, upsamp_net_param, conv_pipe_upsamp );
-      create_upsamp_layer_weights( conv_pipe, net_param->layer(0).name(), 
-				   conv_pipe_upsamp, upsamp_net_param->layer(0).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
+      copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe_upsamp );
+      create_upsamp_layer_weights( conv_pipe, net_param->layer(upsamp_layer_ix).name(), 
+				   conv_pipe_upsamp, upsamp_net_param->layer(upsamp_layer_ix).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
       assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
     }
-    conv_pipe->calc_sizes_forward( in_sz, 0 ); 
-    if( enable_upsamp_net ) { conv_pipe_upsamp->calc_sizes_forward( in_sz, 0 ); }
+    conv_pipe->calc_sizes_forward( 0 ); 
+    if( enable_upsamp_net ) { conv_pipe_upsamp->calc_sizes_forward( 0 ); }
 
     assert_st( conv_fwd );
     assert_st( conv_fwd_upsamp );

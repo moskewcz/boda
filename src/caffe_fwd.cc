@@ -17,6 +17,9 @@ namespace boda
   typedef caffe::Net< float > Net_float;
   typedef shared_ptr< Net_float > p_Net_float;
 
+  void dims_t_to_shape( dims_t const & dims, caffe::BlobShape & bs ); // from caffepb.cc
+
+
   struct caffe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using caffe",
 			   // bases=["has_conv_fwd_t"], type_id="caffe" )
 
@@ -31,7 +34,7 @@ namespace boda
     p_Net_float net;
 
     virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
-    virtual void run_fwd( p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
+    virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
   };
 
@@ -72,14 +75,31 @@ namespace boda
     }
   }
 
-  p_Net_float caffe_create_net( p_conv_pipe_t const & cp ) {
+  p_Net_float caffe_create_net( p_conv_pipe_t const & cp, uint32_t const & num_imgs ) {
     timer_t t("caffe_create_net");
 
-    p_net_param_t net_param = cp->as_net_param();
-    // for now, we mimic the behavior of the caffe Net ctor that takes
-    // a phase and 'force' the phase in the passed net. hey, it is
-    // passed by non-const ref, right?
-    net_param->mutable_state()->set_phase(caffe::TEST);
+    p_net_param_t net_param( new net_param_t ( *cp->as_net_param() ) ); // start with copy of original (unmodified by boda) input net_param
+    *net_param->mutable_state() = *cp->net_state; // set state as set/used by boda's param->pipe conversion
+    // remove data layers (which have been processed by the param->pipe conversion, and will be handled externally)
+    // FIXME: also remove accuracy layers ... is this 'correct'/good/bad? does it matter?
+    int o = 0;
+    for( int i = 0; i < net_param->layer_size(); i++ ) {
+      caffe::LayerParameter const * const lp = &net_param->layer(i);
+      if( lp->type() == Data_coi.type ) { continue; }
+      else if( lp->type() == Accuracy_coi.type ) { continue; }
+      caffe::LayerParameter * const olp = net_param->mutable_layer(o);
+      if( i != o ) { *olp = net_param->layer(i); } ++o; // keep layer
+    }
+    while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
+    // add input blobs for conv_pipe inputs (which in turn were derived from original param data layers)
+    assert_st( net_param->input_dim_size() == 0 ); // should be no input blobs to start (only train_val format is supported as input)
+    for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { 
+      conv_io_t & cio = cp->must_get_node( *i )->cio;
+      assert_st( !cio.sz.is_zeros() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
+      net_param->add_input(*i);
+      dims_t_to_shape( cio.dims(num_imgs), *net_param->add_input_shape() );      
+    }
+
     p_Net_float net( new Net_float( *net_param ) );
 
     //net->CopyTrainedLayersFrom( trained_fn );
@@ -101,17 +121,19 @@ namespace boda
     cp = cp_;
     assert_st( cp );
     init_caffe( gpu_id ); // FIXME/note: only does something on first call
-    net = caffe_create_net( cp );      
+    net = caffe_create_net( cp, num_imgs );      
   }
 
-  void raw_do_forward( p_Net_float net, p_map_str_p_nda_float_t const & fwd, bool const enable_prof, bool const do_bck ) {
-    vector<int> const & ibixs = net->input_blob_indices();
+  void raw_do_forward( p_Net_float net, vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, bool const enable_prof, bool const do_bck ) {
+    //printf( "caffe_fwd::raw_do_forward() to_set_vns=%s\n", str(to_set_vns).c_str() );
+    //vector<int> const & ibixs = net->input_blob_indices();
     //vector<caffe::Blob<float>*> const & input_blobs = net->input_blobs();
     //assert_st( bottom.size() == input_blobs.size() );
-    for (unsigned int i = 0; i < ibixs.size(); ++i) {
-      string const & ib_name = net->blob_names()[ibixs[i]];
-      shared_ptr< caffe::Blob<float> > const & ib = net->blob_by_name( ib_name );
-      p_nda_float_t const & ib_nda = must_find( *fwd, ib_name );
+    //for (unsigned int i = 0; i < ibixs.size(); ++i) {
+    for( vect_string::const_iterator i = to_set_vns.begin(); i != to_set_vns.end(); ++i ) {
+      shared_ptr< caffe::Blob<float> > const & ib = net->blob_by_name( *i );
+      p_nda_float_t const & ib_nda = must_find( *fwd, *i );
+      //printf( "ib_nda->dims=%s ib->shape()=%s\n", str(ib_nda->dims).c_str(), str(ib->shape()).c_str() );
       assert_st( ib_nda->elems.sz == uint32_t(ib->count()) );
       const float* const data_ptr = &ib_nda->elems[0];
       switch ( Caffe::mode() ) {
@@ -154,10 +176,10 @@ namespace boda
     return out_batch;
   }
 
-  void caffe_fwd_t::run_fwd( p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
+  void caffe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     timer_t t("caffe_fwd_t::run_fwd");
     assert_st( net );
-    raw_do_forward( net, fwd, enable_prof, cp->has_bck_ops.v );
+    raw_do_forward( net, to_set_vns, fwd, enable_prof, cp->has_bck_ops.v );
     for( vect_string::const_iterator i = to_get_vns.begin(); i != to_get_vns.end(); ++i ) {
       string const out_node_name = *i;
       string caffe_node_name = out_node_name;

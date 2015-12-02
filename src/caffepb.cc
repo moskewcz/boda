@@ -31,6 +31,27 @@ namespace boda
 
   void massage_net_param( p_net_param_t const & net_param, string const & out_node_name, bool const add_bck_ops,
 			  uint32_t const & in_num_imgs, uint32_t const & in_num_chans, u32_pt_t const & in_sz ) {
+
+    for( int i = 0; i < net_param->layer_size(); i++ ) {
+      caffe::LayerParameter * const lp = net_param->mutable_layer(i);
+      if( lp->type() == Data_coi.type ) {
+	assert_st( lp->has_data_param() );
+	caffe::DataParameter * const dp = lp->mutable_data_param();
+	dp->set_batch_size( in_num_imgs );
+
+	assert_st( lp->has_transform_param() );
+	caffe::TransformationParameter * const tp = lp->mutable_transform_param();
+	// FIXME: too strong if we don't need caffe_fwd? can we set a non-square data size (via a data layer) somehow?
+	// in the 'old way' of stripping the data layers out, this was doable ...
+	assert_st( in_sz.dims_are_same() ); 
+	tp->set_crop_size( in_sz.d[0] );
+	// assume first top is name of data layer image data output blob
+	if( lp->top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
+	//data_node_name = lp->top(0);
+	//label_node_name = lp->top(1);
+      }
+    }
+    return;
     // read the 'stock' deploy prototxt, and then override the input dims using knowledge of the
     // protobuf format.  also, if there are no inputs / input dims, assume we're reading a train_val-style
     // prototxt and adjust it as needed for our usage -- in particular by dropping data layers and
@@ -195,11 +216,11 @@ namespace boda
 
   p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, 
 					string const & out_node_name, bool const & add_bck_ops ) { 
-    caffe::NetState net_state;
-    if( add_bck_ops ) { net_state.set_phase( caffe::TRAIN ); }
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     conv_pipe->orig_net_param = net_param; // FIXME: see note/FIXME in conv_util.H
+    conv_pipe->net_state.reset( new caffe::NetState );
+    if( add_bck_ops ) { conv_pipe->net_state->set_phase( caffe::TRAIN ); }
     //vect_string const & layer_names = net->layer_names();
     // note: if out_node_name == empty string, won't match anything, so all layers will be read (barring a node actually named "")
     conv_pipe->out_node_name = out_node_name; 
@@ -208,7 +229,11 @@ namespace boda
       caffe::LayerParameter const & lp = net_param->layer(i);
       assert_st( lp.has_name() );
       assert_st( lp.has_type() );
-      if( !boda_caffe::layer_included_for_state( lp, net_state ) ) { continue; } // skip layer if not included for state
+      //printf( "to_pipe: lp.name()=%s\n", str(lp.name()).c_str() );
+      if( !boda_caffe::layer_included_for_state( lp, *conv_pipe->net_state ) ) { 
+	//printf( "skip lp.name()=%s\n", str(lp.name()).c_str() ); 
+	continue; 
+      } 
       p_conv_op_t conv_op( new conv_op_t );
       conv_op->tag = lp.name();
       conv_op->type = lp.type();
@@ -270,8 +295,37 @@ namespace boda
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
 	conv_op->stride = {1,1};
 	conv_op->out_chans = ipp.num_output();
-      } else if( (lp.type() == Data_coi.type) || (lp.type() == Accuracy_coi.type) ) {
-	conv_op.reset(); // for now, just silently ignore data and acc layers.
+      } else if( lp.type() == Data_coi.type ) {
+	assert_st( lp.has_data_param() );
+	caffe::DataParameter const * const dp = &lp.data_param();
+	// uint32_t in_chans = 3; // if( gray ) { in_chans = 1; } // if( hdf5 ) { in_dims = ...; } // FIXME: get dims from data layer 'better'
+	uint32_t const data_num_imgs = dp->batch_size();
+	assert_st( lp.has_transform_param() );
+	caffe::TransformationParameter const * const tp = &lp.transform_param();
+	uint32_t const data_crop_sz = tp->crop_size();
+	if( lp.bottom_size() != 0 ) { rt_err( "unhandled caffe data layer with num outputs != 0" ); }
+	if( lp.top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
+	conv_op.reset(); // for now, don't add an op for data layers.
+	// but, create the outputs as source nodes, and set chans and set info for them
+	string const data_img_node_name = lp.top(0);
+	p_conv_node_t const data_img_node = conv_pipe->get_or_make_node(data_img_node_name, 0, 0 );
+	assert( !data_img_node->csi.valid() );
+	data_img_node->csi.support_sz = u32_pt_t(1,1);
+	data_img_node->csi.support_stride = u32_pt_t(1,1);
+	data_img_node->cio.chans = in_chans;
+	data_img_node->cio.sz = u32_pt_t{ data_crop_sz, data_crop_sz };
+
+	// FIXME_SZ_DIMS use data_num_imgs here
+	if( add_bck_ops ) {
+	  string const data_label_node_name = lp.top(1);
+	  p_conv_node_t const data_label_node = conv_pipe->get_or_make_node(data_label_node_name, 0, 0 );
+	  assert( !data_label_node->csi.valid() );
+	  data_label_node->csi.support_sz = u32_pt_t(1,1);
+	  data_label_node->csi.support_stride = u32_pt_t(1,1);
+	  // data_label_node->cio.chans = uint32_t_const_max; // labels have no chans dim, so it at the default/unset of uint32_t_const_max
+	}
+      } else if( lp.type() == Accuracy_coi.type ) {
+	conv_op.reset(); // for now, just silently ignore acc layers.
       } else if( lp.type() == Concat_coi.type ) {
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
@@ -290,7 +344,7 @@ namespace boda
     // FIXME? this is too strong now, and will be checked later -- but check something here? can't?
     //if( !found_out_node ) { rt_err( strprintf("node out_node_name=%s not found as layer output in network\n",str(out_node_name).c_str() )); }
     if( add_bck_ops ) { conv_pipe->add_bck_ops(); }
-    conv_pipe->calc_support_info( 1, in_chans );
+    conv_pipe->calc_support_info( 1 );
     return conv_pipe;
   }
 #undef RF_TO_VEC
@@ -433,20 +487,20 @@ namespace boda
       p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_chans, out_node_name, add_bck_ops );
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
-      if( out_sz ) { 
-	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
-	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
-	conv_pipe->dump_ios( *out ); 
-	conv_pipe->clear_sizes();
-      }
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
+	conv_pipe->calc_sizes_forward( ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
       }
       if( print_ops ) {
 	if( !in_sz ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
 	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ), expand_ops );
+      }
+      if( out_sz ) { 
+	conv_pipe->clear_sizes();
+	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
+	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
+	conv_pipe->dump_ios( *out ); 
       }
 
     }
@@ -546,6 +600,11 @@ namespace boda
     copy_layer_blobs( net, layer_ix, blobs );
   }
 
+  void dims_t_to_shape( dims_t const & dims, caffe::BlobShape & bs ) {
+    assert( bs.dim_size() == 0 );
+    for( uint32_t i = 0; i != dims.sz(); ++i ) { bs.add_dim( dims.dims(i) ); }
+  }
+
   void set_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_set_layer_blob_data");
     assert_st( layer_ix < (uint32_t)net->layer_size() );
@@ -556,8 +615,7 @@ namespace boda
       dims_t const & blob_dims = blob->dims;
       caffe::BlobProto & lbp = *dest_lp.add_blobs();
       caffe::BlobShape & lbp_shape = *lbp.mutable_shape();
-      assert( lbp_shape.dim_size() == 0 );
-      for( uint32_t i = 0; i != blob_dims.sz(); ++i ) { lbp_shape.add_dim( blob_dims.dims(i) ); }
+      dims_t_to_shape( blob_dims, lbp_shape );
       assert( lbp.data_size() == 0 );
       const float * const src = &blob->elems[0];
       for( uint32_t i = 0; i != blob->elems.sz ; ++i ) { lbp.add_data( src[i] ); }
@@ -579,17 +637,14 @@ namespace boda
       for( int j = 0; j != src_lp.blobs_size(); ++j ) { *dest_lp.add_blobs() = src_lp.blobs(j); }
     }
   }
-  void copy_matching_layer_blobs_from_param_to_pipe( p_net_param_t const & blob_src, p_net_param_t const & pipe_src, p_conv_pipe_t const & cp ) {
-    for( int i = 0; i != pipe_src->layer_size(); ++i ) { 
-      caffe::LayerParameter const & pipe_lp = pipe_src->layer(i);
-      uint32_t const blob_src_lix = maybe_get_layer_ix( *blob_src, pipe_lp.name() );
+  void copy_matching_layer_blobs_from_param_to_pipe( p_net_param_t const & blob_src, p_conv_pipe_t const & cp ) {
+    for( map_str_p_conv_op_t::const_iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) {
+      uint32_t const blob_src_lix = maybe_get_layer_ix( *blob_src, i->first );
       if( blob_src_lix == uint32_t_const_max ) { continue; } // layer not found in src
       caffe::LayerParameter const & blob_src_lp = blob_src->layer(blob_src_lix);
-      
       p_vect_p_nda_float_t blob_src_blobs( new vect_p_nda_float_t );
       copy_layer_blobs( blob_src_lp, *blob_src_blobs );
-
-      cp->add_layer_blobs( pipe_lp.name(), blob_src_blobs );
+      cp->add_layer_blobs( i->first, blob_src_blobs );
     }
   }
 

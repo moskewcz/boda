@@ -3,13 +3,15 @@
 
 #include"conv_common.H"
 
-namespace caffe { struct NetParameter; }
+namespace caffe { struct NetParameter; struct NetState; }
 
 namespace boda 
 {
   struct has_conv_fwd_t; typedef shared_ptr< has_conv_fwd_t > p_has_conv_fwd_t; 
   typedef caffe::NetParameter net_param_t;
   typedef shared_ptr< net_param_t > p_net_param_t;
+  typedef caffe::NetState net_state_t;
+  typedef shared_ptr< net_state_t > p_net_state_t;
 
   // note: we use caffe-compatible layer type strings here
   // raw list: Pooling Convolution ReLU Dropout LRN Accuracy Softmax SoftmaxWithLoss Data Concat InnerProduct Spreading
@@ -138,14 +140,14 @@ namespace boda
     void add_conv( p_conv_op_t const & conv );
     void calc_support_forward_op( p_conv_op_t const & cop, bool const ignore_padding );
     void calc_support_forward_rec( string const & node_name, bool const ignore_padding );
-    void calc_support_info( bool const ignore_padding, uint32_t const & in_chans );
+    void calc_support_info( bool const ignore_padding );
 
     void topo_visit_setup( void );
 
     void clear_sizes( void );
     void calc_sizes_forward_op( p_conv_op_t const & cop, bool const ignore_padding );
     void calc_sizes_forward_rec( string const & node_in, bool const ignore_padding );
-    void calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding );
+    void calc_sizes_forward( bool const ignore_padding );
     void calc_sizes_back_rec( p_conv_node_t const & node_out, bool const ignore_padding );
     void calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );
 
@@ -170,8 +172,10 @@ namespace boda
     // pipe is always created from a net_param, and that the net_param is substantially equivalent to the pipe. in
     // general neither need be true; pipes could come from other sources, and the translation from input
     // net_param_t's is limited/inexact.
-    p_net_param_t orig_net_param; 
-    zi_bool has_bck_ops; // extra 'cheating' var, so caffe_fwd can 'emulate' bck ops (i.e. by doing regular caffe-style backward)
+    p_net_param_t orig_net_param;
+    // extra 'cheating' vars, so caffe_fwd can 'emulate' bck ops (i.e. by doing regular caffe-style backward), and knows the net-state filter
+    p_net_state_t net_state;
+    zi_bool has_bck_ops; 
 
   };
 

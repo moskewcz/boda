@@ -217,29 +217,16 @@ namespace boda
     }
   }
   // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
-  // FIXME: our support for inputs isn't the best. currently, we:
-  //  1) figure out 'label' inputs by looking at how a node is used
-  //  1) treat the first otherwise unknown input as data
-  // and then give up if there are more unknown inputs
-  void conv_pipe_t::calc_support_info( bool const ignore_padding, uint32_t const & in_chans ) {
-    // initialize support info for all root inputs
-    bool saw_data_node = 0;
+  void conv_pipe_t::calc_support_info( bool const ignore_padding ) {
+    // support info for all root inputs should already be set by data layers. if not, it's a fatal error.
     vect_string unhandled_inputs;
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
       p_conv_node_t const & node = must_get_node( *i );
       conv_support_info_t & csi = node->csi;
-      assert( !csi.valid() );
-      csi.support_sz = u32_pt_t(1,1);
-      csi.support_stride = u32_pt_t(1,1);
-      if( get_fwd_top_for_label(*i) ) { 
-	// node->cio.chans = uint32_t_const_max; // labels have no chans dim, so it at the default/unset of uint32_t_const_max
-      } else {
-	if( saw_data_node ) { unhandled_inputs.push_back( *i ); }
-	else { node->cio.chans = in_chans;  saw_data_node = 1; }
-      }  
+      if( !csi.valid() ) { unhandled_inputs.push_back( *i ); }
     }
     if( !unhandled_inputs.empty() ) {
-      rt_err( "calc_support_info(): had unhandled/unknown inputs (not label, not data, not filts/biases): " + str(unhandled_inputs) ); 
+      rt_err( "calc_support_info(): had unhandled/unknown inputs (not data layer output, not filts/biases): " + str(unhandled_inputs) ); 
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_support_forward_rec( *i, ignore_padding ); }
@@ -332,17 +319,16 @@ namespace boda
     return rep_fwd_top;
   }
 
-  void conv_pipe_t::calc_sizes_forward( u32_pt_t const & in_sz, bool const ignore_padding ) {
-    // initialize size info for all root inputs
-    bool saw_data_node = 0;
+  void conv_pipe_t::calc_sizes_forward( bool const ignore_padding ) {
+    // size info for all non-label root inputs should already be set
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
       conv_io_t & cio = must_get_node( *i )->cio;
-      assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
       p_conv_node_t fwd_top = get_fwd_top_for_label( *i );
-      if( !fwd_top ) { 
-	if( saw_data_node ) { rt_err( "calc_sizes_forward(): unhandled multiple non-label inputs" ); }
-	cio.sz = in_sz; 
-	saw_data_node = 1;
+      if( !fwd_top ) { // we calculate the sizes of labels later
+	if( cio.sz.is_zeros() ) { 
+	  rt_err( "calc_sizes_forward(): unhandled non-label input '"+(*i)+"' with unknown size. "
+		  "internal error, since error should have been caught in calc_support_size()?" ); 
+	}
       }
     }
     topo_visit_setup();
@@ -663,7 +649,7 @@ namespace boda
     }
     if( num_data != 1 ) { rt_err( "run_one_blob_in_one_blob_out can only handle exactly one data input, saw: " + str(num_data) ); } 
     assert( conv_fwd );
-    conv_fwd->run_fwd( fwd, {get_single_top_node()->name} );
+    conv_fwd->run_fwd( vect_string{bots.begin(),bots.end()}, fwd, {get_single_top_node()->name} );
     return must_find( *fwd, get_single_top_node()->name );
   }
 
@@ -671,6 +657,7 @@ namespace boda
   // unused after this by the caller *and* the modifications are correct/sensible. but maybe the caller should have done
   // these modifications, not us?
   void conv_pipe_t::add_layer_blobs( string const & rln, p_vect_p_nda_float_t const & blobs ) {
+    if( blobs->empty() ) { return; } // if no blobs to copy, we don't require a matching op exist in the pipe
     p_conv_op_t const & cop = get_op( rln );
     vect_string bsb_names;
     if( cop->is( Convolution_coi ) ) { 
@@ -703,6 +690,13 @@ namespace boda
       // convert 'legacy' conv_ana linear pipe input to general net
       p_conv_pipe_t conv_pipe( new conv_pipe_t ); 
       string cur_node_name = "input";
+
+      p_conv_node_t const data_img_node = conv_pipe->get_or_make_node(cur_node_name, 0, 0 );
+      assert( !data_img_node->csi.valid() );
+      data_img_node->csi.support_sz = u32_pt_t(1,1);
+      data_img_node->csi.support_stride = u32_pt_t(1,1);
+      data_img_node->cio.chans = in_chans;
+
       for( vect_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) {
 	p_conv_op_t cop( new conv_op_t( *i ) );
 	assert_st( cop->tops.empty() && cop->bots.empty() );
@@ -714,7 +708,7 @@ namespace boda
 
       p_ofstream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";
-      conv_pipe->calc_support_info( ignore_padding_for_support, in_chans );
+      conv_pipe->calc_support_info( ignore_padding_for_support );
       conv_pipe->dump_pipe( *out ); 
       if( out_sz ) { 
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
@@ -724,8 +718,9 @@ namespace boda
       }
       p_vect_conv_io_t conv_ios;
       if( in_sz ) { 
+	data_img_node->cio.sz = u32_pt_t( *in_sz, *in_sz );
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	conv_pipe->calc_sizes_forward( u32_pt_t( *in_sz, *in_sz ), ignore_padding_for_sz ); 
+	conv_pipe->calc_sizes_forward( ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
 	if( print_ops ) { conv_pipe->dump_ops( *out, 0 ); }
 	conv_pipe->clear_sizes();	
