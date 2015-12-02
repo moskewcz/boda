@@ -10,7 +10,7 @@
 #include<string>
 #include"conv_util.H" // could use pre-decls instead ...
 
-namespace caffe { struct NetParameter; }
+namespace caffe { struct NetParameter; struct ConvolutionParameter; }
 
 namespace boda {
   typedef caffe::NetParameter net_param_t;
@@ -23,7 +23,7 @@ namespace boda {
   p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, 
 					std::string const & out_node_name, bool const & add_bck_ops );
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op );
-  template< typename CP > void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, CP const & cp );
+  void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, caffe::ConvolutionParameter const & cp );
   p_net_param_t parse_and_upgrade_net_param_from_text_file( filename_t const & ptt_fn );
   uint32_t get_layer_ix( net_param_t const & net_param, std::string const & layer_name );
 

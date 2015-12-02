@@ -123,23 +123,56 @@ namespace boda
     cp.clear_pad_w(); cp.clear_pad_h(); cp.clear_pad();
     assert_st( conv_op->in_pad.bnds_are_same() ); // caffe can't handle different padding on +- edges
     u32_pt_t const & pad = conv_op->in_pad.p[0];
-    if( pad.dims_are_same() ) { cp.set_pad( pad.d[0] ); }
+    if( pad.dims_are_same() ) { cp.add_pad( pad.d[0] ); }
     else { cp.set_pad_w( pad.d[0] ); cp.set_pad_h( pad.d[1] ); }
 
     cp.clear_kernel_w(); cp.clear_kernel_h(); cp.clear_kernel_size();
-    if( conv_op->kern_sz.dims_are_same() ) { cp.set_kernel_size( conv_op->kern_sz.d[0] ); }
+    if( conv_op->kern_sz.dims_are_same() ) { cp.add_kernel_size( conv_op->kern_sz.d[0] ); }
     else { cp.set_kernel_w( conv_op->kern_sz.d[0] ); cp.set_kernel_h( conv_op->kern_sz.d[1] ); }
 
     cp.clear_stride_w(); cp.clear_stride_h(); cp.clear_stride();
-    if( conv_op->stride.dims_are_same() ) { cp.set_stride( conv_op->stride.d[0] ); }
+    if( conv_op->stride.dims_are_same() ) { cp.add_stride( conv_op->stride.d[0] ); }
     else { cp.set_stride_w( conv_op->stride.d[0] ); cp.set_stride_h( conv_op->stride.d[1] ); }
   }
   template void set_param_from_conv_op< caffe::ConvolutionParameter >( caffe::ConvolutionParameter & cp, p_conv_op_t conv_op );
 
-  template< typename CP > void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, CP const & cp ) {
+  void multi_dim_err( uint32_t const & num, string const & tag ) { 
+    rt_err( strprintf( "saw %s %s values. arbitrary # of spatial dims case not supported. use 1 or 2 %s values or %s_w/%s_h.", 
+		       str(num).c_str(), tag.c_str(), tag.c_str(), tag.c_str(), tag.c_str() ) );
+  }
+  // joy. now that caffe has multi-dim support for conv, but not pooling, we can't seem to share this code between the two cases anymore ...
+  void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, caffe::ConvolutionParameter const & cp ) {
+    // TODO/NOTE: non-square (_w/_h) handling is untested
+    // FIXME: xxx_size() == 2 case, untested, is order right?
+    // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
+    if( !(cp.has_pad_w() || cp.has_pad_h()) ){
+      if( cp.pad_size() == 0 ) { u32_pt_t const p{ 0, 0 }; conv_op->in_pad = u32_box_t(p,p); } // implicit default from comments in caffe.proto
+      else if( cp.pad_size() == 1 ) { u32_pt_t const p{ cp.pad(0), cp.pad(0) }; conv_op->in_pad = u32_box_t(p,p); }
+      else if( cp.pad_size() == 2 ) { u32_pt_t const p{ cp.pad(1), cp.pad(0) }; conv_op->in_pad = u32_box_t(p,p); } 
+      else { multi_dim_err( cp.pad_size(), "pad" ); }
+    } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.pad_size()) );
+      u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = u32_box_t(p,p); 
+    }
+    if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
+      if( cp.stride_size() == 0 ) { conv_op->stride = u32_pt_t{ 1, 1 }; } // implicit default from comments in caffe.proto
+      else if( cp.stride_size() == 1 ) { conv_op->stride = u32_pt_t{ cp.stride(0), cp.stride(0) }; }
+      else if( cp.stride_size() == 2 ) { conv_op->stride = u32_pt_t{ cp.stride(1), cp.stride(0) }; }
+      else { multi_dim_err( cp.stride_size(), "stride" ); }
+    } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.stride_size()) );
+      conv_op->stride = u32_pt_t( cp.stride_w(), cp.stride_h() );
+    }
+    if( !(cp.has_kernel_w() || cp.has_kernel_h()) ){ 
+      if( cp.kernel_size_size() == 1 ) { conv_op->kern_sz = u32_pt_t{ cp.kernel_size(0), cp.kernel_size(0) }; }
+      else if( cp.kernel_size_size() == 2 ) { conv_op->kern_sz = u32_pt_t{ cp.kernel_size(1), cp.kernel_size(0) }; }
+      else { multi_dim_err( cp.kernel_size_size(), "kernel_size" ); }
+    } else { assert_st( cp.has_kernel_w() && cp.has_kernel_h() && (!cp.kernel_size_size()) );
+      conv_op->kern_sz = u32_pt_t( cp.kernel_w(), cp.kernel_h() );
+    }
+  }
+  void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, caffe::PoolingParameter const & cp ) {
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
-    if( !(cp.has_pad_w() || cp.has_pad_h()) ){ 
+    if( !(cp.has_pad_w() || cp.has_pad_h()) ){
       u32_pt_t const p( cp.pad(), cp.pad() ); conv_op->in_pad = u32_box_t(p,p);
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.has_pad()) );
       u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = u32_box_t(p,p); 
@@ -155,8 +188,6 @@ namespace boda
       conv_op->kern_sz = u32_pt_t( cp.kernel_w(), cp.kernel_h() );
     }
   }
-  template void fill_in_conv_op_from_param< caffe::ConvolutionParameter >( p_conv_op_t const & conv_op, caffe::ConvolutionParameter const & cp );
-  template void fill_in_conv_op_from_param< caffe::PoolingParameter >( p_conv_op_t const & conv_op, caffe::PoolingParameter const & cp );
 
   p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
@@ -867,6 +898,7 @@ namespace boda
 	lp->set_name( lp->name() + "-conv" );
 	lp->set_type( Convolution_coi.type );
 
+	assert_st( !lp->has_convolution_param() );
 	caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
 	assert_st( ipp->has_num_output() );
 	if( ipp->has_num_output() ) { cp->set_num_output( ipp->num_output() ); }
@@ -911,7 +943,7 @@ namespace boda
 	assert_st( !(num_w % num_in_chan) );
 	uint32_t kern_sz = sqrt(num_w / num_in_chan);
 	assert_st( kern_sz*kern_sz*num_in_chan == num_w );
-	cp->set_kernel_size( kern_sz );
+	cp->add_kernel_size( kern_sz );
 	lp->clear_inner_product_param();
       }
       ensure_out_dir( nia );
