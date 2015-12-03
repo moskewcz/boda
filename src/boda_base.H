@@ -391,7 +391,7 @@ namespace boda
       return 1;
     }
     dims_t( void ) { }
-    dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
+    explicit dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
     dims_t( vect_uint32_t const & dims_, bool const & calc_no_pad_strides = 0 ) { init( dims_, 0, calc_no_pad_strides ); }
     dims_t( vect_uint32_t const & dims_, vect_string const & names_, bool const & calc_no_pad_strides = 0 ) { 
       init( dims_, &names_, calc_no_pad_strides ); }
