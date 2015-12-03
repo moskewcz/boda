@@ -40,6 +40,8 @@ namespace boda
 
     filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet/train_val.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/alexnet/best.caffemodel",help="input trained net from which to copy params")
+    // FIXME: not ready to move to this yet?
+    // dims_t in_dims; //xNESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
     u32_pt_t in_sz; //NESI(default="227 227",help="input size to use for caffe net")
     uint32_t in_num_imgs; //NESI(default="1",help="number of images to use for caffe net input layer/blob")
     uint32_t in_num_chans; //NESI(default="3",help="number of channels to use for caffe net input layer/blob")

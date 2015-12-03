@@ -20,7 +20,7 @@ namespace boda {
   void massage_net_param( p_net_param_t const & net_param, string const & out_node_name, bool const add_bck_ops,
 			  uint32_t const & in_num_imgs, uint32_t const & in_num_chans, u32_pt_t const & in_sz );
 
-  p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, 
+  p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, dims_t const & in_dims, 
 					std::string const & out_node_name, bool const & add_bck_ops );
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op );
   void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, caffe::ConvolutionParameter const & cp );

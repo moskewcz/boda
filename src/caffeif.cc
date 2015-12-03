@@ -149,14 +149,15 @@ namespace boda
     p_nda_float_t out_batch_1 = run_one_blob_in_one_blob_out();
   }
 
-  // minimal function using placeholder/stub in_num_chans and in_num_imgs (both == 1) to create a temporary conv_pipe_t and get
-  // the output conv support info. this replaces the need to be able to adjust in_num_imgs after setup in the conv_prya
-  // use-case. note: add_bck_ops is hard-coded to 0 here as well.
+  // minimal function using only in_sz (in_dims_chan and in_dims_img will come from the data layer but don't matter for the
+  // returned value) to create a temporary conv_pipe_t and get the output conv support info. this replaces the need to be able to
+  // adjust in_dims_img after setup in the conv_prya use-case. note: add_bck_ops is hard-coded to 0 here as well.
   conv_support_info_t get_out_csi_for_net( filename_t const & ptt_fn, u32_pt_t const & in_sz, string const & out_node_name ) {
-    uint32_t const in_num_imgs = 1; uint32_t const in_num_chans = 1;  bool const add_bck_ops = 0; // stub/dummy values
+    dims_t in_dims( vect_uint32_t{in_sz.d[1],in_sz.d[0]}, vect_string{"y","x"} );
+    bool const add_bck_ops = 0; // stub/dummy values
     p_net_param_t net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-    massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
-    p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_num_chans, out_node_name, add_bck_ops );
+    //massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
+    p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
     return conv_pipe->get_single_top_node()->csi;
   }
 
@@ -177,7 +178,7 @@ namespace boda
     // inlined create_net_param()
     assert( !net_param );
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-    massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
+    //massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
     int32_t upsamp_layer_ix = 0;
     if( enable_upsamp_net ) {
       upsamp_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
@@ -205,8 +206,9 @@ namespace boda
       assert_st( lp->has_name() );
       lp->set_name( lp->name() + "-in-2X-us" );
     }
+    dims_t in_dims( vect_uint32_t{in_num_imgs,in_num_chans,in_sz.d[1],in_sz.d[0]}, vect_string{"img","chan","y","x"} );
 
-    conv_pipe = create_pipe_from_param( net_param, in_num_chans, out_node_name, add_bck_ops );
+    conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
     // note: we may or may not need the trained blobs in the conv_pipe, depending on the compute
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
     // the time ...
@@ -215,7 +217,7 @@ namespace boda
     out_s = u32_ceil_sqrt( get_out_cio(0).chans );
     if( enable_upsamp_net ) { 
       assert_st( !add_bck_ops ); // not sensible?
-      conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_num_chans, out_node_name, add_bck_ops ); 
+      conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_dims, out_node_name, add_bck_ops ); 
       copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe_upsamp );
       create_upsamp_layer_weights( conv_pipe, net_param->layer(upsamp_layer_ix).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(upsamp_layer_ix).name() ); // sets weights in conv_pipe_upsamp->layer_blobs

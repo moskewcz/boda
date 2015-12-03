@@ -214,8 +214,7 @@ namespace boda
 
 #define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
 
-  p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, uint32_t const & in_chans, 
-					string const & out_node_name, bool const & add_bck_ops ) { 
+  p_conv_pipe_t create_pipe_from_param( p_net_param_t const &net_param, dims_t const &in_dims, string const &out_node_name, bool const &add_bck_ops ) {
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     conv_pipe->orig_net_param = net_param; // FIXME: see note/FIXME in conv_util.H
@@ -296,13 +295,24 @@ namespace boda
 	conv_op->stride = {1,1};
 	conv_op->out_chans = ipp.num_output();
       } else if( lp.type() == Data_coi.type ) {
+	// note/FIXME: if there are multiple data layers, any values in in_dims will apply to all of them
 	assert_st( lp.has_data_param() );
 	caffe::DataParameter const * const dp = &lp.data_param();
-	// uint32_t in_chans = 3; // if( gray ) { in_chans = 1; } // if( hdf5 ) { in_dims = ...; } // FIXME: get dims from data layer 'better'
-	uint32_t const data_num_imgs = dp->batch_size();
+	// if( hdf5 ) { data_dims = ...; } // FIXME: get dims from data layer 'better'
+	uint32_t data_dims_chan = 3;
+	// if( gray ) { data_dims_chan = 1; } 
+	in_dims.set_val_to_named_dim_sz_if_named_dim_exists( data_dims_chan, "chan" );
+       
+	uint32_t data_dims_img = dp->batch_size();
+	in_dims.set_val_to_named_dim_sz_if_named_dim_exists( data_dims_img, "img" );
+
 	assert_st( lp.has_transform_param() );
 	caffe::TransformationParameter const * const tp = &lp.transform_param();
-	uint32_t const data_crop_sz = tp->crop_size();
+	uint32_t data_dims_y = tp->crop_size();
+	in_dims.set_val_to_named_dim_sz_if_named_dim_exists( data_dims_y, "y" );
+	uint32_t data_dims_x = tp->crop_size();
+	in_dims.set_val_to_named_dim_sz_if_named_dim_exists( data_dims_x, "x" );
+
 	if( lp.bottom_size() != 0 ) { rt_err( "unhandled caffe data layer with num outputs != 0" ); }
 	if( lp.top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
 	conv_op.reset(); // for now, don't add an op for data layers.
@@ -312,10 +322,10 @@ namespace boda
 	assert( !data_img_node->csi.valid() );
 	data_img_node->csi.support_sz = u32_pt_t(1,1);
 	data_img_node->csi.support_stride = u32_pt_t(1,1);
-	data_img_node->cio.chans = in_chans;
-	data_img_node->cio.sz = u32_pt_t{ data_crop_sz, data_crop_sz };
+	data_img_node->cio.chans = data_dims_chan;
+	data_img_node->cio.sz = u32_pt_t{ data_dims_x, data_dims_y };
+	// FIXME_SZ_DIMS use data_dims_img here
 
-	// FIXME_SZ_DIMS use data_num_imgs here
 	if( add_bck_ops ) {
 	  string const data_label_node_name = lp.top(1);
 	  p_conv_node_t const data_label_node = conv_pipe->get_or_make_node(data_label_node_name, 0, 0 );
@@ -467,33 +477,34 @@ namespace boda
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
     string out_node_name;//NESI(default="",help="trim off network after named layer (note: keeps whole network if empty string).")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
-    p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
+    dims_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
-    uint32_t in_chans; //NESI(default=3,help="number of input chans (used only to properly print number of input chans)")
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
     uint32_t print_ops; //NESI(default=0,help="if non-zero, write ops to file with fn given by print_opts_fn. note: requires in_sz to be set.")
     filename_t print_ops_fn; //NESI(default="%(boda_output_dir)/out.py",help="print_opts output filename")
     uint32_t expand_ops; //NESI(default=0,help="if non-zero, write ops in expanded/elaborated form when possible.")
     uint32_t add_bck_ops; //NESI(default=0,help="if non-zero, add bck (aka backwards/backprop/gradients) operations.")
 
+
     p_net_param_t net_param;
     
     virtual void main( nesi_init_arg_t * nia ) { 
+      printf( "in_dims=%s\n", str(in_dims).c_str() );
       p_ofstream out = ofs_open( out_fn.exp );
 
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      massage_net_param( net_param, out_node_name, add_bck_ops, 1, in_chans, in_sz ? u32_pt_t{*in_sz,*in_sz} : u32_pt_t() );
+      //massage_net_param( net_param, out_node_name, add_bck_ops, 1, in_chans, in_sz ? u32_pt_t{*in_sz,*in_sz} : u32_pt_t() );
 
-      p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_chans, out_node_name, add_bck_ops );
+      p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
-      if( in_sz ) { 
-	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
+      if( in_dims.sz() ) { 
+	(*out) << ">> calculating network sizes forward given an in_dims of " << in_dims << "\n";
 	conv_pipe->calc_sizes_forward( ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
       }
       if( print_ops ) {
-	if( !in_sz ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
+	//if( !in_sz ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
 	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ), expand_ops );
       }
       if( out_sz ) { 
@@ -790,7 +801,7 @@ namespace boda
     filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
     filename_t mod_fn; //NESI(default="%(models_dir)/%(out_model)/train_val.prototxt",help="output net prototxt template filename")
     filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/boda_gen.caffemodel",help="output net weights binary prototxt template filename")
-    uint32_t in_chans; //NESI(default=3,help="number of input chans (correct value only needed when adding initial layers)")
+    dims_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer. (for this mode, specifing this is generally unneeded and may yield invalid results if used and the dim sizes specified differ from those in the data layer)" )
     p_net_param_t net_param;
     p_conv_pipe_t net_pipe;
 
@@ -801,7 +812,7 @@ namespace boda
     void ensure_out_dir( nesi_init_arg_t * const nia ) { ensure_is_dir( nesi_filename_t_expand( nia, "%(models_dir)/%(out_model)" ), 1 ); }
     void create_net_params( void ) {
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      net_pipe = create_pipe_from_param( net_param, in_chans, "", 0 );
+      net_pipe = create_pipe_from_param( net_param, in_dims, "", 0 );
       mod_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
     }
     void write_mod_pt( void ) {
@@ -810,7 +821,7 @@ namespace boda
       assert_st( pts_ret );
       write_whole_fn( mod_fn, mod_str );
       // assuming the mod net pt is now finalized, create the pipe for it
-      mod_net_pipe = create_pipe_from_param( mod_net_param, in_chans, "", 0 );
+      mod_net_pipe = create_pipe_from_param( mod_net_param, in_dims, "", 0 );
     }
     void load_nets( void ) {
       trained_net = must_read_binary_proto( trained_fn );
