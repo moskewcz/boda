@@ -80,13 +80,12 @@ namespace boda
 
     p_net_param_t net_param( new net_param_t ( *cp->as_net_param() ) ); // start with copy of original (unmodified by boda) input net_param
     *net_param->mutable_state() = *cp->net_state; // set state as set/used by boda's param->pipe conversion
-    // remove data layers (which have been processed by the param->pipe conversion, and will be handled externally)
-    // FIXME: also remove accuracy layers ... is this 'correct'/good/bad? does it matter?
+    // remove all layers that don't have matching ops in the pipe. in particular, this will remove data and accuracy layers, as well
+    // as some unhandled layers (i.e. currently dropout). in general, this isn't particulaly sensible/correct, but it does what we want for now.
     int o = 0;
     for( int i = 0; i < net_param->layer_size(); i++ ) {
       caffe::LayerParameter const * const lp = &net_param->layer(i);
-      if( lp->type() == Data_coi.type ) { continue; }
-      else if( lp->type() == Accuracy_coi.type ) { continue; }
+      if( !has( *cp->convs, lp->name() ) ) { continue; }
       caffe::LayerParameter * const olp = net_param->mutable_layer(o);
       if( i != o ) { *olp = net_param->layer(i); } ++o; // keep layer
     }

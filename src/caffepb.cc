@@ -124,6 +124,7 @@ namespace boda
 	//printf( "skip lp.name()=%s\n", str(lp.name()).c_str() ); 
 	continue; 
       } 
+      if( lp.type() == Dropout_coi.type ) { continue; } // unhandled for now, so drop dropout layers
       p_conv_op_t conv_op( new conv_op_t );
       conv_op->tag = lp.name();
       conv_op->type = lp.type();
@@ -139,8 +140,11 @@ namespace boda
 	conv_op->out_chans = cp.num_output();
 	//conv_op->bots.push_back( lp.name() + "_filts" ); // add (make explicit) filts input // FIXME_EFB
 	//conv_op->bots.push_back( lp.name() + "_biases" ); // add (make explicit) filts input // FIXME_EFB
-      } else if( (lp.type() == ReLU_coi.type) || (lp.type() == Dropout_coi.type) ) {
-	// in-place layers to mostly-ignore
+      } else if( lp.type() == ReLU_coi.type ) {
+	conv_op->stride = {1,1}; // sensible, but currently unused
+	conv_op->out_chans = 0; // no effect on chans
+      } else if( lp.type() == Dropout_coi.type ) {
+	rt_err( "TODO: handle dropout" );
 	conv_op->stride = {1,1}; // sensible, but currently unused
 	conv_op->out_chans = 0; // no effect on chans
       } else if( lp.type() == LRN_coi.type ) {
@@ -167,6 +171,8 @@ namespace boda
 	} else {
 	  conv_op->stride = {1,1}; // sensible, but currently unused
 	  conv_op->out_chans = 0; // no effect on chans
+	  if( conv_op->tops.size() > 1 ) { rt_err( "expected 0 or 1 outputs for SoftmaxWithLoss (i.e. just a loss output or nothing (an implicit missing loss output)). saw '"+str(conv_op->tops.size())+"' outputs." ); }
+	  if( conv_op->tops.size() == 0 ) { rt_err( "FIXME: restore loss auto-naming or fix prototxts"); conv_op->tops.push_back( "loss" ); } 
 	  conv_op->tops.insert( conv_op->tops.begin(), conv_op->bots[0] + "_grad_loss" ); // add gradient output for fwd_top input
 	}
       } else if( lp.type() == Pooling_coi.type ) {

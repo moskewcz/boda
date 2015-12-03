@@ -538,6 +538,8 @@ namespace boda
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i, expand_ops ); }
   }
 
+  // running test case for add_bck_ops/gradient calculations:
+  // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),out_node_name=conv1_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,show_rtc_calls=0,per_call_fn=out.py,dump_vars=())" --max-err=2 && cat test_compute.txt
 
   void conv_pipe_t::add_bck_ops_op( p_conv_op_t const & cop ) {
     if( cop->is( Softmax_coi ) ) { assert_st(0 ); }
