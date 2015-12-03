@@ -478,6 +478,7 @@ namespace boda
     ++l->use_cnt;
     return l;
   }
+
   template< typename T >
   void nesi_lexcast_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o )
   { 
@@ -631,6 +632,34 @@ namespace boda
   nesi_dump_t * u32_box_t_nesi_dump = &with_op_left_shift_nesi_dump< u32_box_t >;
   void *u32_box_t_init_arg = (void *)"u32_box_t (pair of u32_pt_t, i.e. an unsigned box)";
 
+  // dims_t
+  void nesi_dims_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
+    dims_t * v = (dims_t *)o;
+    if( !nia->l ) { return; } // no_value_init --> empty vector
+    lexp_t * l = nia->l.get();
+    if( l->leaf_val.exists() ) {
+      char const * const tstr = (char const *)tinfo->init_arg;
+      rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
+    }
+    ++l->use_cnt;
+    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
+      uint32_t dim_v = 0;
+      // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
+      lexp_name_val_map_t nvm( i->v, nia );
+      try { 
+	nesi_uint32_t_init( &nvm, tinfo, &dim_v ); // not really the right tinfo, but close enough? used only for error str.
+      }
+      catch( rt_exception & rte ) {
+	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
+	throw;
+      }
+      v->add_dims( i->n.str(), dim_v );
+    }
+  }
+  make_p_t * dims_t_make_p = &has_def_ctor_make_p< dims_t >;
+  vect_push_back_t * dims_t_vect_push_back = &has_def_ctor_vect_push_back_t< dims_t >;
+  nesi_dump_t * dims_t_nesi_dump = &with_op_left_shift_nesi_dump< dims_t >;
+  void *dims_t_init_arg = (void *)"dims_t (N-D Array Dimentions)";
 
 // note: a special case in nesi_gen.py makes 'base' NESI types be associated with nesi.cc (and
 // thus go into the nesi.cc.nesi_gen.cc file)
