@@ -130,11 +130,9 @@ namespace boda
       in_img->set_sz_and_alloc_pels( ipp->in_sz );
       ipp->do_place_imgs( out_csi );
 
-      // FIXME: in general, we might want some extra functionality for dims_t to: (1) 'overwrite' a dim, if it exists or not (2) check for dup dims
-      // but really, perhaps in this case in_dims should be a set, not really a dims_t? it's not really ordered, never has strides, etc...
-      cnet_predict->in_dims.clear(); // FIXME: correct/okay? not sure what override dims would make sense to 'keep' here, or know what they are?
-      cnet_predict->in_dims.add_dims( "img", ipp->num_bins ); // how many planes we need
-      cnet_predict->in_dims.add_dims( "y", ipp->bin_sz.d[1], "x", ipp->bin_sz.d[0] ); // we will run cnet with images of size ipp->bin_sz
+      // override or add dims to user-input in_dims
+      cnet_predict->in_dims["img"] = ipp->num_bins; // how many planes we need
+      cnet_predict->in_dims["y"] = ipp->bin_sz.d[1]; cnet_predict->in_dims["x"] = ipp->bin_sz.d[0]; // we will run cnet with images of size ipp->bin_sz
       cnet_predict->out_node_name = out_node_name; // FIXME: too error prone? automate / check / inherit?
       cnet_predict->setup_cnet();
 

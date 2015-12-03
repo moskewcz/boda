@@ -104,7 +104,8 @@ namespace boda
 
 #define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
 
-  p_conv_pipe_t create_pipe_from_param( p_net_param_t const &net_param, dims_t const &in_dims, string const &out_node_name, bool const &add_bck_ops ) {
+  p_conv_pipe_t create_pipe_from_param( p_net_param_t const &net_param, map_str_uint32_t const &in_dims, 
+					string const &out_node_name, bool const &add_bck_ops ) {
     // note: we only handle a (very) limited set of possible layers/networks here.
     p_conv_pipe_t conv_pipe( new conv_pipe_t );
     conv_pipe->orig_net_param = net_param; // FIXME: see note/FIXME in conv_util.H
@@ -191,17 +192,17 @@ namespace boda
 	// if( hdf5 ) { data_dims = ...; } // FIXME: get dims from data layer 'better'
 	uint32_t data_dims_chan = 3;
 	// if( gray ) { data_dims_chan = 1; } 
-	in_dims.set_val_to_named_dim_sz_if_named_dim_exists( data_dims_chan, "chan" );
+	data_dims_chan = get( in_dims, "chan", data_dims_chan );
        
 	uint32_t data_dims_img = dp->batch_size();
-	in_dims.set_val_to_named_dim_sz_if_named_dim_exists( data_dims_img, "img" );
+	data_dims_img = get( in_dims, "img", data_dims_img );
 
 	assert_st( lp.has_transform_param() );
 	caffe::TransformationParameter const * const tp = &lp.transform_param();
 	uint32_t data_dims_y = tp->crop_size();
-	in_dims.set_val_to_named_dim_sz_if_named_dim_exists( data_dims_y, "y" );
+	data_dims_y = get( in_dims, "y", data_dims_y );
 	uint32_t data_dims_x = tp->crop_size();
-	in_dims.set_val_to_named_dim_sz_if_named_dim_exists( data_dims_x, "x" );
+	data_dims_x = get( in_dims, "x", data_dims_x );
 
 	if( lp.bottom_size() != 0 ) { rt_err( "unhandled caffe data layer with num outputs != 0" ); }
 	if( lp.top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
@@ -370,7 +371,7 @@ namespace boda
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(in_model)/train_val.prototxt",help="input net prototxt template filename")
     string out_node_name;//NESI(default="",help="trim off network after named layer (note: keeps whole network if empty string).")
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="text output filename")
-    dims_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
+    map_str_uint32_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
     uint32_t print_ops; //NESI(default=0,help="if non-zero, write ops to file with fn given by print_opts_fn. note: requires in_sz to be set.")
@@ -382,7 +383,6 @@ namespace boda
     p_net_param_t net_param;
     
     virtual void main( nesi_init_arg_t * nia ) { 
-      printf( "in_dims=%s\n", str(in_dims).c_str() );
       p_ofstream out = ofs_open( out_fn.exp );
 
       net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
@@ -391,7 +391,7 @@ namespace boda
       p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
-      if( in_dims.sz() ) { 
+      if( in_dims.size() ) { 
 	(*out) << ">> calculating network sizes forward given an in_dims of " << in_dims << "\n";
 	conv_pipe->calc_sizes_forward( ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
@@ -694,7 +694,7 @@ namespace boda
     filename_t trained_fn; //NESI(default="%(models_dir)/%(in_model)/best.caffemodel",help="input trained net from which to copy params")
     filename_t mod_fn; //NESI(default="%(models_dir)/%(out_model)/train_val.prototxt",help="output net prototxt template filename")
     filename_t mod_weights_fn; //NESI(default="%(models_dir)/%(out_model)/boda_gen.caffemodel",help="output net weights binary prototxt template filename")
-    dims_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer. (for this mode, specifing this is generally unneeded and may yield invalid results if used and the dim sizes specified differ from those in the data layer)" )
+    map_str_uint32_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer. (for this mode, specifing this is generally unneeded and may yield invalid results if used and the dim sizes specified differ from those in the data layer)" )
     p_net_param_t net_param;
     p_conv_pipe_t net_pipe;
 

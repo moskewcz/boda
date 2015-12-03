@@ -102,6 +102,12 @@ namespace boda
     return i->second;
   }
 
+  template< typename T > typename T::mapped_type const & get( T const & kvm, typename T::key_type const & k, typename T::mapped_type const & dv ) {
+    typename T::const_iterator i = kvm.find( k );
+    if( i == kvm.end() ) { return dv; }
+    return i->second;
+  }
+
   // raise runtime error. captures stack and raises exception with
   // given string as error message. as a perf. compromise, while the
   // top frames of the stack are always captured, they are not
@@ -130,8 +136,22 @@ namespace boda
   typedef set< string > set_string;
   typedef set< uint32_t > set_uint32_t;
 
+  typedef map< string, uint32_t > map_str_uint32_t;
   typedef map< string, zi_uint32_t > map_str_ziu32_t;
   typedef map< string, string > map_str_str;
+
+  template< typename T > struct check_T { typedef void void_; typedef int int_; };
+
+  template< typename MAP, typename check_T<typename MAP::mapped_type>::int_ = 0 > 
+  std::ostream & operator <<(std::ostream & os, MAP const & v) {
+    os << "(";
+    for( typename MAP::const_iterator i = v.begin(); i != v.end(); ++i ) {
+      if( i != v.begin() ) { os << ","; }
+      os << i->first << "=" << i->second;
+    }
+    os << ")";
+    return os;
+  }
 
   typedef shared_ptr< void > p_void;
   typedef shared_ptr< std::istream > p_istream;
@@ -240,8 +260,6 @@ namespace boda
 
   uint32_t const boda_magic= *(uint32_t *)"BODA";
 
-
-  template< typename T > struct check_T { typedef void void_; typedef int int_; };
 
   // the b{read,write}_bytes() functions are the basic low-level read/write that must be implimented
   // for any stream class we wish to use for IO. the two basic ones here are for istream/ostream and
@@ -414,7 +432,6 @@ namespace boda
     }
     uint32_t dsz( string const & name ) const { return must_get_dim_by_name( name ).sz; } 
     uint32_t dstride( string const & name ) const { return must_get_dim_by_name( name ).stride; }
-    void set_val_to_named_dim_sz_if_named_dim_exists( uint32_t & val, string const & name ) const { if( get_dim_by_name( name ) ) { val = dsz( name ); } }
     void resize_and_zero( uint32_t const num_dims ) { resize(num_dims); }
 
     dims_t operator - ( dims_t const & o ) const { 

@@ -39,7 +39,7 @@ namespace boda
 
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(model_name)/train_val.prototxt",help="input net prototxt template filename")
     filename_t trained_fn; //NESI(default="%(models_dir)/%(model_name)/best.caffemodel",help="input trained net from which to copy params")
-    dims_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
+    map_str_uint32_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
     string out_node_name;//NESI(default="",help="output layer name of which to output top blob of")
     uint32_t anno_mode; //NESI(default=1,help="annotation string mode: "
     //" <default>0=label plus probs"

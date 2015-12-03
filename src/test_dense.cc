@@ -64,7 +64,7 @@ namespace boda {
       imgs->load_img_db( 1 );
       run_cnet->setup_cnet();
       u32_pt_t const max_img_sz = imgs->img_db->get_max_img_sz();
-      run_cnet_dense->in_dims.add_dims( "y", max_img_sz.d[1], "x", max_img_sz.d[0] );
+      run_cnet_dense->in_dims["y"] = max_img_sz.d[1]; run_cnet_dense->in_dims["x"] = max_img_sz.d[0];
       run_cnet_dense->setup_cnet();
 
       in_img = make_p_img_t( run_cnet->conv_pipe->get_data_img_xy_dims_3_chans_only() );
@@ -260,7 +260,7 @@ namespace boda {
     virtual void main( nesi_init_arg_t * nia ) {
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
-      if( tpd ) { run_cnet->in_dims.add_dims( "y", tpd_in_sz.d[1], "x", tpd_in_sz.d[0] ); } // note: in_dims not cleared before adding tpb dims ...
+      if( tpd ) { run_cnet->in_dims["y"] = tpd_in_sz.d[1]; run_cnet->in_dims["x"] = tpd_in_sz.d[0]; }
       run_cnet->setup_cnet(); 
 
       if( !tpd ) { 
