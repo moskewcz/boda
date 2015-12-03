@@ -163,9 +163,24 @@ namespace boda
   }
 
   void run_cnet_t::setup_cnet( void ) {
-    // inlined create_net_param()
     assert( !net_param );
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
+    conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
+    conv_pipe->calc_sizes_forward( 0 ); 
+
+    // load weights into pipe
+    p_net_param_t trained_net = must_read_binary_proto( trained_fn );
+    copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
+    out_s = u32_ceil_sqrt( get_out_cio(0).chans );
+
+    assert_st( conv_fwd );
+    conv_fwd->init( conv_pipe );
+
+    // setup batch
+    assert_st( !in_batch );
+    dims_t in_batch_dims = conv_pipe->get_data_img_dims();
+    in_batch.reset( new nda_float_t( in_batch_dims ) );
+
     int32_t upsamp_layer_ix = 0;
     if( enable_upsamp_net ) {
       upsamp_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
@@ -192,36 +207,19 @@ namespace boda
       set_param_from_conv_op( *cp, conv_op );
       assert_st( lp->has_name() );
       lp->set_name( lp->name() + "-in-2X-us" );
-    }
-    conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
-    // note: we may or may not need the trained blobs in the conv_pipe, depending on the compute
-    // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
-    // the time ...
-    p_net_param_t trained_net = must_read_binary_proto( trained_fn );
-    copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
-    out_s = u32_ceil_sqrt( get_out_cio(0).chans );
-    if( enable_upsamp_net ) { 
+
       assert_st( !add_bck_ops ); // not sensible?
       conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_dims, out_node_name, add_bck_ops ); 
+      conv_pipe_upsamp->calc_sizes_forward( 0 );
       copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe_upsamp );
       create_upsamp_layer_weights( conv_pipe, net_param->layer(upsamp_layer_ix).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(upsamp_layer_ix).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
       assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
+      assert_st( conv_fwd_upsamp );
+      conv_fwd_upsamp->init( conv_pipe_upsamp ); 
+      assert_st( in_batch_dims == conv_pipe_upsamp->get_data_img_dims() ); // check that input batch dims agree
     }
-    conv_pipe->calc_sizes_forward( 0 ); 
-    if( enable_upsamp_net ) { conv_pipe_upsamp->calc_sizes_forward( 0 ); }
 
-    assert_st( conv_fwd );
-    assert_st( conv_fwd_upsamp );
-    conv_fwd->init( conv_pipe );
-    if( enable_upsamp_net ) { conv_fwd_upsamp->init( conv_pipe_upsamp ); } 
-
-    // setup batch
-    assert_st( !in_batch );
-    //dims_t in_batch_dims( vect_uint32_t{ in_num_imgs, in_num_chans, in_sz.d[1], in_sz.d[0] }, vect_string{ "img", "chan", "y", "x" }, 1 );
-    dims_t in_batch_dims = conv_pipe->get_data_img_dims();
-    if( enable_upsamp_net ) { assert_st( in_batch_dims == conv_pipe_upsamp->get_data_img_dims() ); }
-    in_batch.reset( new nda_float_t( in_batch_dims ) );
   }
 
   void cnet_predict_t::main( nesi_init_arg_t * nia ) { 

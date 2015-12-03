@@ -378,16 +378,11 @@ namespace boda
     filename_t print_ops_fn; //NESI(default="%(boda_output_dir)/out.py",help="print_opts output filename")
     uint32_t expand_ops; //NESI(default=0,help="if non-zero, write ops in expanded/elaborated form when possible.")
     uint32_t add_bck_ops; //NESI(default=0,help="if non-zero, add bck (aka backwards/backprop/gradients) operations.")
-
-
-    p_net_param_t net_param;
     
     virtual void main( nesi_init_arg_t * nia ) { 
       p_ofstream out = ofs_open( out_fn.exp );
 
-      net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-      //massage_net_param( net_param, out_node_name, add_bck_ops, 1, in_chans, in_sz ? u32_pt_t{*in_sz,*in_sz} : u32_pt_t() );
-
+      p_net_param_t net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
       p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
