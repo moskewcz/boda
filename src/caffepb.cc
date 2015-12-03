@@ -28,116 +28,6 @@ namespace boda_caffe { bool layer_included_for_state( caffe::LayerParameter cons
 
 namespace boda 
 {
-
-  void massage_net_param( p_net_param_t const & net_param, string const & out_node_name, bool const add_bck_ops,
-			  uint32_t const & in_num_imgs, uint32_t const & in_num_chans, u32_pt_t const & in_sz ) {
-
-    for( int i = 0; i < net_param->layer_size(); i++ ) {
-      caffe::LayerParameter * const lp = net_param->mutable_layer(i);
-      if( lp->type() == Data_coi.type ) {
-	assert_st( lp->has_data_param() );
-	caffe::DataParameter * const dp = lp->mutable_data_param();
-	dp->set_batch_size( in_num_imgs );
-
-	assert_st( lp->has_transform_param() );
-	caffe::TransformationParameter * const tp = lp->mutable_transform_param();
-	// FIXME: too strong if we don't need caffe_fwd? can we set a non-square data size (via a data layer) somehow?
-	// in the 'old way' of stripping the data layers out, this was doable ...
-	assert_st( in_sz.dims_are_same() ); 
-	tp->set_crop_size( in_sz.d[0] );
-	// assume first top is name of data layer image data output blob
-	if( lp->top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
-	//data_node_name = lp->top(0);
-	//label_node_name = lp->top(1);
-      }
-    }
-    return;
-    // read the 'stock' deploy prototxt, and then override the input dims using knowledge of the
-    // protobuf format.  also, if there are no inputs / input dims, assume we're reading a train_val-style
-    // prototxt and adjust it as needed for our usage -- in particular by dropping data layers and
-    // adding input dims (i.e. converting it on-the-fly to deploy format).
-
-    // also, if specified, delete any layers after (in declaration order) the one that produces the specified node. note that if
-    // the layers aren't declared in a 'good' (i.e. topo-sort) order for this to be sensible, then you get what you get.
-    bool found_out_node = 0; 
-    // we assume there is single input blob named 'data', unless we see (and remove) a Data layer,
-    // then we use the first top blob name from the last such removed layer. FIXME: do better?
-    string data_node_name = "data";
-    string label_node_name = "label";
-    string next_loss_node_name = "loss"; // name any un-unamed loss layers "loss", "loss_2", ... 
-    uint32_t nlnn_ix = 1;
-    int o = 0;
-    for( int i = 0; i < net_param->layer_size(); i++ ) {
-      caffe::LayerParameter const * const lp = &net_param->layer(i);
-      if( lp->type() == Data_coi.type ) {
-	// assume first top is name of data layer image data output blob
-	if( lp->top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
-	data_node_name = lp->top(0);
-	label_node_name = lp->top(1);
-	continue; // drop layer
-      } else if( lp->type() == Accuracy_coi.type ) {
-	continue; // drop layer
-      } else if( (lp->type() == SoftmaxWithLoss_coi.type) || (lp->type() == Softmax_coi.type) ) {
-	if( !add_bck_ops ) { continue; } // drop layer unless we're doing bck 
-      }
-      // if we got here, we keep layer (but may modify it)
-      caffe::LayerParameter * const olp = net_param->mutable_layer(o);
-      if( i != o ) { *olp = net_param->layer(i); } ++o; // keep layer
-
-      // we don't use caffe's layer filtering, so strip any filtering info out (i.e. use this layer in 'all' phases).
-      // FIXME/HACK/NOTE: this is not in general correct/sound. but generally the only layer with phase info that we keep is
-      // SoftmaxWithLoss_coi.type, and we only keep it when we want to run it (when add_bck_ops==1). we could probably at least error
-      // check this better.
-      olp->clear_phase(); olp->clear_include(); olp->clear_exclude(); 
-
-      // keep SoftmaxWithLoss only when add_bck_ops==1; add a named loss output if it doesn't exists so we can reference it by
-      // name consistently from from both the boda and caffe versions of the net.
-      if( olp->type() == SoftmaxWithLoss_coi.type ) {
-	assert_st( add_bck_ops );
-	assert_st( olp->top_size() <= 1 );
-	if( olp->top_size() == 0 ) { olp->add_top(next_loss_node_name); }
-	++nlnn_ix;
-	next_loss_node_name = "loss_" + str(nlnn_ix);
-      } else if( olp->type() == Softmax_coi.type ) {
-	assert_st( add_bck_ops );
-	// here's where we'd convert from Softmax->SoftmaxWithLoss if we wanted to handle that
-	rt_err( "unimplemented: reading caffe net with Softmax (not SoftmaxWithLoss) in add_bck_ops mode" );
-      }
-      bool layer_has_out_node = 0;
-      for( int32_t i = 0; i != olp->top_size(); ++i ) {
-	if( out_node_name == olp->top(i) ) { layer_has_out_node = 1; found_out_node = 1;}
-      }
-      // FIXME: in-place-op HACK/handling: if we're at the first layer *without* the desiered output node *after* seeing it prior,
-      // 'unkeep' this layer and terminate. in particular, if there is an in-place operation on a node after it is first output,
-      // this logic will keep it. however, the downside is that we can't *not* keep some subset of in-place layers on a given
-      // node. sigh.
-      if( found_out_node ) { if( !layer_has_out_node ) { --o; break; } } 
-    }
-    // FIXME? this is too strong now, and will be checked later -- but check something here? can't?
-    // if( !found_out_node ) { rt_err( strprintf("run_cnet_t::create_net_param(): node out_node_name=%s not found as layer output in network\n", str(out_node_name).c_str() )); }
-    while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
-
-    if( net_param->input_dim_size() == 0 ) { // if train-val form, convert to deploy form
-      net_param->add_input(data_node_name);
-      for( uint32_t i = 0; i != 4; ++i ) { net_param->add_input_dim(0); }
-    }
-    // FIXME: handle shape for input?
-    assert_st( net_param->input_size() == 1 );
-    assert_st( net_param->input_dim_size() == 4 );
-    net_param->set_input_dim(0,in_num_imgs);
-    net_param->set_input_dim(1,in_num_chans);
-    net_param->set_input_dim(2,in_sz.d[1]);
-    net_param->set_input_dim(3,in_sz.d[0]);
-    // add label input if needed
-    if( add_bck_ops ) {
-      net_param->add_input(label_node_name);
-      net_param->add_input_dim(in_num_imgs);
-      net_param->add_input_dim(1); // note: label doesn't have a meaningful chan dim
-      net_param->add_input_dim(1); // assume label y dim == 1
-      net_param->add_input_dim(1); // assume label x dim == 1
-    }
-  }
-
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op ) {
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
@@ -1116,8 +1006,5 @@ namespace boda
     }
   };
 
-
-
 #include"gen/caffepb.cc.nesi_gen.cc"
-
 }

@@ -156,7 +156,6 @@ namespace boda
     dims_t in_dims( vect_uint32_t{in_sz.d[1],in_sz.d[0]}, vect_string{"y","x"} );
     bool const add_bck_ops = 0; // stub/dummy values
     p_net_param_t net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-    //massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
     p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
     return conv_pipe->get_single_top_node()->csi;
   }
@@ -178,7 +177,6 @@ namespace boda
     // inlined create_net_param()
     assert( !net_param );
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-    //massage_net_param( net_param, out_node_name, add_bck_ops, in_num_imgs, in_num_chans, in_sz );
     int32_t upsamp_layer_ix = 0;
     if( enable_upsamp_net ) {
       upsamp_net_param.reset( new net_param_t( *net_param ) ); // start with copy of net_param
