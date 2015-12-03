@@ -414,7 +414,7 @@ namespace boda
     }
     uint32_t dsz( string const & name ) const { return must_get_dim_by_name( name ).sz; } 
     uint32_t dstride( string const & name ) const { return must_get_dim_by_name( name ).stride; }
-
+    void set_val_to_named_dim_sz_if_named_dim_exists( uint32_t & val, string const & name ) const { if( get_dim_by_name( name ) ) { val = dsz( name ); } }
     void resize_and_zero( uint32_t const num_dims ) { resize(num_dims); }
 
     dims_t operator - ( dims_t const & o ) const { 
