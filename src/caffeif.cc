@@ -149,17 +149,6 @@ namespace boda
     p_nda_float_t out_batch_1 = run_one_blob_in_one_blob_out();
   }
 
-  // minimal function using only in_sz (in_dims_chan and in_dims_img will come from the data layer but don't matter for the
-  // returned value) to create a temporary conv_pipe_t and get the output conv support info. this replaces the need to be able to
-  // adjust in_dims_img after setup in the conv_prya use-case. note: add_bck_ops is hard-coded to 0 here as well.
-  conv_support_info_t get_out_csi_for_net( filename_t const & ptt_fn, u32_pt_t const & in_sz, string const & out_node_name ) {
-    dims_t in_dims( vect_uint32_t{in_sz.d[1],in_sz.d[0]}, vect_string{"y","x"} );
-    bool const add_bck_ops = 0; // stub/dummy values
-    p_net_param_t net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
-    p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
-    return conv_pipe->get_single_top_node()->csi;
-  }
-
   conv_support_info_t const & run_cnet_t::get_out_csi( bool const & from_upsamp_net ) {
     p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
     if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
@@ -204,8 +193,6 @@ namespace boda
       assert_st( lp->has_name() );
       lp->set_name( lp->name() + "-in-2X-us" );
     }
-    dims_t in_dims( vect_uint32_t{in_num_imgs,in_num_chans,in_sz.d[1],in_sz.d[0]}, vect_string{"img","chan","y","x"} );
-
     conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
     // note: we may or may not need the trained blobs in the conv_pipe, depending on the compute
     // mode. but, in general, right now run_cnet_t does all needed setup for all compute modes all
@@ -226,12 +213,14 @@ namespace boda
 
     assert_st( conv_fwd );
     assert_st( conv_fwd_upsamp );
-    conv_fwd->init( conv_pipe, in_num_imgs );
-    if( enable_upsamp_net ) { conv_fwd_upsamp->init( conv_pipe_upsamp, in_num_imgs ); } 
+    conv_fwd->init( conv_pipe );
+    if( enable_upsamp_net ) { conv_fwd_upsamp->init( conv_pipe_upsamp ); } 
 
     // setup batch
     assert_st( !in_batch );
-    dims_t in_batch_dims( vect_uint32_t{ in_num_imgs, in_num_chans, in_sz.d[1], in_sz.d[0] }, vect_string{ "img", "chan", "y", "x" }, 1 );
+    //dims_t in_batch_dims( vect_uint32_t{ in_num_imgs, in_num_chans, in_sz.d[1], in_sz.d[0] }, vect_string{ "img", "chan", "y", "x" }, 1 );
+    dims_t in_batch_dims = conv_pipe->get_data_img_dims();
+    if( enable_upsamp_net ) { assert_st( in_batch_dims == conv_pipe_upsamp->get_data_img_dims() ); }
     in_batch.reset( new nda_float_t( in_batch_dims ) );
   }
 
@@ -292,7 +281,7 @@ namespace boda
     i32_box_t const valid_feat_box{{},u32_to_i32(feat_sz)};
     assert_st( valid_feat_box.is_strictly_normalized() );
     i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
-    nominal_in_sz = in_sz;
+    nominal_in_sz = conv_pipe->get_data_img_xy_dims_3_chans_only();
     scale_infos.push_back( scale_info_t{nominal_in_sz,0,0,{},valid_feat_box,valid_feat_img_box} );
     assert_st( !enable_upsamp_net ); // unhandled(/nonsensical?)
   }
@@ -362,12 +351,12 @@ namespace boda
   typedef map< i32_box_t, anno_t > anno_map_t;
 
   // example command line for testing/debugging detection code:
-  // boda capture_classify --cnet-predict='(in_sz=600 600,ptt_fn=%(models_dir)/nin_imagenet_nopad/train_val.prototxt,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_node_name=cccp8)' --capture='(cap_res=640 480)'
+  // boda capture_classify --cnet-predict='(in_dims=(y=600,x=600),ptt_fn=%(models_dir)/nin_imagenet_nopad/train_val.prototxt,trained_fn=%(models_dir)/nin_imagenet_nopad/best.caffemodel,out_node_name=cccp8)' --capture='(cap_res=640 480)'
 
   //p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) { }
 
   p_vect_anno_t cnet_predict_t::do_predict( p_img_t const & img_in, bool const print_to_terminal ) {
-    p_img_t img_in_ds = resample_to_size( img_in, in_sz );
+    p_img_t img_in_ds = resample_to_size( img_in, conv_pipe->get_data_img_xy_dims_3_chans_only() );
     subtract_mean_and_copy_img_to_batch( in_batch, 0, img_in_ds );
     p_nda_float_t out_batch = run_one_blob_in_one_blob_out();
     p_nda_float_t out_batch_upsamp;

@@ -117,15 +117,24 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia ) { 
       timer_t t("conv_prya_top");
       // create temp net just to get output support size info, for use in determining padding and such for the image pyramid plane packing
-      conv_support_info_t const out_csi = get_out_csi_for_net( cnet_predict->ptt_fn, cnet_predict->in_sz, cnet_predict->out_node_name );
+      // minimal code using default/current in_dims to create a temporary conv_pipe_t and get the input size and output conv support info. this
+      // replaces the need to be able to adjust in_dims_img after setup in the conv_prya use-case. note: add_bck_ops is asserted and hard-coded to
+      // 0 here; too strong?
+      assert_st( cnet_predict->add_bck_ops == 0 );
+      p_net_param_t nominal_net_param = parse_and_upgrade_net_param_from_text_file( cnet_predict->ptt_fn );
+      p_conv_pipe_t nominal_conv_pipe = create_pipe_from_param( nominal_net_param, cnet_predict->in_dims, cnet_predict->out_node_name, 0 );
 
-      ipp->in_sz = cnet_predict->in_sz; // 'nominal' scale=1.0 desired image size ...
+      conv_support_info_t const out_csi = nominal_conv_pipe->get_single_top_node()->csi;
+      ipp->in_sz = nominal_conv_pipe->get_data_img_xy_dims_3_chans_only(); // 'nominal' scale=1.0 desired image size ...
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( ipp->in_sz );
       ipp->do_place_imgs( out_csi );
 
-      cnet_predict->in_sz = ipp->bin_sz; // but, we will actually run cnet with images of size ipp->bin_sz
-      cnet_predict->in_num_imgs = ipp->num_bins; // how many planes we need
+      // FIXME: in general, we might want some extra functionality for dims_t to: (1) 'overwrite' a dim, if it exists or not (2) check for dup dims
+      // but really, perhaps in this case in_dims should be a set, not really a dims_t? it's not really ordered, never has strides, etc...
+      cnet_predict->in_dims.clear(); // FIXME: correct/okay? not sure what override dims would make sense to 'keep' here, or know what they are?
+      cnet_predict->in_dims.add_dims( "img", ipp->num_bins ); // how many planes we need
+      cnet_predict->in_dims.add_dims( "y", ipp->bin_sz.d[1], "x", ipp->bin_sz.d[0] ); // we will run cnet with images of size ipp->bin_sz
       cnet_predict->out_node_name = out_node_name; // FIXME: too error prone? automate / check / inherit?
       cnet_predict->setup_cnet();
 

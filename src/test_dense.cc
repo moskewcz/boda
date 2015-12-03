@@ -45,13 +45,8 @@ namespace boda {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/test_dense.txt",help="output: text summary of differences between dense and sparse feature computation.")
     p_load_pil_t imgs;//NESI(default="()")
-    string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
-    p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt
-                           // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
-                           // ,out_node_name=cccp8)",help="CNN model params")
-    p_run_cnet_t run_cnet_dense; //NESI(default="(in_sz=0 0,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt" 
-                                 // ",trained_fn=%(models_dir)/%(model_name)/best.caffemodel"
-                                 // ",out_node_name=cccp8)",help="CNN model params")
+    p_run_cnet_t run_cnet; //NESI(default="(in_dims=(img=1),out_node_name=cccp8)",help="CNN model params")
+    p_run_cnet_t run_cnet_dense; //NESI(default="(in_dims=(img=1),out_node_name=cccp8)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
 
     p_img_t in_img;
@@ -67,12 +62,13 @@ namespace boda {
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       imgs->load_img_db( 1 );
-      run_cnet->setup_cnet(); 
-      run_cnet_dense->in_sz = imgs->img_db->get_max_img_sz();
+      run_cnet->setup_cnet();
+      u32_pt_t const max_img_sz = imgs->img_db->get_max_img_sz();
+      run_cnet_dense->in_dims.add_dims( "y", max_img_sz.d[1], "x", max_img_sz.d[0] );
       run_cnet_dense->setup_cnet();
 
-      in_img = make_p_img_t( run_cnet->in_sz );
-      in_img_dense = make_p_img_t( run_cnet_dense->in_sz );
+      in_img = make_p_img_t( run_cnet->conv_pipe->get_data_img_xy_dims_3_chans_only() );
+      in_img_dense = make_p_img_t( run_cnet_dense->conv_pipe->get_data_img_xy_dims_3_chans_only() );
 
       dump_pipe_and_ios( run_cnet );
       dump_pipe_and_ios( run_cnet_dense );
@@ -81,7 +77,7 @@ namespace boda {
 
       uint32_t tot_wins = 0;
       for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
-	if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { continue; } // img too small to sample. assert? warn?
+	if( !(*i)->img->sz.both_dims_ge( in_img->sz ) ) { continue; } // img too small to sample. assert? warn?
 	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
 	// run net on entire input image
 	in_img_dense->fill_with_pel( u32_rgba_inmc );
@@ -95,10 +91,10 @@ namespace boda {
 
 	// figure out what part of output (if any) doesn't depend on padding
 	i32_box_t feat_box;
-	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},run_cnet->in_sz), cm_valid, run_cnet->get_out_csi(0) );
+	in_box_to_out_box( feat_box, u32_box_t(u32_pt_t{},in_img->sz), cm_valid, run_cnet->get_out_csi(0) );
 
 	for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
-	  u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
+	  u32_pt_t const samp_nc_max = (*i)->img->sz - in_img->sz;
 	  u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
 	  ++tot_wins;
 	  comp_win( feat_box, out_batch_dense, (*i)->img, samp_nc );
@@ -111,7 +107,7 @@ namespace boda {
       assert( obd_dense.sz() == 4 );
       assert( obd_dense.dims(0) == 1 ); // one image
       //printf( "nc=%s\n", str(nc).c_str() );   
-      u32_box_t in_box{ nc, nc + run_cnet->in_sz };
+      u32_box_t in_box{ nc, nc + in_img->sz };
 
       i32_box_t feat_box_dense;
       in_box_to_out_box( feat_box_dense, in_box, cm_valid, run_cnet_dense->get_out_csi(0) );
@@ -142,10 +138,7 @@ namespace boda {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/test_upsamp.txt",help="output: text summary of differences between net and img based-upsampling features computation.")
     p_load_pil_t imgs;//NESI(default="()")
-    string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
-    p_run_cnet_t run_cnet; //NESI(default="(in_sz=516 516,enable_upsamp_net=1,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt
-                           // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
-                           // ,out_node_name=cccp8)",help="CNN model params")
+    p_run_cnet_t run_cnet; //NESI(default="(enable_upsamp_net=1,in_dims=(img=1,y=516,x=516),out_node_name=cccp8)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
 
     string upsamp_layer_name; //NESI(default="conv1",help="name of layer to downsample filters of into upsamp net")
@@ -163,10 +156,10 @@ namespace boda {
       boost::random::mt19937 gen;
 
       uint32_t tot_wins = 0;
-      u32_pt_t const samp_sz = run_cnet->in_sz >> 1;
-      // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
-      in_img_upsamp = make_p_img_t( run_cnet->in_sz );
+      in_img_upsamp = make_p_img_t( run_cnet->conv_pipe->get_data_img_xy_dims_3_chans_only() );
       in_img_upsamp->fill_with_pel( u32_rgba_inmc );
+      u32_pt_t const samp_sz = in_img_upsamp->sz >> 1;
+      // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
       for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
 	if( !(*i)->img->sz.both_dims_ge( samp_sz ) ) { continue; } // img too small to sample. assert? warn?
 	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
@@ -198,7 +191,7 @@ namespace boda {
       in_img = make_p_img_t( samp_sz );
       img_copy_to_clip( img.get(), in_img.get(), {}, nc );
       in_img = upsample_2x( in_img );
-      assert_st( in_img->sz == run_cnet->in_sz );
+      assert_st( in_img->sz == in_img_upsamp->sz );
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
       p_nda_float_t out_batch;
       {
@@ -212,7 +205,7 @@ namespace boda {
       in_box_to_out_box( feat_box_upsamp, in_box, cm_valid, run_cnet->get_out_csi(1) );
 
       i32_box_t feat_box;
-      in_box_to_out_box( feat_box, u32_box_t{{},run_cnet->in_sz}, cm_valid, run_cnet->get_out_csi(0) );
+      in_box_to_out_box( feat_box, u32_box_t{{},in_img_upsamp->sz}, cm_valid, run_cnet->get_out_csi(0) );
       
       //printf( "feat_box=%s feat_box_upsamp=%s\n", str(feat_box).c_str(), str(feat_box_upsamp).c_str() );
       assert_st( feat_box_upsamp.sz() == feat_box.sz() );
@@ -229,7 +222,7 @@ namespace boda {
 
 
   // example test_compute command line for testing nvrtc:
-  // time boda test_compute --model-name=nin_imagenet_nopad --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_sz=227 227,in_num_imgs=256,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4)' --use-nvrtc=1 --max-err=10 && cat test_compute.txt
+  // time boda test_compute --model-name=nin_imagenet_nopad --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=256),ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4)' --use-nvrtc=1 --max-err=10 && cat test_compute.txt
 
   // matching cnet_ana+flops.py command line:
   // boda cnet_ana --in-model=nin_imagenet_nopad --print-ops=1 --in-sz=227 --out-layer-name=relu0  && python ../../pysrc/flops.py --per-layer=1 --backward=0 --runtime=.015 --num-imgs=20
@@ -240,10 +233,7 @@ namespace boda {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/test_compute.txt",help="output: text summary of differences between computations.")
     p_load_pil_t imgs;//NESI(default="()")
-    string model_name; //NESI(default="nin_imagenet_nopad",help="name of model")
-    p_run_cnet_t run_cnet; //NESI(default="(in_sz=227 227,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt
-                           // ,trained_fn=%(models_dir)/%(model_name)/best.caffemodel
-                           // ,out_node_name=conv1)",help="CNN model params")
+    p_run_cnet_t run_cnet; //NESI(help="CNN model params")
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
 
     p_has_conv_fwd_t cf1; //NESI(default="(mode=caffe)",help="fwd compute mode 1; used if cm1==1")
@@ -270,13 +260,17 @@ namespace boda {
     virtual void main( nesi_init_arg_t * nia ) {
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
-      if( tpd ) { run_cnet->in_sz = tpd_in_sz; }
-      else { imgs->load_img_db( 1 ); in_img = make_p_img_t( run_cnet->in_sz ); in_img->fill_with_pel( u32_rgba_inmc ); }
-
+      if( tpd ) { run_cnet->in_dims.add_dims( "y", tpd_in_sz.d[1], "x", tpd_in_sz.d[0] ); } // note: in_dims not cleared before adding tpb dims ...
       run_cnet->setup_cnet(); 
 
-      if( cf1 ) { cf1->init( run_cnet->conv_pipe, run_cnet->in_num_imgs ); }
-      if( cf2 ) { cf2->init( run_cnet->conv_pipe, run_cnet->in_num_imgs ); }
+      if( !tpd ) { 
+	imgs->load_img_db( 1 ); 
+	in_img = make_p_img_t( run_cnet->conv_pipe->get_data_img_xy_dims_3_chans_only() ); 
+	in_img->fill_with_pel( u32_rgba_inmc ); 
+      }
+
+      if( cf1 ) { cf1->init( run_cnet->conv_pipe ); }
+      if( cf2 ) { cf2->init( run_cnet->conv_pipe ); }
 
       //dump_pipe_and_ios( run_cnet );
       
@@ -284,17 +278,17 @@ namespace boda {
       num_mad_fail = 0;
       uint32_t tot_wins = 0;
       if( tpd ) {
-	for( uint32_t i = 0; i != run_cnet->in_num_imgs; ++i ) { make_tpd_batch( run_cnet->in_batch, i ); }
+	make_tpd_batch( run_cnet->in_batch );
 	comp_batch();
       } else {
 	for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
 	  (*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
 	  for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
-	    if( !(*i)->img->sz.both_dims_ge( run_cnet->in_sz ) ) { 
+	    if( !(*i)->img->sz.both_dims_ge( in_img->sz ) ) { 
 	      // img too small to sample. use whole image
 	      copy_win_to_batch( (*i)->img, u32_pt_t() );
 	    } else {
-	      u32_pt_t const samp_nc_max = (*i)->img->sz - run_cnet->in_sz;
+	      u32_pt_t const samp_nc_max = (*i)->img->sz - in_img->sz;
 	      u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
 	      copy_win_to_batch( (*i)->img, samp_nc );
 	    }
@@ -310,21 +304,22 @@ namespace boda {
       else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
       out.reset();
     }
-    void make_tpd_batch( p_nda_float_t const & in_batch, uint32_t const img_ix ) {
+    void make_tpd_batch( p_nda_float_t const & in_batch ) {
       dims_t const & ibd = in_batch->dims;
-      assert_st( img_ix < ibd.dims(0) );
       assert_st( 3 == ibd.dims(1) );
-      for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
-	for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
-	  for( uint32_t c = 0; c < 3; ++c ) {
-	    float val = tpd_const;
-	    if( tpd == 2 ) { val += x; }
-	    if( tpd == 3 ) { val += y; }
-	    else if( tpd == 4 ) { 
-	      if( (x==ibd.dims(2)/2) && (y==ibd.dims(3)/2) ) { val += 1.0f; }
+      for( uint32_t img_ix = 0; img_ix != ibd.dims(0); ++img_ix ) {
+	for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
+	  for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
+	    for( uint32_t c = 0; c < 3; ++c ) {
+	      float val = tpd_const;
+	      if( tpd == 2 ) { val += x; }
+	      if( tpd == 3 ) { val += y; }
+	      else if( tpd == 4 ) { 
+		if( (x==ibd.dims(2)/2) && (y==ibd.dims(3)/2) ) { val += 1.0f; }
+	      }
+	      // note: RGB -> BGR swap via the '2-c' below
+	      in_batch->at4( img_ix, 2-c, y, x ) = val;
 	    }
-	    // note: RGB -> BGR swap via the '2-c' below
-	    in_batch->at4( img_ix, 2-c, y, x ) = val;
 	  }
 	}
       }
@@ -332,7 +327,7 @@ namespace boda {
     void copy_win_to_batch( p_img_t const & img, u32_pt_t const & nc ) {
       // run net on just sample area
       img_copy_to_clip( img.get(), in_img.get(), {}, nc );
-      for( uint32_t i = 0; i != run_cnet->in_num_imgs; ++i ) {
+      for( uint32_t i = 0; i != run_cnet->in_batch->dims.dims(0); ++i ) {
 	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, i, in_img );
       }
     }

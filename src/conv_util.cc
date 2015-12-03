@@ -58,10 +58,18 @@ namespace boda
     return no_pad_in_sz - in_pad.bnds_sum();
   }
 
-  p_conv_node_t conv_pipe_t::get_single_bot_node( void ) const {
-    if( bots.size() != 1 ) { rt_err( "not exactly one source/input node in net; can't process. input nodes are: " + str(bots) ); }
-    return must_get_node( *bots.begin() ); 
+  dims_t conv_pipe_t::get_data_img_dims( void ) const {
+    if( data_img_node_names.size() != 1 ) { rt_err( "not exactly one data img input node in net; can't process. data img input nodes are: " + str(data_img_node_names) ); }
+    return must_get_node( data_img_node_names[0] )->cio.dims( data_num_imgs.v ); 
   }
+  u32_pt_t conv_pipe_t::get_data_img_xy_dims_3_chans_only( void ) const {
+    // FIXME: better errors here if named dims don't exist?
+    dims_t const data_dims = get_data_img_dims();
+    uint32_t const data_dims_chan = data_dims.dsz("chan");
+    if( data_dims_chan != 3 ) { rt_err( "unsupported number of fata img input node chans; must == 3; saw '"+str(data_dims_chan)+"'" ); }
+    return u32_pt_t{ data_dims.dsz("x"), data_dims.dsz("y") }; 
+  }
+  
   // if out_node_name is empty, this returns the single unique output node of the net or throws an error. if out_node_name is
   // non-empty, it returns the single output node of the layer with name out_node_name (or throws an error).
   p_conv_node_t conv_pipe_t::get_single_top_node( void ) const {
@@ -628,26 +636,23 @@ namespace boda
   // assumes the single input blob is the 'data' blob (and there shouldn't be others)
   p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd ) {
     p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>( *op_params );
-    //assert( bots.size() == 1 ); // FIXME/HACK for now, we'll ignore other blobs if present
-    uint32_t num_data = 0;
-    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {
-      if( get_fwd_top_for_label( *i ) ) {
-	// FIXME/TODO just stubbed out here
-	conv_io_t const & label_cio = must_get_node( *i )->cio;
-	assert( in->dims.sz() == 4 );
-	uint32_t const num_imgs = in->dims.dims(0);
-	dims_t label_dims = label_cio.dims( num_imgs );
-	p_nda_float_t label( new nda_float_t( label_dims ) );
-	uint32_t lix = 0;
-	for( dims_iter_t di( label->dims ) ; ; ) { label->at(di.di) = lix % label_cio.max_val; ++lix; if( !di.next() ) { break; } } // all biases 0
-	(*fwd)[*i] = label;
-      } 
-      else { 	
-	(*fwd)[*i] = in; // we error check later that we only used in once (although it's not illegal and not neccessarily wrong to do so)
-	++num_data; 
-      }
+    if( data_img_node_names.size() != 1 ) { rt_err( "run_one_blob_in_one_blob_out only supports exactly one image input" ); }
+    (*fwd)[data_img_node_names[0]] = in;
+    // FIXME: hack for now to set labels (if needed) to something arbirtraty
+    if( data_label_node_names.size() ) {
+      string const & lnn = data_label_node_names[0];
+      assert_st( data_label_node_names.size() == data_img_node_names.size() ); // currently true by construction
+      conv_io_t const & label_cio = must_get_node( lnn )->cio;
+      dims_t label_dims = label_cio.dims( in->dims.dsz("img") );
+      p_nda_float_t label( new nda_float_t( label_dims ) );
+      uint32_t lix = 0;
+      for( dims_iter_t di( label->dims ) ; ; ) { label->at(di.di) = lix % label_cio.max_val; ++lix; if( !di.next() ) { break; } } 
+      (*fwd)[lnn] = label;
     }
-    if( num_data != 1 ) { rt_err( "run_one_blob_in_one_blob_out can only handle exactly one data input, saw: " + str(num_data) ); } 
+    vect_string missing_inputs;
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { if( !has(*fwd,*i) ) { missing_inputs.push_back( *i ); } }
+    if( !missing_inputs.empty() ) { rt_err( "run_one_blob_in_one_blob_out: missing_inputs (not images/labesl from data layers? internal error?): " + 
+					    str(missing_inputs) ); } 
     assert( conv_fwd );
     conv_fwd->run_fwd( vect_string{bots.begin(),bots.end()}, fwd, {get_single_top_node()->name} );
     return must_find( *fwd, get_single_top_node()->name );

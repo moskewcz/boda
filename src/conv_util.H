@@ -118,8 +118,11 @@ namespace boda
     p_map_str_p_conv_op_t convs;
     p_map_str_p_conv_node_t nodes;
     // global top and bottom sets of nodes (sources and sinks of whole network)
+    zi_uint32_t data_num_imgs;
     set_string tops;
     set_string bots;
+    vect_string data_img_node_names;
+    vect_string data_label_node_names;
 
     p_map_str_p_nda_float_t op_params; // layer blobs, as layer_BLOBIX->blob or 'pretty' names for some layer types like layer_filts->blob
     p_map_str_p_vect_p_nda_float_t layer_blobs; // same info as op_params, but in a generic layer_name->vect_blobs format
@@ -131,7 +134,9 @@ namespace boda
     p_conv_node_t must_get_node( std::string const & name ) const;
     p_conv_node_t get_fwd_top_for_label( string const & n ) const;
     p_conv_op_t get_op( string const & name ) const;
-    p_conv_node_t get_single_bot_node( void ) const;
+    dims_t get_data_img_dims( void ) const;
+    u32_pt_t get_data_img_xy_dims_3_chans_only( void ) const;
+
     p_conv_node_t get_single_top_node( void ) const;
     p_conv_op_t maybe_get_single_writer( p_conv_node_t const & node ) const;
     p_conv_op_t get_single_writer( p_conv_node_t const & node ) const;

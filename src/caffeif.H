@@ -10,7 +10,6 @@
 
 namespace boda 
 {
-  conv_support_info_t get_out_csi_for_net( filename_t const & ptt_fn, u32_pt_t const & in_sz, string const & out_node_name );
   void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img );
   void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region, 
 			  float const & out_max  );
@@ -38,13 +37,9 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
-    filename_t ptt_fn; //NESI(default="%(models_dir)/alexnet/train_val.prototxt",help="input net prototxt template filename")
-    filename_t trained_fn; //NESI(default="%(models_dir)/alexnet/best.caffemodel",help="input trained net from which to copy params")
-    // FIXME: not ready to move to this yet?
-    // dims_t in_dims; //xNESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
-    u32_pt_t in_sz; //NESI(default="227 227",help="input size to use for caffe net")
-    uint32_t in_num_imgs; //NESI(default="1",help="number of images to use for caffe net input layer/blob")
-    uint32_t in_num_chans; //NESI(default="3",help="number of channels to use for caffe net input layer/blob")
+    filename_t ptt_fn; //NESI(default="%(models_dir)/%(model_name)/train_val.prototxt",help="input net prototxt template filename")
+    filename_t trained_fn; //NESI(default="%(models_dir)/%(model_name)/best.caffemodel",help="input trained net from which to copy params")
+    dims_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
     string out_node_name;//NESI(default="",help="output layer name of which to output top blob of")
     uint32_t anno_mode; //NESI(default=1,help="annotation string mode: "
     //" <default>0=label plus probs"

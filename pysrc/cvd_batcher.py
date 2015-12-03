@@ -178,7 +178,7 @@ def add_googlenet_conv_jobs( jobs ):
     for li in linfo: qopts_base += "_=(name=%s,max_val=%s)," % li
     qopts_base += ')'
     for i in range(16):
-        job = 'boda test_lmdb --model-name=googlenet_conv --num-to-read=50000 --run-cnet="(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=cls3_fc-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=0,show_rtc_calls=0,'+(qopts_base%{'bits':i})+'))"'
+        job = 'boda test_lmdb --model-name=googlenet_conv --num-to-read=50000 --run-cnet="(in_dims=(img=20),ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=cls3_fc-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=0,show_rtc_calls=0,'+(qopts_base%{'bits':i})+'))"'
         jobs.append( job )
 
 def add_nin_imagenet_jobs( jobs ):
@@ -190,13 +190,13 @@ def add_nin_imagenet_jobs( jobs ):
     for li in linfo: qopts_base += "_=(name=%s,max_val=%s)," % li
     qopts_base += ')'
     for i in range(16):
-        job = 'boda test_lmdb --model-name=nin_imagenet --num-to-read=50000 --run-cnet="(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=0,show_rtc_calls=0,'+(qopts_base%{'bits':i})+'))"'
+        job = 'boda test_lmdb --model-name=nin_imagenet --num-to-read=50000 --run-cnet="(in_dims=(img=20),ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=0,show_rtc_calls=0,'+(qopts_base%{'bits':i})+'))"'
         jobs.append( job )
 
 def add_alexnet_ng_conv_jobs( jobs ):
     qopts_base = 'keep_bits=%(bits)s,quantize=(_=(name=conv1,max_val=4096),_=(name=conv2,max_val=1024),_=(name=conv3,max_val=1024),_=(name=conv4,max_val=512),_=(name=conv5,max_val=512))'
     for i in range(16):
-        job = 'boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=50000 --run-cnet="(in_sz=227 227,in_num_imgs=20,ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=fc8-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=0,show_rtc_calls=0,'+(qopts_base%{'bits':i})+'))"'
+        job = 'boda test_lmdb --model-name=alexnet_ng_conv --num-to-read=50000 --run-cnet="(in_dims=(img=20),ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=fc8-conv,compute_mode=1,conv_fwd=(mode=nvrtc,enable_stats=0,show_rtc_calls=0,'+(qopts_base%{'bits':i})+'))"'
         jobs.append( job )
 
 def main():

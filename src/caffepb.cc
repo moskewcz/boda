@@ -209,16 +209,19 @@ namespace boda
 	// but, create the outputs as source nodes, and set chans and set info for them
 	string const data_img_node_name = lp.top(0);
 	p_conv_node_t const data_img_node = conv_pipe->get_or_make_node(data_img_node_name, 0, 0 );
+	conv_pipe->data_img_node_names.push_back( data_img_node_name );
 	assert( !data_img_node->csi.valid() );
 	data_img_node->csi.support_sz = u32_pt_t(1,1);
 	data_img_node->csi.support_stride = u32_pt_t(1,1);
 	data_img_node->cio.chans = data_dims_chan;
 	data_img_node->cio.sz = u32_pt_t{ data_dims_x, data_dims_y };
-	// FIXME_SZ_DIMS use data_dims_img here
+	if( !conv_pipe->data_num_imgs.v ) { conv_pipe->data_num_imgs.v = data_dims_img; }
+	if( conv_pipe->data_num_imgs.v != data_dims_img ) { rt_err( "unhandled: multiple data layers with differing numbers of images." ); }
 
 	if( add_bck_ops ) {
 	  string const data_label_node_name = lp.top(1);
 	  p_conv_node_t const data_label_node = conv_pipe->get_or_make_node(data_label_node_name, 0, 0 );
+	  conv_pipe->data_label_node_names.push_back( data_label_node_name );
 	  assert( !data_label_node->csi.valid() );
 	  data_label_node->csi.support_sz = u32_pt_t(1,1);
 	  data_label_node->csi.support_stride = u32_pt_t(1,1);

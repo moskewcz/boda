@@ -18,16 +18,16 @@ namespace boda
     p_conv_pipe_t cp;
     uint32_t num_imgs;
 
-    virtual void init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ );
+    virtual void init( p_conv_pipe_t const & cp_ );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
   };
 
-  void slow_cpu_fwd_t::init( p_conv_pipe_t const & cp_, uint32_t const & num_imgs_ ) {
-    num_imgs = num_imgs_;
-    assert_st( num_imgs );
+  void slow_cpu_fwd_t::init( p_conv_pipe_t const & cp_ ) {
     cp = cp_;
     assert_st( cp );
+    num_imgs = cp->data_num_imgs.v;
+    assert_st( num_imgs );
   }
 
   void run_conv_op_one_img_conv( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 

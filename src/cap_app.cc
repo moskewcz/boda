@@ -264,7 +264,7 @@ namespace boda
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
       capture->on_readable( 1 );
-      p_img_t ds_img = resample_to_size( capture->cap_img, cnet_predict->in_sz );
+      p_img_t ds_img = resample_to_size( capture->cap_img, in_img->sz );
       in_img->share_pels_from( ds_img );
       disp_win.update_img_annos( 0, cnet_predict->do_predict( in_img, 0 ) );
       disp_win.update_disp_imgs();
@@ -274,7 +274,7 @@ namespace boda
       cnet_predict->setup_cnet();
       cnet_predict->setup_predict(); 
       in_img.reset( new img_t );
-      in_img->set_sz_and_alloc_pels( cnet_predict->in_sz );
+      in_img->set_sz_and_alloc_pels( cnet_predict->conv_pipe->get_data_img_xy_dims_3_chans_only() );
 
       capture->cap_start();
       disp_win.disp_setup( in_img );
@@ -301,7 +301,7 @@ namespace boda
     void on_cap_read( error_code const & ec ) { 
       assert_st( !ec );
       capture->on_readable( 1 );
-      p_img_t ds_img = resample_to_size( capture->cap_img, run_cnet->in_sz );
+      p_img_t ds_img = resample_to_size( capture->cap_img, in_img->sz );
       in_img->share_pels_from( ds_img );
       subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, 0, in_img );
       p_nda_float_t out_batch = run_cnet->run_one_blob_in_one_blob_out();
@@ -373,7 +373,7 @@ namespace boda
       // calculate in_xy from feat_xy
       i32_box_t valid_in_xy, core_valid_in_xy;
       unchecked_out_box_to_in_boxes( valid_in_xy, core_valid_in_xy, u32_to_i32( feat_pel_box ), 
-				     run_cnet->get_out_csi(0), run_cnet->in_sz );
+				     run_cnet->get_out_csi(0), in_img->sz );
       // annotate region of input image corresponding to feat_xy
       annos.reset( new vect_anno_t );
       annos->push_back( anno_t{valid_in_xy, rgba_to_pel(170,40,40), 0, str(valid_in_xy), rgba_to_pel(220,220,255) } );
@@ -394,7 +394,7 @@ namespace boda
       // note: run_cnet->in_sz not set here.
       run_cnet->setup_cnet(); 
       in_img.reset( new img_t );
-      in_img->set_sz_and_alloc_pels( run_cnet->in_sz );
+      in_img->set_sz_and_alloc_pels( run_cnet->conv_pipe->get_data_img_xy_dims_3_chans_only() );
 
       run_cnet->conv_pipe->dump_pipe( std::cout );
       run_cnet->conv_pipe->dump_ios( std::cout );
