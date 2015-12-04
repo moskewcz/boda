@@ -66,6 +66,8 @@ namespace boda
     p_conv_pipe_t conv_pipe_upsamp;
     conv_support_info_t const & get_out_csi( bool const & from_upsamp_net );
     conv_io_t const & get_out_cio( bool const & from_upsamp_net );
+    uint32_t get_out_chans( bool const & from_upsamp_net );
+
     uint32_t out_s;
     run_cnet_t( void ) : out_s(0) { }
     p_net_param_t net_param;

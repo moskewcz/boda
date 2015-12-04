@@ -102,7 +102,7 @@ namespace boda
   // note: assumes/includes chans_to_area conversion
   u32_pt_t run_cnet_t::get_one_blob_img_out_sz( void ) {
     p_conv_node_t out_node = conv_pipe->must_get_node( out_node_name );
-    return out_node->cio.sz.scale( u32_ceil_sqrt( out_node->cio.chans ) );
+    return out_node->cio.sz.scale( u32_ceil_sqrt( out_node->dims.dsz("chan") ) );
   }
 
 
@@ -162,6 +162,13 @@ namespace boda
     return from_pipe->get_single_top_node()->cio;
   }
 
+  uint32_t run_cnet_t::get_out_chans( bool const & from_upsamp_net ) {
+    p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
+    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
+    assert_st( from_pipe );
+    return from_pipe->get_single_top_node()->dims.dsz("chan");
+  }
+
   void run_cnet_t::setup_cnet( void ) {
     assert( !net_param );
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
@@ -171,7 +178,7 @@ namespace boda
     // load weights into pipe
     p_net_param_t trained_net = must_read_binary_proto( trained_fn );
     copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
-    out_s = u32_ceil_sqrt( get_out_cio(0).chans );
+    out_s = u32_ceil_sqrt( get_out_chans(0) );
 
     assert_st( conv_fwd );
     conv_fwd->init( conv_pipe );
@@ -214,7 +221,7 @@ namespace boda
       copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe_upsamp );
       create_upsamp_layer_weights( conv_pipe, net_param->layer(upsamp_layer_ix).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(upsamp_layer_ix).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
-      assert_st( out_s == u32_ceil_sqrt( get_out_cio(1).chans ) ); // FIXME: too strong?
+      assert_st( out_s == u32_ceil_sqrt( get_out_chans(1) ) ); // FIXME: too strong?
       assert_st( conv_fwd_upsamp );
       conv_fwd_upsamp->init( conv_pipe_upsamp ); 
       assert_st( in_batch_dims == conv_pipe_upsamp->get_data_img_dims() ); // check that input batch dims agree
@@ -238,7 +245,7 @@ namespace boda
     assert( pred_state.empty() );
     if( scale_infos.empty() ) { setup_scale_infos(); } // if not specified, assume whole image / single scale 
 
-    uint32_t const out_chans = get_out_cio(0).chans;
+    uint32_t const out_chans = get_out_chans(0);
 
     if( get_out_csi(0).support_sz.is_zeros() ) { // only sensible in single-scale case 
       assert_st( scale_infos.size() == 1 );

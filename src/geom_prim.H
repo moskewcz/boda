@@ -55,6 +55,8 @@ namespace boda
   typedef T_pt_t< int32_t  > i32_pt_t;
   typedef T_pt_t< double  > double_pt_t;
 
+  inline u32_pt_t xy_dims( dims_t const & dims ) { return u32_pt_t{ dims.dsz("x"), dims.dsz("y") }; }
+
 
   inline u32_pt_t floor_div_u32( u32_pt_t const &v, uint32_t const & d ) { return u32_pt_t( v.d[0] / d, v.d[1] / d ); }
 

@@ -220,7 +220,6 @@ namespace boda
 	assert( !data_img_node->csi.valid() );
 	data_img_node->csi.support_sz = u32_pt_t(1,1);
 	data_img_node->csi.support_stride = u32_pt_t(1,1);
-	data_img_node->cio.chans = data_dims_chan;
 	data_img_node->cio.sz = u32_pt_t{ data_dims_x, data_dims_y };
 	if( !conv_pipe->data_num_imgs.v ) { conv_pipe->data_num_imgs.v = data_dims_img; }
 	if( conv_pipe->data_num_imgs.v != data_dims_img ) { rt_err( "unhandled: multiple data layers with differing numbers of images." ); }
@@ -234,7 +233,6 @@ namespace boda
 	  assert( !data_label_node->csi.valid() );
 	  data_label_node->csi.support_sz = u32_pt_t(1,1);
 	  data_label_node->csi.support_stride = u32_pt_t(1,1);
-	  // data_label_node->cio.chans = uint32_t_const_max; // labels have no chans dim, so it at the default/unset of uint32_t_const_max
 	}
       } else if( lp.type() == Accuracy_coi.type ) {
 	conv_op.reset(); // for now, just silently ignore acc layers.
@@ -439,10 +437,10 @@ namespace boda
   void alloc_layer_blobs( p_conv_pipe_t const & pipe, string const & layer_name, vect_p_nda_float_t & blobs ) {
     p_conv_op_t const & cop = pipe->get_op( layer_name );
     if( cop->is( Convolution_coi ) ) { 
-      conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
+      dims_t & dims_in = pipe->must_get_node( cop->bots[0] )->dims;
       u32_pt_t kern_sz = cop->kern_sz;
-      if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
-      dims_t filt_dims( vect_uint32_t{ cop->out_chans, cio_in.chans, kern_sz.d[1], kern_sz.d[0] },
+      if( kern_sz.is_zeros() ) { kern_sz = xy_dims( dims_in ); } // 'global' input special case
+      dims_t filt_dims( vect_uint32_t{ cop->out_chans, dims_in.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
 			vect_string{ "out_chan", "in_chan", "y", "x" } );
       blobs.push_back( p_nda_float_t( new nda_float_t( filt_dims ) ) );
       dims_t bias_dims( vect_uint32_t{ cop->out_chans }, vect_string{ "out_chan" } );
@@ -899,7 +897,7 @@ namespace boda
 	// get number of input chans
 	if( lp->bottom_size() != 1) { rt_err( "unhandled: bottom_size() != 1"); }
 	string const bot_bn = lp->bottom(0);
-	uint32_t const num_in_chan = net_pipe->must_get_node( bot_bn )->cio.chans;
+	uint32_t const num_in_chan = net_pipe->must_get_node( bot_bn )->dims.dsz("chan");
 
 	// FIXME: we assume input is spactially square, which may not be true
 	assert_st( !(num_w % num_in_chan) );

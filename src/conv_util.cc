@@ -149,36 +149,22 @@ namespace boda
     assert_st( cop->tops.size() >= 1 );
     p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
     conv_support_info_t & csi_out = node_out->csi;
-    conv_io_t & cio_out = node_out->cio;
     if( csi_out.valid() ) { rt_err( "unhandled: node with multiple writers:"+node_out->name ); }
-    assert_st( cio_out.chans == uint32_t_const_max ); // should not be set yet
-    cio_out.chans = 0; // start at zero for concat layer accumulation across inputs case
 
+    // FIXME?: for now, we don't try to calculate support info for bck operations 
     if( cop->is( BckConv_coi ) ) { // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
-      printf( "cop->tag=%s cop->tops=%s cop->bots=%s\n", str(cop->tag).c_str(), str(cop->tops).c_str(), str(cop->bots).c_str() );
-      for( uint32_t i = 0; i != 1; ++i ) { // propogate # chans
-	uint32_t & oc = must_get_node(cop->tops[i])->cio.chans;
-	assert_st( oc == (i ? uint32_t_const_max : 0) ); // FIXME: too ugly/weird? due to special-casing of first output above ...
-	oc = must_get_node(cop->bots[i])->cio.chans; 
-      }
     } else if( cop->is( Spreading_coi ) ) { 
-      assert_st( cop->out_chans == 0 ); 
-      cio_out.chans = must_get_node(cop->bots[2])->cio.chans; // propogate # chans
-      // FIXME?: for now, we don't try to calculate support info for bck operations 
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
       assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
       assert_st( cop->out_chans == 0 ); 
-      cio_out.chans = must_get_node(cop->bots[0])->cio.chans; // propogate # chans
       p_conv_node_t const & loss_node = must_get_node( cop->tops[1] );
       loss_node->csi.support_sz = u32_pt_t{};
       loss_node->csi.eff_tot_pad = csi_out.eff_tot_pad; // FIXME: correct? needed? maybe set to bogus/sentinel value?
-      // node->cio.chans = uint32_t_const_max; // loss has no chans dim, so it at the default/unset of uint32_t_const_max
     } else {    
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
 	p_conv_node_t const & j_node = must_get_node(*j);
 	conv_support_info_t const & csi_in = j_node->csi;
-	conv_io_t const & cio_in = j_node->cio;
 	if( cop->is( Concat_coi ) ) {
 	  assert_st( cop->has_one_top() );
 	  if( (j == cop->bots.begin()) || (csi_in.support_stride.dims_max() > csi_out.support_stride.dims_max()) ) { // first input or bigger stride
@@ -193,7 +179,6 @@ namespace boda
 	  }
 	  csi_out.eff_tot_pad.max_eq( csi_in.eff_tot_pad );
 	  assert( !cop->out_chans ); // concat shouldn't have a # of output chans specified
-	  cio_out.chans += cio_in.chans; // sum chans across all inputs
 	} else {
 	  if( j == cop->bots.begin() ) {
 	    assert_st( cop->has_one_top() );
@@ -207,7 +192,6 @@ namespace boda
 	    assert_st( cop->stride.both_dims_non_zero() );
 	    csi_out.support_stride = csi_in.support_stride*cop->stride;
 	    csi_out.eff_tot_pad = csi_in.eff_tot_pad + cop->in_pad.scale_dims( csi_in.support_stride );
-	    cio_out.chans = cop->out_chans ? cop->out_chans : cio_in.chans; // reset or propogate num_chans
 	  } else { rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
 	}
       }
@@ -299,7 +283,7 @@ namespace boda
       assert_st( cop->stride.both_dims_non_zero() ); // FIXME: still belongs here? handled in in_sz_to_out_sz?
       dims_out = dims_in; // starting point
       dims_out.must_get_dim_by_name("chan").sz = cop->out_chans ? cop->out_chans : dims_in.dsz("chan"); // reset or propogate num_chans
-      u32_pt_t const dims_out_sz = cop->in_sz_to_out_sz( u32_pt_t{ dims_in.dsz("x"), dims_in.dsz("y") }, 0 );
+      u32_pt_t const dims_out_sz = cop->in_sz_to_out_sz( xy_dims( dims_in ), 0 );
       dims_out.must_get_dim_by_name("y").sz = dims_out_sz.d[1]; dims_out.must_get_dim_by_name("x").sz = dims_out_sz.d[0];
       dims_out.calc_strides();
     }
@@ -398,9 +382,6 @@ namespace boda
 	  if( rep_fwd_top->cio.sz != fwd_top->cio.sz ) {
 	    rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing xy size." );
 	  }
-	  if( rep_fwd_top->cio.chans != fwd_top->cio.chans ) {
-	    rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing #s of chans." );
-	  }
 	}
 	if( !rep_fwd_top ) { rep_fwd_top = fwd_top; }
       }
@@ -430,7 +411,7 @@ namespace boda
       if( fwd_top ) { 
 	assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
 	cio.sz = fwd_top->cio.sz;
-	cio.max_val = fwd_top->cio.chans;
+	cio.max_val = fwd_top->dims.dsz("chan");
       } 
       assert_st( !cio.sz.is_zeros() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
     } 
@@ -536,15 +517,14 @@ namespace boda
     string isss;
     if( node->top_for.empty() ) { isss += " SOURCE"; }
     if( node->bot_for.empty() ) { isss += " SINK"; }
-    conv_io_t & cio = node->cio;
-    out << strprintf( "net.ndas[\"%s\"] = NDA(\"%s\",num_img,%s,%s,%s) #%s num,chan,y,x\n", 
-		      bn.c_str(), bn.c_str(), str(cio.chans).c_str(), 
-		      str(cio.sz.d[1]).c_str(), str(cio.sz.d[0]).c_str(), 
-		      isss.c_str() );
+    dims_t const & dims = node->dims;
+    out << strprintf( "net.ndas[\"%s\"] = NDA(\"%s\"", bn.c_str(), bn.c_str() );
+    for( uint32_t i = 0; i != dims.size(); ++i ) { out << "," << dims[i].sz; }
+    out << ") #" << isss << " ";
+    for( uint32_t i = 0; i != dims.size(); ++i ) { if( i ) { out << ","; } out << dims[i].name; }
+    out << "\n";
   }
   
-
-
   string get_conv_as_sgemm( string const & top_name, string const & bot_name, string const & filts_name,
 			    uint32_t const M, uint32_t const N, uint32_t const K, string const & extra_params ) {
     string const buf_name = bot_name + "_one_row_per_patch_buf";
@@ -567,11 +547,12 @@ namespace boda
     uint32_t M = 0, N = 0, K = 0;
     if( cop->is( Convolution_coi ) || cop->is( InnerProduct_coi ) ) {
       conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
+      uint32_t const in_chans = pipe->must_get_node( cop->bots[0] )->dims.dsz("chan");
       u32_pt_t kern_sz = cop->kern_sz;
       if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
 
       out << strprintf( "net.ndas[\"%s_filts\"] = NDA(\"%s_filts\",%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
-			tag_id, tag_id, str(cop->out_chans).c_str(), str(cio_in.chans).c_str(),
+			tag_id, tag_id, str(cop->out_chans).c_str(), str(in_chans).c_str(),
 			str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
       out << strprintf( "net.ndas[\"%s_biases\"] = NDA(\"%s_biases\",%s) # SOURCE out_chan\n", 
 			tag_id, tag_id, str(cop->out_chans).c_str() );
@@ -580,7 +561,7 @@ namespace boda
       assert_st( cop->tops.size() == 1 );
       conv_io_t & cio_out = pipe->must_get_node( cop->tops[0] )->cio;
       M = cio_out.sz.d[0] * cio_out.sz.d[1];
-      N = kern_sz.d[0]*kern_sz.d[1]*cio_in.chans;
+      N = kern_sz.d[0]*kern_sz.d[1]*in_chans;
       K = cop->out_chans;
 
       // get expanded op 
@@ -784,7 +765,7 @@ namespace boda
       assert( !data_img_node->csi.valid() );
       data_img_node->csi.support_sz = u32_pt_t(1,1);
       data_img_node->csi.support_stride = u32_pt_t(1,1);
-      data_img_node->cio.chans = in_chans;
+      data_img_node->dims = dims_t( vect_uint32_t{ 1, in_chans, in_sz ? *in_sz : 1, in_sz ? *in_sz : 1 }, vect_string{ "img", "chan", "y", "x" }, 1 );
 
       for( vect_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) {
 	p_conv_op_t cop( new conv_op_t( *i ) );
@@ -798,6 +779,7 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";
       conv_pipe->calc_support_info( ignore_padding_for_support );
+      conv_pipe->calc_dims();
       conv_pipe->dump_pipe( *out ); 
       if( out_sz ) { 
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
@@ -812,7 +794,6 @@ namespace boda
 	conv_pipe->calc_sizes_forward( ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
 	if( print_ops ) { conv_pipe->dump_ops( *out, 0 ); }
-	conv_pipe->clear_sizes();	
       }
     }
   };
