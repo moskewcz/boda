@@ -342,8 +342,8 @@ namespace boda
     // uint32_t pad_sz; // in bytes? elements?
     string name; // if empty, unspecified/wildcard
     dim_t( void ) : sz(0), stride(0) { }
-    dim_t( string const & name_ ) : sz(0), stride(0), name(name_) { }
-    dim_t( uint32_t const & sz_ ) : sz(sz), stride(0) { }
+    explicit dim_t( string const & name_ ) : sz(0), stride(0), name(name_) { }
+    explicit dim_t( uint32_t const & sz_ ) : sz(sz_), stride(0) { }
     dim_t( string const & name_, uint32_t const & sz_ ) : sz(sz_), stride(0), name(name_) { }
     bool operator == ( dim_t const & o ) const { return (sz==o.sz) && (stride==o.stride) && (name==o.name); }
     bool operator < ( dim_t const & o ) const { 
@@ -430,6 +430,10 @@ namespace boda
       for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return at(i); } }
       rt_err( "dim not found:" + name );
     }
+    dim_t & must_get_dim_by_name( string const & name ) {
+      for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return at(i); } }
+      rt_err( "dim not found:" + name );
+    }
     uint32_t dsz( string const & name ) const { return must_get_dim_by_name( name ).sz; } 
     uint32_t dstride( string const & name ) const { return must_get_dim_by_name( name ).stride; }
     void resize_and_zero( uint32_t const num_dims ) { resize(num_dims); }
@@ -450,6 +454,7 @@ namespace boda
     string const & names( uint32_t const ix ) const { return at(ix).name; }
     uint32_t const & strides( uint32_t const ix ) const { return at(ix).stride; }
 
+    void clear_strides( void ) { for( uint32_t i = 0; i != sz(); ++i ) { strides(i) = 0; } }
     bool has_any_strides( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( strides(i) ) { return 1; } } return 0; }
     bool has_any_names( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( !names(i).empty() ) { return 1; } } return 0; }
 
