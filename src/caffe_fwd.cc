@@ -93,10 +93,10 @@ namespace boda
     // add input blobs for conv_pipe inputs (which in turn were derived from original param data layers)
     assert_st( net_param->input_dim_size() == 0 ); // should be no input blobs to start (only train_val format is supported as input)
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { 
-      conv_io_t & cio = cp->must_get_node( *i )->cio;
-      assert_st( !cio.sz.is_zeros() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
+      dims_t & dims = cp->must_get_node( *i )->dims;
+      assert_st( !dims.empty() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
       net_param->add_input(*i);
-      dims_t_to_shape( cio.dims(num_imgs), *net_param->add_input_shape() );      
+      dims_t_to_shape( dims, *net_param->add_input_shape() );      
     }
 
     p_Net_float net( new Net_float( *net_param ) );

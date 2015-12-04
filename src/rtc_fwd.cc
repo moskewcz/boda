@@ -63,7 +63,7 @@ namespace boda
       is_pool = cop->is( Pooling_coi );
       dims_t in_dims;
       if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
-	in_dims = ni->cio.dims(num_imgs);
+	in_dims = ni->dims;
 	conv_ref_dims["in_ref"] = in_dims; // tconv needs the standard input dims for reference
 	// if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
@@ -196,7 +196,7 @@ namespace boda
 	      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
 	  }
 	  conv_ref_dims["work"] = work;
-	  conv_ref_dims["out_ref"] = no->cio.dims(num_imgs); // k1conv and in_tile_xpose need the standard output dims for reference
+	  conv_ref_dims["out_ref"] = no->dims; // k1conv and in_tile_xpose need the standard output dims for reference
 	  conv_ref_dims["in"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
 	  conv_ref_dims["filts"] = dims_t( vect_uint32_t{ cop->out_chans, ni->cio.chans, kern_sz.d[1], kern_sz.d[0] }, 
@@ -1166,7 +1166,7 @@ namespace boda
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
   // that case the var is directly mirroring a pipe node
   void conv_pipe_fwd_t::gen_node_var( string const & name, string const & node_name ) { 
-    rtc->create_var_with_dims_floats( name, cp->must_get_node(node_name)->cio.dims(num_imgs) );
+    rtc->create_var_with_dims_floats( name, cp->must_get_node(node_name)->dims );
   }
 
   // quantize command line example:

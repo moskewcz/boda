@@ -60,7 +60,7 @@ namespace boda
 
   dims_t conv_pipe_t::get_data_img_dims( void ) const {
     if( data_img_node_names.size() != 1 ) { rt_err( "not exactly one data img input node in net; can't process. data img input nodes are: " + str(data_img_node_names) ); }
-    return must_get_node( data_img_node_names[0] )->cio.dims( data_num_imgs.v ); 
+    return must_get_node( data_img_node_names[0] )->dims;
   }
   u32_pt_t conv_pipe_t::get_data_img_xy_dims_3_chans_only( void ) const {
     // FIXME: better errors here if named dims don't exist?
@@ -262,6 +262,22 @@ namespace boda
       dims_t & loss_dims = must_get_node( cop->tops[1] )->dims;
       // loss is a singleton (no img or chan dims anyway)... but, FIXME: why are there exactly 2 spatial dims? what else could you put? just 'x'?
       loss_dims = dims_t( vect_uint32_t{1,1}, vect_string{"y","x"}, 1 ); 
+      // FIXME: even though the label is an input, we currently can't/don't try to set it's dims intially (i.e. from the data
+      // layer), although perhaps that would make more sense. instead, we allow it to be set here, but check that it is
+      // correct if it is already set. if it ever is set 'feed forward', this check is still good/okay. however, if it
+      // is used by other things as an input, and they expect it to be set (i.e. becuase they use it), then that's no
+      // good -- it might or might not get randomly set here depending on traversal order. really it's just not
+      // generally okay to set it here.
+      dims_t implied_label_dims( vect_uint32_t{ dims_out.dsz("img"), dims_out.dsz("y"), dims_out.dsz("x") }, vect_string{ "img", "y", "x" }, 1 );
+      dims_t & label_dims = must_get_node( cop->bots[1] )->dims;
+      if( label_dims.empty() ) { label_dims = implied_label_dims; }
+      else if( label_dims != implied_label_dims ) { rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing xy size or # imgs" ); }
+#if 0
+      // FIXME: use dims_out.dsz("chan") to set max_val in the cio or elsewhere and/or check that it is equal
+      uint32_t const implied_max_val = dims_out.dsz("chan");
+      if( max_val == 0 ) { max_val = implied_max_val; }
+      if( max_val != implied_max_val  ) { rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing #s of chans." ); }
+#endif
     } else if( cop->is( Concat_coi ) ) {
       assert_st( cop->has_one_top() ); 
       uint32_t dims_out_chans = 0; // start at zero for concat layer accumulation across inputs case
@@ -305,7 +321,6 @@ namespace boda
       //printf( "post calc_dims() %s dims: %s\n", i->first.c_str(), str(d).c_str() );
       if( d.empty() ) { rt_err( strprintf( "error: no dims calculated for node %s after calc_dims()", str(i->first).c_str() ) ); }
     }
-    
   }
   
   void conv_pipe_t::clear_sizes( void ) {
@@ -335,7 +350,7 @@ namespace boda
       cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
       conv_io_t & loss_cio = must_get_node( cop->tops[1] )->cio;
       loss_cio.sz = u32_pt_t{1,1}; // loss is a singleton
-      loss_cio.per_batch = 1;
+      //loss_cio.per_batch = 1;
     } else {
       assert_st( cop->has_one_top() );
       if( (cop->bots.size() != 1) && !cop->is(Concat_coi) ) { 
@@ -691,7 +706,7 @@ namespace boda
   void conv_pipe_t::fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only ) {
     for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
       p_conv_node_t const & node = i->second;
-      dims_t node_dims = node->cio.dims( num_imgs );
+      dims_t node_dims = node->dims;
       node_dims.calc_strides(); // for now, assume no padding
       if( node->top_for.empty() ) { 
 	//printf( "must_find(*fwd,node->name)->dims=%s node_dims=%s\n", str(must_find(*fwd,node->name)->dims).c_str(), str(node_dims).c_str() );
@@ -713,8 +728,7 @@ namespace boda
       string const & lnn = data_label_node_names[0];
       assert_st( data_label_node_names.size() == data_img_node_names.size() ); // currently true by construction
       conv_io_t const & label_cio = must_get_node( lnn )->cio;
-      dims_t label_dims = label_cio.dims( in->dims.dsz("img") );
-      p_nda_float_t label( new nda_float_t( label_dims ) );
+      p_nda_float_t label( new nda_float_t( must_get_node( lnn )->dims ) );
       uint32_t lix = 0;
       for( dims_iter_t di( label->dims ) ; ; ) { label->at(di.di) = lix % label_cio.max_val; ++lix; if( !di.next() ) { break; } } 
       (*fwd)[lnn] = label;
