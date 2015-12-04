@@ -225,6 +225,8 @@ namespace boda
 	if( !conv_pipe->data_num_imgs.v ) { conv_pipe->data_num_imgs.v = data_dims_img; }
 	if( conv_pipe->data_num_imgs.v != data_dims_img ) { rt_err( "unhandled: multiple data layers with differing numbers of images." ); }
 
+	data_img_node->dims = dims_t( vect_uint32_t{ data_dims_img, data_dims_chan, data_dims_y, data_dims_x }, 
+				      vect_string{ "img", "chan", "y", "x" }, 1 );
 	if( add_bck_ops ) {
 	  string const data_label_node_name = lp.top(1);
 	  p_conv_node_t const data_label_node = conv_pipe->get_or_make_node(data_label_node_name, 0, 0 );
@@ -243,7 +245,6 @@ namespace boda
 	conv_op.reset(); printf( "warning: ignoring layer with lp.type()=%s\n", str(lp.type()).c_str() );
       }
 
-      // FIXME: dup'd with code in caffeif.cc, see additional FIXMEs there
       bool layer_has_out_node = 0;
       for( int32_t i = 0; i != lp.top_size(); ++i ) {
 	if( out_node_name == lp.top(i) ) { layer_has_out_node = 1; found_out_node = 1;}
@@ -255,6 +256,7 @@ namespace boda
     //if( !found_out_node ) { rt_err( strprintf("node out_node_name=%s not found as layer output in network\n",str(out_node_name).c_str() )); }
     if( add_bck_ops ) { conv_pipe->add_bck_ops(); }
     conv_pipe->calc_support_info( 1 );
+    conv_pipe->calc_dims();
     return conv_pipe;
   }
 #undef RF_TO_VEC

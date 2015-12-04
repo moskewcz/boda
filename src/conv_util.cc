@@ -161,7 +161,7 @@ namespace boda
 	assert_st( oc == (i ? uint32_t_const_max : 0) ); // FIXME: too ugly/weird? due to special-casing of first output above ...
 	oc = must_get_node(cop->bots[i])->cio.chans; 
       }
-    } else if( cop->is( Spreading_coi ) || cop->is( ZeroIfNeg_coi ) ) { 
+    } else if( cop->is( Spreading_coi ) ) { 
       assert_st( cop->out_chans == 0 ); 
       cio_out.chans = must_get_node(cop->bots[2])->cio.chans; // propogate # chans
       // FIXME?: for now, we don't try to calculate support info for bck operations 
@@ -238,6 +238,74 @@ namespace boda
     }
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_support_forward_rec( *i, ignore_padding ); }
+  }
+
+  void conv_pipe_t::calc_dims_op( p_conv_op_t const & cop ) {
+    assert_st( cop->tops.size() >= 1 );
+    p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
+    dims_t & dims_out = node_out->dims;
+    if( dims_out.size() ) { rt_err( "calc_dims_op(): unhandled: out dims already set (node with multiple writers):" + node_out->name ); }
+    
+    if( cop->is( BckConv_coi ) ) { // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
+      printf( "cop->tag=%s cop->tops=%s cop->bots=%s\n", str(cop->tag).c_str(), str(cop->tops).c_str(), str(cop->bots).c_str() );
+      for( uint32_t i = 0; i != 1; ++i ) { // propogate # chans
+	dims_t & od = must_get_node(cop->tops[i])->dims;
+	if( od.size() ) { rt_err( "calc_dims_op(): unhandled: out dims already set (node with multiple writers):" + cop->tops[i] ); }
+	od = must_get_node(cop->bots[i])->dims;
+      }
+    } else if( cop->is( Spreading_coi ) ) { 
+      assert_st( cop->out_chans == 0 ); 
+      dims_out = must_get_node(cop->bots[2])->dims;
+      // FIXME?: for now, we don't try to calculate support info for bck operations 
+    } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
+      dims_out = must_get_node(cop->bots[0])->dims;
+      dims_t & loss_dims = must_get_node( cop->tops[1] )->dims;
+      // loss is a singleton (no img or chan dims anyway)... but, FIXME: why are there exactly 2 spatial dims? what else could you put? just 'x'?
+      loss_dims = dims_t( vect_uint32_t{1,1}, vect_string{"y","x"}, 1 ); 
+    } else if( cop->is( Concat_coi ) ) {
+      assert_st( cop->has_one_top() ); 
+      uint32_t dims_out_chans = 0; // start at zero for concat layer accumulation across inputs case
+      for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
+	dims_t const & j_dims = must_get_node(*j)->dims;
+	dims_out_chans += j_dims.dsz("chan"); // sum chans across all inputs
+	if( !dims_out.size() ) { dims_out = j_dims; dims_out.clear_strides(); dims_out.must_get_dim_by_name("chan").sz = 0; } // convert to template
+	else if( !j_dims.matches_template( dims_out ) ) { 
+	  rt_err( "concat layer had incompatible inputs; must have all same non-chan dims. template (from first input) was: " + 
+		  str(dims_out) + ". mismatching input was (index="+str(j - cop->bots.begin())+"): " + str(j_dims) );
+	}
+      }
+      dims_out.must_get_dim_by_name("chan").sz = dims_out_chans;
+      dims_out.calc_strides();
+    } else {    
+      assert_st( cop->has_one_top() );
+      if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+      dims_t const & dims_in = must_get_node(cop->bots[0])->dims;
+      assert_st( cop->stride.both_dims_non_zero() ); // FIXME: still belongs here? handled in in_sz_to_out_sz?
+      dims_out = dims_in; // starting point
+      dims_out.must_get_dim_by_name("chan").sz = cop->out_chans ? cop->out_chans : dims_in.dsz("chan"); // reset or propogate num_chans
+      u32_pt_t const dims_out_sz = cop->in_sz_to_out_sz( u32_pt_t{ dims_in.dsz("x"), dims_in.dsz("y") }, 0 );
+      dims_out.must_get_dim_by_name("y").sz = dims_out_sz.d[1]; dims_out.must_get_dim_by_name("x").sz = dims_out_sz.d[0];
+      dims_out.calc_strides();
+    }
+    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { calc_dims_rec( *i ); }
+  }
+  void conv_pipe_t::calc_dims_rec( string const & node_name ) {
+    p_conv_node_t const & node = must_get_node( node_name );
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+      p_conv_op_t const & cop = get_op( *i );
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      calc_dims_op( cop );
+    }
+  }
+  void conv_pipe_t::calc_dims( void ) {
+    topo_visit_setup(); 
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_dims_rec( *i ); }  
+    for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) { 
+      dims_t const & d = i->second->dims;
+      //printf( "post calc_dims() %s dims: %s\n", i->first.c_str(), str(d).c_str() );
+      if( d.empty() ) { rt_err( strprintf( "error: no dims calculated for node %s after calc_dims()", str(i->first).c_str() ) ); }
+    }
+    
   }
   
   void conv_pipe_t::clear_sizes( void ) {

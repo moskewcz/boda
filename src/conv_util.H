@@ -98,7 +98,7 @@ namespace boda
 
   struct conv_node_t {
     std::string name;
-    // dims_t dims; // TODO: to replace cio.
+    dims_t dims;
     vect_string bot_for;
     vect_string top_for;
     conv_support_info_t csi;
@@ -143,6 +143,11 @@ namespace boda
     p_conv_op_t maybe_get_single_parent( p_conv_op_t const & cop ) const;
 
     void add_conv( p_conv_op_t const & conv );
+
+    void calc_dims_op( p_conv_op_t const & cop );
+    void calc_dims_rec( string const & node_name );
+    void calc_dims( void );
+
     void calc_support_forward_op( p_conv_op_t const & cop, bool const ignore_padding );
     void calc_support_forward_rec( string const & node_name, bool const ignore_padding );
     void calc_support_info( bool const ignore_padding );
