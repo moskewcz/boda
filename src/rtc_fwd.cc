@@ -51,7 +51,7 @@ namespace boda
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     string cts; // cts --> conv-type-str
 
-    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, uint32_t const & num_imgs,
+    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_,
 	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
       cop = cop_;
@@ -127,7 +127,7 @@ namespace boda
 	  assert_st( best_tbp <= max_tpb );
 
 	  dims_t work;
-	  uint32_t const lines_sz = num_imgs * no->cio.sz.d[1];
+	  uint32_t const lines_sz = no->dims.dsz("img") * no->cio.sz.d[1];
 	  if( cts == s1conv_str ) {
 	    assert_st( lines_sz * no->cio.sz.d[0] * no->cio.chans == out_ix_sz ); // by construction
 	    work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, tix_pels_tile_sz ) );
@@ -139,7 +139,7 @@ namespace boda
 	    for( uint32_t i = 0; i != work.dsz("blk_bline"); ++i ) {
 	      uint32_t const blk_e_line = blk_b_line + tix_pels_tile_sz - 1;
 	      uint32_t const blk_b_img = blk_b_line / no->cio.sz.d[1];
-	      uint32_t const blk_e_img = std::min( num_imgs - 1, blk_e_line / no->cio.sz.d[1] );
+	      uint32_t const blk_e_img = std::min( no->dims.dsz("img") - 1, blk_e_line / no->cio.sz.d[1] );
 	      uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
 	      assert_st( blk_num_img );
 	      max_eq( tconv_blk_max_imgs, blk_num_img );
@@ -281,7 +281,6 @@ namespace boda
     p_conv_pipe_t cp;
     p_map_str_p_op_info_t op_infos;
 
-    uint32_t num_imgs;
     vect_string op_param_names;
     set_string filts_names;
     set_string inxp_names;
@@ -1208,14 +1207,12 @@ namespace boda
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_ ) {
     cp = cp_;
     assert_st( cp );
-    num_imgs = cp->data_num_imgs.v;
-    assert_st( num_imgs );
     op_infos.reset( new map_str_p_op_info_t );
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
-      oi->init( cp, i->second, num_imgs, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv, t_tile_sz );
+      oi->init( cp, i->second, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv, t_tile_sz );
     }
     rtc->init();
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
@@ -1273,6 +1270,7 @@ namespace boda
     if( enable_prof ) { rtc->profile_stop(); }
     if( !per_call_fn.empty() ) {
       p_ofstream out = ofs_open( per_call_fn );
+      uint32_t num_imgs = cp->get_data_img_dims().dsz("img");
       (*out) << strprintf("net.args.num_imgs=%s\n", str(num_imgs).c_str() );
       (*out) << strprintf("num_img=%s\n", str(num_imgs).c_str() ); // FIXME: dup'd in flops.py, need to set both here ...
       (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );

@@ -16,19 +16,13 @@ namespace boda
     uint32_t skip_work; //NESI(default=0,help="if non-zero, skip all work")
 
     p_conv_pipe_t cp;
-    uint32_t num_imgs;
 
     virtual void init( p_conv_pipe_t const & cp_ );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
   };
 
-  void slow_cpu_fwd_t::init( p_conv_pipe_t const & cp_ ) {
-    cp = cp_;
-    assert_st( cp );
-    num_imgs = cp->data_num_imgs.v;
-    assert_st( num_imgs );
-  }
+  void slow_cpu_fwd_t::init( p_conv_pipe_t const & cp_ ) { cp = cp_; assert_st( cp );  }
 
   void run_conv_op_one_img_conv( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
 				 p_nda_float_t const & bot, p_nda_float_t const & top ) {    
@@ -203,7 +197,7 @@ namespace boda
     for( vect_string::const_iterator i = to_set_vns.begin(); i != to_set_vns.end(); ++i ) {
       if( !has( *fwd, *i ) ) { rt_err( "slow_cpu_fwd: requested input (to_set) var '"+*i+"' was not present in fwd at start of run_fwd()." ); }
     }
-    cp->fwd_alloc_ndas( fwd, num_imgs, 0 );
+    cp->fwd_alloc_ndas( fwd, 0 );
     if( skip_work ) { return; }
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { run_ops_rec( cp, fwd, *i ); }

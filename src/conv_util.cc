@@ -703,7 +703,7 @@ namespace boda
   }
 
 
-  void conv_pipe_t::fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, uint32_t const & num_imgs, bool const & sinks_only ) {
+  void conv_pipe_t::fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, bool const & sinks_only ) {
     for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
       p_conv_node_t const & node = i->second;
       dims_t node_dims = node->dims;

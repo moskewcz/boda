@@ -29,7 +29,6 @@ namespace boda
     uint32_t enable_prof; //NESI(default=0,help="if 1, enable profiling of caffe forward calls")
 
     p_conv_pipe_t cp;
-    uint32_t num_imgs;
 
     p_Net_float net;
 
@@ -75,7 +74,7 @@ namespace boda
     }
   }
 
-  p_Net_float caffe_create_net( p_conv_pipe_t const & cp, uint32_t const & num_imgs ) {
+  p_Net_float caffe_create_net( p_conv_pipe_t const & cp ) {
     timer_t t("caffe_create_net");
 
     p_net_param_t net_param( new net_param_t ( *cp->as_net_param() ) ); // start with copy of original (unmodified by boda) input net_param
@@ -117,10 +116,8 @@ namespace boda
   void caffe_fwd_t::init( p_conv_pipe_t const & cp_ ) {
     cp = cp_;
     assert_st( cp );
-    num_imgs = cp->data_num_imgs.v;
-    assert_st( num_imgs );
     init_caffe( gpu_id ); // FIXME/note: only does something on first call
-    net = caffe_create_net( cp, num_imgs );      
+    net = caffe_create_net( cp );      
   }
 
   void raw_do_forward( p_Net_float net, vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, bool const enable_prof, bool const do_bck ) {
