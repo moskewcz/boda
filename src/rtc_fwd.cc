@@ -100,7 +100,7 @@ namespace boda
 	}
 	if( is_conv ) {
 	  // calc_blocking_conv()
-	  uint32_t const out_ix_sz = num_imgs * no->cio.num_pels();
+	  uint32_t const out_ix_sz = no->dims.dims_prod();
 	  // for reg blocking
 	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->cio.chans, t_tile_sz );
 	  uint32_t tix_pels_tile_sz_incr = 1;

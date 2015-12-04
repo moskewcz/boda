@@ -23,7 +23,6 @@ namespace boda
     uint32_t chans;
     uint32_t max_val; // used only for error-checking/testing on label inputs; each single value for this node must be < this value.
     conv_io_t( void ) : chans( uint32_t_const_max ), max_val(0) {}
-    uint32_t const num_pels( void ) const { return chans * sz.dims_prod(); }
   };
   
   typedef vector< conv_io_t > vect_conv_io_t; 
