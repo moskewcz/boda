@@ -80,6 +80,18 @@ namespace boda
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   p_vect_rp_void get_backtrace( void );
 
+  template< typename T > inline std::string str(T const & i); // predeclare inline function template from std_util.H
+
+  // raise runtime error. captures stack and raises exception with
+  // given string as error message. as a perf. compromise, while the
+  // top frames of the stack are always captured, they are not
+  // processed into a full trace at throw time.
+  void rt_err( string const & err_msg ) __attribute__((noreturn));
+  // like above, but assumes PyErr_Occured(). currently just calls
+  // PyErr_Print() then calls rt_err(...)
+  void rt_py_err( string const & err_msg ) __attribute__((noreturn));
+  void rt_err_errno( char const * const func_name ); // like rt_err, but prints errno
+
   template< typename T > void must_insert( T & kvm, typename T::key_type const & k ) {
     bool const did_ins = kvm.insert( k ).second;
     assert_st( did_ins );
@@ -107,16 +119,6 @@ namespace boda
     if( i == kvm.end() ) { return dv; }
     return i->second;
   }
-
-  // raise runtime error. captures stack and raises exception with
-  // given string as error message. as a perf. compromise, while the
-  // top frames of the stack are always captured, they are not
-  // processed into a full trace at throw time.
-  void rt_err( string const & err_msg ) __attribute__((noreturn));
-  // like above, but assumes PyErr_Occured(). currently just calls
-  // PyErr_Print() then calls rt_err(...)
-  void rt_py_err( string const & err_msg ) __attribute__((noreturn));
-  void rt_err_errno( char const * const func_name ); // like rt_err, but prints errno
 
   // NESI types
   struct filename_t { string in; string exp; };
