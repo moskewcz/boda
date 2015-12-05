@@ -38,18 +38,17 @@ matplotlib.rc('ytick.minor',size =0 )
 def knee_ai( perf, bw ): return perf / bw
 
 def addPerfPt( alg, ai, perf ):
-    print alg, ai, perf
-    ax.plot( [ai], [perf], alg[1] )
+    ax.plot( [ai], [perf], alg.ls )
 
-def addAILine( ai, lab, gfs ):
+def addAILine( net_ai ):
     #Peak performance line and text
     y = np.linspace(Y_MIN, Y_MAX, 10)
-    x = y*0.0 + ai
-    ax.plot( x, y, linewidth=0.75, color='blue' )
+    x = y*0.0 + net_ai.ai
+    ax.plot( x, y, linewidth=0.75, color=net_ai.color, ls=net_ai.ls )
 
-    label_string = lab +" ("+str(gfs)+" GF)" +" ("+str(ai)+" F/b)" 
-    xCoordinateTransformed = ai # (log(ai)-log(X_MIN))/(log(X_MAX/X_MIN))
-    ax.text(xCoordinateTransformed+0.01, Y_MIN*1.1, label_string, fontsize=8, rotation=90, verticalalignment = 'bottom', horizontalalignment='right' )
+    #label_string = net_ai.get_lab_str()
+    #xCoordinateTransformed = net_ai.ai # (log(ai)-log(X_MIN))/(log(X_MAX/X_MIN))
+    #ax.text(xCoordinateTransformed+0.01, Y_MIN*1.1, label_string, fontsize=8, rotation=90, verticalalignment = 'bottom', horizontalalignment='right' )
 
 def addPerfLine(peakPerf, label, kai, ls_ ):
     #Peak performance line and text
@@ -93,22 +92,72 @@ Y_LABEL="Performance [GFlops/second]"
 ANNOTATE_POINTS=1
 AXIS_ASPECT_RATIO=log10(X_MAX/X_MIN)/log10(Y_MAX/Y_MIN)
 
-# with 2015.05 version of caffe
-cudnnv3_2015_05_caffe = {
-    "alexnet-1-image"2.4:,"alexnet-20-images":17.5, # note: alexnet is to conv5 only here, not fc8
-    "nin-1-image":2.9,"nin-20-images":20.8,
-    "googlenet-1-image":15.4,"googlenet-20-images":,66.3,
-}
+class net_ai( object ):
+    def __init__( self, color, ai, name, gfs ):
+        self.ai = ai
+        self.name = name
+        self.gfs = gfs
+        self.color = color
+        self.ls = '-'
+        if "-1-" in self.name: self.ls = '--'
+    def get_lab_str( self ):
+        return self.name +" ("+str(self.gfs)+" GF)" +" ("+str(self.ai)+" F/b)"
+    def get_art( self ):
+        return plt.Line2D((0,0),(1,0), color=self.color, marker='', linestyle=self.ls)
 
+net_ais = dict( [ (t[2],net_ai(*t)) for t in [ 
+    ('blue',8.95,"alexnet-1-image",2.27),
+    ('blue',135,"alexnet-20-images",2.27*20),
+    ('green',51.3,"nin-1-image",2.21),
+    ('green',156.0,"nin-20-images",2.21*20),
+    ('yellow',37.6,"googlenet-1-image",3.2),
+    ('yellow',92.8,"googlenet-20-images",3.2*20),
+    ('red',105,"firenet-v0-1-image",5.78),
+    ('red',144,"firenet-v0-20-images",5.78*20),
+    #    (1.1,".\hspace{6mm}stratos-1-image\hspace{5mm}",[13.6,6.0],0.286),(19.1,"stratos-20-images",[20.5,10.8],0.286*20),
+    #    (0.7,"bigstride-1-image\hspace{4mm}",[8.0,3.6],0.097),(11.9,"bigstride-20-images",[12.5,6.8],0.097*20),
+] ] )
 
-aiois = [ 
-    (8.95,"alexnet-1-image",[20.3,8.5,11.7],2.27),(135,"alexnet-20-images",[51.4,31.0,28.8],2.27*20),
-    (51.3,"nin-1-image",[10.5,5.1,3.4],2.21),(156.0,"nin-20-images",[43.3,27.3,19.6],2.21*20),
-    (37.6,"googlenet-1-image",[38.7,15.4,18.3],3.2),(92.8,"googlenet-20-images",[91.8,71.7,52.3],3.2*20),
+class alg( object ):
+    def __init__( self, name, ls, art, data ):
+        self.name = name
+        self.ls = ls
+        self.art = art
+        self.data = data
+        self.perfs = dict( [ (name, net_ais[name].gfs * 1000.0 / ms) for (name,ms) in self.data.iteritems() ] )
+        print self.name, self.perfs
 
-#    (1.1,".\hspace{6mm}stratos-1-image\hspace{5mm}",[13.6,6.0],0.286),(19.1,"stratos-20-images",[20.5,10.8],0.286*20),
-#    (0.7,"bigstride-1-image\hspace{4mm}",[8.0,3.6],0.097),(11.9,"bigstride-20-images",[12.5,6.8],0.097*20),
-]
+cudnnv3_2015_05_caffe = alg( "cuDNNv3 (GTX 980)", "gs",  plt.Line2D((0,0),(0,0), color='g', marker='s', linestyle=''),
+                             { # with 2015.05 version of caffe
+                                 "alexnet-1-image":5.8,"alexnet-20-images":17.5,
+                                 "nin-1-image":2.9,"nin-20-images":20.8,
+                                 "googlenet-1-image":15.4,"googlenet-20-images":43.3,
+                                "firenet-v0-1-image":4.3,"firenet-v0-20-images":49.5,
+                             } )
+boda_Q3 = alg("boda-rtc (CUDA *and* OCL) (GTX 980) Q3","gd", plt.Line2D((0,0),(0,0), color='g', marker='d', linestyle=''),
+              { # exact version? 
+                  "alexnet-1-image":14.9,"alexnet-20-images":28.8,
+                  "nin-1-image":3.4,"nin-20-images":21.0,
+                  "googlenet-1-image":18.3,"googlenet-20-images":59.3,
+                  "firenet-v0-1-image":6.4,"firenet-v0-20-images":69.8,
+              } )
+boda_Q2 = alg("boda-nvrtc (CUDA) (GTX 980) Q2","go", plt.Line2D((0,0),(0,0), color='g', marker='o', linestyle=''),
+              {
+                  "alexnet-1-image":20.3,"alexnet-20-images":51.4,
+                  "nin-1-image":10.5,"nin-20-images":43.3,
+                  "googlenet-1-image":38.7,"googlenet-20-images":91.8,
+                  #    "firenet-v0-1-image":0,"firenet-v0-20-images":0,
+              } )
+cudnnv2 = alg( "cuDNNv2 (GTX 980)", "g^",  plt.Line2D((0,0),(0,0), color='g', marker='^', linestyle=''),
+               {
+                   "alexnet-1-image":8.5,"alexnet-20-images":31.0,
+                   "nin-1-image":5.1,"nin-20-images":27.3,
+                   "googlenet-1-image":15.4,"googlenet-20-images":71.7,
+                   #    "firenet-v0-1-image":0,"firenet-v0-20-images":0,
+               } )
+
+#algs = [ cudnnv3_2015_05_caffe, boda_Q3, boda_Q2, cudnnv2 ]
+algs = [ cudnnv3_2015_05_caffe, boda_Q3 ]
 
 fig = plt.figure()
 # Returns the Axes instance
@@ -162,18 +211,8 @@ for i in range(minloc,maxloc):
         newlabels.append(r'$10^ %d$' %i)
 yticks(newlocs, newlabels)
 
-algs = [("boda-nvrtc (GTX 980) Q2","go"),("cuDNNv2 (GTX 980)","gx"),
-        ("boda-rtc OpenCL (GTX 980) Q3","gd"),("boda-rtc CUDA (GTX 980) Q3","gd"),
-    ]
-arts = [ plt.Line2D((0,0),(0,0), color='g', marker='o', linestyle=''), 
-         plt.Line2D((0,0),(0,0), color='g', marker='x', linestyle=''),
-         plt.Line2D((0,0),(0,0), color='g', marker='d', linestyle=''),
-         plt.Line2D((0,0),(0,0), color='g', marker='d', linestyle=''),
-     ]
 
-for ai, lab, mss, gfs in aiois: 
-    perfs = [ gfs * 1000.0 / ms for ms in mss ]
-    addAILine( ai, lab, gfs )
+for net_ai in net_ais.itervalues(): addAILine( net_ai )
 
 print "KAIs",knee_ais
 #Peak performance line and text
@@ -188,12 +227,20 @@ fig.savefig( out_fn % "-no-perf", dpi=600,  bbox_inches='tight')
 show_perf = 1
 
 if show_perf:
-    for ai, lab, mss, gfs in aiois: 
-        perfs = [ gfs * 1000.0 / ms for ms in mss ]
-        for alg, perf in zip( algs, perfs ):
-            addPerfPt( alg, ai, perf )
+    for alg in algs:
+        for (net,perf) in alg.perfs.iteritems():
+            addPerfPt( alg, net_ais[net].ai, perf )
+    #box = ax.get_position()
+    #ax.set_position([box.x0, box.y0, box.width, box.height])
 
-    legend = ax.legend(arts,(alg[0] for alg in algs),loc='upper left', shadow=True, fontsize='large',numpoints=1)
+    sorted_nets = [ (net.ai,net) for net in net_ais.itervalues() ]
+    sorted_nets.sort()
+    leg_art = [alg.art for alg in algs]
+    leg_lab = [alg.name for alg in algs]
+    leg_art += [net.get_art()  for (ai,net) in sorted_nets]
+    leg_lab += [net.get_lab_str() for (ai,net) in sorted_nets]
+    
+    legend = ax.legend(leg_art,leg_lab,loc='upper center', shadow=True, fontsize='small',numpoints=1,ncol=2,bbox_to_anchor=[.5,1.35])
     # Put a nicer background color on the legend.
     legend.get_frame().set_facecolor('#eeddcc')
 
