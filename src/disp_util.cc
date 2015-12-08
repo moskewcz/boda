@@ -245,14 +245,14 @@ namespace boda
     // FIXME: dup'd constants/code with annotation code below ...
     i32_pt_t const disp_sz{displayrect->w,displayrect->h}; // display window is of size displayrect w,h
     i32_pt_t const disp_off{displayrect->x,displayrect->y}; // display window x,y is the offset where the neg_corner of the texure will be drawn. 
-    i32_pt_t const tex_sz = { YV12_buf->w, YV12_buf->h }; // the texture is always it is always drawn resized to the window size (regardless of offset)
+    i32_pt_t const tex_sz{ int32_t(YV12_buf->w), int32_t(YV12_buf->h) }; // the texture is always it is always drawn resized to the window size (regardless of offset)
     uint32_t out_x = 0;
     asio->lb_event.img_ix = uint32_t_const_max; // default: not inside any image
     for( uint32_t i = 0; i != imgs->size(); ++i ) { 
       p_img_t const & img = imgs->at(i);
       // calculate what region in the display window this image occupies
       // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
-      i32_pt_t const img_nc = { out_x, YV12_buf->h - img->sz.d[1] };
+      i32_pt_t const img_nc = { int32_t(out_x), int32_t(YV12_buf->h) - int32_t(img->sz.d[1]) };
       i32_pt_t const disp_img_nc = (img_nc*disp_sz/tex_sz) + disp_off;
       i32_pt_t const img_sz = u32_to_i32( img->sz );
       i32_pt_t const disp_img_sz = img_sz*disp_sz/tex_sz;
@@ -292,7 +292,7 @@ namespace boda
       case SDL_WINDOWEVENT:
 	if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
 	  SDL_RenderSetViewport(renderer.get(), NULL);
-	  update_dr_for_window_and_zoom({event.window.data1,event.window.data2});
+	  update_dr_for_window_and_zoom(i32_to_u32(i32_pt_t{event.window.data1,event.window.data2}));
 	}
 	break;
       case SDL_MOUSEBUTTONDOWN:
@@ -348,14 +348,14 @@ namespace boda
 
     i32_pt_t const disp_sz{displayrect->w,displayrect->h}; // display window is of size displayrect w,h
     i32_pt_t const disp_off{displayrect->x,displayrect->y}; // display window x,y is the offset where the neg_corner of the texure will be drawn. 
-    i32_pt_t const tex_sz = { YV12_buf->w, YV12_buf->h }; // the texture is always it is always drawn resized to the window size (regardless of offset)
+    i32_pt_t const tex_sz = { int32_t(YV12_buf->w), int32_t(YV12_buf->h) }; // the texture is always it is always drawn resized to the window size (regardless of offset)
     double_pt_t const tex_to_disp_scale{ double(disp_sz.d[0])/tex_sz.d[0], double(disp_sz.d[1])/tex_sz.d[1] };
     uint32_t out_x = 0;
     for( uint32_t i = 0; i != imgs->size(); ++i ) { 
       p_img_t const & img = imgs->at(i);
       // calculate what region in the display window this image occupies
       // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
-      i32_pt_t const img_nc = { out_x, YV12_buf->h - img->sz.d[1] };
+      i32_pt_t const img_nc = { int32_t(out_x), int32_t(YV12_buf->h) - int32_t(img->sz.d[1]) };
       out_x += imgs->at(i)->sz.d[0];
       // draw annotations
       p_vect_anno_t const & annos = img_annos.at(i);
