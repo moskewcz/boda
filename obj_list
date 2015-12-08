@@ -21,7 +21,7 @@ LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 
 [SDL2]
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2
-LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf
+LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 
 [caffe_pb gen_fn=caffe.pb.cc gen_fn=caffe.pb.h]
 LDFLAGS := $(LDFLAGS) -lprotobuf
