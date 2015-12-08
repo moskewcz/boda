@@ -1271,9 +1271,6 @@ namespace boda
     if( enable_prof ) { rtc->profile_stop(); }
     if( !per_call_fn.empty() ) {
       p_ofstream out = ofs_open( per_call_fn );
-      uint32_t num_imgs = cp->get_data_img_dims().dsz("img");
-      (*out) << strprintf("net.args.num_imgs=%s\n", str(num_imgs).c_str() );
-      (*out) << strprintf("num_img=%s\n", str(num_imgs).c_str() ); // FIXME: dup'd in flops.py, need to set both here ...
       (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );
       for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
 	rtc_func_call_t & rfc = *i;

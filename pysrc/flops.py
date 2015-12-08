@@ -82,9 +82,10 @@ class Net( object ):
         self.ndas = {}
 
     def print_stats( self ):
-        print "-- INPUT: NUM_IMGS=%s --" %(args.num_imgs,)
         print "-- INPUT: RUNTIME=%ss --"% (args.runtime, )
         print "-- INPUT: POWER=%sW --" % (args.power, )
+        if "data" in self.ndas: print "-- \"data\" node dims: ", self.ndas["data"].dims_info_str()
+
         fb_str = "FWD"
         if verbose_print: fb_str = "FORWARD"
         print "--- %s TOTALS ---" % fb_str
@@ -212,7 +213,6 @@ import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--net-fn', metavar="FN", type=str, default="out.py", help="filename of network-definition python script" )
 parser.add_argument('--net-name', metavar="STR", type=str, default="ANON_NET", help="name of network (for printouts)" )
-parser.add_argument('--num-imgs', metavar='N', type=int, default=1, help='an integer for the accumulator')
 parser.add_argument('--runtime', metavar='SECONDS', type=float, default=1, help='time taken for power/energy calculations')
 parser.add_argument('--power', metavar='WATTS', type=float, default=200, help='average power used over runtime')
 parser.add_argument('--backward', metavar='BOOL', type=int, default=1, help='1:forward+backward; 0:only forward')
@@ -223,10 +223,9 @@ parser.add_argument('--profile', metavar='BOOL', type=int, default=0, help='if n
 parser.add_argument('--print-tex-table-entry', metavar='BOOL', type=int, default=0, help='if non-zero print one-off tex table entry')
 args = parser.parse_args()
 net = Net(args)
-# set num_img and source cnet decl
-num_img = args.num_imgs
 per_layer_time = {}
 
+# source cnet decl
 execfile( args.net_fn )
 
 if 1:
