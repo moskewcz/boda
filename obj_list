@@ -47,7 +47,7 @@ LDFLAGS := $(LDFLAGS) -lOpenCL
 [caffe needs=cuda needs=caffe_pb]
 CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
 CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src
-LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -lcaffe
+LDFLAGS := $(LDFLAGS) -L$(CAFFE_HOME)/build/lib -lcaffe -lglog
 ifneq ($(shell diff -wq ../src/ext/caffe.proto ${CAFFE_HOME}/src/caffe/proto/caffe.proto ; echo $$? ),0)
 $(error "building with caffe support, but diff of boda copy of caffe.proto with caffe version failed (because the content diffed, a file was not found, etc). run diff manually for details and/or update boda version of caffe.proto. aborting make.")
 endif
