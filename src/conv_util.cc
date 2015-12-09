@@ -161,40 +161,39 @@ namespace boda
       p_conv_node_t const & loss_node = must_get_node( cop->tops[1] );
       loss_node->csi.support_sz = u32_pt_t{};
       loss_node->csi.eff_tot_pad = csi_out.eff_tot_pad; // FIXME: correct? needed? maybe set to bogus/sentinel value?
-    } else {    
+    } else if( cop->is( Concat_coi ) ) {
+      assert_st( cop->has_one_top() );
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
 	p_conv_node_t const & j_node = must_get_node(*j);
 	conv_support_info_t const & csi_in = j_node->csi;
-	if( cop->is( Concat_coi ) ) {
-	  assert_st( cop->has_one_top() );
-	  if( (j == cop->bots.begin()) || (csi_in.support_stride.dims_max() > csi_out.support_stride.dims_max()) ) { // first input or bigger stride
-	    if( j != cop->bots.begin() ) { 
-	      printf( "WARNING: unhandled Concat layer '%s' with different strided inputs. "
-		      "Note: support will be max size over inputs with largest stride in any dim.\n", str(cop->bots).c_str() );
-	    }
-	    csi_out.support_stride = csi_in.support_stride;
-	    csi_out.support_sz = csi_in.support_sz;
-	  } else { 
-	    if( csi_in.support_stride == csi_out.support_stride ) { csi_out.support_sz.max_eq( csi_in.support_sz ); }
+	if( (j == cop->bots.begin()) || (csi_in.support_stride.dims_max() > csi_out.support_stride.dims_max()) ) { // first input or bigger stride
+	  if( j != cop->bots.begin() ) { 
+	    printf( "WARNING: unhandled Concat layer '%s' with different strided inputs. "
+		    "Note: support will be max size over inputs with largest stride in any dim.\n", str(cop->bots).c_str() );
 	  }
-	  csi_out.eff_tot_pad.max_eq( csi_in.eff_tot_pad );
-	  assert( !cop->out_chans ); // concat shouldn't have a # of output chans specified
-	} else {
-	  if( j == cop->bots.begin() ) {
-	    assert_st( cop->has_one_top() );
-	    u32_pt_t const in_sz_1x1 = cop->out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
-	    if( in_sz_1x1.is_zeros() || csi_in.support_sz.is_zeros() )  { // special values that means use all input
-	      csi_out.support_sz = u32_pt_t{};
-	    } else {
-	      assert_st( in_sz_1x1.both_dims_non_zero() );
-	      csi_out.support_sz = csi_in.support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*csi_in.support_stride;
-	    }
-	    assert_st( cop->stride.both_dims_non_zero() );
-	    csi_out.support_stride = csi_in.support_stride*cop->stride;
-	    csi_out.eff_tot_pad = csi_in.eff_tot_pad + cop->in_pad.scale_dims( csi_in.support_stride );
-	  } else { rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+	  csi_out.support_stride = csi_in.support_stride;
+	  csi_out.support_sz = csi_in.support_sz;
+	} else { 
+	  if( csi_in.support_stride == csi_out.support_stride ) { csi_out.support_sz.max_eq( csi_in.support_sz ); }
 	}
+	csi_out.eff_tot_pad.max_eq( csi_in.eff_tot_pad );
+	assert( !cop->out_chans ); // concat shouldn't have a # of output chans specified
       }
+    } else {    
+      assert_st( cop->has_one_top() );
+      if( cop->bots.size() != 1 ) { rt_err( "calc_support_forward_op(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+      p_conv_node_t const & j_node = must_get_node(cop->bots[0]);
+      conv_support_info_t const & csi_in = j_node->csi;
+      u32_pt_t const in_sz_1x1 = cop->out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
+      if( in_sz_1x1.is_zeros() || csi_in.support_sz.is_zeros() )  { // special values that means use all input
+	csi_out.support_sz = u32_pt_t{};
+      } else {
+	assert_st( in_sz_1x1.both_dims_non_zero() );
+	csi_out.support_sz = csi_in.support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*csi_in.support_stride;
+      }
+      assert_st( cop->stride.both_dims_non_zero() );
+      csi_out.support_stride = csi_in.support_stride*cop->stride;
+      csi_out.eff_tot_pad = csi_in.eff_tot_pad + cop->in_pad.scale_dims( csi_in.support_stride );
     }
   }
   void conv_pipe_t::calc_support_forward_rec( string const & node_name, bool const ignore_padding ) {
