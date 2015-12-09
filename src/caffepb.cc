@@ -138,8 +138,10 @@ namespace boda
 	fill_in_conv_op_from_param( conv_op, cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
 	conv_op->out_chans = cp.num_output();
-	//conv_op->bots.push_back( lp.name() + "_filts" ); // add (make explicit) filts input // FIXME_EFB
-	//conv_op->bots.push_back( lp.name() + "_biases" ); // add (make explicit) filts input // FIXME_EFB
+	// add (make explicit) filts and biases as inputs 
+	conv_op->bots.push_back( lp.name() + "_filts" );
+	conv_op->bots.push_back( lp.name() + "_biases" );
+	//conv_pipe->some_kinda_node_names.push_back( {filts,biases}_node_name ); // FIXME?
       } else if( lp.type() == ReLU_coi.type ) {
 	conv_op->stride = {1,1}; // sensible, but currently unused
 	conv_op->out_chans = 0; // no effect on chans
@@ -217,9 +219,7 @@ namespace boda
 	string const data_img_node_name = lp.top(0);
 	p_conv_node_t const data_img_node = conv_pipe->get_or_make_node(data_img_node_name, 0, 0 );
 	conv_pipe->data_img_node_names.push_back( data_img_node_name );
-	assert( !data_img_node->csi.valid() );
-	data_img_node->csi.support_sz = u32_pt_t(1,1);
-	data_img_node->csi.support_stride = u32_pt_t(1,1);
+	data_img_node->csi.init_as_source();	
 	if( !conv_pipe->data_num_imgs.v ) { conv_pipe->data_num_imgs.v = data_dims_img; }
 	if( conv_pipe->data_num_imgs.v != data_dims_img ) { rt_err( "unhandled: multiple data layers with differing numbers of images." ); }
 
@@ -381,7 +381,6 @@ namespace boda
     uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
     uint32_t print_ops; //NESI(default=0,help="if non-zero, write ops to file with fn given by print_opts_fn. note: requires in_sz to be set.")
     filename_t print_ops_fn; //NESI(default="%(boda_output_dir)/out.py",help="print_opts output filename")
-    uint32_t expand_ops; //NESI(default=0,help="if non-zero, write ops in expanded/elaborated form when possible.")
     uint32_t add_bck_ops; //NESI(default=0,help="if non-zero, add bck (aka backwards/backprop/gradients) operations.")
     
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -394,7 +393,7 @@ namespace boda
 	(*out) << ">> calculating network sizes forward given an in_dims of " << in_dims << "\n";
 	conv_pipe->dump_ios( *out ); 
       }
-      if( print_ops ) {	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ), expand_ops ); }
+      if( print_ops ) {	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ) ); }
       if( out_sz ) { 
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
 	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
@@ -429,18 +428,11 @@ namespace boda
   void alloc_layer_blobs( p_conv_pipe_t const & pipe, string const & layer_name, vect_p_nda_float_t & blobs ) {
     p_conv_op_t const & cop = pipe->get_op( layer_name );
     if( cop->is( Convolution_coi ) ) { 
-      dims_t & dims_in = pipe->must_get_node( cop->bots[0] )->dims;
-      u32_pt_t kern_sz = cop->kern_sz;
-      if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( dims_in ); } // 'global' input special case
-      dims_t filt_dims( vect_uint32_t{ cop->out_chans, dims_in.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
-			vect_string{ "out_chan", "in_chan", "y", "x" } );
-      blobs.push_back( p_nda_float_t( new nda_float_t( filt_dims ) ) );
-      dims_t bias_dims( vect_uint32_t{ cop->out_chans }, vect_string{ "out_chan" } );
-      blobs.push_back( p_nda_float_t( new nda_float_t( bias_dims ) ) );
+      blobs.push_back( p_nda_float_t( new nda_float_t( pipe->must_get_node( cop->bots[1] )->dims ) ) ); // filts
+      blobs.push_back( p_nda_float_t( new nda_float_t( pipe->must_get_node( cop->bots[2] )->dims ) ) ); // biases
     } else {
       rt_err( "don't know how to alloc blobs for layer of type" + cop->type );
     }
-
   }
 
   void copy_layer_blobs( caffe::LayerParameter const & dest_lp, vect_p_nda_float_t & blobs ) {

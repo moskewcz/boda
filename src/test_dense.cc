@@ -253,7 +253,7 @@ namespace boda {
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
       rc->conv_pipe->dump_ios( *out );
-      rc->conv_pipe->dump_ops( *out, 1 );
+      rc->conv_pipe->dump_ops( *out );
     }
 
     p_ostream out;

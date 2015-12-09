@@ -152,7 +152,7 @@ namespace boda
     if( csi_out.valid() ) { rt_err( "unhandled: node with multiple writers:"+node_out->name ); }
 
     // FIXME?: for now, we don't try to calculate support info for bck operations 
-    if( cop->is( BckConv_coi ) ) { // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
+    if( cop->is( BckConv_coi ) ) {
     } else if( cop->is( Spreading_coi ) ) { 
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
@@ -166,6 +166,7 @@ namespace boda
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
 	p_conv_node_t const & j_node = must_get_node(*j);
 	conv_support_info_t const & csi_in = j_node->csi;
+	if( !csi_in.valid() ) {  rt_err( "calc_support_info(): needed input support info for node not set. node name: " + str(*j) ); }
 	if( (j == cop->bots.begin()) || (csi_in.support_stride.dims_max() > csi_out.support_stride.dims_max()) ) { // first input or bigger stride
 	  if( j != cop->bots.begin() ) { 
 	    printf( "WARNING: unhandled Concat layer '%s' with different strided inputs. "
@@ -181,9 +182,12 @@ namespace boda
       }
     } else {    
       assert_st( cop->has_one_top() );
-      if( cop->bots.size() != 1 ) { rt_err( "calc_support_forward_op(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+      if( !cop->is( Convolution_coi ) ) { 
+	if( cop->bots.size() != 1 ) { rt_err( "calc_support_forward_op(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+      }
       p_conv_node_t const & j_node = must_get_node(cop->bots[0]);
       conv_support_info_t const & csi_in = j_node->csi;
+      if( !csi_in.valid() ) {  rt_err( "calc_support_info(): needed input support info for node not set. node name: " + str(cop->bots[0]) ); }
       u32_pt_t const in_sz_1x1 = cop->out_sz_to_in_sz( u32_pt_t(1,1), ignore_padding ); // == cop.kern_sz (if ign_pad)
       if( in_sz_1x1.is_zeros() || csi_in.support_sz.is_zeros() )  { // special values that means use all input
 	csi_out.support_sz = u32_pt_t{};
@@ -209,16 +213,9 @@ namespace boda
   }
   // generally more sensible to with ignore_padding_for_support = 1 (but possibly interesting if = 0 too)
   void conv_pipe_t::calc_support_info( bool const ignore_padding ) {
-    // support info for all root inputs should already be set by data layers. if not, it's a fatal error.
-    vect_string unhandled_inputs;
-    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
-      p_conv_node_t const & node = must_get_node( *i );
-      conv_support_info_t & csi = node->csi;
-      if( !csi.valid() ) { unhandled_inputs.push_back( *i ); }
-    }
-    if( !unhandled_inputs.empty() ) {
-      rt_err( "calc_support_info(): had unhandled/unknown inputs (not data layer output, not filts/biases): " + str(unhandled_inputs) ); 
-    }
+    // support info for all needed root inputs should already be set by data layers. if not, it's a fatal error later
+    // when we try to use it. note that support info for inputs/sources such as the filts/biases are not used and need
+    // not be set.
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_support_forward_rec( *i, ignore_padding ); }
   }
@@ -231,7 +228,7 @@ namespace boda
     
     if( cop->is( BckConv_coi ) ) { // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
       printf( "cop->tag=%s cop->tops=%s cop->bots=%s\n", str(cop->tag).c_str(), str(cop->tops).c_str(), str(cop->bots).c_str() );
-      for( uint32_t i = 0; i != 1; ++i ) { // propogate # chans
+      for( uint32_t i = 0; i != 3; ++i ) { // propogate # chans
 	dims_t & od = must_get_node(cop->tops[i])->dims;
 	if( od.size() ) { rt_err( "calc_dims_op(): unhandled: out dims already set (node with multiple writers):" + cop->tops[i] ); }
 	od = must_get_node(cop->bots[i])->dims;
@@ -277,17 +274,26 @@ namespace boda
       dims_out.calc_strides();
     } else {    
       assert_st( cop->has_one_top() );
-      if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
-      dims_t const & dims_in = must_get_node(cop->bots[0])->dims;
+      p_conv_node_t const & j_node = must_get_node(cop->bots[0]);
+      if( cop->is( Convolution_coi ) ) { 
+	u32_pt_t kern_sz = cop->kern_sz;
+	if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( j_node->dims ); } // 'global' input special case
+	dims_t filts_dims( vect_uint32_t{ cop->out_chans, j_node->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
+			   vect_string{ "out_chan", "in_chan", "y", "x" }, 1 );
+	must_get_node( cop->bots[1] )->dims = filts_dims;
+	dims_t bias_dims( vect_uint32_t{ cop->out_chans }, vect_string{ "out_chan" }, 1 );
+	must_get_node( cop->bots[2] )->dims = bias_dims;
+      } else {
+	if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+      }
+      dims_t const & dims_in = j_node->dims;
       assert_st( cop->stride.both_dims_non_zero() ); // FIXME: still belongs here? handled in in_sz_to_out_sz?
       dims_out = dims_in; // starting point
       dims_out.must_get_dim_by_name("chan").sz = cop->out_chans ? cop->out_chans : dims_in.dsz("chan"); // reset or propogate num_chans
       u32_pt_t const dims_out_sz = cop->in_sz_to_out_sz( get_xy_dims( dims_in ), 0 );
-
       if( dims_out_sz.both_dims_non_zero() ) { // calculate used_sz for debugging/informational output in dump_ios()
-	must_get_node(cop->bots[0])->cio.used_sz.max_eq( cop->out_sz_to_in_sz( dims_out_sz, 0 ) ); 
+	j_node->cio.used_sz.max_eq( cop->out_sz_to_in_sz( dims_out_sz, 0 ) ); 
       } // else if there's no output, we used no input (used_sz left at zero)
-      
       set_xy_dims( dims_out, dims_out_sz );
       dims_out.calc_strides();
     }
@@ -323,7 +329,8 @@ namespace boda
     u32_pt_t const & xy_dims_out = get_xy_dims( node_out->dims );
     p_conv_op_t cop = maybe_get_single_writer( node_out );
     if( !cop ) { return; } // reached source, done
-    assert_st( cop->has_one_top_one_bot() );
+    if( !cop->is( Convolution_coi ) ) { assert_st( cop->has_one_top_one_bot() ); }
+    else { assert_st( cop->tops.size() == 1 ); }
     p_conv_node_t node_in = must_get_node(cop->bots[0]);
     u32_pt_t xy_dims_in = get_xy_dims( node_in->dims );
     if( xy_dims_in.is_zeros() ) { rt_err( "internal error: !cio_in.valid() in calc_sizes_back_rec() at node:"+node_out->name ); }
@@ -355,10 +362,12 @@ namespace boda
       for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) { out << " " << *i; }
       out << strprintf("\n");
     }
-    conv_support_info_t const & csi = node->csi;
-    out << strprintf( "support_sz=%s support_stride=%s eff_tot_pad=%s\n", 
-		      str(csi.support_sz).c_str(), 
-		      str(csi.support_stride).c_str(), str(csi.eff_tot_pad).c_str() );
+    if( !node->dims.get_dim_by_name( "out_chan" ) ) { // FIXME: for compatibility, for now, skip filts/biases
+      conv_support_info_t const & csi = node->csi;
+      out << strprintf( "support_sz=%s support_stride=%s eff_tot_pad=%s\n", 
+			str(csi.support_sz).c_str(), 
+			str(csi.support_stride).c_str(), str(csi.eff_tot_pad).c_str() );
+    }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
@@ -381,14 +390,16 @@ namespace boda
       for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) { out << " " << *i; }
       out << strprintf(")");
     }
-    u32_pt_t const & used_sz = node->cio.used_sz;
-    u32_pt_t const xy_sz = get_xy_dims( node->dims );
-    out << strprintf( "sz=%s -> ", str(xy_sz).c_str() );
-    string size_err;
-    if( xy_sz != used_sz ) { 
-      if( (used_sz.d[0] > xy_sz.d[0]) || (used_sz.d[1] > xy_sz.d[1]) ) { size_err += "IMPLICIT PAD; "; }
-      if( (used_sz.d[0] < xy_sz.d[0]) || (used_sz.d[1] < xy_sz.d[1]) ) { size_err += "DATA DISCARDED; "; }
-      out << strprintf( "[%sused_sz=%s] -> ", size_err.c_str(), str(used_sz).c_str() );
+    if( !node->dims.get_dim_by_name( "out_chan" ) ) { // FIXME: for compatibility, for now, skip filts/biases
+      u32_pt_t const & used_sz = node->cio.used_sz;
+      u32_pt_t const xy_sz = get_xy_dims( node->dims );
+      out << strprintf( "sz=%s -> ", str(xy_sz).c_str() );
+      string size_err;
+      if( xy_sz != used_sz ) { 
+	if( (used_sz.d[0] > xy_sz.d[0]) || (used_sz.d[1] > xy_sz.d[1]) ) { size_err += "IMPLICIT PAD; "; }
+	if( (used_sz.d[0] < xy_sz.d[0]) || (used_sz.d[1] < xy_sz.d[1]) ) { size_err += "DATA DISCARDED; "; }
+	out << strprintf( "[%sused_sz=%s] -> ", size_err.c_str(), str(used_sz).c_str() );
+      }
     }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
@@ -425,63 +436,26 @@ namespace boda
     for( uint32_t i = 0; i != dims.size(); ++i ) { if( i ) { out << ","; } out << dims[i].name; }
     out << "\n";
   }
-  
-  string get_conv_as_sgemm( string const & top_name, string const & bot_name, string const & filts_name,
-			    uint32_t const M, uint32_t const N, uint32_t const K, string const & extra_params ) {
-    // FIXME: predates sz->dims conversion -- can't use num_img in pyIR like this anymore, need to use dims.dsz("img")
-    // at this level and emit num_imgs as constant
-    string const buf_name = bot_name + "_one_row_per_patch_buf";
-    string ret;
-    ret += strprintf( "net.ndas[\"%s\"] = NDA(\"%s\",%u,%u)\n",buf_name.c_str(),buf_name.c_str(),M,N);
-    ret += strprintf( "for i in range(0,num_img):\n" );
-    ret += strprintf( "  patches_to_rows( src=%s[i,:,:,:], dest=%s, %s ) # one copy per output elem\n",
-		      bot_name.c_str(),buf_name.c_str(), extra_params.c_str() );
-    ret += strprintf( "  %s = %s * transpose(reshape(%s,%u,%u)) # sgemm: MxNxK == %ux%ux%u\n", top_name.c_str(),buf_name.c_str(), 
-		      filts_name.c_str(),K,N,M,N,K );
-    return ret;
-  }
-
-  void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop, bool const expanded_ops ) {
+  // FIXME: expanded_ops support removed for now, as it was incorrect/incomplete post sz->dim refactoring. unneeded? see
+  // prior version in git if ressurection desired.
+  void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     string extra_params;
-    string expanded_op;
     char const * const tag_id = cop->tag.c_str();
     
     string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
-    uint32_t M = 0, N = 0, K = 0;
-    if( cop->is( Convolution_coi ) || cop->is( InnerProduct_coi ) ) {
-      dims_t const & in_dims = pipe->must_get_node( cop->bots[0] )->dims;
-      uint32_t const in_chans = in_dims.dsz("chan");
-      u32_pt_t kern_sz = cop->kern_sz;
-      if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( in_dims ); } // 'global' input special case
-
-      out << strprintf( "net.ndas[\"%s_filts\"] = NDA(\"%s_filts\",%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
-			tag_id, tag_id, str(cop->out_chans).c_str(), str(in_chans).c_str(),
-			str(kern_sz.d[1]).c_str(), str(kern_sz.d[0]).c_str() );
-      out << strprintf( "net.ndas[\"%s_biases\"] = NDA(\"%s_biases\",%s) # SOURCE out_chan\n", 
-			tag_id, tag_id, str(cop->out_chans).c_str() );
-      extra_params = strprintf( ",filts_name=\"%s_filts\",biases_name=\"%s_biases\"", tag_id, tag_id );
-
-      // see FIXME in get_conv_as_sgemm() ...
-      assert_st( cop->tops.size() == 1 );
-      M = get_xy_dims( pipe->must_get_node( cop->tops[0] )->dims ).dims_prod();
-      N = kern_sz.d[0]*kern_sz.d[1]*in_chans;
-      K = cop->out_chans;
-      expanded_op = get_conv_as_sgemm(cop->tops[0],cop->bots[0],cop->tag+"_filts",M,N,K,pad_and_stride);
+    if( cop->is( Convolution_coi ) ) { // FIXME: used to handle cop->is( InnerProduct_coi ), not needed?
+      print_blob_decl( out, cop->bots[1], pipe->must_get_node( cop->bots[1] ) );
+      print_blob_decl( out, cop->bots[2], pipe->must_get_node( cop->bots[2] ) );
+      extra_params = strprintf( ",filts_name=\"%s\",biases_name=\"%s\"", cop->bots[1].c_str(), cop->bots[2].c_str() );
     }
     // print decls for all of this ops output nodes here
-    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) {
-      print_blob_decl( out, *i, pipe->must_get_node(*i) ); 
-    }
+    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { print_blob_decl( out, *i, pipe->must_get_node(*i) ); }
     // print acutal op
-    if( expanded_ops && !expanded_op.empty() ) { out << expanded_op; }
-    else {
-      out << strprintf( "%s(name=\"%s\",bot_names=%s,top_names=%s%s,\n\t%s)\n", 
-			cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(),
-			extra_params.c_str(), pad_and_stride.c_str() );
-    }
+    out << strprintf( "%s(name=\"%s\",bot_names=%s,top_names=%s%s,\n\t%s)\n", 
+		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(),
+		      extra_params.c_str(), pad_and_stride.c_str() );
   }
-
-  void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name, bool const & expand_ops ) {
+  void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
     // print source nodes here, otherwise print with thier writing op
     if( node->top_for.empty() ) { print_blob_decl( out, node_name, node ); }
@@ -494,13 +468,13 @@ namespace boda
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      print_op_decl( out, this, cop, expand_ops );
-      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { dump_ops_rec( out, *j, expand_ops ); }
+      print_op_decl( out, this, cop );
+      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { dump_ops_rec( out, *j ); }
     }
   }
-  void conv_pipe_t::dump_ops( std::ostream & out, bool const & expand_ops ) {
+  void conv_pipe_t::dump_ops( std::ostream & out ) {
     topo_visit_setup();
-    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i, expand_ops ); }
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i ); }
   }
 
   // running test case for add_bck_ops/gradient calculations:
@@ -536,18 +510,11 @@ namespace boda
       p_conv_op_t bcop( new conv_op_t );
       *bcop = *cop;
       bcop->type = BckConv_coi.type;
-      // currently, the 'regular' fwd conv has implicit filts/biases inputs. for now, we're going to make them explicit
-      // here for BckConv. see TODO item. FIXME: note dup'd code with rtc_fwd.cc
-      //bcop->bots.push_back( bcop->tag + "_filts" ); // FIXME_EFB
-      //bcop->bots.push_back( bcop->tag + "_biases" ); // FIXME_EFB
       bcop->bots.push_back( bcop->tops[0] + "_grad_loss" ); // take _grad_loss of fwd conv output as input as well
-      bcop->tops.clear(); for( uint32_t i = 0; i != 1; ++i ) { bcop->tops.push_back( bcop->bots[i] + "_grad_loss" ); } // outputs grads
+      bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { bcop->tops.push_back( bcop->bots[i] + "_grad_loss" ); } // outputs grads
       bcop->tag += "_bck";
-      if( !has( *nodes, bcop->bots[1] ) ) { printf( "FIXME: BckConv: missing bot: bcop->bots[3]=%s -- op dropped.\n", str(bcop->bots[1]).c_str() ); }
-      else { 
-	//printf( "FIXME_EFB: not adding BckConv: cop->tag=%s\n", str(cop->tag).c_str() );
-	add_conv( bcop ); 
-      }
+      if( !has( *nodes, bcop->bots.back() ) ) { printf( "FIXME: BckConv: missing bot: bcop->bots.back()=%s -- op dropped.\n", str(bcop->bots.back()).c_str() ); }
+      else { add_conv( bcop ); }
     } else {
       printf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
     }
@@ -654,7 +621,7 @@ namespace boda
     uint32_t in_chans; //NESI(default=3,help="number of input chans (used only to properly print number of input chans)")
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
 
-    uint32_t print_ops; //NESI(default=0,help="if non-zero, print ops. note: requires in_sz to be set.")
+    uint32_t print_ops; //NESI(default=0,help="if non-zero, print ops. note: uses in_sz of (1,1) if in_sz not set.")
 
     uint32_t ignore_padding_for_support; //NESI(default=1,help="if 1, ignore any padding specified when calculating the support_size for a single pel for each layer")
 #if 0
@@ -671,15 +638,19 @@ namespace boda
       string cur_node_name = "input";
 
       p_conv_node_t const data_img_node = conv_pipe->get_or_make_node(cur_node_name, 0, 0 );
-      assert( !data_img_node->csi.valid() );
-      data_img_node->csi.support_sz = u32_pt_t(1,1);
-      data_img_node->csi.support_stride = u32_pt_t(1,1);
+      data_img_node->csi.init_as_source();
       data_img_node->dims = dims_t( vect_uint32_t{ 1, in_chans, in_sz ? *in_sz : 1, in_sz ? *in_sz : 1 }, vect_string{ "img", "chan", "y", "x" }, 1 );
 
       for( vect_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) {
 	p_conv_op_t cop( new conv_op_t( *i ) );
 	assert_st( cop->tops.empty() && cop->bots.empty() );
 	cop->bots.push_back( cur_node_name );
+	if( cop->type == Convolution_coi.type ) { 
+	  cop->bots.push_back( cop->tag + "_filts" );  
+	  conv_pipe->get_or_make_node( cop->bots.back(), 0, 0 )->csi.init_as_source();
+	  cop->bots.push_back( cop->tag + "_biases" );
+	  conv_pipe->get_or_make_node( cop->bots.back(), 0, 0 )->csi.init_as_source();
+	}
 	cur_node_name = cop->tag + "_out";
 	cop->tops.push_back( cur_node_name );
 	conv_pipe->add_conv( cop );
@@ -693,9 +664,8 @@ namespace boda
       if( in_sz ) { 
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
 	conv_pipe->dump_ios( *out ); 
-	if( print_ops ) { conv_pipe->dump_ops( *out, 0 ); }
       }
-
+      if( print_ops ) { conv_pipe->dump_ops( *out ); }
       if( out_sz ) { 
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
 	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), 0 ); // ignore_padding_for_sz ); 

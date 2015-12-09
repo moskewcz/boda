@@ -21,7 +21,7 @@ namespace boda
     u32_pt_t num_tops; // min,max
   };
   conv_op_info_t const Pooling_coi{ "Pooling", {1,1}, {1,1} };
-  conv_op_info_t const Convolution_coi{ "Convolution", {1,1}, {1,1} }; // FIXME_EFB
+  conv_op_info_t const Convolution_coi{ "Convolution", {3,3}, {1,1} }; // { in, filts, biases } --> { out }
   conv_op_info_t const ReLU_coi{ "ReLU", {1,1}, {1,1} };
   conv_op_info_t const Dropout_coi{ "Dropout", {1,1}, {1,1} };
   conv_op_info_t const LRN_coi{ "LRN", {1,1}, {1,1} };
@@ -36,11 +36,8 @@ namespace boda
   // other ops. so we try to understand what they do functionally and name them accordingly.
   conv_op_info_t const Spreading_coi{ "Spreading", {3,3}, {1,1} }; // { out, out_grad_loss, in } --> { in_grad_loss }
   conv_op_info_t const ZeroIfNeg_coi{ "ZeroIfNeg", {2,2}, {1,1} }; // { in, cond } --> { out } // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
-  // FIXME_EFB: { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
-  // otherwise: { in, out_grad_loss } --> { in_grad_loss }
-  conv_op_info_t const BckConv_coi{ "BckConv", {2,2}, {1,1} }; 
+  conv_op_info_t const BckConv_coi{ "BckConv", {4,4}, {3,3} }; // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
   
-
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -160,8 +157,8 @@ namespace boda
     void dump_pipe( std::ostream & out );
     void dump_ios_rec( std::ostream & out, string const & node_name );
     void dump_ios( std::ostream & out );
-    void dump_ops_rec( std::ostream & out, string const & node_name, bool const & expand_ops );
-    void dump_ops( std::ostream & out, bool const & expand_ops );
+    void dump_ops_rec( std::ostream & out, string const & node_name );
+    void dump_ops( std::ostream & out );
 
     void add_bck_ops_op( p_conv_op_t const & cop );
     void add_bck_ops_rec( string const & node_name );

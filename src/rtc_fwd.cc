@@ -415,17 +415,8 @@ namespace boda
   void conv_pipe_fwd_t::gen_conv_filts( p_op_info_t const & oi ) {
     bool const did_ins = filts_names.insert( oi->cop->tag ).second; 
     if( !did_ins ) { return; } // filts already set up for this op
-    string const filts_id = oi->cop->tag + "_filts";
-    string const filtsxp_id = filts_id + "_xposed";
-    string const biases_id = oi->cop->tag + "_biases";
-    rtc->create_var_with_dims_floats( filts_id, oi->conv_ref_dims["filts"] );
-    op_param_names.push_back( filts_id );
-    rtc->create_var_with_dims_floats( filtsxp_id, oi->conv_ref_dims["filtsxp"] );
-    // FIXME: probably not right to use the conv op's oi here. but params should be empty; oi->call_tag is okay to use
-    // (since the called func is appended). let's revisit when we're further along with gen_call() refactoring ...
-    gen_call( "xpose_filts", oi, { filts_id, filtsxp_id }, {}, 1 ); 
-    rtc->create_var_with_dims_floats( biases_id, oi->conv_ref_dims["biases"] );
-    op_param_names.push_back( biases_id );
+    op_param_names.push_back( oi->cop->bots[1] );
+    op_param_names.push_back( oi->cop->bots[2] );
   }
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
@@ -460,17 +451,15 @@ namespace boda
       gen_call( "pool", oi, {oi->ni->name,oi->no->name}, oi->conv_ref_dims );
     } else if( oi->is_conv ) {
       gen_conv_filts( oi );
-      // FIXME: decls dup'd with gen_conv_filts()
-      string const filts_id = oi->cop->tag + "_filts";
-      string const filtsxp_id = filts_id + "_xposed";
-      string const biases_id = oi->cop->tag + "_biases";
       string const in_id = cop->bots[0];
       dims_t const & in_dims = rtc->get_var_dims_floats( in_id );
-
-      vect_string in_arg_ids{ filtsxp_id, biases_id };
-
-      if( force_zero_bias ) { force_zero_names.insert( biases_id ); }
+      if( force_zero_bias ) { force_zero_names.insert( cop->bots[2] ); }
       dims_t const & conv_in_dims = oi->conv_ref_dims["in"];
+      vect_string in_arg_ids;
+      string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", {cp->must_get_node(cop->bots[1])->dims,oi->conv_ref_dims["filtsxp"]}, 
+	    oi->conv_ref_dims, oi->template_var_values } );
+      in_arg_ids.push_back( gen_apply_func_to_var( cop->bots[1], oi->conv_ref_dims["filtsxp"], filts_xp_fn ) ); // filts
+      in_arg_ids.push_back( cop->bots[2] ); // biases
       if( oi->cts == tconv_str ) {
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,conv_in_dims}, oi->conv_ref_dims, oi->template_var_values } );
 	in_arg_ids.push_back( gen_apply_func_to_var( in_id, conv_in_dims, xp_fn ) );
@@ -482,7 +471,6 @@ namespace boda
       } else {
 	in_arg_ids.push_back( in_id );
       }
-
       dims_t no_dims = oi->conv_ref_dims["out_ref"];
       if( oi->cts == k1conv_str ) { 
 	p_op_info_t noi;
@@ -525,16 +513,9 @@ namespace boda
       gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->bots[2], cop->tops[0] } );
     } else if( cop->is( ZeroIfNeg_coi ) ) {
       gen_call( cop->type, oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
-    } else if( cop->is( BckConv_coi ) ) {
-      // FIXME_EFB: { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
-      // current: { in, out_grad_loss } --> { in_grad_loss }
-      // FIXME_EFB: since filts/biases are implict inputs/outputs, we need to fabricate/recreate thier var names here
-      string fwd_tag = cop->tag;
-      bool const did_strip = maybe_strip_suffix( fwd_tag, "_bck" );
-      assert_st( did_strip );
-      string const filts_id = fwd_tag + "_filts";
-      //string const biases_id = fwd_tag + "_biases";
-      gen_call( "BckConv_in_grad_loss", oi, { cop->bots[0], filts_id, /*biases_id,*/ cop->bots[1], cop->tops[0] } );
+    } else if( cop->is( BckConv_coi ) ) { 
+      // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
+      gen_call( "BckConv_in_grad_loss", oi, { cop->bots[0], cop->bots[1], /*cop->bots[2](aka biases_id),*/ cop->bots[3], cop->tops[0] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
@@ -1281,7 +1262,7 @@ namespace boda
 	(*out) << strprintf( "per_layer_time['%s']=per_layer_time.get('%s',0.0) + %s # %s \n", 
 			     str(rfc.call_tag).c_str(), str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), rfc.rtc_func_name.c_str() );
       }
-      cp->dump_ops( *out, 0 );
+      cp->dump_ops( *out );
     }
     //printf("run_fwd() copy out\n");
     rtc->copy_vars_to_ndas( to_get_vns, *fwd ); // copy requested vars out
