@@ -50,6 +50,19 @@ namespace boda
     }
   }
 
+  void copy_nda_to_caffe_blob( p_nda_float_t const & nda, Blob<float> * const blob, bool const set_diff ) {
+    dims_t const & nda_dims = nda->dims;
+    assert_st( nda_dims.sz() == uint32_t(blob->num_axes()) );
+    for( uint32_t i = 0; i != nda_dims.sz(); ++i ) { assert_st( nda_dims.dims(i) == uint32_t(blob->shape(i)) ); }
+    assert_st( nda->elems.sz == uint32_t(blob->count()) );
+    float * const src = &nda->elems[0];
+    switch (Caffe::mode()) {
+    case Caffe::CPU: memcpy( set_diff ? blob->mutable_cpu_diff() : blob->mutable_cpu_data(), src, sizeof(float) * blob->count()); break;
+    case Caffe::GPU: cudaMemcpy( set_diff ? blob->mutable_gpu_diff() : blob->mutable_gpu_data(), src, sizeof(float) * blob->count(), cudaMemcpyHostToDevice); break;
+    default: LOG(FATAL) << "Unknown Caffe mode.";
+    }  // switch (Caffe::mode())
+  }
+
   void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_set_layer_blob_data");
     shared_ptr< caffe::Layer<float> > layer = net_->layer_by_name( layer_name );
@@ -57,22 +70,11 @@ namespace boda
     const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     assert_st( blobs.size() == layer_blobs.size() );
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
-      p_nda_float_t const & blob = blobs[bix];
+      p_nda_float_t const & nda = blobs[bix];
       Blob<float> * const layer_blob = layer_blobs[bix].get();
-      dims_t const & blob_dims = blob->dims;
-      assert_st( blob_dims.sz() == uint32_t(layer_blob->num_axes()) );
-      for( uint32_t i = 0; i != blob_dims.sz(); ++i ) { assert_st( blob_dims.dims(i) == uint32_t(layer_blob->shape(i)) ); }
-      assert_st( blob->elems.sz == uint32_t(layer_blob->count()) );
-
-      const float * const data_ptr = &blob->elems[0];
-      switch (Caffe::mode()) {
-      case Caffe::CPU: memcpy( layer_blob->mutable_cpu_data(), data_ptr, sizeof(float) * layer_blob->count()); break;
-      case Caffe::GPU: cudaMemcpy( layer_blob->mutable_gpu_data(), data_ptr, sizeof(float) * layer_blob->count(), cudaMemcpyHostToDevice); break;
-      default: rt_err( "Unknown Caffe mode." );
-      }  // switch (Caffe::mode())
-    }
+      copy_nda_to_caffe_blob( nda, layer_blob, 0 ); 
+    }  // switch (Caffe::mode())
   }
-
 
   void copy_caffe_blob_to_nda( Blob<float> * const blob, bool const get_diff, p_nda_float_t const & nda ) {
     dims_t const & nda_dims = nda->dims;
@@ -159,14 +161,7 @@ namespace boda
       if( !ib ) { rt_err( strprintf("gettting caffe blob for setting inputs: node '%s' from to_set_vns not found in network (note: do_bck=%s).\n",
 				    (*i).c_str(), str(do_bck).c_str() )); }
       p_nda_float_t const & ib_nda = must_find( *fwd, *i );
-      //printf( "ib_nda->dims=%s ib->shape()=%s\n", str(ib_nda->dims).c_str(), str(ib->shape()).c_str() );
-      assert_st( ib_nda->elems.sz == uint32_t(ib->count()) );
-      const float* const data_ptr = &ib_nda->elems[0];
-      switch ( Caffe::mode() ) {
-        case Caffe::CPU:	memcpy(ib->mutable_cpu_data(), data_ptr, sizeof(float) * ib->count()); break;
-        case Caffe::GPU:	cudaMemcpy(ib->mutable_gpu_data(), data_ptr, sizeof(float) * ib->count(), cudaMemcpyHostToDevice); break;
-        default:	rt_err( "Unknown Caffe mode." );
-      }  // switch (Caffe::mode())
+      copy_nda_to_caffe_blob( ib_nda, ib.get(), 0 );
     }
     //const vector<Blob<float>*>& output_blobs = net_->ForwardPrefilled();
     if( enable_prof ) { cuProfilerStart(); }
