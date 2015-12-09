@@ -256,12 +256,12 @@ namespace boda
       dims_t & label_dims = must_get_node( cop->bots[1] )->dims;
       if( label_dims.empty() ) { label_dims = implied_label_dims; }
       else if( label_dims != implied_label_dims ) { rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing xy size or # imgs" ); }
-#if 0
-      // FIXME: use dims_out.dsz("chan") to set max_val in the cio or elsewhere and/or check that it is equal
-      uint32_t const implied_max_val = dims_out.dsz("chan");
-      if( max_val == 0 ) { max_val = implied_max_val; }
-      if( max_val != implied_max_val  ) { rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing #s of chans." ); }
-#endif
+
+      uint32_t & label_max_val = must_get_node( cop->bots[1] )->cio.max_val;
+      uint32_t const implied_label_max_val = dims_out.dsz("chan");
+      if( label_max_val == 0 ) { label_max_val = implied_label_max_val; }
+      if( label_max_val != implied_label_max_val  ) { rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing #s of chans." ); }
+
     } else if( cop->is( Concat_coi ) ) {
       assert_st( cop->has_one_top() ); 
       uint32_t dims_out_chans = 0; // start at zero for concat layer accumulation across inputs case
@@ -411,7 +411,6 @@ namespace boda
       if( fwd_top ) { 
 	assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
 	cio.sz = fwd_top->cio.sz;
-	cio.max_val = fwd_top->dims.dsz("chan");
       } 
       assert_st( !cio.sz.is_zeros() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
     } 
