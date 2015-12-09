@@ -67,10 +67,12 @@ namespace boda
     dims_t const & get_out_dims( bool const & from_upsamp_net );
     u32_pt_t get_out_sz( bool const & from_upsamp_net ) { return get_xy_dims( get_out_dims(from_upsamp_net) ); }
     uint32_t get_out_chans( bool const & from_upsamp_net ) { return get_out_dims(from_upsamp_net).dsz("chan"); }
+    uint32_t get_ceil_sqrt_out_chans( bool const & from_upsamp_net ) { return u32_ceil_sqrt( get_out_chans(from_upsamp_net) ); }
+
     u32_pt_t get_one_blob_img_out_sz( void ) { return get_out_sz(0).scale( u32_ceil_sqrt( get_out_chans(0) ) ); } // assumes/includes chans_to_area conv.
 
-    uint32_t out_s;
-    run_cnet_t( void ) : out_s(0) { }
+    //uint32_t out_s;
+    run_cnet_t( void ) { }
     p_net_param_t net_param;
   private:
     p_net_param_t upsamp_net_param;

@@ -162,7 +162,6 @@ namespace boda
     // load weights into pipe
     p_net_param_t trained_net = must_read_binary_proto( trained_fn );
     copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
-    out_s = u32_ceil_sqrt( get_out_chans(0) );
 
     assert_st( conv_fwd );
     conv_fwd->init( conv_pipe );
@@ -204,7 +203,7 @@ namespace boda
       copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe_upsamp );
       create_upsamp_layer_weights( conv_pipe, net_param->layer(upsamp_layer_ix).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(upsamp_layer_ix).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
-      assert_st( out_s == u32_ceil_sqrt( get_out_chans(1) ) ); // FIXME: too strong?
+      assert_st( get_out_chans(0) == get_out_chans(1) ); // FIXME: too strong?
       assert_st( conv_fwd_upsamp );
       conv_fwd_upsamp->init( conv_pipe_upsamp ); 
       assert_st( in_batch_dims == conv_pipe_upsamp->get_data_img_dims() ); // check that input batch dims agree
@@ -268,7 +267,7 @@ namespace boda
     u32_pt_t const & feat_sz = get_out_sz(0);
     i32_box_t const valid_feat_box{{},u32_to_i32(feat_sz)};
     assert_st( valid_feat_box.is_strictly_normalized() );
-    i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
+    i32_box_t const valid_feat_img_box = valid_feat_box.scale(get_ceil_sqrt_out_chans(0));
     nominal_in_sz = conv_pipe->get_data_img_xy_dims_3_chans_only();
     scale_infos.push_back( scale_info_t{nominal_in_sz,0,0,{},valid_feat_box,valid_feat_img_box} );
     assert_st( !enable_upsamp_net ); // unhandled(/nonsensical?)
@@ -303,7 +302,7 @@ namespace boda
       i32_box_t valid_feat_box;
       in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_out_csi(0) );
       assert_st( valid_feat_box.is_strictly_normalized() );      
-      i32_box_t valid_feat_img_box = valid_feat_box.scale(out_s);
+      i32_box_t valid_feat_img_box = valid_feat_box.scale(get_ceil_sqrt_out_chans(0));
       scale_infos.push_back( scale_info_t{sz,0,bix,dest,valid_feat_box,valid_feat_img_box} ); // note: from_upsamp_net=0
 
       // if we're in the first placed octave, and the upsampling net
@@ -317,7 +316,7 @@ namespace boda
 
 	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_out_csi(1) );
 	assert_st( valid_feat_box.is_strictly_normalized() );
-	valid_feat_img_box = valid_feat_box.scale(out_s); // FIXME: sort-of-not-right (wrong net out_s)
+	valid_feat_img_box = valid_feat_box.scale(get_ceil_sqrt_out_chans(1)); 
 	scale_infos[six] = scale_info_t{sz,1,bix,dest,valid_feat_box,valid_feat_img_box}; // note: from_upsamp_net=1
       }
     }

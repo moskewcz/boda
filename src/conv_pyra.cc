@@ -89,7 +89,7 @@ namespace boda
     // FIXME: dup'd with cap_app.cc
     void anno_feat_img_xy( u32_pt_t const & feat_xy ) {
       u32_box_t feat_pel_box{feat_xy,feat_xy+u32_pt_t{1,1}};
-      i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(cnet_predict->out_s));
+      i32_box_t const feat_img_pel_box = u32_to_i32(feat_pel_box.scale(cnet_predict->get_ceil_sqrt_out_chans(0)));
       feat_annos->push_back( anno_t{feat_img_pel_box, rgba_to_pel(170,40,40), 0, 
 	    str(feat_xy), rgba_to_pel(220,220,255) } );
     } 
@@ -97,7 +97,7 @@ namespace boda
     void feat_pyra_anno_for_xy( uint32_t const bix, u32_pt_t const & pyra_img_xy ) {
       feat_annos->clear();
       img_annos->clear();
-      u32_pt_t const pyra_xy = floor_div_u32( pyra_img_xy, cnet_predict->out_s );
+      u32_pt_t const pyra_xy = floor_div_u32( pyra_img_xy, cnet_predict->get_ceil_sqrt_out_chans(0) );
       for( vect_scale_info_t::const_iterator i = cnet_predict->scale_infos.begin(); i != cnet_predict->scale_infos.end(); ++i ) {
 	if( i->from_upsamp_net ) { continue; } // wrong net
 	if( i->bix != bix ) { continue; } // wrong plane
