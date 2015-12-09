@@ -439,7 +439,7 @@ namespace boda
     if( cop->is( Convolution_coi ) ) { 
       dims_t & dims_in = pipe->must_get_node( cop->bots[0] )->dims;
       u32_pt_t kern_sz = cop->kern_sz;
-      if( kern_sz.is_zeros() ) { kern_sz = xy_dims( dims_in ); } // 'global' input special case
+      if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( dims_in ); } // 'global' input special case
       dims_t filt_dims( vect_uint32_t{ cop->out_chans, dims_in.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
 			vect_string{ "out_chan", "in_chan", "y", "x" } );
       blobs.push_back( p_nda_float_t( new nda_float_t( filt_dims ) ) );

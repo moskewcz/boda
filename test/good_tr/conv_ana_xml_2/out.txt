@@ -19,5 +19,5 @@ support_sz=195 195 support_stride=32 32 eff_tot_pad=(64 64)(64 64)
 == END CONV PIPE ==
 >> calculating network sizes forward given an in_sz of 227
 CONV_IOS: sz=227 227 -> conv1 -> sz=55 55 -> pool1 -> sz=27 27 -> conv2 -> sz=27 27 -> pool2 -> sz=13 13 -> conv3 -> sz=13 13 -> conv4 -> sz=13 13 -> conv5 -> sz=13 13 -> pool5 -> sz=6 6 -> [DATA DISCARDED; used_sz=0 0] -> 
->> calculating network sizes backward given an out_sz of 6
-CONV_IOS: sz=227 227 -> conv1 -> sz=55 55 -> pool1 -> sz=27 27 -> conv2 -> sz=27 27 -> pool2 -> sz=13 13 -> conv3 -> sz=13 13 -> conv4 -> sz=13 13 -> conv5 -> sz=13 13 -> pool5 -> sz=6 6 -> [DATA DISCARDED; used_sz=0 0] -> 
+>> calculating network sizes backward given an out_sz of 12
+CONV_IOS: sz=419 419 -> conv1 -> sz=103 103 -> pool1 -> sz=51 51 -> conv2 -> sz=51 51 -> pool2 -> sz=25 25 -> conv3 -> sz=25 25 -> conv4 -> sz=25 25 -> conv5 -> sz=25 25 -> pool5 -> sz=12 12 -> [DATA DISCARDED; used_sz=0 0] -> 

@@ -283,8 +283,13 @@ namespace boda
       assert_st( cop->stride.both_dims_non_zero() ); // FIXME: still belongs here? handled in in_sz_to_out_sz?
       dims_out = dims_in; // starting point
       dims_out.must_get_dim_by_name("chan").sz = cop->out_chans ? cop->out_chans : dims_in.dsz("chan"); // reset or propogate num_chans
-      u32_pt_t const dims_out_sz = cop->in_sz_to_out_sz( xy_dims( dims_in ), 0 );
-      dims_out.must_get_dim_by_name("y").sz = dims_out_sz.d[1]; dims_out.must_get_dim_by_name("x").sz = dims_out_sz.d[0];
+      u32_pt_t const dims_out_sz = cop->in_sz_to_out_sz( get_xy_dims( dims_in ), 0 );
+
+      if( dims_out_sz.both_dims_non_zero() ) { // calculate used_sz for debugging/informational output in dump_ios()
+	must_get_node(cop->bots[0])->cio.used_sz.max_eq( cop->out_sz_to_in_sz( dims_out_sz, 0 ) ); 
+      } // else if there's no output, we used no input (used_sz left at zero)
+      
+      set_xy_dims( dims_out, dims_out_sz );
       dims_out.calc_strides();
     }
     for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { calc_dims_rec( *i ); }
@@ -340,12 +345,9 @@ namespace boda
       if( (cop->bots.size() != 1) && !cop->is(Concat_coi) ) { 
 	rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
       for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
-	conv_io_t & cio_in = must_get_node(*j)->cio; // note: non-const since cio_in.used_sz is updated
+	conv_io_t const & cio_in = must_get_node(*j)->cio;
 	if( j == cop->bots.begin() ) { // first input 
 	  cio_out.sz = cop->in_sz_to_out_sz( cio_in.sz, ignore_padding );
-	  if( cio_out.sz.both_dims_non_zero() ) { 
-	    cio_in.used_sz.max_eq( cop->out_sz_to_in_sz( cio_out.sz, ignore_padding ) );
-	  } // else if there's no output, we used no input (used_sz left at zero)
 	} else { // handle multiple inputs for concat layer (only!)
 	  assert( cop->is( Concat_coi ) );
 	  // x/y dims must agree across all inputs
@@ -416,36 +418,38 @@ namespace boda
     } 
   }
 
+  // note: assumed to be called after sizes are set by set_dims(). overwrites the xy_dims for nodes it touches.
   // note: recursively sturctured, but only works for chains currently. it's unclear what the
   // extention to non-chains would be exactly, but it would seem to depend on handling some
   // particular type of conv_op with >1 input.
   void conv_pipe_t::calc_sizes_back_rec( p_conv_node_t const & node_out, bool const ignore_padding ) {
-    conv_io_t const & cio_out = node_out->cio;
+    u32_pt_t const & xy_dims_out = get_xy_dims( node_out->dims );
     p_conv_op_t cop = maybe_get_single_writer( node_out );
     if( !cop ) { return; } // reached source, done
     assert_st( cop->has_one_top_one_bot() );
-    p_conv_node_t const & node_in = must_get_node(cop->bots[0]);
-    conv_io_t & cio_in = node_in->cio;
-    if( !cio_in.sz.is_zeros() ) { rt_err( "internal error: cio_in.valid() in calc_sizes_back_rec() at node:"+node_out->name ); }
-    if( !cio_out.sz.both_dims_non_zero() ) {
+    p_conv_node_t node_in = must_get_node(cop->bots[0]);
+    u32_pt_t xy_dims_in = get_xy_dims( node_in->dims );
+    if( xy_dims_in.is_zeros() ) { rt_err( "internal error: !cio_in.valid() in calc_sizes_back_rec() at node:"+node_out->name ); }
+    if( !xy_dims_out.both_dims_non_zero() ) {
       rt_err( strprintf( "calc_sizes_back(): unhandled/questionable case: pipeline stage %s output is zero-area.",
 			 cop->tag.c_str() ) );
     }
-    cio_in.sz = cop->out_sz_to_in_sz( cio_out.sz, ignore_padding );
-    cio_in.used_sz = cio_in.sz; // by semantics of out_sz_to_in_sz (but checked below)
-    assert_st( cio_out.sz == cop->in_sz_to_out_sz( cio_in.sz, ignore_padding ) );
+    xy_dims_in = cop->out_sz_to_in_sz( xy_dims_out, ignore_padding );
+    node_in->cio.used_sz = xy_dims_in; // by semantics of out_sz_to_in_sz (but checked below)
+    assert_st( xy_dims_out == cop->in_sz_to_out_sz( xy_dims_in, ignore_padding ) );
+    set_xy_dims( node_in->dims, xy_dims_in );
     calc_sizes_back_rec( node_in, ignore_padding ); // depth-first recursive processing for the input
   }
 
   void conv_pipe_t::calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding ) {
     // initialize support info for single output
     p_conv_node_t const & node = get_single_top_node();
-    conv_io_t & cio = node->cio;
-    assert( cio.sz.is_zeros() );
-    cio.sz = out_sz;
+    u32_pt_t xy_dims_in = get_xy_dims( node->dims );
+    assert( !xy_dims_in.is_zeros() );
+    xy_dims_in = out_sz;
+    set_xy_dims( node->dims, xy_dims_in );
     calc_sizes_back_rec( node, ignore_padding ); // calculate support
   }
-
 
   void conv_pipe_t::dump_pipe_rec( std::ostream & out, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
@@ -480,13 +484,14 @@ namespace boda
       for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) { out << " " << *i; }
       out << strprintf(")");
     }
-    conv_io_t const & cio = node->cio;
-    out << strprintf( "sz=%s -> ", str(cio.sz).c_str() );
+    u32_pt_t const & used_sz = node->cio.used_sz;
+    u32_pt_t const xy_sz = get_xy_dims( node->dims );
+    out << strprintf( "sz=%s -> ", str(xy_sz).c_str() );
     string size_err;
-    if( cio.sz != cio.used_sz ) { 
-      if( (cio.used_sz.d[0] > cio.sz.d[0]) || (cio.used_sz.d[1] > cio.sz.d[1]) ) { size_err += "IMPLICIT PAD; "; }
-      if( (cio.used_sz.d[0] < cio.sz.d[0]) || (cio.used_sz.d[1] < cio.sz.d[1]) ) { size_err += "DATA DISCARDED; "; }
-      out << strprintf( "[%sused_sz=%s] -> ", size_err.c_str(), str(cio.used_sz).c_str() );
+    if( xy_sz != used_sz ) { 
+      if( (used_sz.d[0] > xy_sz.d[0]) || (used_sz.d[1] > xy_sz.d[1]) ) { size_err += "IMPLICIT PAD; "; }
+      if( (used_sz.d[0] < xy_sz.d[0]) || (used_sz.d[1] < xy_sz.d[1]) ) { size_err += "DATA DISCARDED; "; }
+      out << strprintf( "[%sused_sz=%s] -> ", size_err.c_str(), str(used_sz).c_str() );
     }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
@@ -751,9 +756,17 @@ namespace boda
     p_uint32_t in_sz; //NESI(help="calculate sizes at all layers for the given input size and dump pipe")
     uint32_t in_chans; //NESI(default=3,help="number of input chans (used only to properly print number of input chans)")
     p_uint32_t out_sz; //NESI(help="calculate sizes at all layers for the given output size and dump pipe")
-    uint32_t ignore_padding_for_sz; //NESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
+
     uint32_t print_ops; //NESI(default=0,help="if non-zero, print ops. note: requires in_sz to be set.")
+
     uint32_t ignore_padding_for_support; //NESI(default=1,help="if 1, ignore any padding specified when calculating the support_size for a single pel for each layer")
+#if 0
+    // FIXME-MAYBE: we lost the ability to handle ignore-padding for sz during the sz->dims refactoring. we could
+    // perhaps add it back by dynamically removing padding from the input net and/or conv_pipe before doing the various
+    // operations. this might not be quite the same as the old functionality, but maybe that's okay. or maybe we can
+    // ignore this forever.
+    uint32_t ignore_padding_for_sz; //xNESI(default=0,help="if 1, ignore any padding specified when calculating the sizes at each layer for the in_sz or out_sz options")
+#endif
     
     virtual void main( nesi_init_arg_t * nia ) { 
       // convert 'legacy' conv_ana linear pipe input to general net
@@ -780,19 +793,17 @@ namespace boda
       conv_pipe->calc_support_info( ignore_padding_for_support );
       conv_pipe->calc_dims();
       conv_pipe->dump_pipe( *out ); 
-      if( out_sz ) { 
-	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
-	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
-	conv_pipe->dump_ios( *out ); 
-	conv_pipe->clear_sizes();
-      }
-      p_vect_conv_io_t conv_ios;
       if( in_sz ) { 
-	data_img_node->cio.sz = u32_pt_t( *in_sz, *in_sz );
 	(*out) << ">> calculating network sizes forward given an in_sz of " << *in_sz << "\n";
-	conv_pipe->calc_sizes_forward( ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
 	if( print_ops ) { conv_pipe->dump_ops( *out, 0 ); }
+      }
+
+      if( out_sz ) { 
+	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
+	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), 0 ); // ignore_padding_for_sz ); 
+	conv_pipe->dump_ios( *out ); 
+	conv_pipe->clear_sizes();
       }
     }
   };

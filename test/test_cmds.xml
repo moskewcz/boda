@@ -71,8 +71,7 @@
   <li test_name="blf_pack_2"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="50"/></li>
   <li test_name="blf_pack_3"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="100"/></li>
   <li test_name="blf_pack_4"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="500"/></li>
-  <li test_name="conv_ana_1"> <command mode="conv_ana" out_sz="6" in_sz="227" 
-				       ignore_padding_for_support="1" ignore_padding_for_sz="0" ><convs>
+  <li test_name="conv_ana_1"> <command mode="conv_ana" out_sz="6" in_sz="227" ignore_padding_for_support="1"  ><convs>
     <li tag="conv1" type="Convolution" in_pad="0 0 0 0" kern_sz="11 11" stride="4 4"/>
     <li tag="pool1" type="Pooling" in_pad="0 0 0 0" kern_sz="3 3" stride="2 2"/>
     <li tag="conv2" type="Convolution" in_pad="2 2 2 2" kern_sz="5 5" stride="1 1"/>
@@ -82,11 +81,11 @@
     <li tag="conv5" type="Convolution" in_pad="1 1 1 1" kern_sz="3 3" stride="1 1"/>
     <li tag="pool5" type="Pooling" in_pad="0 0 0 0" kern_sz="3 3" stride="2 2"/> 
   </convs></command></li>
-  <li test_name="conv_ana_xml"> <command mode="conv_ana" out_sz="6" in_sz="227" ignore_padding_for_support="1" 
-  ignore_padding_for_sz="0" XML_INC_convs="conv_pyra_pipe.xml:convs"/></li>
+  <li test_name="conv_ana_xml"> <command mode="conv_ana" out_sz="6" in_sz="227" ignore_padding_for_support="1" XML_INC_convs="conv_pyra_pipe.xml:convs"/></li>
+  <li test_name="conv_ana_xml_2"> <command mode="conv_ana" out_sz="12" in_sz="227" ignore_padding_for_support="1" XML_INC_convs="conv_pyra_pipe.xml:convs"/></li>
 <!-- 
   <li test_name="conv_ana_2"> <command mode="conv_ana" out_sz="6" in_sz="227" 
-				       ignore_padding_for_support="1" ignore_padding_for_sz="0" ><convs>
+				       ignore_padding_for_support="1"  ><convs>
     <li tag="conv1" in_pad="0 0 0 0" kern_sz="7 7" stride="2 2"/>
     <li tag="pool1" in_pad="0 0 0 0" kern_sz="3 3" stride="2 2"/>
     <li tag="conv2" in_pad="2 2 2 2" kern_sz="5 5" stride="1 1"/>
@@ -97,7 +96,7 @@
   </convs></command></li>
   # note missing padding of 5 on input/conv1, due to matching hard-coded padding in ross's matlab code 
   <li test_name="conv_ana_ross_pad_1"> <command mode="conv_ana" out_sz="1" in_sz="1723" 
-				       ignore_padding_for_support="1" ignore_padding_for_sz="0" ><convs>
+				       ignore_padding_for_support="1" ><convs>
     <li tag="conv1" in_pad="0 0 0 0" kern_sz="11 11" stride="4 4"/>
     <li tag="pool1" in_pad="1 1 1 1" kern_sz="3 3" stride="2 2"/>
     <li tag="conv2" in_pad="2 2 2 2" kern_sz="5 5" stride="1 1"/>
@@ -107,7 +106,7 @@
     <li tag="conv5" in_pad="1 1 1 1" kern_sz="3 3" stride="1 1"/>
   </convs></command></li>
   <li test_name="conv_ana_ross_pad_2"> <command mode="conv_ana" out_sz="1" in_sz="1723" 
-				       ignore_padding_for_support="1" ignore_padding_for_sz="0" ><convs>
+				       ignore_padding_for_support="1" ><convs>
     <li tag="conv1" in_pad="4 4 4 4" kern_sz="11 11" stride="4 4"/>
     <li tag="pool1" in_pad="0 0 0 0" kern_sz="3 3" stride="2 2"/>
     <li tag="conv2" in_pad="3 3 3 3" kern_sz="5 5" stride="1 1"/>
