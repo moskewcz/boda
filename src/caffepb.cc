@@ -220,7 +220,6 @@ namespace boda
 	assert( !data_img_node->csi.valid() );
 	data_img_node->csi.support_sz = u32_pt_t(1,1);
 	data_img_node->csi.support_stride = u32_pt_t(1,1);
-	data_img_node->cio.sz = u32_pt_t{ data_dims_x, data_dims_y };
 	if( !conv_pipe->data_num_imgs.v ) { conv_pipe->data_num_imgs.v = data_dims_img; }
 	if( conv_pipe->data_num_imgs.v != data_dims_img ) { rt_err( "unhandled: multiple data layers with differing numbers of images." ); }
 
@@ -387,27 +386,20 @@ namespace boda
     
     virtual void main( nesi_init_arg_t * nia ) { 
       p_ofstream out = ofs_open( out_fn.exp );
-
       p_net_param_t net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
       p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
       //(*out) << convs << "\n";
       conv_pipe->dump_pipe( *out ); 
       if( in_dims.size() ) { 
 	(*out) << ">> calculating network sizes forward given an in_dims of " << in_dims << "\n";
-	conv_pipe->calc_sizes_forward( ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
       }
-      if( print_ops ) {
-	//if( !in_sz ) { rt_err( "print_ops requires in_sz to be set in order to calculute the conv_ios." ); }
-	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ), expand_ops );
-      }
+      if( print_ops ) {	conv_pipe->dump_ops( *ofs_open( print_ops_fn.exp ), expand_ops ); }
       if( out_sz ) { 
-	conv_pipe->clear_sizes();
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
 	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
       }
-
     }
   };
 

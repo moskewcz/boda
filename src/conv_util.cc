@@ -312,110 +312,8 @@ namespace boda
     }
   }
   
-  void conv_pipe_t::clear_sizes( void ) {
-    for( map_str_p_conv_node_t::iterator i = nodes->begin(); i != nodes->end(); ++i ) { i->second->cio = conv_io_t(); }
-  }
   void conv_pipe_t::topo_visit_setup( void ) {
     for( map_str_p_conv_op_t::iterator i = convs->begin(); i != convs->end(); ++i ) { i->second->seen = 0; }
-  }
-
-  void conv_pipe_t::calc_sizes_forward_op( p_conv_op_t const & cop, bool const ignore_padding ) {
-    assert_st( cop->tops.size() >= 1 );
-    p_conv_node_t const & node_out = must_get_node(cop->tops[0]);
-    conv_io_t & cio_out = node_out->cio;
-    if( !cio_out.sz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
-
-    if( cop->is( BckConv_coi ) ) { 
-      for( uint32_t i = 0; i != 1; ++i ) { // propogate sizes
-	u32_pt_t & osz = must_get_node(cop->tops[i])->cio.sz;
-	if( !osz.is_zeros() ) { rt_err( "node size calculation is not supported for reconvegent networks at node:"+node_out->name ); }
-	osz = must_get_node(cop->bots[i])->cio.sz; 
-      }
-    } else if( cop->is( ZeroIfNeg_coi ) ) { 
-      cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
-    } else if( cop->is( Spreading_coi ) ) { 
-      cio_out.sz = must_get_node(cop->bots[2])->cio.sz; // in_grad_loss output is same size as in
-    } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
-      cio_out.sz = must_get_node(cop->bots[0])->cio.sz;
-      conv_io_t & loss_cio = must_get_node( cop->tops[1] )->cio;
-      loss_cio.sz = u32_pt_t{1,1}; // loss is a singleton
-      //loss_cio.per_batch = 1;
-    } else {
-      assert_st( cop->has_one_top() );
-      if( (cop->bots.size() != 1) && !cop->is(Concat_coi) ) { 
-	rt_err( "unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
-      for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) {
-	conv_io_t const & cio_in = must_get_node(*j)->cio;
-	if( j == cop->bots.begin() ) { // first input 
-	  cio_out.sz = cop->in_sz_to_out_sz( cio_in.sz, ignore_padding );
-	} else { // handle multiple inputs for concat layer (only!)
-	  assert( cop->is( Concat_coi ) );
-	  // x/y dims must agree across all inputs
-	  u32_pt_t const out_sz = cop->in_sz_to_out_sz( cio_in.sz, ignore_padding );
-	  assert_st( out_sz == cio_out.sz );
-	}
-      }
-    }
-    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { calc_sizes_forward_rec( *i, ignore_padding ); }
-  }
-  void conv_pipe_t::calc_sizes_forward_rec( string const & node_name, bool const ignore_padding ) {
-    p_conv_node_t const & node = must_get_node( node_name );
-    // propogate support info forward from node to all ops that it feeds and thier outputs
-    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
-      p_conv_op_t const & cop = get_op( *i );
-      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      calc_sizes_forward_op( cop, ignore_padding );
-    }
-  }
-
-
-  // we consider a node a 'label' if it is the second input to one or more SoftmaxWithLoss ops (and no other ops). if it
-  // is, we a representtive of the other input(s) of the SoftmaxWithLoss layers (or an error if they
-  // disagree in size or chans).  otherwise, we return 0.
-  p_conv_node_t conv_pipe_t::get_fwd_top_for_label( string const & n ) const {
-    p_conv_node_t const & node = must_get_node( n );
-    bool has_non_sm_uses = 0;
-    p_conv_node_t rep_fwd_top;
-    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
-      p_conv_op_t const & cop = get_op( *i );
-      if( cop->is( SoftmaxWithLoss_coi ) ) { 
-	p_conv_node_t fwd_top = must_get_node( cop->bots[0] );
-	if( rep_fwd_top ) { 
-	  if( rep_fwd_top->cio.sz != fwd_top->cio.sz ) {
-	    rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing xy size." );
-	  }
-	}
-	if( !rep_fwd_top ) { rep_fwd_top = fwd_top; }
-      }
-      else { has_non_sm_uses = 1; }
-    }
-    if( rep_fwd_top && has_non_sm_uses ) { rt_err( "unhandled: input node '" + n + "' used by SoftmaxWithLoss *and* other layer types" ); }
-    return rep_fwd_top;
-  }
-
-  void conv_pipe_t::calc_sizes_forward( bool const ignore_padding ) {
-    // size info for all non-label root inputs should already be set
-    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
-      conv_io_t & cio = must_get_node( *i )->cio;
-      p_conv_node_t fwd_top = get_fwd_top_for_label( *i );
-      if( !fwd_top ) { // we calculate the sizes of labels later
-	if( cio.sz.is_zeros() ) { 
-	  rt_err( "calc_sizes_forward(): unhandled non-label input '"+(*i)+"' with unknown size. "
-		  "internal error, since error should have been caught in calc_support_size()?" ); 
-	}
-      }
-    }
-    topo_visit_setup();
-    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { calc_sizes_forward_rec( *i, ignore_padding ); }
-    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { 
-      conv_io_t & cio = must_get_node( *i )->cio;
-      p_conv_node_t fwd_top = get_fwd_top_for_label( *i );
-      if( fwd_top ) { 
-	assert( cio.sz.is_zeros() ); // shouldn't be calculated yet
-	cio.sz = fwd_top->cio.sz;
-      } 
-      assert_st( !cio.sz.is_zeros() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
-    } 
   }
 
   // note: assumed to be called after sizes are set by set_dims(). overwrites the xy_dims for nodes it touches.
@@ -803,7 +701,6 @@ namespace boda
 	(*out) << ">> calculating network sizes backward given an out_sz of " << *out_sz << "\n";
 	conv_pipe->calc_sizes_back( u32_pt_t( *out_sz, *out_sz ), 0 ); // ignore_padding_for_sz ); 
 	conv_pipe->dump_ios( *out ); 
-	conv_pipe->clear_sizes();
       }
     }
   };

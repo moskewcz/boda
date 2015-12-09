@@ -18,8 +18,7 @@ namespace boda
 
   // struct metadata about inputs/outputs of conv ops
   struct conv_io_t {
-    u32_pt_t sz;
-    u32_pt_t used_sz;
+    u32_pt_t used_sz; // used only for dump_ios() diagnostic prints about size mismatches / truncations between operations
     uint32_t max_val; // used only for error-checking/testing on label inputs; each single value for this node must be < this value.
     conv_io_t( void ) : max_val(0) {}
   };

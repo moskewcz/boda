@@ -58,15 +58,16 @@ namespace boda
 
     void setup_cnet( void );
 
-    u32_pt_t get_one_blob_img_out_sz( void ); // note: assumes/includes chans_to_area conversion
     p_nda_float_t run_one_blob_in_one_blob_out( void );
     p_nda_float_t run_one_blob_in_one_blob_out_upsamp( void );
 
     p_conv_pipe_t conv_pipe;
     p_conv_pipe_t conv_pipe_upsamp;
     conv_support_info_t const & get_out_csi( bool const & from_upsamp_net );
-    conv_io_t const & get_out_cio( bool const & from_upsamp_net );
-    uint32_t get_out_chans( bool const & from_upsamp_net );
+    dims_t const & get_out_dims( bool const & from_upsamp_net );
+    u32_pt_t get_out_sz( bool const & from_upsamp_net ) { return get_xy_dims( get_out_dims(from_upsamp_net) ); }
+    uint32_t get_out_chans( bool const & from_upsamp_net ) { return get_out_dims(from_upsamp_net).dsz("chan"); }
+    u32_pt_t get_one_blob_img_out_sz( void ) { return get_out_sz(0).scale( u32_ceil_sqrt( get_out_chans(0) ) ); } // assumes/includes chans_to_area conv.
 
     uint32_t out_s;
     run_cnet_t( void ) : out_s(0) { }

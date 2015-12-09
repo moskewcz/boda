@@ -325,7 +325,7 @@ namespace boda
 	in_box_to_out_box( any_valid_feat_box, in_xy_pel_box, cm_any_valid, run_cnet->get_out_csi(0) );
       } else {
 	// global pooling, features should be 1x1
-	assert_st( (run_cnet->get_out_cio(0).sz == u32_pt_t{1,1}) );
+	assert_st( (run_cnet->get_out_sz(0) == u32_pt_t{1,1}) );
 	any_valid_feat_box = i32_box_t{{},{1,1}}; // all features
       }
       i32_box_t const feat_img_box = any_valid_feat_box.scale(run_cnet->out_s);
@@ -346,7 +346,7 @@ namespace boda
       // calculate feat xy from feat_img xy (which is scaled up by ~sqrt(chans) from the feature xy)
       assert_st( run_cnet->out_s );
       u32_pt_t const feat_xy = floor_div_u32( feat_img_xy, run_cnet->out_s );
-      u32_pt_t const & net_out_sz = run_cnet->get_out_cio(0).sz;
+      u32_pt_t const & net_out_sz = run_cnet->get_out_sz(0);
       assert_st( feat_xy.both_dims_lt( net_out_sz ) );
       //printf( "feat_img_xy=%s feat_xy=%s\n", str(feat_img_xy).c_str(), str(feat_xy).c_str() );
       // calculate chan ix

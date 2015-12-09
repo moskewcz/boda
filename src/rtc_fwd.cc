@@ -58,11 +58,14 @@ namespace boda
       assert_st( cop->tops.size() >= 1 );
       assert_st( cop->bots.size() >= 1 );
       no = cp->must_get_node( cop->tops[0] );
+      u32_pt_t const no_sz = get_xy_dims( no->dims );
       if( !cop->is(Concat_coi) ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
       is_conv = cop->is( Convolution_coi );
       is_pool = cop->is( Pooling_coi );
       dims_t in_dims;
       if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
+	assert_st( ni );
+	u32_pt_t const ni_sz = get_xy_dims( ni->dims );
 	in_dims = ni->dims;
 	conv_ref_dims["in_ref"] = in_dims; // tconv needs the standard input dims for reference
 	// if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
@@ -73,23 +76,23 @@ namespace boda
 	assert_st( cop->in_pad.p[0].dims_are_same() );
 	assert_st( cop->stride.dims_are_same() );
 	u32_pt_t kern_sz = cop->kern_sz;
-	if( kern_sz.is_zeros() ) { kern_sz = ni->cio.sz; } // 'global' input special case
+	if( kern_sz.is_zeros() ) { kern_sz = ni_sz; } // 'global' input special case
 
 	uint32_t const in_pad = cop->in_pad.p[0].d[0];
 	uint32_t const stride = cop->stride.d[0];
 	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
-	assert_st( ni->cio.sz.dims_are_same() );
+	assert_st( ni_sz.dims_are_same() );
 	if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == 1) 
-	    && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->dims.dsz("chan") >= 64) ) 
+	    && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no->dims.dsz("chan") >= 64) ) 
 	{ 
 	  if( in_pad != 0 ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); cts = conv_str; }
 	  else { cts = k1conv_str; }
 	}
 	else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz.both_dims_le(u32_pt_t{11,11})
-								     && (kern_sz.both_dims_ge(u32_pt_t{1,1}) && (no->cio.sz.d[0] >= 6))))) {
+								     && (kern_sz.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
 		   cts = tconv_str; }
 	else if( is_conv && enable_s1conv && (stride == 1) && kern_sz.both_dims_le(u32_pt_t{5,5}) && kern_sz.both_dims_ge(u32_pt_t{1,1})
-		 && (no->cio.sz.d[0] >= 6) && (no->cio.sz.d[0] <= 300 ) && (no->dims.dsz("chan") >= 64) ) { cts = s1conv_str; }
+		 && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no->dims.dsz("chan") >= 64) ) { cts = s1conv_str; }
 	else { cts = conv_str; }
 
 	if( is_conv || cop->is( BckConv_coi ) ) { // bckconv/conv
@@ -105,7 +108,7 @@ namespace boda
 	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->dims.dsz("chan"), t_tile_sz );
 	  uint32_t tix_pels_tile_sz_incr = 1;
 	  if( cts == s1conv_str ) {
-	    uint32_t const line_x_tile_sz = u32_ceil_div( no->cio.sz.d[0], t_tile_sz );
+	    uint32_t const line_x_tile_sz = u32_ceil_div( no_sz.d[0], t_tile_sz );
 	    tix_pels_tile_sz_incr = line_x_tile_sz;
 	  }
 
@@ -127,19 +130,19 @@ namespace boda
 	  assert_st( best_tbp <= max_tpb );
 
 	  dims_t work;
-	  uint32_t const lines_sz = no->dims.dsz("img") * no->cio.sz.d[1];
+	  uint32_t const lines_sz = no->dims.dsz("img") * no_sz.d[1];
 	  if( cts == s1conv_str ) {
-	    assert_st( lines_sz * no->cio.sz.d[0] * no->dims.dsz("chan") == out_ix_sz ); // by construction
+	    assert_st( lines_sz * no_sz.d[0] * no->dims.dsz("chan") == out_ix_sz ); // by construction
 	    work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, tix_pels_tile_sz ) );
 	  } else if( cts == tconv_str ) {
 	    assert( tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
-	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), "blk_bx", u32_ceil_div( no->cio.sz.d[0], t_tile_sz ) );
+	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), "blk_bx", u32_ceil_div( no_sz.d[0], t_tile_sz ) );
 	    uint32_t tconv_blk_max_imgs = 0;
 	    uint32_t blk_b_line = 0;
 	    for( uint32_t i = 0; i != work.dsz("blk_bline"); ++i ) {
 	      uint32_t const blk_e_line = blk_b_line + tix_pels_tile_sz - 1;
-	      uint32_t const blk_b_img = blk_b_line / no->cio.sz.d[1];
-	      uint32_t const blk_e_img = std::min( no->dims.dsz("img") - 1, blk_e_line / no->cio.sz.d[1] );
+	      uint32_t const blk_b_img = blk_b_line / no_sz.d[1];
+	      uint32_t const blk_e_img = std::min( no->dims.dsz("img") - 1, blk_e_line / no_sz.d[1] );
 	      uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
 	      assert_st( blk_num_img );
 	      max_eq( tconv_blk_max_imgs, blk_num_img );
@@ -147,14 +150,14 @@ namespace boda
 	    }
 	    assert_st( tconv_blk_max_imgs );
 	    // calc conservative value (may be lower in general or for some num_imgs) and use as check:
-	    uint32_t const conservative_conv_max_img_per_blk = 2 + ((tix_pels_tile_sz - 2)/no->cio.sz.d[1]); 
+	    uint32_t const conservative_conv_max_img_per_blk = 2 + ((tix_pels_tile_sz - 2)/no_sz.d[1]); 
 	    assert_st( tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
-	    //printf( "no->cio.sz.d[1]=%s tix_pels_tile_sz=%s\n", str(no->cio.sz.d[1]).c_str(), str(tix_pels_tile_sz).c_str() );
+	    //printf( "no_sz.d[1]=%s tix_pels_tile_sz=%s\n", str(no_sz.d[1]).c_str(), str(tix_pels_tile_sz).c_str() );
 	    //printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
 	    assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
 	    uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz.d[1]*tconv_blk_max_imgs;
 	    uint32_t const tconv_blk_x_sz = (t_tile_sz - 1)*stride + kern_sz.d[0];
-	    // the tconv/in_tile_xpose format is for use when both ni->cio.sz.d[0/1] are small multiple of
+	    // the tconv/in_tile_xpose format is for use when both ni_sz.d[0/1] are small multiple of
 	    // t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
 	    // window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
 	    // this case, we do not unroll across input chans, but we do unroll across kern_sz in X (and maybe in Y too for
@@ -175,7 +178,7 @@ namespace boda
 
 	  // dims of per-group work (defines # threads per local group)
 	  if( cts == s1conv_str ) { 
-	    uint32_t const line_x_tile_sz = u32_ceil_div( no->cio.sz.d[0], t_tile_sz );
+	    uint32_t const line_x_tile_sz = u32_ceil_div( no_sz.d[0], t_tile_sz );
 	    uint32_t const blk_num_lines = u32_ceil_div( tix_pels_tile_sz, line_x_tile_sz );
 	    assert_st( blk_num_lines * line_x_tile_sz == tix_pels_tile_sz ); // should be exact div by construction
 	    work.add_dims( "line", blk_num_lines, "line_x_tile", line_x_tile_sz );
@@ -445,8 +448,7 @@ namespace boda
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
 	dims_t & dims_in = cp->must_get_node( cop->bots[bi] )->dims;
-	conv_io_t & cio_in = cp->must_get_node( cop->bots[bi] )->cio;
-	assert_st( cio_in.sz == oi->no->cio.sz );
+	assert_st( get_xy_dims( cp->must_get_node( cop->bots[bi] )->dims ) == get_xy_dims( oi->no->dims ) );
 	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->no->dims.dsz("chan") );
 	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->template_var_values = { {"ocix",str(chans_out_done)} }; 
@@ -502,7 +504,7 @@ namespace boda
       gen_call( "relu", oi, { oi->no->name } );
     } else if( cop->is( LRN_coi ) ) {
       oi->template_var_values = {{"local_size",str(cop->lrn_local_size)},{"alpha",str(cop->lrn_alpha)},{"beta",str(cop->lrn_beta)},{"k",str(cop->lrn_k)}};
-      assert_st( oi->ni->cio.sz == oi->no->cio.sz );
+      assert_st( get_xy_dims( oi->ni->dims ) == get_xy_dims( oi->no->dims ) );
       assert_st( oi->ni->dims.dsz("chan") == oi->no->dims.dsz("chan") );
       gen_call( "lrn", oi, { oi->ni->name, oi->no->name } );
     } else if( cop->is( Dropout_coi ) ) {

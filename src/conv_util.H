@@ -132,7 +132,6 @@ namespace boda
 
     p_conv_node_t get_or_make_node( std::string const & name, bool const is_bot, bool const is_top );
     p_conv_node_t must_get_node( std::string const & name ) const;
-    p_conv_node_t get_fwd_top_for_label( string const & n ) const;
     p_conv_op_t get_op( string const & name ) const;
     dims_t get_data_img_dims( void ) const;
     u32_pt_t get_data_img_xy_dims_3_chans_only( void ) const;
@@ -154,10 +153,6 @@ namespace boda
 
     void topo_visit_setup( void );
 
-    void clear_sizes( void );
-    void calc_sizes_forward_op( p_conv_op_t const & cop, bool const ignore_padding );
-    void calc_sizes_forward_rec( string const & node_in, bool const ignore_padding );
-    void calc_sizes_forward( bool const ignore_padding );
     void calc_sizes_back_rec( p_conv_node_t const & node_out, bool const ignore_padding );
     void calc_sizes_back( u32_pt_t const & out_sz, bool const ignore_padding );
 

@@ -98,14 +98,6 @@ namespace boda
     }
   }
 
-
-  // note: assumes/includes chans_to_area conversion
-  u32_pt_t run_cnet_t::get_one_blob_img_out_sz( void ) {
-    p_conv_node_t out_node = conv_pipe->must_get_node( out_node_name );
-    return out_node->cio.sz.scale( u32_ceil_sqrt( out_node->dims.dsz("chan") ) );
-  }
-
-
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out( void ) { return conv_pipe->run_one_blob_in_one_blob_out( in_batch, conv_fwd ); }
   p_nda_float_t run_cnet_t::run_one_blob_in_one_blob_out_upsamp( void ) { 
     return conv_pipe_upsamp->run_one_blob_in_one_blob_out( in_batch, conv_fwd_upsamp );
@@ -155,25 +147,17 @@ namespace boda
     assert_st( from_pipe );
     return from_pipe->get_single_top_node()->csi;
   }
-  conv_io_t const & run_cnet_t::get_out_cio( bool const & from_upsamp_net ) {
+  dims_t const & run_cnet_t::get_out_dims( bool const & from_upsamp_net ) {
     p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
     if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
     assert_st( from_pipe );
-    return from_pipe->get_single_top_node()->cio;
-  }
-
-  uint32_t run_cnet_t::get_out_chans( bool const & from_upsamp_net ) {
-    p_conv_pipe_t from_pipe = from_upsamp_net ? conv_pipe_upsamp : conv_pipe;
-    if( from_upsamp_net ) { assert_st( enable_upsamp_net && conv_pipe_upsamp ); }
-    assert_st( from_pipe );
-    return from_pipe->get_single_top_node()->dims.dsz("chan");
+    return from_pipe->get_single_top_node()->dims;
   }
 
   void run_cnet_t::setup_cnet( void ) {
     assert( !net_param );
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
     conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
-    conv_pipe->calc_sizes_forward( 0 ); 
 
     // load weights into pipe
     p_net_param_t trained_net = must_read_binary_proto( trained_fn );
@@ -217,7 +201,6 @@ namespace boda
 
       assert_st( !add_bck_ops ); // not sensible?
       conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_dims, out_node_name, add_bck_ops ); 
-      conv_pipe_upsamp->calc_sizes_forward( 0 );
       copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe_upsamp );
       create_upsamp_layer_weights( conv_pipe, net_param->layer(upsamp_layer_ix).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(upsamp_layer_ix).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
@@ -282,7 +265,7 @@ namespace boda
 
   // single scale case
   void cnet_predict_t::setup_scale_infos( void ) {
-    u32_pt_t const & feat_sz = get_out_cio(0).sz;
+    u32_pt_t const & feat_sz = get_out_sz(0);
     i32_box_t const valid_feat_box{{},u32_to_i32(feat_sz)};
     assert_st( valid_feat_box.is_strictly_normalized() );
     i32_box_t const valid_feat_img_box = valid_feat_box.scale(out_s);
