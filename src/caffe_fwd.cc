@@ -89,17 +89,21 @@ namespace boda
       if( i != o ) { *olp = net_param->layer(i); } ++o; // keep layer
     }
     while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
-    // add input blobs for conv_pipe inputs (which in turn were derived from original param data layers)
+
+    // FIXME: perhaps we should process all of cp->bots here, and detect which nodes are filts/biases, and special-case set them
+    // using something similar to set_layer_blobs()?
+    // add input blobs for conv_pipe inputs (which in turn were derived from original
+    // param data layers)
     assert_st( net_param->input_dim_size() == 0 ); // should be no input blobs to start (only train_val format is supported as input)
-    for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { 
+    vect_string caffe_bots = cp->data_img_node_names;
+    caffe_bots.insert( caffe_bots.end(), cp->data_label_node_names.begin(), cp->data_label_node_names.end() );
+    for( vect_string::const_iterator i = caffe_bots.begin(); i != caffe_bots.end(); ++i ) { 
       dims_t & dims = cp->must_get_node( *i )->dims;
       assert_st( !dims.empty() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
       net_param->add_input(*i);
       dims_t_to_shape( dims, *net_param->add_input_shape() );      
     }
-
     p_Net_float net( new Net_float( *net_param ) );
-
     //net->CopyTrainedLayersFrom( trained_fn );
     for( map_str_p_vect_p_nda_float_t::const_iterator i = cp->layer_blobs->begin(); i != cp->layer_blobs->end(); ++i ) { 
       //printf( "i->first=%s i->second->size()=%s\n", str(i->first).c_str(), str(i->second->size()).c_str() );
@@ -128,6 +132,8 @@ namespace boda
     //for (unsigned int i = 0; i < ibixs.size(); ++i) {
     for( vect_string::const_iterator i = to_set_vns.begin(); i != to_set_vns.end(); ++i ) {
       shared_ptr< caffe::Blob<float> > const & ib = net->blob_by_name( *i );
+      if( !ib ) { rt_err( strprintf("gettting caffe blob for setting inputs: node '%s' from to_set_vns not found in network (note: do_bck=%s).\n",
+				    (*i).c_str(), str(do_bck).c_str() )); }
       p_nda_float_t const & ib_nda = must_find( *fwd, *i );
       //printf( "ib_nda->dims=%s ib->shape()=%s\n", str(ib_nda->dims).c_str(), str(ib->shape()).c_str() );
       assert_st( ib_nda->elems.sz == uint32_t(ib->count()) );
@@ -144,7 +150,6 @@ namespace boda
     if( do_bck ) { net->Backward(); }
     if( enable_prof ) { cuProfilerStop(); }
   }
-
 
   p_nda_float_t copy_output_blob_data( p_Net_float net, string const & out_node_name, bool const & get_diff ) {
     timer_t t("caffe_copy_output_blob_data");
