@@ -67,11 +67,35 @@ namespace boda
       const float * const data_ptr = &blob->elems[0];
       switch (Caffe::mode()) {
       case Caffe::CPU: memcpy( layer_blob->mutable_cpu_data(), data_ptr, sizeof(float) * layer_blob->count()); break;
-      case Caffe::GPU: cudaMemcpy( layer_blob->mutable_gpu_data(), data_ptr,
-				   sizeof(float) * layer_blob->count(), cudaMemcpyHostToDevice); break;
+      case Caffe::GPU: cudaMemcpy( layer_blob->mutable_gpu_data(), data_ptr, sizeof(float) * layer_blob->count(), cudaMemcpyHostToDevice); break;
       default: rt_err( "Unknown Caffe mode." );
       }  // switch (Caffe::mode())
     }
+  }
+
+
+  void copy_caffe_blob_to_nda( Blob<float> * const blob, bool const get_diff, p_nda_float_t const & nda ) {
+    dims_t const & nda_dims = nda->dims;
+    assert_st( nda_dims.sz() == uint32_t(blob->num_axes()) );
+    for( uint32_t i = 0; i != nda_dims.sz(); ++i ) { assert_st( nda_dims.dims(i) == uint32_t(blob->shape(i)) ); }
+    assert_st( nda->elems.sz == uint32_t(blob->count()) );
+    float * const dest = &nda->elems[0];
+    switch (Caffe::mode()) {
+    case Caffe::CPU: memcpy(dest, get_diff ? blob->cpu_diff() : blob->cpu_data(), sizeof(float) * blob->count() ); break;
+    case Caffe::GPU: cudaMemcpy(dest, get_diff ? blob->gpu_diff() : blob->gpu_data(), sizeof(float) * blob->count(), 
+				cudaMemcpyDeviceToHost); break;
+    default: LOG(FATAL) << "Unknown Caffe mode.";
+    }  // switch (Caffe::mode())
+  }
+
+  void get_layer_blobs( p_Net_float net_, string const & layer_name, uint32_t const bix, p_nda_float_t const & blob ) {
+    timer_t t("caffe_set_layer_blob_data");
+    shared_ptr< caffe::Layer<float> > layer = net_->layer_by_name( layer_name );
+    if( !layer ) { rt_err( strprintf("gettting parameters: layer '%s' not found in network\n",str(layer_name).c_str() )); }    
+    const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
+    assert_st( bix < layer_blobs.size() );
+    Blob<float> * const layer_blob = layer_blobs[bix].get();
+    copy_caffe_blob_to_nda( layer_blob, 0, blob );
   }
 
   p_Net_float caffe_create_net( p_conv_pipe_t const & cp ) {
@@ -156,24 +180,14 @@ namespace boda
     shared_ptr< Blob<float> > output_blob = net->blob_by_name( out_node_name );
     if( !output_blob ) { rt_err( strprintf("gettting output: node '%s' not found in network (note: get_diff=%s).\n",
 					   str(out_node_name).c_str(), str(get_diff).c_str() )); }
-
     assert_st( output_blob );
-
     dims_t out_batch_dims( 4 );
     out_batch_dims.dims(3) = output_blob->width();
     out_batch_dims.dims(2) = output_blob->height();
     out_batch_dims.dims(1) = output_blob->channels();
     out_batch_dims.dims(0) = output_blob->num();
     p_nda_float_t out_batch( new nda_float_t( out_batch_dims ) );
-    assert_st( out_batch->elems.sz == uint32_t(output_blob->count()) );
-      
-    float * const dest = &out_batch->elems[0];
-    switch (Caffe::mode()) {
-    case Caffe::CPU: memcpy(dest, get_diff ? output_blob->cpu_diff() : output_blob->cpu_data(), sizeof(float) * output_blob->count() ); break;
-    case Caffe::GPU: cudaMemcpy(dest, get_diff ? output_blob->gpu_diff() : output_blob->gpu_data(), sizeof(float) * output_blob->count(), 
-				cudaMemcpyDeviceToHost); break;
-    default: LOG(FATAL) << "Unknown Caffe mode.";
-    }  // switch (Caffe::mode())
+    copy_caffe_blob_to_nda( output_blob.get(), get_diff, out_batch );
     return out_batch;
   }
 
