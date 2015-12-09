@@ -170,20 +170,13 @@ namespace boda
     if( enable_prof ) { cuProfilerStop(); }
   }
 
-  p_nda_float_t copy_output_blob_data( p_Net_float net, string const & out_node_name, bool const & get_diff ) {
+  void copy_output_blob_data( p_Net_float net, string const & out_node_name, bool const & get_diff, p_nda_float_t const & out_nda ) {
     timer_t t("caffe_copy_output_blob_data");
     shared_ptr< Blob<float> > output_blob = net->blob_by_name( out_node_name );
     if( !output_blob ) { rt_err( strprintf("gettting output: node '%s' not found in network (note: get_diff=%s).\n",
 					   str(out_node_name).c_str(), str(get_diff).c_str() )); }
     assert_st( output_blob );
-    dims_t out_batch_dims( 4 );
-    out_batch_dims.dims(3) = output_blob->width();
-    out_batch_dims.dims(2) = output_blob->height();
-    out_batch_dims.dims(1) = output_blob->channels();
-    out_batch_dims.dims(0) = output_blob->num();
-    p_nda_float_t out_batch( new nda_float_t( out_batch_dims ) );
-    copy_caffe_blob_to_nda( output_blob.get(), get_diff, out_batch );
-    return out_batch;
+    copy_caffe_blob_to_nda( output_blob.get(), get_diff, out_nda );
   }
 
   void caffe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
@@ -192,10 +185,12 @@ namespace boda
     raw_do_forward( net, to_set_vns, fwd, enable_prof, cp->has_bck_ops.v );
     for( vect_string::const_iterator i = to_get_vns.begin(); i != to_get_vns.end(); ++i ) {
       string const out_node_name = *i;
+      dims_t const & out_node_dims = cp->must_get_node( out_node_name )->dims;
+      p_nda_float_t out_nda( new nda_float_t( out_node_dims ) );
       string caffe_node_name = out_node_name;
       bool get_diff = maybe_strip_suffix( caffe_node_name, "_grad_loss" );
-      p_nda_float_t out = copy_output_blob_data( net, caffe_node_name, get_diff );
-      must_insert( *fwd, out_node_name, out );
+      copy_output_blob_data( net, caffe_node_name, get_diff, out_nda );
+      must_insert( *fwd, out_node_name, out_nda );
     }
   }  
 
