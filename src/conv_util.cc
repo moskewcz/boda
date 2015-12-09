@@ -531,6 +531,8 @@ namespace boda
   
   string get_conv_as_sgemm( string const & top_name, string const & bot_name, string const & filts_name,
 			    uint32_t const M, uint32_t const N, uint32_t const K, string const & extra_params ) {
+    // FIXME: predates sz->dims conversion -- can't use num_img in pyIR like this anymore, need to use dims.dsz("img")
+    // at this level and emit num_imgs as constant
     string const buf_name = bot_name + "_one_row_per_patch_buf";
     string ret;
     ret += strprintf( "net.ndas[\"%s\"] = NDA(\"%s\",%u,%u)\n",buf_name.c_str(),buf_name.c_str(),M,N);
@@ -550,10 +552,10 @@ namespace boda
     string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
     uint32_t M = 0, N = 0, K = 0;
     if( cop->is( Convolution_coi ) || cop->is( InnerProduct_coi ) ) {
-      conv_io_t & cio_in = pipe->must_get_node( cop->bots[0] )->cio;
-      uint32_t const in_chans = pipe->must_get_node( cop->bots[0] )->dims.dsz("chan");
+      dims_t const & in_dims = pipe->must_get_node( cop->bots[0] )->dims;
+      uint32_t const in_chans = in_dims.dsz("chan");
       u32_pt_t kern_sz = cop->kern_sz;
-      if( kern_sz.is_zeros() ) { kern_sz = cio_in.sz; } // 'global' input special case
+      if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( in_dims ); } // 'global' input special case
 
       out << strprintf( "net.ndas[\"%s_filts\"] = NDA(\"%s_filts\",%s,%s,%s,%s) # SOURCE out_chan,in_chan,y,x\n", 
 			tag_id, tag_id, str(cop->out_chans).c_str(), str(in_chans).c_str(),
@@ -562,13 +564,11 @@ namespace boda
 			tag_id, tag_id, str(cop->out_chans).c_str() );
       extra_params = strprintf( ",filts_name=\"%s_filts\",biases_name=\"%s_biases\"", tag_id, tag_id );
 
+      // see FIXME in get_conv_as_sgemm() ...
       assert_st( cop->tops.size() == 1 );
-      conv_io_t & cio_out = pipe->must_get_node( cop->tops[0] )->cio;
-      M = cio_out.sz.d[0] * cio_out.sz.d[1];
+      M = get_xy_dims( pipe->must_get_node( cop->tops[0] )->dims ).dims_prod();
       N = kern_sz.d[0]*kern_sz.d[1]*in_chans;
       K = cop->out_chans;
-
-      // get expanded op 
       expanded_op = get_conv_as_sgemm(cop->tops[0],cop->bots[0],cop->tag+"_filts",M,N,K,pad_and_stride);
     }
     // print decls for all of this ops output nodes here
