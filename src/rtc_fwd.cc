@@ -516,6 +516,7 @@ namespace boda
     } else if( cop->is( BckConv_coi ) ) { 
       // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
       gen_call( "BckConv_in_grad_loss", oi, { cop->bots[0], cop->bots[1], /*cop->bots[2](aka biases_id),*/ cop->bots[3], cop->tops[0] } );
+      gen_call( "BckConv_biases_grad_loss", oi, { cop->bots[2], cop->bots[3], cop->tops[2] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 

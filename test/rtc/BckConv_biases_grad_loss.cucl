@@ -1,0 +1,22 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const biases, // CUCL IN out_chan
+					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
+					 
+					  GASQ float * const biases_grad_loss ) // CUCL OUT out_chan
+// note: in and in_grad_loss have the same dims
+{
+  // CUCL IX GLOB_ID_1D biases_grad_loss
+  // write a single output pixel per thread
+  if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
+  float biases_grad_loss_v = 0.0f;
+
+  for( int32_t img = 0; img < %(out_grad_loss_img_dim); ++img ) {
+    for( int32_t y = 0; y < %(out_grad_loss_y_dim); ++y ) {
+      for( int32_t x = 0; x < %(out_grad_loss_x_dim); ++x ) {
+	biases_grad_loss_v += out_grad_loss[ img*%(out_grad_loss_img_sz) + %(GLOB_ID_1D_out_chan)*%(out_grad_loss_chan_sz) 
+					     + y*%(out_grad_loss_y_sz) + x*%(out_grad_loss_x_sz) ];
+      }
+    }
+  }
+  biases_grad_loss[GLOB_ID_1D] = biases_grad_loss_v;
+}
+
