@@ -7,7 +7,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)(
   // CUCL IX GLOB_ID_1D label
   if( GLOB_ID_1D >= %(label_dims_prod) ) { return; }
   int32_t const base_ix = %(GLOB_ID_1D_img)*%(prob_img_sz) + %(GLOB_ID_1D_y)*%(prob_y_sz) + %(GLOB_ID_1D_x)*%(prob_x_sz);
-  int const img_label = int( label[ %(GLOB_ID_1D_img) ] );
+  int32_t const img_label = (int32_t)( label[ %(GLOB_ID_1D_img) ] );
   float const pel_loss = -log( max( prob[base_ix + img_label*%(prob_chan_sz)], FLT_MIN ) );
   loss_per_img[GLOB_ID_1D] = pel_loss;
   // iteratate over chans for all operations
