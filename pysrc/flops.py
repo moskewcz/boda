@@ -106,18 +106,18 @@ class Net( object ):
 
 
 class Convolution( object ): 
-    def __init__( self, name, bot_names, top_names, filts_name, biases_name, in_pad, stride ): 
+    def __init__( self, name, bot_names, top_names, in_pad, stride ): 
         # note: ignores in_pad and stride, but they sort-of aren't
         # needed since the output size is calculated using them. we
         # could use them as a check here, but that would require
         # duplicating the in-out calculation code?
         global net
-        assert len(bot_names) == 1
+        assert len(bot_names) == 3
         assert len(top_names) == 1
         bot = net.ndas[bot_names[0]]
         top = net.ndas[top_names[0]]
-        filts = net.ndas[filts_name]
-        biases = net.ndas[biases_name]
+        filts = net.ndas[bot_names[1]]
+        biases = net.ndas[bot_names[2]]
 
         in_pels = bot.dims_prod()
         out_pels = top.dims_prod()

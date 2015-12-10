@@ -439,21 +439,18 @@ namespace boda
   // FIXME: expanded_ops support removed for now, as it was incorrect/incomplete post sz->dim refactoring. unneeded? see
   // prior version in git if ressurection desired.
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
-    string extra_params;
     char const * const tag_id = cop->tag.c_str();
     
     string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
     if( cop->is( Convolution_coi ) ) { // FIXME: used to handle cop->is( InnerProduct_coi ), not needed?
       print_blob_decl( out, cop->bots[1], pipe->must_get_node( cop->bots[1] ) );
       print_blob_decl( out, cop->bots[2], pipe->must_get_node( cop->bots[2] ) );
-      extra_params = strprintf( ",filts_name=\"%s\",biases_name=\"%s\"", cop->bots[1].c_str(), cop->bots[2].c_str() );
     }
     // print decls for all of this ops output nodes here
     for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { print_blob_decl( out, *i, pipe->must_get_node(*i) ); }
     // print acutal op
-    out << strprintf( "%s(name=\"%s\",bot_names=%s,top_names=%s%s,\n\t%s)\n", 
-		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(),
-		      extra_params.c_str(), pad_and_stride.c_str() );
+    out << strprintf( "%s(name=\"%s\",bot_names=%s,top_names=%s,%s)\n", 
+		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(), pad_and_stride.c_str() );
   }
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
