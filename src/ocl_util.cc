@@ -148,6 +148,7 @@ typedef int int32_t;
       Buffer buf( context, CL_MEM_READ_WRITE, bytes_sz, 0, &err ); 
       cl_err_chk( err, "Buffer() from vect_float" );
       must_insert( *vis, vn, cl_var_info_t{buf,dims} ); 
+      set_var_to_zero( vn );
     }
     dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { 
