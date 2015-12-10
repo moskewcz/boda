@@ -19,7 +19,6 @@ namespace boda
 
   void dims_t_to_shape( dims_t const & dims, caffe::BlobShape & bs ); // from caffepb.cc
 
-
   struct caffe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using caffe",
 			   // bases=["has_conv_fwd_t"], type_id="caffe" )
 
@@ -36,7 +35,6 @@ namespace boda
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
   };
-
 
   void init_caffe( uint32_t const gpu_id ) {
     static bool caffe_is_init = 0;
@@ -90,14 +88,14 @@ namespace boda
     }  // switch (Caffe::mode())
   }
 
-  void get_layer_blobs( p_Net_float net_, string const & layer_name, uint32_t const bix, p_nda_float_t const & blob ) {
-    timer_t t("caffe_set_layer_blob_data");
+  void get_layer_blob( p_Net_float net_, string const & layer_name, uint32_t const bix, bool const get_diff, p_nda_float_t const & blob ) {
+    timer_t t("caffe_get_layer_blob_data");
     shared_ptr< caffe::Layer<float> > layer = net_->layer_by_name( layer_name );
     if( !layer ) { rt_err( strprintf("gettting parameters: layer '%s' not found in network\n",str(layer_name).c_str() )); }    
     const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     assert_st( bix < layer_blobs.size() );
     Blob<float> * const layer_blob = layer_blobs[bix].get();
-    copy_caffe_blob_to_nda( layer_blob, 0, blob );
+    copy_caffe_blob_to_nda( layer_blob, get_diff, blob );
   }
 
   p_Net_float caffe_create_net( p_conv_pipe_t const & cp ) {
@@ -172,11 +170,16 @@ namespace boda
 
   void copy_output_blob_data( p_Net_float net, string const & out_node_name, bool const & get_diff, p_nda_float_t const & out_nda ) {
     timer_t t("caffe_copy_output_blob_data");
-    shared_ptr< Blob<float> > output_blob = net->blob_by_name( out_node_name );
-    if( !output_blob ) { rt_err( strprintf("gettting output: node '%s' not found in network (note: get_diff=%s).\n",
-					   str(out_node_name).c_str(), str(get_diff).c_str() )); }
-    assert_st( output_blob );
-    copy_caffe_blob_to_nda( output_blob.get(), get_diff, out_nda );
+    shared_ptr< Blob<float> > output_blob;
+    string layer_name = out_node_name;
+    if( maybe_strip_suffix( layer_name, "_filts" ) ) { get_layer_blob( net, layer_name, 0, get_diff, out_nda ); }
+    else if( maybe_strip_suffix( layer_name, "_biases" ) ) { get_layer_blob( net, layer_name, 1, get_diff, out_nda ); }
+    else {
+      output_blob = net->blob_by_name( out_node_name );
+      if( !output_blob ) { rt_err( strprintf("gettting output: node '%s' not found in network as regular blob (didn't end in _filts or _biases) "
+					     "(note: get_diff=%s).\n", str(out_node_name).c_str(), str(get_diff).c_str() )); }
+      copy_caffe_blob_to_nda( output_blob.get(), get_diff, out_nda );
+    }
   }
 
   void caffe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
