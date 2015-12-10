@@ -227,7 +227,6 @@ namespace boda
     if( dims_out.size() ) { rt_err( "calc_dims_op(): unhandled: out dims already set (node with multiple writers):" + node_out->name ); }
     
     if( cop->is( BckConv_coi ) ) { // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
-      printf( "cop->tag=%s cop->tops=%s cop->bots=%s\n", str(cop->tag).c_str(), str(cop->tops).c_str(), str(cop->bots).c_str() );
       for( uint32_t i = 0; i != 3; ++i ) { // propogate # chans
 	dims_t & od = must_get_node(cop->tops[i])->dims;
 	if( od.size() ) { rt_err( "calc_dims_op(): unhandled: out dims already set (node with multiple writers):" + cop->tops[i] ); }

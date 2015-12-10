@@ -1,6 +1,4 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const biases, // CUCL IN out_chan
-					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
-					 
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
 					  GASQ float * const biases_grad_loss ) // CUCL OUT out_chan
 // note: in and in_grad_loss have the same dims
 {
