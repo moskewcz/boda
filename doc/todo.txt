@@ -1,3 +1,6 @@
+-- test_compute compares all intermediate layers?
+-- flops.py should handle backwards 'better' (i.e. maybe not so specially?)
+
 -- replace usage of kern_sz scalar with filts x/y dims
 -- use dims_t in conv_io instead of sz/chans (good/req'd for FIXME_EFB fix below?)
 -- fix explicit filts/biases FIXME_EFB's 
