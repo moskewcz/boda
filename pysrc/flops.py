@@ -91,10 +91,12 @@ class Net( object ):
         print "--- %s TOTALS ---" % fb_str
         flops = self.tot_forward_flops
         bytes_ = self.tot_forward_bytes
-        if args.backward:
-            fb_str = "FORWARD_BACKWARD"
+
+        if self.tot_backward_flops:
+            fb_str = "FORWARD+BACKWARD"
             flops += self.tot_backward_flops
             bytes_ += self.tot_backward_bytes
+
         print pp_flops(flops), pp_fps(flops/args.runtime)
         print pp_bytes(bytes_), pp_bps(bytes_/args.runtime), "AI="+pp_fpb(flops / float(bytes_))
         print pp_joules(args.power*args.runtime), pp_fpspw(flops/args.runtime/args.power) 
@@ -124,17 +126,7 @@ class Convolution( object ):
 
         K = filts.chan*filts.x*filts.y
         N = filts.num
-
-        if 0:
-            M = top.x*top.y # note: per-img M
-
-            buf_name = bot.name + "_one_row_per_patch_buf"
-            print "%s = NDA(%s,%s,%s)" % (buf_name,buf_name,M,K)
-            print "for i in range(0,num_img):"
-            print "  patches_to_rows( in=%s[i,:,:,:], out=%s )" % (bot.name,buf_name)
-            print "  %s = %s * transpose(reshape(%s,%s,%s)) # sgemm: MxNxK == %sx%sx%s" % (top.name,buf_name,filts.name,K,N,M,N,K)
-        else:
-            M = top.x*top.y*top.num # note: all-imgs M
+        M = top.x*top.y*top.num # note: all-imgs M
 
         if net.args.per_layer_in_info:
             print name, "input", bot.dims_info_str(), "filts", filts.dims_info_str(), "out", top.dims_info_str()
@@ -143,10 +135,8 @@ class Convolution( object ):
         net.tot_in_bytes += in_pels * 4
 
         forward_bytes = (in_pels + out_pels + filts.dims_prod() + biases.dims_prod()) * 4
-        backward_bytes = (in_pels*2 + out_pels + filts.dims_prod()*2 + biases.dims_prod()*2) * 4
 
         net.tot_forward_bytes += forward_bytes
-        net.tot_backward_bytes += backward_bytes
             
         assert bot.chan == filts.chan # filt.chan is (or should be) input chans
         assert top.chan == filts.num # filt.num is (or should be) output chans
@@ -154,29 +144,69 @@ class Convolution( object ):
         forward_flops = out_pels * filts.x * filts.y * filts.chan * 2
         grad_inner_dim = out_pels / filts.num # aka number of input patches
         assert grad_inner_dim == top.num*top.x*top.y
+
+        net.tot_forward_flops += forward_flops
+
+        if net.args.per_layer:
+            print name,
+            print "FWD",pp_flops(forward_flops),pp_bytes(forward_bytes),
+            if net.args.ai_mnk:
+                print " FWD_AI", pp_fpb( forward_flops / float(forward_bytes) ),
+                print " MxNxK=%sx%sx%s" % (M,N,K),
+            plt = per_layer_time.get(name,None)
+            if plt:
+                print " --- ", pp_secs( plt ), pp_fps( forward_flops / float(plt) ),
+            print ""
+
+class BckConv( object ): 
+    def __init__( self, name, bot_names, top_names, in_pad, stride ): 
+        global net
+        assert len(bot_names) == 4
+        assert len(top_names) == 3
+
+        bot = net.ndas[bot_names[0]]
+        filts = net.ndas[bot_names[1]]
+        biases = net.ndas[bot_names[2]]
+        top = net.ndas[bot_names[3]] # aka out_grad_loss
+
+
+        bot_grad_loss = net.ndas[top_names[0]]
+        filts_grad_loss = net.ndas[top_names[1]]
+        biases_grad_loss = net.ndas[top_names[2]]
+
+        in_pels = bot.dims_prod()
+        out_pels = top.dims_prod()
+
+        K = filts.chan*filts.x*filts.y
+        N = filts.num
+        M = top.x*top.y*top.num # note: all-imgs M
+
+        backward_bytes = (in_pels*2 + out_pels + filts.dims_prod()*2 + biases.dims_prod()*2) * 4
+
+        net.tot_backward_bytes += backward_bytes
+            
+        grad_inner_dim = out_pels / filts.num # aka number of input patches
+        assert grad_inner_dim == top.num*top.x*top.y
         back_grad_flops = filts.dims_prod() * grad_inner_dim * 2 # grad is same size as filts
         diff_inner_dim = filts.num
         # diff ends up as the same size as input but is reduced from a temp of size im2col(input).
         back_diff_flops = (filts.chan*filts.x*filts.y)*diff_inner_dim*grad_inner_dim * 2  # as: (M) * N * K
 
-        net.tot_forward_flops += forward_flops
-        net.tot_backward_flops += back_diff_flops + back_grad_flops
+        back_flops = back_diff_flops + back_grad_flops
+        net.tot_backward_flops += back_flops
 
         if net.args.per_layer:
             print name,
-            print "FWD",pp_flops(forward_flops),pp_bytes(forward_bytes),
-            if net.args.backward:
-                print " --- BACK_GRAD",pp_flops(back_grad_flops),
-                print " --- BACK_DIFF",pp_flops(back_diff_flops),
+            print "BCK",pp_flops(back_flops),pp_bytes(backward_bytes),
             if net.args.ai_mnk:
-                print " FWD_AI", pp_fpb( forward_flops / float(forward_bytes) ),
-                print " MxNxK=%sx%sx%s" % (M,N,K),
-            if net.args.backward:
-                print " BACKWARD_BYTES",pp_bytes(backward_bytes),
+                print " BCK_AI", pp_fpb( back_flops / float(backward_bytes) ),
+                print " fg-MxNxK=%sx%sx%s" % (K,N,M),
+                print " ig-MxNxK=%sx%sx%s" % (M,K,N),
             plt = per_layer_time.get(name,None)
             if plt:
-                print " --- ", pp_secs( plt ), pp_fps( forward_flops / float(plt) ),
+                print " --- ", pp_secs( plt ), pp_fps( back_flops / float(plt) ),
             print ""
+
 
 # FIXME: in boda output, the ops/nodes of IP layers are printed out as if it
 # they were conv layers ... not ideal, since NDAs don't match caffe iface
@@ -202,12 +232,6 @@ class Spreading( object ):
     def __init__( self, **kwargs ): self.opts = kwargs
 class ZeroIfNeg( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
-class BckConv( object ): 
-    def __init__( self, **kwargs ): self.opts = kwargs
-def patches_to_rows( **kwargs ):
-    pass
-def transpose( A ): return A
-def reshape( A, *args ): return A
 
 import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
@@ -215,7 +239,6 @@ parser.add_argument('--net-fn', metavar="FN", type=str, default="out.py", help="
 parser.add_argument('--net-name', metavar="STR", type=str, default="ANON_NET", help="name of network (for printouts)" )
 parser.add_argument('--runtime', metavar='SECONDS', type=float, default=1, help='time taken for power/energy calculations')
 parser.add_argument('--power', metavar='WATTS', type=float, default=200, help='average power used over runtime')
-parser.add_argument('--backward', metavar='BOOL', type=int, default=1, help='1:forward+backward; 0:only forward')
 parser.add_argument('--ai-mnk', metavar='BOOL', type=int, default=0, help='1:show fwd AI and MxNxK; 0:do not show')
 parser.add_argument('--per-layer', metavar='BOOL', type=int, default=0, help='1:print per-layer info; 0:only summary')
 parser.add_argument('--per-layer-in-info', metavar='BOOL', type=int, default=0, help='if non-zero print per-layer input dims info')
