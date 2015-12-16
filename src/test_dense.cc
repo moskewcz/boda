@@ -242,7 +242,8 @@ namespace boda {
     uint32_t tpd; //NESI(default="0",help="if non-zero, use test-pattern data. 1 == const, 2 == const + x co-ord")
     u32_pt_t tpd_in_sz; //NESI(default="15 15",help="x,y size of test-pattern data to use")
     double tpd_const; //NESI(default="1.0",help="test-pattern data constant offset")
-    
+
+    double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
 
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
@@ -338,16 +339,19 @@ namespace boda {
       p_nda_float_t out_batch_2 = run_cnet->run_one_blob_in_one_blob_out();
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
       ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
-      (*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_diff).c_str() );
-      if( (ssds_diff.mad >= 1e-5) || ssds_diff.has_nan() ) { ++num_mad_fail; }
-      uint32_t num_err = 0;
-      for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
-	float const v1 = out_batch_1->cm_at1(i);
-	float const v2 = out_batch_2->cm_at1(i);
-	if( v1 != v2 ) {
-	  (*out) << strprintf( "i=%s v1=%s v2=%s \n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
-	  ++num_err;
-	  if( num_err > max_err ) { break; }
+      bool is_fail = 0;
+      if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+      if( is_fail ) { // skip printing errors and details if no mad fail. set mad_toler = 0 to force print (and failure)
+	(*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_diff).c_str() );
+	uint32_t num_err = 0;
+	for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
+	  float const v1 = out_batch_1->cm_at1(i);
+	  float const v2 = out_batch_2->cm_at1(i);
+	  if( v1 != v2 ) {
+	    (*out) << strprintf( "i=%s v1=%s v2=%s \n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
+	    ++num_err;
+	    if( num_err > max_err ) { break; }
+	  }
 	}
       }
     }

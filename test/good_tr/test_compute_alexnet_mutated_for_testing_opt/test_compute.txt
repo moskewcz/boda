@@ -1,5 +1,2 @@
 (*i)->sz=353 500
-ssds_str(out_batch_1,out_batch_2)=cnt=19000 sum_squared_diffs=3.39635e-08 avg_abs_diff=1.30314e-06 max_abs_diff=5.24521e-06 sum_diffs=0.000305921 avg_diff=1.5296e-08
-i=0 v1=2.70476 v2=2.70476 
-i=1 v1=2.22909 v2=2.22909 
 ***ALL IS WELL***
