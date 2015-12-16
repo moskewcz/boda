@@ -43,11 +43,8 @@ namespace boda
   struct op_info_t {
     p_conv_op_t cop;
     p_conv_node_t no;
-    bool is_conv;
-    bool is_pool;
     p_conv_node_t ni;
     map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
-    // valid if: is_conv == 1
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     string cts; // cts --> conv-type-str
 
@@ -60,10 +57,13 @@ namespace boda
       no = cp->must_get_node( cop->tops[0] );
       u32_pt_t const no_sz = get_xy_dims( no->dims );
       if( !cop->is(Concat_coi) ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
-      is_conv = cop->is( Convolution_coi );
-      is_pool = cop->is( Pooling_coi );
+      bool const is_conv = cop->is( Convolution_coi );
+      bool const is_pool = cop->is( Pooling_coi );
       dims_t in_dims;
       if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
+	uint32_t const work_pels_dim = t_tile_sz;
+	uint32_t const work_out_chan_dim = t_tile_sz;      
+
 	assert_st( ni );
 	u32_pt_t const ni_sz = get_xy_dims( ni->dims );
 	in_dims = ni->dims;
@@ -105,10 +105,10 @@ namespace boda
 	  // calc_blocking_conv()
 	  uint32_t const out_ix_sz = no->dims.dims_prod();
 	  // for reg blocking
-	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->dims.dsz("chan"), t_tile_sz );
+	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->dims.dsz("chan"), work_out_chan_dim );
 	  uint32_t tix_pels_tile_sz_incr = 1;
 	  if( cts == s1conv_str ) {
-	    uint32_t const line_x_tile_sz = u32_ceil_div( no_sz.d[0], t_tile_sz );
+	    uint32_t const line_x_tile_sz = u32_ceil_div( no_sz.d[0], work_pels_dim );
 	    tix_pels_tile_sz_incr = line_x_tile_sz;
 	  }
 
@@ -136,7 +136,8 @@ namespace boda
 	    work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, tix_pels_tile_sz ) );
 	  } else if( cts == tconv_str ) {
 	    assert( tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
-	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), "blk_bx", u32_ceil_div( no_sz.d[0], t_tile_sz ) );
+	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), 
+			   "blk_bx", u32_ceil_div( no_sz.d[0], work_pels_dim ) );
 	    uint32_t tconv_blk_max_imgs = 0;
 	    uint32_t blk_b_line = 0;
 	    for( uint32_t i = 0; i != work.dsz("blk_bline"); ++i ) {
@@ -156,29 +157,28 @@ namespace boda
 	    //printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
 	    assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
 	    uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz.d[1]*tconv_blk_max_imgs;
-	    uint32_t const tconv_blk_x_sz = (t_tile_sz - 1)*stride + kern_sz.d[0];
+	    uint32_t const tconv_blk_x_sz = (work_pels_dim - 1)*stride + kern_sz.d[0];
 	    // the tconv/in_tile_xpose format is for use when both ni_sz.d[0/1] are small multiple of
-	    // t_tile_sz/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a (x,y)
-	    // window of the output of size (t_tile_sz,tix_pels_tile_sz) across bix_pels_blk_sz*t_tile_sz output chans. in
-	    // this case, we do not unroll across input chans, but we do unroll across kern_sz in X (and maybe in Y too for
-	    // small kernels).
-	    // note: "out_ix" from in_tile_xpose becomes "in_ix" for tconv; 
-	    // from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are in output space
-	    // image space. other x/y's (in thread and block indexes) are all in output image space.
+	    // work_pels_dim/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a
+	    // (x,y) window of the output of size (work_pels_dim,tix_pels_tile_sz) across bix_pels_blk_sz*work_pels_dim
+	    // output chans. in this case, we do not unroll across input chans, but we do unroll across kern_sz in X
+	    // (and maybe in Y too for small kernels).  note: "out_ix" from in_tile_xpose becomes "in_ix" for tconv;
+	    // from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are
+	    // in output space image space. other x/y's (in thread and block indexes) are all in output image space.
 	    in_dims = dims_t( vect_uint32_t{
 		work.dsz("blk_bline"), work.dsz("blk_bx"), ni->dims.dsz("chan"), tconv_blk_max_in_lines, tconv_blk_x_sz },
 	      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
 	  } else {
 	    uint32_t const pels_sz = out_ix_sz / no->dims.dsz("chan");
 	    assert_st( pels_sz * no->dims.dsz("chan") == out_ix_sz ); // by construction
-	    uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, t_tile_sz );
+	    uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, work_pels_dim );
 	    work.add_dims( "pels_blk", u32_ceil_div( pels_tile_sz, tix_pels_tile_sz ) );
 	  }
 	  work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, work_out_chan_tile_dim ) );
 
 	  // dims of per-group work (defines # threads per local group)
 	  if( cts == s1conv_str ) { 
-	    uint32_t const line_x_tile_sz = u32_ceil_div( no_sz.d[0], t_tile_sz );
+	    uint32_t const line_x_tile_sz = u32_ceil_div( no_sz.d[0], work_pels_dim );
 	    uint32_t const blk_num_lines = u32_ceil_div( tix_pels_tile_sz, line_x_tile_sz );
 	    assert_st( blk_num_lines * line_x_tile_sz == tix_pels_tile_sz ); // should be exact div by construction
 	    work.add_dims( "line", blk_num_lines, "line_x_tile", line_x_tile_sz );
@@ -187,7 +187,7 @@ namespace boda
 	  else { work.add_dims( "pels_tile", tix_pels_tile_sz ); }
 	  work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
 
-	  work.add_dims( "pels",t_tile_sz,   "out_chan",t_tile_sz   ); // dims of per-thread work
+	  work.add_dims( "pels", work_pels_dim, "out_chan", work_out_chan_dim ); // dims of per-thread work
 	  work.calc_strides();
 
 	  if( cts == k1conv_str ) { 
@@ -447,9 +447,9 @@ namespace boda
 	chans_out_done += dims_in.dsz("chan");
       }
       assert_st( chans_out_done == oi->no->dims.dsz("chan") );
-    } else if( oi->is_pool ) {
+    } else if( oi->cop->is( Pooling_coi ) ) {
       gen_call( "pool", oi, {oi->ni->name,oi->no->name}, oi->conv_ref_dims );
-    } else if( oi->is_conv ) {
+    } else if( oi->cop->is( Convolution_coi ) ) {
       gen_conv_filts( oi );
       string const in_id = cop->bots[0];
       dims_t const & in_dims = rtc->get_var_dims_floats( in_id );
@@ -752,7 +752,7 @@ namespace boda
       return rfs.get_u32_tvv("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
     }    
     void gen_op_conv( void ) {
-      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
+      dims_t const & work = get_arg_dims_by_name( "work" );
       // check that we have enough threads per block to load smem using one-elem-per-thread. FIXME: allow for cases when this does not hold.
       assert_st( rf->tpb >= (work.dsz( "out_chan" ) * work.dsz("out_chan_tile") ) ); 
       uint32_t const pel_smem_load_iter = u32_ceil_div( (work.dsz( "pels" ) * work.dsz( "pels_tile" )), rf->tpb );
@@ -821,7 +821,7 @@ namespace boda
     void gen_op_s1conv( void ) {
       assert_st( rfs.get_u32_tvv("stride") == 1 );
       rf->has_final_flags_arg = 1;
-      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
+      dims_t const & work = get_arg_dims_by_name( "work" );
       tf_exprs.push_back( std::make_pair( "line_buf_sz", "(%(in_pad)+%(in_x_dim)+%(in_pad))"));
       uint32_t const blk_out_chans = work.dsz("out_chan_tile")*work.dsz("out_chan");
       uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_out_chans, rf->tpb );
@@ -908,7 +908,7 @@ namespace boda
     void gen_op_k1conv( void ) {
       assert_st( rfs.get_u32_tvv("in_pad") == 0 );
       assert_st( rfs.get_u32_tvv("stride") == 1 );
-      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
+      dims_t const & work = get_arg_dims_by_name( "work" );
       dims_t const & filts = get_arg_dims_by_name( "filts" );
       assert_st( filts.dsz("x") == 1 ); assert_st( filts.dsz("y") == 1 );
       dims_t const & in = get_arg_dims_by_name( "in" );
@@ -917,7 +917,7 @@ namespace boda
       // note: filts and in smem are used concurrently, then just all of all_smem as an output buffer
       uint32_t const filts_smem_sz = filts.dstride("in_chan")*in.dsz("blk_iter_chan");
       tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
-      uint32_t const out_smem_sz = work.dsz("pels_tile")*work.dsz("out_chan_tile")*work.dsz("pels"); // note: == oi->tpb*t_tile_sz
+      uint32_t const out_smem_sz = work.dsz("pels_tile")*work.dsz("out_chan_tile")*work.dsz("pels"); // note: == oi->tpb*work.dsz("pels")
       tf_exprs.push_back( std::make_pair( "out_smem_sz", str(out_smem_sz) )); // note: unused, but assumed that all_smem_sz >= out_smem_sz
       uint32_t const all_smem_sz = std::max( out_smem_sz, filts_smem_sz+in.dstride("blk_iter") ); // note: %(in_blk_iter_sz) == in_smem_sz
       tf_exprs.push_back( std::make_pair( "all_smem_sz", str(all_smem_sz) ));
@@ -963,7 +963,7 @@ namespace boda
 	// assert_st( (out.dsz("blk_pel") % t_tile_sz) == 0 );
 	// we assume the out chans are a single (span of) dims in out. FIXME: check this?. FIXME_WXP: what does this even mean?
 
-	//cg_add_line( "stores", "  int32_t xpbuf[%(t_tile_sz)];\n";
+	//cg_add_line( "stores", "  int32_t xpbuf[%(work_out_chan_dim)];\n";
 	// FIXME: assumes (for GRP_ID_1D_pels_blk*... term) that input and output block have same # of pels ... too strong?
 	assert_st( out.dsz("blk_pel") == in.dsz("blk_pel") );
 	cg_add_line( "stores", "int32_t const out_ix = (%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim)*%(work_out_chan_dim))*%(out_blk_iter_chan_sz) + %(GRP_ID_1D_pels_blk)*%(out_blk_sz);" ); 
@@ -971,8 +971,8 @@ namespace boda
 	cg_add_line( "stores", "int32_t xpbuf_rd_chan;" );
 
 	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
-	  // transpose each thread's tx'th out_chan (= t_tile_sz out chans across all threads) into xpbuf (again across all threads)
-	  // such that we can do (mostly) sequential writes to global memory for this set of t_tile_sz out chans
+	  // transpose each thread's tx'th out_chan (= work_out_chan_dim out chans across all threads) into xpbuf (again across all threads)
+	  // such that we can do (mostly) sequential writes to global memory for this set of work_out_chan_dim out chans
 	  cg_add_line( "stores", "  BARRIER_SYNC;" );
 	  for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { // out_tile[] (registers) -> all_smem[]
 	    cg_add_line( "stores", strprintf( "out_smem_off[%%(tpb)*%s] = %s;", str(ty).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
@@ -1052,12 +1052,9 @@ namespace boda
     }
 
     void gen_op_tconv( void ) {
-      dims_t const & work = get_arg_dims_by_name( "work" ); // note: usage of t_tile_sz removed in favor of sizes of work.pels/work.out_chan
+      dims_t const & work = get_arg_dims_by_name( "work" );
       dims_t const & filts = get_arg_dims_by_name( "filts" );
       dims_t const & in = get_arg_dims_by_name( "in" );
-      //dims_t const & out = get_arg_dims_by_name( "out" );
-      // uint32_t const in_ix_blk_x_dim = oi->out_to_in(t_tile_sz); --> in_blk_x_dim / in.dsz("blk_x")
-      // uint32_t const blk_filt_ix_sz = work_out_chan_tile_dim * t_tile_sz; --> filts_x_sz / filts.dsz("x")
       uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts.dstride("y"), rf->tpb );  // filt smem loads
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
