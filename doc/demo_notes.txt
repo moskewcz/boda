@@ -1,14 +1,13 @@
-# ----v updated 2015.11.19 v----
+# ----v updated 2015.12.15 v----
 
 # capture classify (alexnet_conv classification, 227x227 input size)
-MODEL=alexnet_ng_conv; boda capture_classify  --cnet_predict="(max_num_disp=10,in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/train_val.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_node_name=fc8)" --capture='(cap_res=320 240)'
+boda capture_classify --model-name=alexnet_ng_conv --cnet_predict="(max_num_disp=10,out_node_name=fc8)" --capture='(cap_res=320 240)'
 
+# conv_pyra nin_imagenet_nopad (8x8 at nominal size) # note: may fail depending on OpenGL texure limits
+# boda conv_pyra --model-name=nin_imagenet_nopad --cnet_predict='(in_dims=(x=419,y=419))' --capture='(cap_res=640:480)' --out_node_name=cccp8 --ipp='(bin_sz=1200:1200)'
 
-# conv_pyra nin_imagenet_nopad (8x8 at nominal size)
-# MODEL=nin_imagenet_nopad; boda conv_pyra --cnet_predict="(in_sz=419 419,ptt_fn=%(models_dir)/${MODEL}/train_val.prototxt,trained_fn=%(models_dir)/${MODE#}/best.caffemodel)" --capture='(cap_res=640 480)' --out_layer_name=relu12 --ipp="(bin_sz=1200 1200)"
-
-# smaller version of above
-MODEL=nin_imagenet_nopad; boda conv_pyra --cnet_predict="(in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/train_val.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel)" --capture='(cap_res=320 240)' --out_node_name=cccp8 --ipp="(bin_sz=600 600)"
+# smaller version of above (should work across more OpenGL envs)
+boda conv_pyra --model-name=nin_imagenet_nopad --cnet_predict='(in_dims=(x=227,y=227))' --capture='(cap_res=320:240)' --out_node_name=cccp8 --ipp='(bin_sz=600:600)' 
 
 # ----v not up to date v----
 
