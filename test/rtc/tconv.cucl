@@ -12,9 +12,9 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // CUCL IX LOC_ID_1D work use_dims=blk_y:out_chan_tile
   // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
 
-  LOCSHAR_MEM float all_smem[%(filts_y_sz)+%(in_blk_in_chan_sz)]; // note: filts + in (or in detail: filts_y_sz + in_blk_in_chan_sz)
+  LOCSHAR_MEM float all_smem[%(filts_smem_sz)+%(in_blk_in_chan_sz)]; // note: filts + in (or in detail: filts_smem_sz + in_blk_in_chan_sz)
   LSMASQ float * const filts_smem = all_smem;
-  LSMASQ float * const in_smem = filts_smem + %(filts_y_sz);
+  LSMASQ float * const in_smem = filts_smem + %(filts_smem_sz);
   float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts, for the same filts_ix_out_chan_elem
   float filts_strip[%(work_out_chan_dim)]; // across output chans (stride is blk_filt_ix_sz )
@@ -37,7 +37,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
     %(in_smem_loads);
     for( int32_t ky = 0; ky != %(filts_y_dim); ++ky ) {
       if( ky != 0 ) { BARRIER_SYNC; }
-      %(filt_smem_loads);
+      %(filts_smem_loads);
       BARRIER_SYNC;
       if( %(out_line_img) >= %(out_img_dim) ) { continue; } // required: skip lines from invalid images (read might be invalid)
       // FIXME: in_dim_1 --> in_ref_y_dim maybe? need to add in_ref REF dim?

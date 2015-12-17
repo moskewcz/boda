@@ -61,9 +61,6 @@ namespace boda
       bool const is_pool = cop->is( Pooling_coi );
       dims_t in_dims;
       if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
-	uint32_t const work_pels_dim = t_tile_sz;
-	uint32_t const work_out_chan_dim = t_tile_sz;      
-
 	assert_st( ni );
 	u32_pt_t const ni_sz = get_xy_dims( ni->dims );
 	in_dims = ni->dims;
@@ -104,6 +101,12 @@ namespace boda
 	if( is_conv ) {
 	  // calc_blocking_conv()
 	  uint32_t const out_ix_sz = no->dims.dims_prod();
+	  uint32_t const pels_sz = out_ix_sz / no->dims.dsz("chan");
+	  assert_st( pels_sz * no->dims.dsz("chan") == out_ix_sz ); // by construction
+	  //uint32_t const work_pels_dim = std::min( pels_sz, t_tile_sz ); // never a need to be larger
+	  uint32_t const work_pels_dim = t_tile_sz;
+	  uint32_t const work_out_chan_dim = t_tile_sz; // FIXME: increase if work_pels_dim got clamped?     
+	
 	  // for reg blocking
 	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->dims.dsz("chan"), work_out_chan_dim );
 	  uint32_t tix_pels_tile_sz_incr = 1;
@@ -125,6 +128,7 @@ namespace boda
 	    if( maybe_tbp > max_tpb ) { break; }
 	    tix_pels_tile_sz += tix_pels_tile_sz_incr;
 	    best_tbp = maybe_tbp;
+	    //if( tix_pels_tile_sz * work_pels_dim >= pels_sz ) { break; } // no need to be larger
 	  }
 	  assert_st( best_tbp );
 	  assert_st( best_tbp <= max_tpb );
@@ -169,8 +173,6 @@ namespace boda
 		work.dsz("blk_bline"), work.dsz("blk_bx"), ni->dims.dsz("chan"), tconv_blk_max_in_lines, tconv_blk_x_sz },
 	      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
 	  } else {
-	    uint32_t const pels_sz = out_ix_sz / no->dims.dsz("chan");
-	    assert_st( pels_sz * no->dims.dsz("chan") == out_ix_sz ); // by construction
 	    uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, work_pels_dim );
 	    work.add_dims( "pels_blk", u32_ceil_div( pels_tile_sz, tix_pels_tile_sz ) );
 	  }
@@ -751,6 +753,19 @@ namespace boda
       string const ve = strprintf( "(out_tile[%s] + filts_strip[%s])", str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
       return rfs.get_u32_tvv("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
     }    
+
+    void gen_filts_smem_loads( uint32_t const filts_smem_sz ) { // note: filts_smem_sz must == tvv %(filts_smem_sz)
+      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rf->tpb );    
+      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string eif;
+	if( (i+1)*rf->tpb > filts_smem_sz ) { 
+	  cg_add_line( "filts_smem_loads", "if( "+ixe+" < %(filts_smem_sz) ) {" );eif = "}";}
+	// note: load is (always) contiguous
+	cg_add_line( "filts_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s",ixe.c_str(),str(i).c_str(),eif.c_str()) );
+      }
+    }
+
     void gen_op_conv( void ) {
       dims_t const & work = get_arg_dims_by_name( "work" );
       // check that we have enough threads per block to load smem using one-elem-per-thread. FIXME: allow for cases when this does not hold.
@@ -926,14 +941,7 @@ namespace boda
       tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
 
       // generate smem loads
-      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rf->tpb );    
-      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
-	string eif;
-	if( (i+1)*rf->tpb > filts_smem_sz ) { cg_add_line( "smem_loads", "if( "+ixe+" < %(filts_smem_sz) ) {" );eif = "}";}
-	// note: load is (always) contiguous
-	cg_add_line( "smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s",ixe.c_str(),str(i).c_str(),eif.c_str()) );
-      }
+      gen_filts_smem_loads( filts_smem_sz );
       uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_iter"), rf->tpb );    
       for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
@@ -1055,15 +1063,10 @@ namespace boda
       dims_t const & work = get_arg_dims_by_name( "work" );
       dims_t const & filts = get_arg_dims_by_name( "filts" );
       dims_t const & in = get_arg_dims_by_name( "in" );
-      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts.dstride("y"), rf->tpb );  // filt smem loads
-      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
-	string eif; // note: load is (always) contiguous
-	if( (i+1)*rf->tpb > filts.dstride("y") ) { cg_add_line( "filt_smem_loads", "if( "+ixe+" < %(filts_y_sz) ) { " );eif = "}";}
-	cg_add_line( "filt_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s",ixe.c_str(),str(i).c_str(),eif.c_str()));
-      }
-      cg_add_line( "filt_smem_loads", "filts_off += %(filts_y_sz);" );
-
+      uint32_t const filts_smem_sz = filts.dstride("y");
+      tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
+      gen_filts_smem_loads( filts_smem_sz );
+      cg_add_line( "filts_smem_loads", "filts_off += %(filts_smem_sz);" );
       uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_in_chan"), rf->tpb );  // in smem loads
       for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
