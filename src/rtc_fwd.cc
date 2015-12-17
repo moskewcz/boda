@@ -747,8 +747,22 @@ namespace boda
 	// note: load is (always) contiguous
 	cg_add_line( "filts_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s",ixe.c_str(),str(i).c_str(),eif.c_str()) );
       }
-      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( get_arg_dims_by_name("filts").dstride("x"), rf->tpb );
+      // number of out chans per block; note: == work_out_chan_tile_dim*work_out_chan_dim
+      uint32_t const filts_x_sz = get_arg_dims_by_name("filts").dstride("x"); 
+      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( filts_x_sz, rf->tpb );
       tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
+
+      cg_add_line( "biases_smem_loads","int32_t ocix; int32_t const ocix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_x_sz);" );
+      for( uint32_t i = 0; i != out_chan_bias_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string eif;
+	cg_add_line( "biases_smem_loads", strprintf( "ocix = ocix_base + (%s %%%% %%(work_out_chan_tile_dim))*%%(work_out_chan_dim) + ( %s / %%(work_out_chan_tile_dim) );", ixe.c_str(), ixe.c_str() ) );
+	if( (i+1)*rf->tpb > filts_x_sz ) { 
+	  cg_add_line( "biases_smem_loads", "if( "+ixe+" < %(filts_x_sz) ) {" );eif = "}";}
+	// note: load is (always) contiguous
+	cg_add_line( "biases_smem_loads", strprintf("if( ocix < %%(biases_out_chan_dim) ) {filts_smem[%s] = biases[ocix];}%s",ixe.c_str(),eif.c_str()) );
+      }
+
     }
 
     void gen_op_conv( void ) {
