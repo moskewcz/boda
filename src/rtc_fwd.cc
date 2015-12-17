@@ -747,12 +747,17 @@ namespace boda
 	// note: load is (always) contiguous
 	cg_add_line( "filts_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s",ixe.c_str(),str(i).c_str(),eif.c_str()) );
       }
+      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( get_arg_dims_by_name("filts").dstride("x"), rf->tpb );
+      tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
     }
 
     void gen_op_conv( void ) {
       dims_t const & work = get_arg_dims_by_name( "work" );
-      // check that we have enough threads per block to load smem using one-elem-per-thread. FIXME: allow for cases when this does not hold.
-      assert_st( rf->tpb >= (work.dsz( "out_chan" ) * work.dsz("out_chan_tile") ) ); 
+      dims_t const & filts = get_arg_dims_by_name( "filts" );
+      uint32_t const filts_smem_sz = filts.dstride("x");
+      tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
+      gen_filts_smem_loads( filts_smem_sz );
+
       uint32_t const pel_smem_load_iter = u32_ceil_div( (work.dsz( "pels" ) * work.dsz( "pels_tile" )), rf->tpb );
       tf_exprs.push_back( std::make_pair( "pel_smem_load_iter", str(pel_smem_load_iter) ) );
       tf_exprs.push_back( std::make_pair( "out_chan_tile", 
@@ -779,12 +784,10 @@ namespace boda
 				       );
       tf_exprs.push_back( std::make_pair( "get_in", get_in ) );
       for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
-	cg_add_line( "dummy_loads", strprintf( "filts_strip[%s] = filts_smem[(LOC_ID_1D %%%% 32) + %s];", str(tx).c_str(), str(tx).c_str() ) );
 	cg_add_line( "loads", strprintf( "filts_strip[%s] = filts_smem[%%(LOC_ID_1D_out_chan_tile)+%s*%%(work_out_chan_tile_dim)];",
 					 str(tx).c_str(), str(tx).c_str() ) );
       }
       for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
-	cg_add_line( "dummy_loads", strprintf( "in_strip[%s] = in_smem[(LOC_ID_1D %%%% 32) + %s];", str(ty).c_str(), str(ty).c_str() ));
 	cg_add_line( "loads", strprintf( "in_strip[%s] = in_smem[%%(LOC_ID_1D_pels_tile)*%%(work_pels_dim)+%s];",
 					 str(ty).c_str(), str(ty).c_str() ) );
       }
@@ -801,7 +804,6 @@ namespace boda
 	cg_add_line( "stores", strprintf( "  tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_chan_sz); // cache out chan ixs",
 					  str(ty).c_str(), str(ty).c_str() ) );
       }	
-      cg_add_line( "dummy_stores", "out[0] = 0.0f");
       for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) {
 	cg_add_line( "stores", "if( %(pel_ix_"+str(ty)+"_x_nomod) >= %(pel_ix_0_dims_prod) ) { return; } "
 		     "// this pel and the following are off-the-end pels, so don't store them." );
@@ -810,10 +812,8 @@ namespace boda
 					  str((ty*work.dsz( "out_chan" )+tx)).c_str(), str(tx).c_str(), str(ty).c_str() ) );
 	  cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { out[ tpix[%s] + tcix[%s] ] = %s; }",
 					    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
-	  cg_add_line( "dummy_stores", " + " + add_bias_then_maybe_relu(work,tx,ty));
 	}
       }
-      cg_add_line( "dummy_stores", ";");
     }
 
     void gen_op_k1conv( void ) {
@@ -832,9 +832,6 @@ namespace boda
       tf_exprs.push_back( std::make_pair( "out_smem_sz", str(out_smem_sz) )); // note: unused, but assumed that all_smem_sz >= out_smem_sz
       uint32_t const all_smem_sz = std::max( out_smem_sz, filts_smem_sz+in.dstride("blk_iter") ); // note: %(in_blk_iter_sz) == in_smem_sz
       tf_exprs.push_back( std::make_pair( "all_smem_sz", str(all_smem_sz) ));
-
-      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( filts.dstride("x"), rf->tpb );
-      tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
 
       // generate smem loads
       gen_filts_smem_loads( filts_smem_sz );
@@ -988,8 +985,6 @@ namespace boda
 	  }
 	}
       }
-      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( filts.dsz("x"), rf->tpb );
-      tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
       for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
 	cg_add_line( "bias_loads", strprintf( "filts_strip[%s] = filts_smem_off[%s*%%(filts_out_chan_reg_sz)];", str(tx).c_str(), str(tx).c_str() ) );
       }
