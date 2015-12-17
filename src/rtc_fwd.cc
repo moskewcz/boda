@@ -39,7 +39,7 @@ namespace boda
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
-  string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const conv_str = "conv";
+  string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const ipconv_str = "ipconv"; string const conv_str = "conv";
   struct op_info_t {
     p_conv_op_t cop;
     p_conv_node_t no;
@@ -48,7 +48,7 @@ namespace boda
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     string cts; // cts --> conv-type-str
 
-    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_,
+    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, bool const & enable_ipconv,
 	       bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
       cop = cop_;
@@ -79,7 +79,9 @@ namespace boda
 	uint32_t const stride = cop->stride.d[0];
 	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
 	assert_st( ni_sz.dims_are_same() );
-	if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == 1) 
+	if( is_conv && enable_ipconv && (in_pad == 0) && (get_xy_dims(no->dims) == u32_pt_t{1,1}) ) {
+	  cts = ipconv_str; // single output per-chan-per-image: inner-product case
+	} else if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == 1) 
 	    && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no->dims.dsz("chan") >= 64) ) 
 	{ 
 	  if( in_pad != 0 ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); cts = conv_str; }
@@ -101,10 +103,11 @@ namespace boda
 	  uint32_t const out_ix_sz = no->dims.dims_prod();
 	  uint32_t const pels_sz = out_ix_sz / no->dims.dsz("chan");
 	  assert_st( pels_sz * no->dims.dsz("chan") == out_ix_sz ); // by construction
-	  //uint32_t const work_pels_dim = std::min( pels_sz, t_tile_sz ); // never a need to be larger
-	  uint32_t const work_pels_dim = t_tile_sz;
-	  uint32_t const work_out_chan_dim = t_tile_sz; // FIXME: increase if work_pels_dim got clamped?     
-	
+	  uint32_t const work_pels_dim = std::min( pels_sz, t_tile_sz ); // never a need to be larger
+	  //uint32_t const work_pels_dim = t_tile_sz;
+	  uint32_t work_out_chan_dim = t_tile_sz;
+	  //if( work_pels_dim * 3 <= t_tile_sz ) { work_out_chan_dim *= 2; } // experimental bump if small work_pels_dim
+
 	  // for reg blocking
 	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->dims.dsz("chan"), work_out_chan_dim );
 	  uint32_t tix_pels_tile_sz_incr = 1;
@@ -114,7 +117,7 @@ namespace boda
 	  // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
 	  // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
 	  // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the no->dims.dsz("chan").
-	  uint32_t const work_out_chan_tile_dim = std::min( goal_work_out_chan_tile_dim, out_chan_tile_sz );
+	  uint32_t work_out_chan_tile_dim = std::min( goal_work_out_chan_tile_dim, out_chan_tile_sz );
 	  uint32_t tix_pels_tile_sz = 0;
 	  uint32_t best_tbp = 0;
 	  while( 1 ) {
@@ -122,10 +125,22 @@ namespace boda
 	    if( maybe_tbp > max_tpb ) { break; }
 	    tix_pels_tile_sz += tix_pels_tile_sz_incr;
 	    best_tbp = maybe_tbp;
-	    //if( tix_pels_tile_sz * work_pels_dim >= pels_sz ) { break; } // no need to be larger
+	    if( tix_pels_tile_sz * work_pels_dim >= pels_sz ) { break; } // no need to be larger
 	  }
 	  assert_st( best_tbp );
 	  assert_st( best_tbp <= max_tpb );
+#if 0
+	  // now, try to increase work_out_chan_tile_dim, in particular if we broke out due to pels_sz above
+	  while( 1 ) {
+	    uint32_t const maybe_tbp = tix_pels_tile_sz * (work_out_chan_tile_dim+1); // recalculate proposed tpb
+	    if( maybe_tbp > max_tpb ) { break; }
+	    ++work_out_chan_tile_dim;
+	    best_tbp = maybe_tbp;
+	    if( work_out_chan_tile_dim * work_out_chan_dim >= no->dims.dsz("chan") ) { break; } // no need to be larger
+	  }
+	  assert_st( best_tbp );
+	  assert_st( best_tbp <= max_tpb );
+#endif	  
 
 	  dims_t work;
 	  uint32_t const lines_sz = no->dims.dsz("img") * no_sz.d[1];
@@ -175,6 +190,7 @@ namespace boda
 	  work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
 
 	  work.add_dims( "pels", work_pels_dim, "out_chan", work_out_chan_dim ); // dims of per-thread work
+	  if( cts == ipconv_str ) { work.add_dims( "fioc_tile", 32 ); } // unrolling/tiling of inner loop
 	  work.calc_strides();
 
 	  if( cts == k1conv_str ) { 
@@ -259,6 +275,7 @@ namespace boda
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
     uint32_t enable_k1conv; //NESI(default=0,help="if 1, enable experimental k1conv special case")
+    uint32_t enable_ipconv; //NESI(default=0,help="if 1, enable ipconv special case")
     uint32_t enable_tconv; //NESI(default=0,help="if 1, enable experimental tconv special case")
     uint32_t force_enable_tconv; //NESI(default=0,help="if 1, force-enable experimental tconv special case even for not-sensible sizes")
     uint32_t enable_write_xpose; //NESI(default=0,help="if 1, enable experimental k1conv write xposing")
@@ -442,9 +459,12 @@ namespace boda
       if( force_zero_bias ) { force_zero_names.insert( cop->bots[2] ); }
       dims_t const & conv_in_dims = oi->conv_ref_dims["in"];
       vect_string in_arg_ids;
-      string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", {cp->must_get_node(cop->bots[1])->dims,oi->conv_ref_dims["filtsxp"]}, 
+      if( oi->cts == ipconv_str ) { in_arg_ids.push_back( cop->bots[1] ); } // filts (untransposed)
+      else {
+	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", {cp->must_get_node(cop->bots[1])->dims,oi->conv_ref_dims["filtsxp"]}, 
 	    oi->conv_ref_dims, oi->template_var_values } );
-      in_arg_ids.push_back( gen_apply_func_to_var( cop->bots[1], oi->conv_ref_dims["filtsxp"], filts_xp_fn ) ); // filts
+	in_arg_ids.push_back( gen_apply_func_to_var( cop->bots[1], oi->conv_ref_dims["filtsxp"], filts_xp_fn ) ); // filts
+      }
       in_arg_ids.push_back( cop->bots[2] ); // biases
       if( oi->cts == tconv_str ) {
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,conv_in_dims}, oi->conv_ref_dims, oi->template_var_values } );
@@ -631,6 +651,7 @@ namespace boda
 
       // *** custom codegen hooks ***
       if( rfs.fn == "conv" ) { gen_op_conv(); } 
+      else if( rfs.fn == "ipconv" ) { gen_op_ipconv(); } 
       else if( rfs.fn == "k1conv" ) { gen_op_k1conv(); } 
       else if( rfs.fn == "tconv" ) { gen_op_tconv(); } 
 
@@ -828,6 +849,16 @@ namespace boda
 					    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
 	}
       }
+    }
+
+    void gen_op_ipconv( void ) {
+      dims_t const & work = get_arg_dims_by_name( "work" );
+      //dims_t const & filts = get_arg_dims_by_name( "filts" );
+      uint32_t const filts_smem_sz = work.dsz("out_chan_tile")*work.dsz("out_chan")*work.dsz("fioc_tile");
+      tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
+      gen_filts_smem_loads( filts_smem_sz );
+      uint32_t const in_smem_sz = work.dsz("pels_tile")*work.dsz("pel")*work.dsz("fioc_tile");
+      tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
     }
 
     void gen_op_k1conv( void ) {
@@ -1103,7 +1134,7 @@ namespace boda
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
-      oi->init( cp, i->second, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
+      oi->init( cp, i->second, enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
     }
     rtc->init();
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
