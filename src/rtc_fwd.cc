@@ -39,7 +39,7 @@ namespace boda
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
-  string const k1conv_str = "k1conv"; string const s1conv_str = "s1conv"; string const tconv_str = "tconv"; string const conv_str = "conv";
+  string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const conv_str = "conv";
   struct op_info_t {
     p_conv_op_t cop;
     p_conv_node_t no;
@@ -49,7 +49,7 @@ namespace boda
     string cts; // cts --> conv-type-str
 
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_,
-	       bool const & enable_k1conv, bool const & enable_s1conv, bool const & enable_tconv, bool const & force_enable_tconv,
+	       bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
       cop = cop_;
       assert_st( cop->tops.size() >= 1 );
@@ -88,8 +88,6 @@ namespace boda
 	else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz.both_dims_le(u32_pt_t{11,11})
 								     && (kern_sz.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
 		   cts = tconv_str; }
-	else if( is_conv && enable_s1conv && (stride == 1) && kern_sz.both_dims_le(u32_pt_t{5,5}) && kern_sz.both_dims_ge(u32_pt_t{1,1})
-		 && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no->dims.dsz("chan") >= 64) ) { cts = s1conv_str; }
 	else { cts = conv_str; }
 
 	if( is_conv || cop->is( BckConv_coi ) ) { // bckconv/conv
@@ -110,10 +108,6 @@ namespace boda
 	  // for reg blocking
 	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->dims.dsz("chan"), work_out_chan_dim );
 	  uint32_t tix_pels_tile_sz_incr = 1;
-	  if( cts == s1conv_str ) {
-	    uint32_t const line_x_tile_sz = u32_ceil_div( no_sz.d[0], work_pels_dim );
-	    tix_pels_tile_sz_incr = line_x_tile_sz;
-	  }
 
 	  uint32_t const max_tpb = 128; // treated as a target, but not be exceeded
 	  uint32_t const goal_work_out_chan_tile_dim = 16; // sqrt( tpb ) above, more or less, but tweakable
@@ -135,10 +129,7 @@ namespace boda
 
 	  dims_t work;
 	  uint32_t const lines_sz = no->dims.dsz("img") * no_sz.d[1];
-	  if( cts == s1conv_str ) {
-	    assert_st( lines_sz * no_sz.d[0] * no->dims.dsz("chan") == out_ix_sz ); // by construction
-	    work.add_dims( "lines_blk", u32_ceil_div( lines_sz*tix_pels_tile_sz_incr, tix_pels_tile_sz ) );
-	  } else if( cts == tconv_str ) {
+	  if( cts == tconv_str ) {
 	    assert( tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
 	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), 
 			   "blk_bx", u32_ceil_div( no_sz.d[0], work_pels_dim ) );
@@ -179,13 +170,7 @@ namespace boda
 	  work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, work_out_chan_tile_dim ) );
 
 	  // dims of per-group work (defines # threads per local group)
-	  if( cts == s1conv_str ) { 
-	    uint32_t const line_x_tile_sz = u32_ceil_div( no_sz.d[0], work_pels_dim );
-	    uint32_t const blk_num_lines = u32_ceil_div( tix_pels_tile_sz, line_x_tile_sz );
-	    assert_st( blk_num_lines * line_x_tile_sz == tix_pels_tile_sz ); // should be exact div by construction
-	    work.add_dims( "line", blk_num_lines, "line_x_tile", line_x_tile_sz );
-	  } 
-	  else if( cts == tconv_str ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
+	  if( cts == tconv_str ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
 	  else { work.add_dims( "pels_tile", tix_pels_tile_sz ); }
 	  work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
 
@@ -273,7 +258,6 @@ namespace boda
     uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
-    uint32_t enable_s1conv; //NESI(default=0,help="if 1, enable experimental s1conv special case")
     uint32_t enable_k1conv; //NESI(default=0,help="if 1, enable experimental k1conv special case")
     uint32_t enable_tconv; //NESI(default=0,help="if 1, enable experimental tconv special case")
     uint32_t force_enable_tconv; //NESI(default=0,help="if 1, force-enable experimental tconv special case even for not-sensible sizes")
@@ -647,7 +631,6 @@ namespace boda
 
       // *** custom codegen hooks ***
       if( rfs.fn == "conv" ) { gen_op_conv(); } 
-      else if( rfs.fn == "s1conv" ) { gen_op_s1conv(); } 
       else if( rfs.fn == "k1conv" ) { gen_op_k1conv(); } 
       else if( rfs.fn == "tconv" ) { gen_op_tconv(); } 
 
@@ -831,93 +814,6 @@ namespace boda
 	}
       }
       cg_add_line( "dummy_stores", ";");
-    }
-
-    void gen_op_s1conv( void ) {
-      assert_st( rfs.get_u32_tvv("stride") == 1 );
-      rf->has_final_flags_arg = 1;
-      dims_t const & work = get_arg_dims_by_name( "work" );
-      tf_exprs.push_back( std::make_pair( "line_buf_sz", "(%(in_pad)+%(in_x_dim)+%(in_pad))"));
-      uint32_t const blk_out_chans = work.dsz("out_chan_tile")*work.dsz("out_chan");
-      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( blk_out_chans, rf->tpb );
-      tf_exprs.push_back( std::make_pair( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) ) );
-      dims_t const & filts = get_arg_dims_by_name( "filts" );
-      assert_st( filts.dsz("out_chan_reg")*filts.dsz("out_chan_tile") == blk_out_chans ); // also aka %(filts_x_sz)
-      dims_t const & in_dims = get_arg_dims_by_name( "in" );
-      // generate filter smem loads
-      uint32_t const out_chan_smem_load_iter = u32_ceil_div( blk_out_chans * filts.dsz("x"), rf->tpb );    
-      if( rf->tpb == blk_out_chans ) {
-	assert_st( out_chan_smem_load_iter * rf->tpb == blk_out_chans * filts.dsz("x") );
-	tf_exprs.push_back( std::make_pair( "filts_off_adj", "LOC_ID_1D" ));
-	for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	  cg_add_line( "filts_smem_loads", strprintf( "filts_smem[LOC_ID_1D + %%(tpb) * %s] = filts[filts_off+(%s*%%(filts_x_sz))];",
-						      str(i).c_str(), str(i).c_str() ) );
-	} 
-      } else {
-	tf_exprs.push_back( std::make_pair( "filts_off_adj", "0" ));
-	for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
-	  string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
-	  string eif;
-	  if( (i+1) == out_chan_smem_load_iter ) { 
-	    cg_add_line( "filts_smem_loads", "if( "+ixe+" < "+str(blk_out_chans*filts.dsz("x"))+") { " ); eif = "}"; 
-	  }
-	  cg_add_line( "filts_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+((%s/%s)*%%(filts_x_sz))"
-						     "+(%s %%%% %s)];%s",ixe.c_str(),ixe.c_str(),str(blk_out_chans).c_str(),
-						     ixe.c_str(),str(blk_out_chans).c_str(),eif.c_str()) );
-	}
-      }
-      assert_st( in_dims.dsz("x")*work.dsz("line") <= rf->tpb ); // can load in_smem with one-load-per-thread FIXME: too strong?
-      assert_st( (2*rfs.get_u32_tvv("in_pad")*work.dsz("line")) <= rf->tpb ); // can zero-init padding with one-store-per-thread FIXME: too strong? other bad things probably happen with large padding?
-      tf_exprs.push_back( std::make_pair( "out_chan_tile", 
-					  "(%(LOC_ID_1D_out_chan_tile)+%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim))"));
-      tf_exprs.push_back( std::make_pair( "out_chan_ix","(%(out_chan_tile)*%(work_out_chan_dim))" ) );
-      
-      for( uint32_t i = 0; i != work.dsz("pels"); ++i ) {
-	tf_exprs.push_back( std::make_pair( "line_x_" + str(i), 
-					    strprintf( "(%%(LOC_ID_1D_line_x_tile)*%%(work_pel_dim)+%s)", str(i).c_str() ) ) );
-      }
-      for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
-	cg_add_line( "filt_loads", strprintf( "filts_strip[%s] = filts_smem[filts_smem_off+%%(LOC_ID_1D_out_chan_tile)+%s*%%(work_out_chan_tile_dim)];", str(tx).c_str(), str(tx).c_str() ) );
-      }
-      for( uint32_t ty = 0; ty != work.dsz("pels") + filts.dsz("x") - 1; ++ty ) { 
-	cg_add_line( "in_loads", strprintf( "in_strip[%s] = in_smem[%%(line_buf_sz)*%%(LOC_ID_1D_line)+"
-					    " %%(work_pels_dim)*%%(LOC_ID_1D_line_x_tile)+%s];",
-					    str(ty).c_str(), str(ty).c_str() ) );
-      }
-      cg_add_line( "stores", "  int32_t tpix[%(work_pels_dim)];" );
-      cg_add_line( "stores", "  int32_t tcix[%(work_out_chan_dim)];" );
-      cg_add_line( "stores", "  if( %(out_line_img) >= %(out_img_dim) ) { return; } " );
-      // FIXME: should somehow assert that both out_ix and pel_ix_N have the same dims here
-      for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { 
-	cg_add_line( "stores", strprintf( "tpix[%s] = %%(out_line_img)*%%(out_img_sz) + \n"
-					  "           %%(out_line_y)*%%(out_y_sz) + \n"
-					  " (%%(work_pels_dim)*%%(LOC_ID_1D_line_x_tile)+%s)*%%(out_x_sz); // cache out pel ixs",
-					  str(ty).c_str(), str(ty).c_str() ) );
-      }
-      for( uint32_t ty = 0; ty != work.dsz("out_chan"); ++ty ) { 
-	cg_add_line( "stores", strprintf( "tcix[%s] = (%%(out_chan_ix)+%s)*%%(out_chan_sz); // cache out chan ixs",
-					  str(ty).c_str(), str(ty).c_str() ) );
-      }
-      for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
-	cg_add_line( "stores", "  if( (%(work_pels_dim)*%(LOC_ID_1D_line_x_tile)+"+str(ty)+") >= %(out_x_dim) ) { return; } "
-		     "// this pel and the following are off-the-end pels, so don't store them." );
-	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
-	  cg_add_line( "stores", strprintf( "if( tcix[%s] < (%%(out_chan_dim)*%%(out_chan_sz)) ) { out[ tpix[%s] + tcix[%s] ] = %s; }",
-					    str(tx).c_str(), str(ty).c_str(), str(tx).c_str(), add_bias_then_maybe_relu(work,tx,ty).c_str() ) );
-	}
-      }
-      cg_add_line( "inner_loop_body", "filts_smem_off = 0;" );
-      cg_add_line( "inner_loop_body", cgs["in_loads"] + ";" );
-      for( uint32_t kx = 0; kx != filts.dsz("x"); ++kx ) {
-	cg_add_line( "inner_loop_body", cgs["filt_loads"] + ";" );
-	cg_add_line( "inner_loop_body", "    filts_smem_off += %(filts_x_sz);" );
-	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
-	  for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
-	    cg_add_line( "inner_loop_body", strprintf( "    out_tile[%s] += filts_strip[%s]*in_strip[%s];", 
-						       str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str(), str(ty+kx).c_str() ) );
-	  }
-	}
-      }
     }
 
     void gen_op_k1conv( void ) {
@@ -1198,7 +1094,7 @@ namespace boda
       p_op_info_t & oi = (*op_infos)[i->first];
       assert_st( !oi );
       oi = make_shared< op_info_t >();
-      oi->init( cp, i->second, enable_k1conv, enable_s1conv, enable_tconv, force_enable_tconv, t_tile_sz );
+      oi->init( cp, i->second, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
     }
     rtc->init();
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
