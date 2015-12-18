@@ -347,7 +347,7 @@ namespace boda {
 	for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
 	  float const v1 = out_batch_1->cm_at1(i);
 	  float const v2 = out_batch_2->cm_at1(i);
-	  if( v1 != v2 ) {
+	  if( fabs(v1 - v2) >= mad_toler ) {
 	    (*out) << strprintf( "i=%s v1=%s v2=%s \n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
 	    ++num_err;
 	    if( num_err > max_err ) { break; }
