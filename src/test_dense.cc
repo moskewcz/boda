@@ -341,6 +341,7 @@ namespace boda {
       ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
       bool is_fail = 0;
       if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+      vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
       if( is_fail ) { // skip printing errors and details if no mad fail. set mad_toler = 0 to force print (and failure)
 	(*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_diff).c_str() );
 	uint32_t num_err = 0;

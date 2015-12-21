@@ -7,7 +7,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // CUCL IX out_pel_ix out use_dims=img:y:x
   // CUCL IX filts_ix_out_chan_elem filts use_dims=in_chan:y:x
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
-  // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
+  // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile:fioc_tile
   // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan in blocks of fioc_tile
   LOCSHAR_MEM float in_smem[%(in_smem_sz)];
   LOCSHAR_MEM float filts_smem[%(filts_smem_sz)];
@@ -16,14 +16,35 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   float filts_strip[%(work_out_chan_dim)]; // across output chans (stride is %(filts_smem_sz) )
   float in_strip[%(work_pels_dim)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
 
-  int32_t filts_off = %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim)*%(work_out_chan_dim)*%(filts_out_chan_sz) + LOC_ID_1D; // index of first out chan (for this block) + LOC_ID_1D
+  int32_t filts_off = %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim)*%(work_out_chan_dim)*%(filts_out_chan_sz) + 
+    %(LOC_ID_1D_fioc_tile); // index of first out chan (for this block) + LOC_ID_1D mod fioc_tile
 
+  // first in 'pel' (aka image) for this block
+  int32_t const blk_in_pel = %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim)*%(work_pels_dim); 
+  int32_t in_off = blk_in_pel*%(in_img_sz) + %(LOC_ID_1D_fioc_tile); // index of first out chan (for this block) + thread offset
+  int32_t const in_pel = blk_in_pel + %(LOC_ID_1D_pels_tile)*%(work_pels_dim); // first in 'pel' (aka image) for this thread
+  LSMASQ float * const filts_smem_off = filts_smem + %(LOC_ID_1D_out_chan_tile)*%(work_out_chan_dim)*%(work_fioc_tile_dim) +
+    %(LOC_ID_1D_fioc_tile);
+  LSMASQ float * const in_smem_off = in_smem + %(LOC_ID_1D_pels_tile)*%(work_pels_dim)*%(work_fioc_tile_dim) +
+    %(LOC_ID_1D_fioc_tile);
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem <
 	 (%(filts_in_chan_dim) * %(filts_x_dim) * %(filts_y_dim)); filts_ix_out_chan_elem += %(work_fioc_tile_dim) ) {
     BARRIER_SYNC;
     %(filts_smem_loads);
-    filts_off += %(fioc_tile);
-    BARRIER_SYNC;
+    %(in_smem_loads);
+    filts_off += %(work_fioc_tile_dim);
+    in_off += %(work_fioc_tile_dim);
+    BARRIER_SYNC; 
+    %(loads);
+    %(fmas);
+  }
+  int32_t ocix = %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim)*%(work_out_chan_dim) + 
+    %(LOC_ID_1D_out_chan_tile)*%(work_out_chan_dim);
+  int32_t out_off = ocix*%(out_chan_sz) + in_pel*%(out_img_sz);
+  for( int32_t work_pel = 0; work_pel < %(work_pels_dim); ++work_pel ) {
+    %(outs_to_filts_strip);
+    %(stores);
+    out_off += %(out_img_sz);
   }
 }
 

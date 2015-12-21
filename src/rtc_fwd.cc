@@ -39,6 +39,16 @@ namespace boda
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
+  uint32_t get_good_div( uint32_t const & v, uint32_t const & td ) { // td == target divisor
+    assert_st( v );
+    if( v <= td ) { return v; } // if v is <= our target divisor, we will only have one chunk, and it need only be size v
+    uint32_t d = td; // ideally, use our target divisor
+    // assuming the work we do is u32_ceil_div(v,d)*d: while the waste is >= 20% of v, decrease d in order to decrease waste
+    while( (u32_ceil_div(v,d)*d - v)*5 >= v ) { --d; } 
+    assert_st( d );
+    return d;
+  }
+
   string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const ipconv_str = "ipconv"; string const conv_str = "conv";
   struct op_info_t {
     p_conv_op_t cop;
@@ -103,17 +113,20 @@ namespace boda
 	  uint32_t const out_ix_sz = no->dims.dims_prod();
 	  uint32_t const pels_sz = out_ix_sz / no->dims.dsz("chan");
 	  assert_st( pels_sz * no->dims.dsz("chan") == out_ix_sz ); // by construction
-	  uint32_t const work_pels_dim = std::min( pels_sz, t_tile_sz ); // never a need to be larger
+	  uint32_t const work_pels_dim = get_good_div( pels_sz, t_tile_sz );
 	  //uint32_t const work_pels_dim = t_tile_sz;
 	  uint32_t work_out_chan_dim = t_tile_sz;
+	  work_out_chan_dim = std::min( work_out_chan_dim, work_pels_dim*3 ); // little benefit to higher aspect ratios
 	  //if( work_pels_dim * 3 <= t_tile_sz ) { work_out_chan_dim *= 2; } // experimental bump if small work_pels_dim
 
+	  uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, work_pels_dim );
 	  // for reg blocking
 	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->dims.dsz("chan"), work_out_chan_dim );
 	  uint32_t tix_pels_tile_sz_incr = 1;
 
 	  uint32_t const max_tpb = 128; // treated as a target, but not be exceeded
-	  uint32_t const goal_work_out_chan_tile_dim = 16; // sqrt( tpb ) above, more or less, but tweakable
+	  // start with sqrt( tpb ) above, more or less. then, min to avoid super-high aspect ratios in small-pels case.
+	  uint32_t const goal_work_out_chan_tile_dim = std::min( 16U, pels_tile_sz*3 );
 	  // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
 	  // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
 	  // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the no->dims.dsz("chan").
@@ -179,7 +192,6 @@ namespace boda
 		work.dsz("blk_bline"), work.dsz("blk_bx"), ni->dims.dsz("chan"), tconv_blk_max_in_lines, tconv_blk_x_sz },
 	      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
 	  } else {
-	    uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, work_pels_dim );
 	    work.add_dims( "pels_blk", u32_ceil_div( pels_tile_sz, tix_pels_tile_sz ) );
 	  }
 	  work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, work_out_chan_tile_dim ) );
@@ -190,7 +202,12 @@ namespace boda
 	  work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
 
 	  work.add_dims( "pels", work_pels_dim, "out_chan", work_out_chan_dim ); // dims of per-thread work
-	  if( cts == ipconv_str ) { work.add_dims( "fioc_tile", 32 ); } // unrolling/tiling of inner loop
+	  if( cts == ipconv_str ) { 
+	    uint32_t fioc_tile = 4;
+	    while( (fioc_tile < 32) && (fioc_tile*2*best_tbp) <= 512 ) { fioc_tile *= 2; }
+	    assert_st( (ni->dims.dsz("chan") % fioc_tile) == 0 );
+	    work.add_dims( "fioc_tile", fioc_tile ); 
+	  } // unrolling/tiling of inner loop
 	  work.calc_strides();
 
 	  if( cts == k1conv_str ) { 
@@ -856,9 +873,68 @@ namespace boda
       //dims_t const & filts = get_arg_dims_by_name( "filts" );
       uint32_t const filts_smem_sz = work.dsz("out_chan_tile")*work.dsz("out_chan")*work.dsz("fioc_tile");
       tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
-      gen_filts_smem_loads( filts_smem_sz );
-      uint32_t const in_smem_sz = work.dsz("pels_tile")*work.dsz("pel")*work.dsz("fioc_tile");
+      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rf->tpb );    
+      for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string const filt_ix = "( LOC_ID_1D/%(work_fioc_tile_dim) + %(tpb)/%(work_fioc_tile_dim)* "+str(i)+")";
+	string eif;
+	// FIXME: can load garbage when ((out_chan_dim % filts_per_blk) != 0). pad output? add conditionals here? ignore?
+	if( (i+1)*rf->tpb > filts_smem_sz ) { 
+	  cg_add_line( "filts_smem_loads", "if( "+ixe+" < %(filts_smem_sz) ) {" );eif = "}";}
+	cg_add_line( "filts_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%s*%%(filts_out_chan_sz))];%s",ixe.c_str(),filt_ix.c_str(),eif.c_str()) );
+      }
+
+      uint32_t const in_smem_sz = work.dsz("pels_tile")*work.dsz("pels")*work.dsz("fioc_tile");
       tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
+      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rf->tpb );    
+      // currently, ipconv can only handle one output point per image, and assume the filt and in data-layouts are the
+      // same (hence the name ipconv, for inner-product-conv).
+      for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string const img_ix = "( LOC_ID_1D/%(work_fioc_tile_dim) + %(tpb)/%(work_fioc_tile_dim)* "+str(i)+")";
+	string eif;
+	// FIXME: can load garbage when ((in_img_dim % imgs_per_blk) != 0). pad input? add conditionals here? ignore?
+	if( (i+1)*rf->tpb > in_smem_sz ) { 
+	  cg_add_line( "in_smem_loads", "if( "+ixe+" < %(in_smem_sz) ) {" );eif = "}";}
+	cg_add_line( "in_smem_loads", strprintf("in_smem[%s] = in[in_off+(%s*%%(in_img_sz))];%s",ixe.c_str(),img_ix.c_str(),eif.c_str()) );
+      }
+
+      for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
+	cg_add_line( "loads", strprintf( "filts_strip[%s] = filts_smem_off[%s*%%(work_fioc_tile_dim)];",
+					 str(tx).c_str(), str(tx).c_str() ) );
+      }
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
+	cg_add_line( "loads", strprintf( "in_strip[%s] = in_smem_off[%s*%%(work_fioc_tile_dim)];",
+					 str(ty).c_str(), str(ty).c_str() ) );
+      }
+      cg_add_line( "outs_to_filts_strip", "if( (in_pel+work_pel) >= %(in_img_dim) ) { return; } "
+		   "// this pel and the following are off-the-end pels, so don't store them." );
+      cg_add_line( "outs_to_filts_strip", "switch(work_pel) { " );
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) {
+	cg_add_line( "outs_to_filts_strip", "case "+str(ty)+":" );
+	for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
+	  cg_add_line( "fmas", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];", 
+					  str((ty*work.dsz( "out_chan" )+tx)).c_str(), str(tx).c_str(), str(ty).c_str() ) );
+	  cg_add_line( "outs_to_filts_strip", strprintf( "filts_strip[%s] = out_tile[%s];", 
+					    str(tx).c_str(), str((ty*work.dsz("out_chan")+tx)).c_str() ) );	  
+	}
+	cg_add_line( "outs_to_filts_strip", "break;" );
+      }
+      cg_add_line( "outs_to_filts_strip", "} " );
+
+      for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
+	string ve = strprintf( "(filts_strip[%s] + biases[ocix+%s])", str(tx).c_str(), str(tx).c_str() );
+	ve = rfs.get_u32_tvv("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
+	for( uint32_t wb = work.dsz("fioc_tile") / 2; wb; wb /= 2 ) {
+	  cg_add_line( "stores", strprintf( "filts_strip[%s] += __shfl_down( filts_strip[%s], %s, %s );", 
+					    str(tx).c_str(), str(tx).c_str(), str(wb).c_str(), 
+					    str( work.dsz("fioc_tile") ).c_str() ) );
+	}
+	cg_add_line( "stores", strprintf( "if( (%%(LOC_ID_1D_fioc_tile) == 0 ) && ((ocix + %s) < %%(out_chan_dim)) ) "
+					  "{ out[out_off + %s*%%(out_chan_sz)] = %s; }", 
+					  str(tx).c_str(), str(tx).c_str(), str(ve).c_str() ) );
+      }
+
     }
 
     void gen_op_k1conv( void ) {
