@@ -19,12 +19,15 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
   int32_t const hls = %(local_size) >> 1;
   int32_t const out_base_ix = %(GLOB_ID_1D_img)*%(out_img_sz) + %(GLOB_ID_1D_y)*%(out_y_sz) + %(GLOB_ID_1D_x)*%(out_x_sz);  
   float ls_sum = 0.0f;
+#ifdef LRN_MATCH_CAFFE
   float const alpha_over_ls = (float)(%(alpha)) / (float)(%(local_size));
-
+#endif
   for( int32_t in_chan_ix = 0; in_chan_ix < %(out_chan_dim) + hls; ++in_chan_ix ) {
     int32_t const in_off = in_chan_ix*%(out_chan_sz);
     int32_t const lsb_ix = in_chan_ix %% %(local_size);
+#ifdef LRN_MATCH_CAFFE
     float const ls_old = ls_buf[lsb_ix];
+#endif
     ls_buf[lsb_ix] = (in_chan_ix < %(out_chan_dim)) ? in[out_base_ix + in_off] : 0.0f;
 #ifdef LRN_MATCH_CAFFE
     ls_sum += ls_buf[lsb_ix]*ls_buf[lsb_ix]; ls_sum -= ls_old*ls_old; 
