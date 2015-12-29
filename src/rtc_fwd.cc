@@ -300,6 +300,7 @@ namespace boda
     uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
     vect_string dump_vars; // NESI(help="dump out values of these vars after forward")
+    uint32_t enable_bwai_test; //NESI(default=0,help="if 1, generate an call to bwai")
 
     p_conv_pipe_t cp;
     p_map_str_p_op_info_t op_infos;
@@ -336,7 +337,9 @@ namespace boda
     string gen_func( rtc_func_sig_t const & rfs );
     void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
 		   map_str_dims_t const & ref_dims = map_str_dims_t(), bool const is_init_call = 0 );
-
+    void gen_call( string const & fn, map_str_str const & template_var_values, string const & tag, 
+		   vect_string const & args, 
+		   map_str_dims_t const & ref_dims = map_str_dims_t(), bool const is_init_call = 0 );
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
     string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
 
@@ -671,6 +674,7 @@ namespace boda
       else if( rfs.fn == "ipconv" ) { gen_op_ipconv(); } 
       else if( rfs.fn == "k1conv" ) { gen_op_k1conv(); } 
       else if( rfs.fn == "tconv" ) { gen_op_tconv(); } 
+      else if( rfs.fn == "bwai" ) { gen_op_bwai(); } 
 
       // make these always availible as template vars, since why not?
       tf_exprs.push_back( make_pair( "tpb", str(rf->tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
@@ -934,6 +938,24 @@ namespace boda
 					  "{ out[out_off + %s*%%(out_chan_sz)] = %s; }", 
 					  str(tx).c_str(), str(tx).c_str(), str(ve).c_str() ) );
       }
+    }
+
+    void gen_op_bwai( void ) {
+      dims_t const & work = get_arg_dims_by_name( "work" );
+      uint32_t const a_sm_sz = work.dsz("Mb")*work.dsz("Mt")*work.dsz("Kb");
+      tf_exprs.push_back( std::make_pair( "a_sm_sz", str(a_sm_sz) ));
+      uint32_t const a_sm_load_iter = u32_ceil_div( a_sm_sz, rf->tpb );    
+      for( uint32_t i = 0; i != a_sm_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string const filt_ix = "( LOC_ID_1D/%(work_Kb_dim) + %(tpb)/%(work_Kb_dim)* "+str(i)+")";
+	string eif;
+	if( (i+1)*rf->tpb > a_sm_sz ) { 
+	  cg_add_line( "sm_loads", "if( "+ixe+" < %(a_sm_sz) ) {" );eif = "}";}
+	cg_add_line( "sm_loads", strprintf("a_sm[%s] = a[a_off+(%s*%%(a_M_sz))];%s",ixe.c_str(),filt_ix.c_str(),eif.c_str()) );
+      }
+
+      uint32_t const b_sm_sz = work.dsz("Mb")*work.dsz("Mt")*work.dsz("Kb");
+      tf_exprs.push_back( std::make_pair( "b_sm_sz", str(b_sm_sz) ));
 
     }
 
@@ -1146,20 +1168,25 @@ namespace boda
     }    
     return gen_fn;
   }
-  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
+  void conv_pipe_fwd_t::gen_call( string const & fn, map_str_str const & template_var_values, string const & tag, 
+				  vect_string const & args, 
 				  map_str_dims_t const & ref_dims, bool const is_init_call ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
     rtc_func_sig_t rfs;
     rfs.fn = fn;
-    rfs.template_var_values = oi->template_var_values;
+    rfs.template_var_values = template_var_values;
     for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { rfs.args.push_back( rtc->get_var_dims_floats( *i ) ); }
     rfs.ref_dims = ref_dims;
     // note: we assume the generated function only work for exactly these input/output sizes. if not, we'd set some dims to 0/wild
     string const & gen_fn = gen_func( rfs );
-    (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, oi->cop->tag } );
+    (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, tag } );
   }
 
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
+				  map_str_dims_t const & ref_dims, bool const is_init_call ) { 
+    gen_call( fn, oi->template_var_values, oi->cop->tag, args, ref_dims, is_init_call );
+  }
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
   // that case the var is directly mirroring a pipe node
   void conv_pipe_fwd_t::gen_node_var( string const & name, string const & node_name ) { 
@@ -1216,6 +1243,15 @@ namespace boda
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { rtc_prog_str += "#define "+*i+" 1\n"; }
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
+
+    if( enable_bwai_test ) { // test bwai gen
+      rtc->create_var_with_dims_floats( "a", dims_t{ {1000,1024}, {"M","K"}, 1 } );
+      rtc->create_var_with_dims_floats( "b", dims_t{ {1000,1024}, {"N","K"}, 1 } );
+      rtc->create_var_with_dims_floats( "c", dims_t{ {1000,1000}, {"M","N"}, 1 } );
+      map_str_dims_t bwai_ref_dims;
+      bwai_ref_dims["work"] = dims_t{ {10,10,10,10,32,10,10}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
+      gen_call( "bwai", map_str_str(), "bwai_sgemm", {"a","b","c"}, bwai_ref_dims, 0 );
+    }
     rtc->compile( rtc_prog_str, show_compile_log, enable_lineinfo );
     for( rtc_funcs_t::iterator i = rtc_funcs.begin(); i != rtc_funcs.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
