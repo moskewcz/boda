@@ -1,4 +1,5 @@
 (*i)->sz=353 500
+vars_to_compare: conv1
 conv1_biases_cnt_out_sz_1=96
 conv1_biases_hist_out_sz_1=0
 conv1_biases_max_out_sz_1=0.916678

@@ -1,2 +1,3 @@
 (*i)->sz=353 500
+vars_to_compare: cls1_fc2 cls2_fc2 cls3_fc
 ***ALL IS WELL***

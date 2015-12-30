@@ -149,30 +149,27 @@
 
   <li test_name="test_upsamp_1_nvrtc" cli_str="boda test_upsamp --model-name nin_imagenet_nopad --wins-per-image=3 --run-cnet='(in_dims=(img=1,y=516,x=516),enable_upsamp_net=1,out_node_name=cccp8,conv_fwd=(mode=rtc),conv_fwd_upsamp=(mode=rtc,enable_tconv=1))'"/>
 
-  <li test_name="test_compute_alexnet" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20),out_node_name=fc8)' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
+  <li test_name="test_compute_alexnet" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
 
-  <li test_name="test_compute_alexnet_mutated_for_testing_opt" cli_str="boda test_compute --model-name=alexnet_ng_conv_mutated_for_testing --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20),out_node_name=fc8)' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
+  <li test_name="test_compute_alexnet_mutated_for_testing_opt" cli_str="boda test_compute --model-name=alexnet_ng_conv_mutated_for_testing --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
 
-  <li test_name="test_compute_nin" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227),out_node_name=pool4)' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
-  <li test_name="test_compute_googlenet_conv" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227),out_node_name=cls3_fc)' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
+  <li test_name="test_compute_nin" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227))' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
+  <li test_name="test_compute_googlenet_conv" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227))' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
 
 <!--
-  <li test_name="test_compute_alexnet_s1c" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims(img=20),out_node_name=fc8)' --cf1='(mode=rtc,per_call_fn=out.py,enable_s1conv=1)' --max-err=1 "/>
-  <li test_name="test_compute_nin_s1c" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims(img=20),out_node_name=pool4)' --cf1='(mode=rtc,per_call_fn=out.py,enable_s1conv=1)' --max-err=1 "/>
-  <li test_name="test_compute_googlenet_conv_s1c" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims(img=20),out_node_name=cls3_fc)' --cf1='(mode=rtc,per_call_fn=out.py,enable_s1conv=1)' --max-err=1 "/>
+  <li test_name="test_compute_alexnet_s1c" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims(img=20))' --cf1='(mode=rtc,per_call_fn=out.py,enable_s1conv=1)' --max-err=1 "/>
+  <li test_name="test_compute_nin_s1c" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims(img=20))' --cf1='(mode=rtc,per_call_fn=out.py,enable_s1conv=1)' --max-err=1 "/>
+  <li test_name="test_compute_googlenet_conv_s1c" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims(img=20))' --cf1='(mode=rtc,per_call_fn=out.py,enable_s1conv=1)' --max-err=1 "/>
 -->
 
-  <li test_name="test_compute_alexnet_opt" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20),out_node_name=fc8)' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
-  <li test_name="test_compute_nin_opt" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227),out_node_name=pool4)' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
-  <li test_name="test_compute_googlenet_conv_opt" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227),out_node_name=cls3_fc)' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
+  <li test_name="test_compute_alexnet_opt" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
+  <li test_name="test_compute_nin_opt" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227))' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
+  <li test_name="test_compute_googlenet_conv_opt" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227))' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 "/>
 
 <!-- FIXME: add a test that uses Softmax and/or remove support for it
-  <li test_name="test_compute_alexnet_prob" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20),out_node_name=prob)' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
+  <li test_name="test_compute_alexnet_prob" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
 -->
 
-<li test_name="test_grad_nin_conv1" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),out_node_name=conv1_grad_loss,add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py,dump_vars=())' --max-err=10 --mad-toler=5e-5" />
-<li test_name="test_grad_nin_conv1_biases" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),out_node_name=conv1_biases_grad_loss,add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py,dump_vars=())' --max-err=10 --mad-toler=5e-5" />
-<li test_name="test_grad_nin_conv1_filts" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),out_node_name=conv1_filts_grad_loss,add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py,dump_vars=())' --max-err=10 --mad-toler=5e-5" />
-
+<li test_name="test_grad_nin" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py,dump_vars=())' --max-err=10 --mad-toler=2e-5  --var-mad-toler='(cccp8-1024_filts_grad_loss=5e-5,cccp1_filts_grad_loss=5e-5)" />
 
 </root>

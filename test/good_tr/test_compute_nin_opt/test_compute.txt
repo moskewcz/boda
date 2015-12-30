@@ -1,2 +1,3 @@
 (*i)->sz=353 500
+vars_to_compare: pool4
 ***ALL IS WELL***

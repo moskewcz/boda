@@ -244,6 +244,7 @@ namespace boda {
     double tpd_const; //NESI(default="1.0",help="test-pattern data constant offset")
 
     double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
+    map_str_double var_mad_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mad_toler per-layer if specified")
 
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
@@ -347,6 +348,7 @@ namespace boda {
       tops = vect_string( tops_set.begin(), tops_set.end() );
       string const & onn = run_cnet->conv_pipe->out_node_name;
       if( !onn.empty() ) { tops.clear(); tops.push_back( onn ); }
+      (*out) << strprintf( "vars_to_compare: %s\n", str(tops).c_str() );
       cf1->run_fwd( to_set_vns1, fwd1, tops );
       cf2->run_fwd( to_set_vns2, fwd2, tops );
       for( vect_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) {
@@ -355,7 +357,8 @@ namespace boda {
 	// out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
 	ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
 	bool is_fail = 0;
-	if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+	double vmt = get( var_mad_toler, *i, mad_toler );
+	if( (ssds_diff.mad >= vmt) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
 	vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
 	if( is_fail ) { // skip printing errors and details if no mad fail. set mad_toler = 0 to force print (and failure)
 	  (*out) << strprintf( "%s: ssds_str(out_batch_1,out_batch_2)=%s\n", i->c_str(), str(ssds_diff).c_str() );
@@ -363,7 +366,7 @@ namespace boda {
 	  for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
 	    float const v1 = out_batch_1->cm_at1(i);
 	    float const v2 = out_batch_2->cm_at1(i);
-	    if( fabs(v1 - v2) >= mad_toler ) {
+	    if( fabs(v1 - v2) >= vmt ) {
 	      (*out) << strprintf( "i=%s v1=%s v2=%s \n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
 	      ++num_err;
 	      if( num_err > max_err ) { break; }

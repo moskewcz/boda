@@ -1,2 +1,3 @@
 (*i)->sz=353 500
+vars_to_compare: fc8
 ***ALL IS WELL***
