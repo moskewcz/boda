@@ -251,6 +251,8 @@ namespace boda {
 
     uint32_t num_mad_fail;
 
+    vect_string tops; //NESI(help="vars to check")
+
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
       rc->conv_pipe->dump_ios( *out );
@@ -333,33 +335,39 @@ namespace boda {
       }
     }
     void comp_batch( void ) {
-#if 0
-    p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>(); // *op_params );
-    vect_string to_set_vns;
-    run_setup_input( in, fwd, to_set_vns );
-    assert( conv_fwd );
-    conv_fwd->run_fwd( to_set_vns, fwd, {get_single_top_node()->name} );
-    return must_find( *fwd, get_single_top_node()->name );
-#endif
-      run_cnet->conv_fwd = cf1;
-      p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
-      run_cnet->conv_fwd = cf2;
-      p_nda_float_t out_batch_2 = run_cnet->run_one_blob_in_one_blob_out();
-      // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
-      ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
-      bool is_fail = 0;
-      if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
-      vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
-      if( is_fail ) { // skip printing errors and details if no mad fail. set mad_toler = 0 to force print (and failure)
-	(*out) << strprintf( "ssds_str(out_batch_1,out_batch_2)=%s\n", str(ssds_diff).c_str() );
-	uint32_t num_err = 0;
-	for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
-	  float const v1 = out_batch_1->cm_at1(i);
-	  float const v2 = out_batch_2->cm_at1(i);
-	  if( fabs(v1 - v2) >= mad_toler ) {
-	    (*out) << strprintf( "i=%s v1=%s v2=%s \n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
-	    ++num_err;
-	    if( num_err > max_err ) { break; }
+      p_map_str_p_nda_float_t fwd1 = make_shared<map_str_p_nda_float_t>();
+      p_map_str_p_nda_float_t fwd2 = make_shared<map_str_p_nda_float_t>();
+      vect_string to_set_vns1;
+      vect_string to_set_vns2;
+      run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd1, to_set_vns1 );
+      run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd2, to_set_vns2 );
+      set_string tops_set = run_cnet->conv_pipe->tops;
+      tops_set.erase("loss"); // HACK: dims of loss don't agree currently, so don't try to check it. raw sizes are okay ...
+      tops_set.erase("data_grad_loss"); // HACK: improperly/unneccarily computed by boda currently, but not caffe: no check.
+      tops = vect_string( tops_set.begin(), tops_set.end() );
+      string const & onn = run_cnet->conv_pipe->out_node_name;
+      if( !onn.empty() ) { tops.clear(); tops.push_back( onn ); }
+      cf1->run_fwd( to_set_vns1, fwd1, tops );
+      cf2->run_fwd( to_set_vns2, fwd2, tops );
+      for( vect_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) {
+	p_nda_float_t out_batch_1 = must_find( *fwd1, *i );
+	p_nda_float_t out_batch_2 = must_find( *fwd2, *i );
+	// out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
+	ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
+	bool is_fail = 0;
+	if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+	vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
+	if( is_fail ) { // skip printing errors and details if no mad fail. set mad_toler = 0 to force print (and failure)
+	  (*out) << strprintf( "%s: ssds_str(out_batch_1,out_batch_2)=%s\n", i->c_str(), str(ssds_diff).c_str() );
+	  uint32_t num_err = 0;
+	  for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
+	    float const v1 = out_batch_1->cm_at1(i);
+	    float const v2 = out_batch_2->cm_at1(i);
+	    if( fabs(v1 - v2) >= mad_toler ) {
+	      (*out) << strprintf( "i=%s v1=%s v2=%s \n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
+	      ++num_err;
+	      if( num_err > max_err ) { break; }
+	    }
 	  }
 	}
       }
