@@ -165,6 +165,7 @@ namespace boda
     void add_bck_ops( void );
 
     void fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, bool const & sinks_only );
+    void run_setup_input( p_nda_float_t const & in, p_map_str_p_nda_float_t const & fwd, vect_string & in_vns );
     p_nda_float_t run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd );
 
     void add_layer_blobs( string const & rln, p_vect_p_nda_float_t const & blobs );

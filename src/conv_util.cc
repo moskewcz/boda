@@ -563,17 +563,15 @@ namespace boda
     }
   }
 
-  // assumes the single input blob is the 'data' blob (and there shouldn't be others)
-  p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd ) {
-    p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>(); // *op_params );
-    vect_string to_set_vns;
-    if( data_img_node_names.size() != 1 ) { rt_err( "run_one_blob_in_one_blob_out only supports exactly one image input" ); }
+  // determined set of needed inputs for single-image-in (with dummy labels if needed) and puts them in in_vns and fwd
+  void conv_pipe_t::run_setup_input( p_nda_float_t const & in, p_map_str_p_nda_float_t const & fwd, vect_string & in_vns ) {
+    if( data_img_node_names.size() != 1 ) { rt_err( "run_one_blob_in_one_blob_out only supports exactly one image input" );}
     (*fwd)[data_img_node_names[0]] = in;
-    to_set_vns.push_back( data_img_node_names[0] );
+    in_vns.push_back( data_img_node_names[0] );
     // FIXME: hack for now to set labels (if needed) to something arbirtraty
     if( data_label_node_names.size() ) {
       string const & lnn = data_label_node_names[0];
-      to_set_vns.push_back( lnn );
+      in_vns.push_back( lnn );
       assert_st( data_label_node_names.size() == data_img_node_names.size() ); // currently true by construction
       conv_io_t const & label_cio = must_get_node( lnn )->cio;
       p_nda_float_t label( new nda_float_t( must_get_node( lnn )->dims ) );
@@ -587,6 +585,13 @@ namespace boda
     if( !missing_inputs.empty() ) { rt_err( "run_one_blob_in_one_blob_out: missing_inputs (not images/labesl from data layers? internal error?): " + 
 					    str(missing_inputs) ); } 
 #endif
+  }
+
+  // assumes the single input blob is an image data blob (and there shouldn't be others)
+  p_nda_float_t conv_pipe_t::run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd ) {
+    p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>(); // *op_params );
+    vect_string to_set_vns;
+    run_setup_input( in, fwd, to_set_vns );
     assert( conv_fwd );
     conv_fwd->run_fwd( to_set_vns, fwd, {get_single_top_node()->name} );
     return must_find( *fwd, get_single_top_node()->name );

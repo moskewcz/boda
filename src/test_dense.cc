@@ -333,6 +333,14 @@ namespace boda {
       }
     }
     void comp_batch( void ) {
+#if 0
+    p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>(); // *op_params );
+    vect_string to_set_vns;
+    run_setup_input( in, fwd, to_set_vns );
+    assert( conv_fwd );
+    conv_fwd->run_fwd( to_set_vns, fwd, {get_single_top_node()->name} );
+    return must_find( *fwd, get_single_top_node()->name );
+#endif
       run_cnet->conv_fwd = cf1;
       p_nda_float_t out_batch_1 = run_cnet->run_one_blob_in_one_blob_out();
       run_cnet->conv_fwd = cf2;
