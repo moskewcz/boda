@@ -690,6 +690,37 @@ namespace boda
   nesi_dump_t * map_str_uint32_t_nesi_dump = &with_op_left_shift_nesi_dump< map_str_uint32_t >;
   void *map_str_uint32_t_init_arg = (void *)"map_str_uint32_t (key-value map from string to uint32_t)";
 
+  // FIXME: factor out the shared code from all these map-like nesi base types ... with templates? sigh.
+  // map_str_double
+  void nesi_map_str_double_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
+    map_str_double * v = (map_str_double *)o;
+    if( !nia->l ) { return; } // no_value_init --> empty vector
+    lexp_t * l = nia->l.get();
+    if( l->leaf_val.exists() ) {
+      char const * const tstr = (char const *)tinfo->init_arg;
+      rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
+    }
+    ++l->use_cnt;
+    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
+      double dim_v = 0;
+      // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
+      lexp_name_val_map_t nvm( i->v, nia );
+      try { 
+	nesi_double_init( &nvm, tinfo, &dim_v ); // not really the right tinfo, but close enough? used only for error str.
+      }
+      catch( rt_exception & rte ) {
+	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
+	throw;
+      }
+      must_insert( *v, i->n.str(), dim_v );
+    }
+  }
+  make_p_t * map_str_double_make_p = &has_def_ctor_make_p< map_str_double >;
+  vect_push_back_t * map_str_double_vect_push_back = &has_def_ctor_vect_push_back_t< map_str_double >;
+  nesi_dump_t * map_str_double_nesi_dump = &with_op_left_shift_nesi_dump< map_str_double >;
+  void *map_str_double_init_arg = (void *)"map_str_double (key-value map from string to double)";
+
+
 // note: a special case in nesi_gen.py makes 'base' NESI types be associated with nesi.cc (and
 // thus go into the nesi.cc.nesi_gen.cc file)
 #include"gen/nesi.cc.nesi_gen.cc"
