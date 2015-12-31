@@ -108,7 +108,6 @@ namespace boda
 	  template_var_values = {{"stride",str(stride)},{"avg_pool",str(cop->avg_pool)},{"in_pad",str(in_pad)},
 				 {"kern_y_dim",str(kern_sz.d[1])},{"kern_x_dim",str(kern_sz.d[0])}};
 	}
-	if( cop->is( BckConv_coi ) ) { if( enable_tconv ) { cts = tconv_str;} }
 	if( is_conv ) {
 	  // calc_blocking_conv()
 	  uint32_t const out_ix_sz = no->dims.dims_prod();
@@ -294,7 +293,8 @@ namespace boda
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
     uint32_t enable_k1conv; //NESI(default=0,help="if 1, enable experimental k1conv special case")
     uint32_t enable_ipconv; //NESI(default=0,help="if 1, enable ipconv special case")
-    uint32_t enable_tconv; //NESI(default=0,help="if 1, enable experimental tconv special case")
+    uint32_t enable_tconv; //NESI(default=0,help="if 1, enable tconv special case")
+    uint32_t enable_bconv; //NESI(default=0,help="if 1, enable bconv")
     uint32_t force_enable_tconv; //NESI(default=0,help="if 1, force-enable experimental tconv special case even for not-sensible sizes")
     uint32_t enable_write_xpose; //NESI(default=0,help="if 1, enable experimental k1conv write xposing")
     uint32_t force_zero_bias; //NESI(default=0,help="if 1, force biases to zero")
@@ -544,15 +544,18 @@ namespace boda
       // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
       string ogl_vn = cop->bots[3];
       string ogl_fn = "BckConv_in_grad_loss";
-      if( oi->cts == tconv_str ) {
+      assert_st( oi->cts == conv_str );
+      if( enable_bconv ) {
+#if 0
 	dims_t const & ogl_dims = rtc->get_var_dims_floats( ogl_vn );
 	dims_t const & ogl_xp_dims = ogl_dims; // oi->conv_ref_dims["out_grad_loss"];
 	string ogl_xp_fn = gen_func( rtc_func_sig_t{ "btconv_ogl_xpose", {ogl_dims,ogl_xp_dims}, 
 	      oi->conv_ref_dims, oi->template_var_values } );
 	ogl_vn = gen_apply_func_to_var( ogl_vn, ogl_xp_dims, ogl_xp_fn );
-	ogl_fn = "btconv";
+#endif
+	ogl_fn = "bconv";
       }
-      gen_call( ogl_fn, oi, { cop->bots[1], ogl_vn, cop->tops[0] } );
+      gen_call( ogl_fn, oi, { cop->bots[1], ogl_vn, cop->tops[0] }, oi->conv_ref_dims );
       gen_call( "BckConv_biases_grad_loss", oi, { /*const-1 bias input, */ cop->bots[3], cop->tops[2] } );
       gen_call( "BckConv_filts_grad_loss", oi, { cop->bots[0], cop->bots[3], cop->tops[1] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
