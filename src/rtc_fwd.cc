@@ -39,6 +39,7 @@ namespace boda
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
+  // returns td if it divides v 'well'; otherwise returns a 'good' divisor for v < td. this can be (and often is) == v.
   uint32_t get_good_div( uint32_t const & v, uint32_t const & td ) { // td == target divisor
     assert_st( v );
     if( v <= td ) { return v; } // if v is <= our target divisor, we will only have one chunk, and it need only be size v
@@ -48,6 +49,55 @@ namespace boda
     assert_st( d );
     return d;
   }
+  // tile an MxN space into three levels: MGxNG blocks of MBxNB threads, where each thread handles MTxNT elems. the
+  // target number of M/N elements per thread (t_tile_sz) and total/max threads per block (128) are inputs and/or
+  // hardcoded below
+  struct gbt_tile_t {
+    u32_pt_t num_blk; // total space in blocks; == ceil_div( num_thr, thr_per_blk )
+    u32_pt_t thr_per_blk;
+    u32_pt_t num_thr; // total space in threads; == ceil_div( num_mn, mn_per_thr )
+    u32_pt_t mn_per_thr;
+    u32_pt_t num_mn; // total space
+    void init( uint32_t const & t_tile_sz, u32_pt_t const & num_mn_ ) {
+      num_mn = num_mn_;
+      //mn_per_thr.d[0] = t_tile_sz;
+      mn_per_thr.d[0] = get_good_div( num_mn.d[0], t_tile_sz );
+      mn_per_thr.d[1] = t_tile_sz;
+      mn_per_thr.d[1] = std::min( mn_per_thr.d[1], mn_per_thr.d[0]*3 ); // little benefit to higher aspect ratios
+      //if( mn_per_thr.d[0] * 3 <= t_tile_sz ) { mn_per_thr.d[1] *= 2; } // experimental bump if small mn_per_thr.d[0]
+      num_thr = ceil_div( num_mn, mn_per_thr );
+      uint32_t const max_tpb = 128; // treated as a target, but not be exceeded
+      // set thr_per_blk.d[1] to sqrt( max_tpb ) min'd with num_thr.d[1] (no point in having more). also, min'd with
+      // 3*num_thr.d[1] (other axis) to avoid higg (>3) block aspect ratios as they have little benefit (and some
+      // downsides).
+      thr_per_blk.d[1] = std::min( std::min( 16U, num_thr.d[0]*3 ), num_thr.d[1] );
+      thr_per_blk.d[0] = 0;
+      uint32_t best_tbp = 0;
+      while( 1 ) {
+	uint32_t const maybe_tbp = (thr_per_blk.d[0]+1) * thr_per_blk.d[1]; // recalculate proposed tpb
+	if( maybe_tbp > max_tpb ) { break; }
+	thr_per_blk.d[0] += 1;
+	best_tbp = maybe_tbp;
+	if( thr_per_blk.d[0] * mn_per_thr.d[0] >= num_mn.d[0] ) { break; } // no need to be larger
+      }
+      assert_st( best_tbp );
+      assert_st( best_tbp <= max_tpb );
+      assert_st( best_tbp == thr_per_blk.dims_prod() );
+#if 0
+      // now, try to increase thr_per_blk.d[1], in particular if we broke out due to m above
+      while( 1 ) {
+	uint32_t const maybe_tbp = thr_per_blk.d[0] * (thr_per_blk.d[1]+1); // recalculate proposed tpb
+	if( maybe_tbp > max_tpb ) { break; }
+	++thr_per_blk.d[1];
+	best_tbp = maybe_tbp;
+	if( thr_per_blk.d[1] * mn_per_thr.d[1] >= num_mn.d[1] ) { break; } // no need to be larger
+      }
+      assert_st( best_tbp );
+      assert_st( best_tbp <= max_tpb );
+#endif
+      num_blk = ceil_div( num_thr, thr_per_blk );
+    }
+  };
 
   string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const ipconv_str = "ipconv"; string const conv_str = "conv";
   struct op_info_t {
@@ -113,58 +163,18 @@ namespace boda
 	  uint32_t const out_ix_sz = no->dims.dims_prod();
 	  uint32_t const pels_sz = out_ix_sz / no->dims.dsz("chan");
 	  assert_st( pels_sz * no->dims.dsz("chan") == out_ix_sz ); // by construction
-	  uint32_t const work_pels_dim = get_good_div( pels_sz, t_tile_sz );
-	  //uint32_t const work_pels_dim = t_tile_sz;
-	  uint32_t work_out_chan_dim = t_tile_sz;
-	  work_out_chan_dim = std::min( work_out_chan_dim, work_pels_dim*3 ); // little benefit to higher aspect ratios
-	  //if( work_pels_dim * 3 <= t_tile_sz ) { work_out_chan_dim *= 2; } // experimental bump if small work_pels_dim
-
-	  uint32_t const pels_tile_sz = u32_ceil_div( pels_sz, work_pels_dim );
-	  // for reg blocking
-	  uint32_t const out_chan_tile_sz = u32_ceil_div( no->dims.dsz("chan"), work_out_chan_dim );
-	  uint32_t tix_pels_tile_sz_incr = 1;
-
-	  uint32_t const max_tpb = 128; // treated as a target, but not be exceeded
-	  // start with sqrt( tpb ) above, more or less. then, min to avoid super-high aspect ratios in small-pels case.
-	  uint32_t const goal_work_out_chan_tile_dim = std::min( 16U, pels_tile_sz*3 );
-	  // determine block geometry in terms of WxH where the W is over out_chan_tile_sz (typ. ~64-1024+ / 8) and the H is
-	  // over pel_size (probably large-ish, at least in the cases we care most about perf for). ideally, we want
-	  // blocks with size sqrt(tpb) tiles. but, we can't (usefully) use a W smaller than the no->dims.dsz("chan").
-	  uint32_t work_out_chan_tile_dim = std::min( goal_work_out_chan_tile_dim, out_chan_tile_sz );
-	  uint32_t tix_pels_tile_sz = 0;
-	  uint32_t best_tbp = 0;
-	  while( 1 ) {
-	    uint32_t const maybe_tbp = (tix_pels_tile_sz+tix_pels_tile_sz_incr) * work_out_chan_tile_dim; // recalculate proposed tpb
-	    if( maybe_tbp > max_tpb ) { break; }
-	    tix_pels_tile_sz += tix_pels_tile_sz_incr;
-	    best_tbp = maybe_tbp;
-	    if( tix_pels_tile_sz * work_pels_dim >= pels_sz ) { break; } // no need to be larger
-	  }
-	  assert_st( best_tbp );
-	  assert_st( best_tbp <= max_tpb );
-#if 0
-	  // now, try to increase work_out_chan_tile_dim, in particular if we broke out due to pels_sz above
-	  while( 1 ) {
-	    uint32_t const maybe_tbp = tix_pels_tile_sz * (work_out_chan_tile_dim+1); // recalculate proposed tpb
-	    if( maybe_tbp > max_tpb ) { break; }
-	    ++work_out_chan_tile_dim;
-	    best_tbp = maybe_tbp;
-	    if( work_out_chan_tile_dim * work_out_chan_dim >= no->dims.dsz("chan") ) { break; } // no need to be larger
-	  }
-	  assert_st( best_tbp );
-	  assert_st( best_tbp <= max_tpb );
-#endif	  
-
+	  gbt_tile_t gbt;
+	  gbt.init( t_tile_sz, u32_pt_t( pels_sz, no->dims.dsz("chan") ) );
 	  dims_t work;
 	  uint32_t const lines_sz = no->dims.dsz("img") * no_sz.d[1];
 	  if( cts == tconv_str ) {
-	    assert( tix_pels_tile_sz >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
-	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, tix_pels_tile_sz ), 
-			   "blk_bx", u32_ceil_div( no_sz.d[0], work_pels_dim ) );
+	    assert( gbt.thr_per_blk.d[0] >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
+	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, gbt.thr_per_blk.d[0] ), 
+			   "blk_bx", u32_ceil_div( no_sz.d[0], gbt.mn_per_thr.d[0] ) );
 	    uint32_t tconv_blk_max_imgs = 0;
 	    uint32_t blk_b_line = 0;
 	    for( uint32_t i = 0; i != work.dsz("blk_bline"); ++i ) {
-	      uint32_t const blk_e_line = blk_b_line + tix_pels_tile_sz - 1;
+	      uint32_t const blk_e_line = blk_b_line + gbt.thr_per_blk.d[0] - 1;
 	      uint32_t const blk_b_img = blk_b_line / no_sz.d[1];
 	      uint32_t const blk_e_img = std::min( no->dims.dsz("img") - 1, blk_e_line / no_sz.d[1] );
 	      uint32_t const blk_num_img = blk_e_img - blk_b_img + 1;
@@ -174,16 +184,16 @@ namespace boda
 	    }
 	    assert_st( tconv_blk_max_imgs );
 	    // calc conservative value (may be lower in general or for some num_imgs) and use as check:
-	    uint32_t const conservative_conv_max_img_per_blk = 2 + ((tix_pels_tile_sz - 2)/no_sz.d[1]); 
+	    uint32_t const conservative_conv_max_img_per_blk = 2 + ((gbt.thr_per_blk.d[0] - 2)/no_sz.d[1]); 
 	    assert_st( tconv_blk_max_imgs <= conservative_conv_max_img_per_blk );
-	    //printf( "no_sz.d[1]=%s tix_pels_tile_sz=%s\n", str(no_sz.d[1]).c_str(), str(tix_pels_tile_sz).c_str() );
+	    //printf( "no_sz.d[1]=%s thr_per_blk.d[0]=%s\n", str(no_sz.d[1]).c_str(), str(thr_per_blk.d[0]).c_str() );
 	    //printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
-	    assert( tix_pels_tile_sz >= tconv_blk_max_imgs );
-	    uint32_t const tconv_blk_max_in_lines = (tix_pels_tile_sz - tconv_blk_max_imgs)*stride + kern_sz.d[1]*tconv_blk_max_imgs;
-	    uint32_t const tconv_blk_x_sz = (work_pels_dim - 1)*stride + kern_sz.d[0];
+	    assert( gbt.thr_per_blk.d[0] >= tconv_blk_max_imgs );
+	    uint32_t const tconv_blk_max_in_lines = (gbt.thr_per_blk.d[0] - tconv_blk_max_imgs)*stride + kern_sz.d[1]*tconv_blk_max_imgs;
+	    uint32_t const tconv_blk_x_sz = (gbt.mn_per_thr.d[0] - 1)*stride + kern_sz.d[0];
 	    // the tconv/in_tile_xpose format is for use when both ni_sz.d[0/1] are small multiple of
-	    // work_pels_dim/tix_pels_tile_sz or >> than them (to avoid wasting too much work). each block will handle a
-	    // (x,y) window of the output of size (work_pels_dim,tix_pels_tile_sz) across bix_pels_blk_sz*work_pels_dim
+	    // gbt.mn_per_thr.d[0]/gbt.thr_per_blk.d[0] or >> than them (to avoid wasting too much work). each block will handle a
+	    // (x,y) window of the output of size (gbt.mn_per_thr.d[0],gbt.thr_per_blk.d[0]) across bix_pels_blk_sz*gbt.mn_per_thr.d[0]
 	    // output chans. in this case, we do not unroll across input chans, but we do unroll across kern_sz in X
 	    // (and maybe in Y too for small kernels).  note: "out_ix" from in_tile_xpose becomes "in_ix" for tconv;
 	    // from the perspective inside tconv: the blk_y and blk_x dims are in input image space, the other dims are
@@ -192,19 +202,19 @@ namespace boda
 		work.dsz("blk_bline"), work.dsz("blk_bx"), ni->dims.dsz("chan"), tconv_blk_max_in_lines, tconv_blk_x_sz },
 	      vect_string{"blk_bline","blk_bx","blk_in_chan","blk_y","blk_x"}, 1 );
 	  } else {
-	    work.add_dims( "pels_blk", u32_ceil_div( pels_tile_sz, tix_pels_tile_sz ) );
+	    work.add_dims( "pels_blk", gbt.num_blk.d[0] );
 	  }
-	  work.add_dims( "out_chan_blk", u32_ceil_div( out_chan_tile_sz, work_out_chan_tile_dim ) );
+	  work.add_dims( "out_chan_blk", gbt.num_blk.d[1] );
 
 	  // dims of per-group work (defines # threads per local group)
-	  if( cts == tconv_str ) { work.add_dims( "blk_y", tix_pels_tile_sz ); }
-	  else { work.add_dims( "pels_tile", tix_pels_tile_sz ); }
-	  work.add_dims(   "out_chan_tile",work_out_chan_tile_dim );
+	  if( cts == tconv_str ) { work.add_dims( "blk_y", gbt.thr_per_blk.d[0] ); }
+	  else { work.add_dims( "pels_tile", gbt.thr_per_blk.d[0] ); }
+	  work.add_dims(   "out_chan_tile", gbt.thr_per_blk.d[1] );
 
-	  work.add_dims( "pels", work_pels_dim, "out_chan", work_out_chan_dim ); // dims of per-thread work
+	  work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_chan", gbt.mn_per_thr.d[1] ); // dims of per-thread work
 	  if( cts == ipconv_str ) { 
 	    uint32_t fioc_tile = 4;
-	    while( (fioc_tile < 32) && (fioc_tile*2*best_tbp) <= 512 ) { fioc_tile *= 2; }
+	    while( (fioc_tile < 32) && (fioc_tile*2*gbt.thr_per_blk.dims_prod()) <= 512 ) { fioc_tile *= 2; }
 	    assert_st( (ni->dims.dsz("chan") % fioc_tile) == 0 );
 	    work.add_dims( "fioc_tile", fioc_tile ); 
 	  } // unrolling/tiling of inner loop
@@ -1016,7 +1026,7 @@ namespace boda
 	// if these are ==, we don't have to worry about bounds-checking our writes to out in the pel dim
 	assert_st( work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels") == out.dsz("blk")*out.dsz("blk_pel") );
 
-	// we assume out_blk_pel_dim (== noi->tix_pels_tile_sz*t_tile_sz) is divisible by t_tile_sz. but let's check it explicitly:
+	// we assume out_blk_pel_dim (== noi->thr_per_blk.d[0]*t_tile_sz) is divisible by t_tile_sz. but let's check it explicitly:
 	// FIXME_WXP: i don't see where we assume this, and hence i dunno what t_tile_sz refers to below. poop. assert is removed for now:
 	// assert_st( (out.dsz("blk_pel") % t_tile_sz) == 0 );
 	// we assume the out chans are a single (span of) dims in out. FIXME: check this?. FIXME_WXP: what does this even mean?
