@@ -120,13 +120,16 @@ namespace boda {
     }
   }
 
-  void lexp_name_val_map_t::dump( void ) {
-    printf("nvm contents (nvm_init=%s):\n",str(nvm_init).c_str());
-    for( map<sstr_t,p_lexp_t>::const_iterator i = nvm.begin(); i != nvm.end(); ++i ) {
-      printf( "%s=%s\n", str(i->first).c_str(), str((*i->second)).c_str() );
+  std::ostream & operator <<(std::ostream & os, lexp_name_val_map_t const & v ) {
+    os << strprintf("nvm contents (nvm_init=%s):\n",str(v.nvm_init).c_str());
+    for( map<sstr_t,p_lexp_t>::const_iterator i = v.nvm.begin(); i != v.nvm.end(); ++i ) {
+      os << strprintf( "%s=%s\n", str(i->first).c_str(), str((*i->second)).c_str() );
     }
-    if( parent ) { printf("parent:\n"); parent->dump(); }
+    if( v.parent ) { os << strprintf("parent:\n") << (*v.parent); }
+    return os;
   }
+
+  void lexp_name_val_map_t::dump( void ) { printstr( str( *this ) ); }
 
   bool lexp_name_val_map_t::insert_leaf( char const * n, char const * v, bool const inc_use_cnt ) {
     init_nvm();

@@ -61,6 +61,7 @@ namespace boda {
     lexp_name_val_map_t( p_lexp_t l_, lexp_name_val_map_t * parent_ ) : l(l_), parent(parent_), nvm_init(0) { }
 
   };
+  std::ostream & operator <<(std::ostream & os, lexp_name_val_map_t const & v );
 
   typedef std::vector< lexp_nv_t > vect_lexp_nv_t;
   struct lexp_t
