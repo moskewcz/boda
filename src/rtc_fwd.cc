@@ -843,9 +843,29 @@ namespace boda
       tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
       uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rf->tpb );
       tf_exprs.push_back( std::make_pair( "in_smem_load_iter", str(in_smem_load_iter) ));    
-      cg_add_line( "loads", "// TODO" );
-      cg_add_line( "fmas", "// TODO" );
-      cg_add_line( "stores", "// TODO" );
+
+      uint32_t const filts_smem_sz = work.dsz("out_ix_tile")*work.dsz("out_ix");
+      tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
+      uint32_t const filts_smem_load_iter = u32_ceil_div( filts_smem_sz, rf->tpb );
+      tf_exprs.push_back( std::make_pair( "filts_smem_load_iter", str(filts_smem_load_iter) ));    
+
+      for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
+	cg_add_line( "loads", strprintf( "filts_strip[%s] = filts_smem[%%(LOC_ID_1D_out_ix_tile)*%%(work_out_ix_dim)+%s];",
+					 str(tx).c_str(), str(tx).c_str() ) );
+      }
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
+	cg_add_line( "loads", strprintf( "in_strip[%s] = in_smem[%%(LOC_ID_1D_pels_tile)*%%(work_pels_dim)+%s];",
+					 str(ty).c_str(), str(ty).c_str() ) );
+      }
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) {
+	for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
+	  uint32_t const rix = ty*work.dsz("out_ix")+tx;
+	  cg_add_line( "fmas", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];", 
+					  str(rix).c_str(), str(tx).c_str(), str(ty).c_str() ) );
+	  cg_add_line( "stores", strprintf( "in_grad_loss[%s] = out_tile[%s];", str(rix).c_str(), str(rix).c_str() ) );
+	}
+      }
+
     }
 
     void gen_filts_smem_loads( uint32_t const filts_smem_sz ) { // note: filts_smem_sz must == tvv %(filts_smem_sz)

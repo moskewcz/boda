@@ -14,7 +14,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // note: <each thread handles> work use_dims=pels:out_out_ix; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
 
   LOCSHAR_MEM float in_smem[%(in_smem_sz)];
-  LOCSHAR_MEM float filts_smem[%(work_out_ix_tile_dim)*%(work_out_ix_dim)];
+  LOCSHAR_MEM float filts_smem[%(filts_smem_sz)];
   float out_tile[%(work_pels_dim)*%(work_out_ix_dim)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts, for the same filts element
   float filts_strip[%(work_out_ix_dim)]; // across output chans
@@ -25,7 +25,6 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 
   for( int32_t filt_elem_ix = 0; filt_elem_ix != %(fioc_dims_prod); ++filt_elem_ix ) {
     BARRIER_SYNC;
-    int32_t pel_ix = blk_pel_ix;
     for( int32_t i = 0; i != %(in_smem_load_iter); ++i ) {
       if( (LOC_ID_1D+LOC_SZ_1D*i) < %(in_smem_sz) ) { 
 	int32_t const pel_ix = (blk_pel_ix+LOC_ID_1D+LOC_SZ_1D*i);
@@ -42,6 +41,23 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 	in_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
       }
     }
+    for( int32_t i = 0; i != %(filts_smem_load_iter); ++i ) {
+      if( (LOC_ID_1D+LOC_SZ_1D*i) < %(filts_smem_sz) ) { 
+	int32_t const out_ix = (blk_out_ix+LOC_ID_1D+LOC_SZ_1D*i);
+	float v = 0;
+	int const smem_filt_ix_y = %(out_ix_sy)+%(filt_elem_ix_ky)*%(stride);
+	int const smem_filt_ix_x = %(out_ix_sx)+%(filt_elem_ix_kx)*%(stride);
+	if( %(out_ix_in_chan) < %(filts_in_chan_dim) && %(filt_elem_ix_out_chan) < %(filts_out_chan_dim)
+	    && smem_filt_ix_x < %(filts_x_dim) && smem_filt_ix_y < %(filts_y_dim) ) {
+	  v = filts[%(filt_elem_ix_out_chan)*%(filts_out_chan_sz) +
+		    %(out_ix_in_chan)*%(filts_in_chan_sz) + 
+		    smem_filt_ix_y*%(filts_y_sz) +
+		    smem_filt_ix_x*%(filts_x_sz)];
+	}
+	filts_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
+      }
+    }
+
     BARRIER_SYNC;
     %(loads);
     %(fmas);
