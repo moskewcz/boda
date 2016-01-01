@@ -152,11 +152,40 @@ namespace boda
 		   cts = tconv_str; }
 	else { cts = conv_str; }
 
-	if( is_conv || cop->is( BckConv_coi ) ) { // bckconv/conv
+	if( is_conv ) {
 	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
 	} else { // pool/spread
 	  template_var_values = {{"stride",str(stride)},{"avg_pool",str(cop->avg_pool)},{"in_pad",str(in_pad)},
 				 {"kern_y_dim",str(kern_sz.d[1])},{"kern_x_dim",str(kern_sz.d[0])}};
+	}
+	if( cop->is( BckConv_coi ) ) {
+	  u32_pt_t pels_sz;
+	  uint32_t bck_in_pad = 0;
+	  for( uint32_t d = 0; d != 2; ++d ) { // calculate and use the bck-input padding to get the patch count
+	    int32_t b = i32_ceil_div( 0 + in_pad - kern_sz.d[d] + 1, stride ); // x == 0
+	    assert_st( b <= 0 ); // FIXME: 'too much' fwd-in-pad can make bck-in-pad this negative. sensible, so handle?
+	    if( !d ) {  bck_in_pad = -b; } else { assert_st( bck_in_pad == (uint32_t)(-b) ); }
+	    int32_t e = i32_ceil_div( (get_xy_dims(no->dims).d[d] - 1) + in_pad - kern_sz.d[d] + 1, stride );// x == max val
+	    // FIXME: is e incorrect due to exceeding the input size? maybe b also can be wrong in corner case (no output?)
+	    assert_st( e >= b ); // note: e and b are closed bounds ...
+	    pels_sz.d[d] = e + 1 - b; // ... hence the +1 to get the count (which will be >= 1)
+	  }
+	  template_var_values = {{"stride",str(stride)},{"in_pad",str(in_pad)},{"bck_in_pad",str(bck_in_pad)}}; 
+	  gbt_tile_t gbt;
+	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride, stride }, 
+					  vect_string{ "in_chan", "sy", "sx" }, 1 );
+
+	  gbt.init( t_tile_sz, u32_pt_t( pels_sz.dims_prod(), conv_ref_dims["oix"].dims_prod() ) );
+	  dims_t work;
+	  work.add_dims( "pels_blk", gbt.num_blk.d[0] );
+	  work.add_dims( "out_ix_blk", gbt.num_blk.d[1] );
+	  work.add_dims( "pels_tile", gbt.thr_per_blk.d[0] );
+	  work.add_dims( "out_ix_tile", gbt.thr_per_blk.d[1] );
+	  work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_ix", gbt.mn_per_thr.d[1] );
+	  work.calc_strides();
+	  conv_ref_dims["work"] = work;
+	  conv_ref_dims["fioc"] = dims_t( vect_uint32_t{ ni->dims.dsz("chan"), u32_ceil_div(kern_sz.d[1],stride), 
+		u32_ceil_div(kern_sz.d[0],stride) }, vect_string{"out_chan","ky","kx"}, 1 );
 	}
 	if( is_conv ) {
 	  // calc_blocking_conv()
@@ -699,6 +728,7 @@ namespace boda
       else if( rfs.fn == "k1conv" ) { gen_op_k1conv(); } 
       else if( rfs.fn == "tconv" ) { gen_op_tconv(); } 
       else if( rfs.fn == "bwai" ) { gen_op_bwai(); } 
+      else if( rfs.fn == "bconv" ) { gen_op_bconv(); } 
 
       // make these always availible as template vars, since why not?
       tf_exprs.push_back( make_pair( "tpb", str(rf->tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
@@ -748,10 +778,14 @@ namespace boda
       lexp_name_val_map_t tf_nvm{ p_lexp_t() };
       tf_nvm.insert_leafs_from( tf_exprs );
       string rtc_func_str;
-      str_format_from_nvm( rtc_func_str, *rtc_func_template, tf_nvm );
+      try {
+	str_format_from_nvm( rtc_func_str, *rtc_func_template, tf_nvm );
+      } catch( rt_exception const & rte ) {
+	printf( "rfs=%s\n", str(rfs).c_str() );
+	printf( "tf_nvm=%s\n", str(tf_nvm).c_str() );
+	rt_err( strprintf( "instantiation failed; see above; error was: %s\n", rte.err_msg.c_str() ) );
+      }
       rtc_prog_str += rtc_func_str;
-      //printf( "rtc_func_name=%s rf->tpb=%s rf->blks=%s\n", str(rtc_func_name).c_str(), str(rf->tpb).c_str(), str(rf->blks).c_str()); 
-      //rf->finalized = 1;
     }
 
     static dims_t dims_from_nda_spec( string const & nda_spec ) {
@@ -802,6 +836,17 @@ namespace boda
       string const ve = strprintf( "(out_tile[%s] + filts_strip[%s])", str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
       return rfs.get_u32_tvv("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
     }    
+
+    void gen_op_bconv( void ) {
+      dims_t const & work = get_arg_dims_by_name( "work" );
+      uint32_t const in_smem_sz = work.dsz("pels_tile")*work.dsz("pels");
+      tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
+      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rf->tpb );
+      tf_exprs.push_back( std::make_pair( "in_smem_load_iter", str(in_smem_load_iter) ));    
+      cg_add_line( "loads", "// TODO" );
+      cg_add_line( "fmas", "// TODO" );
+      cg_add_line( "stores", "// TODO" );
+    }
 
     void gen_filts_smem_loads( uint32_t const filts_smem_sz ) { // note: filts_smem_sz must == tvv %(filts_smem_sz)
       uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rf->tpb );    
