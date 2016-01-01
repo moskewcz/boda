@@ -175,7 +175,7 @@ namespace boda
 	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride, stride }, 
 					  vect_string{ "in_chan", "sy", "sx" }, 1 );
 
-	  gbt.init( t_tile_sz, u32_pt_t( pels_sz.dims_prod(), conv_ref_dims["oix"].dims_prod() ) );
+	  gbt.init( t_tile_sz, u32_pt_t( pels_sz.dims_prod() * no->dims.dsz("img"), conv_ref_dims["oix"].dims_prod() ) );
 	  dims_t work;
 	  work.add_dims( "pels_blk", gbt.num_blk.d[0] );
 	  work.add_dims( "out_ix_blk", gbt.num_blk.d[1] );
