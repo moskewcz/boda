@@ -857,15 +857,32 @@ namespace boda
 	cg_add_line( "loads", strprintf( "in_strip[%s] = in_smem[%%(LOC_ID_1D_pels_tile)*%%(work_pels_dim)+%s];",
 					 str(ty).c_str(), str(ty).c_str() ) );
       }
+
+      cg_add_line( "outs_to_filts_strip", "switch(work_pel) { " );
       for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) {
+	cg_add_line( "outs_to_filts_strip", "case "+str(ty)+":" );
 	for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
 	  uint32_t const rix = ty*work.dsz("out_ix")+tx;
 	  cg_add_line( "fmas", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];", 
 					  str(rix).c_str(), str(tx).c_str(), str(ty).c_str() ) );
-	  cg_add_line( "stores", strprintf( "in_grad_loss[%s] = out_tile[%s];", str(rix).c_str(), str(rix).c_str() ) );
+	  cg_add_line( "outs_to_filts_strip", strprintf( "filts_strip[%s] = out_tile[%s];", 
+					    str(tx).c_str(), str(rix).c_str() ) );	  
 	}
+	cg_add_line( "outs_to_filts_strip", "break;" );
       }
+      cg_add_line( "outs_to_filts_strip", "} " );
 
+      string store_expr = R"foo(
+  igl_y = (%(pel_ix_y)-%(bck_in_pad))*%(stride)+%(out_ix_sy);
+  igl_x = (%(pel_ix_x)-%(bck_in_pad))*%(stride)+%(out_ix_sx);
+  if( igl_x >= 0 && igl_y >= 0 && igl_y < %(in_grad_loss_y_dim) && igl_x < %(in_grad_loss_x_dim) &&
+      %(out_ix_in_chan) < %(in_grad_loss_chan_dim) && %(pel_ix_img) < %(in_grad_loss_img_dim) ) {
+    in_grad_loss[ %(pel_ix_img)*%(in_grad_loss_img_sz) + %(out_ix_in_chan)*%(in_grad_loss_chan_sz) + 
+		  igl_y*%(in_grad_loss_y_sz) + igl_x*%(in_grad_loss_x_sz)] = filts_strip[)foo";
+      for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
+	cg_add_line( "stores", store_expr + strprintf( "%s];\n};", str(tx).c_str() ) );
+	cg_add_line( "stores", "++out_ix;" );
+      }
     }
 
     void gen_filts_smem_loads( uint32_t const filts_smem_sz ) { // note: filts_smem_sz must == tvv %(filts_smem_sz)

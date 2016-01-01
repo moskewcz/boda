@@ -62,7 +62,13 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
     %(loads);
     %(fmas);
   }
-  // add bias to each elem of out_tile[] and store the results to out[]
-  %(stores);
+
+  int32_t pel_ix = blk_pel_ix + %(LOC_ID_1D_pels_tile)*%(work_pels_dim); // first pel_ix for this thread
+  int32_t igl_y, igl_x;
+  for( int32_t work_pel = 0; work_pel < %(work_pels_dim); ++work_pel, ++pel_ix) {
+    int32_t out_ix = blk_out_ix + %(LOC_ID_1D_out_ix_tile)*%(work_out_ix_dim); // first out_ix for this thread
+    %(outs_to_filts_strip);
+    %(stores);
+  }
 }
 
