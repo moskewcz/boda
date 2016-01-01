@@ -636,7 +636,16 @@ namespace boda
       assert_st( dims[i].has_sz_and_stride_and_name() );
       string v = (dims[i].stride > 1) ? "("+ix_expr+"/"+str(dims[i].stride)+")" : ix_expr;
       mss.push_back( make_pair( ix_vn+"_"+dims[i].name+"_nomod", v ) );      
-      if( i ) { v = "("+v+"%%"+str(dims[i].sz)+")"; }
+      // note: we supress the module on the outermost dim, allowing it to overflow (even though we know it's size and
+      // could wrap it. i guess if you want such wrapping, add another outmost dim, and you can set it's size to 1? then
+      // the value of that dim becomes 0-if-valid, 1-or-more-if-OOB. but then there's unneeded modulos on the outmost
+      // dim value, assuming OOB access is guarded against ... ehh, the current system seems okay.
+      if( i ) { 
+	uint32_t const dsz = dims[i].sz;
+	assert_st( dsz );
+	if( dsz > 1 ) { v = "("+v+"%%"+str(dims[i].sz)+")"; }
+	else { v = "0"; }
+      }
       mss.push_back( make_pair( ix_vn+"_"+dims[i].name, v ) );
     }
     mss.push_back( make_pair( ix_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
