@@ -184,8 +184,9 @@ namespace boda
 	  work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_ix", gbt.mn_per_thr.d[1] );
 	  work.calc_strides();
 	  conv_ref_dims["work"] = work;
-	  conv_ref_dims["fioc"] = dims_t( vect_uint32_t{ ni->dims.dsz("chan"), u32_ceil_div(kern_sz.d[1],stride), 
-		u32_ceil_div(kern_sz.d[0],stride) }, vect_string{"out_chan","ky","kx"}, 1 );
+	  conv_ref_dims["fioc"] = dims_t( vect_uint32_t{ cp->must_get_node(cop->bots[3])->dims.dsz("chan"), 
+		u32_ceil_div(kern_sz.d[1],stride), u32_ceil_div(kern_sz.d[0],stride) }, 
+	    vect_string{"out_chan","ky","kx"}, 1 );
 	}
 	if( is_conv ) {
 	  // calc_blocking_conv()
