@@ -138,7 +138,10 @@ namespace boda
 
   void run_cnet_t::main( nesi_init_arg_t * nia ) { 
     setup_cnet();
-    p_nda_float_t out_batch_1 = run_one_blob_in_one_blob_out();
+    p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>();
+    vect_string to_set_vns;
+    conv_pipe->run_setup_input( in_batch, fwd, to_set_vns );
+    conv_fwd->run_fwd( to_set_vns, fwd, vect_string( conv_pipe->tops.begin(), conv_pipe->tops.end() ) );
   }
 
   conv_support_info_t const & run_cnet_t::get_out_csi( bool const & from_upsamp_net ) {
