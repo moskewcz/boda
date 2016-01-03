@@ -184,6 +184,9 @@ namespace boda
 
 	  template_var_values = {{"stride",str(stride)},{"in_pad",str(in_pad)},{"bck_in_pad",str(bck_in_pad.d[0])},
 				 {"bck_pad_in_off",str(bck_pad_in_off.d[0])}}; 
+	  p_conv_node_t ogl = cp->must_get_node(cop->bots[3]);
+	  p_conv_node_t fgl = cp->must_get_node(cop->tops[1]);
+
 	  gbt_tile_t gbt;
 	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride, stride }, 
 					  vect_string{ "in_chan", "sy", "sx" }, 1 );
@@ -198,9 +201,23 @@ namespace boda
 	  work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_ix", gbt.mn_per_thr.d[1] );
 	  work.calc_strides();
 	  conv_ref_dims["work"] = work;
-	  conv_ref_dims["fioc"] = dims_t( vect_uint32_t{ cp->must_get_node(cop->bots[3])->dims.dsz("chan"), 
-		u32_ceil_div(kern_sz.d[1],stride), u32_ceil_div(kern_sz.d[0],stride) }, 
-	    vect_string{"out_chan","ky","kx"}, 1 );
+	  conv_ref_dims["fioc"] = dims_t( vect_uint32_t{ ogl->dims.dsz("chan"), u32_ceil_div(kern_sz.d[1],stride), 
+		u32_ceil_div(kern_sz.d[0],stride) }, vect_string{"out_chan","ky","kx"}, 1 );
+	  
+	  gbt_tile_t gbt_fb;
+	  gbt_fb.init( t_tile_sz, u32_pt_t( fgl->dims.dsz("in_chan")*fgl->dims.dsz("y")*fgl->dims.dsz("x"), 
+					    fgl->dims.dsz("out_chan") ) );
+	  dims_t work_fb;
+	  work_fb.add_dims( "pels_blk", gbt_fb.num_blk.d[0] );
+	  work_fb.add_dims( "out_ix_blk", gbt_fb.num_blk.d[1] );
+	  work_fb.add_dims( "pels_tile", gbt_fb.thr_per_blk.d[0] );
+	  work_fb.add_dims( "out_ix_tile", gbt_fb.thr_per_blk.d[1] );
+	  work_fb.add_dims( "pels", gbt_fb.mn_per_thr.d[0], "out_ix", gbt_fb.mn_per_thr.d[1] );
+	  work_fb.calc_strides();
+	  conv_ref_dims["work_fb"] = work_fb;
+	  conv_ref_dims["fioc_fb"] = dims_t( vect_uint32_t{ ogl->dims.dsz("img"), ogl->dims.dsz("y"), ogl->dims.dsz("x") },
+					     vect_string{"img","y","x"}, 1 );
+
 	}
 	if( is_conv ) {
 	  // calc_blocking_conv()
