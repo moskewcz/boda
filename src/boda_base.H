@@ -186,6 +186,7 @@ namespace boda
 
   bool ensure_is_dir( string const & fn, bool const create = 0 );
   void ensure_is_regular_file( string const & fn );
+  filename_t ensure_one_is_regular_file( filename_t const & fna, filename_t const & fnb );
 
   typedef vector< uint8_t > vect_uint8_t;  
   typedef shared_ptr< uint8_t > p_uint8_t;  

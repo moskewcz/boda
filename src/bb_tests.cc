@@ -179,7 +179,7 @@ namespace boda {
       test_run_tfns( TND(ifso_tst), "00-11101", expected_regfile_fmt );
       test_run_tfns( TND(ifso_tst), "--1-----", "error: can't open file '%s' for reading" );
       test_run_tfns( TND(ofso_tst), "-111011-", "error: can't open file '%s' for writing" );
-      test_run_tfns( TND(mapfnro_tst), "00111101", "error: failed to open/map file '%s' for reading" );
+      test_run_tfns( TND(mapfnro_tst), "00111101", "error: failed to open/map file '%1$s' (expanded: '%1$s') for reading" );
       test_run( TND(boda_main_t1), "error: specified mode name '(foo=biz)' parses as a list, and it must not be a list." );
       test_run( TND(boda_main_t2), "error: missing value for option '--foo': no '=' present, and no more args" );
       //test_run( TND(boda_main_t3), "error: expected option, but argument 'bar' does not start with '--'" ); // for now, pos args are allowed, so we get a different error

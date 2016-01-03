@@ -16,7 +16,7 @@ namespace boda {
   typedef caffe::NetParameter net_param_t;
   typedef shared_ptr< net_param_t > p_net_param_t;
 
-  p_net_param_t must_read_binary_proto( filename_t const & fn );
+  p_net_param_t must_read_binary_proto( filename_t const & fn, filename_t const & alt_fn );
   p_conv_pipe_t create_pipe_from_param( p_net_param_t const & net_param, map_str_uint32_t const & in_dims, 
 					std::string const & out_node_name, bool const & add_bck_ops );
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op );

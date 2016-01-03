@@ -403,15 +403,18 @@ namespace boda
   };
 
 
-  p_net_param_t must_read_binary_proto( filename_t const & fn ) {
+  p_net_param_t must_read_binary_proto( filename_t const & fn, filename_t const & alt_fn ) {
     p_net_param_t net( new net_param_t );
-    p_istream is = ifs_open(fn);
+    filename_t load_fn = fn;
+    if( !alt_fn.in.empty() ) { load_fn = ensure_one_is_regular_file( fn, alt_fn ); }
+    p_istream is = ifs_open(load_fn);
     google::protobuf::io::IstreamInputStream iis( is.get() );
     google::protobuf::io::CodedInputStream cis( &iis );
     cis.SetTotalBytesLimit( int32_t_const_max, 536870912 );
     bool const ret = net->ParseFromCodedStream( &cis );
-    if( !ret ) { rt_err( strprintf( "failed to parse Netparamter from binary prototxt file %s", str(fn.exp).c_str() ) ); }
-    boda_caffe::UpgradeNetAsNeeded( fn.exp, net.get() );
+    if( !ret ) { rt_err( strprintf( "failed to parse Netparamter from binary prototxt file %s", 
+				    str(load_fn.exp).c_str() ) ); }
+    boda_caffe::UpgradeNetAsNeeded( load_fn.exp, net.get() );
     return net;
   }
 
@@ -652,7 +655,7 @@ namespace boda
     p_net_param_t trained_net;
 
     void main( nesi_init_arg_t * nia ) { 
-      trained_net = must_read_binary_proto( trained_fn );
+      trained_net = must_read_binary_proto( trained_fn, filename_t() );
 
       uint32_t const numl = (uint32_t)trained_net->layer_size();
       if( remove_data ) { // if requested, delete all blob data
@@ -702,7 +705,7 @@ namespace boda
       mod_net_pipe = create_pipe_from_param( mod_net_param, in_dims, "", 0 );
     }
     void load_nets( void ) {
-      trained_net = must_read_binary_proto( trained_fn );
+      trained_net = must_read_binary_proto( trained_fn, filename_t() );
       copy_matching_layer_blobs_from_param_to_param( trained_net, net_param );
       copy_matching_layer_blobs_from_param_to_param( trained_net, mod_net_param );
     }
@@ -826,7 +829,7 @@ namespace boda
 
     void main( nesi_init_arg_t * nia ) { 
       create_net_params();
-      trained_net = must_read_binary_proto( trained_fn ); // we need to load the original weights 'early' to infer input dims
+      trained_net = must_read_binary_proto( trained_fn, filename_t() ); // we need to load the original weights 'early' to infer input dims
 
       vect_string converted_layer_names;
       uint32_t const numl = (uint32_t)mod_net_param->layer_size();

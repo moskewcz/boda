@@ -163,7 +163,7 @@ namespace boda
     conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
 
     // load weights into pipe
-    p_net_param_t trained_net = must_read_binary_proto( trained_fn );
+    p_net_param_t trained_net = must_read_binary_proto( trained_fn, alt_trained_fn );
     copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
 
     assert_st( conv_fwd );
