@@ -1,0 +1,3 @@
+(*i)->sz=353 500
+vars_to_compare: conv1_biases_grad_loss conv1_filts_grad_loss conv2_biases_grad_loss conv2_filts_grad_loss conv3_biases_grad_loss conv3_filts_grad_loss conv4_biases_grad_loss conv4_filts_grad_loss conv5_biases_grad_loss conv5_filts_grad_loss fc6-conv_biases_grad_loss fc6-conv_filts_grad_loss fc7-conv_biases_grad_loss fc7-conv_filts_grad_loss fc8-conv_biases_grad_loss fc8-conv_filts_grad_loss
+***ALL IS WELL***

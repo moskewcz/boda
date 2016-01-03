@@ -170,6 +170,11 @@
   <li test_name="test_compute_alexnet_prob" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
 -->
 
-<li test_name="test_grad_nin" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py,dump_vars=())' --max-err=10 --mad-toler=2e-5  --var-mad-toler='(cccp8-1024_filts_grad_loss=5e-5,cccp1_filts_grad_loss=5e-5)" />
+<li test_name="test_grad_nin" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py)' --max-err=10 --mad-toler=2e-5  --var-mad-toler='(cccp8-1024_filts_grad_loss=5e-5,cccp1_filts_grad_loss=5e-5)" />
+<li test_name="test_grad_nin_bconv" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py,enable_bconv=1)' --max-err=10 --mad-toler=2e-5  --var-mad-toler='(cccp8-1024_filts_grad_loss=5e-5,cccp1_filts_grad_loss=5e-5)" />
+<li test_name="test_grad_alexnet" cli_str="boda test_compute --model-name=alexnet_ng_conv_nd_nl --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py)' --max-err=10 --mad-toler=2.5e-5  --var-mad-toler='(fc8-conv_filts_grad_loss=7e-5)" />
+<li test_name="test_grad_alexnet_bconv" cli_str="boda test_compute --model-name=alexnet_ng_conv_nd_nl --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py,enable_bconv=1)' --max-err=10 --mad-toler=2.5e-5  --var-mad-toler='(fc8-conv_filts_grad_loss=7e-5)" />
+
+
 
 </root>
