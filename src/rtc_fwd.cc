@@ -159,23 +159,36 @@ namespace boda
 				 {"kern_y_dim",str(kern_sz.d[1])},{"kern_x_dim",str(kern_sz.d[0])}};
 	}
 	if( cop->is( BckConv_coi ) ) {
-	  u32_pt_t pels_sz;
-	  uint32_t bck_in_pad = 0;
-	  for( uint32_t d = 0; d != 2; ++d ) { // calculate and use the bck-input padding to get the patch count
-	    int32_t b = i32_ceil_div( 0 + in_pad - kern_sz.d[d] + 1, stride ); // x == 0
-	    assert_st( b <= 0 ); // FIXME: 'too much' fwd-in-pad can make bck-in-pad this negative. sensible, so handle?
-	    if( !d ) {  bck_in_pad = -b; } else { assert_st( bck_in_pad == (uint32_t)(-b) ); }
-	    int32_t e = i32_ceil_div( (get_xy_dims(no->dims).d[d] - 1) + in_pad - kern_sz.d[d] + 1, stride );// x == max val
-	    // FIXME: is e incorrect due to exceeding the input size? maybe b also can be wrong in corner case (no output?)
-	    assert_st( e >= b ); // note: e and b are closed bounds ...
-	    pels_sz.d[d] = e + 1 - b; // ... hence the +1 to get the count (which will be >= 1)
-	  }
-	  template_var_values = {{"stride",str(stride)},{"in_pad",str(in_pad)},{"bck_in_pad",str(bck_in_pad)}}; 
+	  u32_pt_t const xy_stride(stride,stride);
+	  // note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will
+	  // always be 1 for the bck conv: 3x3@s2 -> 2x2@s1; 11x11@s4 -> 3x3@s1; 1x1@s1 -> 1x1@s1 ...
+	  u32_pt_t bck_kern_sz = ceil_div( kern_sz, xy_stride ); 
+	  // if back kernel conv is convolved aligned to the - corner of output space, it yields results for the
+	  // post-padding input space region: [bck_in_off,bck_in_off+stride)
+	  u32_pt_t const bck_pad_in_off = (bck_kern_sz - u32_pt_t(1,1)).scale(stride);
+	  assert_st( bck_pad_in_off.dims_are_same() );
+	  // we don't need compute values for the input padding, so adjust to un-padded input space
+	  i32_pt_t bck_in_off = u32_to_i32( bck_pad_in_off ) - i32_pt_t(in_pad,in_pad);
+	  assert_st( bck_in_off.dims_are_same() ); // not handled, since we want/need per-axis padding for that
+	  // now, calculate where we need to really start in output space to have the first results region inlcude 0
+	  i32_pt_t bck_in_pad = ceil_div( bck_in_off, xy_stride );
+	  // FIXME: 'too much' fwd-in-pad can the  bck-in-pad this negative. sensible, so handle?
+	  assert_st( bck_in_pad.both_dims_ge_zero() );
+	  assert_st( bck_in_pad.dims_are_same() );
+	  // now, to get patch count, see how many in pels we're missing
+	  bck_in_off -= bck_in_pad * u32_to_i32(xy_stride); // first region calculated at - corner of padding out space
+	  // calculate number of extra pels needed to cover last pel in unpadded input space
+	  i32_pt_t bck_pels_sz = ceil_div( u32_to_i32(get_xy_dims(no->dims)) - (bck_in_off + u32_to_i32(xy_stride)), xy_stride ); 
+	  bck_pels_sz += i32_pt_t(1,1); // include starting pixel
+	  assert_st( bck_pels_sz.both_dims_gt( i32_pt_t() ) );
+
+	  template_var_values = {{"stride",str(stride)},{"in_pad",str(in_pad)},{"bck_in_pad",str(bck_in_pad.d[0])},
+				 {"bck_pad_in_off",str(bck_pad_in_off.d[0])}}; 
 	  gbt_tile_t gbt;
 	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride, stride }, 
 					  vect_string{ "in_chan", "sy", "sx" }, 1 );
 
-	  gbt.init( t_tile_sz, u32_pt_t( pels_sz.dims_prod() * no->dims.dsz("img"), conv_ref_dims["oix"].dims_prod() ) );
+	  gbt.init( t_tile_sz, u32_pt_t( bck_pels_sz.dims_prod() * no->dims.dsz("img"), conv_ref_dims["oix"].dims_prod()));
 	  dims_t work;
 	  work.add_dims( "pels_blk", gbt.num_blk.d[0] );
 	  work.add_dims( "out_ix_blk", gbt.num_blk.d[1] );
@@ -883,8 +896,8 @@ namespace boda
       cg_add_line( "outs_to_filts_strip", "} " );
 
       string store_expr = R"foo(
-  igl_y = (%(pel_ix_y)-%(bck_in_pad))*%(stride)+%(out_ix_sy);
-  igl_x = (%(pel_ix_x)-%(bck_in_pad))*%(stride)+%(out_ix_sx);
+  igl_y = (%(pel_ix_y)-%(bck_in_pad))*%(stride)+%(out_ix_sy)-%(in_pad)+%(bck_pad_in_off);
+  igl_x = (%(pel_ix_x)-%(bck_in_pad))*%(stride)+%(out_ix_sx)-%(in_pad)+%(bck_pad_in_off);
   if( igl_x >= 0 && igl_y >= 0 && igl_y < %(in_grad_loss_y_dim) && igl_x < %(in_grad_loss_x_dim) &&
       %(out_ix_in_chan) < %(in_grad_loss_chan_dim) && %(pel_ix_img) < %(in_grad_loss_img_dim) ) {
     in_grad_loss[ %(pel_ix_img)*%(in_grad_loss_img_sz) + %(out_ix_in_chan)*%(in_grad_loss_chan_sz) + 
