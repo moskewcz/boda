@@ -1,0 +1,69 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
+					 
+					  GASQ float * const filts_grad_loss ) // CUCL OUT out_chan:in_chan:y:x
+/* work_fb */  // CUCL REF pels_blk:out_ix_blk:pels_tile:out_ix_tile:pels:out_ix
+/* fioc_fb */  // CUCL REF img:y:x
+{
+  // CUCL IX pel_ix filts_grad_loss use_dims=in_chan:y:x
+  // CUCL IX out_ix filts_grad_loss use_dims=out_chan
+  // CUCL IX filt_elem_ix fioc_fb
+  // CUCL IX GRP_ID_1D work_fb use_dims=pels_blk:out_ix_blk
+  // CUCL IX LOC_ID_1D work_fb use_dims=pels_tile:out_ix_tile
+  // note: <each thread handles> work_fb use_dims=pels:out_out_ix; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
+
+  LOCSHAR_MEM float in_smem[%(in_smem_sz)];
+  LOCSHAR_MEM float filts_smem[%(filts_smem_sz)];
+  float out_tile[%(work_fb_pels_dim)*%(work_fb_out_ix_dim)] = {0}; // tile of output for this thread to compute, stored in registers
+  // reg. buffers for one strip each from in and filts, for the same filts element
+  float filts_strip[%(work_fb_out_ix_dim)]; // across output chans
+  float in_strip[%(work_fb_pels_dim)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
+
+  int32_t const blk_out_ix = %(GRP_ID_1D_out_ix_blk)*%(work_fb_out_ix_tile_dim)*%(work_fb_out_ix_dim);
+  int32_t const blk_pel_ix = %(GRP_ID_1D_pels_blk)*%(work_fb_pels_tile_dim)*%(work_fb_pels_dim);
+
+  for( int32_t filt_elem_ix = 0; filt_elem_ix != %(fioc_fb_dims_prod); ++filt_elem_ix ) {
+    BARRIER_SYNC;
+    for( int32_t i = 0; i != %(in_smem_load_iter); ++i ) {
+      if( (LOC_ID_1D+LOC_SZ_1D*i) < %(in_smem_sz) ) { 
+	int32_t const pel_ix = (blk_pel_ix+LOC_ID_1D+LOC_SZ_1D*i);
+	float v = 0;
+	int const smem_in_ix_y = %(pel_ix_y)+%(filt_elem_ix_y)*%(stride) - %(in_pad);
+	int const smem_in_ix_x = %(pel_ix_x)+%(filt_elem_ix_x)*%(stride) - %(in_pad);
+	if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && %(filt_elem_ix_img) < %(in_img_dim) &&
+	   smem_in_ix_x < %(in_x_dim) && smem_in_ix_y < %(in_y_dim) ) {
+	  v = in[%(filt_elem_ix_img)*%(in_img_sz) +
+		 %(pel_ix_in_chan)*%(in_chan_sz) +
+		 smem_in_ix_y*%(in_y_sz) +
+		 smem_in_ix_x*%(in_x_sz)];
+	}
+	in_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
+      }
+    }
+    for( int32_t i = 0; i != %(filts_smem_load_iter); ++i ) {
+      if( (LOC_ID_1D+LOC_SZ_1D*i) < %(filts_smem_sz) ) { 
+	int32_t const out_ix = (blk_out_ix+LOC_ID_1D+LOC_SZ_1D*i);
+	float v = 0;
+	if( %(filt_elem_ix_img) < %(out_grad_loss_img_dim) && %(out_ix_out_chan) < %(out_grad_loss_chan_dim) ) {
+	  v = out_grad_loss[%(filt_elem_ix_img)*%(out_grad_loss_img_sz) +
+			    %(out_ix_out_chan)*%(out_grad_loss_chan_sz) + 
+			    %(filt_elem_ix_y)*%(out_grad_loss_y_sz) +
+			    %(filt_elem_ix_x)*%(out_grad_loss_x_sz) ];
+	}
+	filts_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
+      }
+    }
+
+    BARRIER_SYNC;
+    %(loads);
+    %(fmas);
+  }
+
+  int32_t pel_ix = blk_pel_ix + %(LOC_ID_1D_pels_tile)*%(work_fb_pels_dim); // first pel_ix for this thread
+  for( int32_t work_pel = 0; work_pel < %(work_fb_pels_dim); ++work_pel, ++pel_ix) {
+    int32_t out_ix = blk_out_ix + %(LOC_ID_1D_out_ix_tile)*%(work_fb_out_ix_dim); // first out_ix for this thread
+    %(outs_to_filts_strip);
+    %(stores);
+  }
+}
+

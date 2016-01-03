@@ -615,6 +615,7 @@ namespace boda
       // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
       string ogl_vn = cop->bots[3];
       string ogl_fn = "BckConv_in_grad_loss";
+      string fgl_fn = "BckConv_filts_grad_loss";
       assert_st( oi->cts == conv_str );
       if( enable_bconv ) {
 #if 0
@@ -625,10 +626,11 @@ namespace boda
 	ogl_vn = gen_apply_func_to_var( ogl_vn, ogl_xp_dims, ogl_xp_fn );
 #endif
 	ogl_fn = "bconv";
+	fgl_fn = "bconv_fb";
       }
       gen_call( ogl_fn, oi, { cop->bots[1], ogl_vn, cop->tops[0] }, oi->conv_ref_dims );
       gen_call( "BckConv_biases_grad_loss", oi, { /*const-1 bias input, */ cop->bots[3], cop->tops[2] } );
-      gen_call( "BckConv_filts_grad_loss", oi, { cop->bots[0], cop->bots[3], cop->tops[1] } );
+      gen_call( fgl_fn, oi, { cop->bots[0], cop->bots[3], cop->tops[1] }, oi->conv_ref_dims );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
@@ -770,6 +772,7 @@ namespace boda
       else if( rfs.fn == "tconv" ) { gen_op_tconv(); } 
       else if( rfs.fn == "bwai" ) { gen_op_bwai(); } 
       else if( rfs.fn == "bconv" ) { gen_op_bconv(); } 
+      else if( rfs.fn == "bconv_fb" ) { gen_op_bconv_fb(); } 
 
       // make these always availible as template vars, since why not?
       tf_exprs.push_back( make_pair( "tpb", str(rf->tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
@@ -926,6 +929,51 @@ namespace boda
       }
     }
 
+    void gen_op_bconv_fb( void ) {
+      dims_t const & work = get_arg_dims_by_name( "work_fb" );
+      uint32_t const in_smem_sz = work.dsz("pels_tile")*work.dsz("pels");
+      tf_exprs.push_back( std::make_pair( "in_smem_sz", str(in_smem_sz) ));
+      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rf->tpb );
+      tf_exprs.push_back( std::make_pair( "in_smem_load_iter", str(in_smem_load_iter) ));    
+
+      uint32_t const filts_smem_sz = work.dsz("out_ix_tile")*work.dsz("out_ix");
+      tf_exprs.push_back( std::make_pair( "filts_smem_sz", str(filts_smem_sz) ));
+      uint32_t const filts_smem_load_iter = u32_ceil_div( filts_smem_sz, rf->tpb );
+      tf_exprs.push_back( std::make_pair( "filts_smem_load_iter", str(filts_smem_load_iter) ));    
+
+      for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
+	cg_add_line( "loads", strprintf( "filts_strip[%s] = filts_smem[%%(LOC_ID_1D_out_ix_tile)*%%(work_fb_out_ix_dim)+%s];",
+					 str(tx).c_str(), str(tx).c_str() ) );
+      }
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) { // note: could merge with above loop, but we want to use ty for consistency
+	cg_add_line( "loads", strprintf( "in_strip[%s] = in_smem[%%(LOC_ID_1D_pels_tile)*%%(work_fb_pels_dim)+%s];",
+					 str(ty).c_str(), str(ty).c_str() ) );
+      }
+
+      cg_add_line( "outs_to_filts_strip", "switch(work_pel) { " );
+      for( uint32_t ty = 0; ty != work.dsz( "pels" ); ++ty ) {
+	cg_add_line( "outs_to_filts_strip", "case "+str(ty)+":" );
+	for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
+	  uint32_t const rix = ty*work.dsz("out_ix")+tx;
+	  cg_add_line( "fmas", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];", 
+					  str(rix).c_str(), str(tx).c_str(), str(ty).c_str() ) );
+	  cg_add_line( "outs_to_filts_strip", strprintf( "filts_strip[%s] = out_tile[%s];", 
+					    str(tx).c_str(), str(rix).c_str() ) );	  
+	}
+	cg_add_line( "outs_to_filts_strip", "break;" );
+      }
+      cg_add_line( "outs_to_filts_strip", "} " );
+
+      string store_expr = R"foo(
+  if( %(pel_ix_in_chan) < %(filts_grad_loss_in_chan_dim) && %(out_ix_out_chan) < %(filts_grad_loss_out_chan_dim) ) {
+    filts_grad_loss[ %(out_ix_out_chan)*%(filts_grad_loss_out_chan_sz) + %(pel_ix_in_chan)*%(filts_grad_loss_in_chan_sz) + 
+		  %(pel_ix_y)*%(filts_grad_loss_y_sz) + %(pel_ix_x)*%(filts_grad_loss_x_sz)] = filts_strip[)foo";
+      for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
+	cg_add_line( "stores", store_expr + strprintf( "%s];\n};", str(tx).c_str() ) );
+	cg_add_line( "stores", "++out_ix;" );
+      }
+    }
+    
     void gen_filts_smem_loads( uint32_t const filts_smem_sz ) { // note: filts_smem_sz must == tvv %(filts_smem_sz)
       uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rf->tpb );    
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
