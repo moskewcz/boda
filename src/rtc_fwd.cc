@@ -190,8 +190,8 @@ namespace boda
 	  gbt_tile_t gbt;
 	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride, stride }, 
 					  vect_string{ "in_chan", "sy", "sx" }, 1 );
-	  conv_ref_dims["pix"] = dims_t(  vect_uint32_t{ no->dims.dsz("img"), bck_pels_sz.d[1], bck_pels_sz.d[0] }, 
-					  vect_string{ "img", "y", "x" }, 1 );
+	  conv_ref_dims["pix"] = dims_t(  vect_uint32_t{ no->dims.dsz("img"), 
+		uint32_t(bck_pels_sz.d[1]), uint32_t(bck_pels_sz.d[0]) }, vect_string{ "img", "y", "x" }, 1 );
 	  gbt.init( t_tile_sz, u32_pt_t( conv_ref_dims["pix"].dims_prod(), conv_ref_dims["oix"].dims_prod()));
 	  dims_t work;
 	  work.add_dims( "pels_blk", gbt.num_blk.d[0] );
