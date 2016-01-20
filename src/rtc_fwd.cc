@@ -495,7 +495,7 @@ namespace boda
       gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
     } else if( cop->is( Spreading_coi ) ) {
       gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->bots[2], cop->tops[0] } );
-    } else if( cop->is( ZeroIfNeg_coi ) ) {
+    } else if( cop->is( ZeroIfNonPos_coi ) ) {
       gen_call( cop->type, oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
     } else if( cop->is( BckConv_coi ) ) { 
       // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }

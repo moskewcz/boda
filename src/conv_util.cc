@@ -102,8 +102,8 @@ namespace boda
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
     bool in_place = 0;
-    if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNeg_coi) ) { 
-      if( conv->is(ZeroIfNeg_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }
+    if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) ) { 
+      if( conv->is(ZeroIfNonPos_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }
       else { assert_st( conv->tops == conv->bots ); }
       get_or_make_node(conv->bots[0], 0, 0 )->in_place_ops.push_back( conv );
       in_place = 1;
@@ -494,7 +494,7 @@ namespace boda
     } else if( cop->is( ReLU_coi ) ) {
       p_conv_op_t bcop( new conv_op_t );
       *bcop = *cop;
-      bcop->type = ZeroIfNeg_coi.type;
+      bcop->type = ZeroIfNonPos_coi.type;
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input

@@ -230,7 +230,7 @@ class SoftmaxWithLoss( object ):
     def __init__( self, **kwargs ): self.opts = kwargs
 class Spreading( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
-class ZeroIfNeg( object ): 
+class ZeroIfNonPos( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
 
 import argparse

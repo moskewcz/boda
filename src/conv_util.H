@@ -35,7 +35,7 @@ namespace boda
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
   // other ops. so we try to understand what they do functionally and name them accordingly.
   conv_op_info_t const Spreading_coi{ "Spreading", {3,3}, {1,1} }; // { out, out_grad_loss, in } --> { in_grad_loss }
-  conv_op_info_t const ZeroIfNeg_coi{ "ZeroIfNeg", {2,2}, {1,1} }; // { in, cond } --> { out } // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
+  conv_op_info_t const ZeroIfNonPos_coi{ "ZeroIfNonPos", {2,2}, {1,1} }; // { in, cond } --> { out } // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
   conv_op_info_t const BckConv_coi{ "BckConv", {4,4}, {3,3} }; // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
   
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
