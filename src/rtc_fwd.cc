@@ -505,11 +505,17 @@ namespace boda
     } else if( cop->is( SoftmaxWithLoss_coi ) ) {
       string const prob_node_name = cop->tag + "_prob";
       gen_node_var( prob_node_name, cop->bots[0] );
-      gen_call( "softmax", oi, { cop->bots[0], prob_node_name } );
+      must_insert( oi->conv_ref_dims, "prob", rtc->get_var_dims_floats(prob_node_name) ); // FIXME_NA 
+      must_insert( oi->arg_map, "prob", prob_node_name ); // FIXME_NA 
+
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node_var( loss_per_pel, cop->bots[1] );
-      gen_call( "sm_grad_and_loss", oi, { prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
-      gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
+      must_insert( oi->conv_ref_dims, "loss_per_pel", rtc->get_var_dims_floats(loss_per_pel) ); // FIXME_NA 
+      must_insert( oi->arg_map, "loss_per_pel", loss_per_pel ); // FIXME_NA 
+
+      gen_call( "softmax", oi );
+      gen_call( "sm_grad_and_loss", oi  );
+      gen_call( "sum_loss_over_imgs", oi );
     } else if( cop->is( Spreading_coi ) ) {
       gen_call( "spreading", oi );
     } else if( cop->is( ZeroIfNonPos_coi ) ) {

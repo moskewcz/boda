@@ -22,8 +22,8 @@ namespace boda
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
   conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"},{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"}} };
   conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
-  conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"out"} };
-  conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "prob", "label" },{ "prob_grad_loss", "loss" } };
+  conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"prob"} };
+  conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "in", "label" },{ "in_grad_loss", "loss" } };
   conv_op_info_t const Data_coi{ "Data", {}, {"out"} }; // note: no inputs / source
   conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, zi_bool(1) };
   conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"} };
