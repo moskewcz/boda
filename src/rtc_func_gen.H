@@ -106,7 +106,8 @@ namespace boda
     uint32_t tpb;
     uint32_t blks;
 
-    void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rtc_func_call_t & rfc, uint32_t const & flags);
+    void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, 
+		  rtc_func_call_t & rfc, map_str_str const & arg_map, uint32_t const & flags );
 
     void line( string const & sn, string const & line ) { 
       string & cg = cgs[sn];
@@ -132,12 +133,12 @@ namespace boda
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
       for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
-	if( arg_decls[i].io_type == "REF" ) {
-	  assert_st( rfs.args.size() == i ); // all non-ref args must preceed the (all-by-name) ref args
-	  if( !has( rfs.ref_dims, arg_decls[i].vn ) ) { 
-	    rt_err( "specified REF dim '"+arg_decls[i].vn+"' not found during template instantiation." ); }
-	  rfs.args.push_back( must_find( rfs.ref_dims, arg_decls[i].vn ) );
-	}
+	if( i < rfs.args.size() ) { continue; } // arg was passed positionally, no need to search by name
+	assert_st( rfs.args.size() == i ); // otherwise, we should be finding the next arg
+	if( !has( rfs.ref_dims, arg_decls[i].vn ) ) { 
+	  rt_err( "specified "+arg_decls[i].io_type+" dim '"+arg_decls[i].vn+
+		  "' not found during template instantiation." ); }
+	rfs.args.push_back( must_find( rfs.ref_dims, arg_decls[i].vn ) );
       }
       check_args();
       uint32_t num_nonref_args = 0;
@@ -309,7 +310,20 @@ namespace boda
   }
 
   void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, 
-				rtc_func_call_t & rfc, uint32_t const & flags ) {    
+				rtc_func_call_t & rfc, map_str_str const & arg_map, uint32_t const & flags ) {    
+    bool clr = 0;
+    if( (rfc.in_args.size()+rfc.inout_args.size()+rfc.out_args.size()) == 0 ) { // FIXME: HACK: gate new flow on rfc args being empty (transitionally)
+      clr = 1;
+      for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
+	if( arg_decls[i].io_type == "REF" ) { continue; }
+	map_str_str::const_iterator an = arg_map.find( arg_decls[i].vn );
+	if( an == arg_map.end() ) {
+	  rt_err( "specified "+arg_decls[i].io_type+" arg '"+arg_decls[i].vn+"' not found in arg_map at call time." ); 
+	}
+	rfc.in_args.push_back( an->second );
+      }
+    }
+
     uint32_t call_blks = blks; // if non-zero, blks is static, and we can check arg sizes
     //printf( "name=%s arg_sizes=%s rfc.args.size()=%s\n", str(name).c_str(), str(arg_sizes).c_str(), str(rfc.args.size()).c_str() );
 
@@ -334,6 +348,7 @@ namespace boda
     if( has_final_flags_arg ) { rfc.u32_args.push_back( flags ); }
     rtc->run( rfc );
     if( has_final_flags_arg ) { rfc.u32_args.pop_back(); }
+    if( clr ) { rfc.in_args.clear(); }
   }
 
   
@@ -354,7 +369,7 @@ namespace boda
     }
     void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls,
 		  rtc_func_call_t & rfc, uint32_t const & flags ) {    
-      must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, flags );
+      must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, rfc.arg_map, flags );
     }
   };
 

@@ -33,6 +33,7 @@ namespace boda
     p_conv_node_t ni;
     map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
+    map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
     string cts; // cts --> conv-type-str
 
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, bool const & enable_ipconv,
@@ -41,6 +42,16 @@ namespace boda
       cop = cop_;
       assert_st( cop->tops.size() >= 1 );
       assert_st( cop->bots.size() >= 1 );
+      // add all bots/tops as ref dims and track the mapping from arg name to external (call-scope) name
+      for( uint32_t i = 0; i != cop->bots.size(); ++i ) { 
+	must_insert( conv_ref_dims, cop->coi->bot_an(i), cp->must_get_node( cop->bots[i] )->dims );
+	must_insert( arg_map, cop->coi->bot_an(i), cop->bots[i] );
+      }
+      for( uint32_t i = 0; i != cop->tops.size(); ++i ) { 
+	must_insert( conv_ref_dims, cop->coi->top_an(i), cp->must_get_node( cop->tops[i] )->dims ); 
+	must_insert( arg_map, cop->coi->top_an(i), cop->tops[i] );
+      }
+
       no = cp->must_get_node( cop->tops[0] );
       u32_pt_t const no_sz = get_xy_dims( no->dims );
       if( !cop->is(Concat_coi) ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
@@ -293,6 +304,7 @@ namespace boda
     rtc_codegen_t codegen;
 
     string gen_func( rtc_func_sig_t const & rfs );
+    void gen_call( string const & fn, p_op_info_t const & oi );
     void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args );
     void gen_call( string const & fn, map_str_str const & template_var_values, string const & tag, 
 		   vect_string const & args, 
@@ -428,7 +440,7 @@ namespace boda
       }
       assert_st( chans_out_done == oi->no->dims.dsz("chan") );
     } else if( oi->cop->is( Pooling_coi ) ) {
-      gen_call( "pool", oi, {oi->ni->name,oi->no->name} );
+      gen_call( "pool", oi );
     } else if( oi->cop->is( Convolution_coi ) ) {
       gen_conv_filts( oi );
       string const in_id = cop->bots[0];
@@ -1036,6 +1048,12 @@ namespace boda
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args ) { 
     gen_call( fn, oi->template_var_values, oi->cop->tag, args, oi->conv_ref_dims, 0 );
   }
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
+    vect_string args;
+    gen_call( fn, oi->template_var_values, oi->cop->tag, args, oi->conv_ref_dims, 0 );
+    fwd_calls.back().arg_map = oi->arg_map;
+  }
+
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
   // that case the var is directly mirroring a pipe node
   void conv_pipe_fwd_t::gen_node_var( string const & name, string const & node_name ) { 

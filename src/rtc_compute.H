@@ -71,6 +71,7 @@ namespace boda
     zi_uint32_t blks;
 
     uint32_t call_id;
+    map_str_str arg_map; // FIXME: HACK, remove. used transitionally by rtc_fwd/rtc_func_gen
   };
   typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
 

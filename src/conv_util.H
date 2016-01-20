@@ -17,12 +17,14 @@ namespace boda
   // note: we use caffe-compatible layer type strings here
   // raw list: Pooling Convolution ReLU Dropout LRN Accuracy Softmax SoftmaxWithLoss Data Concat InnerProduct Spreading ZeroIfNonPos BckConv
 
-   struct conv_op_info_t {
+  struct conv_op_info_t {
     std::string type;
     vect_string bots; 
     vect_string tops;
     map_str_str params;
     zi_bool has_var_bots;
+    string bot_an( uint32_t const & ix ) const;
+    string top_an( uint32_t const & ix ) const;
   };
   extern conv_op_info_t const Pooling_coi;
   extern conv_op_info_t const Convolution_coi;

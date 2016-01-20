@@ -40,6 +40,12 @@ namespace boda
       &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &InnerProduct_coi, &Spreading_coi,
       &ZeroIfNonPos_coi, &BckConv_coi };
 
+  string conv_op_info_t::bot_an( uint32_t const & ix ) const {
+    if( has_var_bots.v ) { assert_st( bots.size() == 1 ); return bots[0] + "_" + str(ix); }
+    else { assert_st( ix < bots.size() ); return bots[ix]; }
+  }
+  string conv_op_info_t::top_an( uint32_t const & ix ) const { assert_st( ix < tops.size() ); return tops[ix]; }
+
   // type string checking + verify input/output argument count and other sanity checks
   bool conv_op_t::is( conv_op_info_t const & coi_ ) const { assert_st( coi ); return coi == &coi_; }
   void conv_op_t::set_and_check_coi( void ) { 
