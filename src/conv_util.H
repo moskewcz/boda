@@ -17,27 +17,28 @@ namespace boda
   // raw list: Pooling Convolution ReLU Dropout LRN Accuracy Softmax SoftmaxWithLoss Data Concat InnerProduct Spreading
   struct conv_op_info_t {
     std::string type;
-    u32_pt_t num_bots; // min,max
-    u32_pt_t num_tops; // min,max
+    vect_string bots; 
+    vect_string tops;
+    zi_bool has_var_bots;
   };
-  conv_op_info_t const Pooling_coi{ "Pooling", {1,1}, {1,1} };
-  conv_op_info_t const Convolution_coi{ "Convolution", {3,3}, {1,1} }; // { in, filts, biases } --> { out }
-  conv_op_info_t const ReLU_coi{ "ReLU", {1,1}, {1,1} };
-  conv_op_info_t const Dropout_coi{ "Dropout", {1,1}, {1,1} };
-  conv_op_info_t const LRN_coi{ "LRN", {1,1}, {1,1} };
-  conv_op_info_t const Accuracy_coi{ "Accuracy", {1,1}, {1,1} };
-  conv_op_info_t const Softmax_coi{ "Softmax", {1,1}, {1,1} };
-  conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", {2,2}, {2,2} }; // { prob, label } --> { prob_grad, loss }
-  conv_op_info_t const Data_coi{ "Data", {0,0}, {1,1} }; // note: no inputs / source
-  conv_op_info_t const Concat_coi{ "Concat", {1,uint32_t_const_max}, {1,1} };
-  conv_op_info_t const InnerProduct_coi{ "InnerProduct", {1,1}, {1,1} };
+  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"} };
+  conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" } };
+  conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
+  conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
+  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"} };
+  conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
+  conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"out"} };
+  conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "prob", "label" },{ "prob_grad_loss", "loss" } };
+  conv_op_info_t const Data_coi{ "Data", {}, {"out"} }; // note: no inputs / source
+  conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, zi_bool(1) };
+  conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"} };
   // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
   // other ops. so we try to understand what they do functionally and name them accordingly.
-  conv_op_info_t const Spreading_coi{ "Spreading", {3,3}, {1,1} }; // { out, out_grad_loss, in } --> { in_grad_loss }
-  conv_op_info_t const ZeroIfNonPos_coi{ "ZeroIfNonPos", {2,2}, {1,1} }; // { in, cond } --> { out } // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
-  conv_op_info_t const BckConv_coi{ "BckConv", {4,4}, {3,3} }; // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
-  
+  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" } };
+  conv_op_info_t const ZeroIfNonPos_coi{ "ZeroIfNonPos", {"in","cond"}, {"out"} }; // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
+  conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
+    { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" } };
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support

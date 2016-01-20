@@ -16,11 +16,17 @@ namespace boda
   // type string checking + verify input/output argument count and other sanity checks
   bool conv_op_t::is( conv_op_info_t const & coi ) const { 
     if( type != coi.type ) { return 0; }
-    if( !coi.num_tops.bnds_check_gele( tops.size() ) || !coi.num_bots.bnds_check_gele( bots.size() ) ) {
-      rt_err( strprintf( "Wrong number of input or output arguments for operation of type '%s'. "
-			 "had: tops.size()=%s bots.size()=%s, bnds are: coi.num_tops=%s coi.num_bots=%s\n", 
-			 str(coi.type).c_str(), str(tops.size()).c_str(), str(bots.size()).c_str(), 
-			 str(coi.num_tops).c_str(), str(coi.num_bots).c_str() ) );
+    if( coi.tops.size() != tops.size() ) {
+      rt_err( strprintf( "Wrong number of output arguments for operation of type '%s'. "
+			 "had: tops.size()=%s, expected: coi.tops.size()=%s\n", 
+			 str(coi.type).c_str(), str(tops.size()).c_str(), str(coi.tops.size()).c_str() ) );
+    }
+    if( coi.has_var_bots.v ? ( coi.bots.size() > bots.size() ) : ( coi.bots.size() != bots.size() ) ) {
+      rt_err( strprintf( "Wrong number of input arguments for operation of type '%s'. "
+			 "had: bots.size()=%s, expected: coi.bots.size()%s=%s\n", 
+			 str(coi.type).c_str(), str(bots.size()).c_str(), 
+			 coi.has_var_bots.v ? ">" : "",
+			 str(coi.bots.size()).c_str() ) );
     }
     return 1;
   }
