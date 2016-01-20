@@ -17,10 +17,7 @@ namespace boda
   // note: we use caffe-compatible layer type strings here
   // raw list: Pooling Convolution ReLU Dropout LRN Accuracy Softmax SoftmaxWithLoss Data Concat InnerProduct Spreading ZeroIfNonPos BckConv
 
-  // FIXME: we lost the ability to have NESI-based support for types and help for the per-operation params when we moved
-  // them into conv_op_info_t. now they are just all strings ...
-
-  struct conv_op_info_t {
+   struct conv_op_info_t {
     std::string type;
     vect_string bots; 
     vect_string tops;
@@ -56,16 +53,7 @@ namespace boda
     u32_pt_t kern_sz; //NESI(default="0 0",help="convolutional kernel size")
     u32_pt_t stride; //NESI(default="1 1",help="step/stride in input")
 
-#if 0
-    uint32_t out_chans; //xNESI(default="0",help="number of output channels")
-    uint32_t avg_pool; //xNESI(default="0",help="0 for max pooling, 1 for average pooling (others unsupported for compute)")
-    uint32_t lrn_local_size; //xNESI(default="5",help="LRN local_size param")
-    double lrn_alpha; //xNESI(default="1.0",help="LRN alpha param")
-    double lrn_beta; //xNESI(default="0.75",help="LRN beta param")
-    double lrn_k; //xNESI(default="1.0",help="LRN k param")
-#endif
     map_str_str params; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
-
     uint32_t u32_param( string const & tvn ) { return lc_str_u32( must_find( params, tvn ) ); }
     uint32_t double_param( string const & tvn ) { return lc_str_d( must_find( params, tvn ) ); }
 

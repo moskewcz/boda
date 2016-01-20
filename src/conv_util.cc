@@ -12,6 +12,10 @@
 
 namespace boda 
 {
+  // FIXME: we lost the ability to have NESI-based support for types and help for the per-operation params when we moved
+  // them into conv_op_info_t. now they are just all strings ...
+
+  // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
   conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, {{"avg_pool","0"}} };
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}} };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
