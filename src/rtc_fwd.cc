@@ -435,8 +435,12 @@ namespace boda
 	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->no->dims.dsz("chan") );
 	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->template_var_values = { {"ocix",str(chans_out_done)} }; 
-	gen_call( "copy", oi, {cop->bots[bi], cop->tops[0]} );
+	must_insert( oi->conv_ref_dims, "in", cp->must_get_node(cop->bots[bi])->dims ); // FIXME_NA 
+	must_insert( oi->arg_map, "in", cop->bots[bi] ); // FIXME_NA 
+	gen_call( "copy", oi );
 	chans_out_done += dims_in.dsz("chan");
+	oi->conv_ref_dims.erase( "in" );
+	oi->arg_map.erase( "in" );
       }
       assert_st( chans_out_done == oi->no->dims.dsz("chan") );
     } else if( oi->cop->is( Pooling_coi ) ) {
@@ -527,9 +531,9 @@ namespace boda
 	ogl_fn = "bconv";
 	fgl_fn = "bconv_fb";
       }
-      gen_call( ogl_fn, oi, { cop->bots[1], ogl_vn, cop->tops[0] } );
-      gen_call( "BckConv_biases_grad_loss", oi, { /*const-1 bias input, */ cop->bots[3], cop->tops[2] } );
-      gen_call( fgl_fn, oi, { cop->bots[0], cop->bots[3], cop->tops[1] } );
+      gen_call( ogl_fn, oi );
+      gen_call( "BckConv_biases_grad_loss", oi );
+      gen_call( fgl_fn, oi );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
