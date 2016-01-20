@@ -136,8 +136,12 @@ namespace boda
       p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
       assert( bot->dims == top->dims );
       assert( bot->dims.sz() == 4 );
-      assert( cop->lrn_local_size & 1 );
-      int32_t const half_win = cop->lrn_local_size >> 1;
+      uint32_t const local_size = cop->u32_param("local_size");
+      double const alpha = cop->double_param("alpha");
+      double const beta = cop->double_param("beta");
+      double const k = cop->double_param("k");
+      assert( local_size & 1 );
+      int32_t const half_win = local_size >> 1;
       for( uint32_t i = 0; i != top->dims.dims(0); ++i ) {
 	for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
 	  for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
@@ -150,7 +154,7 @@ namespace boda
 		}
 	      }
 	      top->at4(i,c,y,x) = bot->at4(i,c,y,x) * 
-		powf((cop->lrn_k + cop->lrn_alpha*wind_sum_v2/float(cop->lrn_local_size)), -cop->lrn_beta);
+		powf((k + alpha*wind_sum_v2/float(local_size)), -beta);
 	    } 
 	  }
 	}

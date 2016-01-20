@@ -154,11 +154,10 @@ namespace boda
 	caffe::LRNParameter const & p = lp.lrn_param();	
 	conv_op->stride = {1,1};
 	conv_op->out_chans = 0; // no effect on chans
-
-	conv_op->lrn_alpha = p.alpha();
-	conv_op->lrn_beta = p.beta();
-	conv_op->lrn_local_size = p.local_size();
-	conv_op->lrn_k = p.k();
+	conv_op->params["alpha"] = str(p.alpha());
+	conv_op->params["beta"] = str(p.beta());
+	conv_op->params["local_size"] = str(p.local_size());
+	conv_op->params["k"] = str(p.k());
       } else if( lp.type() == Softmax_coi.type ) {
 	// this may be inconvieniently strong; it's probably okay to ignore this here
 	//rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );

@@ -475,7 +475,7 @@ namespace boda
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
       gen_call( "relu", oi, { oi->no->name } );
     } else if( cop->is( LRN_coi ) ) {
-      oi->template_var_values = {{"local_size",str(cop->lrn_local_size)},{"alpha",str(cop->lrn_alpha)},{"beta",str(cop->lrn_beta)},{"k",str(cop->lrn_k)}};
+      oi->template_var_values = cop->params;
       assert_st( get_xy_dims( oi->ni->dims ) == get_xy_dims( oi->no->dims ) );
       assert_st( oi->ni->dims.dsz("chan") == oi->no->dims.dsz("chan") );
       gen_call( "lrn", oi, { oi->ni->name, oi->no->name } );

@@ -2,6 +2,7 @@
 #define _CONV_UTIL_H_
 
 #include"conv_common.H"
+#include"str_util.H"
 
 namespace caffe { struct NetParameter; struct NetState; }
 
@@ -15,22 +16,27 @@ namespace boda
 
   // note: we use caffe-compatible layer type strings here
   // raw list: Pooling Convolution ReLU Dropout LRN Accuracy Softmax SoftmaxWithLoss Data Concat InnerProduct Spreading
+
+  // FIXME: we lost the ability to have NESI-based support for types and help for the per-operation params when we moved
+  // them into conv_op_info_t. now they are just all strings ...
+
   struct conv_op_info_t {
     std::string type;
     vect_string bots; 
     vect_string tops;
+    map_str_str params;
     zi_bool has_var_bots;
   };
   conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"} };
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" } };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
-  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"} };
+  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"},{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"}} };
   conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
   conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"out"} };
   conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "prob", "label" },{ "prob_grad_loss", "loss" } };
   conv_op_info_t const Data_coi{ "Data", {}, {"out"} }; // note: no inputs / source
-  conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, zi_bool(1) };
+  conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, zi_bool(1) };
   conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"} };
   // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
@@ -53,11 +59,16 @@ namespace boda
     // uint32_t groups; NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
 
     uint32_t avg_pool; //NESI(default="0",help="0 for max pooling, 1 for average pooling (others unsupported for compute)")
+#if 0
+    uint32_t lrn_local_size; //xNESI(default="5",help="LRN local_size param")
+    double lrn_alpha; //xNESI(default="1.0",help="LRN alpha param")
+    double lrn_beta; //xNESI(default="0.75",help="LRN beta param")
+    double lrn_k; //xNESI(default="1.0",help="LRN k param")
+#endif
+    map_str_str params; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
 
-    uint32_t lrn_local_size; //NESI(default="5",help="LRN local_size param")
-    double lrn_alpha; //NESI(default="1.0",help="LRN alpha param")
-    double lrn_beta; //NESI(default="0.75",help="LRN beta param")
-    double lrn_k; //NESI(default="1.0",help="LRN k param")
+    uint32_t u32_param( string const & tvn ) { return lc_str_u32( must_find( params, tvn ) ); }
+    uint32_t double_param( string const & tvn ) { return lc_str_d( must_find( params, tvn ) ); }
 
     vect_string tops; // inputs (by node/blob name)
     vect_string bots; // outputs (by node/blob name)
@@ -81,7 +92,7 @@ namespace boda
     //noticably bad in combination with always printing all parameters. we should do some combination of: (1) always
     //using NESI to init conv_op_t's (2) custom-printing conv_op_t's to avoid printing ununsed/invalid fields (3)
     //actually use some hierarchy here (gasp!)?
-    conv_op_t( void ) : out_chans(0), avg_pool(0), lrn_local_size(0), lrn_alpha(0), lrn_beta(0), lrn_k(0) { }
+    conv_op_t( void ) : out_chans(0), avg_pool(0) { }
     bool is( conv_op_info_t const & coi ) const; // type string checking + verify input/output argument count and other sanity checks
   };
 
