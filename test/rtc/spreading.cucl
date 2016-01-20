@@ -2,6 +2,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const out, // CUCL 
 					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
 					  GASQ float const * const in, // CUCL IN img:chan:y:x
 					  GASQ float * const in_grad_loss ) // CUCL OUT img:chan:y:x
+/* kern_sz */  // CUCL REF y:x
 // note: out/out_grad_loss dims are same; in/in_grad_loss dims are the same
 // we spread out the values of in into out, based on the values in mask and the type of pooling
 {
@@ -9,16 +10,16 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const out, // CUCL 
   // CUCL IX GLOB_ID_1D in_grad_loss
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
   float in_grad_loss_v = 0.0f;
-  // we want ceil of (%(GLOB_ID_1D_x) + %(in_pad) - %(kern_x_dim) + 1)/%(stride); so use ceil->floor transform:
-  int32_t out_xb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_x) + %(in_pad) - %(kern_x_dim) + %(stride) ) / %(stride); // clamp to numerator zero and take floor
+  // we want ceil of (%(GLOB_ID_1D_x) + %(in_pad) - %(kern_sz_x_dim) + 1)/%(stride); so use ceil->floor transform:
+  int32_t out_xb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_x) + %(in_pad) - %(kern_sz_x_dim) + %(stride) ) / %(stride); // clamp to numerator zero and take floor
   int32_t out_xe = min( (((((int32_t)%(GLOB_ID_1D_x) + %(in_pad))/ %(stride)))+1), (int32_t)%(out_x_dim) ); // take floor, then add 1 to convert open bound, then clamp to dim
   // dup'd for y
-  int32_t out_yb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_y) + %(in_pad) - %(kern_y_dim) + %(stride) ) / %(stride);
+  int32_t out_yb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_y) + %(in_pad) - %(kern_sz_y_dim) + %(stride) ) / %(stride);
   int32_t out_ye = min( (((((int32_t)%(GLOB_ID_1D_y) + %(in_pad))/ %(stride)))+1), (int32_t)%(out_y_dim) );
 
   // FIXME: not right (too large) on borders, where the pooling region is truncated and/or uses padding. we want this to be, per
   // input pel, the number of output pels the value is to be spread over. (note: put val in mask for avg. pooling?)
-  float spread_sz = %(kern_x_dim)*%(kern_y_dim);
+  float spread_sz = %(kern_sz_x_dim)*%(kern_sz_y_dim);
   // range of in that can be spread into this thread's in_grad_loss pixel
   for( int32_t out_x = out_xb; out_x < out_xe; ++out_x ) {
     for( int32_t out_y = out_yb; out_y < out_ye; ++out_y ) {

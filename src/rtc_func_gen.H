@@ -134,6 +134,8 @@ namespace boda
       for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
 	if( arg_decls[i].io_type == "REF" ) {
 	  assert_st( rfs.args.size() == i ); // all non-ref args must preceed the (all-by-name) ref args
+	  if( !has( rfs.ref_dims, arg_decls[i].vn ) ) { 
+	    rt_err( "specified REF dim '"+arg_decls[i].vn+"' not found during template instantiation." ); }
 	  rfs.args.push_back( must_find( rfs.ref_dims, arg_decls[i].vn ) );
 	}
       }

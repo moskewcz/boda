@@ -1,11 +1,12 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
 					  GASQ float * const out ) // CUCL OUT img:chan:y:x
+/* kern_sz */  // CUCL REF y:x
 {
   // CUCL IX GLOB_ID_1D out
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
   float out_v = 0.0f;
-  for( int32_t kx = 0; kx != %(kern_x_dim); ++kx ) {
-    for( int32_t ky = 0; ky != %(kern_y_dim); ++ky ) {
+  for( int32_t kx = 0; kx != %(kern_sz_x_dim); ++kx ) {
+    for( int32_t ky = 0; ky != %(kern_sz_y_dim); ++ky ) {
       float v = 0;
       int const in_y = %(GLOB_ID_1D_y)*%(stride) + ky - %(in_pad);
       int const in_x = %(GLOB_ID_1D_x)*%(stride) + kx - %(in_pad);
@@ -17,6 +18,6 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
       if( %(avg_pool) ) { out_v += v; } else { out_v = max( out_v, v ); }
     }
   }
-  if( %(avg_pool) ) { out_v /= (float)(%(kern_x_dim)*%(kern_y_dim)); }
+  if( %(avg_pool) ) { out_v /= (float)(%(kern_sz_x_dim)*%(kern_sz_y_dim)); }
   out[GLOB_ID_1D] = out_v;
 }

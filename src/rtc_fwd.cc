@@ -82,8 +82,8 @@ namespace boda
 	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
 	} 
 	if( is_pool || cop->is( Spreading_coi ) ) { // pool/spread
-	  template_var_values = {{"stride",str(stride)},{"avg_pool",must_find(cop->params,"avg_pool")},{"in_pad",str(in_pad)},
-				 {"kern_y_dim",str(kern_sz.d[1])},{"kern_x_dim",str(kern_sz.d[0])}};
+	  template_var_values = {{"stride",str(stride)},{"avg_pool",must_find(cop->params,"avg_pool")},{"in_pad",str(in_pad)}};
+	  conv_ref_dims["kern_sz"] = dims_t( vect_uint32_t{ kern_sz.d[1], kern_sz.d[0] }, vect_string{"y","x"}, 1 );
 	}
 	if( cop->is( BckConv_coi ) ) {
 	  u32_pt_t const xy_stride(stride,stride);
@@ -221,8 +221,6 @@ namespace boda
 	  conv_ref_dims["in"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
 	  conv_ref_dims["filts"] = cp->must_get_node( cop->bots[1] )->dims;
-	    //dims_t( vect_uint32_t{ cop->out_chans, ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] }, 
-	    //				   vect_string{"out_chan","in_chan","y","x"}, 1 );
 	  conv_ref_dims["filtsxp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
 	  conv_ref_dims["biases"] = cp->must_get_node( cop->bots[2] )->dims; 
@@ -295,8 +293,7 @@ namespace boda
     rtc_codegen_t codegen;
 
     string gen_func( rtc_func_sig_t const & rfs );
-    void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
-		   map_str_dims_t const & ref_dims = map_str_dims_t(), bool const is_init_call = 0 );
+    void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args );
     void gen_call( string const & fn, map_str_str const & template_var_values, string const & tag, 
 		   vect_string const & args, 
 		   map_str_dims_t const & ref_dims = map_str_dims_t(), bool const is_init_call = 0 );
@@ -431,7 +428,7 @@ namespace boda
       }
       assert_st( chans_out_done == oi->no->dims.dsz("chan") );
     } else if( oi->cop->is( Pooling_coi ) ) {
-      gen_call( "pool", oi, {oi->ni->name,oi->no->name}, oi->conv_ref_dims );
+      gen_call( "pool", oi, {oi->ni->name,oi->no->name} );
     } else if( oi->cop->is( Convolution_coi ) ) {
       gen_conv_filts( oi );
       string const in_id = cop->bots[0];
@@ -471,7 +468,7 @@ namespace boda
       }
       rtc->create_var_with_dims_floats( oi->no->name, no_dims );
       in_arg_ids.push_back( oi->no->name );
-      gen_call( oi->cts, oi, in_arg_ids, oi->conv_ref_dims );
+      gen_call( oi->cts, oi, in_arg_ids );
       // assert_st( oi->no->dims.dsz("chan") == cop->out_chans ); //unneeded, since out_chans param is redundant with dims?
     } else if( cop->is( ReLU_coi ) ) {
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
@@ -516,9 +513,9 @@ namespace boda
 	ogl_fn = "bconv";
 	fgl_fn = "bconv_fb";
       }
-      gen_call( ogl_fn, oi, { cop->bots[1], ogl_vn, cop->tops[0] }, oi->conv_ref_dims );
+      gen_call( ogl_fn, oi, { cop->bots[1], ogl_vn, cop->tops[0] } );
       gen_call( "BckConv_biases_grad_loss", oi, { /*const-1 bias input, */ cop->bots[3], cop->tops[2] } );
-      gen_call( fgl_fn, oi, { cop->bots[0], cop->bots[3], cop->tops[1] }, oi->conv_ref_dims );
+      gen_call( fgl_fn, oi, { cop->bots[0], cop->bots[3], cop->tops[1] } );
     } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
   }
 
@@ -1036,9 +1033,8 @@ namespace boda
     (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, tag } );
   }
 
-  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args, 
-				  map_str_dims_t const & ref_dims, bool const is_init_call ) { 
-    gen_call( fn, oi->template_var_values, oi->cop->tag, args, ref_dims, is_init_call );
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args ) { 
+    gen_call( fn, oi->template_var_values, oi->cop->tag, args, oi->conv_ref_dims, 0 );
   }
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
   // that case the var is directly mirroring a pipe node
