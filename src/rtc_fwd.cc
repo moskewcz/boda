@@ -81,8 +81,9 @@ namespace boda
 
 	if( is_conv ) {
 	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
-	} else { // pool/spread
-	  template_var_values = {{"stride",str(stride)},{"avg_pool",str(cop->avg_pool)},{"in_pad",str(in_pad)},
+	} 
+	if( is_pool || cop->is( Spreading_coi ) ) { // pool/spread
+	  template_var_values = {{"stride",str(stride)},{"avg_pool",must_find(cop->params,"avg_pool")},{"in_pad",str(in_pad)},
 				 {"kern_y_dim",str(kern_sz.d[1])},{"kern_x_dim",str(kern_sz.d[0])}};
 	}
 	if( cop->is( BckConv_coi ) ) {

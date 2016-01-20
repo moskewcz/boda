@@ -27,7 +27,7 @@ namespace boda
     map_str_str params;
     zi_bool has_var_bots;
   };
-  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"} };
+  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, {{"avg_pool","0"}} };
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" } };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
@@ -58,8 +58,8 @@ namespace boda
     uint32_t out_chans; //NESI(default="0",help="number of output channels")
     // uint32_t groups; NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
 
-    uint32_t avg_pool; //NESI(default="0",help="0 for max pooling, 1 for average pooling (others unsupported for compute)")
 #if 0
+    uint32_t avg_pool; //xNESI(default="0",help="0 for max pooling, 1 for average pooling (others unsupported for compute)")
     uint32_t lrn_local_size; //xNESI(default="5",help="LRN local_size param")
     double lrn_alpha; //xNESI(default="1.0",help="LRN alpha param")
     double lrn_beta; //xNESI(default="0.75",help="LRN beta param")
@@ -92,7 +92,7 @@ namespace boda
     //noticably bad in combination with always printing all parameters. we should do some combination of: (1) always
     //using NESI to init conv_op_t's (2) custom-printing conv_op_t's to avoid printing ununsed/invalid fields (3)
     //actually use some hierarchy here (gasp!)?
-    conv_op_t( void ) : out_chans(0), avg_pool(0) { }
+    conv_op_t( void ) : out_chans(0) { }
     bool is( conv_op_info_t const & coi ) const; // type string checking + verify input/output argument count and other sanity checks
   };
 

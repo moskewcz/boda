@@ -65,7 +65,7 @@ namespace boda
     assert_st( cop->out_chans == 0 ); // one-to-one chans IO
     assert_st( top->dims.dims(1) == bot->dims.dims(1) ); // one-to-one chans IO
     uint32_t const out_pool_elems = kern_sz.dims_prod();
-    bool const avg_pool = cop->avg_pool;
+    uint32_t const avg_pool = cop->u32_param("avg_pool");
     for( uint32_t cix = 0; cix != top->dims.dims(1); ++cix ) {
       for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
 	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
