@@ -15,7 +15,7 @@ namespace boda
   typedef shared_ptr< net_state_t > p_net_state_t;
 
   // note: we use caffe-compatible layer type strings here
-  // raw list: Pooling Convolution ReLU Dropout LRN Accuracy Softmax SoftmaxWithLoss Data Concat InnerProduct Spreading
+  // raw list: Pooling Convolution ReLU Dropout LRN Accuracy Softmax SoftmaxWithLoss Data Concat InnerProduct Spreading ZeroIfNonPos BckConv
 
   // FIXME: we lost the ability to have NESI-based support for types and help for the per-operation params when we moved
   // them into conv_op_info_t. now they are just all strings ...
@@ -27,38 +27,37 @@ namespace boda
     map_str_str params;
     zi_bool has_var_bots;
   };
-  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, {{"avg_pool","0"}} };
-  conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" } };
-  conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
-  conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
-  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"},{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"}} };
-  conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
-  conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"out"} };
-  conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "prob", "label" },{ "prob_grad_loss", "loss" } };
-  conv_op_info_t const Data_coi{ "Data", {}, {"out"} }; // note: no inputs / source
-  conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, zi_bool(1) };
-  conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"} };
-  // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
-  // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
-  // other ops. so we try to understand what they do functionally and name them accordingly.
-  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" } };
-  conv_op_info_t const ZeroIfNonPos_coi{ "ZeroIfNonPos", {"in","cond"}, {"out"} }; // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
-  conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
-    { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" } };
+  extern conv_op_info_t const Pooling_coi;
+  extern conv_op_info_t const Convolution_coi;
+  extern conv_op_info_t const ReLU_coi;
+  extern conv_op_info_t const Dropout_coi;
+  extern conv_op_info_t const LRN_coi;
+  extern conv_op_info_t const Accuracy_coi;
+  extern conv_op_info_t const Softmax_coi;
+  extern conv_op_info_t const SoftmaxWithLoss_coi;
+  extern conv_op_info_t const Data_coi;
+  extern conv_op_info_t const Concat_coi;
+  extern conv_op_info_t const InnerProduct_coi;
+  extern conv_op_info_t const Spreading_coi;
+  extern conv_op_info_t const ZeroIfNonPos_coi;
+  extern conv_op_info_t const BckConv_coi;
+
+  
+  typedef conv_op_info_t const * rp_conv_op_info_t; 
+  typedef vector< rp_conv_op_info_t > vect_rp_conv_op_info_t;  
+
   struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string tag; //NESI(help="tag to refer to conv op by",req=1)
     string type; //NESI(help="type of op; may impact in/out size calculations",req=1)
+    conv_op_info_t const * coi;
     u32_box_t in_pad; //NESI(default="0 0 0 0",help="input padding")
     u32_pt_t kern_sz; //NESI(default="0 0",help="convolutional kernel size")
     u32_pt_t stride; //NESI(default="1 1",help="step/stride in input")
 
-    // related to depth (currently unused; might be optional?)
-    uint32_t out_chans; //NESI(default="0",help="number of output channels")
-    // uint32_t groups; NESI(default="1",help="number of groups (equal partitions of inputs and outputs)")
-
 #if 0
+    uint32_t out_chans; //xNESI(default="0",help="number of output channels")
     uint32_t avg_pool; //xNESI(default="0",help="0 for max pooling, 1 for average pooling (others unsupported for compute)")
     uint32_t lrn_local_size; //xNESI(default="5",help="LRN local_size param")
     double lrn_alpha; //xNESI(default="1.0",help="LRN alpha param")
@@ -88,12 +87,9 @@ namespace boda
     bool has_one_top_one_bot( void ) const { return (tops.size() == 1) && (bots.size() == 1); }
     string const & get_single_in_place_arg( void ) const { assert_st( has_one_top_one_bot() ); assert_st( tops[0] == bots[0] ); return tops[0]; }  
 
-    //FIXME: for now, we default-init these vars to prevent them from being garbage when they are unused. this is
-    //noticably bad in combination with always printing all parameters. we should do some combination of: (1) always
-    //using NESI to init conv_op_t's (2) custom-printing conv_op_t's to avoid printing ununsed/invalid fields (3)
-    //actually use some hierarchy here (gasp!)?
-    conv_op_t( void ) : out_chans(0) { }
-    bool is( conv_op_info_t const & coi ) const; // type string checking + verify input/output argument count and other sanity checks
+    conv_op_t( void ) : coi(0) { }
+    void set_and_check_coi( void ); // verify input/output argument count and other sanity checks
+    bool is( conv_op_info_t const & coi ) const; // type string checking 
   };
 
   typedef vector< conv_op_t > vect_conv_op_t; 

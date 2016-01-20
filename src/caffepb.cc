@@ -137,23 +137,20 @@ namespace boda
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
 	fill_in_conv_op_from_param( conv_op, cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
-	conv_op->out_chans = cp.num_output();
+	conv_op->params["out_chans"] = str(cp.num_output());
 	// add (make explicit) filts and biases as inputs 
 	conv_op->bots.push_back( lp.name() + "_filts" );
 	conv_op->bots.push_back( lp.name() + "_biases" );
 	//conv_pipe->some_kinda_node_names.push_back( {filts,biases}_node_name ); // FIXME?
       } else if( lp.type() == ReLU_coi.type ) {
 	conv_op->stride = {1,1}; // sensible, but currently unused
-	conv_op->out_chans = 0; // no effect on chans
       } else if( lp.type() == Dropout_coi.type ) {
 	rt_err( "TODO: handle dropout" );
 	conv_op->stride = {1,1}; // sensible, but currently unused
-	conv_op->out_chans = 0; // no effect on chans
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	
 	conv_op->stride = {1,1};
-	conv_op->out_chans = 0; // no effect on chans
 	conv_op->params["alpha"] = str(p.alpha());
 	conv_op->params["beta"] = str(p.beta());
 	conv_op->params["local_size"] = str(p.local_size());
@@ -171,7 +168,6 @@ namespace boda
 	  conv_op.reset();
 	} else {
 	  conv_op->stride = {1,1}; // sensible, but currently unused
-	  conv_op->out_chans = 0; // no effect on chans
 	  if( conv_op->tops.size() > 1 ) { rt_err( "expected 0 or 1 outputs for SoftmaxWithLoss (i.e. just a loss output or nothing (an implicit missing loss output)). saw '"+str(conv_op->tops.size())+"' outputs." ); }
 	  if( conv_op->tops.size() == 0 ) { rt_err( "FIXME: restore loss auto-naming or fix prototxts"); conv_op->tops.push_back( "loss" ); } 
 	  conv_op->tops.insert( conv_op->tops.begin(), conv_op->bots[0] + "_grad_loss" ); // add gradient output for fwd_top input
@@ -180,7 +176,6 @@ namespace boda
 	assert_st( lp.has_pooling_param() );
 	caffe::PoolingParameter const & pp = lp.pooling_param();
 	fill_in_conv_op_from_param( conv_op, pp );
-	conv_op->out_chans = 0; // no effect on chans
 	uint32_t avg_pool;
 	if( pp.pool() == caffe::PoolingParameter_PoolMethod_AVE ) { avg_pool = 1; } 
 	else if( pp.pool() == caffe::PoolingParameter_PoolMethod_MAX ) { avg_pool = 0; }
@@ -192,7 +187,7 @@ namespace boda
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
 	conv_op->stride = {1,1};
-	conv_op->out_chans = ipp.num_output();
+	conv_op->params["out_chans"] = str(ipp.num_output());
       } else if( lp.type() == Data_coi.type ) {
 	// note/FIXME: if there are multiple data layers, any values in in_dims will apply to all of them
 	assert_st( lp.has_data_param() );
@@ -237,7 +232,6 @@ namespace boda
 	conv_op.reset(); // for now, just silently ignore acc layers.
       } else if( lp.type() == Concat_coi.type ) {
 	conv_op->stride = {1,1};
-	conv_op->out_chans = 0; // no effect on chans
       } else {
 	conv_op.reset(); printf( "warning: ignoring layer with lp.type()=%s\n", str(lp.type()).c_str() );
       }

@@ -12,25 +12,63 @@
 
 namespace boda 
 {
+  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, {{"avg_pool","0"}} };
+  conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}} };
+  conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
+  conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
+  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"},{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"}} };
+  conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
+  conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"out"} };
+  conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "prob", "label" },{ "prob_grad_loss", "loss" } };
+  conv_op_info_t const Data_coi{ "Data", {}, {"out"} }; // note: no inputs / source
+  conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, zi_bool(1) };
+  conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"} };
+  // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
+  // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
+  // other ops. so we try to understand what they do functionally and name them accordingly.
+  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" }, 
+										     {{ "avg_pool", "0" }} };
+  conv_op_info_t const ZeroIfNonPos_coi{ "ZeroIfNonPos", {"in","cond"}, {"out"} }; // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
+  conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
+    { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" } };
+
+  vect_rp_conv_op_info_t conv_op_infos{ &Pooling_coi, &Convolution_coi, &ReLU_coi, &Dropout_coi, &LRN_coi, 
+      &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &InnerProduct_coi, &Spreading_coi,
+      &ZeroIfNonPos_coi, &BckConv_coi };
 
   // type string checking + verify input/output argument count and other sanity checks
-  bool conv_op_t::is( conv_op_info_t const & coi ) const { 
-    if( type != coi.type ) { return 0; }
-    if( coi.tops.size() != tops.size() ) {
+  bool conv_op_t::is( conv_op_info_t const & coi_ ) const { assert_st( coi ); return coi == &coi_; }
+  void conv_op_t::set_and_check_coi( void ) { 
+    assert_st( !coi );
+    for( vect_rp_conv_op_info_t::const_iterator i = conv_op_infos.begin(); i != conv_op_infos.end(); ++i ) {
+      if( type == (*i)->type ) { coi = *i; }
+    }
+    if( !coi ) { rt_err( strprintf( "Unknown operation of type '%s'.", str(type).c_str() ) ); }
+    if( coi->tops.size() != tops.size() ) {
       rt_err( strprintf( "Wrong number of output arguments for operation of type '%s'. "
-			 "had: tops.size()=%s, expected: coi.tops.size()=%s\n", 
-			 str(coi.type).c_str(), str(tops.size()).c_str(), str(coi.tops.size()).c_str() ) );
+			 "had: tops.size()=%s, expected: coi->tops.size()=%s\n", 
+			 str(coi->type).c_str(), str(tops.size()).c_str(), str(coi->tops.size()).c_str() ) );
     }
-    if( coi.has_var_bots.v ? ( coi.bots.size() > bots.size() ) : ( coi.bots.size() != bots.size() ) ) {
+    if( coi->has_var_bots.v ? ( coi->bots.size() > bots.size() ) : ( coi->bots.size() != bots.size() ) ) {
       rt_err( strprintf( "Wrong number of input arguments for operation of type '%s'. "
-			 "had: bots.size()=%s, expected: coi.bots.size()%s=%s\n", 
-			 str(coi.type).c_str(), str(bots.size()).c_str(), 
-			 coi.has_var_bots.v ? ">" : "",
-			 str(coi.bots.size()).c_str() ) );
+			 "had: bots.size()=%s, expected: coi->bots.size()%s=%s\n", 
+			 str(coi->type).c_str(), str(bots.size()).c_str(), 
+			 coi->has_var_bots.v ? ">" : "",
+			 str(coi->bots.size()).c_str() ) );
     }
-    return 1;
+    // check all params are set, set any missing ones to defaults
+    for( map_str_str::const_iterator i = coi->params.begin(); i != coi->params.end(); ++i ) {
+      if( !has( params, i->first ) ) { params[i->first] = i->second; }
+    }
+    // check that there are no extra/unknown params
+    for( map_str_str::const_iterator i = params.begin(); i != params.end(); ++i ) {
+      if( !has( coi->params, i->first ) ) { 
+	rt_err( strprintf( "Unknown/invalid/extra parameter '%s' for operation of type '%s'.",
+			   i->first.c_str(), str(coi->type).c_str() ) );
+      }
+    }
   }
-
+  
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
     if( kern_sz.is_zeros() ) { // handle non-conv cases
       assert( !is(Convolution_coi) ); 
@@ -107,6 +145,7 @@ namespace boda
     return i->second;
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
+    conv->set_and_check_coi();
     bool in_place = 0;
     if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) ) { 
       if( conv->is(ZeroIfNonPos_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }
@@ -163,7 +202,6 @@ namespace boda
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
       assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
-      assert_st( cop->out_chans == 0 ); 
       p_conv_node_t const & loss_node = must_get_node( cop->tops[1] );
       loss_node->csi.support_sz = u32_pt_t{};
       loss_node->csi.eff_tot_pad = csi_out.eff_tot_pad; // FIXME: correct? needed? maybe set to bogus/sentinel value?
@@ -184,7 +222,6 @@ namespace boda
 	  if( csi_in.support_stride == csi_out.support_stride ) { csi_out.support_sz.max_eq( csi_in.support_sz ); }
 	}
 	csi_out.eff_tot_pad.max_eq( csi_in.eff_tot_pad );
-	assert( !cop->out_chans ); // concat shouldn't have a # of output chans specified
       }
     } else {    
       assert_st( cop->has_one_top() );
@@ -239,7 +276,6 @@ namespace boda
 	od = must_get_node(cop->bots[i])->dims;
       }
     } else if( cop->is( Spreading_coi ) ) { 
-      assert_st( cop->out_chans == 0 ); 
       dims_out = must_get_node(cop->bots[2])->dims;
       // FIXME?: for now, we don't try to calculate support info for bck operations 
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
@@ -280,13 +316,15 @@ namespace boda
     } else {    
       assert_st( cop->has_one_top() );
       p_conv_node_t const & j_node = must_get_node(cop->bots[0]);
+      uint32_t out_chans = 0;
       if( cop->is( Convolution_coi ) ) { 
 	u32_pt_t kern_sz = cop->kern_sz;
 	if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( j_node->dims ); } // 'global' input special case
-	dims_t filts_dims( vect_uint32_t{ cop->out_chans, j_node->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
+	dims_t filts_dims( vect_uint32_t{ cop->u32_param("out_chans"), j_node->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
 			   vect_string{ "out_chan", "in_chan", "y", "x" }, 1 );
 	must_get_node( cop->bots[1] )->dims = filts_dims;
-	dims_t bias_dims( vect_uint32_t{ cop->out_chans }, vect_string{ "out_chan" }, 1 );
+	out_chans = cop->u32_param("out_chans");
+	dims_t bias_dims( vect_uint32_t{ out_chans }, vect_string{ "out_chan" }, 1 );
 	must_get_node( cop->bots[2] )->dims = bias_dims;
       } else {
 	if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
@@ -294,7 +332,7 @@ namespace boda
       dims_t const & dims_in = j_node->dims;
       assert_st( cop->stride.both_dims_non_zero() ); // FIXME: still belongs here? handled in in_sz_to_out_sz?
       dims_out = dims_in; // starting point
-      dims_out.must_get_dim_by_name("chan").sz = cop->out_chans ? cop->out_chans : dims_in.dsz("chan"); // reset or propogate num_chans
+      dims_out.must_get_dim_by_name("chan").sz = out_chans ? out_chans : dims_in.dsz("chan"); // reset or propogate num_chans
       u32_pt_t const dims_out_sz = cop->in_sz_to_out_sz( get_xy_dims( dims_in ), 0 );
       if( dims_out_sz.both_dims_non_zero() ) { // calculate used_sz for debugging/informational output in dump_ios()
 	j_node->cio.used_sz.max_eq( cop->out_sz_to_in_sz( dims_out_sz, 0 ) ); 
@@ -489,6 +527,7 @@ namespace boda
     } else if( cop->is( Pooling_coi ) ) {
       p_conv_op_t bcop( new conv_op_t );
       *bcop = *cop;
+      bcop->coi = 0;
       bcop->type = Spreading_coi.type;
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
@@ -500,6 +539,7 @@ namespace boda
     } else if( cop->is( ReLU_coi ) ) {
       p_conv_op_t bcop( new conv_op_t );
       *bcop = *cop;
+      bcop->coi = 0;
       bcop->type = ZeroIfNonPos_coi.type;
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
@@ -511,6 +551,8 @@ namespace boda
     } else if( cop->is( Convolution_coi ) ) {
       p_conv_op_t bcop( new conv_op_t );
       *bcop = *cop;
+      bcop->coi = 0;
+      bcop->params.clear(); // don't need/want out_chans (arguably should be removed from Convolution after setup too?)
       bcop->type = BckConv_coi.type;
       bcop->bots.push_back( bcop->tops[0] + "_grad_loss" ); // take _grad_loss of fwd conv output as input as well
       bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { bcop->tops.push_back( bcop->bots[i] + "_grad_loss" ); } // outputs grads

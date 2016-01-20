@@ -221,11 +221,13 @@ namespace boda
 	  conv_ref_dims["out_ref"] = no->dims; // k1conv and in_tile_xpose need the standard output dims for reference
 	  conv_ref_dims["in"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-	  conv_ref_dims["filts"] = dims_t( vect_uint32_t{ cop->out_chans, ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] }, 
-					   vect_string{"out_chan","in_chan","y","x"}, 1 );
+	  conv_ref_dims["filts"] = cp->must_get_node( cop->bots[1] )->dims;
+	    //dims_t( vect_uint32_t{ cop->out_chans, ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] }, 
+	    //				   vect_string{"out_chan","in_chan","y","x"}, 1 );
 	  conv_ref_dims["filtsxp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
-	  conv_ref_dims["biases"] = dims_t( vect_uint32_t{cop->out_chans}, vect_string{"out_chan"}, 1 );
+	  conv_ref_dims["biases"] = cp->must_get_node( cop->bots[2] )->dims; 
+	  // dims_t( vect_uint32_t{cop->out_chans}, vect_string{"out_chan"}, 1 );
 	} // end if(is_conv)
       }
     }
@@ -471,7 +473,7 @@ namespace boda
       rtc->create_var_with_dims_floats( oi->no->name, no_dims );
       in_arg_ids.push_back( oi->no->name );
       gen_call( oi->cts, oi, in_arg_ids, oi->conv_ref_dims );
-      assert_st( oi->no->dims.dsz("chan") == cop->out_chans );
+      // assert_st( oi->no->dims.dsz("chan") == cop->out_chans ); //unneeded, since out_chans param is redundant with dims?
     } else if( cop->is( ReLU_coi ) ) {
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
       gen_call( "relu", oi, { oi->no->name } );
