@@ -75,7 +75,7 @@ namespace boda
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
     }
-    u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():in_pad.bnds_sum());
+    u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():(in_pad+in_pad));
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
     if( is(Convolution_coi) ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
     else if( is(Pooling_coi) ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
@@ -98,8 +98,8 @@ namespace boda
     // negative, indicating *no input* yields a larger out_sz than
     // requested (due to padding). this might be valid, but it's
     // unclear what to return (zero?), so for now we refuse to try.
-    assert_st( no_pad_in_sz.both_dims_ge( in_pad.bnds_sum() ) ); 
-    return no_pad_in_sz - in_pad.bnds_sum();
+    assert_st( no_pad_in_sz.both_dims_ge( in_pad+in_pad ) ); 
+    return no_pad_in_sz - (in_pad+in_pad);
   }
 
   dims_t conv_pipe_t::get_data_img_dims( void ) const {
@@ -240,7 +240,7 @@ namespace boda
       }
       assert_st( cop->stride.both_dims_non_zero() );
       csi_out.support_stride = csi_in.support_stride*cop->stride;
-      csi_out.eff_tot_pad = csi_in.eff_tot_pad + cop->in_pad.scale_dims( csi_in.support_stride );
+      csi_out.eff_tot_pad = csi_in.eff_tot_pad + ( cop->in_pad * csi_in.support_stride );
     }
   }
   void conv_pipe_t::calc_support_forward_rec( string const & node_name, bool const ignore_padding ) {
@@ -484,7 +484,7 @@ namespace boda
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     char const * const tag_id = cop->tag.c_str();
     
-    string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", cop->in_pad.parts_str().c_str(), str(cop->stride).c_str() );
+    string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", str(cop->in_pad).c_str(), str(cop->stride).c_str() );
     if( cop->is( Convolution_coi ) ) { // FIXME: used to handle cop->is( InnerProduct_coi ), not needed?
       print_blob_decl( out, cop->bots[1], pipe->must_get_node( cop->bots[1] ) );
       print_blob_decl( out, cop->bots[2], pipe->must_get_node( cop->bots[2] ) );

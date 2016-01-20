@@ -56,13 +56,12 @@ namespace boda
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
 	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
 	// for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
-	assert_st( cop->in_pad.bnds_are_same() );
-	assert_st( cop->in_pad.p[0].dims_are_same() );
+	assert_st( cop->in_pad.dims_are_same() );
 	assert_st( cop->stride.dims_are_same() );
 	u32_pt_t kern_sz = cop->kern_sz;
 	if( kern_sz.is_zeros() ) { kern_sz = ni_sz; } // 'global' input special case
 
-	uint32_t const in_pad = cop->in_pad.p[0].d[0];
+	uint32_t const in_pad = cop->in_pad.d[0];
 	uint32_t const stride = cop->stride.d[0];
 	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
 	assert_st( ni_sz.dims_are_same() );

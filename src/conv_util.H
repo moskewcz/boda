@@ -52,7 +52,7 @@ namespace boda
     string tag; //NESI(help="tag to refer to conv op by",req=1)
     string type; //NESI(help="type of op; may impact in/out size calculations",req=1)
     conv_op_info_t const * coi;
-    u32_box_t in_pad; //NESI(default="0 0 0 0",help="input padding")
+    u32_pt_t in_pad; //NESI(default="0 0",help="input padding")
     u32_pt_t kern_sz; //NESI(default="0 0",help="convolutional kernel size")
     u32_pt_t stride; //NESI(default="1 1",help="step/stride in input")
 

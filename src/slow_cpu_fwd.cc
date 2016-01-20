@@ -38,7 +38,7 @@ namespace boda
       for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
 	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
 	  float out_pel = 0;
-	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad.p[0]);
+	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad);
 	  for( uint32_t in_chan = 0; in_chan != bot->dims.dims(1); ++in_chan ) {
 	    for( uint32_t ky = 0; ky < kern_sz.d[1]; ++ky ) {
 	      int32_t in_ky = in_ix.d[1] + ky;
@@ -69,7 +69,7 @@ namespace boda
       for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
 	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
 	  float out_pel = 0;
-	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad.p[0]);
+	  i32_pt_t in_ix = u32_to_i32( u32_pt_t{x,y}*cop->stride) - u32_to_i32(cop->in_pad);
 	  for( uint32_t ky = 0; ky < kern_sz.d[1]; ++ky ) {
 	    int32_t in_ky = in_ix.d[1] + ky;
 	    if( (in_ky < 0) || (uint32_t(in_ky) >= bot->dims.dims(2)) ) { continue; }

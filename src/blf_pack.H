@@ -40,7 +40,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     u32_pt_t align; //NESI(default="16 16", help="pyra per-dim alignment")
     u32_pt_t min_pad; //NESI(default="165 165", help="pyra per-dim minimum padding")
-    u32_box_t eff_tot_pad; //NESI(default="64 64 64 64", help="pyra per-dim minimum padding")
+    u32_pt_t eff_tot_pad; //NESI(default="64 64", help="pyra per-dim minimum padding")
   };
 
   struct pyra_pack_cli_t : virtual public nesi, public has_main_t, public pyra_pack_t, public pyra_params_t // NESI(
@@ -53,7 +53,7 @@ namespace boda
 
     u32_pt_t align; //NESI(default="16 16", help="pyra per-dim alignment")
     u32_pt_t min_pad; //NESI(default="165 165", help="pyra per-dim minimum padding")
-    u32_box_t eff_tot_pad; //NESI(default="64 64 64 64", help="pyra per-dim minimum padding")
+    u32_pt_t eff_tot_pad; //NESI(default="64 64", help="pyra per-dim minimum padding")
 
     virtual void main( nesi_init_arg_t * nia );
   };

@@ -190,9 +190,7 @@ namespace boda
       fill_in_conv_op_from_param( conv_op, *cp );
       // FIXME: we probably need to deal with padding better here?
       conv_op->kern_sz = ceil_div( conv_op->kern_sz, u32_pt_t{2,2} );
-      assert_st( conv_op->in_pad.bnds_are_same() );
-      conv_op->in_pad.p[0] = ceil_div( conv_op->in_pad.p[0], u32_pt_t{2,2} );
-      conv_op->in_pad.p[1] = conv_op->in_pad.p[0];
+      conv_op->in_pad = ceil_div( conv_op->in_pad, u32_pt_t{2,2} );
       for( uint32_t i = 0; i != 2; ++i ) {
 	if( (conv_op->stride.d[i]&1) ) { rt_err( "first conv layer has odd stride; don't know how to create upsampled network" ); }
 	conv_op->stride.d[i] /= 2;
@@ -300,8 +298,8 @@ namespace boda
 
       u32_box_t per_scale_img_box{dest,dest+sz};
       // assume we've ensured that there is eff_tot_pad around the scale_img
-      per_scale_img_box.p[0] -= get_out_csi(0).eff_tot_pad.p[0];
-      per_scale_img_box.p[1] += get_out_csi(0).eff_tot_pad.p[1];
+      per_scale_img_box.p[0] -= get_out_csi(0).eff_tot_pad;
+      per_scale_img_box.p[1] += get_out_csi(0).eff_tot_pad;
       i32_box_t valid_feat_box;
       in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_out_csi(0) );
       assert_st( valid_feat_box.is_strictly_normalized() );      
@@ -314,8 +312,8 @@ namespace boda
       if( enable_upsamp_net && (six < interval) ) { 
 	per_scale_img_box = u32_box_t{dest,dest+sz};
 	// assume we've ensured that there is eff_tot_pad around the scale_img
-	per_scale_img_box.p[0] -= get_out_csi(1).eff_tot_pad.p[0];
-	per_scale_img_box.p[1] += get_out_csi(1).eff_tot_pad.p[1];
+	per_scale_img_box.p[0] -= get_out_csi(1).eff_tot_pad;
+	per_scale_img_box.p[1] += get_out_csi(1).eff_tot_pad;
 
 	in_box_to_out_box( valid_feat_box, per_scale_img_box, cm_valid, get_out_csi(1) );
 	assert_st( valid_feat_box.is_strictly_normalized() );

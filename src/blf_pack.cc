@@ -194,7 +194,7 @@ namespace boda
       // similar to mode 1 above, but using eff_tot_pad instead of the
       // support_sz. in particular good for network with no padding,
       // as it won't add any padding at all.
-      img_edge_pad = (csi.eff_tot_pad.dim_wise_max() + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.eff_tot_pad
+      img_edge_pad = (csi.eff_tot_pad + u32_pt_t(1,1)) >> 1; // --> (img_edge_pad << 1) >= csi.eff_tot_pad
       // in some sense, we already have too much bin_edge_pad in this
       // case if we include the actual network padding. but, as above,
       // we add extra padding for consistency, and thus 'waste' the
@@ -205,9 +205,9 @@ namespace boda
 
     if( force_img_edge_pad ) { img_edge_pad = *force_img_edge_pad; }
     // increase - edge of bin padding so that (eff_tot_pad+bin_edge_pad) is a multiple of support_stride
-    bin_edge_pad.p[0] = ceil_align( bin_edge_pad.p[0] + csi.eff_tot_pad.p[0], csi.support_stride ) - csi.eff_tot_pad.p[0];
+    bin_edge_pad.p[0] = ceil_align( bin_edge_pad.p[0] + csi.eff_tot_pad, csi.support_stride ) - csi.eff_tot_pad;
 
-    u32_pt_t const min_sz = csi.support_sz.sub_sat_zero( csi.eff_tot_pad.bnds_sum() );
+    u32_pt_t const min_sz = csi.support_sz.sub_sat_zero( csi.eff_tot_pad + csi.eff_tot_pad );
     create_pyra_sizes( sizes, in_sz, num_upsamp_octaves, interval, min_sz );
     vect_u32_pt_t to_pack;
     for( vect_u32_pt_t::const_iterator i = sizes.begin(); i != sizes.end(); ++i ) {

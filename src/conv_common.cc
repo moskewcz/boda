@@ -63,7 +63,7 @@ namespace boda
 			  conv_support_info_t const & csi ) 
   { 
     // shift input region to be in an input space that included the total effective input padding
-    i32_box_t const in_pel = u32_to_i32(in_box + csi.eff_tot_pad.p[0]);
+    i32_box_t const in_pel = u32_to_i32(in_box + csi.eff_tot_pad);
     assert_st( in_pel.is_strictly_normalized() );
     // choose which type support region we wish to use based on the mode
     if( mode == cm_any_valid ) {
@@ -138,7 +138,7 @@ namespace boda
       i32_box_t const support = get_base_out_support( csi, ( mode == cm_core_valid ) );
       in_box = support + ( out_box_closed * u32_to_i32(csi.support_stride) );
     } else { assert(!"unknown mode"); }
-    in_box = in_box - u32_to_i32(csi.eff_tot_pad.p[0]); // adjust for padding
+    in_box = in_box - u32_to_i32(csi.eff_tot_pad); // adjust for padding
   }
 
   // this wrapper: (1) includes a special case to handle when global pooling is involved, and thus must take the
@@ -151,8 +151,8 @@ namespace boda
       unchecked_out_box_to_in_box( valid_in_box, out_box, cm_valid, csi );
       unchecked_out_box_to_in_box( core_valid_in_box, out_box, cm_core_valid, csi );
     } else {
-      valid_in_box = core_valid_in_box = i32_box_t{u32_to_i32(csi.eff_tot_pad.p[0]).scale(-1),
-						   u32_to_i32(full_in_sz+csi.eff_tot_pad.p[1])}; // whole image
+      valid_in_box = core_valid_in_box = i32_box_t{u32_to_i32(csi.eff_tot_pad).scale(-1),
+						   u32_to_i32(full_in_sz+csi.eff_tot_pad)}; // whole image
     }
   }  
 

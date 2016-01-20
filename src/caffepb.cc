@@ -32,8 +32,7 @@ namespace boda
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     cp.clear_pad_w(); cp.clear_pad_h(); cp.clear_pad();
-    assert_st( conv_op->in_pad.bnds_are_same() ); // caffe can't handle different padding on +- edges
-    u32_pt_t const & pad = conv_op->in_pad.p[0];
+    u32_pt_t const & pad = conv_op->in_pad;
     if( pad.dims_are_same() ) { cp.add_pad( pad.d[0] ); }
     else { cp.set_pad_w( pad.d[0] ); cp.set_pad_h( pad.d[1] ); }
 
@@ -57,12 +56,12 @@ namespace boda
     // FIXME: xxx_size() == 2 case, untested, is order right?
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
-      if( cp.pad_size() == 0 ) { u32_pt_t const p{ 0, 0 }; conv_op->in_pad = u32_box_t(p,p); } // implicit default from comments in caffe.proto
-      else if( cp.pad_size() == 1 ) { u32_pt_t const p{ cp.pad(0), cp.pad(0) }; conv_op->in_pad = u32_box_t(p,p); }
-      else if( cp.pad_size() == 2 ) { u32_pt_t const p{ cp.pad(1), cp.pad(0) }; conv_op->in_pad = u32_box_t(p,p); } 
+      if( cp.pad_size() == 0 ) { u32_pt_t const p{ 0, 0 }; conv_op->in_pad = p; } // implicit default from comments in caffe.proto
+      else if( cp.pad_size() == 1 ) { u32_pt_t const p{ cp.pad(0), cp.pad(0) }; conv_op->in_pad = p; }
+      else if( cp.pad_size() == 2 ) { u32_pt_t const p{ cp.pad(1), cp.pad(0) }; conv_op->in_pad = p; } 
       else { multi_dim_err( cp.pad_size(), "pad" ); }
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.pad_size()) );
-      u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = u32_box_t(p,p); 
+      u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = p; 
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
       if( cp.stride_size() == 0 ) { conv_op->stride = u32_pt_t{ 1, 1 }; } // implicit default from comments in caffe.proto
@@ -84,9 +83,9 @@ namespace boda
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
-      u32_pt_t const p( cp.pad(), cp.pad() ); conv_op->in_pad = u32_box_t(p,p);
+      u32_pt_t const p( cp.pad(), cp.pad() ); conv_op->in_pad = p;
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.has_pad()) );
-      u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = u32_box_t(p,p); 
+      u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = p; 
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
       conv_op->stride = u32_pt_t( cp.stride(), cp.stride() );

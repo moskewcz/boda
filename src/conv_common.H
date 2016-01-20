@@ -8,7 +8,7 @@ namespace boda
   struct conv_support_info_t {  
     u32_pt_t support_sz;
     u32_pt_t support_stride;
-    u32_box_t eff_tot_pad;
+    u32_pt_t eff_tot_pad;
     bool valid( void ) const { return support_stride != u32_pt_t{}; }
     void init_as_source( void ) { assert_st( !valid() ); support_sz = u32_pt_t(1,1); support_stride = u32_pt_t(1,1); }
   };
