@@ -484,18 +484,20 @@ namespace boda
       // assert_st( oi->no->dims.dsz("chan") == cop->out_chans ); //unneeded, since out_chans param is redundant with dims?
     } else if( cop->is( ReLU_coi ) ) {
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
-      gen_call( "relu", oi, { oi->no->name } );
+      must_insert( oi->conv_ref_dims, "inout", oi->ni->dims ); // FIXME_NA 
+      must_insert( oi->arg_map, "inout", oi->ni->name ); // FIXME_NA 
+      gen_call( "relu", oi );
     } else if( cop->is( LRN_coi ) ) {
       oi->template_var_values = cop->params;
       assert_st( get_xy_dims( oi->ni->dims ) == get_xy_dims( oi->no->dims ) );
       assert_st( oi->ni->dims.dsz("chan") == oi->no->dims.dsz("chan") );
-      gen_call( "lrn", oi, { oi->ni->name, oi->no->name } );
+      gen_call( "lrn", oi );
     } else if( cop->is( Dropout_coi ) ) {
       // check that this is a single in-out in-place operation
       assert_st( oi->ni->name == oi->no->name );
       // ignore for fwd
     } else if( cop->is( Softmax_coi ) ) {
-      gen_call( "softmax", oi, { oi->ni->name, oi->no->name } );
+      gen_call( "softmax", oi );
     } else if( cop->is( SoftmaxWithLoss_coi ) ) {
       string const prob_node_name = cop->tag + "_prob";
       gen_node_var( prob_node_name, cop->bots[0] );
@@ -505,9 +507,9 @@ namespace boda
       gen_call( "sm_grad_and_loss", oi, { prob_node_name, cop->bots[1], cop->tops[0], loss_per_pel} );
       gen_call( "sum_loss_over_imgs", oi, { loss_per_pel, cop->tops[1] } );
     } else if( cop->is( Spreading_coi ) ) {
-      gen_call( "spreading", oi, { cop->bots[0], cop->bots[1], cop->bots[2], cop->tops[0] } );
+      gen_call( "spreading", oi );
     } else if( cop->is( ZeroIfNonPos_coi ) ) {
-      gen_call( cop->type, oi, { cop->bots[0], cop->bots[1], cop->tops[0] } );
+      gen_call( cop->type, oi );
     } else if( cop->is( BckConv_coi ) ) { 
       // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
       string ogl_vn = cop->bots[3];
