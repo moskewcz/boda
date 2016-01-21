@@ -32,9 +32,7 @@ namespace boda
 
   string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const ipconv_str = "ipconv"; string const conv_str = "conv";
   struct op_info_t {
-    p_conv_op_t cop;
-    p_conv_node_t no;
-    p_conv_node_t ni;
+    string tag;
     map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
@@ -51,10 +49,10 @@ namespace boda
       erase_arg(an); set_arg(rtc,an,vn);
     }
 
-    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, bool const & enable_ipconv,
+    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop, bool const & enable_ipconv,
 	       bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
-      cop = cop_;
+      tag = cop->tag;
       template_var_values = cop->params;
       assert_st( cop->tops.size() >= 1 );
       assert_st( cop->bots.size() >= 1 );
@@ -67,8 +65,8 @@ namespace boda
 	must_insert( conv_ref_dims, cop->coi->top_an(i), cp->must_get_node( cop->tops[i] )->dims ); 
 	must_insert( arg_map, cop->coi->top_an(i), cop->tops[i] );
       }
-
-      no = cp->must_get_node( cop->tops[0] );
+      p_conv_node_t ni;
+      p_conv_node_t no = cp->must_get_node( cop->tops[0] );
       u32_pt_t const no_sz = get_xy_dims( no->dims );
       if( !cop->is(Concat_coi) ) { ni = cp->must_get_node( cop->bots[0] ); } // null for Concat where we shouldn't use it, otherwise first input
       bool const is_conv = cop->is( Convolution_coi );
@@ -310,7 +308,6 @@ namespace boda
 
     string gen_func( rtc_func_sig_t const & rfs );
     void gen_call( string const & fn, p_op_info_t const & oi );
-    void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
     string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
 
     void gen_node_var( string const & name, string const & node_name );
@@ -407,16 +404,6 @@ namespace boda
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, {max_val,drop_mask} } );
   }
 
-  // setup nodes and xforms for conv op filts/biases. note: tracks oi->cop->tag (operation name) to do this only
-  // once-per-op. since currently each op has a unique name and unique set of filts, this is okay/correct. but we'd need
-  // to adjust it accordingly if various things are sharable/custom-namable.
-  void conv_pipe_fwd_t::gen_conv_filts( p_op_info_t const & oi ) {
-    bool const did_ins = filts_names.insert( oi->cop->tag ).second; 
-    if( !did_ins ) { return; } // filts already set up for this op
-    op_param_names.push_back( oi->get_arg("filts") );
-    op_param_names.push_back( oi->get_arg("biases") );
-  }
-
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
   // unary operator (with two args: {in,out}), so that only one unique ret_var need only be generated per unique
   // in_var/func<ret_dims> pair. ret_var is named in_var+"__"+func
@@ -436,8 +423,8 @@ namespace boda
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
 	dims_t & dims_in = cp->must_get_node( cop->bots[bi] )->dims;
-	assert_st( get_xy_dims( cp->must_get_node( cop->bots[bi] )->dims ) == get_xy_dims( oi->no->dims ) );
-	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->no->dims.dsz("chan") );
+	assert_st( get_xy_dims( cp->must_get_node( cop->bots[bi] )->dims ) == get_xy_dims( oi->get_arg_dims("out") ) );
+	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->get_arg_dims("out").dsz("chan") );
 	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->template_var_values = { {"ocix",str(chans_out_done)} };
 	oi->set_arg( rtc, "in", cop->bots[bi] );
@@ -445,11 +432,12 @@ namespace boda
 	chans_out_done += dims_in.dsz("chan");
 	oi->erase_arg( "in" );
       }
-      assert_st( chans_out_done == oi->no->dims.dsz("chan") );
-    } else if( oi->cop->is( Pooling_coi ) ) {
+      assert_st( chans_out_done == oi->get_arg_dims("out").dsz("chan") );
+    } else if( cop->is( Pooling_coi ) ) {
       gen_call( "pool", oi );
-    } else if( oi->cop->is( Convolution_coi ) ) {
-      gen_conv_filts( oi );
+    } else if( cop->is( Convolution_coi ) ) {
+      op_param_names.push_back( oi->get_arg("filts") );
+      op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const in_id = oi->arg_map["in"];
       oi->reset_arg( rtc, "in", in_id ); // reset in, since it may not be equal to the original conv_pipe dims anymore
@@ -473,13 +461,10 @@ namespace boda
       dims_t no_dims = oi->conv_ref_dims["out_ref"];
       if( oi->cts == k1conv_str ) { 
 	p_op_info_t noi;
-	if( oi->no->in_place_ops.empty() && (oi->no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
-	  noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
-	  if( enable_write_xpose && (noi->cts == k1conv_str) ) { 
-	    dims_t const & noi_work = noi->conv_ref_dims["work"];
-	    no_dims = dims_t{ vect_uint32_t{noi_work.dsz("pels_blk"), in_xp_dims.dsz("blk_iter"), in_xp_dims.dsz("blk_iter_chan"),
-					    noi_work.dsz("pels_tile")*noi_work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
-	  }
+	p_conv_node_t no = cp->must_get_node( oi->get_arg("out") );
+	if( no->in_place_ops.empty() && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
+	  noi = must_find( *op_infos, no->bot_for[0] ); // next operation
+	  if( enable_write_xpose && (noi->cts == k1conv_str) ) { no_dims = noi->get_arg_dims("in"); }
 	}
       }
       rtc->create_var_with_dims_floats( oi->get_arg("out"), no_dims );
@@ -1042,7 +1027,7 @@ namespace boda
     rfs.template_var_values = oi->template_var_values;
     rfs.ref_dims = oi->conv_ref_dims;
     string const & gen_fn = gen_func( rfs );
-    fwd_calls.push_back( rcg_func_call_t{ gen_fn, oi->cop->tag, oi->arg_map } );
+    fwd_calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
