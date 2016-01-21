@@ -35,11 +35,15 @@ namespace boda
     map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
     string cts; // cts --> conv-type-str
 
+    string get_arg( string const & an ) { return must_find( arg_map, an ); }
     void set_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
       must_insert( conv_ref_dims, an, rtc->get_var_dims_floats(vn) );
       must_insert( arg_map, an, vn );
     }
     void erase_arg( string const & an ) { must_erase( conv_ref_dims, an ); must_erase( arg_map, an ); }
+    void reset_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) { 
+      erase_arg(an); set_arg(rtc,an,vn);
+    }
 
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, bool const & enable_ipconv,
 	       bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
@@ -408,8 +412,8 @@ namespace boda
   void conv_pipe_fwd_t::gen_conv_filts( p_op_info_t const & oi ) {
     bool const did_ins = filts_names.insert( oi->cop->tag ).second; 
     if( !did_ins ) { return; } // filts already set up for this op
-    op_param_names.push_back( oi->cop->bots[1] );
-    op_param_names.push_back( oi->cop->bots[2] );
+    op_param_names.push_back( oi->get_arg("filts") );
+    op_param_names.push_back( oi->get_arg("biases") );
   }
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
@@ -445,19 +449,17 @@ namespace boda
       gen_call( "pool", oi );
     } else if( oi->cop->is( Convolution_coi ) ) {
       gen_conv_filts( oi );
-      if( force_zero_bias ) { force_zero_names.insert( cop->bots[2] ); }
+      if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const in_id = oi->arg_map["in"];
       // 'refresh' in arg dims, since it may not be equal to the original conv_pipe dims anymore
       oi->erase_arg("in");
       oi->set_arg( rtc, "in", in_id );
       dims_t const & in_dims = oi->conv_ref_dims["in"];
       dims_t const & in_xp_dims = oi->conv_ref_dims["in_xp"];
-      if( oi->cts == ipconv_str ) { } //in_arg_ids.push_back( cop->bots[1] ); } // filts (untransposed)
-      else {
+      if( oi->cts != ipconv_str ) { // ipconv uses untransformed filts
 	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", {oi->conv_ref_dims["filts"],oi->conv_ref_dims["filts_xp"]}, 
 	    oi->conv_ref_dims, oi->template_var_values } );
-	oi->erase_arg( "filts" );
-	oi->set_arg( rtc, "filts", gen_apply_func_to_var( cop->bots[1], oi->conv_ref_dims["filts_xp"], filts_xp_fn ) );
+	oi->reset_arg( rtc, "filts", gen_apply_func_to_var( oi->get_arg("filts"), oi->conv_ref_dims["filts_xp"], filts_xp_fn ) );
       }
       //in_arg_ids.push_back( cop->bots[2] ); // biases
       if( oi->cts == tconv_str ) {
@@ -506,10 +508,10 @@ namespace boda
       gen_call( "softmax", oi );
     } else if( cop->is( SoftmaxWithLoss_coi ) ) {
       string const prob_node_name = cop->tag + "_prob";
-      gen_node_var( prob_node_name, cop->bots[0] );
+      gen_node_var( prob_node_name, oi->get_arg("in") );
       oi->set_arg( rtc, "prob", prob_node_name );
-      string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
-      gen_node_var( loss_per_pel, cop->bots[1] );
+      string const loss_per_pel = oi->get_arg("loss") + "_per_pel"; // same size as label
+      gen_node_var( loss_per_pel, oi->get_arg("label") );
       oi->set_arg( rtc, "loss_per_pel", loss_per_pel );
       gen_call( "softmax", oi );
       gen_call( "sm_grad_and_loss", oi  );
@@ -520,7 +522,7 @@ namespace boda
       gen_call( cop->type, oi );
     } else if( cop->is( BckConv_coi ) ) { 
       // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
-      string ogl_vn = cop->bots[3];
+      string ogl_vn = oi->get_arg("out_grad_loss");
       string ogl_fn = "BckConv_in_grad_loss";
       string fgl_fn = "BckConv_filts_grad_loss";
       assert_st( oi->cts == conv_str );
