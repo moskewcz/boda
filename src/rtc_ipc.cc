@@ -159,7 +159,7 @@ namespace boda
       bwrite( *worker, string("check_runnable") ); bwrite( *worker, name ); bwrite( *worker, show_func_attrs ); worker->flush();
     }
 
-    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) { 
+    virtual float get_dur( uint32_t const & b, uint32_t const & e ) { 
       float ret;
       bwrite( *worker, string("get_dur") ); bwrite( *worker, b ); bwrite( *worker, e ); worker->flush(); bread( *worker, ret );
       return ret; 
@@ -250,7 +250,7 @@ namespace boda
 	  rtc->check_runnable( name, show_func_attrs );
 	}
 	else if( cmd == "get_dur" ) { 
-	  rtc_func_call_t b,e; bread( *parent, b ); bread( *parent, e ); 
+	  uint32_t b,e; bread( *parent, b ); bread( *parent, e ); 
 	  float const ret = rtc->get_dur( b, e ); 
 	  bwrite( *parent, ret ); parent->flush(); 
 	}

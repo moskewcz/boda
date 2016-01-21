@@ -198,9 +198,9 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     uint32_t alloc_call_id( void ) { call_evs.push_back( call_ev_t() ); return call_evs.size() - 1; }
     virtual void release_per_call_id_data( void ) { call_evs.clear(); } // invalidates all call_ids inside rtc_func_call_t's
 
-    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) {
+    virtual float get_dur( uint32_t const & b, uint32_t const & e ) {
       float compute_dur = 0.0f;
-      cu_err_chk( cuEventElapsedTime( &compute_dur, *get_call_ev(b.call_id).b_ev, *get_call_ev(e.call_id).e_ev ), "cuEventElapsedTime" );
+      cu_err_chk( cuEventElapsedTime( &compute_dur, *get_call_ev(b).b_ev, *get_call_ev(e).e_ev ), "cuEventElapsedTime" );
       return compute_dur;
     }
 

@@ -19,6 +19,17 @@ namespace boda
   typedef map< rtc_func_sig_t, p_rtc_call_gen_t > rtc_func_sigs_map_t;
   typedef map< string, p_rtc_call_gen_t > rtc_func_names_map_t;
 
+  struct rcg_func_call_t {
+    string rtc_func_name; 
+    string call_tag;
+    map_str_str arg_map;
+    vect_uint32_t u32_args;
+    uint32_t call_id;
+  };
+  typedef vector< rcg_func_call_t > vect_rcg_func_call_t; 
+  typedef shared_ptr< rcg_func_call_t > p_rcg_func_call_t; 
+  typedef vector< p_rcg_func_call_t > vect_p_rcg_func_call_t;
+
   struct custom_codegen_t { virtual void gen_op( rtc_call_gen_t * rcg, string const & op_name ) = 0; };
 
   struct rtc_func_sig_t { 
@@ -106,8 +117,7 @@ namespace boda
     uint32_t tpb;
     uint32_t blks;
 
-    void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, 
-		  rtc_func_call_t & rfc, map_str_str const & arg_map, uint32_t const & flags );
+    void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rfc, uint32_t const & flags );
 
     void line( string const & sn, string const & line ) { 
       string & cg = cgs[sn];
@@ -310,18 +320,19 @@ namespace boda
   }
 
   void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, 
-				rtc_func_call_t & rfc, map_str_str const & arg_map, uint32_t const & flags ) {    
-    bool clr = 0;
-    if( (rfc.in_args.size()+rfc.inout_args.size()+rfc.out_args.size()) == 0 ) { // FIXME: HACK: gate new flow on rfc args being empty (transitionally)
-      clr = 1;
-      for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
-	if( arg_decls[i].io_type == "REF" ) { continue; }
-	map_str_str::const_iterator an = arg_map.find( arg_decls[i].vn );
-	if( an == arg_map.end() ) {
-	  rt_err( "specified "+arg_decls[i].io_type+" arg '"+arg_decls[i].vn+"' not found in arg_map at call time." ); 
-	}
-	rfc.in_args.push_back( an->second );
+				rcg_func_call_t & rcg_func_call, uint32_t const & flags ) {
+    rtc_func_call_t rfc;
+    rfc.rtc_func_name = rcg_func_call.rtc_func_name;
+    rfc.call_tag = rcg_func_call.call_tag;
+    rfc.u32_args = rcg_func_call.u32_args;
+
+    for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
+      if( arg_decls[i].io_type == "REF" ) { continue; }
+      map_str_str::const_iterator an = rcg_func_call.arg_map.find( arg_decls[i].vn );
+      if( an == rcg_func_call.arg_map.end() ) {
+	rt_err( "specified "+arg_decls[i].io_type+" arg '"+arg_decls[i].vn+"' not found in arg_map at call time." ); 
       }
+      rfc.in_args.push_back( an->second );
     }
 
     uint32_t call_blks = blks; // if non-zero, blks is static, and we can check arg sizes
@@ -331,8 +342,8 @@ namespace boda
     // ocl/nvrtc split/factoring out. oops. also, arg_sizes (or
     // whatever it becomes) probably needs to be split into
     // in/inout/out parts or something.
-    if( call_blks ) { assert( arg_sizes.size() == (rfc.in_args.size()+rfc.inout_args.size()+rfc.out_args.size()) ); }
-    // FIXME: check that we're passing the correct # of args here somehow.
+    assert_st( arg_sizes.size() == rfc.in_args.size() );
+
     if( !call_blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here
       assert_st( rfc.u32_args.size() > 0 );
@@ -347,8 +358,8 @@ namespace boda
     rfc.blks.v = call_blks;
     if( has_final_flags_arg ) { rfc.u32_args.push_back( flags ); }
     rtc->run( rfc );
-    if( has_final_flags_arg ) { rfc.u32_args.pop_back(); }
-    if( clr ) { rfc.in_args.clear(); }
+    rcg_func_call.call_id = rfc.call_id;
+    // note: temporary rfc is gone after this
   }
 
   
@@ -368,8 +379,8 @@ namespace boda
       return rcg->gen_fn;
     }
     void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls,
-		  rtc_func_call_t & rfc, uint32_t const & flags ) {    
-      must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, rfc.arg_map, flags );
+		  rcg_func_call_t & rfc, uint32_t const & flags ) {    
+      must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, flags );
     }
   };
 

@@ -183,13 +183,13 @@ typedef int int32_t;
     uint32_t alloc_call_id( void ) { call_evs.push_back( p_Event( new Event ) ); return call_evs.size() - 1; }
     virtual void release_per_call_id_data( void ) { call_evs.clear(); } // invalidates all call_ids inside rtc_func_call_t's
 
-    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) {
+    virtual float get_dur( uint32_t const & b, uint32_t const & e ) {
       float compute_dur = 0.0f;
       cl_int err = 0;
-      cl_ulong const et = get_call_ev(e.call_id).getProfilingInfo<CL_PROFILING_COMMAND_END>(&err);
+      cl_ulong const et = get_call_ev(e).getProfilingInfo<CL_PROFILING_COMMAND_END>(&err);
       cl_err_chk( err, "cl::Event::getProfilingInfo() (end time)" );
       err = 0;
-      cl_ulong const bt = get_call_ev(b.call_id).getProfilingInfo<CL_PROFILING_COMMAND_START>(&err);
+      cl_ulong const bt = get_call_ev(b).getProfilingInfo<CL_PROFILING_COMMAND_START>(&err);
       cl_err_chk( err, "cl::Event::getProfilingInfo() (start time)" );
       compute_dur = float(et - bt) / 1e6;
       //cu_err_chk( cuEventElapsedTime( &compute_dur, *(CUevent*)b.b_ev.get(), *(CUevent*)e.e_ev.get() ), "cuEventElapsedTime" );

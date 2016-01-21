@@ -36,7 +36,7 @@ namespace boda
     // we almost-only need to get the timing of a single call, but we allow spanning calls for convenience and/or to allow
     // detecting inconsistencies/overheads between the sum of per-call times and the overall all-calls time (as proxied by
     // calling get_dur( first_call, last_call ) ).
-    virtual float get_dur( rtc_func_call_t const & b, rtc_func_call_t const & e ) = 0; // note: uses call_id field, which must be valid
+    virtual float get_dur( uint32_t const & b, uint32_t const & e ) = 0; // note: uses call_id field, which must be valid
 
     virtual void profile_start( void ) = 0;
     virtual void profile_stop( void ) = 0;
@@ -71,7 +71,6 @@ namespace boda
     zi_uint32_t blks;
 
     uint32_t call_id;
-    map_str_str arg_map; // FIXME: HACK, remove. used transitionally by rtc_fwd/rtc_func_gen
   };
   typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
 

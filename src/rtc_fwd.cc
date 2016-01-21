@@ -14,14 +14,6 @@
 
 namespace boda 
 {
-  struct rcg_func_call_t {
-    string rtc_func_name; 
-    string call_tag;
-    map_str_str arg_map;
-    vect_uint32_t u32_args;
-    uint32_t call_id;
-  };
-
   struct quantize_ops_t : virtual public nesi // NESI(help="per-layer quantization options") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -298,8 +290,8 @@ namespace boda
 
     p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
 
-    vect_rtc_func_call_t init_calls;
-    vect_rtc_func_call_t fwd_calls;
+    vect_rcg_func_call_t init_calls;
+    vect_rcg_func_call_t fwd_calls;
     
 
     virtual void init( p_conv_pipe_t const & cp_ );
@@ -323,7 +315,7 @@ namespace boda
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
 
-    void run_rfc( rtc_func_call_t & rfc );
+    void run_rfc( rcg_func_call_t & rfc );
   };
 
   // FIXME: i'm not too happy about the duplication between here and the kernel version
@@ -391,13 +383,12 @@ namespace boda
 	cur_outs.push_back( cur_out );
 	//args.push_back( cur_out );
       }
-      fwd_calls.push_back( rtc_func_call_t{ func, {},{},{}, {in_sz, primary_in}, "var_stats" } );
       map_str_str arg_map;
       assert_st( cur_ins.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_in", cur_ins[i] ); }
       assert_st( cur_outs.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_out", cur_outs[i] ); }
-      fwd_calls.back().arg_map = arg_map;
+      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map, {in_sz, primary_in} } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -411,8 +402,7 @@ namespace boda
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
     string const func = gen_func( rtc_func_sig_t{ "quantize", {rtc->get_var_dims_floats(top_in)}, {} } );
-    fwd_calls.push_back( rtc_func_call_t{ func, {},{},{}, {max_val,drop_mask}, "quantize" } );
-    fwd_calls.back().arg_map = map_str_str{{"out",top_in}};
+    fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, {max_val,drop_mask} } );
   }
 
   // setup nodes and xforms for conv op filts/biases. note: tracks oi->cop->tag (operation name) to do this only
@@ -433,8 +423,7 @@ namespace boda
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
       rtc->create_var_with_dims_floats( ret_var, ret_dims );
-      fwd_calls.push_back( rtc_func_call_t{ func, {}, {}, {}, {}, in_var + "__inxp" } );
-      fwd_calls.back().arg_map = map_str_str{{"in",in_var},{"out",ret_var}};
+      fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_str{{"in",in_var},{"out",ret_var}}} );
     }
     return ret_var;
   }
@@ -1065,8 +1054,7 @@ namespace boda
     rfs.template_var_values = oi->template_var_values;
     rfs.ref_dims = oi->conv_ref_dims;
     string const & gen_fn = gen_func( rfs );
-    fwd_calls.push_back( rtc_func_call_t{ gen_fn, {}, {}, {}, {}, oi->cop->tag } );
-    fwd_calls.back().arg_map = oi->arg_map;
+    fwd_calls.push_back( rcg_func_call_t{ gen_fn, oi->cop->tag, oi->arg_map } );
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
@@ -1143,33 +1131,33 @@ namespace boda
     for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
     for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( *i ); }
-    for( vect_rtc_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); } // init-time-only calls
+    for( vect_rcg_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); } // init-time-only calls
     rtc->finish_and_sync();
   }
 
-  void conv_pipe_fwd_t::run_rfc( rtc_func_call_t & rfc ) { codegen.run_rfc( rtc, show_rtc_calls, rfc, flags );  }
+  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { codegen.run_rfc( rtc, show_rtc_calls, rfc, flags );  }
 
   void conv_pipe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     if( enable_double_run ) {
       // optional: run fwd rfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
-      for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
+      for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
     }
     timer_t t("conv_pipe_fwd_t::run_fwd");
     if( enable_prof ) { rtc->profile_start(); }
     //printf("run_fwd() begin\n");
     rtc->copy_ndas_to_vars( to_set_vns, *fwd ); // copy sources in
     //printf("run_fwd() exec\n");
-    for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
+    for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
     rtc->finish_and_sync();
-    float const compute_dur = fwd_calls.empty() ? 0.0f : rtc->get_dur( fwd_calls.front(), fwd_calls.back() );
+    float const compute_dur = fwd_calls.empty() ? 0.0f : rtc->get_dur( fwd_calls.front().call_id, fwd_calls.back().call_id );
     if( enable_prof ) { rtc->profile_stop(); }
     if( !per_call_fn.empty() ) {
       p_ofstream out = ofs_open( per_call_fn );
       (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );
-      for( vect_rtc_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
-	rtc_func_call_t & rfc = *i;
+      for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
+	rcg_func_call_t & rfc = *i;
 	if( rfc.call_tag.empty() ) { continue; }
-	float const rfc_dur = rtc->get_dur( rfc, rfc );
+	float const rfc_dur = rtc->get_dur( rfc.call_id, rfc.call_id );
 	(*out) << strprintf( "per_layer_time['%s']=per_layer_time.get('%s',0.0) + %s # %s \n", 
 			     str(rfc.call_tag).c_str(), str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), rfc.rtc_func_name.c_str() );
       }
