@@ -249,7 +249,8 @@ namespace boda
       } catch( rt_exception const & rte ) {
 	printf( "rfs=%s\n", str(rfs).c_str() );
 	printf( "tf_nvm=%s\n", str(tf_nvm).c_str() );
-	rt_err( strprintf( "instantiation failed; see above; error was: %s\n", rte.err_msg.c_str() ) );
+	rt_err( strprintf( "instantiation failed; see above; rfs.fn=%s; error was: %s\n", 
+			   rfs.fn.c_str(), rte.err_msg.c_str() ) );
       }
       rtc_prog_str += rtc_func_str;
     }

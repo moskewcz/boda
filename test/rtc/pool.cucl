@@ -1,6 +1,7 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
 					  GASQ float * const out ) // CUCL OUT img:chan:y:x
 /* kern_sz */  // CUCL REF y:x
+/* stride */  // CUCL REF y:x
 {
   // CUCL IX GLOB_ID_1D out
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
@@ -8,8 +9,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
   for( int32_t kx = 0; kx != %(kern_sz_x_dim); ++kx ) {
     for( int32_t ky = 0; ky != %(kern_sz_y_dim); ++ky ) {
       float v = 0;
-      int const in_y = %(GLOB_ID_1D_y)*%(stride) + ky - %(in_pad);
-      int const in_x = %(GLOB_ID_1D_x)*%(stride) + kx - %(in_pad);
+      int const in_y = %(GLOB_ID_1D_y)*%(stride_y_dim) + ky - %(in_pad);
+      int const in_x = %(GLOB_ID_1D_x)*%(stride_x_dim) + kx - %(in_pad);
       if(in_y >= 0 && in_x >= 0 && in_x < %(in_x_dim) && in_y < %(in_y_dim) ) {
 	int32_t const in_ix = %(GLOB_ID_1D_img)*%(in_img_sz) + %(GLOB_ID_1D_chan)*%(in_chan_sz) + 
 	  in_y*%(in_y_sz) + in_x*%(in_x_sz);

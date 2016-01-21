@@ -2,6 +2,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
 					  GASQ float * const out ) // CUCL OUT blk_bline:blk_bx:blk_in_chan:blk_y:blk_x
                                                     /* out_ref */ // CUCL REF img:chan:y:x
 /* kern_sz */  // CUCL REF y:x
+/* stride */  // CUCL REF y:x
 /* work */  // CUCL REF blk_bline:blk_bx:out_chan_blk:blk_y:out_chan_tile:pels:out_chan
 {
   // note: dim(in.chan) == dim(out.blk_in_chan)
@@ -12,16 +13,16 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
   int32_t const out_ref_line = %(GLOB_ID_1D_blk_bline)*%(work_blk_y_dim);
   // CUCL IX out_ref_line out_ref use_dims=img:y 
 
-  int32_t const fi_skip_in_lines = %(out_ref_line_y)*%(stride); 
+  int32_t const fi_skip_in_lines = %(out_ref_line_y)*%(stride_y_dim); 
   int32_t const in_line = (%(GLOB_ID_1D_blk_y)+fi_skip_in_lines);
 
-  int32_t const img_in_lines = (%(out_ref_y_dim) - 1)*%(stride) + %(kern_sz_y_dim);
+  int32_t const img_in_lines = (%(out_ref_y_dim) - 1)*%(stride_y_dim) + %(kern_sz_y_dim);
 
   int32_t const img_off = in_line/img_in_lines;
   int32_t const img = %(out_ref_line_img) + img_off;
 
-  int32_t const iy = (in_line %% img_in_lines) - %(in_pad); //%(out_ref_line_y)*%(stride) + %(GLOB_ID_1D_blk_y) - %(in_pad);
-  int32_t const ix = %(GLOB_ID_1D_blk_bx)*%(work_pels_dim)*%(stride) + %(GLOB_ID_1D_blk_x) - %(in_pad);
+  int32_t const iy = (in_line %% img_in_lines) - %(in_pad); //%(out_ref_line_y)*%(stride_y_dim) + %(GLOB_ID_1D_blk_y) - %(in_pad);
+  int32_t const ix = %(GLOB_ID_1D_blk_bx)*%(work_pels_dim)*%(stride_x_dim) + %(GLOB_ID_1D_blk_x) - %(in_pad);
   
   float v = 0.0f;
   if(  1 

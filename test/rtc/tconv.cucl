@@ -3,6 +3,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 					  GASQ float const * const in, // CUCL IN blk_bline:blk_bx:blk_in_chan:blk_y:blk_x
 					  GASQ float * const out, // CUCL OUT img:chan:y:x
 					  int32_t const flags )
+/* stride */  // CUCL REF y:x
 /* work */  // CUCL REF blk_bline:blk_bx:out_chan_blk:blk_y:out_chan_tile:pels:out_chan
 /* in_ref */  // CUCL REF img:chan:y:x
 {
@@ -28,8 +29,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   int32_t const blk_fli = %(out_line_img); // image of first out_line of block
   out_line += %(LOC_ID_1D_blk_y); // adjust to out_line of this thread
   // offset in lines to deal with >1 img/block = (number of prior images (partial or full) in this block) * (adj to next img)
-  int32_t const img_off_lines = (%(out_line_img) - blk_fli)*(%(filts_y_dim)-%(stride)); 
-  int32_t const in_y = %(out_line_y)*%(stride) - %(in_pad);
+  int32_t const img_off_lines = (%(out_line_img) - blk_fli)*(%(filts_y_dim)-%(stride_y_dim)); 
+  int32_t const in_y = %(out_line_y)*%(stride_y_dim) - %(in_pad);
   if( flags == 3 ) { return; }
 
   for( int32_t in_chan = 0; in_chan != %(in_blk_in_chan_dim); ++in_chan ) {
@@ -42,7 +43,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
       if( %(out_line_img) >= %(out_img_dim) ) { continue; } // required: skip lines from invalid images (read might be invalid)
       // FIXME: in_dim_1 --> in_ref_y_dim maybe? need to add in_ref REF dim?
       if( ((in_y+ky) < 0) || ((in_y+ky)>%(in_ref_y_dim)) ) { continue; } // optimization: skip known-to-be-padding input lines
-      LSMASQ float * const in_smem_off = in_smem + (%(LOC_ID_1D_blk_y)*%(stride)+ky+img_off_lines)*%(in_blk_y_sz);
+      LSMASQ float * const in_smem_off = in_smem + (%(LOC_ID_1D_blk_y)*%(stride_y_dim)+ky+img_off_lines)*%(in_blk_y_sz);
       %(inner_loop_body);
 
     }

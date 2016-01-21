@@ -2,6 +2,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
 					 
 					  GASQ float * const in_grad_loss ) // CUCL OUT img:chan:y:x
+/* stride */  // CUCL REF y:x
 /* work */  // CUCL REF pels_blk:out_ix_blk:pels_tile:out_ix_tile:pels:out_ix
 /* oix */  // CUCL REF in_chan:sy:sx
 /* fioc */  // CUCL REF out_chan:ky:kx
@@ -46,8 +47,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
       if( (LOC_ID_1D+LOC_SZ_1D*i) < %(filts_smem_sz) ) { 
 	int32_t const out_ix = (blk_out_ix+LOC_ID_1D+LOC_SZ_1D*i);
 	float v = 0;
-	int const smem_filt_ix_y = %(filts_y_dim) - 1 + %(out_ix_sy) - %(filt_elem_ix_ky)*%(stride);
-	int const smem_filt_ix_x = %(filts_x_dim) - 1 + %(out_ix_sx) - %(filt_elem_ix_kx)*%(stride);
+	int const smem_filt_ix_y = %(filts_y_dim) - 1 + %(out_ix_sy) - %(filt_elem_ix_ky)*%(stride_y_dim);
+	int const smem_filt_ix_x = %(filts_x_dim) - 1 + %(out_ix_sx) - %(filt_elem_ix_kx)*%(stride_x_dim);
 	if( %(out_ix_in_chan) < %(filts_in_chan_dim) && %(filt_elem_ix_out_chan) < %(filts_out_chan_dim)
 	    && smem_filt_ix_x < %(filts_x_dim) && smem_filt_ix_y < %(filts_y_dim) ) {
 	  v = filts[%(filt_elem_ix_out_chan)*%(filts_out_chan_sz) +

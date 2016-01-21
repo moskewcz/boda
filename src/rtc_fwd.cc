@@ -73,17 +73,16 @@ namespace boda
 	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
 	// for now, we only attempt to handle the (common) case of uniform padding, kernel size, and stride
 	assert_st( cop->in_pad.dims_are_same() );
-	assert_st( cop->stride.dims_are_same() );
 	u32_pt_t kern_sz = cop->kern_sz;
 	if( kern_sz.is_zeros() ) { kern_sz = ni_sz; } // 'global' input special case
 
 	uint32_t const in_pad = cop->in_pad.d[0];
-	uint32_t const stride = cop->stride.d[0];
+	u32_pt_t const stride = cop->stride;
 	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
 	assert_st( ni_sz.dims_are_same() );
 	if( is_conv && enable_ipconv && (in_pad == 0) && (get_xy_dims(no->dims) == u32_pt_t{1,1}) ) {
 	  cts = ipconv_str; // single output per-chan-per-image: inner-product case
-	} else if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == 1) 
+	} else if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == u32_pt_t{1,1}) 
 	    && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no->dims.dsz("chan") >= 64) ) 
 	{ 
 	  if( in_pad != 0 ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); cts = conv_str; }
@@ -95,44 +94,44 @@ namespace boda
 	else { cts = conv_str; }
 
 	conv_ref_dims["kern_sz"] = dims_t( vect_uint32_t{ kern_sz.d[1], kern_sz.d[0] }, vect_string{"y","x"}, 1 );
+	conv_ref_dims["stride"] = dims_t( vect_uint32_t{ stride.d[1], stride.d[0] }, vect_string{"y","x"}, 1 );
 
 	if( is_conv ) {
-	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
+	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"in_pad",str(in_pad)}}; 
 	} 
 	if( is_pool || cop->is( Spreading_coi ) ) { // pool/spread
-	  template_var_values = {{"stride",str(stride)},{"avg_pool",must_find(cop->params,"avg_pool")},{"in_pad",str(in_pad)}};
+	  template_var_values = {{"avg_pool",must_find(cop->params,"avg_pool")},{"in_pad",str(in_pad)}};
 	}
 	if( cop->is( BckConv_coi ) ) {
-	  u32_pt_t const xy_stride(stride,stride);
 	  // note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will
 	  // always be 1 for the bck conv: 3x3@s2 -> 2x2@s1; 11x11@s4 -> 3x3@s1; 1x1@s1 -> 1x1@s1 ...
-	  u32_pt_t bck_kern_sz = ceil_div( kern_sz, xy_stride ); 
+	  u32_pt_t bck_kern_sz = ceil_div( kern_sz, stride ); 
 	  // if back kernel conv is convolved aligned to the - corner of output space, it yields results for the
 	  // post-padding input space region: [bck_in_off,bck_in_off+stride)
-	  u32_pt_t const bck_pad_in_off = (bck_kern_sz - u32_pt_t(1,1)).scale(stride);
+	  u32_pt_t const bck_pad_in_off = (bck_kern_sz - u32_pt_t(1,1)) * stride;
 	  assert_st( bck_pad_in_off.dims_are_same() );
 	  // we don't need compute values for the input padding, so adjust to un-padded input space
 	  i32_pt_t bck_in_off = u32_to_i32( bck_pad_in_off ) - i32_pt_t(in_pad,in_pad);
 	  assert_st( bck_in_off.dims_are_same() ); // not handled, since we want/need per-axis padding for that
 	  // now, calculate where we need to really start in output space to have the first results region inlcude 0
-	  i32_pt_t bck_in_pad = ceil_div( bck_in_off, xy_stride );
+	  i32_pt_t bck_in_pad = ceil_div( bck_in_off, stride );
 	  // FIXME: 'too much' fwd-in-pad can the  bck-in-pad this negative. sensible, so handle?
 	  assert_st( bck_in_pad.both_dims_ge_zero() );
 	  assert_st( bck_in_pad.dims_are_same() );
 	  // now, to get patch count, see how many in pels we're missing
-	  bck_in_off -= bck_in_pad * u32_to_i32(xy_stride); // first region calculated at - corner of padding out space
+	  bck_in_off -= bck_in_pad * u32_to_i32(stride); // first region calculated at - corner of padding out space
 	  // calculate number of extra pels needed to cover last pel in unpadded input space
-	  i32_pt_t bck_pels_sz = ceil_div( u32_to_i32(get_xy_dims(no->dims)) - (bck_in_off + u32_to_i32(xy_stride)), xy_stride ); 
+	  i32_pt_t bck_pels_sz = ceil_div( u32_to_i32(get_xy_dims(no->dims)) - (bck_in_off + u32_to_i32(stride)), stride ); 
 	  bck_pels_sz += i32_pt_t(1,1); // include starting pixel
 	  assert_st( bck_pels_sz.both_dims_gt( i32_pt_t() ) );
 
-	  template_var_values = {{"stride",str(stride)},{"in_pad",str(in_pad)},{"bck_in_pad",str(bck_in_pad.d[0])},
+	  template_var_values = {{"in_pad",str(in_pad)},{"bck_in_pad",str(bck_in_pad.d[0])},
 				 {"bck_pad_in_off",str(bck_pad_in_off.d[0])}}; 
 	  p_conv_node_t ogl = cp->must_get_node(cop->bots[3]);
 	  p_conv_node_t fgl = cp->must_get_node(cop->tops[1]);
 
 	  gbt_tile_t gbt;
-	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride, stride }, 
+	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride.d[1], stride.d[0] }, 
 					  vect_string{ "in_chan", "sy", "sx" }, 1 );
 	  conv_ref_dims["pix"] = dims_t(  vect_uint32_t{ no->dims.dsz("img"), 
 		uint32_t(bck_pels_sz.d[1]), uint32_t(bck_pels_sz.d[0]) }, vect_string{ "img", "y", "x" }, 1 );
@@ -145,8 +144,8 @@ namespace boda
 	  work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_ix", gbt.mn_per_thr.d[1] );
 	  work.calc_strides();
 	  conv_ref_dims["work"] = work;
-	  conv_ref_dims["fioc"] = dims_t( vect_uint32_t{ ogl->dims.dsz("chan"), u32_ceil_div(kern_sz.d[1],stride), 
-		u32_ceil_div(kern_sz.d[0],stride) }, vect_string{"out_chan","ky","kx"}, 1 );
+	  conv_ref_dims["fioc"] = dims_t( vect_uint32_t{ ogl->dims.dsz("chan"), u32_ceil_div(kern_sz.d[1],stride.d[1]), 
+		u32_ceil_div(kern_sz.d[0],stride.d[0]) }, vect_string{"out_chan","ky","kx"}, 1 );
 	  
 	  gbt_tile_t gbt_fb;
 	  gbt_fb.init( t_tile_sz, 128, u32_pt_t( fgl->dims.dsz("in_chan")*fgl->dims.dsz("y")*fgl->dims.dsz("x"), 
@@ -194,8 +193,8 @@ namespace boda
 	    //printf( "no_sz.d[1]=%s thr_per_blk.d[0]=%s\n", str(no_sz.d[1]).c_str(), str(thr_per_blk.d[0]).c_str() );
 	    //printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
 	    assert( gbt.thr_per_blk.d[0] >= tconv_blk_max_imgs );
-	    uint32_t const tconv_blk_max_in_lines = (gbt.thr_per_blk.d[0] - tconv_blk_max_imgs)*stride + kern_sz.d[1]*tconv_blk_max_imgs;
-	    uint32_t const tconv_blk_x_sz = (gbt.mn_per_thr.d[0] - 1)*stride + kern_sz.d[0];
+	    uint32_t const tconv_blk_max_in_lines = (gbt.thr_per_blk.d[0] - tconv_blk_max_imgs)*stride.d[1] + kern_sz.d[1]*tconv_blk_max_imgs;
+	    uint32_t const tconv_blk_x_sz = (gbt.mn_per_thr.d[0] - 1)*stride.d[0] + kern_sz.d[0];
 	    // the tconv/in_tile_xpose format is for use when both ni_sz.d[0/1] are small multiple of
 	    // gbt.mn_per_thr.d[0]/gbt.thr_per_blk.d[0] or >> than them (to avoid wasting too much work). each block will handle a
 	    // (x,y) window of the output of size (gbt.mn_per_thr.d[0],gbt.thr_per_blk.d[0]) across bix_pels_blk_sz*gbt.mn_per_thr.d[0]
@@ -430,7 +429,6 @@ namespace boda
 
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
-
     if( cop->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
@@ -512,11 +510,9 @@ namespace boda
       string const prob_node_name = cop->tag + "_prob";
       gen_node_var( prob_node_name, cop->bots[0] );
       oi->set_arg( rtc, "prob", prob_node_name );
-
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node_var( loss_per_pel, cop->bots[1] );
       oi->set_arg( rtc, "loss_per_pel", loss_per_pel );
-
       gen_call( "softmax", oi );
       gen_call( "sm_grad_and_loss", oi  );
       gen_call( "sum_loss_over_imgs", oi );
@@ -601,8 +597,8 @@ namespace boda
       rcg->line( "outs_to_filts_strip", "} " );
 
       string store_expr = R"foo(
-  igl_y = (%(pel_ix_y)-%(bck_in_pad))*%(stride)+%(out_ix_sy)-%(in_pad)+%(bck_pad_in_off);
-  igl_x = (%(pel_ix_x)-%(bck_in_pad))*%(stride)+%(out_ix_sx)-%(in_pad)+%(bck_pad_in_off);
+  igl_y = (%(pel_ix_y)-%(bck_in_pad))*%(stride_y_dim)+%(out_ix_sy)-%(in_pad)+%(bck_pad_in_off);
+  igl_x = (%(pel_ix_x)-%(bck_in_pad))*%(stride_x_dim)+%(out_ix_sx)-%(in_pad)+%(bck_pad_in_off);
   if( igl_x >= 0 && igl_y >= 0 && igl_y < %(in_grad_loss_y_dim) && igl_x < %(in_grad_loss_x_dim) &&
       %(out_ix_in_chan) < %(in_grad_loss_chan_dim) && %(pel_ix_img) < %(in_grad_loss_img_dim) ) {
     in_grad_loss[ %(pel_ix_img)*%(in_grad_loss_img_sz) + %(out_ix_in_chan)*%(in_grad_loss_chan_sz) + 
@@ -706,8 +702,8 @@ namespace boda
       }
       string const get_in = strprintf( 
 	"float v = 0;\n"
-	"      int const smem_in_ix_y = %%(out_pel_ix_y)*%%(stride)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
-	"      int const smem_in_ix_x = %%(out_pel_ix_x)*%%(stride)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
+	"      int const smem_in_ix_y = %%(out_pel_ix_y)*%%(stride_y_dim)+%%(filts_ix_out_chan_elem_y) - %%(in_pad);\n"
+	"      int const smem_in_ix_x = %%(out_pel_ix_x)*%%(stride_x_dim)+%%(filts_ix_out_chan_elem_x) - %%(in_pad);\n"
 	"      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
 	"          %%(out_pel_ix_img) < %%(in_img_dim) && \n"
 	"         smem_in_ix_x < %%(in_x_dim) && smem_in_ix_y < %%(in_y_dim) ) {\n"
@@ -841,7 +837,7 @@ namespace boda
 
     void gen_op_k1conv( rtc_call_gen_t * rcg ) {
       assert_st( rcg->rfs.get_u32_tvv("in_pad") == 0 );
-      assert_st( rcg->rfs.get_u32_tvv("stride") == 1 );
+      assert_st( (get_xy_dims( rcg->get_arg_dims_by_name( "stride" ) ) == u32_pt_t{1,1}) );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       dims_t const & filts = rcg->get_arg_dims_by_name( "filts" );
       assert_st( filts.dsz("x") == 1 ); assert_st( filts.dsz("y") == 1 );
@@ -979,6 +975,7 @@ namespace boda
     }
 
     void gen_op_tconv( rtc_call_gen_t * rcg ) {
+      dims_t const & stride = rcg->get_arg_dims_by_name( "stride" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       dims_t const & filts = rcg->get_arg_dims_by_name( "filts" );
       dims_t const & in = rcg->get_arg_dims_by_name( "in" );
@@ -1008,7 +1005,7 @@ namespace boda
 	  for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
 	    rcg->line( "inner_loop_body", strprintf( "out_tile[%s] += filts_strip[%s]*in_strip[%s];",
 						     str((ty*work.dsz("out_chan")+tx)).c_str(), 
-						     str(tx).c_str(), str(ty*rcg->rfs.get_u32_tvv("stride")+kx).c_str()));
+						     str(tx).c_str(), str(ty*stride.dsz("x")+kx).c_str()));
 	  }
 	}
       }

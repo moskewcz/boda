@@ -2,6 +2,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
 					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
 					 
 					  GASQ float * const filts_grad_loss ) // CUCL OUT out_chan:in_chan:y:x
+/* stride */  // CUCL REF y:x
 {
   // CUCL IX GLOB_ID_1D filts_grad_loss
   // write a single output pixel per thread
@@ -10,19 +11,19 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
   
   int32_t out_yb = 0;
   int32_t in_yb = %(GLOB_ID_1D_y) - %(in_pad);
-  while( in_yb < 0 ) { in_yb += %(stride); ++out_yb; }
+  while( in_yb < 0 ) { in_yb += %(stride_y_dim); ++out_yb; }
 
   int32_t in_xb = %(GLOB_ID_1D_x) - %(in_pad);
   int32_t out_xb = 0;
-  while( in_xb < 0 ) { in_xb += %(stride); ++out_xb;}
+  while( in_xb < 0 ) { in_xb += %(stride_x_dim); ++out_xb;}
   
   for( int32_t img = 0; img < %(in_img_dim); ++img ) {
     GASQ float const * in_off = in + img*%(in_img_sz) + %(GLOB_ID_1D_in_chan)*%(in_chan_sz);
     GASQ float const * out_grad_loss_off = out_grad_loss + img*%(out_grad_loss_img_sz) + %(GLOB_ID_1D_out_chan)*%(out_grad_loss_chan_sz);
     int32_t out_y = out_yb;
-    for( int32_t in_y = in_yb; in_y < %(in_y_dim) && out_y < %(out_grad_loss_y_dim); in_y += %(stride), ++out_y ) {
+    for( int32_t in_y = in_yb; in_y < %(in_y_dim) && out_y < %(out_grad_loss_y_dim); in_y += %(stride_y_dim), ++out_y ) {
       int32_t out_x = out_xb;
-      for( int32_t in_x = in_xb; in_x < %(in_x_dim) && out_x < %(out_grad_loss_x_dim); in_x += %(stride), ++out_x ) {
+      for( int32_t in_x = in_xb; in_x < %(in_x_dim) && out_x < %(out_grad_loss_x_dim); in_x += %(stride_x_dim), ++out_x ) {
 	filts_grad_loss_v += in_off[in_y*%(in_y_sz) + in_x*%(in_x_sz)]*out_grad_loss_off[out_y*%(out_grad_loss_y_sz) + out_x*%(out_grad_loss_x_sz)];
       }
     }
