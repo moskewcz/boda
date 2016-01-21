@@ -115,7 +115,6 @@ namespace boda
 	  i32_pt_t bck_in_pad = ceil_div( bck_in_off, stride );
 	  // FIXME: 'too much' fwd-in-pad can the  bck-in-pad this negative. sensible, so handle?
 	  assert_st( bck_in_pad.both_dims_ge_zero() );
-	  assert_st( bck_in_pad.dims_are_same() );
 	  // now, to get patch count, see how many in pels we're missing
 	  bck_in_off -= bck_in_pad * u32_to_i32(stride); // first region calculated at - corner of padding out space
 	  // calculate number of extra pels needed to cover last pel in unpadded input space
@@ -123,8 +122,9 @@ namespace boda
 	  bck_pels_sz += i32_pt_t(1,1); // include starting pixel
 	  assert_st( bck_pels_sz.both_dims_gt( i32_pt_t() ) );
 
-	  template_var_values = {{"bck_in_pad",str(bck_in_pad.d[0])},
-				 {"bck_pad_in_off",str(bck_pad_in_off.d[0])}}; 
+	  conv_ref_dims["bck_in_pad"] = dims_t( vect_uint32_t{ bck_in_pad.d[1], bck_in_pad.d[0] }, vect_string{"y","x"}, 1 );
+	  conv_ref_dims["bck_pad_in_off"] = dims_t( vect_uint32_t{ bck_pad_in_off.d[1], bck_pad_in_off.d[0] }, vect_string{"y","x"}, 1 );
+
 	  p_conv_node_t ogl = cp->must_get_node(cop->bots[3]);
 	  p_conv_node_t fgl = cp->must_get_node(cop->tops[1]);
 
@@ -595,8 +595,8 @@ namespace boda
       rcg->line( "outs_to_filts_strip", "} " );
 
       string store_expr = R"foo(
-  igl_y = (%(pel_ix_y)-%(bck_in_pad))*%(stride_y_dim)+%(out_ix_sy)-%(in_pad_y_dim)+%(bck_pad_in_off);
-  igl_x = (%(pel_ix_x)-%(bck_in_pad))*%(stride_x_dim)+%(out_ix_sx)-%(in_pad_x_dim)+%(bck_pad_in_off);
+  igl_y = (%(pel_ix_y)-%(bck_in_pad_y_dim))*%(stride_y_dim)+%(out_ix_sy)-%(in_pad_y_dim)+%(bck_pad_in_off_y_dim);
+  igl_x = (%(pel_ix_x)-%(bck_in_pad_x_dim))*%(stride_x_dim)+%(out_ix_sx)-%(in_pad_x_dim)+%(bck_pad_in_off_x_dim);
   if( igl_x >= 0 && igl_y >= 0 && igl_y < %(in_grad_loss_y_dim) && igl_x < %(in_grad_loss_x_dim) &&
       %(out_ix_in_chan) < %(in_grad_loss_chan_dim) && %(pel_ix_img) < %(in_grad_loss_img_dim) ) {
     in_grad_loss[ %(pel_ix_img)*%(in_grad_loss_img_sz) + %(out_ix_in_chan)*%(in_grad_loss_chan_sz) + 

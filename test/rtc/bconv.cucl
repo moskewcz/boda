@@ -4,6 +4,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 					  GASQ float * const in_grad_loss ) // CUCL OUT img:chan:y:x
 /* stride */  // CUCL REF y:x
 /* in_pad */  // CUCL REF y:x 
+/* bck_in_pad */  // CUCL REF y:x 
+/* bck_pad_in_off */  // CUCL REF y:x 
 /* work */  // CUCL REF pels_blk:out_ix_blk:pels_tile:out_ix_tile:pels:out_ix
 /* oix */  // CUCL REF in_chan:sy:sx
 /* fioc */  // CUCL REF out_chan:ky:kx
@@ -32,8 +34,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
       if( (LOC_ID_1D+LOC_SZ_1D*i) < %(in_smem_sz) ) { 
 	int32_t const pel_ix = (blk_pel_ix+LOC_ID_1D+LOC_SZ_1D*i);
 	float v = 0;
-	int const smem_in_ix_y = %(pel_ix_y)+%(filt_elem_ix_ky) - %(bck_in_pad);
-	int const smem_in_ix_x = %(pel_ix_x)+%(filt_elem_ix_kx) - %(bck_in_pad);
+	int const smem_in_ix_y = %(pel_ix_y)+%(filt_elem_ix_ky) - %(bck_in_pad_y_dim);
+	int const smem_in_ix_x = %(pel_ix_x)+%(filt_elem_ix_kx) - %(bck_in_pad_x_dim);
 	if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && %(pel_ix_img) < %(out_grad_loss_img_dim) &&
 	   smem_in_ix_x < %(out_grad_loss_x_dim) && smem_in_ix_y < %(out_grad_loss_y_dim) ) {
 	  v = out_grad_loss[%(pel_ix_img)*%(out_grad_loss_img_sz) +
