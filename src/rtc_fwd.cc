@@ -77,12 +77,6 @@ namespace boda
 	u32_pt_t const ni_sz = get_xy_dims( ni->dims );
 	in_dims = ni->dims;
 	conv_ref_dims["in_ref"] = in_dims; // tconv needs the standard input dims for reference
-	// if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
-	if( is_conv ) {
-	  bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
-	  if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
-	  must_insert( template_var_values, "conv_has_relu", str(conv_has_relu) );
-	} 
 	u32_pt_t kern_sz = cop->kern_sz;
 	if( kern_sz.is_zeros() ) { kern_sz = ni_sz; } // 'global' input special case
 	u32_pt_t const in_pad = cop->in_pad;
@@ -1075,6 +1069,8 @@ namespace boda
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_ ) {
     cp = cp_;
     assert_st( cp );
+    // note: the following modifies cp, so it's not clear that is exactly the right place for it to go.
+    cp->fuse_relus_and_maybe_enable_write_xposed(); 
     op_infos.reset( new map_str_p_op_info_t );
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t & oi = (*op_infos)[i->first];

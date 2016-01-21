@@ -158,6 +158,9 @@ namespace boda
     void dump_ops_rec( std::ostream & out, string const & node_name );
     void dump_ops( std::ostream & out );
 
+    void fuse_relus_and_maybe_enable_write_xposed( void );
+    void framewx_rec( string const & node_name );
+
     void add_bck_ops_op( p_conv_op_t const & cop );
     void add_bck_ops_rec( string const & node_name );
     void add_bck_ops( void );
