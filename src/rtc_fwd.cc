@@ -25,6 +25,11 @@ namespace boda
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
+  struct op_info_t;
+  typedef shared_ptr< op_info_t > p_op_info_t; 
+  typedef map< string, p_op_info_t > map_str_p_op_info_t;
+  typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
+
   string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const ipconv_str = "ipconv"; string const conv_str = "conv";
   struct op_info_t {
     p_conv_op_t cop;
@@ -128,8 +133,8 @@ namespace boda
 	  conv_ref_dims["bck_in_pad"] = dims_t( vect_uint32_t{ bck_in_pad.d[1], bck_in_pad.d[0] }, vect_string{"y","x"}, 1 );
 	  conv_ref_dims["bck_pad_in_off"] = dims_t( vect_uint32_t{ bck_pad_in_off.d[1], bck_pad_in_off.d[0] }, vect_string{"y","x"}, 1 );
 
-	  p_conv_node_t ogl = cp->must_get_node(cop->bots[3]);
-	  p_conv_node_t fgl = cp->must_get_node(cop->tops[1]);
+	  p_conv_node_t ogl = cp->must_get_node(get_arg("out_grad_loss"));
+	  p_conv_node_t fgl = cp->must_get_node(get_arg("filts_grad_loss"));
 
 	  gbt_tile_t gbt;
 	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride.d[1], stride.d[0] }, 
@@ -244,9 +249,6 @@ namespace boda
       }
     }
   };
-  typedef shared_ptr< op_info_t > p_op_info_t; 
-  typedef map< string, p_op_info_t > map_str_p_op_info_t;
-  typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
 
 
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
