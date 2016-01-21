@@ -14,6 +14,13 @@
 
 namespace boda 
 {
+  struct rcg_func_call_t {
+    string rtc_func_name; 
+    string call_tag;
+    map_str_str arg_map;
+    vect_uint32_t u32_args;
+    uint32_t call_id;
+  };
 
   struct quantize_ops_t : virtual public nesi // NESI(help="per-layer quantization options") 
   {
@@ -375,16 +382,22 @@ namespace boda
     while( in_sz > 1 ) {
       string const func = gen_func( rtc_func_sig_t{ "var_stats", args_dims, {} } );
       vect_string cur_outs;
-      vect_string args = cur_ins;
+      //vect_string args = cur_ins;
       vect_string out_args;
       uint32_t const out_sz = u32_ceil_div( in_sz, must_find(codegen.rtc_func_names_map,func)->tpb );
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
 	string cur_out = top_in + "_" + reds[i] + "_out_sz_" + str(out_sz);
 	rtc->create_var_with_dims_floats( cur_out, dims_t{ {out_sz}, {"v"}, 1 } );
 	cur_outs.push_back( cur_out );
-	args.push_back( cur_out );
+	//args.push_back( cur_out );
       }
-      fwd_calls.push_back( rtc_func_call_t{ func, args,{},{}, {in_sz, primary_in}, "var_stats" } );
+      fwd_calls.push_back( rtc_func_call_t{ func, {},{},{}, {in_sz, primary_in}, "var_stats" } );
+      map_str_str arg_map;
+      assert_st( cur_ins.size() == reds.size() );
+      for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_in", cur_ins[i] ); }
+      assert_st( cur_outs.size() == reds.size() );
+      for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_out", cur_outs[i] ); }
+      fwd_calls.back().arg_map = arg_map;
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -398,7 +411,8 @@ namespace boda
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
     string const func = gen_func( rtc_func_sig_t{ "quantize", {rtc->get_var_dims_floats(top_in)}, {} } );
-    fwd_calls.push_back( rtc_func_call_t{ func, {},{top_in},{}, {max_val,drop_mask}, "quantize" } );
+    fwd_calls.push_back( rtc_func_call_t{ func, {},{},{}, {max_val,drop_mask}, "quantize" } );
+    fwd_calls.back().arg_map = map_str_str{{"out",top_in}};
   }
 
   // setup nodes and xforms for conv op filts/biases. note: tracks oi->cop->tag (operation name) to do this only
@@ -419,7 +433,8 @@ namespace boda
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
       rtc->create_var_with_dims_floats( ret_var, ret_dims );
-      fwd_calls.push_back( rtc_func_call_t{ func, {in_var,ret_var}, {}, {}, {}, in_var + "__inxp" } );
+      fwd_calls.push_back( rtc_func_call_t{ func, {}, {}, {}, {}, in_var + "__inxp" } );
+      fwd_calls.back().arg_map = map_str_str{{"in",in_var},{"out",ret_var}};
     }
     return ret_var;
   }
