@@ -100,6 +100,10 @@ namespace boda
     bool const did_ins = kvm.insert( std::make_pair( k, v ) ).second;
     assert_st( did_ins );
   }		      
+  template< typename T > void must_erase( T & kvm, typename T::key_type const & k ) {
+    uint32_t const num_del = kvm.erase( k );
+    assert_st( num_del == 1 );
+  }		      
   template< typename T > bool has( T const & kvm, typename T::key_type const & k ) { return kvm.find( k ) != kvm.end(); }
   template< typename T > bool vect_has( T const & vect, typename T::value_type const & v ) { 
     return std::find( vect.begin(), vect.end(), v ) != vect.end(); }

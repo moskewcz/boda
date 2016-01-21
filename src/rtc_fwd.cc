@@ -36,6 +36,12 @@ namespace boda
     map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
     string cts; // cts --> conv-type-str
 
+    void set_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
+      must_insert( conv_ref_dims, an, rtc->get_var_dims_floats(vn) );
+      must_insert( arg_map, an, vn );
+    }
+    void erase_arg( string const & an ) { must_erase( conv_ref_dims, an ); must_erase( arg_map, an ); }
+
     void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop_, bool const & enable_ipconv,
 	       bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
@@ -89,12 +95,13 @@ namespace boda
 		   cts = tconv_str; }
 	else { cts = conv_str; }
 
+	conv_ref_dims["kern_sz"] = dims_t( vect_uint32_t{ kern_sz.d[1], kern_sz.d[0] }, vect_string{"y","x"}, 1 );
+
 	if( is_conv ) {
 	  template_var_values = {{"conv_has_relu",str(conv_has_relu)},{"stride",str(stride)},{"in_pad",str(in_pad)}}; 
 	} 
 	if( is_pool || cop->is( Spreading_coi ) ) { // pool/spread
 	  template_var_values = {{"stride",str(stride)},{"avg_pool",must_find(cop->params,"avg_pool")},{"in_pad",str(in_pad)}};
-	  conv_ref_dims["kern_sz"] = dims_t( vect_uint32_t{ kern_sz.d[1], kern_sz.d[0] }, vect_string{"y","x"}, 1 );
 	}
 	if( cop->is( BckConv_coi ) ) {
 	  u32_pt_t const xy_stride(stride,stride);
@@ -229,12 +236,10 @@ namespace boda
 	  }
 	  conv_ref_dims["work"] = work;
 	  conv_ref_dims["out_ref"] = no->dims; // k1conv and in_tile_xpose need the standard output dims for reference
-	  conv_ref_dims["in"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
+	  conv_ref_dims["in_xp"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-	  conv_ref_dims["filts"] = cp->must_get_node( cop->bots[1] )->dims;
-	  conv_ref_dims["filtsxp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0],
+	  conv_ref_dims["filts_xp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
-	  conv_ref_dims["biases"] = cp->must_get_node( cop->bots[2] )->dims; 
 	  // dims_t( vect_uint32_t{cop->out_chans}, vect_string{"out_chan"}, 1 );
 	} // end if(is_conv)
       }
@@ -300,15 +305,10 @@ namespace boda
     vect_string gen_op_stats( string const & top_in );
     void gen_op_quantize( string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
-    // gen_call() related data
     rtc_codegen_t codegen;
 
     string gen_func( rtc_func_sig_t const & rfs );
     void gen_call( string const & fn, p_op_info_t const & oi );
-    void gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args );
-    void gen_call( string const & fn, map_str_str const & template_var_values, string const & tag, 
-		   vect_string const & args, 
-		   map_str_dims_t const & ref_dims = map_str_dims_t(), bool const is_init_call = 0 );
     void gen_conv_filts( p_op_info_t const & oi ); // setup nodes and xforms for conv op filts/biases
     string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
 
@@ -434,42 +434,43 @@ namespace boda
 	assert_st( get_xy_dims( cp->must_get_node( cop->bots[bi] )->dims ) == get_xy_dims( oi->no->dims ) );
 	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->no->dims.dsz("chan") );
 	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
-        oi->template_var_values = { {"ocix",str(chans_out_done)} }; 
-	must_insert( oi->conv_ref_dims, "in", cp->must_get_node(cop->bots[bi])->dims ); // FIXME_NA 
-	must_insert( oi->arg_map, "in", cop->bots[bi] ); // FIXME_NA 
+        oi->template_var_values = { {"ocix",str(chans_out_done)} };
+	oi->set_arg( rtc, "in", cop->bots[bi] );
 	gen_call( "copy", oi );
 	chans_out_done += dims_in.dsz("chan");
-	oi->conv_ref_dims.erase( "in" );
-	oi->arg_map.erase( "in" );
+	oi->erase_arg( "in" );
       }
       assert_st( chans_out_done == oi->no->dims.dsz("chan") );
     } else if( oi->cop->is( Pooling_coi ) ) {
       gen_call( "pool", oi );
     } else if( oi->cop->is( Convolution_coi ) ) {
       gen_conv_filts( oi );
-      string const in_id = cop->bots[0];
-      dims_t const & in_dims = rtc->get_var_dims_floats( in_id );
       if( force_zero_bias ) { force_zero_names.insert( cop->bots[2] ); }
-      dims_t const & conv_in_dims = oi->conv_ref_dims["in"];
-      vect_string in_arg_ids;
-      if( oi->cts == ipconv_str ) { in_arg_ids.push_back( cop->bots[1] ); } // filts (untransposed)
+      string const in_id = oi->arg_map["in"];
+      // 'refresh' in arg dims, since it may not be equal to the original conv_pipe dims anymore
+      oi->erase_arg("in");
+      oi->set_arg( rtc, "in", in_id );
+      dims_t const & in_dims = oi->conv_ref_dims["in"];
+      dims_t const & in_xp_dims = oi->conv_ref_dims["in_xp"];
+      if( oi->cts == ipconv_str ) { } //in_arg_ids.push_back( cop->bots[1] ); } // filts (untransposed)
       else {
-	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", {cp->must_get_node(cop->bots[1])->dims,oi->conv_ref_dims["filtsxp"]}, 
+	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", {oi->conv_ref_dims["filts"],oi->conv_ref_dims["filts_xp"]}, 
 	    oi->conv_ref_dims, oi->template_var_values } );
-	in_arg_ids.push_back( gen_apply_func_to_var( cop->bots[1], oi->conv_ref_dims["filtsxp"], filts_xp_fn ) ); // filts
+	oi->erase_arg( "filts" );
+	oi->set_arg( rtc, "filts", gen_apply_func_to_var( cop->bots[1], oi->conv_ref_dims["filts_xp"], filts_xp_fn ) );
       }
-      in_arg_ids.push_back( cop->bots[2] ); // biases
+      //in_arg_ids.push_back( cop->bots[2] ); // biases
       if( oi->cts == tconv_str ) {
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,conv_in_dims}, oi->conv_ref_dims, oi->template_var_values } );
-	in_arg_ids.push_back( gen_apply_func_to_var( in_id, conv_in_dims, xp_fn ) );
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,in_xp_dims}, oi->conv_ref_dims, oi->template_var_values } );
+	oi->erase_arg( "in" );
+	oi->set_arg( rtc, "in", gen_apply_func_to_var( in_id, in_xp_dims, xp_fn ) );
       } else if( oi->cts == k1conv_str ) {
-	if( in_dims != conv_in_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
-	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,conv_in_dims}, {} } );
-	  in_arg_ids.push_back( gen_apply_func_to_var( in_id, conv_in_dims, xp_fn ) );
-	} else { in_arg_ids.push_back( in_id ); }	
-      } else {
-	in_arg_ids.push_back( in_id );
-      }
+	if( in_dims != in_xp_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
+	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,in_xp_dims}, {} } );
+	  oi->erase_arg( "in" );
+	  oi->set_arg( rtc, "in", gen_apply_func_to_var( in_id, in_xp_dims, xp_fn ) );
+	} 	
+      } 
       dims_t no_dims = oi->conv_ref_dims["out_ref"];
       if( oi->cts == k1conv_str ) { 
 	p_op_info_t noi;
@@ -477,19 +478,20 @@ namespace boda
 	  noi = must_find( *op_infos, oi->no->bot_for[0] ); // next operation
 	  if( enable_write_xpose && (noi->cts == k1conv_str) ) { 
 	    dims_t const & noi_work = noi->conv_ref_dims["work"];
-	    no_dims = dims_t{ vect_uint32_t{noi_work.dsz("pels_blk"), conv_in_dims.dsz("blk_iter"), conv_in_dims.dsz("blk_iter_chan"),
+	    no_dims = dims_t{ vect_uint32_t{noi_work.dsz("pels_blk"), in_xp_dims.dsz("blk_iter"), in_xp_dims.dsz("blk_iter_chan"),
 					    noi_work.dsz("pels_tile")*noi_work.dsz("pels") }, { "blk", "blk_iter", "blk_iter_chan", "blk_pel"}, 1 };
 	  }
 	}
       }
       rtc->create_var_with_dims_floats( oi->no->name, no_dims );
-      in_arg_ids.push_back( oi->no->name );
-      gen_call( oi->cts, oi, in_arg_ids );
+      oi->erase_arg("out");
+      oi->set_arg( rtc, "out", oi->no->name );
+      //in_arg_ids.push_back( oi->no->name );
+      gen_call( oi->cts, oi );
       // assert_st( oi->no->dims.dsz("chan") == cop->out_chans ); //unneeded, since out_chans param is redundant with dims?
     } else if( cop->is( ReLU_coi ) ) {
       assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
-      must_insert( oi->conv_ref_dims, "inout", oi->ni->dims ); // FIXME_NA 
-      must_insert( oi->arg_map, "inout", oi->ni->name ); // FIXME_NA 
+      oi->set_arg( rtc, "inout", oi->ni->name );
       gen_call( "relu", oi );
     } else if( cop->is( LRN_coi ) ) {
       oi->template_var_values = cop->params;
@@ -505,13 +507,11 @@ namespace boda
     } else if( cop->is( SoftmaxWithLoss_coi ) ) {
       string const prob_node_name = cop->tag + "_prob";
       gen_node_var( prob_node_name, cop->bots[0] );
-      must_insert( oi->conv_ref_dims, "prob", rtc->get_var_dims_floats(prob_node_name) ); // FIXME_NA 
-      must_insert( oi->arg_map, "prob", prob_node_name ); // FIXME_NA 
+      oi->set_arg( rtc, "prob", prob_node_name );
 
       string const loss_per_pel = cop->tops[1] + "_per_pel"; // same size as label
       gen_node_var( loss_per_pel, cop->bots[1] );
-      must_insert( oi->conv_ref_dims, "loss_per_pel", rtc->get_var_dims_floats(loss_per_pel) ); // FIXME_NA 
-      must_insert( oi->arg_map, "loss_per_pel", loss_per_pel ); // FIXME_NA 
+      oi->set_arg( rtc, "loss_per_pel", loss_per_pel );
 
       gen_call( "softmax", oi );
       gen_call( "sm_grad_and_loss", oi  );
@@ -1042,27 +1042,15 @@ namespace boda
     return codegen.gen_func( &ccc, rfs ); 
   }
 
-  void conv_pipe_fwd_t::gen_call( string const & fn, map_str_str const & template_var_values, string const & tag, 
-				  vect_string const & args, 
-				  map_str_dims_t const & ref_dims, bool const is_init_call ) { 
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
     rtc_func_sig_t rfs;
     rfs.fn = fn;
-    rfs.template_var_values = template_var_values;
-    for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) { rfs.args.push_back( rtc->get_var_dims_floats( *i ) ); }
-    rfs.ref_dims = ref_dims;
-    // note: we assume the generated function only work for exactly these input/output sizes. if not, we'd set some dims to 0/wild
+    rfs.template_var_values = oi->template_var_values;
+    rfs.ref_dims = oi->conv_ref_dims;
     string const & gen_fn = gen_func( rfs );
-    (is_init_call ? init_calls : fwd_calls).push_back( rtc_func_call_t{ gen_fn, args, {}, {}, {}, tag } );
-  }
-
-  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi, vect_string const & args ) { 
-    gen_call( fn, oi->template_var_values, oi->cop->tag, args, oi->conv_ref_dims, 0 );
-  }
-  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
-    vect_string args;
-    gen_call( fn, oi->template_var_values, oi->cop->tag, args, oi->conv_ref_dims, 0 );
+    fwd_calls.push_back( rtc_func_call_t{ gen_fn, {}, {}, {}, {}, oi->cop->tag } );
     fwd_calls.back().arg_map = oi->arg_map;
   }
 
@@ -1126,12 +1114,15 @@ namespace boda
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
 
     if( enable_bwai_test ) { // test bwai gen
+      assert_st(0);
+#if 0
       rtc->create_var_with_dims_floats( "a", dims_t{ {1000,1024}, {"M","K"}, 1 } );
       rtc->create_var_with_dims_floats( "b", dims_t{ {1000,1024}, {"N","K"}, 1 } );
       rtc->create_var_with_dims_floats( "c", dims_t{ {1000,1000}, {"M","N"}, 1 } );
       map_str_dims_t bwai_ref_dims;
       bwai_ref_dims["work"] = dims_t{ {10,10,10,10,32,10,10}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
       gen_call( "bwai", map_str_str(), "bwai_sgemm", {"a","b","c"}, bwai_ref_dims, 0 );
+#endif
     }
     rtc->compile( codegen.rtc_prog_str, show_compile_log, enable_lineinfo );
     for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }

@@ -212,7 +212,7 @@ namespace boda
 	}
       }
       if( !arg_check_error.empty() ) {
-	string arg_err = "RTC call argument error: " + rfs.fn + ": " + arg_check_error + "\n";
+	string arg_err = "RTC template function instantiation argument error: " + rfs.fn + ": " + arg_check_error + "\n";
 	for( uint32_t i = 0; i != std::max(rfs.args.size(),arg_decls.size()); ++i ) {
 	  arg_err += strprintf( "ARG[%s]:\n", str(i).c_str() );
 	  if( i < arg_decls.size() ) { arg_err += strprintf( "  DECL: %s\n", str(arg_decls[i]).c_str() ); }
