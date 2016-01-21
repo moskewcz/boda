@@ -3,6 +3,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
 					 
 					  GASQ float * const filts_grad_loss ) // CUCL OUT out_chan:in_chan:y:x
 /* stride */  // CUCL REF y:x
+/* in_pad */  // CUCL REF y:x 
 {
   // CUCL IX GLOB_ID_1D filts_grad_loss
   // write a single output pixel per thread
@@ -10,10 +11,10 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
   float filts_grad_loss_v = 0.0f;
   
   int32_t out_yb = 0;
-  int32_t in_yb = %(GLOB_ID_1D_y) - %(in_pad);
+  int32_t in_yb = %(GLOB_ID_1D_y) - %(in_pad_y_dim);
   while( in_yb < 0 ) { in_yb += %(stride_y_dim); ++out_yb; }
 
-  int32_t in_xb = %(GLOB_ID_1D_x) - %(in_pad);
+  int32_t in_xb = %(GLOB_ID_1D_x) - %(in_pad_x_dim);
   int32_t out_xb = 0;
   while( in_xb < 0 ) { in_xb += %(stride_x_dim); ++out_xb;}
   

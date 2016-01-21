@@ -4,8 +4,10 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // note: there are two possible output formats, so there are two allowed/valid dims for out:--v          OR ---v
 					  GASQ float * const out, // CUCL OUT                  img:chan:y:x     blk:blk_iter:blk_iter_chan:blk_pel
 					  int32_t const flags )
-// yeah, okay, we don't use stride here. but in codegen, we check that the stride is really 1, so we must declare it here.
+// yeah, okay, we don't use stride/in_pad here. but in codegen, we
+// check that the stride is really 1, so we must declare then here.
 /* stride */  // CUCL REF y:x 
+/* in_pad */  // CUCL REF y:x 
 /* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
 /* out_ref */  // CUCL REF img:chan:y:x
 {

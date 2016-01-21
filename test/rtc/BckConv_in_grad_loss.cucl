@@ -3,23 +3,24 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 					 
 					  GASQ float * const in_grad_loss ) // CUCL OUT img:chan:y:x
 /* stride */  // CUCL REF y:x
+/* in_pad */  // CUCL REF y:x 
 // note: in and in_grad_loss have the same dims
 {
   // CUCL IX GLOB_ID_1D in_grad_loss
   // write a single output pixel per thread
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
   float in_grad_loss_v = 0.0f;
-  // we want ceil of (%(GLOB_ID_1D_x) + %(in_pad) - %(filts_x_sz) + 1)/%(stride_x_dim); so use ceil->floor transform:
-  int32_t out_xb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_x) + %(in_pad) - %(filts_x_dim) + %(stride_x_dim) ) / %(stride_x_dim); // clamp to numerator zero and take floor
-  int32_t out_xe = min( (((((int32_t)%(GLOB_ID_1D_x) + %(in_pad))/ %(stride_x_dim)))+1), (int32_t)%(out_grad_loss_x_dim) ); // take floor, then add 1 to convert open bound, then clamp to dim
+  // we want ceil of (%(GLOB_ID_1D_x) + %(in_pad_x_dim) - %(filts_x_sz) + 1)/%(stride_x_dim); so use ceil->floor transform:
+  int32_t out_xb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_x) + %(in_pad_x_dim) - %(filts_x_dim) + %(stride_x_dim) ) / %(stride_x_dim); // clamp to numerator zero and take floor
+  int32_t out_xe = min( (((((int32_t)%(GLOB_ID_1D_x) + %(in_pad_x_dim))/ %(stride_x_dim)))+1), (int32_t)%(out_grad_loss_x_dim) ); // take floor, then add 1 to convert open bound, then clamp to dim
   // dup'd for y
-  int32_t out_yb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_y) + %(in_pad) - %(filts_y_dim) + %(stride_y_dim) ) / %(stride_y_dim);
-  int32_t out_ye = min( ((((int32_t)%(GLOB_ID_1D_y) + %(in_pad))/ %(stride_y_dim)))+1, (int32_t)%(out_grad_loss_y_dim) );
+  int32_t out_yb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_y) + %(in_pad_y_dim) - %(filts_y_dim) + %(stride_y_dim) ) / %(stride_y_dim);
+  int32_t out_ye = min( ((((int32_t)%(GLOB_ID_1D_y) + %(in_pad_y_dim))/ %(stride_y_dim)))+1, (int32_t)%(out_grad_loss_y_dim) );
 
   for( int32_t out_chan = 0; out_chan < %(filts_out_chan_dim); ++out_chan ) {
-    int32_t filts_x = %(GLOB_ID_1D_x) + %(in_pad) - out_xb*%(stride_x_dim); // must be in [0,%(filts_x_dim)]  
+    int32_t filts_x = %(GLOB_ID_1D_x) + %(in_pad_x_dim) - out_xb*%(stride_x_dim); // must be in [0,%(filts_x_dim)]  
     for( int32_t out_x = out_xb; out_x < out_xe; ++out_x ) {
-      int32_t filts_y = %(GLOB_ID_1D_y) + %(in_pad) - out_yb*%(stride_y_dim); // must be in [0,%(filts_y_dim)]
+      int32_t filts_y = %(GLOB_ID_1D_y) + %(in_pad_y_dim) - out_yb*%(stride_y_dim); // must be in [0,%(filts_y_dim)]
       for( int32_t out_y = out_yb; out_y < out_ye; ++out_y ) {
 	// note: to avoid negative integer div issues, we've pre clamped values so negative ix/iy are not possible here,
 	// so we need not check for them here. we've also clamped the upper bounds to the dims. finally, in the event the

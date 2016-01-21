@@ -3,6 +3,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 					 
 					  GASQ float * const in_grad_loss ) // CUCL OUT img:chan:y:x
 /* stride */  // CUCL REF y:x
+/* in_pad */  // CUCL REF y:x 
 /* work */  // CUCL REF pels_blk:out_ix_blk:pels_tile:out_ix_tile:pels:out_ix
 /* oix */  // CUCL REF in_chan:sy:sx
 /* fioc */  // CUCL REF out_chan:ky:kx

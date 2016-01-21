@@ -71,13 +71,15 @@ namespace boda
   };
   typedef vector< ix_decl_t > vect_ix_decl_t; 
 
-  void insert_nda_dims_sz( vect_pair_str_str & mss, string const & nda_vn, dims_t const & dims ) {
+  void insert_nda_dims_sz( vect_pair_str_str & mss, string const & nda_vn, dims_t const & dims, bool const & dims_only ) {
     for( uint32_t i = 0; i != dims.sz(); ++i ) {
-      assert_st( dims[i].has_sz_and_stride_and_name() );
       mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_dim", str(dims[i].sz) ) );
-      mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_sz", str(dims[i].stride) ) );
+      if( !dims_only ) { 
+	assert_st( dims[i].has_sz_and_stride_and_name() );
+	mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_sz", str(dims[i].stride) ) ); 
+      }
     }
-    mss.push_back( make_pair( nda_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
+    if( !dims_only ) { mss.push_back( make_pair( nda_vn+"_dims_prod", str(dims.dims_prod()) ) ); } // also emit dim(0)*stride(0)?
   }
 
   void insert_nda_ix_exprs( vect_pair_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr = string() ) {
@@ -153,7 +155,8 @@ namespace boda
       check_args();
       uint32_t num_nonref_args = 0;
       for( uint32_t i = 0; i != rfs.args.size(); ++i ) { 
-	if( rfs.args[i].has_sz_and_stride_and_name() ) { insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i] ); }
+	bool const dims_only = !rfs.args[i].has_sz_and_stride_and_name();
+	insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i], dims_only );
 	if( arg_decls[i].io_type != "REF" ) { ++num_nonref_args; }
       }
 
