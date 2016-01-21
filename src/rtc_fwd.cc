@@ -36,6 +36,7 @@ namespace boda
     string cts; // cts --> conv-type-str
 
     string get_arg( string const & an ) { return must_find( arg_map, an ); }
+    dims_t const & get_arg_dims( string const & an ) { return must_find( conv_ref_dims, an ); }
     void set_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
       must_insert( conv_ref_dims, an, rtc->get_var_dims_floats(vn) );
       must_insert( arg_map, an, vn );
@@ -49,6 +50,7 @@ namespace boda
 	       bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
       cop = cop_;
+      template_var_values = cop->params;
       assert_st( cop->tops.size() >= 1 );
       assert_st( cop->bots.size() >= 1 );
       // add all bots/tops as ref dims and track the mapping from arg name to external (call-scope) name
@@ -73,8 +75,11 @@ namespace boda
 	in_dims = ni->dims;
 	conv_ref_dims["in_ref"] = in_dims; // tconv needs the standard input dims for reference
 	// if the output node's first in_place op is a ReLU, fuse it into this conv. a matching conditional later will omit the relu
-	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
-	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
+	if( is_conv ) {
+	  bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
+	  if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
+	  must_insert( template_var_values, "conv_has_relu", str(conv_has_relu) );
+	} 
 	u32_pt_t kern_sz = cop->kern_sz;
 	if( kern_sz.is_zeros() ) { kern_sz = ni_sz; } // 'global' input special case
 	u32_pt_t const in_pad = cop->in_pad;
@@ -98,12 +103,6 @@ namespace boda
 	conv_ref_dims["stride"] = dims_t( vect_uint32_t{ stride.d[1], stride.d[0] }, vect_string{"y","x"}, 1 );
 	conv_ref_dims["in_pad"] = dims_t( vect_uint32_t{ in_pad.d[1], in_pad.d[0] }, vect_string{"y","x"}, 1 );
 
-	if( is_conv ) {
-	  template_var_values = {{"conv_has_relu",str(conv_has_relu)}}; 
-	} 
-	if( is_pool || cop->is( Spreading_coi ) ) { // pool/spread
-	  template_var_values = {{"avg_pool",must_find(cop->params,"avg_pool")}};
-	}
 	if( cop->is( BckConv_coi ) ) {
 	  // note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will
 	  // always be 1 for the bck conv: 3x3@s2 -> 2x2@s1; 11x11@s4 -> 3x3@s1; 1x1@s1 -> 1x1@s1 ...
@@ -451,9 +450,7 @@ namespace boda
       gen_conv_filts( oi );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const in_id = oi->arg_map["in"];
-      // 'refresh' in arg dims, since it may not be equal to the original conv_pipe dims anymore
-      oi->erase_arg("in");
-      oi->set_arg( rtc, "in", in_id );
+      oi->reset_arg( rtc, "in", in_id ); // reset in, since it may not be equal to the original conv_pipe dims anymore
       dims_t const & in_dims = oi->conv_ref_dims["in"];
       dims_t const & in_xp_dims = oi->conv_ref_dims["in_xp"];
       if( oi->cts != ipconv_str ) { // ipconv uses untransformed filts
@@ -464,13 +461,11 @@ namespace boda
       //in_arg_ids.push_back( cop->bots[2] ); // biases
       if( oi->cts == tconv_str ) {
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,in_xp_dims}, oi->conv_ref_dims, oi->template_var_values } );
-	oi->erase_arg( "in" );
-	oi->set_arg( rtc, "in", gen_apply_func_to_var( in_id, in_xp_dims, xp_fn ) );
+	oi->reset_arg( rtc, "in", gen_apply_func_to_var( in_id, in_xp_dims, xp_fn ) );
       } else if( oi->cts == k1conv_str ) {
 	if( in_dims != in_xp_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
 	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,in_xp_dims}, {} } );
-	  oi->erase_arg( "in" );
-	  oi->set_arg( rtc, "in", gen_apply_func_to_var( in_id, in_xp_dims, xp_fn ) );
+	  oi->reset_arg( rtc, "in", gen_apply_func_to_var( in_id, in_xp_dims, xp_fn ) );
 	} 	
       } 
       dims_t no_dims = oi->conv_ref_dims["out_ref"];
@@ -485,24 +480,18 @@ namespace boda
 	  }
 	}
       }
-      rtc->create_var_with_dims_floats( oi->no->name, no_dims );
-      oi->erase_arg("out");
-      oi->set_arg( rtc, "out", oi->no->name );
-      //in_arg_ids.push_back( oi->no->name );
+      rtc->create_var_with_dims_floats( oi->get_arg("out"), no_dims );
+      oi->reset_arg( rtc, "out", oi->get_arg("out") );
       gen_call( oi->cts, oi );
-      // assert_st( oi->no->dims.dsz("chan") == cop->out_chans ); //unneeded, since out_chans param is redundant with dims?
     } else if( cop->is( ReLU_coi ) ) {
-      assert_st( oi->ni->name == oi->no->name ); // check that this is a single in-out in-place operation
-      oi->set_arg( rtc, "inout", oi->ni->name );
+      assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
+      oi->set_arg( rtc, "inout", oi->get_arg("in") );
       gen_call( "relu", oi );
     } else if( cop->is( LRN_coi ) ) {
-      oi->template_var_values = cop->params;
-      assert_st( get_xy_dims( oi->ni->dims ) == get_xy_dims( oi->no->dims ) );
-      assert_st( oi->ni->dims.dsz("chan") == oi->no->dims.dsz("chan") );
+      assert_st( oi->get_arg_dims("in") == oi->get_arg_dims("out") ); // FIXME: better place/way for this check?
       gen_call( "lrn", oi );
     } else if( cop->is( Dropout_coi ) ) {
-      // check that this is a single in-out in-place operation
-      assert_st( oi->ni->name == oi->no->name );
+      assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       // ignore for fwd
     } else if( cop->is( Softmax_coi ) ) {
       gen_call( "softmax", oi );
