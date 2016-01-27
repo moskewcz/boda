@@ -1,3 +1,10 @@
+# basic net flops analysis (added 2016.01.26) -- customize options as needed. in-dims is optional (to override net)
+boda cnet_ana --in-model=firenet8-CE-0.125 --in-dims='(img=64)' --print-ops=1 && python ../../pysrc/flops.py --ai-mnk=1 --per-layer=1 --per-layer-in-info=0
+
+# basic caffe/boda compute comparison/testing
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda test_compute --model-name=firenet8-CE-0.125 --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=32))' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 && python ../../pysrc/flops.py --ai-mnk=1 --per-layer=1 --per-layer-in-info=0
+
+
 # ----v updated 2015.12.15 v----
 
 # capture classify (alexnet_conv classification, 227x227 input size)
