@@ -483,9 +483,9 @@ namespace boda
     if( node->top_for.empty() ) { isss += " SOURCE"; }
     if( node->bot_for.empty() ) { isss += " SINK"; }
     dims_t const & dims = node->dims;
-    out << strprintf( "net.ndas[\"%s\"] = NDA(\"%s\"", bn.c_str(), bn.c_str() );
+    out << strprintf( "net.add_nda( \"%s\", NDA(\"%s\"", bn.c_str(), bn.c_str() );
     for( uint32_t i = 0; i != dims.size(); ++i ) { out << "," << dims[i].sz; }
-    out << ") #" << isss << " ";
+    out << ") ) #" << isss << " ";
     for( uint32_t i = 0; i != dims.size(); ++i ) { if( i ) { out << ","; } out << dims[i].name; }
     out << "\n";
   }
@@ -493,17 +493,13 @@ namespace boda
   // prior version in git if ressurection desired.
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     char const * const tag_id = cop->tag.c_str();
-    
-    string const pad_and_stride = strprintf( "in_pad=\"%s\",stride=\"%s\"", str(cop->in_pad).c_str(), str(cop->stride).c_str() );
-    if( cop->is( Convolution_coi ) ) { // FIXME: used to handle cop->is( InnerProduct_coi ), not needed?
-      print_blob_decl( out, cop->bots[1], pipe->must_get_node( cop->bots[1] ) );
-      print_blob_decl( out, cop->bots[2], pipe->must_get_node( cop->bots[2] ) );
+    string params = strprintf( ",in_pad=\"%s\",stride=\"%s\",kern_sz=\"%s\"",
+			       str(cop->in_pad).c_str(), str(cop->stride).c_str(), str(cop->kern_sz).c_str());
+    for( map_str_str::const_iterator i = cop->params.begin(); i != cop->params.end(); ++i ) {
+      params += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.c_str() );
     }
-    // print decls for all of this ops output nodes here
-    for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { print_blob_decl( out, *i, pipe->must_get_node(*i) ); }
-    // print acutal op
-    out << strprintf( "%s(name=\"%s\",bot_names=%s,top_names=%s,%s)\n", 
-		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(), pad_and_stride.c_str() );
+    out << strprintf( "net.add_op( %s(name=\"%s\",bot_names=%s,top_names=%s%s) )\n", 
+		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(), params.c_str() );
   }
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
@@ -512,12 +508,14 @@ namespace boda
     else { assert( node->top_for.size() == 1 ); } // multiple writers not handled
     // print in-place ops for this node
     for( vect_p_conv_op_t::const_iterator j = node->in_place_ops.begin(); j != node->in_place_ops.end(); ++j ) {
-      p_conv_op_t const & ip_cop = *j;
-      out << strprintf( "%s(name=\"%s\",in_place=[\"%s\"])\n", ip_cop->type.c_str(), ip_cop->tag.c_str(), node->name.c_str() );
+      print_op_decl( out, this, *j );
     }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+      for( vect_string::const_iterator i = cop->tops.begin(); i != cop->tops.end(); ++i ) { 
+	print_blob_decl( out, *i, must_get_node(*i) ); // print decls for all of this ops output nodes here
+      } 
       print_op_decl( out, this, cop );
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { dump_ops_rec( out, *j ); }
     }

@@ -80,6 +80,9 @@ class Net( object ):
         self.tot_filt_bytes = 0;
         self.tot_in_bytes = 0;
         self.ndas = {}
+        self.ops = []
+    def add_nda( self, vn, nda ): self.ndas[vn] = nda
+    def add_op( self, op ): self.ops.append( op )
 
     def print_stats( self ):
         print "-- INPUT: RUNTIME=%ss --"% (args.runtime, )
@@ -108,7 +111,7 @@ class Net( object ):
 
 
 class Convolution( object ): 
-    def __init__( self, name, bot_names, top_names, in_pad, stride ): 
+    def __init__( self, name, bot_names, top_names, in_pad, stride, kern_sz, out_chans=0, conv_has_relu=0 ): 
         # note: ignores in_pad and stride, but they sort-of aren't
         # needed since the output size is calculated using them. we
         # could use them as a check here, but that would require
