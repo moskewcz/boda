@@ -161,8 +161,8 @@ namespace boda
     void fuse_relus_and_maybe_enable_write_xposed( void );
     void framewx_rec( string const & node_name );
 
-    void add_bck_ops_op( p_conv_op_t const & cop );
-    void add_bck_ops_rec( string const & node_name );
+    void add_bck_ops_op( vect_p_conv_op_t & bck_ops, p_conv_op_t const & cop );
+    void add_bck_ops_rec( vect_p_conv_op_t & bck_ops, string const & node_name );
     void add_bck_ops( void );
 
     void fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, bool const & sinks_only );

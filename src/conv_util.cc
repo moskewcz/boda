@@ -528,12 +528,13 @@ namespace boda
   // running test case for add_bck_ops/gradient calculations:
   // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),out_node_name=conv1_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,show_rtc_calls=0,per_call_fn=out.py,dump_vars=())" --max-err=2 && cat test_compute.txt
 
-  void conv_pipe_t::add_bck_ops_op( p_conv_op_t const & cop ) {
-    if( cop->is( Softmax_coi ) ) { assert_st(0 ); }
+  void conv_pipe_t::add_bck_ops_op( vect_p_conv_op_t & bck_ops, p_conv_op_t const & cop ) {
+    p_conv_op_t bcop;
+    if( cop->is( Softmax_coi ) ) { assert_st(0); }
     else if( cop->is( SoftmaxWithLoss_coi ) ) {
       assert_st( cop->bots[0]+"_grad_loss" == cop->tops[0] );
     } else if( cop->is( Pooling_coi ) ) {
-      p_conv_op_t bcop( new conv_op_t );
+      bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
       bcop->type = Spreading_coi.type;
@@ -542,10 +543,8 @@ namespace boda
       bcop->bots.push_back( bcop->bots[0] + "_grad_loss" );
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input (need size and which-elem-is-max per window) could use mask instead)
       bcop->tops[0] += "_grad_loss"; // note: pooling has no params, so there is second output for parameter gradients (as with some bck ops)
-      if( !has( *nodes, bcop->bots[1] ) ) { printf( "FIXME: missing bot: bcop->bots[1]=%s -- op dropped.\n", str(bcop->bots[1]).c_str() ); }
-      else { add_conv( bcop ); }
     } else if( cop->is( ReLU_coi ) ) {
-      p_conv_op_t bcop( new conv_op_t );
+      bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
       bcop->type = ZeroIfNonPos_coi.type;
@@ -554,10 +553,8 @@ namespace boda
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input
       bcop->bots[0] += "_grad_loss";
       bcop->tops[0] += "_grad_loss"; // note: ReLU has no params, so there is second output for parameter gradients (as with some bck ops)
-      if( !has( *nodes, bcop->bots[0] ) ) { printf( "FIXME: missing bot: bcop->bots[0]=%s -- op dropped.\n", str(bcop->bots[0]).c_str() ); }
-      else { add_conv( bcop ); }
     } else if( cop->is( Convolution_coi ) ) {
-      p_conv_op_t bcop( new conv_op_t );
+      bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
       bcop->params.clear(); // don't need/want out_chans (arguably should be removed from Convolution after setup too?)
@@ -565,41 +562,45 @@ namespace boda
       bcop->bots.push_back( bcop->tops[0] + "_grad_loss" ); // take _grad_loss of fwd conv output as input as well
       bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { bcop->tops.push_back( bcop->bots[i] + "_grad_loss" ); } // outputs grads
       bcop->tag += "_bck";
-      if( !has( *nodes, bcop->bots.back() ) ) { printf( "FIXME: BckConv: missing bot: bcop->bots.back()=%s -- op dropped.\n", str(bcop->bots.back()).c_str() ); }
-      else { add_conv( bcop ); }
     } else {
       printf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
     }
+    if( bcop ) { bck_ops.push_back( bcop ); }
   }
-  void conv_pipe_t::add_bck_ops_rec( string const & node_name ) {
+  void conv_pipe_t::add_bck_ops_rec( vect_p_conv_op_t & bck_ops, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
+    if( node->bot_for.size() == 0 ) { 
+      // when add_bck_ops==1, we assume that all net tops/sinks should be produced by a SoftmaxWithLoss operation. that
+      // is, we assume that the 'real' or raw outputs of the fwd net are already 'capped' with a combo
+      // loss-function/fwd-top-gradient-producing node. we check that here:
+      assert_st( node->top_for.size() == 1 );
+      if( !get_op(node->top_for[0])->is(SoftmaxWithLoss_coi) ) {
+	rt_err( strprintf( "add_bck_ops: unhandled: top node %s not produced by SoftmaxWithLoss op", node_name.c_str() ) );
+      }
+    }
     for( vect_p_conv_op_t::const_reverse_iterator j = node->in_place_ops.rbegin(); j != node->in_place_ops.rend(); ++j ) {
       p_conv_op_t const & ip_cop = *j;
       // FIXME: handle bck for in_place_opts. note: as usual, in_place_ops seem to be problematic or at least special. 
-      add_bck_ops_op( ip_cop );
+      add_bck_ops_op( bck_ops, ip_cop );
     }
-    for( vect_string::const_iterator i = node->top_for.begin(); i != node->top_for.end(); ++i ) {
+    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t cop = get_op( *i );
-      if( !cop->on_seen_top() ) { continue; } // wait till we've seen all tops to process an op
-      add_bck_ops_op( cop );
-      for( vect_string::const_iterator j = cop->bots.begin(); j != cop->bots.end(); ++j ) { add_bck_ops_rec( *j ); }
+      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bots to process an op
+      add_bck_ops_op( bck_ops, cop );
+      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { 
+	add_bck_ops_rec( bck_ops, *j ); 
+      }
+    }
+    if( node->bot_for.size() > 1 ) { 
+      // nodes that are used in multiple places may need reductions. if _grad_loss_N nodes were created for this node,
+      // reduce them here into a single _grad_loss node
     }
   }
   void conv_pipe_t::add_bck_ops( void ) {
-    assert( !has_bck_ops.v );
+    vect_p_conv_op_t bck_ops;
     topo_visit_setup();
-    vect_string fwd_tops{ tops.begin(), tops.end() };
-    for( vect_string::const_iterator i = fwd_tops.begin(); i != fwd_tops.end(); ++i ) {
-      // when add_bck_ops==1, we assume that all tops should be produced by a SoftmaxWithLoss operation. that is, we
-      // assume that the 'real' or raw outputs of the fwd net are already 'capped' with a combo
-      // loss-function/fwd-top-gradient-producing node. we check that here:
-      p_conv_node_t node = must_get_node( *i );
-      assert_st( node->top_for.size() == 1 );
-      if( !get_op(node->top_for[0])->is(SoftmaxWithLoss_coi) ) {
-	rt_err( strprintf( "add_bck_ops: unhandled: top node %s not produced by SoftmaxWithLoss op", str(*i).c_str() ) );
-      }
-      add_bck_ops_rec( *i ); 
-    }
+    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { add_bck_ops_rec( bck_ops, *i ); }
+    while( !bck_ops.empty() ) { add_conv( bck_ops.back() ); bck_ops.pop_back(); }
     has_bck_ops.v = 1;
   }
 
