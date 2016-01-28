@@ -162,7 +162,7 @@ class Convolution( object ):
             print ""
 
 class BckConv( object ): 
-    def __init__( self, name, bot_names, top_names, in_pad, stride ): 
+    def __init__( self, name, bot_names, top_names, in_pad, stride, kern_sz ): 
         global net
         assert len(bot_names) == 4
         assert len(top_names) == 3
