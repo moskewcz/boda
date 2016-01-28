@@ -167,7 +167,11 @@ namespace boda
     if( !did_ins ) { rt_err( strprintf( "duplicate conv op '%s' seen; can't process net", conv->tag.c_str() ) ); }
     if( in_place ) { return; } // don't add in-place ops to top_for and bot_for
     for( vect_string::const_iterator i = conv->tops.begin(); i != conv->tops.end(); ++i ) {
-      get_or_make_node( *i, 0, 1 )->top_for.push_back( conv->tag );
+      p_conv_node_t tn = get_or_make_node( *i, 0, 1 );
+      tn->top_for.push_back( conv->tag );
+      if( tn->top_for.size() != 1 ) {
+	rt_err( "unhandled multiple writers for node '"+(*i)+"'. first two writers: " + str(tn->top_for) ); 
+      }
     }
     for( vect_string::const_iterator i = conv->bots.begin(); i != conv->bots.end(); ++i ) {
       get_or_make_node( *i, 1, 0 )->bot_for.push_back( conv->tag );
@@ -178,9 +182,7 @@ namespace boda
   // otherwise, throw an error.
   p_conv_op_t conv_pipe_t::maybe_get_single_writer( p_conv_node_t const & node ) const {
     if( node->top_for.empty() ) { return p_conv_op_t(); }
-    if( node->top_for.size() != 1 ) { 
-      rt_err( "unhandled multiple writers for node: " + node->name ); 
-    }
+    assert_st( node->top_for.size() == 1 );
     return get_op( node->top_for[0] );
   }
   p_conv_op_t conv_pipe_t::get_single_writer( p_conv_node_t const & node ) const {
@@ -255,6 +257,7 @@ namespace boda
   }
   void conv_pipe_t::calc_support_forward_rec( string const & node_name, bool const ignore_padding ) {
     p_conv_node_t const & node = must_get_node( node_name );
+    assert_st( node->top_for.size() <= 1 ); // multiple writers not handled
     // propogate support info forward from node to all ops that it feeds and thier outputs
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t const & cop = get_op( *i );
