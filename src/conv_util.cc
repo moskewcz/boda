@@ -156,16 +156,15 @@ namespace boda
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
     conv->set_and_check_coi();
-    bool in_place = 0;
     if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) ) { 
       if( conv->is(ZeroIfNonPos_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }
       else { assert_st( conv->tops == conv->bots ); }
       get_or_make_node(conv->bots[0], 0, 0 )->in_place_ops.push_back( conv );
-      in_place = 1;
+      conv->in_place.v = 1;
     }
     bool did_ins = convs->insert( make_pair( conv->tag, conv ) ).second;
     if( !did_ins ) { rt_err( strprintf( "duplicate conv op '%s' seen; can't process net", conv->tag.c_str() ) ); }
-    if( in_place ) { return; } // don't add in-place ops to top_for and bot_for
+    if( conv->in_place.v ) { return; } // don't add in-place ops to top_for and bot_for
     for( vect_string::const_iterator i = conv->tops.begin(); i != conv->tops.end(); ++i ) {
       p_conv_node_t tn = get_or_make_node( *i, 0, 1 );
       tn->top_for.push_back( conv->tag );
@@ -531,6 +530,19 @@ namespace boda
   // running test case for add_bck_ops/gradient calculations:
   // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),out_node_name=conv1_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,show_rtc_calls=0,per_call_fn=out.py,dump_vars=())" --max-err=2 && cat test_compute.txt
 
+  // for the given input node name of the given operation, return the proper node name for this operation's contribution
+  // to the _grad_loss of the input. when an input is used by only this operation, that is just the input node name +
+  // "_grad_loss". otherwise, it will be a partial contribution, with the name of the op appended.
+  string conv_pipe_t::get_grad_loss_onn( p_conv_op_t const & cop, string const & inn ) {
+    p_conv_node_t in = must_get_node( inn );
+    assert_st( !in->bot_for.empty() );
+    string onn = inn + "_grad_loss";
+    if( in->bot_for.size() == 1 ) { return onn; }
+    if( cop->in_place.v ) { return onn; } // as usual, in_place handling sucks. hopefully this is right?
+    onn += "_" + cop->tag;
+    return onn;
+  }
+
   void conv_pipe_t::add_bck_ops_op( vect_p_conv_op_t & bck_ops, p_conv_op_t const & cop ) {
     p_conv_op_t bcop;
     if( cop->is( Softmax_coi ) ) { assert_st(0); }
@@ -545,7 +557,7 @@ namespace boda
       swap( bcop->tops, bcop->bots );
       bcop->bots.push_back( bcop->bots[0] + "_grad_loss" );
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input (need size and which-elem-is-max per window) could use mask instead)
-      bcop->tops[0] += "_grad_loss"; // note: pooling has no params, so there is second output for parameter gradients (as with some bck ops)
+      bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] ); // note: pooling has no params, so there is second output for parameter gradients (as with some bck ops)
     } else if( cop->is( ReLU_coi ) ) {
       bcop.reset( new conv_op_t );
       *bcop = *cop;
@@ -555,7 +567,7 @@ namespace boda
       swap( bcop->tops, bcop->bots );
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input
       bcop->bots[0] += "_grad_loss";
-      bcop->tops[0] += "_grad_loss"; // note: ReLU has no params, so there is second output for parameter gradients (as with some bck ops)
+      bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] ); // note: ReLU has no params, so there is second output for parameter gradients (as with some bck ops)
     } else if( cop->is( Convolution_coi ) ) {
       bcop.reset( new conv_op_t );
       *bcop = *cop;
@@ -563,7 +575,9 @@ namespace boda
       bcop->params.clear(); // don't need/want out_chans (arguably should be removed from Convolution after setup too?)
       bcop->type = BckConv_coi.type;
       bcop->bots.push_back( bcop->tops[0] + "_grad_loss" ); // take _grad_loss of fwd conv output as input as well
-      bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { bcop->tops.push_back( bcop->bots[i] + "_grad_loss" ); } // outputs grads
+      bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { 
+	bcop->tops.push_back( get_grad_loss_onn( cop, bcop->bots[i] ) ); // outputs grads
+      }
       bcop->tag += "_bck";
     } else {
       printf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );

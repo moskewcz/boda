@@ -61,6 +61,7 @@ namespace boda
 
     vect_string tops; // inputs (by node/blob name)
     vect_string bots; // outputs (by node/blob name)
+    zi_bool in_place; // set to 1 in add_conv() is the op in in_place (and omitted from top_for/bot_for lists)
 
     u32_pt_t out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const;
     u32_pt_t in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const;
@@ -161,6 +162,7 @@ namespace boda
     void fuse_relus_and_maybe_enable_write_xposed( void );
     void framewx_rec( string const & node_name );
 
+    string get_grad_loss_onn( p_conv_op_t const & cop, string const & inn );
     void add_bck_ops_op( vect_p_conv_op_t & bck_ops, p_conv_op_t const & cop );
     void add_bck_ops_rec( vect_p_conv_op_t & bck_ops, string const & node_name );
     void add_bck_ops( void );
