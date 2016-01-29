@@ -417,7 +417,7 @@ namespace boda
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
 	dims_t & dims_in = cp->must_get_node( cop->bots[bi] )->dims;
-	assert_st( get_xy_dims( cp->must_get_node( cop->bots[bi] )->dims ) == get_xy_dims( oi->get_arg_dims("out") ) );
+	assert_st( get_xy_dims( dims_in ) == get_xy_dims( oi->get_arg_dims("out") ) );
 	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->get_arg_dims("out").dsz("chan") );
 	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->template_var_values = { {"ocix",str(chans_out_done)} };
@@ -427,6 +427,20 @@ namespace boda
 	oi->erase_arg( "in" );
       }
       assert_st( chans_out_done == oi->get_arg_dims("out").dsz("chan") );
+    } else if( cop->is( Split_coi ) ) { // FIXME: pretty dup'd with Concat above ... generalize/merge/share?
+      uint32_t chans_in_done = 0;
+      for( uint32_t ti = 0; ti != cop->tops.size(); ++ti ) {
+	dims_t & dims_out = cp->must_get_node( cop->tops[ti] )->dims;
+	assert_st( get_xy_dims( dims_out ) == get_xy_dims( oi->get_arg_dims("in") ) );
+	assert_st( chans_in_done+dims_out.dsz("chan") <= oi->get_arg_dims("in").dsz("chan") );
+	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
+        oi->template_var_values = { {"icix",str(chans_in_done)} };
+	oi->set_arg( rtc, "out", cop->tops[ti] );
+	gen_call( "split_copy", oi );
+	chans_in_done += dims_out.dsz("chan");
+	oi->erase_arg( "out" );
+      }
+      assert_st( chans_in_done == oi->get_arg_dims("in").dsz("chan") );
     } else if( cop->is( Pooling_coi ) ) {
       gen_call( "pool", oi );
     } else if( cop->is( Convolution_coi ) ) {

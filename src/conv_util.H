@@ -37,6 +37,8 @@ namespace boda
   extern conv_op_info_t const SoftmaxWithLoss_coi;
   extern conv_op_info_t const Data_coi;
   extern conv_op_info_t const Concat_coi;
+  extern conv_op_info_t const Reduce_coi;
+  extern conv_op_info_t const Split_coi;
   extern conv_op_info_t const InnerProduct_coi;
   extern conv_op_info_t const Spreading_coi;
   extern conv_op_info_t const ZeroIfNonPos_coi;
