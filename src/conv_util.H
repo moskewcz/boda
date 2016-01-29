@@ -23,6 +23,7 @@ namespace boda
     vect_string tops;
     map_str_str params;
     zi_bool has_var_bots;
+    zi_bool has_var_tops;
     string bot_an( uint32_t const & ix ) const;
     string top_an( uint32_t const & ix ) const;
   };

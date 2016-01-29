@@ -20,12 +20,16 @@ namespace boda
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}} };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
-  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"},{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"}} };
+  map_str_str const LRN_params{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"}};
+  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_params };
+  conv_op_info_t const BckLRN_coi{ "BckLRN", {"in"}, {"out"}, LRN_params };
   conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
   conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"prob"} };
   conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "in", "label" },{ "in_grad_loss", "loss" } };
   conv_op_info_t const Data_coi{ "Data", {}, {"out"} }; // note: no inputs / source
   conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, zi_bool(1) };
+  conv_op_info_t const Reduce_coi{ "Reduce", {"ins"}, {"out"}, {}, zi_bool(1) };
+  conv_op_info_t const Split_coi{ "Split", {"in"}, {"outs"}, {}, zi_bool(0), zi_bool(1) };
   conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"} };
   // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
@@ -37,14 +41,18 @@ namespace boda
     { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" } };
 
   vect_rp_conv_op_info_t conv_op_infos{ &Pooling_coi, &Convolution_coi, &ReLU_coi, &Dropout_coi, &LRN_coi, 
-      &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &InnerProduct_coi, &Spreading_coi,
-      &ZeroIfNonPos_coi, &BckConv_coi };
+      &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &Reduce_coi, &Split_coi,
+      &InnerProduct_coi, &Spreading_coi,
+      &BckLRN_coi, &ZeroIfNonPos_coi, &BckConv_coi };
 
   string conv_op_info_t::bot_an( uint32_t const & ix ) const {
     if( has_var_bots.v ) { assert_st( bots.size() == 1 ); return bots[0] + "_" + str(ix); }
     else { assert_st( ix < bots.size() ); return bots[ix]; }
   }
-  string conv_op_info_t::top_an( uint32_t const & ix ) const { assert_st( ix < tops.size() ); return tops[ix]; }
+  string conv_op_info_t::top_an( uint32_t const & ix ) const { 
+    if( has_var_tops.v ) { assert_st( tops.size() == 1 ); return tops[0] + "_" + str(ix); }
+    else { assert_st( ix < tops.size() ); return tops[ix]; }
+  }
 
   // type string checking + verify input/output argument count and other sanity checks
   bool conv_op_t::is( conv_op_info_t const & coi_ ) const { assert_st( coi ); return coi == &coi_; }
@@ -54,10 +62,12 @@ namespace boda
       if( type == (*i)->type ) { coi = *i; }
     }
     if( !coi ) { rt_err( strprintf( "Unknown operation of type '%s'.", str(type).c_str() ) ); }
-    if( coi->tops.size() != tops.size() ) {
+    if( coi->has_var_tops.v ? ( coi->tops.size() > tops.size() ) : ( coi->tops.size() != tops.size() ) ) {
       rt_err( strprintf( "Wrong number of output arguments for operation of type '%s'. "
-			 "had: tops.size()=%s, expected: coi->tops.size()=%s\n", 
-			 str(coi->type).c_str(), str(tops.size()).c_str(), str(coi->tops.size()).c_str() ) );
+			 "had: tops.size()=%s, expected: coi->tops.size()%s=%s\n", 
+			 str(coi->type).c_str(), str(tops.size()).c_str(), 
+			 coi->has_var_tops.v ? ">" : "",
+			 str(coi->tops.size()).c_str() ) );
     }
     if( coi->has_var_bots.v ? ( coi->bots.size() > bots.size() ) : ( coi->bots.size() != bots.size() ) ) {
       rt_err( strprintf( "Wrong number of input arguments for operation of type '%s'. "
@@ -156,6 +166,7 @@ namespace boda
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
     conv->set_and_check_coi();
+    //printf( "conv->tag=%s conv->tops=%s conv->bots=%s\n", str(conv->tag).c_str(), str(conv->tops).c_str(), str(conv->bots).c_str() );
     if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) ) { 
       if( conv->is(ZeroIfNonPos_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }
       else { assert_st( conv->tops == conv->bots ); }
@@ -210,6 +221,9 @@ namespace boda
     // FIXME?: for now, we don't try to calculate support info for bck operations 
     if( cop->is( BckConv_coi ) ) {
     } else if( cop->is( Spreading_coi ) ) { 
+    } else if( cop->is( Split_coi ) ) { 
+    } else if( cop->is( Reduce_coi ) ) { 
+    } else if( cop->is( BckLRN_coi ) ) { 
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
       assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
@@ -289,7 +303,26 @@ namespace boda
       }
     } else if( cop->is( Spreading_coi ) ) { 
       dims_out = must_get_node(cop->bots[2])->dims;
-      // FIXME?: for now, we don't try to calculate support info for bck operations 
+    } else if( cop->is( BckLRN_coi ) ) { 
+      dims_out = must_get_node(cop->bots[0])->dims;
+    } else if( cop->is( Split_coi ) ) { 
+      // FIXME? for now, we 'cheat' and get the dims of split outputs from the dims of the corresponding non-grad-loss
+      // nodes. the obvious (cleaner/better?) alternative would be to put the split information into the split operation
+      // itself.
+      for( uint32_t i = 0; i != cop->tops.size(); ++i ) { 
+	string non_gl_nn = cop->tops[i];
+	bool is_gl = maybe_strip_suffix( non_gl_nn, "_grad_loss" );
+	assert_st( is_gl );
+	must_get_node(cop->tops[i])->dims = must_get_node(non_gl_nn)->dims;
+      }
+    } else if( cop->is( Reduce_coi ) ) {
+      assert( cop->bots.size() );
+      dims_out = must_get_node(cop->bots[0])->dims;
+      for( uint32_t i = 1; i != cop->bots.size(); ++i ) {
+	if( must_get_node(cop->bots[i])->dims != dims_out ) {
+	  rt_err("internal error: Reduce operation inputs not all same dims: " + str(cop->bots));
+	}
+      }
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       dims_out = must_get_node(cop->bots[0])->dims;
       dims_t & loss_dims = must_get_node( cop->tops[1] )->dims;
@@ -365,10 +398,13 @@ namespace boda
   void conv_pipe_t::calc_dims( void ) {
     topo_visit_setup(); 
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) {  calc_dims_rec( *i ); }  
+    vect_string no_dims_nodes;
     for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) { 
-      dims_t const & d = i->second->dims;
-      //printf( "post calc_dims() %s dims: %s\n", i->first.c_str(), str(d).c_str() );
-      if( d.empty() ) { rt_err( strprintf( "error: no dims calculated for node %s after calc_dims()", str(i->first).c_str() ) ); }
+      //printf( "post calc_dims() %s dims: %s\n", i->first.c_str(), str(i->second->dims).c_str() );
+      if( i->second->dims.empty() ) { no_dims_nodes.push_back( i->first ); }
+    }
+    if( !no_dims_nodes.empty() ) {
+      rt_err( strprintf( "error: no dims calculated for nodes '%s' after calc_dims()", str(no_dims_nodes).c_str() ) );
     }
   }
   
@@ -579,6 +615,25 @@ namespace boda
 	bcop->tops.push_back( get_grad_loss_onn( cop, bcop->bots[i] ) ); // outputs grads
       }
       bcop->tag += "_bck";
+    } else if( cop->is( Concat_coi ) ) {
+      bcop.reset( new conv_op_t );
+      *bcop = *cop;
+      bcop->coi = 0;
+      bcop->type = Split_coi.type;
+      bcop->tag += "_bck";
+      swap( bcop->tops, bcop->bots );
+      bcop->bots[0] += "_grad_loss";
+      for( uint32_t i = 0; i != bcop->tops.size(); ++i ) { bcop->tops[i] = get_grad_loss_onn( cop, bcop->tops[i] ); }
+    } else if( cop->is( LRN_coi ) ) {
+      bcop.reset( new conv_op_t );
+      *bcop = *cop;
+      bcop->coi = 0;
+      bcop->type = BckLRN_coi.type;
+      bcop->tag += "_bck";
+      swap( bcop->tops, bcop->bots );
+      //bcop->bots.push_back( bcop->tops[0] ); // take original input as input
+      bcop->bots[0] += "_grad_loss";
+      bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] );
     } else {
       printf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
     }
@@ -600,6 +655,21 @@ namespace boda
       // FIXME: handle bck for in_place_opts. note: as usual, in_place_ops seem to be problematic or at least special. 
       add_bck_ops_op( bck_ops, ip_cop );
     }
+    if( node->bot_for.size() > 1 ) { 
+      // nodes that are used in multiple places may need reductions. if _grad_loss_OP nodes will get created for this
+      // node, we will need to reduce them into a single _grad_loss node. if not, we'll later delete this op.
+      //printf( "node->name=%s node->bot_for=%s\n", str(node->name).c_str(), str(node->bot_for).c_
+      p_conv_op_t bcop( new conv_op_t );
+      bcop->type = Reduce_coi.type;
+      string const nn_gl = node_name + "_grad_loss";
+      bcop->tag  = "reduce_" + nn_gl;
+      bcop->tops.push_back( nn_gl );
+      for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+	bcop->bots.push_back( nn_gl + "_" + (*i) );
+      }
+      printf( "bcop->tag=%s bcop->bots=%s bcop->tops=%s\n", str(bcop->tag).c_str(), str(bcop->bots).c_str(), str(bcop->tops).c_str() );
+      bck_ops.push_back( bcop );
+    }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
       p_conv_op_t cop = get_op( *i );
       if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bots to process an op
@@ -608,16 +678,23 @@ namespace boda
 	add_bck_ops_rec( bck_ops, *j ); 
       }
     }
-    if( node->bot_for.size() > 1 ) { 
-      // nodes that are used in multiple places may need reductions. if _grad_loss_N nodes were created for this node,
-      // reduce them here into a single _grad_loss node
-    }
   }
   void conv_pipe_t::add_bck_ops( void ) {
     vect_p_conv_op_t bck_ops;
     topo_visit_setup();
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { add_bck_ops_rec( bck_ops, *i ); }
-    while( !bck_ops.empty() ) { add_conv( bck_ops.back() ); bck_ops.pop_back(); }
+    while( !bck_ops.empty() ) { 
+      p_conv_op_t bcop = bck_ops.back();
+      if( bcop->type == Reduce_coi.type ) { 
+	assert_st( bcop->tops.size() && bcop->bots.size() );
+	if( !has( *nodes, bcop->tops[0] ) && has( *nodes, bcop->bots[0] ) ) {
+	  // if node that this reduce op would write does not exist, but it's first input does, assume we need/want this
+	  // reduce. FIXME: check existance of other inputs? will get caught as missing dims later i guess ...
+	} else { bcop.reset(); } // otherwise, reduce is unneeded/invalid, so drop it
+      }
+      if( bcop ) { add_conv( bcop ); }
+      bck_ops.pop_back(); 
+    }
     has_bck_ops.v = 1;
   }
 

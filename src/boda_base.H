@@ -146,6 +146,7 @@ namespace boda
   typedef map< string, zi_uint32_t > map_str_ziu32_t;
   typedef map< string, double > map_str_double;
   typedef map< string, string > map_str_str;
+  typedef map< string, vect_string > map_str_vect_string;
 
   template< typename T > struct check_T { typedef void void_; typedef int int_; };
 
