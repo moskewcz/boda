@@ -667,7 +667,6 @@ namespace boda
       for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
 	bcop->bots.push_back( nn_gl + "_" + (*i) );
       }
-      printf( "bcop->tag=%s bcop->bots=%s bcop->tops=%s\n", str(bcop->tag).c_str(), str(bcop->bots).c_str(), str(bcop->tops).c_str() );
       bck_ops.push_back( bcop );
     }
     for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
