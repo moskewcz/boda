@@ -329,22 +329,24 @@ namespace boda
 
     for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
       if( arg_decls[i].io_type == "REF" ) { continue; }
-      map_str_str::const_iterator an = rcg_func_call.arg_map.find( arg_decls[i].vn );
+      string const & avn = arg_decls[i].vn;
+      map_str_str::const_iterator an = rcg_func_call.arg_map.find( avn );
       if( an == rcg_func_call.arg_map.end() ) {
-	rt_err( "specified "+arg_decls[i].io_type+" arg '"+arg_decls[i].vn+"' not found in arg_map at call time." ); 
+	rt_err( "specified "+arg_decls[i].io_type+" arg '"+avn+"' not found in arg_map at call time." ); 
+      }
+      dims_t const & func_dims = must_find( rfs.ref_dims, avn );
+      // FIXME/note: we can't/don't check call dims for variable-sized ref_dims. this seems less than ideal.
+      // one exampl of such usage is in var_stats.
+      if( func_dims.has_sz_and_stride_and_name() ) { 
+	dims_t const & call_dims = rtc->get_var_dims_floats( an->second );
+	if( call_dims != func_dims ) {
+	  rt_err( strprintf( "error: dims mismatch at call time for arg %s: call_dims=%s func_dims=%s\n", 
+			     avn.c_str(), str(call_dims).c_str(), str(func_dims).c_str() ) );
+	}	  
       }
       rfc.in_args.push_back( an->second );
     }
-
     uint32_t call_blks = blks; // if non-zero, blks is static, and we can check arg sizes
-    //printf( "name=%s arg_sizes=%s rfc.args.size()=%s\n", str(name).c_str(), str(arg_sizes).c_str(), str(rfc.args.size()).c_str() );
-
-    // FIXME: arg size checking bot broken/removed during the
-    // ocl/nvrtc split/factoring out. oops. also, arg_sizes (or
-    // whatever it becomes) probably needs to be split into
-    // in/inout/out parts or something.
-    // assert_st( arg_sizes.size() == rfc.in_args.size() ); FIXME: port or remove
-
     if( !call_blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here
       assert_st( rfc.u32_args.size() > 0 );
