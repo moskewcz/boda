@@ -230,6 +230,7 @@ namespace boda
 	  if( adi != rfs.ref_dims.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
 	  else { arg_err += "  CALL: not found in ref dims.\n"; }
 	}
+	arg_err += "full rfs: " + str(rfs) + "\n";
 	rt_err( arg_err );
       }
     }
