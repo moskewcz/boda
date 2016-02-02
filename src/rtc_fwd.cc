@@ -446,6 +446,8 @@ namespace boda
 	oi->erase_arg( "out" );
       }
       assert_st( chans_in_done == oi->get_arg_dims("in").dsz("chan") );
+    } else if( cop->is( Reduce_coi ) ) {
+      gen_call( "reduce", oi );
     } else if( cop->is( Pooling_coi ) ) {
       gen_call( "pool", oi );
     } else if( cop->is( Convolution_coi ) ) {
