@@ -34,12 +34,10 @@ namespace boda
 
   struct rtc_func_sig_t { 
     string fn;
-    vect_dims_t args;
     map_str_dims_t ref_dims;
     map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     bool operator < ( rtc_func_sig_t const & o ) const { 
       if( fn != o.fn ) { return fn < o.fn; }
-      if( args != o.args ) { return args < o.args; }
       if( ref_dims != o.ref_dims ) { return ref_dims < o.ref_dims; }
       if( template_var_values != o.template_var_values ) { return template_var_values < o.template_var_values; }
       return 0;
@@ -48,7 +46,7 @@ namespace boda
     string gen_unused_fn( rtc_func_names_map_t & fns ) const;
   };
   inline std::ostream & operator << ( std::ostream & out, rtc_func_sig_t const & o ) {
-    return out << strprintf( "o.fn=%s o.args=%s", str(o.fn).c_str(), str(o.args).c_str() );
+    return out << strprintf( "o.fn=%s o.ref_dims=%s", str(o.fn).c_str(), str(o.ref_dims).c_str() );
   }
 
   struct arg_decl_t {
@@ -115,7 +113,6 @@ namespace boda
     // info needed to make call
     string gen_fn;
     bool has_final_flags_arg;
-    vect_uint32_t arg_sizes;
     uint32_t tpb;
     uint32_t blks;
 
@@ -128,10 +125,12 @@ namespace boda
     }
     void set( string const &var, string const &val ) { tf_exprs.push_back( std::make_pair( var, val )); }
 
-
-    dims_t const & get_arg_dims_by_name( string const & arg_vn ) {
-      for( uint32_t i = 0; i != arg_decls.size(); ++i ) { if( arg_decls[i].vn == arg_vn ) { return rfs.args.at(i); } }
-      rt_err( strprintf( "referenced arg '%s' not declared\n", str(arg_vn).c_str() ) );
+    dims_t const & get_arg_dims_by_name( string const & arg_vn, string const & err_tag = "TEMPLATE" ) {
+      map_str_dims_t::const_iterator i = rfs.ref_dims.find( arg_vn );
+      if( i == rfs.ref_dims.end() ) { 
+	rt_err( strprintf( "referenced %s arg '%s' not present in ref_dims", err_tag.c_str(), arg_vn.c_str() ) );
+      }
+      return i->second;
     }
     
     void init( custom_codegen_t * const custom_codegen, rtc_func_sig_t const & rfs_, string const & gen_fn_, string & rtc_prog_str ) {
@@ -144,29 +143,20 @@ namespace boda
       }
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
-      for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
-	if( i < rfs.args.size() ) { continue; } // arg was passed positionally, no need to search by name
-	assert_st( rfs.args.size() == i ); // otherwise, we should be finding the next arg
-	if( !has( rfs.ref_dims, arg_decls[i].vn ) ) { 
-	  rt_err( "specified "+arg_decls[i].io_type+" dim '"+arg_decls[i].vn+
-		  "' not found during template instantiation." ); }
-	rfs.args.push_back( must_find( rfs.ref_dims, arg_decls[i].vn ) );
-      }
       check_args();
       uint32_t num_nonref_args = 0;
-      for( uint32_t i = 0; i != rfs.args.size(); ++i ) { 
-	bool const dims_only = !rfs.args[i].has_sz_and_stride_and_name();
-	insert_nda_dims_sz( tf_exprs, arg_decls[i].vn, rfs.args[i], dims_only );
-	if( arg_decls[i].io_type != "REF" ) { ++num_nonref_args; }
+      for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
+	dims_t const & arg_dims = must_find( rfs.ref_dims, i->vn );
+	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
+	insert_nda_dims_sz( tf_exprs, i->vn, arg_dims, dims_only );
+	if( i->io_type != "REF" ) { ++num_nonref_args; }
       }
 
-      arg_sizes.resize( num_nonref_args ); // values unused, but size must match # args at call time
-      // FIXME: gen_call() doesn't handle num_nonref_args != arg_decls.size() case yet
       tpb = 0;
       blks = 0;
       uint32_t const default_tpb = 256; // FIXME: make 'reasonable default' tpb configurable/heurisitic
       for( vect_ix_decl_t::const_iterator i = ix_decls.begin(); i != ix_decls.end(); ++i ) {
-	dims_t const & ix_arg_dims = get_arg_dims_by_name( i->arg_vn );
+	dims_t const & ix_arg_dims = get_arg_dims_by_name( i->arg_vn, "IX" );
 	if( !ix_arg_dims.has_sz_and_stride_and_name() ) { rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" ); }
 	dims_t ix_dims;
 	if( i->use_dims.empty() ) { ix_dims = ix_arg_dims; } 
@@ -210,26 +200,35 @@ namespace boda
 
     void check_args( void ) {
       string arg_check_error;
-      if( rfs.args.size() != arg_decls.size() ) { arg_check_error = "declared/called argument count mismatch"; }
-      else {
-	for( uint32_t i = 0; i != rfs.args.size(); ++i ) {
-	  if( !rfs.args[i].has_name() ) { arg_check_error += "call arg "+str(i)+ " must have names for all dims; "; }
-	  if( rfs.args[i].has_sz_and_stride_and_name() && rfs.args[i].has_padding() ) { 
-	    arg_check_error += "call args "+str(i)+ " must not have padding; "; } // FIXME: maybe too strong
-	  bool matches_decl = 0;
-	  for( uint32_t j = 0; j != arg_decls[i].ok_dims.size(); ++j ) {
-	    if( rfs.args[i].matches_template( arg_decls[i].ok_dims[j] ) ) { matches_decl = 1; }
-	  }
-	  if( !matches_decl ) { arg_check_error += "call arg "+str(i)+" incompatible with decl arg "
-	      "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
+
+      for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
+	uint32_t const ix = i - arg_decls.begin();
+	map_str_dims_t::const_iterator adi = rfs.ref_dims.find( i->vn );
+	if( adi == rfs.ref_dims.end() ) {
+	  arg_check_error +=  strprintf( "referenced %s arg '%s' not present in ref_dims; ", 
+					 i->io_type.c_str(), i->vn.c_str() );
+	  continue;
 	}
+	dims_t const & arg_dims = adi->second;
+	if( !arg_dims.has_name() ) { arg_check_error += "call arg "+str(ix)+ " must have names for all dims; "; }
+	if( arg_dims.has_sz_and_stride_and_name() && arg_dims.has_padding() ) { 
+	  arg_check_error += "call args "+str(ix)+ " must not have padding; "; } // FIXME: maybe too strong
+	bool matches_decl = 0;
+	for( uint32_t j = 0; j != i->ok_dims.size(); ++j ) {
+	  if( arg_dims.matches_template( i->ok_dims[j] ) ) { matches_decl = 1; }
+	}
+	if( !matches_decl ) { arg_check_error += "call arg "+str(ix)+" incompatible with decl arg "
+	    "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
+
       }
       if( !arg_check_error.empty() ) {
 	string arg_err = "RTC template function instantiation argument error: " + rfs.fn + ": " + arg_check_error + "\n";
-	for( uint32_t i = 0; i != std::max(rfs.args.size(),arg_decls.size()); ++i ) {
-	  arg_err += strprintf( "ARG[%s]:\n", str(i).c_str() );
-	  if( i < arg_decls.size() ) { arg_err += strprintf( "  DECL: %s\n", str(arg_decls[i]).c_str() ); }
-	  if( i < rfs.args.size() ) {  arg_err += strprintf( "  CALL: %s\n", str(rfs.args[i]).c_str() ); }
+	for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
+	  arg_err += strprintf( "ARG[%s]:\n", str(i - arg_decls.begin()).c_str() );
+	  arg_err += strprintf( "  DECL: %s\n", str(*i).c_str() );
+	  map_str_dims_t::const_iterator adi = rfs.ref_dims.find( i->vn );
+	  if( adi != rfs.ref_dims.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
+	  else { arg_err += "  CALL: not found in ref dims.\n"; }
 	}
 	rt_err( arg_err );
       }
@@ -307,10 +306,8 @@ namespace boda
   string rtc_func_sig_t::gen_unused_fn( rtc_func_names_map_t & fns ) const {
     string maybe_fn_base = fn;
     set_string unique_dims;
-    vect_dims_t all_dims = args;
-    for( map_str_dims_t::const_iterator i = ref_dims.begin(); i != ref_dims.end(); ++i ) { all_dims.push_back( i->second ); } // note: name ignores
-    for( vect_dims_t::const_iterator i = args.begin(); i != args.end(); ++i ) {
-      dims_t const & dims = *i;
+    for( map_str_dims_t::const_iterator ra = ref_dims.begin(); ra != ref_dims.end(); ++ra ) {
+      dims_t const & dims = ra->second;
       for( uint32_t i = 0; i != dims.sz(); ++i ) {
 	string const & dn = dims.names(i);
 	bool const did_ins = unique_dims.insert( dn ).second;
@@ -346,7 +343,7 @@ namespace boda
     // ocl/nvrtc split/factoring out. oops. also, arg_sizes (or
     // whatever it becomes) probably needs to be split into
     // in/inout/out parts or something.
-    assert_st( arg_sizes.size() == rfc.in_args.size() );
+    // assert_st( arg_sizes.size() == rfc.in_args.size() ); FIXME: port or remove
 
     if( !call_blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here

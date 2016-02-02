@@ -302,8 +302,8 @@ namespace boda
 
     string gen_func( rtc_func_sig_t const & rfs );
     void gen_call( string const & fn, p_op_info_t const & oi );
-    string gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func );
-
+    string gen_apply_func_to_var( string const & in_an, string const & in_var, 
+				  string const & ret_an, dims_t const & ret_dims, string const & func );
     void gen_node_var( string const & name, string const & node_name );
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
@@ -360,12 +360,15 @@ namespace boda
     uint32_t primary_in = 1;
     assert_st( in_sz );
     dims_t arg_dims( {0}, {"v"}, 1 ); // all vars are single-dim with wild/any size
-    vect_dims_t args_dims; // note:constant after initial setup
+    map_str_dims_t ref_dims; // note:constant after initial setup
     vect_string cur_ins;
-    for( uint32_t i = 0; i != reds.size(); ++i ) { args_dims.push_back( arg_dims ); cur_ins.push_back( top_in ); } // input dims (const); initial inputs
-    for( uint32_t i = 0; i != reds.size(); ++i ) { args_dims.push_back( arg_dims ); } // output dims (const)
+    for( uint32_t i = 0; i != reds.size(); ++i ) {  // input dims (const); initial inputs
+      must_insert( ref_dims, reds[i] + "_in", arg_dims ); 
+      must_insert( ref_dims, reds[i] + "_out", arg_dims ); 
+      cur_ins.push_back( top_in ); 
+    } 
     while( in_sz > 1 ) {
-      string const func = gen_func( rtc_func_sig_t{ "var_stats", args_dims, {} } );
+      string const func = gen_func( rtc_func_sig_t{ "var_stats", ref_dims } );
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;
@@ -394,19 +397,21 @@ namespace boda
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-    string const func = gen_func( rtc_func_sig_t{ "quantize", {rtc->get_var_dims_floats(top_in)}, {} } );
+    string const func = gen_func( rtc_func_sig_t{ "quantize", {{"out",rtc->get_var_dims_floats(top_in)}} } );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, {max_val,drop_mask} } );
   }
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
   // unary operator (with two args: {in,out}), so that only one unique ret_var need only be generated per unique
   // in_var/func<ret_dims> pair. ret_var is named in_var+"__"+func
-  string conv_pipe_fwd_t::gen_apply_func_to_var( string const & in_var, dims_t const & ret_dims, string const & func ) {
+  string conv_pipe_fwd_t::gen_apply_func_to_var( string const & in_an, string const & in_var, 
+						 string const & ret_an, dims_t const & ret_dims, string const & func )
+  {
     string const ret_var = in_var + "__" + func;
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
       rtc->create_var_with_dims_floats( ret_var, ret_dims );
-      fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_str{{"in",in_var},{"out",ret_var}}} );
+      fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_str{{in_an,in_var},{ret_an,ret_var}}} );
     }
     return ret_var;
   }
@@ -448,22 +453,23 @@ namespace boda
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const in_id = oi->arg_map["in"];
-      oi->reset_arg( rtc, "in", in_id ); // reset in, since it may not be equal to the original conv_pipe dims anymore
-      dims_t const & in_dims = oi->conv_ref_dims["in"];
-      dims_t const & in_xp_dims = oi->conv_ref_dims["in_xp"];
+      oi->reset_arg( rtc, "in", oi->get_arg("in") ); // reset in dims from rtc, since may now differ from conv_pipe dims
       if( oi->cts != ipconv_str ) { // ipconv uses untransformed filts
-	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", {oi->conv_ref_dims["filts"],oi->conv_ref_dims["filts_xp"]}, 
-	    oi->conv_ref_dims, oi->template_var_values } );
-	oi->reset_arg( rtc, "filts", gen_apply_func_to_var( oi->get_arg("filts"), oi->conv_ref_dims["filts_xp"], filts_xp_fn ) );
+	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->conv_ref_dims, oi->template_var_values } );
+	oi->reset_arg( rtc, "filts", gen_apply_func_to_var( "filts", oi->get_arg("filts"), 
+							    "filts_xp", oi->get_arg_dims("filts_xp"), filts_xp_fn ) );
       }
       //in_arg_ids.push_back( cop->bots[2] ); // biases
       if( oi->cts == tconv_str ) {
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", {in_dims,in_xp_dims}, oi->conv_ref_dims, oi->template_var_values } );
-	oi->reset_arg( rtc, "in", gen_apply_func_to_var( in_id, in_xp_dims, xp_fn ) );
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->conv_ref_dims, oi->template_var_values } );
+	oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
+							 "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
       } else if( oi->cts == k1conv_str ) {
-	if( in_dims != in_xp_dims ) { // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
-	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", {in_dims,in_xp_dims}, {} } );
-	  oi->reset_arg( rtc, "in", gen_apply_func_to_var( in_id, in_xp_dims, xp_fn ) );
+	if( oi->get_arg_dims("in") != oi->get_arg_dims("in_xp") ) { 
+	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
+	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->conv_ref_dims, oi->template_var_values } );
+	  oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
+							   "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
 	} 	
       } 
       dims_t no_dims = oi->conv_ref_dims["out_ref"];
