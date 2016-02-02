@@ -718,7 +718,10 @@ namespace boda
     double mad;
     uint32_t num_diff;
     uint32_t sz;
-    ssds_diff_t( void ) : ssds(0), sds(0), mad(0), num_diff(0), sz(0) { }
+    double aad;
+    double ad;
+
+    ssds_diff_t( void ) : ssds(0), sds(0), mad(0), num_diff(0), sz(0), aad(0), ad(0) { }
     bool has_nan( void ) const;
     template< typename T > ssds_diff_t( T const & o1, T const & o2 );
     string str( void ) const;

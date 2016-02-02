@@ -41,12 +41,10 @@ namespace boda
 									 strerror(errno) ) ); }
 
   std::ostream & operator <<(std::ostream & os, ssds_diff_t const & v) {
-    double const aad = sqrt(v.ssds / v.sz);
-    double const ad = v.sds / v.sz;
     return os << strprintf( "cnt=%s sum_squared_diffs=%s avg_abs_diff=%s max_abs_diff=%s sum_diffs=%s avg_diff=%s", 
 			    str( v.num_diff ).c_str(),
-			    str( v.ssds ).c_str(), str( aad ).c_str(), str( v.mad ).c_str(),
-			    str( v.sds ).c_str(), str( ad ).c_str() );
+			    str( v.ssds ).c_str(), str( v.aad ).c_str(), str( v.mad ).c_str(),
+			    str( v.sds ).c_str(), str( v.ad ).c_str() );
   }
 
   template< typename T > ssds_diff_t::ssds_diff_t( T const & o1, T const & o2 ) {
@@ -54,6 +52,8 @@ namespace boda
     sz = o1->elems.sz;
     sum_squared_diffs( ssds, sds, mad, o1->elems, o2->elems );
     num_diff = o1->elems.cnt_diff_elems( o2->elems );
+    aad = sqrt(ssds / sz);
+    ad = sds / sz;
   }
 
   template ssds_diff_t::ssds_diff_t( p_nda_float_t const & o1, p_nda_float_t const & o2 );

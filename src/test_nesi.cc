@@ -283,15 +283,8 @@ namespace boda
       eq_diff< hunk_double_t > elems_eq( has_diff, 0 );
       elems_eq( o1->elems, o2->elems ); 
       if( has_diff ) {
-	double ssds = 0, sds = 0, mad = 0;
-	sum_squared_diffs( ssds, sds, mad, o1->elems, o2->elems );
-	double const aad = sqrt(ssds / o1->elems.sz);
-	double const ad = sds / o1->elems.sz;
-	printf( "DIFF: nda_double_t differing elems cnt=%s sum_squared_diffs=%s avg_abs_diff=%s max_abs_diff=%s "
-		"sum_diffs=%s avg_diff=%s\n", 
-		str( o1->elems.cnt_diff_elems( o2->elems ) ).c_str(),
-		str( ssds ).c_str(), str( aad ).c_str(), str( mad ).c_str(),
-		str( sds ).c_str(), str( ad ).c_str() );
+	ssds_diff_t const ssds_diff(o1,o2);
+	printf( "DIFF: nda_double_t differing elems %s", str( ssds_diff ).c_str() );
       }
       
     }
