@@ -721,7 +721,7 @@ namespace boda
       sum1 = 0; sum2 = 0; avg1 = 0; avg2 = 0; }
     bool has_nan( void ) const;
     template< typename T > ssds_diff_t( T const & o1, T const & o2 );
-    string str( void ) const;
+    string basic_str( void ) const;
   };
   std::ostream & operator <<(std::ostream & os, ssds_diff_t const & v);
 

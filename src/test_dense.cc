@@ -259,6 +259,7 @@ namespace boda {
     u32_pt_t tpd_in_sz; //NESI(default="15 15",help="x,y size of test-pattern data to use")
     double tpd_const; //NESI(default="1.0",help="test-pattern data constant offset")
 
+    uint32_t diff_show_mad_only; //NESI(default="0",help="if 1, print only MAD for diffs, not full sds_diff_t. usefull for making test outputs for 'pseudo-failure' consistent (such as quantization tests where specific numerical errors are expected.")
     double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
     map_str_double var_mad_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mad_toler per-layer if specified")
 
@@ -377,7 +378,10 @@ namespace boda {
 	if( (ssds_diff.mad >= vmt) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
 	vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
 	if( is_fail ) { // skip printing errors and details if no mad fail. set mad_toler = 0 to force print (and failure)
-	  (*out) << strprintf( "%s: ssds_str(out_batch_1,out_batch_2)=%s\n", i->c_str(), str(ssds_diff).c_str() );
+	  string diff_str;
+	  if( diff_show_mad_only ) { diff_str = "MAD=" + str(ssds_diff.mad); }
+	  else { diff_str = "ssds_str(out_batch_1,out_batch_2)=" + str(ssds_diff); }
+	  (*out) << strprintf( "%s: %s\n", i->c_str(), diff_str.c_str() );
 	  uint32_t num_err = 0;
 	  for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
 	    float const v1 = out_batch_1->cm_at1(i);

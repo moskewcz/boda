@@ -40,16 +40,18 @@ namespace boda
   void rt_err_errno( char const * const func_name ) { rt_err( strprintf( "%s failed with errno=%s (%s)", func_name, str(errno).c_str(),
 									 strerror(errno) ) ); }
 
+
+  string ssds_diff_t::basic_str( void ) const {
+    return strprintf( "cnt=%s sum_squared_diffs=%s avg_abs_diff=%s max_abs_diff=%s "
+		      "sum_diffs=%s avg_diff=%s", 
+		      str( num_diff ).c_str(),
+		      str( ssds ).c_str(), str( aad ).c_str(), str( mad ).c_str(), 
+		      str( sds ).c_str(), str( ad ).c_str() ); 
+  }
   std::ostream & operator <<(std::ostream & os, ssds_diff_t const & v) {
-    os << strprintf( "cnt=%s sum_squared_diffs=%s avg_abs_diff=%s max_abs_diff=%s "
-		     "sum_diffs=%s avg_diff=%s", 
-		     str( v.num_diff ).c_str(),
-		     str( v.ssds ).c_str(), str( v.aad ).c_str(), str( v.mad ).c_str(), 
-		     str( v.sds ).c_str(), str( v.ad ).c_str() );
-#if 0		     
-    os << strprintf( " max_rel_diff=%s sum_diffs=%s avg_diff=%s avg1=%s avg2=%s", 
+    os << v.basic_str();
+    os << strprintf( " max_rel_diff=%s avg1=%s avg2=%s", 
 		     str( v.mrd ).c_str(), str( v.avg1 ).c_str(), str( v.avg2 ).c_str() );
-#endif
     return os;
   }
 

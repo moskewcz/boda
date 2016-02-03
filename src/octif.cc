@@ -553,7 +553,7 @@ namespace boda
 	    oct_resize_out = clone_from_corner( resize_out->dims, oct_resize_out );
 	  } 
 	  out << strprintf( "scale=%s ssds_str(oct,boda)=%s\n", str(h_scale).c_str(),
-			    str(ssds_diff_t(oct_resize_out,resize_out)).c_str() );
+			    ssds_diff_t(oct_resize_out,resize_out).basic_str().c_str() );
 	}
 	//printf( "resize_out=%s oct_resize_out=%s\n", str(resize_out).c_str(), str(oct_resize_out).c_str() );
       }	
@@ -633,7 +633,7 @@ namespace boda
       for( uint32_t i = 0; i < feats.size(); ++i ) {
 	out << strprintf( "scale=%s boda_scale=%s\n", str(scales->elems[i]).c_str(), 
 			  str(boda_scales->elems[i]).c_str() );
-	out << strprintf( "feats: ssds_str(oct,boda)=%s\n", str(ssds_diff_t(feats[i],boda_feats[i])).c_str() );
+	out << strprintf( "feats: ssds_str(oct,boda)=%s\n", ssds_diff_t(feats[i],boda_feats[i]).basic_str().c_str() );
       }
 
 //      p_ostream bo = ofs_open( pyra_out_fn + ".boda" );
