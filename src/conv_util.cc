@@ -563,6 +563,24 @@ namespace boda
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { dump_ops_rec( out, *i ); }
   }
 
+  void conv_pipe_t::get_topo_order_caffe_comp_nodes( vect_string & out ) {
+    topo_visit_setup();
+    vect_string pend( bots.rbegin(), bots.rend() );
+    while( !pend.empty() ) {
+      string const nn = pend.back(); pend.pop_back();
+      p_conv_node_t node = must_get_node( nn ); 
+      // HACK: dims of loss don't agree currently, so don't try to check it. raw sizes are okay ...
+      // HACK: improperly/unneccarily computed by boda currently, but not caffe: no check
+      // FIXME: we should probably try to get the caffe split node blobs to compare, but for now we skip them.
+      if( (nn != "loss") && (nn != "data_grad_loss") ) {  out.push_back( node->name ); }
+      for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
+	p_conv_op_t const & cop = get_op( *i );
+	if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
+	pend.insert( pend.end(), cop->tops.rbegin(), cop->tops.rend() );
+      }
+    }
+  }
+
   // running test case for add_bck_ops/gradient calculations:
   // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),out_node_name=conv1_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,show_rtc_calls=0,per_call_fn=out.py,dump_vars=())" --max-err=2 && cat test_compute.txt
 

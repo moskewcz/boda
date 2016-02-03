@@ -170,6 +170,8 @@ namespace boda
     void add_bck_ops_rec( vect_p_conv_op_t & bck_ops, string const & node_name );
     void add_bck_ops( void );
 
+    void get_topo_order_caffe_comp_nodes( vect_string & out );
+
     void fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, bool const & sinks_only );
     void run_setup_input( p_nda_float_t const & in, p_map_str_p_nda_float_t const & fwd, vect_string & in_vns );
     p_nda_float_t run_one_blob_in_one_blob_out( p_nda_float_t const & in, p_has_conv_fwd_t const & conv_fwd );
