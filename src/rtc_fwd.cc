@@ -74,15 +74,16 @@ namespace boda
       dims_t in_dims;
       if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
 	assert_st( ni );
-	u32_pt_t const ni_sz = get_xy_dims( ni->dims );
 	in_dims = ni->dims;
 	conv_ref_dims["in_ref"] = in_dims; // tconv needs the standard input dims for reference
 	u32_pt_t kern_sz = cop->kern_sz;
-	if( kern_sz.is_zeros() ) { kern_sz = ni_sz; } // 'global' input special case
+	if( kern_sz.is_zeros() ) { // 'global' input special case
+	  if( is_pool ) { kern_sz = get_xy_dims( ni->dims ); }
+	  else if( cop->is( Spreading_coi ) ) { kern_sz = get_xy_dims( no->dims ); }
+	  else { assert_st(0); }
+	} 
 	u32_pt_t const in_pad = cop->in_pad;
 	u32_pt_t const stride = cop->stride;
-	// also, for now, we'll only handle square inputs. however, this is probably too limiting for more than initial tests.
-	assert_st( ni_sz.dims_are_same() );
 	if( is_conv && enable_ipconv && in_pad.is_zeros() && (get_xy_dims(no->dims) == u32_pt_t{1,1}) ) {
 	  cts = ipconv_str; // single output per-chan-per-image: inner-product case
 	} else if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == u32_pt_t{1,1}) 
