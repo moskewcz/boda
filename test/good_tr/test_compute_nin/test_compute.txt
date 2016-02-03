@@ -1,3 +1,3 @@
 (*i)->sz=353 500
-vars_to_compare: pool4
+vars_to_compare: cccp1 cccp1_biases cccp1_filts cccp2 cccp2_biases cccp2_filts cccp3 cccp3_biases cccp3_filts cccp4 cccp4_biases cccp4_filts cccp5 cccp5_biases cccp5_filts cccp6 cccp6_biases cccp6_filts cccp7 cccp7-1024_biases cccp7-1024_filts cccp8 cccp8-1024_biases cccp8-1024_filts conv1 conv1_biases conv1_filts conv2 conv2_biases conv2_filts conv3 conv3_biases conv3_filts conv4 conv4-1024_biases conv4-1024_filts data pool0 pool2 pool3 pool4
 ***ALL IS WELL***

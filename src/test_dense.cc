@@ -359,7 +359,12 @@ namespace boda {
       vect_string to_set_vns2;
       run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd1, to_set_vns1 );
       run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd2, to_set_vns2 );
-      set_string tops_set = run_cnet->conv_pipe->tops;
+      //set_string tops_set = run_cnet->conv_pipe->tops;
+      set_string tops_set;
+      for( map_str_p_conv_node_t::const_iterator i = run_cnet->conv_pipe->nodes->begin(); 
+	   i != run_cnet->conv_pipe->nodes->end(); ++i ) {
+	tops_set.insert( i->first );
+      }
       tops_set.erase("loss"); // HACK: dims of loss don't agree currently, so don't try to check it. raw sizes are okay ...
       tops_set.erase("data_grad_loss"); // HACK: improperly/unneccarily computed by boda currently, but not caffe: no check.
       tops = vect_string( tops_set.begin(), tops_set.end() );

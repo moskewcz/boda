@@ -191,11 +191,13 @@ namespace boda
     for( vect_string::const_iterator i = to_get_vns.begin(); i != to_get_vns.end(); ++i ) {
       string const out_node_name = *i;
       dims_t const & out_node_dims = cp->must_get_node( out_node_name )->dims;
-      p_nda_float_t out_nda( new nda_float_t( out_node_dims ) );
+      p_nda_float_t & out_nda = (*fwd)[*i];
+      if( out_nda ) { assert_st( out_nda->dims == out_node_dims ); }
+      else{ out_nda.reset( new nda_float_t( out_node_dims ) ); }
       string caffe_node_name = out_node_name;
       bool get_diff = maybe_strip_suffix( caffe_node_name, "_grad_loss" );
       copy_output_blob_data( net, caffe_node_name, get_diff, out_nda );
-      must_insert( *fwd, out_node_name, out_nda );
+      //must_insert( *fwd, out_node_name, out_nda );
     }
   }  
 

@@ -55,9 +55,12 @@ namespace boda
       copy_nda_to_var( *i, must_find( ndas, *i ) );
     }
   }
-  // assumes that names do not exist in ndas
+  // assumes that names do not exist in ndas, or alreay exist with proper dims
   void rtc_compute_t::copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas ) {
-    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) { must_insert( ndas, *i, create_nda_from_var( *i ) ); } 
+    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) { 
+      if( has( ndas, *i ) ) { copy_var_to_nda( ndas[*i], *i ); }
+      else { must_insert( ndas, *i, create_nda_from_var( *i ) ); }
+    } 
   }
 }
 
