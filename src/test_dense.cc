@@ -48,9 +48,11 @@ namespace boda {
     p_run_cnet_t run_cnet; //NESI(default="(in_dims=(img=1),out_node_name=cccp8)",help="CNN model params")
     p_run_cnet_t run_cnet_dense; //NESI(default="(in_dims=(img=1),out_node_name=cccp8)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
+    double mad_toler; //NESI(default="1e-99",help="maximum maximum-absolute-difference over which a failure is declared")
 
     p_img_t in_img;
     p_img_t in_img_dense;
+    uint32_t num_mad_fail;
 
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
@@ -74,7 +76,7 @@ namespace boda {
       dump_pipe_and_ios( run_cnet_dense );
 
       boost::random::mt19937 gen;
-
+      num_mad_fail = 0;
       uint32_t tot_wins = 0;
       for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
 	if( !(*i)->img->sz.both_dims_ge( in_img->sz ) ) { continue; } // img too small to sample. assert? warn?
@@ -100,6 +102,8 @@ namespace boda {
 	  comp_win( feat_box, out_batch_dense, (*i)->img, samp_nc );
 	}
       }
+      if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
+      else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
       out.reset();
     }
     void comp_win( i32_box_t const & feat_box, p_nda_float_t out_batch_dense, p_img_t const & img, u32_pt_t const & nc ) {
@@ -127,7 +131,10 @@ namespace boda {
 	//float const sum_f = nda_reduce( *feats, sum_functor<float>(), 0.0f );
 	//float const sum_fd = nda_reduce( *feats_dense, sum_functor<float>(), 0.0f );
 	//(*out) << strprintf( "sum_f=%s sum_fd=%s\n", str(sum_f).c_str(), str(sum_fd).c_str() );
-	(*out) << strprintf( "ssds_str(from_dense,out_batch)=%s\n", str(ssds_diff_t(feats_dense,feats)).c_str() );
+	ssds_diff_t const ssds_diff(feats_dense,feats);
+	bool is_fail = 0;
+	if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+	if( is_fail ) { (*out) << strprintf( "ssds_diff_t(feats_dense,feats)=%s\n", str(ssds_diff).c_str() ); }
       }
     }
   };
@@ -142,9 +149,12 @@ namespace boda {
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
 
     string upsamp_layer_name; //NESI(default="conv1",help="name of layer to downsample filters of into upsamp net")
-    
+    double mad_toler; //NESI(default="1e-4",help="maximum maximum-absolute-difference over which a failure is declared")
+
     p_img_t in_img;
     p_img_t in_img_upsamp;
+
+    uint32_t num_mad_fail;
     
     p_ostream out;
     virtual void main( nesi_init_arg_t * nia ) {
@@ -160,6 +170,7 @@ namespace boda {
       in_img_upsamp->fill_with_pel( u32_rgba_inmc );
       u32_pt_t const samp_sz = in_img_upsamp->sz >> 1;
       // in_img = make_p_img_t( run_cnet->in_sz ); // re-created each use by upsampling
+      num_mad_fail = 0;
       for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
 	if( !(*i)->img->sz.both_dims_ge( samp_sz ) ) { continue; } // img too small to sample. assert? warn?
 	(*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
@@ -170,6 +181,9 @@ namespace boda {
 	  comp_win( samp_sz, (*i)->img, samp_nc );
 	}
       }
+      if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
+      else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
+
       out.reset();
     }
 
@@ -215,8 +229,10 @@ namespace boda {
       // p_nda_float_t feats = out_batch; 
       p_nda_float_t feats = feats_copy_clip( out_batch, feat_box );
 
-      (*out) << strprintf( "ssds_str(out_batch_upsamp,out_batch)=%s\n", 
-			   str(ssds_diff_t(feats_upsamp,feats)).c_str() );
+      ssds_diff_t const ssds_diff(feats_upsamp,feats);
+      bool is_fail = 0;
+      if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+      if( is_fail ) { (*out) << strprintf( "ssds_diff_t(feats_upsamp,feats)=%s\n", str(ssds_diff).c_str() ); }
     }
   };
 

@@ -244,16 +244,6 @@ namespace boda
     }
   };
 
-  // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1. mad == max absolute diff
-  template< typename RT, typename DT >
-  void sum_squared_diffs( RT & ssd, RT & sd, RT & mad, DT const & o1, DT const & o2 ) {
-    assert_st( o1.sz == o2.sz );
-    for( uint32_t i = 0; i < o1.sz; ++i ) { 
-      RT const d = RT(o2[i])-RT(o1[i]);
-      sd += d; ssd += d*d; max_eq(mad,(d<0)?-d:d);
-    }
-  }
-
   template< typename T >
   inline std::ostream & operator << ( std::ostream & out, hunk_T< T > const & o ) {
     out << "hunk of " << typeid(T).name() << " size=" << o.sz;
@@ -713,15 +703,22 @@ namespace boda
 
   // class to store info from sum_squared_diffs(o1,o2); str()-able for printing
   struct ssds_diff_t {
-    double ssds;
-    double sds;
-    double mad;
-    uint32_t num_diff;
-    uint32_t sz;
-    double aad;
-    double ad;
+    double ssds; // sum of squared differences
+    double sds; // sum of differences
+    double mad; // maximum absolute difference
+    double mrd; // maximum relative difference
+    uint32_t num_diff; // count of differing elements
+    uint32_t sz; // number of elements
+    double aad; // average absolute difference
+    double ad; // average difference
+    double sum1;
+    double sum2;
+    double avg1;
+    double avg2;
 
-    ssds_diff_t( void ) : ssds(0), sds(0), mad(0), num_diff(0), sz(0), aad(0), ad(0) { }
+    ssds_diff_t( void ) { clear(); }
+    void clear( void ) { ssds = 0; sds = 0; mad = 0; mrd = 0; num_diff = 0; sz = 0; aad = 0; ad = 0; 
+      sum1 = 0; sum2 = 0; avg1 = 0; avg2 = 0; }
     bool has_nan( void ) const;
     template< typename T > ssds_diff_t( T const & o1, T const & o2 );
     string str( void ) const;

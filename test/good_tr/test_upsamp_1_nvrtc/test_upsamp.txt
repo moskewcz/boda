@@ -1,40 +1,11 @@
 (*i)->sz=353 500
-ssds_str(out_batch_upsamp,out_batch)=cnt=470116 sum_squared_diffs=1.74366e-05 avg_abs_diff=5.2819e-06 max_abs_diff=4.673e-05 sum_diffs=0.073369 avg_diff=1.1739e-07
-ssds_str(out_batch_upsamp,out_batch)=cnt=471928 sum_squared_diffs=1.22417e-05 avg_abs_diff=4.42569e-06 max_abs_diff=5.24521e-05 sum_diffs=0.0334852 avg_diff=5.35764e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=461796 sum_squared_diffs=1.22059e-05 avg_abs_diff=4.41922e-06 max_abs_diff=6.19888e-05 sum_diffs=0.0542879 avg_diff=8.68606e-08
 (*i)->sz=335 500
-ssds_str(out_batch_upsamp,out_batch)=cnt=453794 sum_squared_diffs=1.19088e-05 avg_abs_diff=4.3651e-06 max_abs_diff=5.34058e-05 sum_diffs=0.0138273 avg_diff=2.21236e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=445102 sum_squared_diffs=1.21129e-05 avg_abs_diff=4.40234e-06 max_abs_diff=5.34058e-05 sum_diffs=-0.00755008 avg_diff=-1.20801e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=456333 sum_squared_diffs=1.24601e-05 avg_abs_diff=4.465e-06 max_abs_diff=4.19617e-05 sum_diffs=0.048307 avg_diff=7.72911e-08
 (*i)->sz=500 375
-ssds_str(out_batch_upsamp,out_batch)=cnt=461883 sum_squared_diffs=1.17472e-05 avg_abs_diff=4.33538e-06 max_abs_diff=5.14984e-05 sum_diffs=0.019338 avg_diff=3.09408e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=462293 sum_squared_diffs=8.38342e-06 avg_abs_diff=3.66244e-06 max_abs_diff=3.62396e-05 sum_diffs=0.0732392 avg_diff=1.17183e-07
-ssds_str(out_batch_upsamp,out_batch)=cnt=466849 sum_squared_diffs=9.76025e-06 avg_abs_diff=3.95176e-06 max_abs_diff=4.95911e-05 sum_diffs=0.0185937 avg_diff=2.97499e-08
 (*i)->sz=500 406
-ssds_str(out_batch_upsamp,out_batch)=cnt=459788 sum_squared_diffs=1.56272e-05 avg_abs_diff=5.00036e-06 max_abs_diff=6.86646e-05 sum_diffs=-0.0303706 avg_diff=-4.8593e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=448560 sum_squared_diffs=1.14548e-05 avg_abs_diff=4.28108e-06 max_abs_diff=6.38962e-05 sum_diffs=0.0201628 avg_diff=3.22605e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=459650 sum_squared_diffs=1.60263e-05 avg_abs_diff=5.06381e-06 max_abs_diff=5.14984e-05 sum_diffs=0.00267776 avg_diff=4.28442e-09
 (*i)->sz=500 375
-ssds_str(out_batch_upsamp,out_batch)=cnt=451991 sum_squared_diffs=1.27044e-05 avg_abs_diff=4.50854e-06 max_abs_diff=6.10352e-05 sum_diffs=-0.0208017 avg_diff=-3.32828e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=457085 sum_squared_diffs=1.11152e-05 avg_abs_diff=4.21714e-06 max_abs_diff=5.14984e-05 sum_diffs=-0.0302827 avg_diff=-4.84522e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=451680 sum_squared_diffs=1.44108e-05 avg_abs_diff=4.80179e-06 max_abs_diff=5.08428e-05 sum_diffs=-0.042418 avg_diff=-6.78688e-08
 (*i)->sz=500 375
-ssds_str(out_batch_upsamp,out_batch)=cnt=455591 sum_squared_diffs=1.48862e-05 avg_abs_diff=4.88036e-06 max_abs_diff=6.48499e-05 sum_diffs=0.0400007 avg_diff=6.40011e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=453913 sum_squared_diffs=1.68223e-05 avg_abs_diff=5.18803e-06 max_abs_diff=5.72205e-05 sum_diffs=-0.0545251 avg_diff=-8.72401e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=459956 sum_squared_diffs=1.67183e-05 avg_abs_diff=5.17196e-06 max_abs_diff=5.43594e-05 sum_diffs=0.11612 avg_diff=1.85792e-07
 (*i)->sz=354 480
-ssds_str(out_batch_upsamp,out_batch)=cnt=448756 sum_squared_diffs=2.07869e-05 avg_abs_diff=5.76706e-06 max_abs_diff=7.24792e-05 sum_diffs=0.0110292 avg_diff=1.76468e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=442889 sum_squared_diffs=1.8854e-05 avg_abs_diff=5.4924e-06 max_abs_diff=5.62668e-05 sum_diffs=0.0860636 avg_diff=1.37702e-07
-ssds_str(out_batch_upsamp,out_batch)=cnt=452632 sum_squared_diffs=2.06999e-05 avg_abs_diff=5.75499e-06 max_abs_diff=8.39233e-05 sum_diffs=0.0521914 avg_diff=8.35062e-08
 (*i)->sz=500 324
-ssds_str(out_batch_upsamp,out_batch)=cnt=473672 sum_squared_diffs=1.94587e-05 avg_abs_diff=5.57977e-06 max_abs_diff=7.24792e-05 sum_diffs=-0.22504 avg_diff=-3.60064e-07
-ssds_str(out_batch_upsamp,out_batch)=cnt=474426 sum_squared_diffs=1.517e-05 avg_abs_diff=4.92665e-06 max_abs_diff=5.72205e-05 sum_diffs=-0.165933 avg_diff=-2.65492e-07
-ssds_str(out_batch_upsamp,out_batch)=cnt=474753 sum_squared_diffs=1.56183e-05 avg_abs_diff=4.99892e-06 max_abs_diff=5.72205e-05 sum_diffs=-0.189611 avg_diff=-3.03378e-07
 (*i)->sz=500 375
-ssds_str(out_batch_upsamp,out_batch)=cnt=466495 sum_squared_diffs=7.94736e-06 avg_abs_diff=3.56592e-06 max_abs_diff=4.95911e-05 sum_diffs=-0.0414023 avg_diff=-6.62436e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=457536 sum_squared_diffs=7.98967e-06 avg_abs_diff=3.5754e-06 max_abs_diff=5.34058e-05 sum_diffs=0.0382214 avg_diff=6.11543e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=464525 sum_squared_diffs=8.07419e-06 avg_abs_diff=3.59426e-06 max_abs_diff=4.95911e-05 sum_diffs=0.0455735 avg_diff=7.29175e-08
 (*i)->sz=500 333
-ssds_str(out_batch_upsamp,out_batch)=cnt=442276 sum_squared_diffs=1.46419e-05 avg_abs_diff=4.84015e-06 max_abs_diff=4.95911e-05 sum_diffs=-0.0359132 avg_diff=-5.74611e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=444615 sum_squared_diffs=1.28379e-05 avg_abs_diff=4.53217e-06 max_abs_diff=4.95911e-05 sum_diffs=-0.0269891 avg_diff=-4.31826e-08
-ssds_str(out_batch_upsamp,out_batch)=cnt=439029 sum_squared_diffs=1.23232e-05 avg_abs_diff=4.44039e-06 max_abs_diff=4.57764e-05 sum_diffs=-0.0797923 avg_diff=-1.27668e-07
+***ALL IS WELL***

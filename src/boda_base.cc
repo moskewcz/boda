@@ -41,19 +41,48 @@ namespace boda
 									 strerror(errno) ) ); }
 
   std::ostream & operator <<(std::ostream & os, ssds_diff_t const & v) {
-    return os << strprintf( "cnt=%s sum_squared_diffs=%s avg_abs_diff=%s max_abs_diff=%s sum_diffs=%s avg_diff=%s", 
-			    str( v.num_diff ).c_str(),
-			    str( v.ssds ).c_str(), str( v.aad ).c_str(), str( v.mad ).c_str(),
-			    str( v.sds ).c_str(), str( v.ad ).c_str() );
+    os << strprintf( "cnt=%s sum_squared_diffs=%s avg_abs_diff=%s max_abs_diff=%s "
+		     "sum_diffs=%s avg_diff=%s", 
+		     str( v.num_diff ).c_str(),
+		     str( v.ssds ).c_str(), str( v.aad ).c_str(), str( v.mad ).c_str(), 
+		     str( v.sds ).c_str(), str( v.ad ).c_str() );
+#if 0		     
+    os << strprintf( " max_rel_diff=%s sum_diffs=%s avg_diff=%s avg1=%s avg2=%s", 
+		     str( v.mrd ).c_str(), str( v.avg1 ).c_str(), str( v.avg2 ).c_str() );
+#endif
+    return os;
+  }
+
+  // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1. mad == max absolute diff
+  template< typename RT, typename DT >
+  void sum_squared_diffs( RT & v, DT const & o1, DT const & o2 ) {
+    assert_st( o1.sz == o2.sz );
+    for( uint32_t i = 0; i < o1.sz; ++i ) { 
+      v.sum1 += double(o1[i]);
+      v.sum2 += double(o2[i]);
+      double const d = double(o2[i])-double(o1[i]); // difference
+      v.sds += d; 
+      v.ssds += d*d; 
+      double const ad = (d<0)?-d:d; // absolute difference
+      max_eq(v.mad,ad);
+      double a1 = double(o1[i]);
+      a1 = (a1<0)?-a1:a1;
+      double a2 = double(o2[i]);
+      a2 = (a2<0)?-a2:a2;
+      double amax = std::max(a1,a2);
+      max_eq(v.mrd,ad/amax);
+    }
   }
 
   template< typename T > ssds_diff_t::ssds_diff_t( T const & o1, T const & o2 ) {
-    ssds = sds = mad = 0;
+    clear();
     sz = o1->elems.sz;
-    sum_squared_diffs( ssds, sds, mad, o1->elems, o2->elems );
+    sum_squared_diffs( *this, o1->elems, o2->elems );
     num_diff = o1->elems.cnt_diff_elems( o2->elems );
     aad = sqrt(ssds / sz);
     ad = sds / sz;
+    avg1 = sum1 / sz;
+    avg2 = sum2 / sz;
   }
 
   template ssds_diff_t::ssds_diff_t( p_nda_float_t const & o1, p_nda_float_t const & o2 );
