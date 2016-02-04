@@ -22,7 +22,7 @@ namespace boda
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
   map_str_str const LRN_params{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"},{"emit_out_scale_base","0"}};
   conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_params };
-  conv_op_info_t const BckLRN_coi{ "BckLRN", {"in"}, {"out"}, LRN_params };
+  conv_op_info_t const BckLRN_coi{ "BckLRN", {"in","out","out_grad_loss"}, {"in_grad_loss"}, LRN_params };
   conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
   conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"prob"} };
   conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "in", "label" },{ "in_grad_loss", "loss" } };
@@ -646,15 +646,16 @@ namespace boda
       bcop->bots[0] += "_grad_loss";
       for( uint32_t i = 0; i != bcop->tops.size(); ++i ) { bcop->tops[i] = get_grad_loss_onn( cop, bcop->tops[i] ); }
     } else if( cop->is( LRN_coi ) ) {
+      cop->params["emit_out_scale_base"] = "1";
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
       bcop->type = BckLRN_coi.type;
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
-      //bcop->bots.push_back( bcop->tops[0] ); // take original input as input
-      bcop->bots[0] += "_grad_loss";
-      bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] );
+      bcop->bots.insert( bcop->bots.begin(), bcop->tops[0] ); // take original input as input
+      bcop->bots.push_back( bcop->bots.back() + "_grad_loss" ); // take _grad_loss of original output as input
+      bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] ); // produce _grad_loss of original input
     } else {
       printf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
     }

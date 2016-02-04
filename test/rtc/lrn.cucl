@@ -34,7 +34,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
       int32_t const out_chan_ix = in_chan_ix - hls;
       float const scale_base = (%(k) + ls_sum*alpha_over_ls);
       if( %(emit_out_scale_base) ) { out_scale_base[out_base_ix + out_chan_ix*%(out_chan_sz)] = scale_base; }
-      float const scale = powf( pow_base, -%(beta) );
+      float const scale = powf( scale_base, -%(beta) );
       out[out_base_ix + out_chan_ix*%(out_chan_sz)] = ls_buf[(lsb_ix+%(local_size)-hls) %% %(local_size)] * scale;
     }
   }

@@ -32,6 +32,7 @@ namespace boda
   extern conv_op_info_t const ReLU_coi;
   extern conv_op_info_t const Dropout_coi;
   extern conv_op_info_t const LRN_coi;
+  extern conv_op_info_t const BckLRN_coi;
   extern conv_op_info_t const Accuracy_coi;
   extern conv_op_info_t const Softmax_coi;
   extern conv_op_info_t const SoftmaxWithLoss_coi;

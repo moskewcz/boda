@@ -1,0 +1,37 @@
+// each thread: computes outputs across chan dim, using inputs across chan dim
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+					  GASQ float const * const out, // CUCL IN img:chan:y:x
+					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
+					  GASQ float const * const out_scale_base, // CUCL IN img:chan:y:x
+					  GASQ float * const in_grad_loss ) // CUCL OUT img:chan:y:x
+// note: out_scale_base will be NULL+unused if emit_out_scale_base is 0; otherwise it will be non-null and used.
+{
+  // CUCL IX GLOB_ID_1D in_grad_loss use_dims=img:y:x
+  if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
+  // iteratate over chans
+  float ls_buf[%(local_size)] = {0.0f};
+  int32_t const hls = %(local_size) >> 1;
+  int32_t const base_ix = %(GLOB_ID_1D_img)*%(out_img_sz) + %(GLOB_ID_1D_y)*%(out_y_sz) + %(GLOB_ID_1D_x)*%(out_x_sz); 
+  float ls_sum = 0.0f;
+#if 0 // simpler version, omits delta-scale terms ...
+  for( int32_t in_chan_ix = 0; in_chan_ix < %(out_chan_dim); ++in_chan_ix ) {
+    int32_t const ix = base_ix + in_chan_ix*%(out_chan_sz);
+    in_grad_loss[ix] = out_grad_loss[ix]*powf( out_scale_base[ix], -%(beta) );
+  }
+#else
+  for( int32_t in_chan_ix = 0; in_chan_ix < %(out_chan_dim) + hls; ++in_chan_ix ) {
+    int32_t const in_ix = base_ix + in_chan_ix*%(out_chan_sz);
+    int32_t const lsb_ix = in_chan_ix %% %(local_size);
+    ls_buf[lsb_ix] = (in_chan_ix < %(out_chan_dim)) ? (out_grad_loss[in_ix]*out[in_ix]/out_scale_base[in_ix]) : 0.0f;
+    if( in_chan_ix >= hls ) {
+      int32_t const igl_ix = base_ix + (in_chan_ix - hls)*%(out_chan_sz);
+      ls_sum = 0.0f;
+      for( int32_t i = 0; i != %(local_size); ++i ) { ls_sum += ls_buf[i]; }
+      in_grad_loss[igl_ix] = out_grad_loss[igl_ix]*powf( out_scale_base[igl_ix], -%(beta) ) + // delta-in term
+	in[igl_ix]*ls_sum*(2.0f*-%(beta)*%(alpha)/%(local_size)); // delta-scale terms
+    }
+  }
+#endif
+
+}
+
