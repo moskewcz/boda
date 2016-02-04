@@ -215,6 +215,7 @@ namespace boda
 	  arg_check_error += "call args "+str(ix)+ " must not have padding; "; } // FIXME: maybe too strong
 	bool matches_decl = 0;
 	for( uint32_t j = 0; j != i->ok_dims.size(); ++j ) {
+	  if( arg_dims == dims_t() ) { matches_decl = 1; } // NULL case
 	  if( arg_dims.matches_template( i->ok_dims[j] ) ) { matches_decl = 1; }
 	}
 	if( !matches_decl ) { arg_check_error += "call arg "+str(ix)+" incompatible with decl arg "
@@ -331,11 +332,12 @@ namespace boda
     for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
       if( arg_decls[i].io_type == "REF" ) { continue; }
       string const & avn = arg_decls[i].vn;
+      dims_t const & func_dims = must_find( rfs.ref_dims, avn );
+      if( func_dims == dims_t() ) { rfc.in_args.push_back("<NULL>"); continue; } // NULL case -- pass though to rtc
       map_str_str::const_iterator an = rcg_func_call.arg_map.find( avn );
       if( an == rcg_func_call.arg_map.end() ) {
 	rt_err( "specified "+arg_decls[i].io_type+" arg '"+avn+"' not found in arg_map at call time." ); 
       }
-      dims_t const & func_dims = must_find( rfs.ref_dims, avn );
       // FIXME/note: we can't/don't check call dims for variable-sized ref_dims. this seems less than ideal.
       // one exampl of such usage is in var_stats.
       if( func_dims.has_sz_and_stride_and_name() ) { 
