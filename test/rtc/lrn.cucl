@@ -12,6 +12,7 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
 					  GASQ float * const out, // CUCL OUT img:chan:y:x
 					  GASQ float * const out_scale_base ) // CUCL OUT img:chan:y:x
+// note: out_scale_base will be NULL+unused if emit_out_scale_base is 0; otherwise it will be non-null and used.
 {
   // CUCL IX GLOB_ID_1D out use_dims=img:y:x
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
@@ -32,6 +33,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
     if( in_chan_ix >= hls ) {
       int32_t const out_chan_ix = in_chan_ix - hls;
       float const scale_base = (%(k) + ls_sum*alpha_over_ls);
+      if( %(emit_out_scale_base) ) { out_scale_base[out_base_ix + out_chan_ix*%(out_chan_sz)] = scale_base; }
       float const scale = powf( pow_base, -%(beta) );
       out[out_base_ix + out_chan_ix*%(out_chan_sz)] = ls_buf[(lsb_ix+%(local_size)-hls) %% %(local_size)] * scale;
     }
@@ -47,6 +49,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
       for( int32_t i = 0; i != %(local_size); ++i ) { ls_sum += ls_buf[i]*ls_buf[i]; }
       //float const scale = powf( (%(k) + %(alpha)*ls_sum/%(local_size)), -%(beta) );
       float const scale_base = (%(k) + ls_sum*%(alpha)/%(local_size));
+      if( %(emit_out_scale_base) ) { out_scale_base[out_base_ix + out_chan_ix*%(out_chan_sz)] = scale_base; }
       float const scale = powf( scale_base, -%(beta) );
       out[out_base_ix + out_chan_ix*%(out_chan_sz)] = ls_buf[(lsb_ix+%(local_size)-hls) %% %(local_size)] * scale;
     }

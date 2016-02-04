@@ -494,8 +494,14 @@ namespace boda
       gen_call( "relu", oi );
     } else if( cop->is( LRN_coi ) ) {
       assert_st( oi->get_arg_dims("in") == oi->get_arg_dims("out") ); // FIXME: better place/way for this check?
-      assert_st( cop->u32_param("emit_out_scale_base") == 0 );
-      oi->set_null_arg( "out_scale_base" );
+      if( cop->u32_param("emit_out_scale_base") == 1 ) {
+	string const out_scale_base = oi->get_arg("out") + "_scale_base"; 
+	rtc->create_var_with_dims_floats( out_scale_base, oi->get_arg_dims("out") ); // same size as out
+	oi->set_arg( rtc, "out_scale_base", out_scale_base );
+      } else {
+	assert_st( cop->u32_param("emit_out_scale_base") == 0 );
+	oi->set_null_arg( "out_scale_base" );
+      }
       gen_call( "lrn", oi );
     } else if( cop->is( Dropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
