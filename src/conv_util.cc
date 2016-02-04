@@ -20,7 +20,7 @@ namespace boda
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}} };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
-  map_str_str const LRN_params{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"}};
+  map_str_str const LRN_params{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"},{"emit_out_scale_base","0"}};
   conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_params };
   conv_op_info_t const BckLRN_coi{ "BckLRN", {"in"}, {"out"}, LRN_params };
   conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };

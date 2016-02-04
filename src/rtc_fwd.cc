@@ -44,6 +44,7 @@ namespace boda
       must_insert( conv_ref_dims, an, rtc->get_var_dims_floats(vn) );
       must_insert( arg_map, an, vn );
     }
+    void set_null_arg( string const & an ) { must_insert( conv_ref_dims, an, dims_t() ); }
     void erase_arg( string const & an ) { must_erase( conv_ref_dims, an ); must_erase( arg_map, an ); }
     void reset_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) { 
       erase_arg(an); set_arg(rtc,an,vn);
@@ -493,6 +494,8 @@ namespace boda
       gen_call( "relu", oi );
     } else if( cop->is( LRN_coi ) ) {
       assert_st( oi->get_arg_dims("in") == oi->get_arg_dims("out") ); // FIXME: better place/way for this check?
+      assert_st( cop->u32_param("emit_out_scale_base") == 0 );
+      oi->set_null_arg( "out_scale_base" );
       gen_call( "lrn", oi );
     } else if( cop->is( Dropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
