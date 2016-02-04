@@ -338,7 +338,7 @@ namespace boda
     string ret;
     p_nda_float_t nda = rtc->copy_var_as_flat_nda( n );
     // dump nda
-    ret += strprintf( "dupming var '%s'\n", str(n).c_str() );
+    ret += strprintf( "dumping var '%s'\n", str(n).c_str() );
     for( uint32_t i = 0; i != nda->dims.dims_prod(); ++i ) {
       ret += strprintf( "i=%s v=%s\n", str(i).c_str(), str(nda->cm_at1(i)).c_str() );
     }
