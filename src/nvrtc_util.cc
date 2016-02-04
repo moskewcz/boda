@@ -166,6 +166,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     zi_bool init_done;
     void init( void ) {
       assert_st( !init_done.v );
+      null_cup = 0;
 
       cu_err_chk( cuInit( 0 ), "cuInit" ); 
       cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
@@ -189,7 +190,8 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       cu_err_chk( cuModuleLoadDataEx( &cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
       mod_valid.v = 1;
     }
-
+    CUdeviceptr null_cup; // inited to 0; used to pass null device pointers to kernels. note, however, that the value is
+			  // generally unused, so the value doesn't really matter currently. it might later of course.
     p_map_str_var_info_t vis;
     p_map_str_CUfunction_t cu_funcs;
 
@@ -237,8 +239,12 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 
     void add_args( vect_string const & args, vect_rp_void & cu_func_args ) {
       for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
-	p_cup_float const & cu_v = must_find( *vis, *i ).cup;
-	cu_func_args.push_back( &cu_v->p );
+	if( *i == "<NULL>" ) { 
+	  cu_func_args.push_back( &null_cup );
+	} else {
+	  p_cup_float const & cu_v = must_find( *vis, *i ).cup;
+	  cu_func_args.push_back( &cu_v->p );
+	}
       }
     }
 #if 0

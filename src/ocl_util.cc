@@ -128,6 +128,8 @@ typedef int int32_t;
       prog_valid.v = 1;
     }
 
+    Buffer null_buf; // inited to 0; used to pass null device pointers to kernels. note, however, that the value is
+		     // generally unused, so the value doesn't really matter currently. it might later of course.
     p_map_str_cl_var_info_t vis;
     p_map_str_Kernel_t kerns;
 
@@ -201,8 +203,10 @@ typedef int int32_t;
 
     void add_args( vect_string const & args, Kernel & kern, uint32_t & cur_arg_ix ) {
       for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
-	Buffer & buf = must_find( *vis, *i ).buf;
-	set_kernel_arg( kern, cur_arg_ix, buf );
+	Buffer * buf = 0;
+	if( *i == "<NULL>" ) { buf = &null_buf; }
+	else { buf = &must_find( *vis, *i ).buf; }
+	set_kernel_arg( kern, cur_arg_ix, *buf );
 	++cur_arg_ix;
       }
     }
