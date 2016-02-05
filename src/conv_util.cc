@@ -575,7 +575,7 @@ namespace boda
       // HACK: dims of loss don't agree currently, so don't try to check it. raw sizes are okay ...
       // HACK: improperly/unneccarily computed by boda currently, but not caffe: no check
       // FIXME: we should probably try to get the caffe split node blobs to compare, but for now we skip them.
-      if( (nn != "loss") && (nn != "data_grad_loss") && !is_reduce_in( this, node ) ) { out.push_back( node->name ); }
+      if( !startswith(nn,"loss") && (nn != "data_grad_loss") && !is_reduce_in( this, node ) ) { out.push_back( node->name ); }
       for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
 	p_conv_op_t const & cop = get_op( *i );
 	if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms

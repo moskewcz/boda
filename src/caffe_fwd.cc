@@ -176,7 +176,6 @@ namespace boda
     if( maybe_strip_suffix( layer_name, "_filts" ) ) { get_layer_blob( net, layer_name, 0, get_diff, out_nda ); }
     else if( maybe_strip_suffix( layer_name, "_biases" ) ) { get_layer_blob( net, layer_name, 1, get_diff, out_nda ); }
     else {
-      //printf( "out_node_name=%s\n", str(out_node_name).c_str() );
       output_blob = net->blob_by_name( out_node_name );
       if( !output_blob ) { rt_err( strprintf("gettting output: node '%s' not found in network as regular blob (didn't end in _filts or _biases) "
 					     "(note: get_diff=%s).\n", str(out_node_name).c_str(), str(get_diff).c_str() )); }
