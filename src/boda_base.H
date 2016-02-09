@@ -453,6 +453,8 @@ namespace boda
     string const & names( uint32_t const ix ) const { return at(ix).name; }
     uint32_t const & strides( uint32_t const ix ) const { return at(ix).stride; }
 
+    std::string pretty_str( void ) const; // omits strides, prints names near dims if they exist
+
     void clear_strides( void ) { for( uint32_t i = 0; i != sz(); ++i ) { strides(i) = 0; } }
     bool has_any_strides( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( strides(i) ) { return 1; } } return 0; }
     bool has_any_names( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( !names(i).empty() ) { return 1; } } return 0; }
@@ -489,6 +491,8 @@ namespace boda
       return strides(sz()-1)*d0i + strides(sz()-2)*d1i + strides(sz()-3)*d2i ; }
     uint32_t cm_ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       return strides(sz()-1)*d0i + strides(sz()-2)*d1i + strides(sz()-3)*d2i + strides(sz()-4)*d3i; }
+
+    std::string ix_str( vect_uint32_t const & di, bool const inlcude_flat_ix ) const;
 
     uint32_t ix( vect_uint32_t const & di ) const {
       assert_st( di.size() <= sz() );

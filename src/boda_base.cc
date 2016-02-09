@@ -25,6 +25,29 @@ namespace boda
   string const & py_boda_dir( void ) { return py_boda_dir_static; }
   string const & py_boda_test_dir( void ) { return py_boda_test_dir_static; }
 
+
+  std::string dims_t::ix_str( vect_uint32_t const & di, bool const inlcude_flat_ix ) const {
+    assert_st( di.size() == sz() );
+    string ret;
+    for( uint32_t i = 0; i != sz(); ++i ) { 
+      if( i ) { ret += ":"; }
+      if( !names(i).empty() ) { ret += names(i) + "="; }
+      ret += str( di[i] );
+    }
+    if( inlcude_flat_ix ) { ret += " (" + str(ix(di)) + ")"; }
+    return ret;
+  }
+  
+  std::string dims_t::pretty_str( void ) const { // omits strides, prints names near dims if they exist
+    string ret;
+    for( uint32_t i = 0; i != sz(); ++i ) { 
+      if( i ) { ret += ":"; }
+      if( !names(i).empty() ) { ret += names(i) + "="; }
+      ret += str( dims(i) );
+    }
+    return ret;
+  }
+
   void boda_dirs_init( void ) {
     path pse_dir_dir = read_symlink( path("/proc")/"self"/"exe" ).parent_path().parent_path();
     py_boda_dir_static = canonical(pse_dir_dir).string();

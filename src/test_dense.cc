@@ -379,16 +379,19 @@ namespace boda {
 	  string diff_str;
 	  if( diff_show_mad_only ) { diff_str = "MAD=" + str(ssds_diff.mad); }
 	  else { diff_str = "ssds_str(out_batch_1,out_batch_2)=" + str(ssds_diff); }
-	  (*out) << strprintf( "%s: %s\n", i->c_str(), diff_str.c_str() );
+	  (*out) << strprintf( "%s: DIMS[%s] %s\n", i->c_str(), out_batch_1->dims.pretty_str().c_str(), diff_str.c_str() );
 	  uint32_t num_err = 0;
-	  for( uint32_t i = 0; i != out_batch_1->elems.sz; ++i ) {
-	    float const v1 = out_batch_1->cm_at1(i);
-	    float const v2 = out_batch_2->cm_at1(i);
+	  assert_st( out_batch_1->dims == out_batch_2->dims );
+	  for( dims_iter_t di( out_batch_1->dims ) ; ; )  {
+	    float const v1 = out_batch_1->at(di.di);
+	    float const v2 = out_batch_2->at(di.di);
 	    if( fabs(v1 - v2) >= vmt ) {
-	      (*out) << strprintf( "i=%s v1=%s v2=%s \n", str(i).c_str(), str(v1).c_str(), str(v2).c_str() );
+	      (*out) << strprintf( "[%s]: v1=%s v2=%s \n", out_batch_1->dims.ix_str(di.di,1).c_str(), 
+				   str(v1).c_str(), str(v2).c_str() );
 	      ++num_err;
 	      if( num_err > max_err ) { break; }
 	    }
+	    if( !di.next() ) { break; }
 	  }
 	}
       }
