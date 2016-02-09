@@ -79,6 +79,7 @@ class Net( object ):
         self.tot_backward_bytes = 0
         self.tot_filt_bytes = 0;
         self.tot_in_bytes = 0;
+        self.tot_out_bytes = 0;
         self.ndas = {}
         self.ops = []
     def add_nda( self, vn, nda ): self.ndas[vn] = nda
@@ -99,6 +100,9 @@ class Net( object ):
             if verbose_print: fb_str = "FORWARD+BACKWARD"
             flops += self.tot_backward_flops
             bytes_ += self.tot_backward_bytes
+
+        print "- SUM-OVER-FWD-LAYERS-TOTALS: fwd_input_bytes=%s fwd_filt_bytes=%s fwd_output_bytes=%s" % (
+            pp_bytes(self.tot_in_bytes),pp_bytes(self.tot_filt_bytes),pp_bytes(self.tot_out_bytes) )
 
         print "--- %s TOTALS ---" % fb_str
         print pp_flops(flops), pp_fps(flops/args.runtime)
@@ -137,6 +141,7 @@ class Convolution( object ):
 
         net.tot_filt_bytes += filts.dims_prod() * 4
         net.tot_in_bytes += in_pels * 4
+        net.tot_out_bytes += out_pels * 4
 
         forward_bytes = (in_pels + out_pels + filts.dims_prod() + biases.dims_prod()) * 4
 
