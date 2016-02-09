@@ -559,6 +559,13 @@ namespace boda
       else if( op_name == "bwai" ) { gen_op_bwai(rcg); } 
       else if( op_name == "bconv" ) { gen_op_bconv(rcg); } 
       else if( op_name == "bconv_fb" ) { gen_op_bconv_fb(rcg); } 
+      else if( op_name == "reduce" ) { gen_op_reduce(rcg); } 
+    }
+
+    void gen_op_reduce( rtc_call_gen_t * rcg ) {
+      for( uint32_t i = 0; i != rcg->arg_decls.size() - 1; ++i ) { 
+	rcg->line( "ins_ops", "v += ins_"+str(i)+"[GLOB_ID_1D];" ); 
+      }
     }
 
     string add_bias_then_maybe_relu( rtc_call_gen_t * rcg, dims_t const & work, uint32_t const & tx, uint32_t const ty ) { 

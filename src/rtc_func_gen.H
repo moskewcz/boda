@@ -144,13 +144,6 @@ namespace boda
       rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
       parse_template();
       check_args();
-      uint32_t num_nonref_args = 0;
-      for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
-	dims_t const & arg_dims = must_find( rfs.ref_dims, i->vn );
-	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
-	insert_nda_dims_sz( tf_exprs, i->vn, arg_dims, dims_only );
-	if( i->io_type != "REF" ) { ++num_nonref_args; }
-      }
 
       tpb = 0;
       blks = 0;
@@ -211,8 +204,13 @@ namespace boda
 	}
 	dims_t const & arg_dims = adi->second;
 	if( !arg_dims.has_name() ) { arg_check_error += "call arg "+str(ix)+ " must have names for all dims; "; }
-	if( arg_dims.has_sz_and_stride_and_name() && arg_dims.has_padding() ) { 
+	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
+	if( !dims_only && arg_dims.has_padding() ) { 
 	  arg_check_error += "call args "+str(ix)+ " must not have padding; "; } // FIXME: maybe too strong
+
+	// if no errors yet, do rest of setup. not ideal to do this per-var?
+	if( arg_check_error.empty() ) {	insert_nda_dims_sz( tf_exprs, i->vn, arg_dims, dims_only ); } 
+
 	bool matches_decl = 0;
 	for( uint32_t j = 0; j != i->ok_dims.size(); ++j ) {
 	  if( arg_dims == dims_t() ) { matches_decl = 1; } // NULL case
@@ -220,7 +218,6 @@ namespace boda
 	}
 	if( !matches_decl ) { arg_check_error += "call arg "+str(ix)+" incompatible with decl arg "
 	    "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
-
       }
       if( !arg_check_error.empty() ) {
 	string arg_err = "RTC template function instantiation argument error: " + rfs.fn + ": " + arg_check_error + "\n";
@@ -277,9 +274,11 @@ namespace boda
 	vect_string mmc_parts = split_ws( strip_ws( mmc ) );
 	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
 	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
-	  string const & cd = mmc_parts[1];
+	  string cd = mmc_parts[1];
+	  bool const multi = maybe_strip_suffix( cd, "_MULTI" );
 	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { 
 	    if( cd == "IX" ) {
+	      if( multi ) { rt_err( "invalid use of _MULTI suffix on CUCL IX decl" ); }
 	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
 	      string const ix_name = mmc_parts[2];
 	      string const arg_name = mmc_parts[3];
@@ -294,10 +293,25 @@ namespace boda
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
 	      // get var name 
 	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{*/", ' ' ) ) );
-	      string const arg_name = arg_decl.back();
 	      vect_dims_t ok_dims;
-	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { ok_dims.push_back( dims_from_nda_spec( mmc_parts[i] ) ); }
-	      arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims } );
+	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { ok_dims.push_back( dims_from_nda_spec( mmc_parts[i] ) );}
+	      string arg_name = arg_decl.back();
+	      if( !multi ) { arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims } ); }
+	      else {
+		if( !maybe_strip_suffix( arg_name, "_N" ) ) { 
+		  rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); 
+		}
+		string gen_arg_decls;
+		uint32_t mix = 0;
+		for( ; ; ++mix ) {
+		  string const multi_arg_name = arg_name + "_" + str(mix);
+		  // check for existance of multi arg name in ref dims -- if not found, we're done
+		  if( !has( rfs.ref_dims, multi_arg_name ) ) { break; }
+		  arg_decls.push_back( arg_decl_t{ multi_arg_name, cd, ok_dims } ); // otherwise, add
+		  line( arg_name + "_decl", "GASQ float const * const " + multi_arg_name + "," );
+		}
+		set( arg_name + "_num", str(mix) );
+	      }
 	    }
 	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
 	}

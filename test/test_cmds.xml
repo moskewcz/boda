@@ -171,8 +171,10 @@
   <li test_name="test_compute_alexnet_prob" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
 -->
 
+<!--
   <li test_name="test_grad_googlenet_conv" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=5,y=227,x=227),add_bck_ops=1)' --cf1='(mode=rtc,per_call_fn=out.py)' --max-err=1 --mad-toler=5e-4 --var-mad-toler=(cls1_fc=1e-5,cls2_fc=1e-5,cls3_fc=1e-5,conv2=1e-3,reduction2=1e-3,norm1=1e-3) "/>
   <li test_name="test_grad_googlenet_conv_opt" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=5,y=227,x=227),add_bck_ops=1)' --cf1='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 --mad-toler=5e-4 --var-mad-toler='(cls1_fc=1e-5,cls2_fc=1e-5,cls3_fc=1e-5,conv2=1e-3,reduction2=1e-3,norm1=1e-3)'"/>
+-->
 
 <li test_name="test_grad_nin" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=nvrtc),show_rtc_calls=0,per_call_fn=out.py)' --max-err=10 --mad-toler=2e-5  --var-mad-toler='(cccp8-1024_filts_grad_loss=5e-5,cccp1_filts_grad_loss=5e-5)" />
 <li test_name="test_grad_nin_bconv" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --cf2='(mode=rtc,rtc=(be=ocl),show_rtc_calls=0,per_call_fn=out.py,enable_bconv=1)' --max-err=10 --mad-toler=2e-5  --var-mad-toler='(cccp8-1024_filts_grad_loss=5e-5,cccp1_filts_grad_loss=5e-5)" />
