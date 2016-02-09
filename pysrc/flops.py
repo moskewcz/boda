@@ -101,7 +101,8 @@ class Net( object ):
             bytes_ += self.tot_backward_bytes
 
         print pp_flops(flops), pp_fps(flops/args.runtime)
-        print pp_bytes(bytes_), pp_bps(bytes_/args.runtime), "AI="+pp_fpb(flops / float(bytes_))
+        print pp_bytes(bytes_), pp_bps(bytes_/args.runtime), "AI="+pp_fpb(flops / float(bytes_)) #includes filters & input & output activations per layer
+        print"TOTAL ACTIVATIONS="+pp_bytes(self.tot_in_bytes) #total activations of all layers. (tot_in_bytes = total input activations over all layers)
         print pp_joules(args.power*args.runtime), pp_fpspw(flops/args.runtime/args.power) 
         if self.args.print_tex_table_entry:
             print( "%-20s & %-20s & %-20s & %-20s & %-20s\\hline" % 
@@ -156,6 +157,8 @@ class Convolution( object ):
             if net.args.ai_mnk:
                 print " FWD_AI", pp_fpb( forward_flops / float(forward_bytes) ),
                 print " MxNxK=%sx%sx%s" % (M,N,K),
+            #if net.args.activ:
+            #    print " OUTPUT_ACTIV=",pp_bytes(out_pels)
             plt = per_layer_time.get(name,None)
             if plt:
                 print " --- ", pp_secs( plt ), pp_fps( forward_flops / float(plt) ),
