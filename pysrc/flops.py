@@ -91,15 +91,16 @@ class Net( object ):
 
         fb_str = "FWD"
         if verbose_print: fb_str = "FORWARD"
-        print "--- %s TOTALS ---" % fb_str
         flops = self.tot_forward_flops
         bytes_ = self.tot_forward_bytes
 
         if self.tot_backward_flops:
-            fb_str = "FORWARD+BACKWARD"
+            fb_str = "FWD+BCK"
+            if verbose_print: fb_str = "FORWARD+BACKWARD"
             flops += self.tot_backward_flops
             bytes_ += self.tot_backward_bytes
 
+        print "--- %s TOTALS ---" % fb_str
         print pp_flops(flops), pp_fps(flops/args.runtime)
         print pp_bytes(bytes_), pp_bps(bytes_/args.runtime), "AI="+pp_fpb(flops / float(bytes_))
         print pp_joules(args.power*args.runtime), pp_fpspw(flops/args.runtime/args.power) 
