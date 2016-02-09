@@ -157,8 +157,6 @@ class Convolution( object ):
             if net.args.ai_mnk:
                 print " FWD_AI", pp_fpb( forward_flops / float(forward_bytes) ),
                 print " MxNxK=%sx%sx%s" % (M,N,K),
-            #if net.args.activ:
-            #    print " OUTPUT_ACTIV=",pp_bytes(out_pels)
             plt = per_layer_time.get(name,None)
             if plt:
                 print " --- ", pp_secs( plt ), pp_fps( forward_flops / float(plt) ),
