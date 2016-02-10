@@ -336,11 +336,12 @@ namespace boda
 
   string conv_pipe_fwd_t::dump_var( string const & n ) {
     string ret;
-    p_nda_float_t nda = rtc->copy_var_as_flat_nda( n );
+    p_nda_float_t nda = rtc->create_nda_from_var( n );
     // dump nda
     ret += strprintf( "dumping var '%s'\n", str(n).c_str() );
-    for( uint32_t i = 0; i != nda->dims.dims_prod(); ++i ) {
-      ret += strprintf( "i=%s v=%s\n", str(i).c_str(), str(nda->cm_at1(i)).c_str() );
+    for( dims_iter_t di( nda->dims ) ; ; )  {
+      ret += strprintf( "[%s]: %s\n", nda->dims.ix_str(di.di,1).c_str(), str(nda->at(di.di)).c_str() );
+      if( !di.next() ) { break; }
     }
     return ret;
   }
