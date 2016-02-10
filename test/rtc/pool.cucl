@@ -9,30 +9,31 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
 {
   // CUCL IX GLOB_ID_1D out
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
-  float out_v = 0.0f;
-  int oyx = -1; // invalid value, will prevent propogation of this output's gradient
+  float out_v = %(avg_pool) ? 0.0f : -FLT_MAX;
+  int oyx = -1; // invalid value, will prevent propogation of this output's gradient (note: oyx used only for max pool)
+  float avg_pool_sz = 0;
+  // note: to match caffe, only non-padding pixels are considered for both average and max pooling. it is assumed that
+  // no window lies totally inside padding; in that case, -FLT_MAX would be returned by max pooling, and NaN (div by 0)
+  // would be returned by average pooling.
   for( int32_t kx = 0; kx != %(kern_sz_x_dim); ++kx ) {
     for( int32_t ky = 0; ky != %(kern_sz_y_dim); ++ky ) {
-      float v = 0;
       int const in_y = %(GLOB_ID_1D_y)*%(stride_y_dim) + ky - %(in_pad_y_dim);
       int const in_x = %(GLOB_ID_1D_x)*%(stride_x_dim) + kx - %(in_pad_x_dim);
       if(in_y >= 0 && in_x >= 0 && in_x < %(in_x_dim) && in_y < %(in_y_dim) ) {
 	int32_t const in_ix = %(GLOB_ID_1D_img)*%(in_img_sz) + %(GLOB_ID_1D_chan)*%(in_chan_sz) + 
 	  in_y*%(in_y_sz) + in_x*%(in_x_sz);
-	v = in[in_ix];
-	if( %(emit_out_in_yx) ) { if ( v > out_v ) { oyx = in_y*%(in_x_dim) + in_x; } } // propogate to (only) this input
-      }
-      if( %(avg_pool) ) { out_v += v; } else {
-	out_v = max( out_v, v ); 
+	float const v = in[in_ix];
+	if( %(avg_pool) ) { 
+	  out_v += v; 
+	  avg_pool_sz += 1;
+	} else if( v > out_v ) {
+	  out_v = v;
+	  if( %(emit_out_in_yx) ) { oyx = in_y*%(in_x_dim) + in_x; } // propogate to (only) this input
+	}
       }
     }
   }
-  // FIXME: the scaling factor for the avg_pool=1 case should only include the # of pixels that were averaged over, not
-  // the entire kernel size. to agree with caffe, this should include padding pixels but *NOT* truncated pixels. this
-  // distinction is only important if the stride is >1 and such that the output includes a pixel that uses a
-  // clipped/truncated input region (i.e. that extends outside padding). see the details of the pooling output size
-  // calculation for details.
-  if( %(avg_pool) ) { out_v /= (float)(%(kern_sz_x_dim)*%(kern_sz_y_dim)); }
+  if( %(avg_pool) ) { out_v /= avg_pool_sz; }
   out[GLOB_ID_1D] = out_v;
   if( %(emit_out_in_yx) ) { out_in_yx[GLOB_ID_1D] = oyx; }
 }

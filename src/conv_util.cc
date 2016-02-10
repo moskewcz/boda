@@ -630,6 +630,7 @@ namespace boda
     else if( cop->is( SoftmaxWithLoss_coi ) ) {
       assert_st( cop->bots[0]+"_grad_loss" == cop->tops[0] );
     } else if( cop->is( Pooling_coi ) ) {
+      cop->params["emit_out_in_yx"] = "1";
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
