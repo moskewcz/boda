@@ -611,7 +611,13 @@ namespace boda
     if( cop->in_place.v ) { return onn; } // as usual, in_place handling sucks. hopefully this is right?
 #if 1 // HACK for caffe split blob naming compatiblity, works only if all relevant caffe layers are Concat outputs?
     uint32_t const bix = get_bot_for_ix( in, cop->tag );
-    onn = inn + "_" + inn + "_0_split_" + str(bix) + "_grad_loss";
+    string wopn = "_" + inn; // for data/label ...
+    if( !in->top_for.empty() ) {
+      assert_st( in->top_for.size() == 1 );
+      wopn = "_" + in->top_for[0];
+      if( !in->in_place_ops.empty() ) { wopn = "_" + in->in_place_ops.back()->tag; }
+    }
+    onn = inn + wopn + "_0_split_" + str(bix) + "_grad_loss";
 #else
     onn += "_" + cop->tag;
 #endif
