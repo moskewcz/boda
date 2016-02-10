@@ -451,6 +451,14 @@ namespace boda
     } else if( cop->is( Reduce_coi ) ) {
       gen_call( "reduce", oi );
     } else if( cop->is( Pooling_coi ) ) {
+      if( cop->u32_param("emit_out_in_yx") == 1 ) {
+	string const out_in_yx = oi->get_arg("out") + "_in_yx"; 
+	rtc->create_var_with_dims_floats( out_in_yx, oi->get_arg_dims("out") ); // same size as out
+	oi->set_arg( rtc, "out_in_yx", out_in_yx );
+      } else {
+	assert_st( cop->u32_param("emit_out_in_yx") == 0 );
+	oi->set_null_arg( "out_in_yx" );
+      }
       gen_call( "pool", oi );
     } else if( cop->is( Convolution_coi ) ) {
       op_param_names.push_back( oi->get_arg("filts") );

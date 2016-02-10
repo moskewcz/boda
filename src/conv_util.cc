@@ -16,7 +16,8 @@ namespace boda
   // them into conv_op_info_t. now they are just all strings ...
 
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
-  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, {{"avg_pool","0"}} };
+  map_str_str const Pooling_params{{"avg_pool","0"},{"emit_out_in_yx","0"}};
+  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_params };
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}} };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
@@ -34,8 +35,7 @@ namespace boda
   // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
   // other ops. so we try to understand what they do functionally and name them accordingly.
-  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" }, 
-										     {{ "avg_pool", "0" }} };
+  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" }, Pooling_params };
   conv_op_info_t const ZeroIfNonPos_coi{ "ZeroIfNonPos", {"in","cond"}, {"out"} }; // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
   conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
     { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" } };
