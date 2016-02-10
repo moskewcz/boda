@@ -576,7 +576,7 @@ namespace boda
       // HACK: improperly/unneccarily computed by boda currently, but not caffe: no check
       // FIXME: we should probably try to get the caffe split node blobs to compare, but for now we skip them.
       if( !startswith(nn,"loss") && (nn != "data_grad_loss") 
-	  && !is_reduce_in( this, node )  
+//	  && !is_reduce_in( this, node )  
 	  ) 
       { 
 	out.push_back( node->name ); 
@@ -592,6 +592,14 @@ namespace boda
   // running test case for add_bck_ops/gradient calculations:
   // boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=1),out_node_name=conv1_grad_loss,add_bck_ops=1)' --cf2="(mode=rtc,show_rtc_calls=0,per_call_fn=out.py,dump_vars=())" --max-err=2 && cat test_compute.txt
 
+  uint32_t get_bot_for_ix( p_conv_node_t const & node, string const & op_name ) {
+    for( uint32_t i = 0; i != node->bot_for.size(); ++i ) {
+      if( node->bot_for[i] == op_name ) { return i; }
+    }
+    assert_st(0);
+  }
+
+
   // for the given input node name of the given operation, return the proper node name for this operation's contribution
   // to the _grad_loss of the input. when an input is used by only this operation, that is just the input node name +
   // "_grad_loss". otherwise, it will be a partial contribution, with the name of the op appended.
@@ -601,9 +609,9 @@ namespace boda
     string onn = inn + "_grad_loss";
     if( in->bot_for.size() == 1 ) { return onn; }
     if( cop->in_place.v ) { return onn; } // as usual, in_place handling sucks. hopefully this is right?
-#if 0 // HACK for caffe split blob naming compatiblity
-    //"reduce_" + str(i - node->bot_for.begin()) + "_" + nn_gl;
-    //onn += "_" + cop->tag;
+#if 1 // HACK for caffe split blob naming compatiblity, works only if all relevant caffe layers are Concat outputs?
+    uint32_t const bix = get_bot_for_ix( in, cop->tag );
+    onn = inn + "_" + inn + "_0_split_" + str(bix) + "_grad_loss";
 #else
     onn += "_" + cop->tag;
 #endif
