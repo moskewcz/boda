@@ -359,10 +359,11 @@ namespace boda {
       vect_string to_set_vns2;
       run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd1, to_set_vns1 );
       run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd2, to_set_vns2 );
-      tops.clear(); // FIXME: acutally allow/use tops as param input?
-      string const & onn = run_cnet->conv_pipe->out_node_name;
-      if( !onn.empty() ) { tops.push_back( onn ); } 
-      else { run_cnet->conv_pipe->get_topo_order_caffe_comp_nodes( tops ); }
+      if( tops.empty() ) {
+	string const & onn = run_cnet->conv_pipe->out_node_name;
+	if( !onn.empty() ) { tops.push_back( onn ); } 
+	else { run_cnet->conv_pipe->get_topo_order_caffe_comp_nodes( tops ); }
+      }
       (*out) << strprintf( "vars_to_compare: %s\n", str(tops).c_str() );
       cf1->run_fwd( to_set_vns1, fwd1, tops );
       cf2->run_fwd( to_set_vns2, fwd2, tops );
