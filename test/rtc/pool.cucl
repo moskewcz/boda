@@ -20,6 +20,11 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
       if( %(avg_pool) ) { out_v += v; } else { out_v = max( out_v, v ); }
     }
   }
+  // FIXME: the scaling factor for the avg_pool=1 case should only include the # of pixels that were averaged over, not
+  // the entire kernel size. to agree with caffe, this should include padding pixels but *NOT* truncated pixels. this
+  // distinction is only important if the stride is >1 and such that the output includes a pixel that uses a
+  // clipped/truncated input region (i.e. that extends outside padding). see the details of the pooling output size
+  // calculation for details.
   if( %(avg_pool) ) { out_v /= (float)(%(kern_sz_x_dim)*%(kern_sz_y_dim)); }
   out[GLOB_ID_1D] = out_v;
 }
