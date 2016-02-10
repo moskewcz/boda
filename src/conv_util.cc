@@ -575,7 +575,12 @@ namespace boda
       // HACK: dims of loss don't agree currently, so don't try to check it. raw sizes are okay ...
       // HACK: improperly/unneccarily computed by boda currently, but not caffe: no check
       // FIXME: we should probably try to get the caffe split node blobs to compare, but for now we skip them.
-      if( !startswith(nn,"loss") && (nn != "data_grad_loss") && !is_reduce_in( this, node ) ) { out.push_back( node->name ); }
+      if( !startswith(nn,"loss") && (nn != "data_grad_loss") 
+	  && !is_reduce_in( this, node )  
+	  ) 
+      { 
+	out.push_back( node->name ); 
+      }
       for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
 	p_conv_op_t const & cop = get_op( *i );
 	if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
@@ -596,7 +601,12 @@ namespace boda
     string onn = inn + "_grad_loss";
     if( in->bot_for.size() == 1 ) { return onn; }
     if( cop->in_place.v ) { return onn; } // as usual, in_place handling sucks. hopefully this is right?
+#if 0 // HACK for caffe split blob naming compatiblity
+    //"reduce_" + str(i - node->bot_for.begin()) + "_" + nn_gl;
+    //onn += "_" + cop->tag;
+#else
     onn += "_" + cop->tag;
+#endif
     return onn;
   }
 
@@ -687,7 +697,7 @@ namespace boda
       bcop->tag  = "reduce_" + nn_gl;
       bcop->tops.push_back( nn_gl );
       for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
-	bcop->bots.push_back( nn_gl + "_" + (*i) );
+	bcop->bots.push_back( get_grad_loss_onn( get_op(*i), node_name ) );
       }
       bck_ops.push_back( bcop );
     }
