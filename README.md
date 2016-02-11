@@ -12,7 +12,7 @@ Boda is a one-grad-student, mostly-run-on-one-machine work in progress.
 However, for the brave, there is now a considerable amount of functionality present. 
 Overall, documentation is still very much lacking. 
 But, in particular, if you're interested in a unified C++ framework from camera/lmdbs/images to generated CUDA/OpenCL for CNNs, this might be an interesting project for you to explore. 
-At this point, I think it's now plausible that others would be interested in and cabable of usage of, experimentation with, and contributions to Boda. 
+At this point, I think it's now plausible that others would be interested in and capable of usage of, experimentation with, and contributions to Boda. 
 So, please file issues/PRs if that's the case.
 
 ### Getting Started / Installation
