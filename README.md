@@ -33,7 +33,7 @@ See the [INSTALL.md](INSTALL.md) file.
 
 #### Boda modes/UI:
 
-![Boda Overall Diagram](img=https://docs.google.com/drawings/d/1oir3fZt-SiO17C-vjsboLAkwucx4n6Le4kdqr_uEXFw/pub?w=670&h=266)
+![Boda Overall Diagram](https://docs.google.com/drawings/d/1oir3fZt-SiO17C-vjsboLAkwucx4n6Le4kdqr_uEXFw/pub?w=670&h=266)
 
 In the above diagram, the middle box is a Boda 'mode' -- a c++ class
 with a main() function and a set of parameters. this is the boda

@@ -1,9 +1,9 @@
-### WIP : Getting Started
+# WIP : Getting Started
 
 ## Boda config file setup (can be done after build if desired)
-# note: all commands should be run from boda directory 
+### note: all commands should be run from boda directory 
 
-first, copy and rename my sample configuration file from the root directory to the lib dir as a template for yours:
+First, copy and rename my sample configuration file from the root directory to the lib dir as a template for yours:
 
     cp mwm_boda_cfg.xml lib/boda_cfg.xml
 
@@ -11,7 +11,7 @@ Then, edit the file. Important vars (see below): **alt_param_dir**, **pascal_dat
 
 Most varaibles are only used by specific modes, and in thoery none are strictly required. However, fue to limitations of the testing framework, currently all paths used by any tested mode must be specified -- but need not be valid. So, don't remove any variables, but don't worry about setting them correctly initially. 
 
-For testing of CNN related code, you'll need binary caffe model parameter files matching (some of) the nets in the boda/nets directory. You can put the model files alongside the nets, or you can set **alt_models_dir** to an alternate location to look for the parameter files (see the comment in the config file itself).
+For testing of CNN related code, you'll need binary caffe model parameter files matching (some of) the nets in the boda/nets directory. You can put the model files alongside the nets, or you can set **alt_param_dir** to an alternate location to look for the parameter files (see the comment in the config file itself).
 
 Additionally, for running demos (perhaps those commands listed in the [doc/demo_notes.txt](doc/demo_notes.txt) file) **caffe_dir** should be a path to a checkout of caffe from which to find aux data files (not related to buidling). For example, the **cnet_predict** mode looks (by default) for the file "%(caffe_dir)/data/ilsvrc12/synset_words.txt".
 
@@ -33,12 +33,12 @@ Finally, this file includes a line to add a directory to LD_LIBRARY_PATH so that
 
 ## Build
 
-# Install needed dependencies
+### Install needed dependencies
 
 (some of the) needed extra packages under ubuntu 14.04 for a minimal compile:
 sudo apt-get install protobuf-compiler libprotobuf-dev liblmdb-dev libsparsehash-dev libpython-dev libboost-all-dev
 
-# Build Configuration : edit [makefile](makefile) and [obj_list](obj_list)
+### Build Configuration : edit [makefile](makefile) and [obj_list](obj_list)
 
 Generally, makefile need not be edited, as it's mostly a skelton used by the python-based pre-build system.
 The file obj_list is where you control what software to link with and, if needed, any system specific paths. 
@@ -48,13 +48,13 @@ In general, for any non-disabled modules, modify the paths as needed.
 The build system will combine pieces of obj_list together with the Makefile template to form a complete Makefile.
 This process is driven by regular make at the top level.
 
-# compile
+### compile
 
 make -j12
 
 ## Running Tests
 
-# TODO: see boda issues for a starting place
+### TODO: see boda issues for a starting place
 
 
 
