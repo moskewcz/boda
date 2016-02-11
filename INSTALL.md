@@ -54,7 +54,7 @@ This process is driven by regular make at the top level.
 
 ### compile
 
-make -j12
+    make -j12
 
 ## Running Tests
 
