@@ -20,6 +20,8 @@ namespace boda
     virtual void init( p_conv_pipe_t const & cp_ );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
+    virtual void set_det_drop_seed( uint32_t const & det_drop_seed_ ) { assert_st(0); } // FIXME: TODO ... along with everything else in this file ;)
+
   };
 
   void slow_cpu_fwd_t::init( p_conv_pipe_t const & cp_ ) { cp = cp_; assert_st( cp );  }

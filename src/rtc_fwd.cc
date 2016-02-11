@@ -292,6 +292,16 @@ namespace boda
 
     virtual void init( p_conv_pipe_t const & cp_ );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
+    vect_uint32_t dropout_cixs;
+    virtual void set_det_drop_seed( uint32_t const & det_drop_seed_ ) { 
+      // sigh.
+      for( vect_uint32_t::const_iterator i = dropout_cixs.begin(); i != dropout_cixs.end(); ++i ) {
+	assert( (*i) < fwd_calls.size() );
+	rcg_func_call_t & rcg = fwd_calls[*i];
+	assert_st( rcg.u32_args.size() == 1 );
+	rcg.u32_args[0] = det_drop_seed_; 
+      }
+    }
 
     void update_stats( void );
     string dump_var( string const & n );
@@ -517,7 +527,20 @@ namespace boda
       gen_call( "bck_lrn", oi );
     } else if( cop->is( Dropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
-      // ignore for fwd
+      oi->set_arg( rtc, "inout", oi->get_arg("in") );
+      gen_call( "dropout", oi );
+      // FIXME: move this check (and others like it) to conv_util.cc or similar?
+      double const dropout_ratio = lc_str_d( oi->template_var_values["dropout_ratio"] );
+      assert_st( dropout_ratio > 0.0 );
+      assert_st( dropout_ratio < 1.0 );
+      fwd_calls.back().u32_args.push_back( 0 ); // see update code elsewhere. yeah, not the cleanest approach.
+      dropout_cixs.push_back( fwd_calls.size() - 1 );
+    } else if( cop->is( BckDropout_coi ) ) {
+      assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
+      oi->set_arg( rtc, "inout", oi->get_arg("in") );
+      gen_call( "dropout", oi ); // Backwards of dropout is dropout
+      fwd_calls.back().u32_args.push_back( 0 ); // see update code elsewhere. yeah, not the cleanest approach.
+      dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( cop->is( Softmax_coi ) ) {
       gen_call( "softmax", oi );
     } else if( cop->is( SoftmaxWithLoss_coi ) ) {

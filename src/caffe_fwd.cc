@@ -6,8 +6,11 @@
 #include"conv_util.H"
 #include"caffe/caffe.hpp"
 #include<cudaProfiler.h>
+#include<dlfcn.h>
 
-namespace caffe { template< typename T > struct Net; }
+namespace caffe { 
+  template< typename T > struct Net; 
+}
 
 namespace boda 
 {
@@ -18,6 +21,21 @@ namespace boda
   typedef shared_ptr< Net_float > p_Net_float;
 
   void dims_t_to_shape( dims_t const & dims, caffe::BlobShape & bs ); // from caffepb.cc
+
+  typedef void caffe_set_det_drop_seed_t( uint32_t const det_drop_seed_ );
+
+  void boda_stub_caffe_set_det_drop_seed( uint32_t const det_drop_seed_ ) {
+    static bool caffe_set_det_drop_seed_set = 0;
+    static caffe_set_det_drop_seed_t * caffe_set_det_drop_seed = 0;
+    if( !caffe_set_det_drop_seed_set ) {
+      caffe_set_det_drop_seed = (caffe_set_det_drop_seed_t *)dlsym( RTLD_DEFAULT, "caffe_set_det_drop_seed" );
+      caffe_set_det_drop_seed_set = 1;
+    }
+    if( caffe_set_det_drop_seed ) { caffe_set_det_drop_seed(det_drop_seed_); }
+    else {
+      printf("Warning: caffe not compiled with caffe_set_det_drop_seed() support; determinisic Dropout not availible. Expect related test failures.\n");
+    }
+  }
 
   struct caffe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using caffe",
 			   // bases=["has_conv_fwd_t"], type_id="caffe" )
@@ -34,6 +52,7 @@ namespace boda
     virtual void init( p_conv_pipe_t const & cp_ );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
+    virtual void set_det_drop_seed( uint32_t const & det_drop_seed_ ) { boda_stub_caffe_set_det_drop_seed( det_drop_seed_ ); }
   };
 
   void init_caffe( uint32_t const gpu_id ) {
@@ -44,7 +63,6 @@ namespace boda
       google::InitGoogleLogging("boda_caffe");
       Caffe::set_mode(Caffe::GPU);
       Caffe::SetDevice(gpu_id);
-      //Caffe::set_mode(Caffe::CPU);
     }
   }
 

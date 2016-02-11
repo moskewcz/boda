@@ -140,7 +140,8 @@ namespace boda
   typedef shared_ptr< map_str_var_info_t > p_map_str_var_info_t;
 
   string cu_base_decls = R"rstr(
-//typedef unsigned uint32_t;
+typedef unsigned uint32_t;
+uint32_t const U32_MAX = 0xffffffffU;
 typedef int int32_t;
 //typedef long long int64_t;
 float const FLT_MAX = /*0x1.fffffep127f*/ 340282346638528859811704183484516925440.0f;

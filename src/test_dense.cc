@@ -314,6 +314,9 @@ namespace boda {
 	      copy_win_to_batch( (*i)->img, samp_nc );
 	    }
 	    ++tot_wins;
+	    // FIXME: make seed be tot_wins * size_of_image * images_per_batch or the like?
+	    cf1->set_det_drop_seed( tot_wins );
+	    cf2->set_det_drop_seed( tot_wins );
 	    comp_batch();
 	  }
 	}

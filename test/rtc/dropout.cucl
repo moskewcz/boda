@@ -1,0 +1,21 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const inout, // CUCL OUT img:chan:y:x
+					  uint32_t const det_drop_seed )
+{
+  // CUCL IX GLOB_ID_1D out
+  if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
+
+  float const scale = ( 1.0 / (1.0 - %(dropout_ratio) ) );
+  uint32_t const u32_thresh = (uint32_t)(U32_MAX * %(dropout_ratio));
+  float v = 0.0f;
+
+  uint32_t h = (uint32_t)(GLOB_ID_1D) + det_drop_seed;
+  h ^= h >> 16;
+  h *= 0x85ebca6b;
+  h ^= h >> 13;
+  h *= 0xc2b2ae35;
+  h ^= h >> 16;
+
+  if( h > u32_thresh ) { v = inout[GLOB_ID_1D] * scale; }
+  inout[GLOB_ID_1D] = v;
+}
+

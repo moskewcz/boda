@@ -123,7 +123,7 @@ namespace boda
 	//printf( "skip lp.name()=%s\n", str(lp.name()).c_str() ); 
 	continue; 
       } 
-      if( lp.type() == Dropout_coi.type ) { continue; } // unhandled for now, so drop dropout layers
+      if( lp.type() == Dropout_coi.type ) { if( !add_bck_ops ) { continue; } } // drop dropout layers if not adding bck ops
       p_conv_op_t conv_op( new conv_op_t );
       conv_op->tag = lp.name();
       conv_op->type = lp.type();
@@ -144,8 +144,10 @@ namespace boda
       } else if( lp.type() == ReLU_coi.type ) {
 	conv_op->stride = {1,1}; // sensible, but currently unused
       } else if( lp.type() == Dropout_coi.type ) {
-	rt_err( "TODO: handle dropout" );
+	//rt_err( "TODO: handle dropout" );
+	caffe::DropoutParameter const & p = lp.dropout_param();	
 	conv_op->stride = {1,1}; // sensible, but currently unused
+	conv_op->params["dropout_ratio"] = str(p.dropout_ratio());
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	

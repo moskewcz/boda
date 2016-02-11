@@ -20,7 +20,8 @@ namespace boda
   conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_params };
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}} };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
-  conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"} };
+  conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
+  conv_op_info_t const BckDropout_coi{ "BckDropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
   map_str_str const LRN_params{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"},{"emit_out_scale_base","0"}};
   conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_params };
   conv_op_info_t const BckLRN_coi{ "BckLRN", {"in","out","out_grad_loss"}, {"in_grad_loss"}, LRN_params };
@@ -43,7 +44,7 @@ namespace boda
   vect_rp_conv_op_info_t conv_op_infos{ &Pooling_coi, &Convolution_coi, &ReLU_coi, &Dropout_coi, &LRN_coi, 
       &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &Reduce_coi, &Split_coi,
       &InnerProduct_coi, &Spreading_coi,
-      &BckLRN_coi, &ZeroIfNonPos_coi, &BckConv_coi };
+      &BckDropout_coi, &BckLRN_coi, &ZeroIfNonPos_coi, &BckConv_coi };
 
   string conv_op_info_t::bot_an( uint32_t const & ix ) const {
     if( has_var_bots.v ) { assert_st( bots.size() == 1 ); return bots[0] + "_" + str(ix); }
@@ -166,8 +167,8 @@ namespace boda
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
     conv->set_and_check_coi();
-    //printf( "conv->tag=%s conv->tops=%s conv->bots=%s\n", str(conv->tag).c_str(), str(conv->tops).c_str(), str(conv->bots).c_str() );
-    if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) ) { 
+    //printf( "conv=%s\n", str(conv).c_str() );
+    if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) || conv->is(BckDropout_coi) ) { 
       if( conv->is(ZeroIfNonPos_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }
       else { assert_st( conv->tops == conv->bots ); }
       get_or_make_node(conv->bots[0], 0, 0 )->in_place_ops.push_back( conv );
@@ -650,6 +651,15 @@ namespace boda
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input
       bcop->bots[0] += "_grad_loss";
       bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] ); // note: ReLU has no params, so there is second output for parameter gradients (as with some bck ops)
+    } else if( cop->is( Dropout_coi ) ) {
+      bcop.reset( new conv_op_t );
+      *bcop = *cop;
+      bcop->coi = 0;
+      bcop->type = BckDropout_coi.type;
+      bcop->tag += "_bck";
+      swap( bcop->tops, bcop->bots );
+      bcop->bots[0] += "_grad_loss";
+      bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] ); 
     } else if( cop->is( Convolution_coi ) ) {
       bcop.reset( new conv_op_t );
       *bcop = *cop;
@@ -682,7 +692,7 @@ namespace boda
       bcop->bots.push_back( bcop->bots.back() + "_grad_loss" ); // take _grad_loss of original output as input
       bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] ); // produce _grad_loss of original input
     } else {
-      printf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() );
+      rt_err( strprintf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() ) );
     }
     if( bcop ) { bck_ops.push_back( bcop ); }
   }
