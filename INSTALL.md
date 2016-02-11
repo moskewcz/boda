@@ -20,9 +20,13 @@ Some tests may require various other inputs/data files/paths from the above conf
 Here is some basic information on other vars:
 
 bench_dir: related to hamming distance / obj. detection experiments. untested/unused? probably can ignore.
+
 datasets_dir: some modes expect %(datasets_dir)/flickrlogos, %(datasets_dir)/imagenet_classification/ilsvrc12_val_lmdb, ...
+
 flickr_data_dir: path to flickr logo data in VOC format, used by some older experiments only, untested, ignorable
+
 dpm_fast_cascade_dir: path to dpm_fast_cascade codebase, for old DPM experiments, ignorable
+
 ffld_dir: path to ffld, for old DPM experiments, ignorable
 
 ## Boda environment variables / bash completion setup (optional; can be done after build if desired)
