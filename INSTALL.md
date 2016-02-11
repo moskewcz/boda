@@ -9,6 +9,8 @@ First, copy and rename my sample configuration file from the root directory to t
 
 Then, edit the file. Important vars (see below): **alt_param_dir**, **pascal_data_dir**, **caffe_dir**
 
+    emacs lib/boda_cfg.xml
+
 Most variables are only used by specific modes, and in theory none are strictly required. However, due to limitations of the testing framework, currently all paths used by any tested mode must be specified -- but need not be valid. So, don't remove any variables, but don't worry about setting them correctly initially. 
 
 For testing of CNN related code, you'll need binary caffe model parameter files matching (some of) the nets in the boda/nets directory. You can put the model files alongside the nets, or you can set **alt_param_dir** to an alternate location to look for the parameter files (see the comment in the config file itself).
@@ -40,9 +42,12 @@ Finally, this file includes a line to add a directory to LD_LIBRARY_PATH so that
 ### Install needed dependencies
 
 (some of the) needed extra packages under ubuntu 14.04 for a minimal compile:
-sudo apt-get install protobuf-compiler libprotobuf-dev liblmdb-dev libsparsehash-dev libpython-dev libboost-all-dev
 
-### Build Configuration : edit [makefile](makefile) and [obj_list](obj_list)
+    sudo apt-get install protobuf-compiler libprotobuf-dev liblmdb-dev libsparsehash-dev libpython-dev libboost-all-dev
+
+### Build Configuration : editing [makefile](makefile) and [obj_list](obj_list)
+
+    emacs obj_list
 
 Generally, makefile need not be edited, as it's mostly a skelton used by the python-based pre-build system.
 The file obj_list is where you control what software to link with and, if needed, any system specific paths. 
