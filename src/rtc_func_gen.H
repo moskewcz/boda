@@ -42,9 +42,11 @@ namespace boda
       if( template_var_values != o.template_var_values ) { return template_var_values < o.template_var_values; }
       return 0;
     }
-    uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( template_var_values, tvn ) ); }
+    uint32_t get_u32_tvv( string const & tvn ) const { return lc_str_u32( must_find( template_var_values, tvn ) ); }
     string gen_unused_fn( rtc_func_names_map_t & fns ) const;
   };
+  typedef shared_ptr< rtc_func_sig_t > p_rtc_func_sig_t; 
+
   inline std::ostream & operator << ( std::ostream & out, rtc_func_sig_t const & o ) {
     return out << strprintf( "o.fn=%s o.ref_dims=%s", str(o.fn).c_str(), str(o.ref_dims).c_str() );
   }
@@ -53,7 +55,7 @@ namespace boda
     string vn;
     string io_type;
     vect_dims_t ok_dims;
-    bool multi;
+    string multi_base_vn;
   };
   inline std::ostream & operator << ( std::ostream & out, arg_decl_t const & o ) {
     for( vect_dims_t::const_iterator i = o.ok_dims.begin(); i != o.ok_dims.end(); ++i ) {
@@ -70,23 +72,23 @@ namespace boda
   };
   typedef vector< ix_decl_t > vect_ix_decl_t; 
 
-  void insert_nda_dims_sz( vect_pair_str_str & mss, string const & nda_vn, dims_t const & dims, bool const & dims_only ) {
+  void insert_nda_dims_sz( map_str_str & mss, string const & nda_vn, dims_t const & dims, bool const & dims_only ) {
     for( uint32_t i = 0; i != dims.sz(); ++i ) {
-      mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_dim", str(dims[i].sz) ) );
+      must_insert( mss, nda_vn+"_"+dims[i].name+"_dim", str(dims[i].sz) );
       if( !dims_only ) { 
 	assert_st( dims[i].has_sz_and_stride_and_name() );
-	mss.push_back( make_pair( nda_vn+"_"+dims[i].name+"_sz", str(dims[i].stride) ) ); 
+	must_insert( mss, nda_vn+"_"+dims[i].name+"_sz", str(dims[i].stride) );
       }
     }
-    if( !dims_only ) { mss.push_back( make_pair( nda_vn+"_dims_prod", str(dims.dims_prod()) ) ); } // also emit dim(0)*stride(0)?
+    if( !dims_only ) { must_insert( mss, nda_vn+"_dims_prod", str(dims.dims_prod()) ); } // also emit dim(0)*stride(0)?
   }
 
-  void insert_nda_ix_exprs( vect_pair_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr = string() ) {
+  void insert_nda_ix_exprs( map_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr = string() ) {
     if( ix_expr.empty() ) { ix_expr = ix_vn; } // if no custom ix expression, use ix_vn directly as ix expr
     for( uint32_t i = 0; i != dims.sz(); ++i ) {
       assert_st( dims[i].has_sz_and_stride_and_name() );
       string v = (dims[i].stride > 1) ? "("+ix_expr+"/"+str(dims[i].stride)+")" : ix_expr;
-      mss.push_back( make_pair( ix_vn+"_"+dims[i].name+"_nomod", v ) );      
+      must_insert( mss, ix_vn+"_"+dims[i].name+"_nomod", v );      
       // note: we supress the module on the outermost dim, allowing it to overflow (even though we know it's size and
       // could wrap it. i guess if you want such wrapping, add another outmost dim, and you can set it's size to 1? then
       // the value of that dim becomes 0-if-valid, 1-or-more-if-OOB. but then there's unneeded modulos on the outmost
@@ -97,9 +99,9 @@ namespace boda
 	if( dsz > 1 ) { v = "("+v+"%%"+str(dims[i].sz)+")"; }
 	else { v = "0"; }
       }
-      mss.push_back( make_pair( ix_vn+"_"+dims[i].name, v ) );
+      must_insert( mss, ix_vn+"_"+dims[i].name, v );
     }
-    mss.push_back( make_pair( ix_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
+    must_insert( mss, ix_vn+"_dims_prod", str(dims.dims_prod()) ); // also emit dim(0)*stride(0)?
   }
 
   dims_t dims_from_nda_spec( string const & nda_spec ) {
@@ -121,9 +123,10 @@ namespace boda
     p_string template_str; // read from file
     vect_arg_decl_t arg_decls; // parsed out of template_str
     vect_ix_decl_t ix_decls; // parsed out of template_str
-    void init( string const & fn ) {
-      template_fn = (path(py_boda_test_dir()) / "rtc" / (fn+".cucl")).string();
-      template_str = read_whole_fn( template_fn );
+    void init( string const & template_fn_ ) {
+      template_fn = template_fn_;
+      string const full_template_fn = (path(py_boda_test_dir()) / "rtc" / (template_fn+".cucl")).string();
+      template_str = read_whole_fn( full_template_fn );
       vect_string lines = split( *template_str, '\n' );
       for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
 	// find magic CUCL comment (if any) and process it
@@ -152,17 +155,75 @@ namespace boda
 	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{*/", ' ' ) ) );
 	      vect_dims_t ok_dims;
 	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { ok_dims.push_back( dims_from_nda_spec( mmc_parts[i] ) );}
-	      string arg_name = arg_decl.back();
+	      string const arg_name = arg_decl.back();
+	      string multi_base_vn; // default -> empty/not-multi
 	      if( multi ) {
-		bool const did_strip = maybe_strip_suffix( arg_name, "_N" );
+		multi_base_vn = arg_name;
+		bool const did_strip = maybe_strip_suffix( multi_base_vn, "_N" );
 		if( !did_strip ) { rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); }
 	      }
-	      arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims, multi } );
+	      arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims, multi_base_vn } );
 	    }
 	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
 	}
       }
     }
+
+    void check_args( rtc_func_sig_t const & rfs_in, vect_arg_decl_t & flat_arg_decls ) {
+      assert_st( flat_arg_decls.empty() );
+      string arg_check_error;
+
+      // process/flatten-out multi args
+      for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
+	if( i->multi_base_vn.empty() ) { flat_arg_decls.push_back( *i ); }
+	else {
+	  uint32_t const multi_sz = rfs_in.get_u32_tvv( i->multi_base_vn + "_num" );
+	  for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
+	    string const multi_arg_name = i->multi_base_vn + "_" + str(mix);
+	    // note: multi-derived args are (still) marked multi=1 in flat_arg_decls. this is used to later
+	    // code-generate the decl section for these args.
+	    flat_arg_decls.push_back( *i ); 
+	    flat_arg_decls.back().vn = multi_arg_name;
+	  }
+	}
+      }
+      
+      for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
+	uint32_t const ix = i - flat_arg_decls.begin();
+	map_str_dims_t::const_iterator adi = rfs_in.ref_dims.find( i->vn );
+	if( adi == rfs_in.ref_dims.end() ) {
+	  arg_check_error +=  strprintf( "referenced %s arg '%s' not present in ref_dims; ", 
+					 i->io_type.c_str(), i->vn.c_str() );
+	  continue;
+	}
+	dims_t const & arg_dims = adi->second;
+	if( !arg_dims.has_name() ) { arg_check_error += "call arg "+str(ix)+ " must have names for all dims; "; }
+	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
+	if( !dims_only && arg_dims.has_padding() ) { 
+	  arg_check_error += "call args "+str(ix)+ " must not have padding; "; } // FIXME: maybe too strong
+
+	bool matches_decl = 0;
+	for( uint32_t j = 0; j != i->ok_dims.size(); ++j ) {
+	  if( arg_dims == dims_t() ) { matches_decl = 1; } // NULL case
+	  if( arg_dims.matches_template( i->ok_dims[j] ) ) { matches_decl = 1; }
+	}
+	if( !matches_decl ) { arg_check_error += "call arg "+str(ix)+" incompatible with decl arg "
+	    "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
+      }
+      if( !arg_check_error.empty() ) {
+	string arg_err = "RTC template function instantiation argument error: " + template_fn + ": " + arg_check_error + "\n";
+	for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
+	  arg_err += strprintf( "ARG[%s]:\n", str(i - flat_arg_decls.begin()).c_str() );
+	  arg_err += strprintf( "  DECL: %s\n", str(*i).c_str() );
+	  map_str_dims_t::const_iterator adi = rfs_in.ref_dims.find( i->vn );
+	  if( adi != rfs_in.ref_dims.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
+	  else { arg_err += "  CALL: not found in ref dims.\n"; }
+	}
+	arg_err += "full rfs: " + str(rfs_in) + "\n";
+	rt_err( arg_err );
+      }
+    }
+
   };
 
   typedef shared_ptr< rtc_template_t > p_rtc_template_t; 
@@ -172,7 +233,7 @@ namespace boda
     rtc_func_sig_t rfs;
     p_rtc_template_t rtc_func_template;
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
-    vect_pair_str_str tf_exprs;
+    map_str_str tf_exprs;
     map_str_dims_t all_ix_dims;
     map_str_str cgs; // code-gen sections
 
@@ -189,7 +250,7 @@ namespace boda
       if(cg.empty()) { cg += "// begin "+sn+"\n"; } // adding first line in (new) section, add header
       cg += "   " + line + "\n"; 
     }
-    void set( string const &var, string const &val ) { tf_exprs.push_back( std::make_pair( var, val )); }
+    void set( string const &var, string const &val ) { must_insert( tf_exprs, var, val ); }
 
     dims_t const & get_arg_dims_by_name( string const & arg_vn, string const & err_tag = "TEMPLATE" ) {
       map_str_dims_t::const_iterator i = rfs.ref_dims.find( arg_vn );
@@ -198,18 +259,19 @@ namespace boda
       }
       return i->second;
     }
-    
+    uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( tf_exprs, tvn ) ); }
+
     void init( p_rtc_template_t const & rtc_func_template_, 
 	       custom_codegen_t * const custom_codegen, rtc_func_sig_t const & rfs_, string const & gen_fn_, string & rtc_prog_str ){
       rtc_func_template = rtc_func_template_;
       gen_fn = gen_fn_;
       has_final_flags_arg = 0;
       rfs = rfs_;
-      tf_exprs.push_back( make_pair( "rtc_func_name", gen_fn ) );
+      set( "rtc_func_name", gen_fn );
       for( map_str_str::const_iterator i = rfs.template_var_values.begin(); i != rfs.template_var_values.end(); ++i ) {
-	tf_exprs.push_back( make_pair( i->first, i->second ) );
+	set( i->first, i->second );
       }
-      check_args();
+      rtc_func_template->check_args( rfs, flat_arg_decls );
 
       tpb = 0;
       blks = 0;
@@ -247,83 +309,35 @@ namespace boda
       if( !tpb ) { tpb = default_tpb; } // if not set, use a reasonable default
       // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
       
-      if( custom_codegen ) { custom_codegen->gen_op( this, rfs.fn ); }
+      if( custom_codegen ) { custom_codegen->gen_op( this, rtc_func_template->template_fn ); }
 
       // make these always availible as template vars, since why not?
-      tf_exprs.push_back( make_pair( "tpb", str(tpb) ) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
-      tf_exprs.push_back( make_pair( "blks", str(blks) ) ); // may be 0 if # of blocks is dynamic
-      tf_exprs.push_back( make_pair( "warp_sz", str("UNKNOWN") ) ); // yeah, not the best, but probably not exactly wrong. don't use it for real
+      set( "tpb", str(tpb) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
+      set( "blks", str(blks) ); // may be 0 if # of blocks is dynamic
+      set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 
       instantiate_template( rtc_prog_str );
     }
 
-    void check_args( void ) {
-      string arg_check_error;
-
-      // process/flatten-out multi args
-      for( vect_arg_decl_t::const_iterator i = rtc_func_template->arg_decls.begin(); i != rtc_func_template->arg_decls.end(); ++i ) {
-	if( !i->multi ) { flat_arg_decls.push_back( *i ); }
-	else {
-	  // note: arg_name already has _N checked for and stripped off
-	  uint32_t const multi_sz = rfs.get_u32_tvv( i->vn + "_num" );
-	  for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
-	    string const multi_arg_name = i->vn + "_" + str(mix);
-	    // note: multi-derived args are (still) marked multi=1 in flat_arg_decls, but this not used later currently
-	    flat_arg_decls.push_back( *i ); 
-	    flat_arg_decls.back().vn = multi_arg_name;
-	    line( i->vn + "_decl", "GASQ float const * const " + multi_arg_name + "," );
-	  }
-	}
-      }
-      
-      for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
-	uint32_t const ix = i - flat_arg_decls.begin();
-	map_str_dims_t::const_iterator adi = rfs.ref_dims.find( i->vn );
-	if( adi == rfs.ref_dims.end() ) {
-	  arg_check_error +=  strprintf( "referenced %s arg '%s' not present in ref_dims; ", 
-					 i->io_type.c_str(), i->vn.c_str() );
-	  continue;
-	}
-	dims_t const & arg_dims = adi->second;
-	if( !arg_dims.has_name() ) { arg_check_error += "call arg "+str(ix)+ " must have names for all dims; "; }
-	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
-	if( !dims_only && arg_dims.has_padding() ) { 
-	  arg_check_error += "call args "+str(ix)+ " must not have padding; "; } // FIXME: maybe too strong
-
-	// if no errors yet, do rest of setup. not ideal to do this per-var?
-	if( arg_check_error.empty() ) {	insert_nda_dims_sz( tf_exprs, i->vn, arg_dims, dims_only ); } 
-
-	bool matches_decl = 0;
-	for( uint32_t j = 0; j != i->ok_dims.size(); ++j ) {
-	  if( arg_dims == dims_t() ) { matches_decl = 1; } // NULL case
-	  if( arg_dims.matches_template( i->ok_dims[j] ) ) { matches_decl = 1; }
-	}
-	if( !matches_decl ) { arg_check_error += "call arg "+str(ix)+" incompatible with decl arg "
-	    "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
-      }
-      if( !arg_check_error.empty() ) {
-	string arg_err = "RTC template function instantiation argument error: " + rfs.fn + ": " + arg_check_error + "\n";
-	for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
-	  arg_err += strprintf( "ARG[%s]:\n", str(i - flat_arg_decls.begin()).c_str() );
-	  arg_err += strprintf( "  DECL: %s\n", str(*i).c_str() );
-	  map_str_dims_t::const_iterator adi = rfs.ref_dims.find( i->vn );
-	  if( adi != rfs.ref_dims.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
-	  else { arg_err += "  CALL: not found in ref dims.\n"; }
-	}
-	arg_err += "full rfs: " + str(rfs) + "\n";
-	rt_err( arg_err );
-      }
-    }
 
 
     void instantiate_template( string & rtc_prog_str ) {
-      rtc_prog_str += "// -- codegen begins for '"+rfs.fn+"'; template substituion table used (bulk sections ommited): --\n";
-      for( vect_pair_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
+      // generate arg decl code for multi args
+      for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
+	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
+	dims_t const & arg_dims = get_arg_dims_by_name( i->vn );
+	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
+	insert_nda_dims_sz( tf_exprs, i->vn, arg_dims, dims_only );
+      }
+
+      rtc_prog_str += "// -- codegen begins for '"+rtc_func_template->template_fn+
+	"'; template substituion table used (bulk sections ommited): --\n";
+      for( map_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
 	rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
       for( map_str_str::iterator i = cgs.begin(); i != cgs.end(); ++i ) { // terminate and emit bulk cgs
 	i->second += "    // end "+i->first;
-	tf_exprs.push_back( make_pair( i->first, i->second ) ); 
+	set( i->first, i->second ); 
       } 
       lexp_name_val_map_t tf_nvm{ p_lexp_t() };
       tf_nvm.insert_leafs_from( tf_exprs );
@@ -333,8 +347,8 @@ namespace boda
       } catch( rt_exception const & rte ) {
 	printf( "rfs=%s\n", str(rfs).c_str() );
 	printf( "tf_nvm=%s\n", str(tf_nvm).c_str() );
-	rt_err( strprintf( "instantiation failed; see above; rfs.fn=%s; error was: %s\n", 
-			   rfs.fn.c_str(), rte.err_msg.c_str() ) );
+	rt_err( strprintf( "instantiation failed; see above; rtc_func_template->template_fn=%s; error was: %s\n", 
+			   rtc_func_template->template_fn.c_str(), rte.err_msg.c_str() ) );
       }
       rtc_prog_str += rtc_func_str;
     }
@@ -367,7 +381,7 @@ namespace boda
 
     for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
       if( i->io_type == "REF" ) { continue; }
-      dims_t const & func_dims = must_find( rfs.ref_dims, i->vn );
+      dims_t const & func_dims = get_arg_dims_by_name( i->vn );
       if( func_dims == dims_t() ) { rfc.in_args.push_back("<NULL>"); continue; } // NULL case -- pass though to rtc
       map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->vn );
       if( an == rcg_func_call.arg_map.end() ) {
