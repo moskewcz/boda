@@ -229,11 +229,14 @@ namespace boda
   typedef shared_ptr< rtc_template_t > p_rtc_template_t; 
   typedef map< string, p_rtc_template_t > rtc_template_map_t;
 
-  struct rtc_call_gen_t {
-    rtc_func_sig_t rfs;
-    p_rtc_template_t rtc_func_template;
+  // note that while this derives from rtc_func_sig_t, this represents the 'elaborated' signature, where instead of just
+  // containing all the information that defines the semantics of this call, it also contains all the data (redundant,
+  // generated) that makes the *instantiation* unique. that is, after init(), combined with the function template, the
+  // signature of the rtc_call_gen_t defines a unique block of text for the generated function, using only the
+  // template_var_values field, strictly for text substitution into the template. the ref_dims field remains unchanged,
+  // and isn't used directly in template substition: all the info inside it is flattened into template_var_values.
+  struct rtc_call_gen_t : public rtc_func_sig_t {
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
-    map_str_str tf_exprs;
     map_str_dims_t all_ix_dims;
     map_str_str cgs; // code-gen sections
 
@@ -250,28 +253,24 @@ namespace boda
       if(cg.empty()) { cg += "// begin "+sn+"\n"; } // adding first line in (new) section, add header
       cg += "   " + line + "\n"; 
     }
-    void set( string const &var, string const &val ) { must_insert( tf_exprs, var, val ); }
+    void set( string const &var, string const &val ) { must_insert( template_var_values, var, val ); }
 
     dims_t const & get_arg_dims_by_name( string const & arg_vn, string const & err_tag = "TEMPLATE" ) {
-      map_str_dims_t::const_iterator i = rfs.ref_dims.find( arg_vn );
-      if( i == rfs.ref_dims.end() ) { 
+      map_str_dims_t::const_iterator i = ref_dims.find( arg_vn );
+      if( i == ref_dims.end() ) { 
 	rt_err( strprintf( "referenced %s arg '%s' not present in ref_dims", err_tag.c_str(), arg_vn.c_str() ) );
       }
       return i->second;
     }
-    uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( tf_exprs, tvn ) ); }
+    uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( template_var_values, tvn ) ); }
 
-    void init( p_rtc_template_t const & rtc_func_template_, 
+    void init( p_rtc_template_t const & rtc_func_template, 
 	       custom_codegen_t * const custom_codegen, rtc_func_sig_t const & rfs_, string const & gen_fn_, string & rtc_prog_str ){
-      rtc_func_template = rtc_func_template_;
+      (rtc_func_sig_t &)(*this) = rfs_;
       gen_fn = gen_fn_;
       has_final_flags_arg = 0;
-      rfs = rfs_;
       set( "rtc_func_name", gen_fn );
-      for( map_str_str::const_iterator i = rfs.template_var_values.begin(); i != rfs.template_var_values.end(); ++i ) {
-	set( i->first, i->second );
-      }
-      rtc_func_template->check_args( rfs, flat_arg_decls );
+      rtc_func_template->check_args( *this, flat_arg_decls );
 
       tpb = 0;
       blks = 0;
@@ -290,7 +289,7 @@ namespace boda
 	}
 	ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
 	must_insert( all_ix_dims, i->ix_vn, ix_dims );
-	insert_nda_ix_exprs( tf_exprs, i->ix_vn, ix_dims );
+	insert_nda_ix_exprs( template_var_values, i->ix_vn, ix_dims );
 	// special cases for index var names
 	if( i->ix_vn == "GLOB_ID_1D" ) { 
 	  // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
@@ -309,30 +308,30 @@ namespace boda
       if( !tpb ) { tpb = default_tpb; } // if not set, use a reasonable default
       // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
       
-      if( custom_codegen ) { custom_codegen->gen_op( this, rtc_func_template->template_fn ); }
+      if( custom_codegen ) { custom_codegen->gen_op( this, fn ); }
 
       // make these always availible as template vars, since why not?
       set( "tpb", str(tpb) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
       set( "blks", str(blks) ); // may be 0 if # of blocks is dynamic
       set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 
-      instantiate_template( rtc_prog_str );
+      instantiate_template( *rtc_func_template->template_str, rtc_prog_str );
     }
 
 
 
-    void instantiate_template( string & rtc_prog_str ) {
+    void instantiate_template( string const & template_str, string & rtc_prog_str ) {
       // generate arg decl code for multi args
       for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
 	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
 	dims_t const & arg_dims = get_arg_dims_by_name( i->vn );
 	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
-	insert_nda_dims_sz( tf_exprs, i->vn, arg_dims, dims_only );
+	insert_nda_dims_sz( template_var_values, i->vn, arg_dims, dims_only );
       }
 
-      rtc_prog_str += "// -- codegen begins for '"+rtc_func_template->template_fn+
+      rtc_prog_str += "// -- codegen begins for '"+fn+
 	"'; template substituion table used (bulk sections ommited): --\n";
-      for( map_str_str::const_iterator i = tf_exprs.begin(); i != tf_exprs.end(); ++i ) {
+      for( map_str_str::const_iterator i = template_var_values.begin(); i != template_var_values.end(); ++i ) {
 	rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
       for( map_str_str::iterator i = cgs.begin(); i != cgs.end(); ++i ) { // terminate and emit bulk cgs
@@ -340,15 +339,13 @@ namespace boda
 	set( i->first, i->second ); 
       } 
       lexp_name_val_map_t tf_nvm{ p_lexp_t() };
-      tf_nvm.insert_leafs_from( tf_exprs );
+      tf_nvm.insert_leafs_from( template_var_values );
       string rtc_func_str;
       try {
-	str_format_from_nvm( rtc_func_str, *rtc_func_template->template_str, tf_nvm );
+	str_format_from_nvm( rtc_func_str, template_str, tf_nvm );
       } catch( rt_exception const & rte ) {
-	printf( "rfs=%s\n", str(rfs).c_str() );
-	printf( "tf_nvm=%s\n", str(tf_nvm).c_str() );
-	rt_err( strprintf( "instantiation failed; see above; rtc_func_template->template_fn=%s; error was: %s\n", 
-			   rtc_func_template->template_fn.c_str(), rte.err_msg.c_str() ) );
+	printf( "rfs=%s\n", str((rtc_func_sig_t &)(*this)).c_str() );
+	rt_err( strprintf( "instantiation failed; see above; fn=%s; error was: %s\n", fn.c_str(), rte.err_msg.c_str() ) );
       }
       rtc_prog_str += rtc_func_str;
     }
