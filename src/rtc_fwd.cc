@@ -596,7 +596,7 @@ namespace boda
     }
 
     void gen_op_reduce( rtc_call_gen_t * rcg ) {
-      for( uint32_t i = 0; i != rcg->arg_decls.size() - 1; ++i ) { 
+      for( uint32_t i = 0; i != rcg->flat_arg_decls.size() - 1; ++i ) { 
 	rcg->line( "ins_ops", "v += ins_"+str(i)+"[GLOB_ID_1D];" ); 
       }
     }

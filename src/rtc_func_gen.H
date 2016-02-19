@@ -53,6 +53,7 @@ namespace boda
     string vn;
     string io_type;
     vect_dims_t ok_dims;
+    bool multi;
   };
   inline std::ostream & operator << ( std::ostream & out, arg_decl_t const & o ) {
     for( vect_dims_t::const_iterator i = o.ok_dims.begin(); i != o.ok_dims.end(); ++i ) {
@@ -100,12 +101,77 @@ namespace boda
     }
     mss.push_back( make_pair( ix_vn+"_dims_prod", str(dims.dims_prod()) ) ); // also emit dim(0)*stride(0)?
   }
+
+  dims_t dims_from_nda_spec( string const & nda_spec ) {
+    vect_string const dim_names = split( nda_spec, ':' );
+    dims_t arg_dims;
+    // for now, assume template: (1) can handle any size for all nda dims (to relax, could allow spec of size,
+    // then use that instead of 0/wild for sz below) (2) all dims are static (to relax: unclear what
+    // syntax/encoding would be)
+    for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
+    return arg_dims;
+  }
   
+  // this parses and stores a cucl function template for later instantiation. in particular, we process all CUCL
+  // declarations and store the results into arg_decls and ix_decls. after init, the contents of this object are
+  // constant, and all contents are purly derived from the contents of the template file. this object exists both to
+  // encapsulate the CUCL parsing code as well as to avoid needing to re-parse template files.
+  struct rtc_template_t {
+    string template_fn;
+    p_string template_str; // read from file
+    vect_arg_decl_t arg_decls; // parsed out of template_str
+    vect_ix_decl_t ix_decls; // parsed out of template_str
+    void init( string const & fn ) {
+      template_fn = (path(py_boda_test_dir()) / "rtc" / (fn+".cucl")).string();
+      template_str = read_whole_fn( template_fn );
+      vect_string lines = split( *template_str, '\n' );
+      for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
+	// find magic CUCL comment (if any) and process it
+	string const mmc = get_part_after( *i, "//" );
+	vect_string mmc_parts = split_ws( strip_ws( mmc ) );
+	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
+	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
+	  string cd = mmc_parts[1];
+	  bool const multi = maybe_strip_suffix( cd, "_MULTI" );
+	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { 
+	    if( cd == "IX" ) {
+	      if( multi ) { rt_err( "invalid use of _MULTI suffix on CUCL IX decl" ); }
+	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
+	      string const ix_name = mmc_parts[2];
+	      string const arg_name = mmc_parts[3];
+	      ix_decls.push_back( ix_decl_t{ ix_name, arg_name } );
+	      for( uint32_t i = 4; i != mmc_parts.size(); ++i ) {	
+		vect_string const opt_parts = split( mmc_parts[i], '=' );
+		if( opt_parts.size() != 2 ) { rt_err( "invalid CUCL IX decl option '"+mmc_parts[i]+"', should have exactly 2 '=' seperated parts" ); }
+		else if( opt_parts[0] == "use_dims" ) { ix_decls.back().use_dims = split( opt_parts[1], ':' ); }
+		else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: use_dims" ); }
+	      }
+	    } else {
+	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
+	      // get var name 
+	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{*/", ' ' ) ) );
+	      vect_dims_t ok_dims;
+	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { ok_dims.push_back( dims_from_nda_spec( mmc_parts[i] ) );}
+	      string arg_name = arg_decl.back();
+	      if( multi ) {
+		bool const did_strip = maybe_strip_suffix( arg_name, "_N" );
+		if( !did_strip ) { rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); }
+	      }
+	      arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims, multi } );
+	    }
+	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
+	}
+      }
+    }
+  };
+
+  typedef shared_ptr< rtc_template_t > p_rtc_template_t; 
+  typedef map< string, p_rtc_template_t > rtc_template_map_t;
+
   struct rtc_call_gen_t {
     rtc_func_sig_t rfs;
-    p_string rtc_func_template; // read from file
-    vect_arg_decl_t arg_decls; // parsed out of rtc_func_template
-    vect_ix_decl_t ix_decls; // parsed out of rtc_func_template
+    p_rtc_template_t rtc_func_template;
+    vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
     vect_pair_str_str tf_exprs;
     map_str_dims_t all_ix_dims;
     map_str_str cgs; // code-gen sections
@@ -133,7 +199,9 @@ namespace boda
       return i->second;
     }
     
-    void init( custom_codegen_t * const custom_codegen, rtc_func_sig_t const & rfs_, string const & gen_fn_, string & rtc_prog_str ) {
+    void init( p_rtc_template_t const & rtc_func_template_, 
+	       custom_codegen_t * const custom_codegen, rtc_func_sig_t const & rfs_, string const & gen_fn_, string & rtc_prog_str ){
+      rtc_func_template = rtc_func_template_;
       gen_fn = gen_fn_;
       has_final_flags_arg = 0;
       rfs = rfs_;
@@ -141,14 +209,12 @@ namespace boda
       for( map_str_str::const_iterator i = rfs.template_var_values.begin(); i != rfs.template_var_values.end(); ++i ) {
 	tf_exprs.push_back( make_pair( i->first, i->second ) );
       }
-      rtc_func_template = read_whole_fn( (path(py_boda_test_dir()) / "rtc" / (rfs.fn+".cucl")).string() );
-      parse_template();
       check_args();
 
       tpb = 0;
       blks = 0;
       uint32_t const default_tpb = 256; // FIXME: make 'reasonable default' tpb configurable/heurisitic
-      for( vect_ix_decl_t::const_iterator i = ix_decls.begin(); i != ix_decls.end(); ++i ) {
+      for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
 	dims_t const & ix_arg_dims = get_arg_dims_by_name( i->arg_vn, "IX" );
 	if( !ix_arg_dims.has_sz_and_stride_and_name() ) { rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" ); }
 	dims_t ix_dims;
@@ -194,8 +260,24 @@ namespace boda
     void check_args( void ) {
       string arg_check_error;
 
-      for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
-	uint32_t const ix = i - arg_decls.begin();
+      // process/flatten-out multi args
+      for( vect_arg_decl_t::const_iterator i = rtc_func_template->arg_decls.begin(); i != rtc_func_template->arg_decls.end(); ++i ) {
+	if( !i->multi ) { flat_arg_decls.push_back( *i ); }
+	else {
+	  // note: arg_name already has _N checked for and stripped off
+	  uint32_t const multi_sz = rfs.get_u32_tvv( i->vn + "_num" );
+	  for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
+	    string const multi_arg_name = i->vn + "_" + str(mix);
+	    // note: multi-derived args are (still) marked multi=1 in flat_arg_decls, but this not used later currently
+	    flat_arg_decls.push_back( *i ); 
+	    flat_arg_decls.back().vn = multi_arg_name;
+	    line( i->vn + "_decl", "GASQ float const * const " + multi_arg_name + "," );
+	  }
+	}
+      }
+      
+      for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
+	uint32_t const ix = i - flat_arg_decls.begin();
 	map_str_dims_t::const_iterator adi = rfs.ref_dims.find( i->vn );
 	if( adi == rfs.ref_dims.end() ) {
 	  arg_check_error +=  strprintf( "referenced %s arg '%s' not present in ref_dims; ", 
@@ -221,8 +303,8 @@ namespace boda
       }
       if( !arg_check_error.empty() ) {
 	string arg_err = "RTC template function instantiation argument error: " + rfs.fn + ": " + arg_check_error + "\n";
-	for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
-	  arg_err += strprintf( "ARG[%s]:\n", str(i - arg_decls.begin()).c_str() );
+	for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
+	  arg_err += strprintf( "ARG[%s]:\n", str(i - flat_arg_decls.begin()).c_str() );
 	  arg_err += strprintf( "  DECL: %s\n", str(*i).c_str() );
 	  map_str_dims_t::const_iterator adi = rfs.ref_dims.find( i->vn );
 	  if( adi != rfs.ref_dims.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
@@ -232,6 +314,7 @@ namespace boda
 	rt_err( arg_err );
       }
     }
+
 
     void instantiate_template( string & rtc_prog_str ) {
       rtc_prog_str += "// -- codegen begins for '"+rfs.fn+"'; template substituion table used (bulk sections ommited): --\n";
@@ -246,7 +329,7 @@ namespace boda
       tf_nvm.insert_leafs_from( tf_exprs );
       string rtc_func_str;
       try {
-	str_format_from_nvm( rtc_func_str, *rtc_func_template, tf_nvm );
+	str_format_from_nvm( rtc_func_str, *rtc_func_template->template_str, tf_nvm );
       } catch( rt_exception const & rte ) {
 	printf( "rfs=%s\n", str(rfs).c_str() );
 	printf( "tf_nvm=%s\n", str(tf_nvm).c_str() );
@@ -256,64 +339,6 @@ namespace boda
       rtc_prog_str += rtc_func_str;
     }
 
-    static dims_t dims_from_nda_spec( string const & nda_spec ) {
-      vect_string const dim_names = split( nda_spec, ':' );
-      dims_t arg_dims;
-      // for now, assume template: (1) can handle any size for all nda dims (to relax, could allow spec of size,
-      // then use that instead of 0/wild for sz below) (2) all dims are static (to relax: unclear what
-      // syntax/encoding would be)
-      for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
-      return arg_dims;
-    }
-
-    void parse_template( void ) {
-      vect_string lines = split( *rtc_func_template, '\n' );
-      for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
-	// find magic CUCL comment (if any) and process it
-	string const mmc = get_part_after( *i, "//" );
-	vect_string mmc_parts = split_ws( strip_ws( mmc ) );
-	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
-	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
-	  string cd = mmc_parts[1];
-	  bool const multi = maybe_strip_suffix( cd, "_MULTI" );
-	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { 
-	    if( cd == "IX" ) {
-	      if( multi ) { rt_err( "invalid use of _MULTI suffix on CUCL IX decl" ); }
-	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
-	      string const ix_name = mmc_parts[2];
-	      string const arg_name = mmc_parts[3];
-	      ix_decls.push_back( ix_decl_t{ ix_name, arg_name } );
-	      for( uint32_t i = 4; i != mmc_parts.size(); ++i ) {	
-		vect_string const opt_parts = split( mmc_parts[i], '=' );
-		if( opt_parts.size() != 2 ) { rt_err( "invalid CUCL IX decl option '"+mmc_parts[i]+"', should have exactly 2 '=' seperated parts" ); }
-		else if( opt_parts[0] == "use_dims" ) { ix_decls.back().use_dims = split( opt_parts[1], ':' ); }
-		else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: use_dims" ); }
-	      }
-	    } else {
-	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
-	      // get var name 
-	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{*/", ' ' ) ) );
-	      vect_dims_t ok_dims;
-	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { ok_dims.push_back( dims_from_nda_spec( mmc_parts[i] ) );}
-	      string arg_name = arg_decl.back();
-	      if( !multi ) { arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims } ); }
-	      else {
-		if( !maybe_strip_suffix( arg_name, "_N" ) ) { 
-		  rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); 
-		}
-		uint32_t const multi_sz = rfs.get_u32_tvv( arg_name + "_num" );
-		string gen_arg_decls;
-		for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
-		  string const multi_arg_name = arg_name + "_" + str(mix);
-		  arg_decls.push_back( arg_decl_t{ multi_arg_name, cd, ok_dims } ); // otherwise, add
-		  line( arg_name + "_decl", "GASQ float const * const " + multi_arg_name + "," );
-		}
-	      }
-	    }
-	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
-	}
-      }
-    }
   };
 
   string rtc_func_sig_t::gen_unused_fn( rtc_func_names_map_t & fns ) const {
@@ -340,14 +365,13 @@ namespace boda
     rfc.call_tag = rcg_func_call.call_tag;
     rfc.u32_args = rcg_func_call.u32_args;
 
-    for( uint32_t i = 0; i != arg_decls.size(); ++i ) {
-      if( arg_decls[i].io_type == "REF" ) { continue; }
-      string const & avn = arg_decls[i].vn;
-      dims_t const & func_dims = must_find( rfs.ref_dims, avn );
+    for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
+      if( i->io_type == "REF" ) { continue; }
+      dims_t const & func_dims = must_find( rfs.ref_dims, i->vn );
       if( func_dims == dims_t() ) { rfc.in_args.push_back("<NULL>"); continue; } // NULL case -- pass though to rtc
-      map_str_str::const_iterator an = rcg_func_call.arg_map.find( avn );
+      map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->vn );
       if( an == rcg_func_call.arg_map.end() ) {
-	rt_err( "specified "+arg_decls[i].io_type+" arg '"+avn+"' not found in arg_map at call time." ); 
+	rt_err( "specified "+i->io_type+" arg '"+i->vn+"' not found in arg_map at call time." ); 
       }
       // FIXME/note: we can't/don't check call dims for variable-sized ref_dims. this seems less than ideal.
       // one exampl of such usage is in var_stats.
@@ -355,7 +379,7 @@ namespace boda
 	dims_t const & call_dims = rtc->get_var_dims_floats( an->second );
 	if( call_dims != func_dims ) {
 	  rt_err( strprintf( "error: dims mismatch at call time for arg %s: call_dims=%s func_dims=%s\n", 
-			     avn.c_str(), str(call_dims).c_str(), str(func_dims).c_str() ) );
+			     i->vn.c_str(), str(call_dims).c_str(), str(func_dims).c_str() ) );
 	}	  
       }
       rfc.in_args.push_back( an->second );
@@ -381,17 +405,23 @@ namespace boda
 
   
   struct rtc_codegen_t {
+    rtc_template_map_t rtc_templates;
+
     rtc_func_names_map_t rtc_func_names_map;
     rtc_func_sigs_map_t rtc_func_sigs_map;
     string rtc_prog_str;
 
     string gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs ) {
+      // first, get template
+      p_rtc_template_t & rtc_template = rtc_templates[rfs.fn];
+      if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs.fn ); }
+
       p_rtc_call_gen_t & rcg = rtc_func_sigs_map[rfs];
       if( !rcg ) { // need to instatiate function and pick unused name
 	rcg.reset( new rtc_call_gen_t );
 	string gen_fn = rfs.gen_unused_fn( rtc_func_names_map );
 	must_insert( rtc_func_names_map, gen_fn, rcg );
-	rcg->init( cc, rfs, gen_fn, rtc_prog_str );
+	rcg->init( rtc_template, cc, rfs, gen_fn, rtc_prog_str );
       }    
       return rcg->gen_fn;
     }
