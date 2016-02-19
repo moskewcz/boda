@@ -169,7 +169,14 @@ namespace boda
       }
     }
 
-    void check_args( rtc_func_sig_t const & rfs_in, vect_arg_decl_t & flat_arg_decls ) {
+    // this takes an input func signature and checks it against this template. it produces two things: (1) a set of
+    // arg_decls with any multis flattened out (based on the args in the input signature). (2) a reduced function
+    // signature with only the arg dims needed/used by this template. this reduced signature is suitable for uniqueing
+    // the semantics of this template wrt the input signature -- that is, input signatures that differ only in dims that
+    // are not used by the template won't have differing semantics.
+    p_rtc_func_sig_t check_args( rtc_func_sig_t const & rfs_in, vect_arg_decl_t & flat_arg_decls ) {
+      p_rtc_func_sig_t rfs_out( new rtc_func_sig_t( rfs_in ) );
+      rfs_out->ref_dims.clear(); // for now: keep all of rfs_in expect ref_dims (which we reduce to only the used elements)
       assert_st( flat_arg_decls.empty() );
       string arg_check_error;
 
@@ -209,6 +216,7 @@ namespace boda
 	}
 	if( !matches_decl ) { arg_check_error += "call arg "+str(ix)+" incompatible with decl arg "
 	    "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
+	must_insert( rfs_out->ref_dims, i->vn, arg_dims ); // keep exactly used ref_dims in signature
       }
       if( !arg_check_error.empty() ) {
 	string arg_err = "RTC template function instantiation argument error: " + template_fn + ": " + arg_check_error + "\n";
@@ -222,8 +230,9 @@ namespace boda
 	arg_err += "full rfs: " + str(rfs_in) + "\n";
 	rt_err( arg_err );
       }
+      return rfs_out;
     }
-
+   
   };
 
   typedef shared_ptr< rtc_template_t > p_rtc_template_t; 
@@ -264,13 +273,13 @@ namespace boda
     }
     uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( template_var_values, tvn ) ); }
 
-    void init( p_rtc_template_t const & rtc_func_template, 
+    void init( p_rtc_template_t const & rtc_func_template, vect_arg_decl_t const & flat_arg_decls_, 
 	       custom_codegen_t * const custom_codegen, rtc_func_sig_t const & rfs_, string const & gen_fn_, string & rtc_prog_str ){
       (rtc_func_sig_t &)(*this) = rfs_;
       gen_fn = gen_fn_;
       has_final_flags_arg = 0;
       set( "rtc_func_name", gen_fn );
-      rtc_func_template->check_args( *this, flat_arg_decls );
+      flat_arg_decls = flat_arg_decls_;
 
       tpb = 0;
       blks = 0;
@@ -422,17 +431,22 @@ namespace boda
     rtc_func_sigs_map_t rtc_func_sigs_map;
     string rtc_prog_str;
 
-    string gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs ) {
+    string gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs_full ) {
       // first, get template
-      p_rtc_template_t & rtc_template = rtc_templates[rfs.fn];
-      if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs.fn ); }
+      p_rtc_template_t & rtc_template = rtc_templates[rfs_full.fn];
+      if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.fn ); }
 
-      p_rtc_call_gen_t & rcg = rtc_func_sigs_map[rfs];
+      // note: flat_arg_decls is unused if we already created the needed rcg_call_gen_t, but is inconvienient not create
+      // here as part of createing the reduced func sig.
+      vect_arg_decl_t flat_arg_decls; 
+      p_rtc_func_sig_t rfs_reduced = rtc_template->check_args( rfs_full, flat_arg_decls );
+
+      p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
       if( !rcg ) { // need to instatiate function and pick unused name
 	rcg.reset( new rtc_call_gen_t );
-	string gen_fn = rfs.gen_unused_fn( rtc_func_names_map );
+	string gen_fn = rfs_reduced->gen_unused_fn( rtc_func_names_map );
 	must_insert( rtc_func_names_map, gen_fn, rcg );
-	rcg->init( rtc_template, cc, rfs, gen_fn, rtc_prog_str );
+	rcg->init( rtc_template, flat_arg_decls, cc, *rfs_reduced, gen_fn, rtc_prog_str );
       }    
       return rcg->gen_fn;
     }
