@@ -274,7 +274,7 @@ namespace boda
     vect_string dump_vars; // NESI(help="dump out values of these vars after forward")
     uint32_t enable_bwai_test; //NESI(default=0,help="if 1, generate an call to bwai")
 
-    filename_t rtc_func_sigs_fn; //NESI(default="%(boda_output_dir)/rtc_func_sigs.txt",help="file to hold all generated func signatures")
+    filename_t rtc_func_sigs_fn; //NESI(default="rtc_func_sigs.txt",help="file to hold all generated func signatures")
     p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
 
     p_conv_pipe_t cp;
