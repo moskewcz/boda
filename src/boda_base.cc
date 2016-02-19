@@ -48,6 +48,19 @@ namespace boda
     return ret;
   }
 
+  // wraps output in ()'s, omits strides, prints names near dims if they exist, otherwise create anon name
+  std::string dims_t::param_str( void ) const { 
+    string ret;
+    for( uint32_t i = 0; i != sz(); ++i ) { 
+      if( i ) { ret += ","; }
+      string print_name = names(i);
+      if( print_name.empty() ) { print_name = "dim_" + str(i); }
+      ret += print_name + "=";
+      ret += str( dims(i) );
+    }
+    return "(" + ret + ")";
+  }
+
   void boda_dirs_init( void ) {
     path pse_dir_dir = read_symlink( path("/proc")/"self"/"exe" ).parent_path().parent_path();
     py_boda_dir_static = canonical(pse_dir_dir).string();

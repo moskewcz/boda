@@ -661,6 +661,35 @@ namespace boda
   nesi_dump_t * dims_t_nesi_dump = &with_op_left_shift_nesi_dump< dims_t >;
   void *dims_t_init_arg = (void *)"dims_t (N-D Array Dimentions)";
 
+  // map_str_dims_t
+  void nesi_map_str_dims_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
+    map_str_dims_t * v = (map_str_dims_t *)o;
+    if( !nia->l ) { return; } // no_value_init --> empty vector
+    lexp_t * l = nia->l.get();
+    if( l->leaf_val.exists() ) {
+      char const * const tstr = (char const *)tinfo->init_arg;
+      rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
+    }
+    ++l->use_cnt;
+    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
+      dims_t dim_v;
+      // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
+      lexp_name_val_map_t nvm( i->v, nia );
+      try { 
+	nesi_dims_t_init( &nvm, tinfo, &dim_v ); // not really the right tinfo, but close enough? used only for error str.
+      }
+      catch( rt_exception & rte ) {
+	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
+	throw;
+      }
+      must_insert( *v, i->n.str(), dim_v );
+    }
+  }
+  make_p_t * map_str_dims_t_make_p = &has_def_ctor_make_p< map_str_dims_t >;
+  vect_push_back_t * map_str_dims_t_vect_push_back = &has_def_ctor_vect_push_back_t< map_str_dims_t >;
+  nesi_dump_t * map_str_dims_t_nesi_dump = &with_op_left_shift_nesi_dump< map_str_dims_t >;
+  void *map_str_dims_t_init_arg = (void *)"map_str_dims_t (key-value map from string to dims_t)";
+
   // map_str_uint32_t
   void nesi_map_str_uint32_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
     map_str_uint32_t * v = (map_str_uint32_t *)o;

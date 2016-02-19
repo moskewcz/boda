@@ -147,6 +147,8 @@ namespace boda
   typedef map< string, double > map_str_double;
   typedef map< string, string > map_str_str;
   typedef map< string, vect_string > map_str_vect_string;
+  class dims_t;
+  typedef map< string, dims_t > map_str_dims_t;
 
   template< typename T > struct check_T { typedef void void_; typedef int int_; };
 
@@ -454,6 +456,7 @@ namespace boda
     uint32_t const & strides( uint32_t const ix ) const { return at(ix).stride; }
 
     std::string pretty_str( void ) const; // omits strides, prints names near dims if they exist
+    std::string param_str( void ) const; // in NESI/param format, see comment at def.
 
     void clear_strides( void ) { for( uint32_t i = 0; i != sz(); ++i ) { strides(i) = 0; } }
     bool has_any_strides( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( strides(i) ) { return 1; } } return 0; }

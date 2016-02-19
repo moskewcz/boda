@@ -273,6 +273,8 @@ namespace boda
     vect_string dump_vars; // NESI(help="dump out values of these vars after forward")
     uint32_t enable_bwai_test; //NESI(default=0,help="if 1, generate an call to bwai")
 
+    filename_t rtc_func_sigs_fn; //NESI(default="%(boda_output_dir)/rtc_func_sigs.txt",help="file to hold all generated func signatures")
+
     p_conv_pipe_t cp;
     p_map_str_p_op_info_t op_infos;
 
@@ -381,7 +383,7 @@ namespace boda
       cur_ins.push_back( top_in ); 
     } 
     while( in_sz > 1 ) {
-      string const func = gen_func( rtc_func_sig_t{ "var_stats", ref_dims } );
+      string const func = gen_func( rtc_func_sig_t{ "var_stats", ref_dims, {} } );
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;
@@ -410,7 +412,7 @@ namespace boda
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-    string const func = gen_func( rtc_func_sig_t{ "quantize", {{"out",rtc->get_var_dims_floats(top_in)}} } );
+    string const func = gen_func( rtc_func_sig_t{ "quantize", {{"out",rtc->get_var_dims_floats(top_in)}}, {} } );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, {max_val,drop_mask} } );
   }
 
@@ -1091,10 +1093,7 @@ namespace boda
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
-    rtc_func_sig_t rfs;
-    rfs.fn = fn;
-    rfs.template_var_values = oi->template_var_values;
-    rfs.ref_dims = oi->conv_ref_dims;
+    rtc_func_sig_t rfs( fn, oi->conv_ref_dims, oi->template_var_values );
     string const & gen_fn = gen_func( rfs );
     fwd_calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
   }
@@ -1159,7 +1158,7 @@ namespace boda
     }
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
-
+    //codegen.write_rtc_func_sigs( rtc_func_sigs_fn );
     if( enable_bwai_test ) { // test bwai gen
       assert_st(0);
 #if 0
@@ -1215,4 +1214,5 @@ namespace boda
   }
   
 #include"gen/rtc_fwd.cc.nesi_gen.cc"
+
 }
