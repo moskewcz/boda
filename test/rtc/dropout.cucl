@@ -1,7 +1,7 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const inout, // CUCL OUT img:chan:y:x
 					  uint32_t const det_drop_seed )
 {
-  // CUCL IX GLOB_ID_1D out
+  // CUCL IX GLOB_ID_1D inout
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
 
   float const scale = ( 1.0 / (1.0 - %(dropout_ratio) ) );
