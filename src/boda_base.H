@@ -547,6 +547,7 @@ namespace boda
     }
   };
 
+#if 0
   inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) {
     out << "RM_DIMS=";
     for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?"*":"") << o.dims(ix); }
@@ -560,7 +561,9 @@ namespace boda
     }
     return out;
   }
-
+#else
+  inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { out << o.param_str(); return out; }
+#endif
 
   template< typename STREAM > inline void bwrite( STREAM & out, dim_t const & o ) { 
     bwrite( out, o.sz ); bwrite( out, o.stride ); bwrite( out, o.name ); 
