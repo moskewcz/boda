@@ -656,6 +656,7 @@ namespace boda
       }
       v->add_dims( i->n.str(), dim_v );
     }
+    v->calc_strides();
   }
   make_p_t * dims_t_make_p = &has_def_ctor_make_p< dims_t >;
   vect_push_back_t * dims_t_vect_push_back = &has_def_ctor_vect_push_back_t< dims_t >;
@@ -722,33 +723,12 @@ namespace boda
   extern tinfo_t tinfo_double;
   void *map_str_double_init_arg = (void *)&tinfo_double; // "map_str_double (key-value map from string to double)";
 
-  void nesi_map_str_str_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
-    map_str_str * v = (map_str_str *)o;
-    if( !nia->l ) { return; } // no_value_init --> empty vector
-    lexp_t * l = nia->l.get();
-    if( l->leaf_val.exists() ) {
-      char const * const tstr = (char const *)tinfo->init_arg;
-      rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
-    }
-    ++l->use_cnt;
-    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
-      string dim_v = 0;
-      // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
-      lexp_name_val_map_t nvm( i->v, nia );
-      try { 
-	nesi_string_init( &nvm, tinfo, &dim_v ); // not really the right tinfo, but close enough? used only for error str.
-      }
-      catch( rt_exception & rte ) {
-	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
-	throw;
-      }
-      must_insert( *v, i->n.str(), dim_v );
-    }
-  }
+  init_t * nesi_map_str_str_init = &nesi_map_str_T_init< string >;
   make_p_t * map_str_str_make_p = &has_def_ctor_make_p< map_str_str >;
   vect_push_back_t * map_str_str_vect_push_back = &has_def_ctor_vect_push_back_t< map_str_str >;
   nesi_dump_t * map_str_str_nesi_dump = &with_op_left_shift_nesi_dump< map_str_str >;
-  void *map_str_str_init_arg = (void *)"map_str_str (key-value map from string to string)";
+  extern tinfo_t tinfo_string;
+  void *map_str_str_init_arg = (void *)&tinfo_string;
 
 
 // note: a special case in nesi_gen.py makes 'base' NESI types be associated with nesi.cc (and
