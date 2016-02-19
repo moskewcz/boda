@@ -656,7 +656,7 @@ namespace boda
       }
       v->add_dims( i->n.str(), dim_v );
     }
-    v->calc_strides();
+    if( !v->empty() ) { v->calc_strides(); } // if not null/empty, calc strides. FIXME: strides not really handled here, obv.
   }
   make_p_t * dims_t_make_p = &has_def_ctor_make_p< dims_t >;
   vect_push_back_t * dims_t_vect_push_back = &has_def_ctor_vect_push_back_t< dims_t >;
