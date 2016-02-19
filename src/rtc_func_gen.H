@@ -367,12 +367,7 @@ namespace boda
       must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, flags );
     }
 
-    void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {
-      p_ofstream out = ofs_open( rtc_func_sigs_fn );
-      for( rtc_func_sigs_map_t::const_iterator i = rtc_func_sigs_map.begin(); i != rtc_func_sigs_map.end(); ++i ) {
-	(*out) << str( i->first ) << "\n";
-      }
-    }
+    void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
 
   };
 

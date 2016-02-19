@@ -110,5 +110,29 @@ namespace boda
     // note: temporary rfc is gone after this
   }
 
+  typedef set< rtc_func_sig_t > set_rtc_func_sig_t;
+
+  p_rtc_func_sig_t make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
+  using boost::filesystem::is_regular_file;
+
+  void rtc_codegen_t::write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {
+    set_rtc_func_sig_t all_sigs;
+    if( is_regular_file( rtc_func_sigs_fn.exp ) ) {  // read in existing contents of file if it exists
+      p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
+      for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
+	p_rtc_func_sig_t v = make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+	all_sigs.insert( *v );
+      }
+    }
+    // insert func sigs from current codegen set
+    for( rtc_func_sigs_map_t::const_iterator i = rtc_func_sigs_map.begin(); i != rtc_func_sigs_map.end(); ++i ) { 
+      all_sigs.insert( i->first );
+    }
+    // write set back out
+    p_ofstream out = ofs_open( rtc_func_sigs_fn );
+    for( set_rtc_func_sig_t::const_iterator i = all_sigs.begin(); i != all_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
+  }
+
 #include"gen/rtc_func_gen.H.nesi_gen.cc"
 }
