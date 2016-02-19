@@ -244,6 +244,7 @@ namespace boda
     }
   };
 
+  typedef shared_ptr< dims_t > p_dims_t; 
 
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
 			   // bases=["has_conv_fwd_t"], type_id="rtc" )
@@ -274,6 +275,7 @@ namespace boda
     uint32_t enable_bwai_test; //NESI(default=0,help="if 1, generate an call to bwai")
 
     filename_t rtc_func_sigs_fn; //NESI(default="%(boda_output_dir)/rtc_func_sigs.txt",help="file to hold all generated func signatures")
+    p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
 
     p_conv_pipe_t cp;
     p_map_str_p_op_info_t op_infos;

@@ -633,6 +633,7 @@ namespace boda
   void *u32_box_t_init_arg = (void *)"u32_box_t (pair of u32_pt_t, i.e. an unsigned box)";
 
   // dims_t
+  extern tinfo_t tinfo_uint32_t;
   void nesi_dims_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
     dims_t * v = (dims_t *)o;
     if( !nia->l ) { return; } // no_value_init --> empty vector
@@ -647,10 +648,10 @@ namespace boda
       // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
       lexp_name_val_map_t nvm( i->v, nia );
       try { 
-	nesi_uint32_t_init( &nvm, tinfo, &dim_v ); // not really the right tinfo, but close enough? used only for error str.
+	nesi_uint32_t_init( &nvm, &tinfo_uint32_t, &dim_v ); 
       }
       catch( rt_exception & rte ) {
-	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
+	rte.err_msg = "dims_t dim " + i->n.str() + ": " + rte.err_msg;
 	throw;
       }
       v->add_dims( i->n.str(), dim_v );
@@ -661,93 +662,65 @@ namespace boda
   nesi_dump_t * dims_t_nesi_dump = &with_op_left_shift_nesi_dump< dims_t >;
   void *dims_t_init_arg = (void *)"dims_t (N-D Array Dimentions)";
 
-  // map_str_dims_t
-  void nesi_map_str_dims_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
-    map_str_dims_t * v = (map_str_dims_t *)o;
+  // FIXME: we've used templates here to reduce code duplication for the various map_str_T type. however, we still don't
+  // have 'full' NESI support for generic map_str_T NESI types, and this causes a few issues -- not the least of which
+  // that we need to declare every map type here. we make some attempt to move in the right direction by having the
+  // tinfo->init_arg for each of these types point to the value's tinfo, and use it to get the error string for the type
+  // as well as to create the values with make_p. however, lacking a 'generic' must_insert(), we need the type T to
+  // declare a fully-correctly-typed pointer to the map, as well as a fully-correctly-typed shared pointer.
+
+  // map_str_T
+  template< typename T > void nesi_map_str_T_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
+    map< string, T > * v = (map< string, T > *)o;
     if( !nia->l ) { return; } // no_value_init --> empty vector
     lexp_t * l = nia->l.get();
+
+    tinfo_t * const vt = (tinfo_t *)( tinfo->init_arg );
+
     if( l->leaf_val.exists() ) {
-      char const * const tstr = (char const *)tinfo->init_arg;
-      rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
+      char const * const tstr = (char const *)vt->init_arg;
+      rt_err( "invalid attempt to use string as name/value list for map str -> "+string(tstr)+" init. string was:" + str(*l) );
     }
     ++l->use_cnt;
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
-      dims_t dim_v;
+      shared_ptr< T > p_vv;
+      void * vv = vt->make_p( nia, vt, &p_vv );
       // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
       lexp_name_val_map_t nvm( i->v, nia );
       try { 
-	nesi_dims_t_init( &nvm, tinfo, &dim_v ); // not really the right tinfo, but close enough? used only for error str.
+	vt->init( &nvm, vt, vv );
       }
       catch( rt_exception & rte ) {
-	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
+	rte.err_msg = "map elem with key " + i->n.str() + ": " + rte.err_msg;
 	throw;
       }
-      must_insert( *v, i->n.str(), dim_v );
+      must_insert( *v, i->n.str(), *p_vv );
     }
   }
+  
+  // map_str_dims_t
+  init_t * nesi_map_str_dims_t_init = &nesi_map_str_T_init< dims_t >;
   make_p_t * map_str_dims_t_make_p = &has_def_ctor_make_p< map_str_dims_t >;
   vect_push_back_t * map_str_dims_t_vect_push_back = &has_def_ctor_vect_push_back_t< map_str_dims_t >;
   nesi_dump_t * map_str_dims_t_nesi_dump = &with_op_left_shift_nesi_dump< map_str_dims_t >;
-  void *map_str_dims_t_init_arg = (void *)"map_str_dims_t (key-value map from string to dims_t)";
+  extern tinfo_t tinfo_dims_t;
+  void *map_str_dims_t_init_arg = (void *)&tinfo_dims_t;
 
   // map_str_uint32_t
-  void nesi_map_str_uint32_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
-    map_str_uint32_t * v = (map_str_uint32_t *)o;
-    if( !nia->l ) { return; } // no_value_init --> empty vector
-    lexp_t * l = nia->l.get();
-    if( l->leaf_val.exists() ) {
-      char const * const tstr = (char const *)tinfo->init_arg;
-      rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
-    }
-    ++l->use_cnt;
-    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
-      uint32_t dim_v = 0;
-      // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
-      lexp_name_val_map_t nvm( i->v, nia );
-      try { 
-	nesi_uint32_t_init( &nvm, tinfo, &dim_v ); // not really the right tinfo, but close enough? used only for error str.
-      }
-      catch( rt_exception & rte ) {
-	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
-	throw;
-      }
-      must_insert( *v, i->n.str(), dim_v );
-    }
-  }
+  init_t * nesi_map_str_uint32_t_init = &nesi_map_str_T_init< uint32_t >;
   make_p_t * map_str_uint32_t_make_p = &has_def_ctor_make_p< map_str_uint32_t >;
   vect_push_back_t * map_str_uint32_t_vect_push_back = &has_def_ctor_vect_push_back_t< map_str_uint32_t >;
   nesi_dump_t * map_str_uint32_t_nesi_dump = &with_op_left_shift_nesi_dump< map_str_uint32_t >;
-  void *map_str_uint32_t_init_arg = (void *)"map_str_uint32_t (key-value map from string to uint32_t)";
+  extern tinfo_t tinfo_uint32_t;
+  void *map_str_uint32_t_init_arg = (void *)&tinfo_uint32_t;
 
-  // FIXME: factor out the shared code from all these map-like nesi base types ... with templates? sigh.
-  // map_str_double
-  void nesi_map_str_double_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
-    map_str_double * v = (map_str_double *)o;
-    if( !nia->l ) { return; } // no_value_init --> empty vector
-    lexp_t * l = nia->l.get();
-    if( l->leaf_val.exists() ) {
-      char const * const tstr = (char const *)tinfo->init_arg;
-      rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
-    }
-    ++l->use_cnt;
-    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
-      double dim_v = 0;
-      // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
-      lexp_name_val_map_t nvm( i->v, nia );
-      try { 
-	nesi_double_init( &nvm, tinfo, &dim_v ); // not really the right tinfo, but close enough? used only for error str.
-      }
-      catch( rt_exception & rte ) {
-	rte.err_msg = "list elem " + str(i-l->kids.begin()) + ": " + rte.err_msg;
-	throw;
-      }
-      must_insert( *v, i->n.str(), dim_v );
-    }
-  }
+  // map_str_double_t
+  init_t * nesi_map_str_double_init = &nesi_map_str_T_init< double >;
   make_p_t * map_str_double_make_p = &has_def_ctor_make_p< map_str_double >;
   vect_push_back_t * map_str_double_vect_push_back = &has_def_ctor_vect_push_back_t< map_str_double >;
   nesi_dump_t * map_str_double_nesi_dump = &with_op_left_shift_nesi_dump< map_str_double >;
-  void *map_str_double_init_arg = (void *)"map_str_double (key-value map from string to double)";
+  extern tinfo_t tinfo_double;
+  void *map_str_double_init_arg = (void *)&tinfo_double; // "map_str_double (key-value map from string to double)";
 
   void nesi_map_str_str_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
     map_str_str * v = (map_str_str *)o;
