@@ -757,6 +757,8 @@ namespace boda
   // this will add a param named 'conv_has_relu' to all Convolution operations, with a default of false. If there
   // (exactly) a ReLU operation using the Convolution's output, then 'conv_has_relu' is set to 1 and the ReLU is erased.
   // similarly, the 'write_xposed' param is set for k1conv operations. (FIXME/TODO: actually do that)
+  
+  // also, the input-size param is set here for reduce
 
   // FIXME: since this actually modifies the graph, it should be backend-neutral, and should be called from a
   // backend. however, currently, rtc_fwd() calls this. normally there is only one backends, so this is kinda-okay. but,
@@ -778,7 +780,9 @@ namespace boda
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
 	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
 	must_insert( cop->params, "conv_has_relu", str(conv_has_relu) );
-      } 
+      } else if ( cop->is( Reduce_coi ) ) {
+	must_insert( cop->params, "ins_num", str(cop->bots.size()) );
+      }
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { framewx_rec( *j ); }
     }
   }

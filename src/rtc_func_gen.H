@@ -301,16 +301,13 @@ namespace boda
 		if( !maybe_strip_suffix( arg_name, "_N" ) ) { 
 		  rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); 
 		}
+		uint32_t const multi_sz = rfs.get_u32_tvv( arg_name + "_num" );
 		string gen_arg_decls;
-		uint32_t mix = 0;
-		for( ; ; ++mix ) {
+		for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
 		  string const multi_arg_name = arg_name + "_" + str(mix);
-		  // check for existance of multi arg name in ref dims -- if not found, we're done
-		  if( !has( rfs.ref_dims, multi_arg_name ) ) { break; }
 		  arg_decls.push_back( arg_decl_t{ multi_arg_name, cd, ok_dims } ); // otherwise, add
 		  line( arg_name + "_decl", "GASQ float const * const " + multi_arg_name + "," );
 		}
-		set( arg_name + "_num", str(mix) );
 	      }
 	    }
 	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
