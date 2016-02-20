@@ -53,6 +53,14 @@ namespace boda
     uint32_t call_ix = 0;
     for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { 
       p_rtc_call_gen_t const &rcg = i->second;
+      if( !rcg->blks ) { 
+	printf( "skipping %s; dynamic block sizes todo\n", str(rcg->fn).c_str() );
+	continue; 
+      }
+      if( (rcg->fn == "quantize") || (rcg->fn == "dropout") ) {
+	printf( "skipping %s; u32 arg handling todo\n", str(rcg->fn).c_str() );
+	continue; 
+      }
       map_str_str arg_map;
       for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
 	if( i->io_type == "REF" ) { continue; }
@@ -92,7 +100,10 @@ namespace boda
     timer_t t("rtc_prof_t::run_fwd");
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); }
-    for( vect_rcg_func_call_t::iterator i = calls.begin(); i != calls.end(); ++i ) { run_rfc( *i ); }
+    for( vect_rcg_func_call_t::iterator i = calls.begin(); i != calls.end(); ++i ) { 
+      printf( "run: i->rtc_func_name=%s\n", str(i->rtc_func_name).c_str() );
+      run_rfc( *i ); 
+    }
     rtc->finish_and_sync();
     float const compute_dur = calls.empty() ? 0.0f : rtc->get_dur( calls.front().call_id, calls.back().call_id );
     if( enable_prof ) { rtc->profile_stop(); }
