@@ -23,11 +23,11 @@ namespace boda
     uint32_t enable_lineinfo; //NESI(default=0,help="if 1, enable lineinfo for ptx compilation")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
 
-    filename_t rtc_func_sigs_fn; //NESI(default="%(boda_test_dir)/rtc_func_sigs.txt",help="file to hold all generated func signatures")
+    filename_t rtc_func_sigs_fn; //NESI(default="%(boda_test_dir)/rtc_func_sigs_tiny.txt",help="file to hold all generated func signatures")
     p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
 
     p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
-    string per_call_fn; //NESI(default="",help="if non-empty, write per-call profiling (timing via events) to given file.")
+    filename_t per_call_fn; //NESI(default="%(boda_output_dir)/rtc_prof.py",help="if non-empty, write per-call profiling (timing via events) to given file.")
 
     vect_rcg_func_call_t calls;
     // rtc->create_var_with_dims_floats( name, cp->must_get_node(node_name)->dims );
@@ -50,6 +50,23 @@ namespace boda
   void rtc_prof_t::main( nesi_init_arg_t * nia ) {
     rtc->init();
     codegen.read_rtc_func_sigs( rtc_func_sigs_fn );
+    uint32_t call_ix = 0;
+    for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { 
+      p_rtc_call_gen_t const &rcg = i->second;
+      map_str_str arg_map;
+      for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
+	if( i->io_type == "REF" ) { continue; }
+	dims_t const & func_dims = rcg->get_arg_dims_by_name( i->vn );
+	if( func_dims == dims_t() ) { continue; } // NULL case -- ignore
+	string const vn = "call_"+str(call_ix)+"__"+i->vn;
+	//printf( "alloc: i->vn=%s vn=%s func_dims=%s\n", str(i->vn).c_str(), str(vn).c_str(), str(func_dims).c_str() );
+	rtc->create_var_with_dims_floats( vn, func_dims );
+	must_insert( arg_map, i->vn, vn );
+      }
+      calls.push_back( rcg_func_call_t{ i->first, "tag", arg_map } );
+      ++call_ix;
+    }
+
 #if 0
     if( enable_bwai_test ) { // test bwai gen
       assert_st(0);
@@ -79,7 +96,7 @@ namespace boda
     rtc->finish_and_sync();
     float const compute_dur = calls.empty() ? 0.0f : rtc->get_dur( calls.front().call_id, calls.back().call_id );
     if( enable_prof ) { rtc->profile_stop(); }
-    if( !per_call_fn.empty() ) {
+    if( !per_call_fn.in.empty() ) {
       p_ofstream out = ofs_open( per_call_fn );
       (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );
       for( vect_rcg_func_call_t::iterator i = calls.begin(); i != calls.end(); ++i ) {
