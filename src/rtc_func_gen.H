@@ -35,6 +35,11 @@ namespace boda
   typedef vector< p_rcg_func_call_t > vect_p_rcg_func_call_t;
 
   struct custom_codegen_t { virtual void gen_op( rtc_call_gen_t * rcg, string const & op_name ) = 0; };
+  typedef shared_ptr< custom_codegen_t > p_custom_codegen_t; 
+
+  // for convenience, declare the factory func for cnn_custom_codegen_t here (code is in cnn_codegen.cc)
+  struct cnn_custom_codegen_t; typedef shared_ptr< cnn_custom_codegen_t > p_cnn_custom_codegen_t;
+  p_custom_codegen_t make_cnn_custom_codegen_t( void );
 
   struct rtc_func_sig_t : virtual public nesi //NESI(help="defines function to instantiate with template and parameters") 
   { 
@@ -343,30 +348,13 @@ namespace boda
     rtc_func_sigs_map_t rtc_func_sigs_map;
     string rtc_prog_str;
 
-    string gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs_full ) {
-      // first, get template
-      p_rtc_template_t & rtc_template = rtc_templates[rfs_full.fn];
-      if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.fn ); }
-
-      // note: flat_arg_decls is unused if we already created the needed rcg_call_gen_t, but is inconvienient not create
-      // here as part of createing the reduced func sig.
-      vect_arg_decl_t flat_arg_decls; 
-      p_rtc_func_sig_t rfs_reduced = rtc_template->check_args( rfs_full, flat_arg_decls );
-
-      p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
-      if( !rcg ) { // need to instatiate function and pick unused name
-	rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
-	string gen_fn = rfs_reduced->gen_unused_fn( rtc_func_names_map );
-	must_insert( rtc_func_names_map, gen_fn, rcg );
-	rcg->init( rtc_template, flat_arg_decls, cc, gen_fn, rtc_prog_str );
-      }    
-      return rcg->gen_fn;
-    }
+    string gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs_full );
     void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls,
 		  rcg_func_call_t & rfc, uint32_t const & flags ) {    
       must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, flags );
     }
 
+    void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
 
   };

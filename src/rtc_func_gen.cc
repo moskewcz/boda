@@ -116,6 +116,34 @@ namespace boda
 
   using boost::filesystem::is_regular_file;
 
+  string rtc_codegen_t::gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs_full ) {
+    // first, get template
+    p_rtc_template_t & rtc_template = rtc_templates[rfs_full.fn];
+    if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.fn ); }
+
+    // note: flat_arg_decls is unused if we already created the needed rcg_call_gen_t, but is inconvienient not create
+    // here as part of createing the reduced func sig.
+    vect_arg_decl_t flat_arg_decls; 
+    p_rtc_func_sig_t rfs_reduced = rtc_template->check_args( rfs_full, flat_arg_decls );
+
+    p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
+    if( !rcg ) { // need to instatiate function and pick unused name
+      rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
+      string gen_fn = rfs_reduced->gen_unused_fn( rtc_func_names_map );
+      must_insert( rtc_func_names_map, gen_fn, rcg );
+      rcg->init( rtc_template, flat_arg_decls, cc, gen_fn, rtc_prog_str );
+    }    
+    return rcg->gen_fn;
+  }
+
+  void rtc_codegen_t::read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {
+    p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
+    for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
+      p_rtc_func_sig_t v = make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+      gen_func( make_cnn_custom_codegen_t().get(), *v );
+    }
+  }
+
   void rtc_codegen_t::write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {
     set_rtc_func_sig_t all_sigs;
     if( is_regular_file( rtc_func_sigs_fn.exp ) ) {  // read in existing contents of file if it exists
