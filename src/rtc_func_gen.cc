@@ -59,6 +59,12 @@ namespace boda
 	if( did_ins ) { maybe_fn_base += "__"+dn+"_"+str(dims.dims(i)); }
       }
     }
+    // not the best/most-robust idea, but for now we can avoid most namegenconflicts by (questionally) stuffing the
+    // template_var_values into the function name as well. it'll be fine, right? this could be removed if problematic.
+    for( map_str_str::const_iterator ra = template_var_values.begin(); ra != template_var_values.end(); ++ra ) {
+      maybe_fn_base += "__"+ra->first+"_"+as_pyid_fixme(ra->second);
+    }
+
     string maybe_fn = maybe_fn_base;
     uint32_t uix = 0;
     while( has( fns, maybe_fn ) ) { ++uix; maybe_fn = maybe_fn_base + "__namegenconflict_" + str(uix); }
