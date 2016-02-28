@@ -61,17 +61,21 @@ This process is driven by regular make at the top level.
 
 Enabling the `[caffe]` build stanza is *not* required for Boda to read caffe prototxt files.
 Boda includes its own copy of the caffe protobuf message description file (`caffe.proto`) along with some small amount of copied and modified caffe protobuf related code (in `update_proto.cpp`), both in the boda/src/ext directory.
-Using these files that are part of boda, 'basic' caffe support is controlled but the `[caffe_pb]` build stanza, which, unline the `[caffe]` stanza, probably should *not* be disabled, since many modes rely on it for reading input nets in caffe format.
-Enabling `[caffe]` is only required if you desire using boda to use caffe run nets *from inside boda* (a franken-middleware-mode, if you will), which is useful for certain forms of testing and profiling.
+Using these files that are part of boda, 'basic' caffe support is controlled by the `[caffe_pb]` build stanza, which, unline the `[caffe]` stanza, probably should *not* be disabled, since many modes rely on it for reading input nets in caffe format.
+Enabling `[caffe]` is only required if you desire using boda to use caffe to run nets *from inside boda* (a franken-middleware-mode, if you will), which is useful for certain forms of testing and profiling.
 If you do enable `[caffe]` support, you must ensure that Boda's caffe.proto agrees with the one from the caffe build you choose.
 I maintain a fork of caffe with a few patches applied to aid in integration with boda.
 It should always be in a state that is 'good' for use with the current version of boda.
+
 The main things that are currently patched are:
- -- tweaks to silence compiler warnings when including caffe headers (only included by caffe_fwd.cc)
- -- a hack to allow making dropout deterministic for testing
+- tweaks to silence compiler warnings when including caffe headers (only included by caffe_fwd.cc)
+- a hack to allow making dropout deterministic for testing
+
 Neither are strictly required for enabling the `[caffe]` build stanza, though.
 So, if you're not too picky about what caffe version to use, the easiest path to enable caffe integration for boda is to clone my fork of caffe, switch to the branch below, and point boda to it:
+
 [https://github.com/moskewcz/caffe/tree/fix-sign-comp-in-hpps](https://github.com/moskewcz/caffe/tree/fix-sign-comp-in-hpps)
+
 If you want to use your own caffe version, see boda issue #1 for the three options of how to proceed (TODO_DOCS: cleanup an inline here).
 
 ### compile
