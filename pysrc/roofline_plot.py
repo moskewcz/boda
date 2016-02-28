@@ -15,7 +15,7 @@ from scipy import stats
 from matplotlib.patches import Polygon, Circle
 import matplotlib.font_manager as fm
 
-font = fm.FontProperties( family = 'Droid' )
+# font = fm.FontProperties( family = 'Droid' )
 
 
 background_color =(0.85,0.85,0.85) #'#C0C0C0'    
@@ -169,8 +169,8 @@ ax.set_xscale('log')
 
 #formatting:
 ax.set_title(TITLE,fontsize=14,fontweight='bold')
-ax.set_xlabel(X_LABEL, fontproperties = font, fontsize=12)
-ax.set_ylabel(Y_LABEL, fontproperties = font, fontsize=12)
+ax.set_xlabel(X_LABEL, fontsize=12) # ,fontproperties = font)
+ax.set_ylabel(Y_LABEL, fontsize=12) # ,fontproperties = font)
 
 
 #x-y range
