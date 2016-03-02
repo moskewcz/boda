@@ -124,6 +124,14 @@ namespace boda
     return i->second;
   }
 
+  template< typename T > typename T::mapped_type get_and_rem( T & kvm, typename T::key_type const & k, typename T::mapped_type const & dv ) {
+    typename T::const_iterator i = kvm.find( k );
+    if( i == kvm.end() ) { return dv; }
+    typename T::mapped_type ret = i->second;
+    kvm.erase( i );
+    return ret;
+  }
+
   // NESI types
   struct filename_t { string in; string exp; };
   typedef vector< filename_t > vect_filename_t; 
