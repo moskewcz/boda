@@ -196,17 +196,23 @@ namespace boda
 	// if( hdf5 ) { data_dims = ...; } // FIXME: get dims from data layer 'better'
 	uint32_t data_dims_chan = 3;
 	// if( gray ) { data_dims_chan = 1; } 
-	data_dims_chan = get( in_dims, "chan", data_dims_chan );
+	map_str_uint32_t check_in_dims = in_dims;
+	data_dims_chan = get_and_rem( check_in_dims, "chan", data_dims_chan );
        
 	uint32_t data_dims_img = dp->batch_size();
-	data_dims_img = get( in_dims, "img", data_dims_img );
+	data_dims_img = get_and_rem( check_in_dims, "img", data_dims_img );
 
 	assert_st( lp.has_transform_param() );
 	caffe::TransformationParameter const * const tp = &lp.transform_param();
 	uint32_t data_dims_y = tp->crop_size();
-	data_dims_y = get( in_dims, "y", data_dims_y );
+	data_dims_y = get_and_rem( check_in_dims, "y", data_dims_y );
 	uint32_t data_dims_x = tp->crop_size();
-	data_dims_x = get( in_dims, "x", data_dims_x );
+	data_dims_x = get_and_rem( check_in_dims, "x", data_dims_x );
+
+	if( !check_in_dims.empty() ) { 
+	  rt_err( strprintf( "error: unused/unknown dims in in_dims. original in_dims=%s; unused_dims=%s\n", 
+			     str(in_dims).c_str(), str(check_in_dims).c_str() ) );
+	}
 
 	if( lp.bottom_size() != 0 ) { rt_err( "unhandled caffe data layer with num outputs != 0" ); }
 	if( lp.top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
