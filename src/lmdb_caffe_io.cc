@@ -37,8 +37,7 @@ namespace boda
 			 // bases=["lmdb_parse_datums_t"], type_id="test_lmdb")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(models_dir)/alexnet/train_val.prototxt,
-    //trained_fn=%(models_dir)/alexnet/best.caffemodel,out_node_name=prob,in_num_imgs=50)",help="cnet running options")
+    p_run_cnet_t run_cnet; //NESI(default="()",help="cnet running options")
 
     void main( nesi_init_arg_t * nia ) { 
       run_cnet->setup_cnet(); 
