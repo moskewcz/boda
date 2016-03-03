@@ -156,6 +156,7 @@ namespace boda
     // for timing, do one (garbage) forward. presumably forces memory allocs and/or some other lazy
     // setup to happen here
     net->ForwardPrefilled();
+    if( cp->has_bck_ops.v ) { net->Backward(); }
     cudaDeviceSynchronize();
     return net;
   }
@@ -167,20 +168,7 @@ namespace boda
     net = caffe_create_net( cp );      
   }
 
-  void raw_do_forward( p_Net_float net, vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, bool const enable_prof, bool const do_bck ) {
-    //printf( "caffe_fwd::raw_do_forward() to_set_vns=%s\n", str(to_set_vns).c_str() );
-    //vector<int> const & ibixs = net->input_blob_indices();
-    //vector<caffe::Blob<float>*> const & input_blobs = net->input_blobs();
-    //assert_st( bottom.size() == input_blobs.size() );
-    //for (unsigned int i = 0; i < ibixs.size(); ++i) {
-    for( vect_string::const_iterator i = to_set_vns.begin(); i != to_set_vns.end(); ++i ) {
-      shared_ptr< caffe::Blob<float> > const & ib = net->blob_by_name( *i );
-      if( !ib ) { rt_err( strprintf("gettting caffe blob for setting inputs: node '%s' from to_set_vns not found in network (note: do_bck=%s).\n",
-				    (*i).c_str(), str(do_bck).c_str() )); }
-      p_nda_float_t const & ib_nda = must_find( *fwd, *i );
-      copy_nda_to_caffe_blob( ib_nda, ib.get(), 0 );
-    }
-    //const vector<Blob<float>*>& output_blobs = net_->ForwardPrefilled();
+  void raw_do_forward( p_Net_float net, bool const enable_prof, bool const do_bck ) {
     if( enable_prof ) { cuProfilerStart(); }
     net->ForwardPrefilled();
     if( do_bck ) { net->Backward(); }
@@ -202,19 +190,38 @@ namespace boda
   }
 
   void caffe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
-    timer_t t("caffe_fwd_t::run_fwd");
     assert_st( net );
-    raw_do_forward( net, to_set_vns, fwd, enable_prof, cp->has_bck_ops.v );
-    for( vect_string::const_iterator i = to_get_vns.begin(); i != to_get_vns.end(); ++i ) {
-      string const out_node_name = *i;
-      dims_t const & out_node_dims = cp->must_get_node( out_node_name )->dims;
-      p_nda_float_t & out_nda = (*fwd)[*i];
-      if( out_nda ) { assert_st( out_nda->dims == out_node_dims ); }
-      else{ out_nda.reset( new nda_float_t( out_node_dims ) ); }
-      string caffe_node_name = out_node_name;
-      bool get_diff = maybe_strip_suffix( caffe_node_name, "_grad_loss" );
-      copy_output_blob_data( net, caffe_node_name, get_diff, out_nda );
-      //must_insert( *fwd, out_node_name, out_nda );
+    cudaDeviceSynchronize();
+    {
+      timer_t t("caffe_fwd_t::set_vars");
+      for( vect_string::const_iterator i = to_set_vns.begin(); i != to_set_vns.end(); ++i ) {
+	shared_ptr< caffe::Blob<float> > const & ib = net->blob_by_name( *i );
+	if( !ib ) { rt_err( strprintf("gettting caffe blob for setting inputs: node '%s' from to_set_vns not found in network (note: do_bck=%s).\n",
+				      (*i).c_str(), str(cp->has_bck_ops.v).c_str() )); }
+	p_nda_float_t const & ib_nda = must_find( *fwd, *i );
+	copy_nda_to_caffe_blob( ib_nda, ib.get(), 0 );
+      }
+      cudaDeviceSynchronize();
+    }
+    {
+      timer_t t("caffe_fwd_t::run_fwd");
+      raw_do_forward( net, enable_prof, cp->has_bck_ops.v );
+      cudaDeviceSynchronize();
+    }
+    {
+      timer_t t("caffe_fwd_t::get_vars");
+      for( vect_string::const_iterator i = to_get_vns.begin(); i != to_get_vns.end(); ++i ) {
+	string const out_node_name = *i;
+	dims_t const & out_node_dims = cp->must_get_node( out_node_name )->dims;
+	p_nda_float_t & out_nda = (*fwd)[*i];
+	if( out_nda ) { assert_st( out_nda->dims == out_node_dims ); }
+	else{ out_nda.reset( new nda_float_t( out_node_dims ) ); }
+	string caffe_node_name = out_node_name;
+	bool get_diff = maybe_strip_suffix( caffe_node_name, "_grad_loss" );
+	copy_output_blob_data( net, caffe_node_name, get_diff, out_nda );
+	//must_insert( *fwd, out_node_name, out_nda );
+      }
+      cudaDeviceSynchronize();
     }
   }  
 
