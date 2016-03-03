@@ -253,7 +253,7 @@ namespace boda {
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
 
     p_has_conv_fwd_t cf1; //NESI(default="(mode=caffe)",help="fwd compute mode 1; used if cm1==1")
-    p_has_conv_fwd_t cf2; //NESI(default="(mode=caffe)",help="fwd compute mode 2; used if cm2==1")
+    p_has_conv_fwd_t cf2; //NESI(help="fwd compute mode 2; used if cm2==1")
 
     uint32_t tpd; //NESI(default="0",help="if non-zero, use test-pattern data. 1 == const, 2 == const + x co-ord")
     u32_pt_t tpd_in_sz; //NESI(default="15 15",help="x,y size of test-pattern data to use")
@@ -315,15 +315,15 @@ namespace boda {
 	    }
 	    ++tot_wins;
 	    // FIXME: make seed be tot_wins * size_of_image * images_per_batch or the like?
-	    cf1->set_det_drop_seed( tot_wins );
-	    cf2->set_det_drop_seed( tot_wins );
+	    if( cf1 ) { cf1->set_det_drop_seed( tot_wins ); }
+	    if( cf2 ) { cf2->set_det_drop_seed( tot_wins ); }
 	    comp_batch();
 	  }
 	}
       }
       // FIXME: delimit the two info logs somehow? but if they are empty, we don't want to output clutter ...
-      (*out) << cf1->get_info_log();
-      (*out) << cf2->get_info_log();
+      if( cf1 ) { (*out) << cf1->get_info_log(); }
+      if( cf2 ) { (*out) << cf2->get_info_log(); }
       if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
       else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
       out.reset();
@@ -367,9 +367,11 @@ namespace boda {
 	if( !onn.empty() ) { tops.push_back( onn ); } 
 	else { run_cnet->conv_pipe->get_topo_order_caffe_comp_nodes( tops ); }
       }
+      if( cf1 ) { cf1->run_fwd( to_set_vns1, fwd1, tops ); }
+      if( cf2 ) { cf2->run_fwd( to_set_vns2, fwd2, tops ); }
+      bool const do_cmp = bool(cf1) && bool(cf2);
+      if( !do_cmp ) { return; }
       (*out) << strprintf( "vars_to_compare: %s\n", str(tops).c_str() );
-      cf1->run_fwd( to_set_vns1, fwd1, tops );
-      cf2->run_fwd( to_set_vns2, fwd2, tops );
       for( vect_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) {
 	p_nda_float_t out_batch_1 = must_find( *fwd1, *i );
 	p_nda_float_t out_batch_2 = must_find( *fwd2, *i );
