@@ -247,6 +247,8 @@ class Reduce( object ):
     def __init__( self, **kwargs ): self.opts = kwargs
 class BckLRN( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
+class BckDropout( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
 
 import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
