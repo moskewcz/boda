@@ -45,6 +45,10 @@ Finally, this file includes a line to add a directory to LD_LIBRARY_PATH so that
 
     sudo apt-get install protobuf-compiler libprotobuf-dev liblmdb-dev libsparsehash-dev libpython-dev libboost-all-dev
 
+some generally useful other packages for development:
+    sudo apt-get install git emacs
+
+
 ### Build Configuration : editing [makefile](makefile) and [obj_list](obj_list)
 
     emacs obj_list
