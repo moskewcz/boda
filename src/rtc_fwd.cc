@@ -124,7 +124,8 @@ namespace boda
 	  bck_pels_sz += i32_pt_t(1,1); // include starting pixel
 	  assert_st( bck_pels_sz.both_dims_gt( i32_pt_t() ) );
 
-	  conv_ref_dims["bck_in_pad"] = dims_t( vect_uint32_t{ bck_in_pad.d[1], bck_in_pad.d[0] }, vect_string{"y","x"}, 1 );
+	  conv_ref_dims["bck_in_pad"] = dims_t( vect_uint32_t{ uint32_t(bck_in_pad.d[1]), uint32_t(bck_in_pad.d[0]) }, 
+						vect_string{"y","x"}, 1 );
 	  conv_ref_dims["bck_pad_in_off"] = dims_t( vect_uint32_t{ bck_pad_in_off.d[1], bck_pad_in_off.d[0] }, vect_string{"y","x"}, 1 );
 
 	  p_conv_node_t ogl = cp->must_get_node(get_arg("out_grad_loss"));
