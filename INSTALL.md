@@ -88,6 +88,19 @@ If you want to use your own caffe version, see boda issue #1 for the three optio
 
 ## Running Tests
 
+### copying needed model files
+
+Assuming you have all the needed model files on some machine in /scratch/models, using where each model is /scratch/models/$net/best.caffemodel, you can use rsync to copy them to another machine. The list of models needed for testing (hopefully up to date, but otherwise a good starting place) is in boda/test/test_all_nets.txt. Here is a sample command to copy the models from the local machine to a remote machine named 'targ_machine':
+
+    # FIXME: UNTESTED!!! needs a /scratch dir already setup, maybe with +t / stick-bit set like /tmp ...
+    moskewcz@maaya:~/git_work/boda$ for net in `cat test/test_all_nets.txt`; do ssh targ_machine mkdir -p /scratch/models/$net ; scp {,targ_machine:}/scratch/models/$net/best.caffemodel; done
+
+### copying needed dataset files
+
+Also, the images from the VOC-2007 dataset are used by the tests. Again, assuming they are in /scratch/datasets/VOC-2007/VOCdevkit (with the actual images and such in /scratch/datasets/VOC-2007/VOCdevkit/VOC2007/{JpegImages,ImageSets,Annotations}):
+
+    rsync -a /scratch/datasets/VOC-2007/VOCdevkit targ_machine:/scratch/datasets/VOC-2007
+
 ### TODO: see boda issues for a starting place
 
 
