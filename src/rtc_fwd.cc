@@ -674,13 +674,26 @@ namespace boda
       // optional: run fwd rfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
       for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
     }
-    timer_t t("conv_pipe_fwd_t::run_fwd");
+    rtc->finish_and_sync();
     if( enable_prof ) { rtc->profile_start(); }
     //printf("run_fwd() begin\n");
-    rtc->copy_ndas_to_vars( to_set_vns, *fwd ); // copy sources in
+    {
+      timer_t t("conv_pipe_fwd_t::set_vars");
+      rtc->copy_ndas_to_vars( to_set_vns, *fwd ); // copy sources in
+      rtc->finish_and_sync();
+    }
     //printf("run_fwd() exec\n");
-    for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
-    rtc->finish_and_sync();
+    {
+      timer_t t("conv_pipe_fwd_t::run_fwd");
+      for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
+      rtc->finish_and_sync();
+    }
+    //printf("run_fwd() copy out\n");
+    {
+      timer_t t("conv_pipe_fwd_t::get_vars");
+      rtc->copy_vars_to_ndas( to_get_vns, *fwd ); // copy requested vars out
+      rtc->finish_and_sync();
+    }
     float const compute_dur = fwd_calls.empty() ? 0.0f : rtc->get_dur( fwd_calls.front().call_id, fwd_calls.back().call_id );
     if( enable_prof ) { rtc->profile_stop(); }
     if( !per_call_fn.empty() ) {
@@ -695,10 +708,9 @@ namespace boda
       }
       cp->dump_ops( *out );
     }
-    //printf("run_fwd() copy out\n");
-    rtc->copy_vars_to_ndas( to_get_vns, *fwd ); // copy requested vars out
     update_stats();
     rtc->release_per_call_id_data();
+    rtc->finish_and_sync();
     //printf("run_fwd() done\n");
   }
   
