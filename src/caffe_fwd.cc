@@ -170,6 +170,7 @@ namespace boda
 
   void raw_do_forward( p_Net_float net, bool const enable_prof, bool const do_bck ) {
     if( enable_prof ) { cuProfilerStart(); }
+    if( do_bck ) { net->ClearParamDiffs(); }
     net->ForwardPrefilled();
     if( do_bck ) { net->Backward(); }
     if( enable_prof ) { cuProfilerStop(); }
