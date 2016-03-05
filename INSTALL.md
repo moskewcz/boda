@@ -101,11 +101,47 @@ Also, the images from the VOC-2007 dataset are used by the tests. Again, assumin
 
     rsync -a /scratch/datasets/VOC-2007/VOCdevkit targ_machine:/scratch/datasets/VOC-2007
 
-### TODO: see boda issues for a starting place
+### running the tests
+
+From the boda/run directory, make a test-running directory, and cd into it. from there, run the test_all mode. Depending on which features you have enabled/disabled, you should see somethign like the below. Note that many of the tests do require caffe support, and so if you've disabled that, many individual tests will fail to initialize, since the 'caffe' computation backend won't exists. So, the part above about not needing caffe enabled above doesn't currently really hold true if you want to run the tests.
 
 
+````
+moskewcz@GPU86AA:~/git_work/boda/run/tr1$ time boda test_all ; date
+WARNING: test_cmds: some modes had test commands that failed to initialize. perhaps these modes aren't enabled?
+  FAILING MODES: oct_featpyra oct_resize run_dfc test_oct
+TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  
+           4     165.071s      41.267s    test_all_subtest
+          44     165.055s       3.751s    test_cmds_cmd
+          39      7.050ms      0.180ms    diff_command
+          31    294.271ms      9.492ms    read_pascal_image_list_file
+           2      7.246ms      3.623ms    read_results_file
+           1      0.491ms      0.491ms    score_results_for_class
+           4      0.076ms      0.019ms    read_text_file
+          18      71.860s       3.992s    nvrtc_compile
+        3843     89.661ms      0.023ms    cu_launch_and_sync
+        1288    627.221ms      0.486ms    caffe_copy_layer_blob_data
+           1    139.204ms    139.204ms    caffe_init
+          48      42.978s    895.390ms    caffe_create_net
+         948       1.361s      1.436ms    caffe_set_layer_blob_data
+         749     82.954ms      0.110ms    img_copy_to
+         894       2.531s      2.831ms    subtract_mean_and_copy_img_to_batch
+          20    146.598ms      7.329ms    dense_cnn
+         689    173.205ms      0.251ms    caffe_fwd_t::set_vars
+         689       2.982s      4.328ms    caffe_fwd_t::run_fwd
+         689       2.132s      3.095ms    caffe_fwd_t::get_vars
+        3190       2.107s      0.660ms    caffe_copy_output_blob_data
+         588       2.656s      4.518ms    sparse_cnn
+          60       2.458s     40.979ms    net_upsamp_cnn
+          60    279.103ms      4.651ms    upsample_2x
+          60    816.201ms     13.603ms    img_upsamp_cnn
+          81     60.967ms      0.752ms    conv_pipe_fwd_t::set_vars
+          81       4.436s     54.776ms    conv_pipe_fwd_t::run_fwd
+          81       2.817s     34.782ms    conv_pipe_fwd_t::get_vars
+        1392       1.081s      0.777ms    caffe_get_layer_blob_data
 
-
-
-
-
+real	1m43.818s
+user	1m50.968s
+sys	0m5.536s
+Fri Mar  4 18:01:15 PST 2016
+````
