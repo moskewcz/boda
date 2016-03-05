@@ -32,7 +32,7 @@ namespace boda
   conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, zi_bool(1) };
   conv_op_info_t const Reduce_coi{ "Reduce", {"ins"}, {"out"}, {}, zi_bool(1) };
   conv_op_info_t const Split_coi{ "Split", {"in"}, {"outs"}, {}, zi_bool(0), zi_bool(1) };
-  conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"} };
+  conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"}, {{"out_chans","0"}} };
   // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
   // other ops. so we try to understand what they do functionally and name them accordingly.
@@ -225,6 +225,9 @@ namespace boda
     } else if( cop->is( Split_coi ) ) { 
     } else if( cop->is( Reduce_coi ) ) { 
     } else if( cop->is( BckLRN_coi ) ) { 
+    } else if( cop->is( InnerProduct_coi ) ) { 
+      printf( "warning: support info calc for InnerProduct unhandled (this is okay during cnet_fc_to_conv, "
+	      "but perhaps not for other uses) cop->tag=%s\n", str(cop->tag).c_str() );
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
       assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
@@ -374,6 +377,9 @@ namespace boda
 	must_get_node( cop->bots[2] )->dims = bias_dims;
       } else {
 	if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+	// FIXME?: for the most part, we don't handle InnerProduct, but for cnet_fc_to_conv (i.e. the tool to convert
+	// InnerProduct to Convolution) we need this at least handled.
+	if( cop->is( InnerProduct_coi ) ) { out_chans = cop->u32_param("out_chans"); }
       }
       dims_t const & dims_in = j_node->dims;
       assert_st( cop->stride.both_dims_non_zero() ); // FIXME: still belongs here? handled in in_sz_to_out_sz?
