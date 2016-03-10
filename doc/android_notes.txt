@@ -1,0 +1,88 @@
+#making standalone toolchain
+#stock ndk
+android-ndk-r10e/build/tools/make-standalone-toolchain.sh --install-dir=my-android-toolchain --platform=android-21 --toolchain=aarch64-linux-android-4.9
+#cyrstaX
+crystax-ndk-10.3.1/build/tools/make-standalone-toolchain.sh --install-dir=crys-android-tc --platform=android-21 --toolchain=aarch64-linux-android-4.9
+
+# port forwarding for adb server
+ssh -L 5037:localhost:5037  bitter -Nn &
+# port forwarding for adb server and gdb server (adb forwards will open listening ports on bitter, not maaya)
+ssh -L 5037:localhost:5037 -L 5039:localhost:5039 bitter -Nn &
+
+# start boda under gdbserver64
+root@msm8996:/data/local/boda/run/tr1 # LD_LIBRARY_PATH=../../lib gdbserver64 :5039 ../../lib/boda 
+
+# forward gdbserver port from msm8996 to bitter
+moskewcz@maaya:~/scratch$ adb forward tcp:5039 tcp:5039
+
+# start debugging session on maaya (via port forward to bitter)
+moskewcz@maaya:~/scratch$ /scratch/moskewcz/android/crys-android-tc/bin/aarch64-linux-android-gdb ~/git_work/boda_android/lib/boda -ex "target remote :5039"
+
+#building boost using android NDK: see http://stackoverflow.com/questions/30491158/compile-and-use-boost-for-android-ndk-r10e/35922934#35922934
+
+# configure/compile google sparsehash
+
+moskewcz@maaya:/scratch/moskewcz/android/src/sparsehash-sparsehash-2.0.3$ PATH=/scratch/android-stc/bin:/scratch/android-stc:/scratch/moskewcz/android/android-ndk-r10e/prebuilt/linux-x86_64/bin:$PATH ./configure --host=aarch64-linux-android
+...
+moskewcz@maaya:/scratch/moskewcz/android/src/sparsehash-sparsehash-2.0.3$ PATH=/scratch/android-stc/bin:/scratch/android-stc:/scratch/moskewcz/android/android-ndk-r10e/prebuilt/linux-x86_64/bin:$PATH make
+
+
+# configure/compile google protobuf 2.6.1 
+# get tarball, upack somewhere, and make 'normal' host build -- it seems we need a host version of protoc to cross compile
+moskewcz@maaya:~/src/protobuf-2.6.1$ ./configure && make -j8
+# unpack somewhere else for cross compilation. first, configure. note --disable-shared and --with-protoc=local_protoc options.
+moskewcz@maaya:/scratch/moskewcz/android/src/protobuf-2.6.1$ PATH=/scratch/android-stc/bin:/scratch/android-stc:/scratch/moskewcz/android/android-ndk-r10e/prebuilt/linux-x86_64/bin:$PATH ./configure --host=aarch64-linux-android --with-protoc=/home/moskewcz/src/protobuf-2.6.1/src/protoc --disable-shared
+# build -- libs go into ./src/.libs
+moskewcz@maaya:/scratch/moskewcz/android/src/protobuf-2.6.1$ PATH=/scratch/android-stc/bin:/scratch/android-stc:/scratch/moskewcz/android/android-ndk-r10e/prebuilt/linux-x86_64/bin:$PATH make -j8
+
+# configure/compile libturbojpeg (used 1.4.90) (aka 1.5.0 beta 1?) -- static libs only
+moskewcz@maaya:/scratch/moskewcz/android/src/libjpeg-turbo-1.4.90$ PATH=/scratch/android-stc/bin:/scratch/android-stc:/scratch/moskewcz/android/android-ndk-r10e/prebuilt/linux-x86_64/bin:$PATH ./configure --host=aarch64-linux-android --disable-shared
+moskewcz@maaya:/scratch/moskewcz/android/src/libjpeg-turbo-1.4.90$ PATH=/scratch/android-stc/bin:/scratch/android-stc:/scratch/moskewcz/android/android-ndk-r10e/prebuilt/linux-x86_64/bin:$PATH make -j8
+
+# compile boda for android: follow the normal instructions in INSTALL.md, but use a custom obj_list (or edit the default)
+# the file obj/obj_list.android is my working example with paths and such corresponding to my setup on maaya. 
+# edit obj/obj_list.android as needed to have correct paths for all the above deps.
+# when compiling, add the name of the custom obj_list (in the obj directory) to the command line -- or edit the makefile.
+
+    cd ~/git_work/boda_android/obj; make -j12 OBJ_LIST_FN=obj_list.android 
+
+#deploy/run boda (from boda lib dir on maaya)
+
+moskewcz@maaya:~/git_work/boda_android/lib$ /scratch/android-stc/bin/aarch64-linux-android-strip boda && adb push boda /data/local/boda/lib
+559 KB/s (2456528 bytes in 4.287s)
+
+oskewcz@maaya:~/git_work/boda_android/lib$ adb shell "cd /data/local/boda/run/tr1; LD_LIBRARY_PATH=../../lib ../../lib/boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl' && cat rtc_test.txt"
+All is Well.
+
+# test rtc-ipc compute-over-tcp
+# port forwarding boda tcp port (12792); first from device to bitter (over adb), then from bitter to maaya (over ssh)
+moskewcz@maaya:~/scratch$ adb reverse tcp:12791 tcp:12791
+moskewcz@maaya:~/scratch$ ssh -R 12791:localhost:12791  bitter -Nn &
+
+
+# with forwarding set up, run some mode using rtc with be=ipc on maaya using the 'print_dont_fork=1' option:
+moskewcz@maaya:~/git_work/boda/run/tr3$ boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227))' --cf2='(mode=rtc,show_rtc_calls=1,rtc=(be=ipc,print_dont_fork=1,boda_parent_addr=tcp:127.0.0.1:12791))' --max-err=1 && cat test_compute.txt 
+boda ipc_compute_worker --rtc=(be=ocl) --boda-parent-addr=tcp:127.0.0.1:12791
+# ... here the server is waiting for the client to connect. then, in another shell, run the client on the device:
+moskewcz@maaya:~/git_work/boda_android/lib$ adb shell "cd /data/local/boda/run/tr1; LD_LIBRARY_PATH=../../lib ../../lib/boda ipc_compute_worker --rtc='(be=ocl)' --boda-parent-addr=tcp:127.0.0.1:12791"
+# now, be patient, as boda xfers lots'o'data (i.e. model params) over the slow tcp-over-adb-and-ssh link. after a min or so, you should get an error for this case:
+error: cl::CommandQueue::enqueueNDRangeKernel()() failed with ret=-54 (CL_INVALID_WORK_GROUP_SIZE)
+# going back to the original shell, the server should have died as well:
+boda: ../src/rtc_ipc.cc:241: virtual void boda::sock_stream_t::read(char* const&, const size_t&): Assertion ` failed:
+ret > 0
+ ----STACK TRACE (FRAMES=16-0)----
+  boda(boda::get_backtrace()+0xb4) [0x68b814]
+  boda(boda::sock_stream_t::read(char* const&, unsigned long const&)+0xea) [0x500fea]
+  boda(void boda::bread_bytes<boda::stream_t, 0>(boda::stream_t&, char* const&, unsigned long const&)+0xe) [0x5027ae]
+  boda(boda::ipc_compute_t::run(boda::rtc_func_call_t&)+0x5a4) [0x503134]
+# ... and more stacktrace ommited. for a working, simpler example, try the rtc_test mode, which does vector c = a + b:
+
+moskewcz@maaya:~/git_work/boda/run/tr3$ boda rtc_test --rtc='(be=ipc,print_dont_fork=1,boda_parent_addr=tcp:127.0.0.1:12791)' --data-sz=100000 && cat rtc_test.txt
+boda ipc_compute_worker --rtc=(be=ocl) --boda-parent-addr=tcp:127.0.0.1:12791
+# use the same client command as earlier to start a client on the remote device. in a few seconds it should terminate without error, and then the rtc_test command should output:
+All is Well.
+moskewcz@maaya:~/git_work/boda/run/tr3$ 
+
+
+
+
