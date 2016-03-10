@@ -3,7 +3,6 @@
 #include"img_io.H"
 #include"pyif.H"
 #include"str_util.H"
-#include<turbojpeg.h>
 #include"ext/lodepng.h"
 #include<boost/iostreams/device/mapped_file.hpp>
 #include"has_main.H"
