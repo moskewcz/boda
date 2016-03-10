@@ -226,9 +226,17 @@ namespace boda
       ++in_file_ix;
     }
     if( load_imgs ) {
+      vect_string load_errs( img_db->img_infos.size() );
 #pragma omp parallel for
       for( uint32_t i = 0; i < img_db->img_infos.size(); ++i ) {
-	read_pascal_image_for_id( img_db->img_infos[i] ); 
+	try {
+	  read_pascal_image_for_id( img_db->img_infos[i] ); 
+	} catch( rt_exception const & rte ) {
+	  load_errs[i] = rte.err_msg;
+	}
+      }
+      for( vect_string::const_iterator i = load_errs.begin(); i != load_errs.end(); ++i ) {
+	if( !i->empty() ) { rt_err( *i ); }
       }
     }
   }
