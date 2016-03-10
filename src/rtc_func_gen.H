@@ -34,7 +34,10 @@ namespace boda
   typedef shared_ptr< rcg_func_call_t > p_rcg_func_call_t; 
   typedef vector< p_rcg_func_call_t > vect_p_rcg_func_call_t;
 
-  struct custom_codegen_t { virtual void gen_op( rtc_call_gen_t * rcg, string const & op_name ) = 0; };
+  struct custom_codegen_t { 
+    virtual void gen_op( rtc_call_gen_t * rcg, string const & op_name ) = 0; 
+    virtual ~custom_codegen_t( void ) { }
+  };
   typedef shared_ptr< custom_codegen_t > p_custom_codegen_t; 
 
   // for convenience, declare the factory func for cnn_custom_codegen_t here (code is in cnn_codegen.cc)

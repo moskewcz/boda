@@ -86,6 +86,7 @@ namespace boda {
 
   string get_boda_shm_filename( void );
 
+#if ((_POSIX_SHARED_MEMORY_OBJECTS - 0) > 0)
   template< typename STREAM > p_uint8_t make_and_share_p_uint8_t( STREAM & out, uint32_t const sz ) {
     string const fn = get_boda_shm_filename();
     shm_unlink( fn.c_str() ); // we don't want to use any existing shm, so try to remove it if it exists.
@@ -124,6 +125,8 @@ namespace boda {
     bwrite( in, done );
     return ret;
   }
+#endif
+
 
   template< typename STREAM > p_img_t make_and_share_p_img_t( STREAM & out, u32_pt_t const & sz ) {
     bwrite( out, sz );

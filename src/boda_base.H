@@ -759,7 +759,7 @@ namespace boda
   // virtual nesi", and *declare* get_cinfo() (which will be generated
   // in the corresponding .nesi_gen.cc file for the class declaration)
   struct cinfo_t;
-  struct nesi { virtual cinfo_t const * get_cinfo( void ) const = 0; };
+  struct nesi { virtual cinfo_t const * get_cinfo( void ) const = 0; virtual ~nesi( void ) { } };
   typedef shared_ptr< nesi > p_nesi;
 
   struct read_req_t {

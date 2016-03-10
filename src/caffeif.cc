@@ -13,6 +13,7 @@
 #include"rand_util.H"
 #include"imagenet_util.H"
 #include<algorithm>
+#include<iostream>
 #include"gen/caffe.pb.h" 
 
 namespace boda 

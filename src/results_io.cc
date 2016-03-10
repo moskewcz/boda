@@ -6,6 +6,7 @@
 #include<cassert>
 #include<string>
 #include<map>
+#include<iostream>
 #include<vector>
 #include<boost/algorithm/string.hpp>
 #include<boost/filesystem.hpp>
