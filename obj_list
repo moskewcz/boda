@@ -56,7 +56,7 @@ endif
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/python2.7 
 LDFLAGS := $(LDFLAGS) -lpython2.7
 
-[turbojpeg] # not disable-able, due to unmarked indirect dependencies. we mark only the direct dependencies below.
+[turbojpeg] # disable-able, but will cause any test/mode that tries to load a .jpeg to fail at run-time
 LDFLAGS := $(LDFLAGS) -lturbojpeg
 
 # list of object files to compile. at least the objects that are
@@ -124,12 +124,13 @@ test_nesi.o
 has_main.o
 nesi.o
 lexp.o 
-img_io.o turbojpeg
+img_io.o 
+img_io-turbojpeg.o turbojpeg
+img_io-no-turbojpeg-stub.o -turbojpeg
 model.o octave
 results_io.o  
 pyif.o python
 pyif-no-python-stub.o -python
-
 octif.o octave
 octif-no-octave-stub.o -octave
 boda.o  
