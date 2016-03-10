@@ -34,10 +34,13 @@ matplotlib.rc('ytick.major',size =0 )
 matplotlib.rc('ytick.minor',size =0 )
 #matplotlib.rc('font', family='serif')
 
+from prettyprint import *
 
 def knee_ai( perf, bw ): return perf / bw
 
-def addPerfPt( alg, ai, perf ):
+def addPerfPt( alg, net, perf ):
+    ai = net_ais[net].ai
+    print "%r,%s,%s" % (alg.name, net, pp_flops(perf*1e9))
     ax.plot( [ai], [perf], alg.ls )
 
 def addAILine( net_ai ):
@@ -229,7 +232,7 @@ show_perf = 1
 if show_perf:
     for alg in algs:
         for (net,perf) in alg.perfs.iteritems():
-            addPerfPt( alg, net_ais[net].ai, perf )
+            addPerfPt( alg, net, perf )
     #box = ax.get_position()
     #ax.set_position([box.x0, box.y0, box.width, box.height])
 
