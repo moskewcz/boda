@@ -7,16 +7,16 @@ data -> conv1_1 -> ... -> conv5_3 -> conv 5_4 --> pool5 --> fc6 --> fc7 --> fc8 
 
 RCNN-HEAD:
 
-im_info --<1>
-data -> conv1_1 -> ... -> conv5_3 -(3x3)-> --<2> 
-*notes: num_classes=21 in data layer: VOC 20 classes + background; im_info is 3 values: ???
+im_info[3] --<1>
+data[1,ysz,xsz,3] -> conv1_1 -> ... -> conv5_3 -(3x3)-> --<2> 
+*notes: num_classes=21 in data layer: VOC 20 classes + background; im_info is 3 values: {ysz,xsz,scale}
 
 RPN:
  conv5_3 -(3x3)--> rpn/output --v-(1x1)-> rpn_cls_score -> rpn_cls_share_reshape --<1>
                                 --(1x1)-> rpb_bbox_pred --<1>
 
-*notes: rpn/output num_output=18 (fixed) == (2: bg/fg)*(9 anchors) (note: 9 anchors == (3 sizes)*(3 scales)
-        rpn_bbox_pred num_output=36 (fixed) == (4 bbox coords)*(9 anchors)
+*notes: rpn/output: spatially-dense, num_output=18  (fixed) == (2: bg/fg)*(9 anchors) (note: 9 anchors == (3 sizes)*(3 scales)
+        rpn_bbox_pred: spatially-dense, num_output=36 (fixed) == (4 bbox coords)*(9 anchors)
 
 RoI Proposal:                                                  im_info ----v
                                                          rpn_bbox_pred --v |
@@ -53,7 +53,7 @@ RPN:
   rpn_cls_score ---v                              v----> rpn_labels
   gt_boxes ----v   |                              |v---> rpn_bbox_targets
   im_info --v  |   |    *note: feat_stride=16     ||v--> rpn_bbox_inside_weights
-  data ----------------(rpc.anchor_target_layer) ------> rpn_bbox_output_weights
+  data ----------------(rpn.anchor_target_layer) ------> rpn_bbox_output_weights
 
          rpn_labels ---v
 rpn_cls_score_reshape ---(SMwL: ingore_label=-1)--> rpn_cls_loss
@@ -95,4 +95,4 @@ RCNN-TAIL-LOSS:
 
 
 			 
-TODO: look up iminfo, then rpn.proposal_layer, then resume from there.
+TODO: then rpn.proposal_layer, then resume from there.
