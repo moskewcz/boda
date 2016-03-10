@@ -2,8 +2,8 @@
 #include"nesi.H"
 #include<cassert>
 #include<vector>
-#include<boost/shared_ptr.hpp>
-using boost::shared_ptr;
+#include<memory>
+using std::shared_ptr;
 using std::vector;
 
 #include<boost/lexical_cast.hpp>

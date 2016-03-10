@@ -3,8 +3,7 @@
 #define BODA_BASE_H
 
 #include<cassert>
-#include<boost/shared_ptr.hpp>
-#include<boost/make_shared.hpp>
+#include<memory>
 #include<fstream>
 #include<string>
 #include<vector>
@@ -13,6 +12,7 @@
 #include<exception>
 #include<poll.h>
 #include<boost/integer_traits.hpp>
+#include<math.h>
 
 # define assert_st(expr)							\
   ((expr)								\
@@ -61,10 +61,10 @@ namespace boda
   }
   inline int32_t u32_to_i32( uint32_t const & v ) { int32_t const ret( v ); assert( ret >= 0 ); return ret; }
 
-  using boost::shared_ptr;
-  using boost::make_shared;
+  using std::shared_ptr;
+  using std::make_shared;
   template< typename T > struct null_deleter { void operator()( T * const ) const {}; };
-  using boost::dynamic_pointer_cast;
+  using std::dynamic_pointer_cast;
   using boost::iostreams::mapped_file;
   using boost::iostreams::mapped_file_source;
   using boost::iostreams::mapped_file_sink;
@@ -264,8 +264,8 @@ namespace boda
 
 
   typedef hunk_T< uint32_t > hunk_uint32_t;
-  typedef hunk_T< float_t > hunk_float_t;
-  typedef hunk_T< double_t > hunk_double_t;
+  typedef hunk_T< float > hunk_float_t;
+  typedef hunk_T< double > hunk_double_t;
 
   uint32_t const boda_magic= *(uint32_t *)"BODA";
 

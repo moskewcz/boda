@@ -5,7 +5,7 @@
 
 #define PRE_DECL_SDL_OBJ( tn ) \
   struct SDL_##tn; \
-  typedef boost::shared_ptr< SDL_##tn > p_SDL_##tn;
+  typedef std::shared_ptr< SDL_##tn > p_SDL_##tn;
 
 PRE_DECL_SDL_OBJ( Window );
 PRE_DECL_SDL_OBJ( Renderer );
@@ -15,9 +15,9 @@ PRE_DECL_SDL_OBJ( Rect );
 #undef PRE_DECL_SDL_OBJ
 
 struct SDL_Surface;
-typedef boost::shared_ptr< SDL_Surface > p_SDL_Surface;
+typedef std::shared_ptr< SDL_Surface > p_SDL_Surface;
 struct _TTF_Font;
-typedef boost::shared_ptr< _TTF_Font > p_TTF_Font;
+typedef std::shared_ptr< _TTF_Font > p_TTF_Font;
 
 namespace boost { namespace system { struct error_code; } }
 namespace boda {

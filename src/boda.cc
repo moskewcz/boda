@@ -8,7 +8,7 @@
 #include"has_main.H"
 #include"timers.H"
 #include<ostream>
-
+#include<iostream>
 
 // boda.cc is the top level of control flow. most of the code/logic here is for the top level UI:
 // help, cli-format arugment processing, top-level xml file processing. this is also where various

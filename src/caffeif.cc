@@ -12,7 +12,7 @@
 #include"anno_util.H"
 #include"rand_util.H"
 #include"imagenet_util.H"
-
+#include<algorithm>
 #include"gen/caffe.pb.h" 
 
 namespace boda 
@@ -417,7 +417,7 @@ namespace boda
     }
     vect_uint32_t disp_list;
     for( uint32_t i = 0; i < pred_state.size(); ++i ) {  if( pred_state[i].to_disp ) { disp_list.push_back(i); } }
-    sort( disp_list.begin(), disp_list.end(), gt_filt_prob<pred_state_t>( pred_state ) );
+    std::sort( disp_list.begin(), disp_list.end(), gt_filt_prob<pred_state_t>( pred_state ) );
     uint32_t num_disp = 0;
     nms_grid.clear();
     for( vect_uint32_t::const_iterator ii = disp_list.begin(); ii != disp_list.end(); ++ii ) {

@@ -81,9 +81,9 @@ namespace boda
 
   void set_layer_blobs( p_Net_float net_, string const & layer_name, vect_p_nda_float_t & blobs ) {
     timer_t t("caffe_set_layer_blob_data");
-    shared_ptr< caffe::Layer<float> > layer = net_->layer_by_name( layer_name );
+    boost::shared_ptr< caffe::Layer<float> > layer = net_->layer_by_name( layer_name );
     if( !layer ) { rt_err( strprintf("setting parameters: layer '%s' not found in network\n",str(layer_name).c_str() )); }    
-    const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
+    const vector< boost::shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     assert_st( blobs.size() == layer_blobs.size() );
     for( uint32_t bix = 0; bix < layer_blobs.size(); ++bix ) {
       p_nda_float_t const & nda = blobs[bix];
@@ -109,9 +109,9 @@ namespace boda
 
   void get_layer_blob( p_Net_float net_, string const & layer_name, uint32_t const bix, bool const get_diff, p_nda_float_t const & blob ) {
     timer_t t("caffe_get_layer_blob_data");
-    shared_ptr< caffe::Layer<float> > layer = net_->layer_by_name( layer_name );
+    boost::shared_ptr< caffe::Layer<float> > layer = net_->layer_by_name( layer_name );
     if( !layer ) { rt_err( strprintf("gettting parameters: layer '%s' not found in network\n",str(layer_name).c_str() )); }    
-    const vector< shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
+    const vector< boost::shared_ptr< caffe::Blob<float> > >& layer_blobs = layer->blobs();
     assert_st( bix < layer_blobs.size() );
     Blob<float> * const layer_blob = layer_blobs[bix].get();
     copy_caffe_blob_to_nda( layer_blob, get_diff, blob );
@@ -178,7 +178,7 @@ namespace boda
 
   void copy_output_blob_data( p_Net_float net, string const & out_node_name, bool const & get_diff, p_nda_float_t const & out_nda ) {
     timer_t t("caffe_copy_output_blob_data");
-    shared_ptr< Blob<float> > output_blob;
+    boost::shared_ptr< Blob<float> > output_blob;
     string layer_name = out_node_name;
     if( maybe_strip_suffix( layer_name, "_filts" ) ) { get_layer_blob( net, layer_name, 0, get_diff, out_nda ); }
     else if( maybe_strip_suffix( layer_name, "_biases" ) ) { get_layer_blob( net, layer_name, 1, get_diff, out_nda ); }
@@ -196,7 +196,7 @@ namespace boda
     {
       timer_t t("caffe_fwd_t::set_vars");
       for( vect_string::const_iterator i = to_set_vns.begin(); i != to_set_vns.end(); ++i ) {
-	shared_ptr< caffe::Blob<float> > const & ib = net->blob_by_name( *i );
+	boost::shared_ptr< caffe::Blob<float> > const & ib = net->blob_by_name( *i );
 	if( !ib ) { rt_err( strprintf("gettting caffe blob for setting inputs: node '%s' from to_set_vns not found in network (note: do_bck=%s).\n",
 				      (*i).c_str(), str(cp->has_bck_ops.v).c_str() )); }
 	p_nda_float_t const & ib_nda = must_find( *fwd, *i );
