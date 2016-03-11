@@ -56,8 +56,19 @@ namespace boda
 
   namespace io = boost::iostreams;
 
+  // ABC so we can abstract over fd_stream_t and sock_stream_t inside the ipc master and worker note that the
+  // template-based send/recv code doesn't know or care about this ABC in particular; it will (try to) use any class
+  // with the pos_type marker typedef.
+  struct stream_t {
+    virtual void write( char const * const & d, size_t const & sz ) = 0;
+    virtual void read( char * const & d, size_t const & sz ) = 0;
+    virtual bool good( void ) = 0;
+    virtual void flush( void ) = 0;
+    typedef void pos_type; // flag class as IOStream-like for metaprogramming/template conditionals in boda_base.H
+  };
+  struct stream_t; typedef shared_ptr< stream_t > p_stream_t; 
 
-  struct fd_stream_t {
+  struct fd_stream_t : public stream_t {
     io::stream<io::file_descriptor_source> r;
     io::stream<io::file_descriptor_sink> w;
     fd_stream_t( string const & boda_parent_addr, bool const & is_worker ) { init( boda_parent_addr, is_worker ); }
@@ -104,7 +115,7 @@ namespace boda
     if( ret != 0 ) { rt_err(  strprintf( "setsockopt(level=%s,optname=%s) error: %s", 
 					 str(level).c_str(), str(optname).c_str(), strerror( errno ) ) ); }
   }
-  struct sock_stream_t {
+  struct sock_stream_t : public stream_t {
     int fd; 
     int listen_fd; // listen_fd is only used on server (bind/listen/accept) side of connection. technically we only need
 		   // one fd at a time, but it seems less confusing to have two explict ones for the two usages.
@@ -208,6 +219,10 @@ namespace boda
   };
   typedef shared_ptr< sock_stream_t > p_sock_stream_t; 
 
+  p_stream_t make_stream_t( string const & boda_parent_addr, bool const & is_worker ) {
+    return p_stream_t( new fd_stream_t( boda_parent_addr, is_worker ) );
+  }
+
 
   struct ipc_compute_t : virtual public nesi, public rtc_compute_t // NESI(help="rtc-over-IPC wrapper/server",
 			   // bases=["rtc_compute_t"], type_id="ipc" )
@@ -220,7 +235,7 @@ namespace boda
 
     p_map_str_ipc_var_info_t vis;
 
-    p_fd_stream_t worker;
+    p_stream_t worker;
 
     void init( void ) {
       assert_st( !init_done.v );
@@ -233,7 +248,7 @@ namespace boda
       } else {
 	bpa = create_boda_worker_fifo( {"boda","ipc_compute_worker","--rtc="+remote_rtc}, *fifo_fn, print_dont_fork );
       }
-      worker.reset( new fd_stream_t( bpa, 0 ) );	
+      worker = make_stream_t( bpa, 0 );
 
       bwrite( *worker, string("init") );
       worker->flush();
@@ -353,7 +368,7 @@ namespace boda
 
     uint8_t proc_done;
     
-    p_fd_stream_t parent;
+    p_stream_t parent;
 
     ipc_compute_worker_t( void ) : proc_done(1) { }
 
@@ -361,7 +376,7 @@ namespace boda
       global_timer_log_set_disable_finalize( 1 );
 
       vis.reset( new map_str_ipc_var_info_t );
-      parent.reset( new fd_stream_t( boda_parent_addr, 1 ) );
+      parent = make_stream_t( boda_parent_addr, 1 );
 
       string cmd;
       while( 1 ) {
