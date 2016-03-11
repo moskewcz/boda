@@ -13,6 +13,11 @@
 #include<boost/iostreams/device/file_descriptor.hpp>
 #include<boost/iostreams/stream.hpp>
 
+#include<netdb.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/tcp.h>
+
 namespace boda 
 {
   template< typename STREAM > inline void bwrite( STREAM & out, rtc_func_call_t const & o ) { 
@@ -89,6 +94,119 @@ namespace boda
     typedef void pos_type; // flag class as IOStream-like for metaprogramming/template conditionals in boda_base.H
   };
   typedef shared_ptr< fd_stream_t > p_fd_stream_t; 
+
+  // streaming IO using tcp sockets. notes: our buffering/flushing strategy is MSG_MORE + redundant set of TCP_NODELAY
+  // -- it's unclear how portable this is, but see the below SO post for some somewhat-linux-specific. for now, we
+  // mostly care about linux and android, so i guess we'll see how android goes.
+  // http://stackoverflow.com/questions/2547956/flush-kernels-tcp-buffer-for-msg-more-flagged-packets
+  void setopt( int const fd, int const level, int const optname, int const optval = 1 ) {
+    int const ret = setsockopt( fd, level, optname, &optval, sizeof(optval) );
+    if( ret != 0 ) { rt_err(  strprintf( "setsockopt(level=%s,optname=%s) error: %s", 
+					 str(level).c_str(), str(optname).c_str(), strerror( errno ) ) ); }
+  }
+  struct sock_stream_t {
+    int fd; 
+    int listen_fd; // listen_fd is only used on server (bind/listen/accept) side of connection. technically we only need
+		   // one fd at a time, but it seems less confusing to have two explict ones for the two usages.
+    sock_stream_t( void ) : fd(-1), listen_fd(-1) { }
+    // ah, TCP programming. to help understand the dance and all it's idioms/gotchas/tweaks, it's nice to reference
+    // one-or-more existing blocks of code. and then pray you don't see to go examining kernel source or caring too much
+    // about portability across OSs or version. but hey, it's not so bad, and the man pages are generally accurate and
+    // all. sigh. anyway, ZMQ is a nice place to look, see:
+    // https://github.com/zeromq/libzmq/blob/master/src/tcp_listener.cpp 
+
+    // in general, bind+listen/accept are used on the 'server' side, connect is used on the 'client' side.  in
+    // general, we set up the listening socket with bind_and_listen(), then spawn a worker process, then accept() an incoming
+    // connection from the worker. since the network stack will buffer a backlog of connection attempts for us, there's
+    // no race. for now, we only listen for a single worker per sock_stream_t.
+    string bind_and_listen( string const & port ) {
+      assert_st( fd == -1 );
+      assert_st( listen_fd == -1 );
+
+      addrinfo * rp_bind_addrs = 0;
+      addrinfo hints = {0};
+      hints.ai_socktype = SOCK_STREAM; // want reliable communication, 
+      hints.ai_protocol = IPPROTO_TCP; // ... with  TCP (minimally because we try to set TCP_NODELAY) ...
+      // hints.ai_family = AF_INET; // but allow any family (IPv4 or IPv6). or, uncomment to force IPv4
+      hints.ai_flags = AI_PASSIVE; // for binding to wildcard addr
+
+      int const aret = getaddrinfo( 0, port.c_str(), &hints, &rp_bind_addrs );
+      if( aret != 0 ) { rt_err( strprintf("getaddrinfo with port %s failed: %s", port.c_str(), gai_strerror( aret ) ) ); }
+      addrinfo * rpa = rp_bind_addrs; // for now, only try first returned addr
+      listen_fd = socket( rpa->ai_family, rpa->ai_socktype, rpa->ai_protocol );
+      if( listen_fd == -1 ) { rt_err( string("error creating socket for listen: ") + strerror(errno) ); }
+      setopt( listen_fd, SOL_SOCKET, SO_REUSEADDR ); // 'helps' with avoiding can't-bind-port after crashes, etc ... see SO posts
+
+      int const bret = bind( listen_fd, rpa->ai_addr, rpa->ai_addrlen );
+      if( bret != 0 ) { rt_err( strprintf( "bind to port %s failed: %s", port.c_str(), strerror( errno ) ) ); }
+      int const lret = listen( listen_fd, 1 );
+      if( lret != 0 ) { rt_err( strprintf( "listen on port %s failed: %s", port.c_str(), strerror( errno ) ) ); }
+
+      // get and return our (the parent's) addr to pass to the worker so it can connect back
+      char hbuf[NI_MAXHOST+1] = {0};
+      int const ghnret = gethostname( hbuf, NI_MAXHOST );
+      if( ghnret != 0 ) { rt_err( strprintf( "post-good-bind gethostname() failed: %s", strerror( errno ) ) ); }
+      if( strlen(hbuf)==NI_MAXHOST ) { rt_err( strprintf( "post-good-bind gethostname() failed: name too long" ) ); }
+      string const parent_addr = string(hbuf) + ":" + port;
+      freeaddrinfo( rp_bind_addrs );
+      return parent_addr;
+    }
+    void accept_and_stop_listen( void ) {
+      int const aret = accept( listen_fd, 0, 0 );
+      if( aret == -1 ) { rt_err( strprintf( "accept failed: %s", strerror( errno ) ) ); }
+      // we're done listening now, so we can close the listening socket
+      int const cret = close( listen_fd );
+      if( cret == -1 ) { rt_err( strprintf( "post-accept close of listening socket failed: %s", strerror( errno ) ) ); }
+      listen_fd = -1;
+      assert( fd == -1 );
+      fd = aret; // use the socket returned from accept() for communicaiton
+      // set TCP_NODELAY here at socket creation time, so the socket is in a consistent state for all writes wrt this
+      // option (as opposed to the having just the write before the first flush have TCP_NODELAY set).
+      flush(); 
+    }
+    void connect_to_parent( string const & parent_addr ) {
+      assert_st( listen_fd == -1 );
+      vect_string host_and_port = split( parent_addr, ':' );
+      assert_st( host_and_port.size() == 2 ); // host:port
+      addrinfo * rp_connect_addrs = 0;
+      addrinfo hints = {0};
+      hints.ai_socktype = SOCK_STREAM; // better be ... right? allow any family or protocol, though.
+      int const aret = getaddrinfo( host_and_port[0].c_str(), host_and_port[1].c_str(), &hints, &rp_connect_addrs );
+      if( aret != 0 ) { rt_err( strprintf("getaddrinfo(\"%s\") failed: %s", parent_addr.c_str(), gai_strerror( aret ) ) ); }
+      addrinfo * rpa = rp_connect_addrs; // for now, only try first returned addr
+      assert_st( fd == -1 );
+      fd = socket( rpa->ai_family, rpa->ai_socktype, rpa->ai_protocol );
+      if( fd == -1 ) { rt_err( string("error creating socket for connect: ") + strerror(errno) ); }
+      int const ret = connect( fd, rpa->ai_addr, rpa->ai_addrlen );
+      if( ret != 0 ) { rt_err( strprintf( "connect to %s failed: %s", str(parent_addr).c_str(), strerror( errno ) ) ); }
+      flush(); // see above comment in accept_and_stop_listen()
+      freeaddrinfo( rp_connect_addrs );
+    }
+    void write( char const * const & d, size_t const & sz ) { 
+      size_t sz_written = 0;
+      assert_st( sz );
+      while( sz_written < sz ) { 
+	int const ret = send( fd, d + sz_written, sz - sz_written, MSG_NOSIGNAL | MSG_MORE );
+	if( ret == -1 ) { if( errno == EINTR ) { continue; } else { rt_err( string("socket write error: ") + strerror( errno ) ); } }
+	assert_st( ret > 0 ); // FIXME: other returns possible? make into rt_err() call?
+	sz_written += ret;
+      }
+    }
+    void read( char * const & d, size_t const & sz ) { 
+      size_t sz_read = 0;
+      assert_st( sz );
+      while( sz_read < sz ) { 
+	int const ret = recv( fd, d + sz_read, sz - sz_read, 0 );
+	if( ret == -1 ) { if( errno == EINTR ) { continue; } else { rt_err( string("socket read error: ") + strerror( errno ) ); } }
+	assert_st( ret > 0 ); // FIXME: other returns possible? make into rt_err() call?
+	sz_read += ret;
+      }
+    }
+    bool good( void ) { return 1; } // it's all good, all the time. hmm.
+    void flush( void ) { setopt( fd, IPPROTO_TCP, TCP_NODELAY ); }
+    typedef void pos_type; // flag class as IOStream-like for metaprogramming/template conditionals in boda_base.H
+  };
+  typedef shared_ptr< sock_stream_t > p_sock_stream_t; 
 
 
   struct ipc_compute_t : virtual public nesi, public rtc_compute_t // NESI(help="rtc-over-IPC wrapper/server",
@@ -176,6 +294,49 @@ namespace boda
 
     void profile_start( void ) { bwrite( *worker, string("profile_start") ); worker->flush(); }
     void profile_stop( void ) { bwrite( *worker, string("profile_stop") ); worker->flush(); }
+  };
+
+
+  struct cs_test_master_t : virtual public nesi, public has_main_t // NESI(help="cs-testing master/server", bases=["has_main_t"], type_id="cs_test_master")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string port; //NESI(default="12791", help="service/port to use for network (TCP) communication")
+    p_sock_stream_t worker;
+    virtual void main( nesi_init_arg_t * nia ) { 
+      worker.reset( new sock_stream_t );
+      string const parent_addr = worker->bind_and_listen( port );
+      printf( "boda_master: listening on parent_addr=%s\n", str(parent_addr).c_str() );      
+      printf( "boda_master: entering accept_and_stop_listen() ... \n" );      
+      worker->accept_and_stop_listen();
+      printf( "boda_master: connected to worker.\n" );
+      vect_string cmds{ "giggle", "quit" };
+      for( vect_string::const_iterator i = cmds.begin(); i != cmds.end(); ++i ) {
+	string const & cmd = *i;
+	bwrite( *worker, cmd );
+	printf( "boda_master: sent cmd=%s\n", str(cmd).c_str() );	
+      }
+    }    
+  };
+
+  struct cs_test_worker_t : virtual public nesi, public has_main_t // NESI(help="cs-testing worker/client", bases=["has_main_t"], type_id="cs_test_worker")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string parent_addr; //NESI(help="how to communicate with boda parent process; network address in the form host:port",req=1)
+    p_sock_stream_t parent;
+    virtual void main( nesi_init_arg_t * nia ) { 
+      parent.reset( new sock_stream_t );
+      printf( "boda_worker: connecting to parent_addr=%s\n", str(parent_addr).c_str() );      
+      parent->connect_to_parent( parent_addr );
+      printf( "boda_worker: connected to parent.\n" );
+      string cmd;
+      while( 1 ) {
+	bread( *parent, cmd );
+	printf( "boda_worker: got cmd=%s\n", str(cmd).c_str() );
+	if( 0 ) {} 
+	else if( cmd == "quit" ) { break; }
+	else if( cmd == "giggle" ) { printf( "boda_worker: tee hee hee.\n" ); }
+      }
+    } 
   };
 
   struct ipc_compute_worker_t : virtual public nesi, public has_main_t // NESI(help="rtc-over-IPC worker/client", bases=["has_main_t"], type_id="ipc_compute_worker")
