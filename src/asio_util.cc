@@ -18,7 +18,7 @@ namespace boda
     else { fork_and_exec_self( fin_args ); }
     return bpa;
   }
-  int create_boda_worker( vect_string const & args ) {
+  int create_boda_worker_socketpair( vect_string const & args ) {
     int sp_fds[2];
     neg_one_fail( socketpair( AF_LOCAL, SOCK_STREAM, 0, sp_fds ), "socketpair" );
     set_fd_cloexec( sp_fds[0], 0 ); // we want the parent fd closed in our child
@@ -31,7 +31,7 @@ namespace boda
     return sp_fds[0];
   }
   void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args ) {
-    int const fd = create_boda_worker( args );
+    int const fd = create_boda_worker_socketpair( args );
     alss.reset( new asio_alss_t(io) );
     alss->assign( stream_protocol(), fd );
   }

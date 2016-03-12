@@ -264,6 +264,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     zi_bool init_done;
+    string boda_parent_addr; //NESI(default="", help="address to use for communication. FIXME: document.")
     string remote_rtc; //NESI(default="(be=ocl)",help="remote rtc configuration")
     p_string fifo_fn; //NESI(help="if set, use a named fifo for communication instead of a socketpair.")
     uint32_t print_dont_fork; //NESI(default=0,help="if set, don't actually fork to create a fifo-based worker, just print the command to do so.")
@@ -276,16 +277,25 @@ namespace boda
       assert_st( !init_done.v );
       vis.reset( new map_str_ipc_var_info_t );
 
+      vect_string worker_args{"boda","ipc_compute_worker","--rtc="+remote_rtc};
+
       string bpa;
-      if( !fifo_fn ) {
-	int const worker_fd = create_boda_worker( {"boda","ipc_compute_worker","--rtc="+remote_rtc} );
-        bpa = strprintf("fds:%s:%s", str(worker_fd).c_str(), str(worker_fd).c_str() );
+      if( !boda_parent_addr.empty() ) {
+	// new-and-approved flow: create stream first, then create worker process, ...
+	worker = make_stream_t( boda_parent_addr, 0 );
+	worker_args.push_back( "--boda-parent-addr="+boda_parent_addr );
+	if( print_dont_fork ) { fprintf( stderr, "%s\n", join(worker_args," ").c_str());} else { fork_and_exec_self( worker_args ); }
+      } else if( !fifo_fn ) {
+	// old-and-deprecated flow: create worker process, then create stream, ....
+	int const worker_fd = create_boda_worker_socketpair( worker_args  );
+        boda_parent_addr = strprintf("fds:%s:%s", str(worker_fd).c_str(), str(worker_fd).c_str() );	
+	worker = make_stream_t( boda_parent_addr, 0 );
       } else {
-	bpa = create_boda_worker_fifo( {"boda","ipc_compute_worker","--rtc="+remote_rtc}, *fifo_fn, print_dont_fork );
+	// old-and-deprecated flow: create worker process, then create stream, ....
+	boda_parent_addr = create_boda_worker_fifo( worker_args, *fifo_fn, print_dont_fork );
+	worker = make_stream_t( boda_parent_addr, 0 );
       }
-      worker = make_stream_t( bpa, 0 );
-      // note: could peform fork/spawn here
-      worker->wait_for_worker(); 
+      worker->wait_for_worker(); // ... then wait for worker.
 
       bwrite( *worker, string("init") );
       worker->flush();

@@ -147,7 +147,7 @@ namespace boda {
 
   std::string create_boda_worker_fifo( vect_string const & args, string const & fifo_fn, bool const & dry_run );
   int get_single_parent_fd( string const & bpa ); // FIXME: transitional function for ipc code only supporting socketpair() parent addrs
-  int create_boda_worker( vect_string const & args );
+  int create_boda_worker_socketpair( vect_string const & args );
   void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args );
 
 }
