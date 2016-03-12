@@ -74,7 +74,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t out_fn; //NESI(default="%(boda_output_dir)/rtc_test.txt",help="output: test results as error or 'all is well'.")
-    filename_t prog_fn; //NESI(default="%(boda_test_dir)/nvrtc_test_dot.cu",help="rtc program source filename")
+    filename_t prog_fn; //NESI(default="%(boda_test_dir)/rtc/dot.cucl",help="rtc program source filename")
     uint32_t data_sz; //NESI(default=10000,help="size in floats of test data")
     p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
 
