@@ -60,6 +60,8 @@ namespace boda
   // template-based send/recv code doesn't know or care about this ABC in particular; it will (try to) use any class
   // with the pos_type marker typedef.
   struct stream_t {
+    virtual void wait_for_worker( void ) = 0; // for setup, used only in server
+    // used for stream communication by templates in boda_base.H
     virtual void write( char const * const & d, size_t const & sz ) = 0;
     virtual void read( char * const & d, size_t const & sz ) = 0;
     virtual bool good( void ) = 0;
@@ -69,6 +71,21 @@ namespace boda
   struct stream_t; typedef shared_ptr< stream_t > p_stream_t; 
 
   struct fd_stream_t : public stream_t {
+    virtual void wait_for_worker( void ) { 
+      if( method == "fns" ) { 
+	assert_st( read_fd == -1 );
+	neg_one_fail( write_fd = open( wfn.c_str(), O_WRONLY ), "open" );
+	neg_one_fail( read_fd = open( pfn.c_str(), O_RDONLY ), "open" ); 
+	open_streams();
+      }
+      else if( method == "fds" ) { } // note: no sync needed for "fds" case
+      else { rt_err( "fd_stream_t::wait_for_worker(): internal error: unknown method: " + method ); }
+    };
+    string method;
+    string pfn;
+    string wfn;
+    int read_fd;
+    int write_fd;
     io::stream<io::file_descriptor_source> r;
     io::stream<io::file_descriptor_sink> w;
     fd_stream_t( string const & boda_parent_addr, bool const & is_worker ) { init( boda_parent_addr, is_worker ); }
@@ -77,25 +94,26 @@ namespace boda
       if( bpa_parts.size() != 3 ) { rt_err( "boda_parent_addr must consist of three ':' seperated fields, in the form method:to_parent:to_worker"
 					    " where method is 'fns' of 'fds' (sorry, no ':' allowed in filenames for the fns method)." ); }
       // format is method:to_parent:to_worker
-      int read_fd = -1;
-      int write_fd = -1;
-      
-      if( bpa_parts[0] == "fns" ) {
-	string pfn = bpa_parts[1];
-	string wfn = bpa_parts[2];
+      read_fd = -1;
+      write_fd = -1;
+      method = bpa_parts[0];
+      if( method == "fns" ) {
+	pfn = bpa_parts[1];
+	wfn = bpa_parts[2];
 	if( is_worker ) {
 	  neg_one_fail( read_fd = open( wfn.c_str(), O_RDONLY ), "open" ); 
 	  neg_one_fail( write_fd = open( pfn.c_str(), O_WRONLY ), "open" );
-	} else {
-	  neg_one_fail( write_fd = open( wfn.c_str(), O_WRONLY ), "open" );
-	  neg_one_fail( read_fd = open( pfn.c_str(), O_RDONLY ), "open" ); 
+	  open_streams();
 	}
+	// see wait_for_worker() for opens in !is_worker case
       } else if( bpa_parts[0] == "fds" ) {
 	read_fd = lc_str_u32( bpa_parts[is_worker?2:1] );
 	write_fd = lc_str_u32( bpa_parts[is_worker?1:2] );
+	open_streams();
       } else { rt_err( "unknown boda_parent_addr type %s, should be either 'fns' (filenames) or 'fds' (open file descriptor integers)" ); }
-
-      r.open( io::file_descriptor_source( read_fd, io::never_close_handle ) );
+    }
+    void open_streams( void ) {
+      r.open( io::file_descriptor_source( read_fd, io::never_close_handle ) ); 
       w.open( io::file_descriptor_sink( write_fd, io::never_close_handle ) );
     }
     void write( char const * const & d, size_t const & sz ) { w.write( d, sz ); }
@@ -120,6 +138,24 @@ namespace boda
     int listen_fd; // listen_fd is only used on server (bind/listen/accept) side of connection. technically we only need
 		   // one fd at a time, but it seems less confusing to have two explict ones for the two usages.
     sock_stream_t( void ) : fd(-1), listen_fd(-1) { }
+    sock_stream_t( string const & boda_parent_addr, bool const & is_worker ) : fd(-1), listen_fd(-1) { 
+      vect_string host_and_port = split( boda_parent_addr, ':' );
+      assert_st( host_and_port[0] == "tcp" ); // should not be here otherwise
+      if( host_and_port.size() != 3 ) { rt_err( "for the tcp method, boda_parent_addr must consist of three ':' seperated fields,"
+						" in the form tcp:HOST:PORT (where PORT may be a non-numeric service name)" ); }
+      if( !is_worker ) { bind_and_listen( host_and_port[2] ); }
+      else { connect_to_parent( boda_parent_addr ); }
+    }
+    virtual void wait_for_worker( void ) { accept_and_stop_listen(); }
+
+#if 0
+      char hbuf[NI_MAXHOST+1] = {0};
+      int const ghnret = gethostname( hbuf, NI_MAXHOST );
+      if( ghnret != 0 ) { rt_err( strprintf( "post-good-bind gethostname() failed: %s", strerror( errno ) ) ); }
+      if( strlen(hbuf)==NI_MAXHOST ) { rt_err( strprintf( "post-good-bind gethostname() failed: name too long" ) ); }
+      string const parent_addr = string(hbuf) + ":" + port;
+#endif
+
     // ah, TCP programming. to help understand the dance and all it's idioms/gotchas/tweaks, it's nice to reference
     // one-or-more existing blocks of code. and then pray you don't see to go examining kernel source or caring too much
     // about portability across OSs or version. but hey, it's not so bad, and the man pages are generally accurate and
@@ -130,7 +166,7 @@ namespace boda
     // general, we set up the listening socket with bind_and_listen(), then spawn a worker process, then accept() an incoming
     // connection from the worker. since the network stack will buffer a backlog of connection attempts for us, there's
     // no race. for now, we only listen for a single worker per sock_stream_t.
-    string bind_and_listen( string const & port ) {
+    void bind_and_listen( string const & port ) {
       assert_st( fd == -1 );
       assert_st( listen_fd == -1 );
 
@@ -152,17 +188,10 @@ namespace boda
       if( bret != 0 ) { rt_err( strprintf( "bind to port %s failed: %s", port.c_str(), strerror( errno ) ) ); }
       int const lret = listen( listen_fd, 1 );
       if( lret != 0 ) { rt_err( strprintf( "listen on port %s failed: %s", port.c_str(), strerror( errno ) ) ); }
-
-      // get and return our (the parent's) addr to pass to the worker so it can connect back
-      char hbuf[NI_MAXHOST+1] = {0};
-      int const ghnret = gethostname( hbuf, NI_MAXHOST );
-      if( ghnret != 0 ) { rt_err( strprintf( "post-good-bind gethostname() failed: %s", strerror( errno ) ) ); }
-      if( strlen(hbuf)==NI_MAXHOST ) { rt_err( strprintf( "post-good-bind gethostname() failed: name too long" ) ); }
-      string const parent_addr = string(hbuf) + ":" + port;
       freeaddrinfo( rp_bind_addrs );
-      return parent_addr;
     }
     void accept_and_stop_listen( void ) {
+      assert( listen_fd != -1 );
       int const aret = accept( listen_fd, 0, 0 );
       if( aret == -1 ) { rt_err( strprintf( "accept failed: %s", strerror( errno ) ) ); }
       // we're done listening now, so we can close the listening socket
@@ -178,11 +207,11 @@ namespace boda
     void connect_to_parent( string const & parent_addr ) {
       assert_st( listen_fd == -1 );
       vect_string host_and_port = split( parent_addr, ':' );
-      assert_st( host_and_port.size() == 2 ); // host:port
+      assert_st( host_and_port.size() == 3 ); // tcp:host:port
       addrinfo * rp_connect_addrs = 0;
       addrinfo hints = {0};
       hints.ai_socktype = SOCK_STREAM; // better be ... right? allow any family or protocol, though.
-      int const aret = getaddrinfo( host_and_port[0].c_str(), host_and_port[1].c_str(), &hints, &rp_connect_addrs );
+      int const aret = getaddrinfo( host_and_port[1].c_str(), host_and_port[2].c_str(), &hints, &rp_connect_addrs );
       if( aret != 0 ) { rt_err( strprintf("getaddrinfo(\"%s\") failed: %s", parent_addr.c_str(), gai_strerror( aret ) ) ); }
       addrinfo * rpa = rp_connect_addrs; // for now, only try first returned addr
       assert_st( fd == -1 );
@@ -220,7 +249,13 @@ namespace boda
   typedef shared_ptr< sock_stream_t > p_sock_stream_t; 
 
   p_stream_t make_stream_t( string const & boda_parent_addr, bool const & is_worker ) {
-    return p_stream_t( new fd_stream_t( boda_parent_addr, is_worker ) );
+    string method = split( boda_parent_addr, ':' )[0];
+    if( method == "tcp" ) { 
+      
+      return p_stream_t( new sock_stream_t( boda_parent_addr, is_worker ) ); 
+
+    }
+    else { return p_stream_t( new fd_stream_t( boda_parent_addr, is_worker ) ); }
   }
 
 
@@ -249,6 +284,8 @@ namespace boda
 	bpa = create_boda_worker_fifo( {"boda","ipc_compute_worker","--rtc="+remote_rtc}, *fifo_fn, print_dont_fork );
       }
       worker = make_stream_t( bpa, 0 );
+      // note: could peform fork/spawn here
+      worker->wait_for_worker(); 
 
       bwrite( *worker, string("init") );
       worker->flush();
@@ -311,18 +348,62 @@ namespace boda
     void profile_stop( void ) { bwrite( *worker, string("profile_stop") ); worker->flush(); }
   };
 
+/* TESTING NOTES: automated tests for some configurations are TODO
+
+# for testing fns mode, you need some FIFOs made with mkfifo:
+moskewcz@maaya:~/git_work/boda/run/tr4$ mkfifo boda_fifo_to_parent
+moskewcz@maaya:~/git_work/boda/run/tr4$ mkfifo boda_fifo_to_worker
+moskewcz@maaya:~/git_work/boda/run/tr4$ ll
+total 0
+prw-rw-r-- 1 moskewcz moskewcz 0 Mar 11 17:07 boda_fifo_to_parent
+prw-rw-r-- 1 moskewcz moskewcz 0 Mar 11 17:07 boda_fifo_to_worker
+moskewcz@maaya:~/git_work/boda/run/tr4$ 
+
+# then, you can run a master and worker using them. first start a master:
+moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_master --boda-parent-addr=fns:boda_fifo_to_parent:boda_fifo_to_worker
+boda_master: listening on parent_addr=fns:boda_fifo_to_parent:boda_fifo_to_worker
+boda_master: entering accept_and_stop_listen() ... 
+# ... the master should hang here for now ...
+
+# then, in another shell, with the master still running, and in the same directory, start a worker: it should finish right away:
+
+moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=fns:boda_fifo_to_parent:boda_fifo_to_worker
+boda_worker: connecting to boda_parent_addr=fns:boda_fifo_to_parent:boda_fifo_to_worker
+boda_worker: connected to parent.
+boda_worker: got cmd=giggle
+boda_worker: tee hee hee.
+boda_worker: got cmd=quit
+moskewcz@maaya:~/git_work/boda/run/tr4$ 
+
+# ... looking back at the shell where the master was launched, it should now also have finished ...
+boda_master: connected to worker.
+boda_master: sent cmd=giggle
+boda_master: sent cmd=quit
+moskewcz@maaya:~/git_work/boda/run/tr4$ 
+
+# 2) this process can be repeated, but with the client using fds mode, to test at least the client side of fds. note
+#  that it's unclear if the server side of the fds method makes sense to use or how to test it.
+# note: the client prints to stderr (always) to allow the fds mode testing to work (where stdin/stdout are used for IPC)
+moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=fds:1:0 < boda_fifo_to_worker > boda_fifo_to_parent
+# ... should produce same output as above case ...
+
+# 3) this process can be repeated using "tcp:localhost:12791" as the boda address to test TCP based communication on a single host.
+# 4) for (3), the client can be run on another host, with --boda-parent-addr="tcp:master_running_on_host:12791"
+
+ */
 
   struct cs_test_master_t : virtual public nesi, public has_main_t // NESI(help="cs-testing master/server", bases=["has_main_t"], type_id="cs_test_master")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string port; //NESI(default="12791", help="service/port to use for network (TCP) communication")
-    p_sock_stream_t worker;
+    string boda_parent_addr; //NESI(default="tcp:localhost:12791", help="address to use for communication."
+    //               "valid address types are 'tcp', 'fns', and 'fds'. "
+    //               "for 'tcp', the address format is tcp:HOSTNAME:PORT (where PORT may be a known service name)")
+    p_stream_t worker;
     virtual void main( nesi_init_arg_t * nia ) { 
-      worker.reset( new sock_stream_t );
-      string const parent_addr = worker->bind_and_listen( port );
-      printf( "boda_master: listening on parent_addr=%s\n", str(parent_addr).c_str() );      
+      worker = make_stream_t( boda_parent_addr, 0 );
+      printf( "boda_master: listening on parent_addr=%s\n", str(boda_parent_addr).c_str() );      
       printf( "boda_master: entering accept_and_stop_listen() ... \n" );      
-      worker->accept_and_stop_listen();
+      worker->wait_for_worker();
       printf( "boda_master: connected to worker.\n" );
       vect_string cmds{ "giggle", "quit" };
       for( vect_string::const_iterator i = cmds.begin(); i != cmds.end(); ++i ) {
@@ -333,23 +414,23 @@ namespace boda
     }    
   };
 
+  // note: this mode prints to stderr (always) to allow the fds mode testing to work (where stdin/stdout are used for IPC)
   struct cs_test_worker_t : virtual public nesi, public has_main_t // NESI(help="cs-testing worker/client", bases=["has_main_t"], type_id="cs_test_worker")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string parent_addr; //NESI(help="how to communicate with boda parent process; network address in the form host:port",req=1)
-    p_sock_stream_t parent;
+    string boda_parent_addr; //NESI(help="address of boda parent process in boda format",req=1)
+    p_stream_t parent;
     virtual void main( nesi_init_arg_t * nia ) { 
-      parent.reset( new sock_stream_t );
-      printf( "boda_worker: connecting to parent_addr=%s\n", str(parent_addr).c_str() );      
-      parent->connect_to_parent( parent_addr );
-      printf( "boda_worker: connected to parent.\n" );
+      fprintf( stderr, "boda_worker: connecting to boda_parent_addr=%s\n", str(boda_parent_addr).c_str() );      
+      parent = make_stream_t( boda_parent_addr, 1 );
+      fprintf( stderr, "boda_worker: connected to parent.\n" );
       string cmd;
       while( 1 ) {
 	bread( *parent, cmd );
-	printf( "boda_worker: got cmd=%s\n", str(cmd).c_str() );
+	fprintf( stderr, "boda_worker: got cmd=%s\n", str(cmd).c_str() );
 	if( 0 ) {} 
 	else if( cmd == "quit" ) { break; }
-	else if( cmd == "giggle" ) { printf( "boda_worker: tee hee hee.\n" ); }
+	else if( cmd == "giggle" ) { fprintf( stderr, "boda_worker: tee hee hee.\n" ); }
       }
     } 
   };
