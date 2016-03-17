@@ -49,26 +49,26 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string fn; //NESI(help="name of operation; used to find template (filename is fn+'.cucl') and custom codegen hook",req=1)
     map_str_dims_t ref_dims; //NESI(help="named template parameters that are nda dims",req=1)
-    map_str_str template_var_values; // //NESI(help="named template parameters that are raw strings",req=1)
+    map_str_str str_vals; // //NESI(help="named template parameters that are raw strings",req=1)
     rtc_func_sig_t( void ) {}
-    rtc_func_sig_t( string const & fn_, map_str_dims_t const & ref_dims_, map_str_str const & template_var_values_ ) :
-      fn(fn_), ref_dims(ref_dims_), template_var_values(template_var_values_) { }
+    rtc_func_sig_t( string const & fn_, map_str_dims_t const & ref_dims_, map_str_str const & str_vals_ ) :
+      fn(fn_), ref_dims(ref_dims_), str_vals(str_vals_) { }
     bool operator < ( rtc_func_sig_t const & o ) const { 
       if( fn != o.fn ) { return fn < o.fn; }
       if( ref_dims != o.ref_dims ) { return ref_dims < o.ref_dims; }
-      if( template_var_values != o.template_var_values ) { return template_var_values < o.template_var_values; }
+      if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
       return 0;
     }
-    uint32_t get_u32_tvv( string const & tvn ) const { return lc_str_u32( must_find( template_var_values, tvn ) ); }
+    uint32_t get_u32_tvv( string const & tvn ) const { return lc_str_u32( must_find( str_vals, tvn ) ); }
     string gen_unused_fn( rtc_func_names_map_t & fns ) const;
   };
   typedef shared_ptr< rtc_func_sig_t > p_rtc_func_sig_t; 
 #if 0
   inline std::ostream & operator << ( std::ostream & out, rtc_func_sig_t const & o ) {
-    return out << strprintf( "(fn=%s,ref_dims=%s,template_var_values=%s)", 
+    return out << strprintf( "(fn=%s,ref_dims=%s,str_vals=%s)", 
 			     str(o.fn).c_str(), 
 			     str(o.ref_dims).c_str(),
-			     str(o.template_var_values).c_str() );
+			     str(o.str_vals).c_str() );
   }
 #endif
   struct arg_decl_t {
@@ -224,8 +224,8 @@ namespace boda
   // containing all the information that defines the semantics of this call, it also contains all the data (redundant,
   // generated) that makes the *instantiation* unique. that is, after init(), combined with the function template, the
   // signature of the rtc_call_gen_t defines a unique block of text for the generated function, using only the
-  // template_var_values field, strictly for text substitution into the template. the ref_dims field remains unchanged,
-  // and isn't used directly in template substition: all the info inside it is flattened into template_var_values.
+  // str_vals field, strictly for text substitution into the template. the ref_dims field remains unchanged,
+  // and isn't used directly in template substition: all the info inside it is flattened into str_vals.
   struct rtc_call_gen_t : public rtc_func_sig_t {
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
     map_str_dims_t all_ix_dims;
@@ -244,7 +244,7 @@ namespace boda
       if(cg.empty()) { cg += "// begin "+sn+"\n"; } // adding first line in (new) section, add header
       cg += "   " + line + "\n"; 
     }
-    void set( string const &var, string const &val ) { must_insert( template_var_values, var, val ); }
+    void set( string const &var, string const &val ) { must_insert( str_vals, var, val ); }
 
     dims_t const & get_arg_dims_by_name( string const & arg_vn, string const & err_tag = "TEMPLATE" ) {
       map_str_dims_t::const_iterator i = ref_dims.find( arg_vn );
@@ -253,7 +253,7 @@ namespace boda
       }
       return i->second;
     }
-    uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( template_var_values, tvn ) ); }
+    uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( str_vals, tvn ) ); }
 
     rtc_call_gen_t( rtc_func_sig_t const & rfs_ ) : rtc_func_sig_t( rfs_ ) { }
 
@@ -281,7 +281,7 @@ namespace boda
 	}
 	ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
 	must_insert( all_ix_dims, i->ix_vn, ix_dims );
-	insert_nda_ix_exprs( template_var_values, i->ix_vn, ix_dims );
+	insert_nda_ix_exprs( str_vals, i->ix_vn, ix_dims );
 	// special cases for index var names
 	if( i->ix_vn == "GLOB_ID_1D" ) { 
 	  // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
@@ -318,12 +318,12 @@ namespace boda
 	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
 	dims_t const & arg_dims = get_arg_dims_by_name( i->vn );
 	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
-	insert_nda_dims_sz( template_var_values, i->vn, arg_dims, dims_only );
+	insert_nda_dims_sz( str_vals, i->vn, arg_dims, dims_only );
       }
 
       rtc_prog_str += "// -- codegen begins for '"+fn+
 	"'; template substituion table used (bulk sections ommited): --\n";
-      for( map_str_str::const_iterator i = template_var_values.begin(); i != template_var_values.end(); ++i ) {
+      for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {
 	rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
       for( map_str_str::iterator i = cgs.begin(); i != cgs.end(); ++i ) { // terminate and emit bulk cgs
@@ -331,7 +331,7 @@ namespace boda
 	set( i->first, i->second ); 
       } 
       lexp_name_val_map_t tf_nvm{ p_lexp_t() };
-      tf_nvm.insert_leafs_from( template_var_values );
+      tf_nvm.insert_leafs_from( str_vals );
       string rtc_func_str;
       try {
 	str_format_from_nvm( rtc_func_str, template_str, tf_nvm );

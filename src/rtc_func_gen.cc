@@ -60,8 +60,8 @@ namespace boda
       }
     }
     // not the best/most-robust idea, but for now we can avoid most namegenconflicts by (questionally) stuffing the
-    // template_var_values into the function name as well. it'll be fine, right? this could be removed if problematic.
-    for( map_str_str::const_iterator ra = template_var_values.begin(); ra != template_var_values.end(); ++ra ) {
+    // str_vals into the function name as well. it'll be fine, right? this could be removed if problematic.
+    for( map_str_str::const_iterator ra = str_vals.begin(); ra != str_vals.end(); ++ra ) {
       maybe_fn_base += "__"+ra->first+"_"+as_pyid_fixme(ra->second);
     }
 

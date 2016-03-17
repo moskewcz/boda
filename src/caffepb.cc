@@ -136,7 +136,7 @@ namespace boda
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
 	fill_in_conv_op_from_param( conv_op, cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
-	conv_op->params["out_chans"] = str(cp.num_output());
+	conv_op->str_vals["out_chans"] = str(cp.num_output());
 	// add (make explicit) filts and biases as inputs 
 	conv_op->bots.push_back( lp.name() + "_filts" );
 	conv_op->bots.push_back( lp.name() + "_biases" );
@@ -147,15 +147,15 @@ namespace boda
 	//rt_err( "TODO: handle dropout" );
 	caffe::DropoutParameter const & p = lp.dropout_param();	
 	conv_op->stride = {1,1}; // sensible, but currently unused
-	conv_op->params["dropout_ratio"] = str(p.dropout_ratio());
+	conv_op->str_vals["dropout_ratio"] = str(p.dropout_ratio());
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	
 	conv_op->stride = {1,1};
-	conv_op->params["alpha"] = str(p.alpha());
-	conv_op->params["beta"] = str(p.beta());
-	conv_op->params["local_size"] = str(p.local_size());
-	conv_op->params["k"] = str(p.k());
+	conv_op->str_vals["alpha"] = str(p.alpha());
+	conv_op->str_vals["beta"] = str(p.beta());
+	conv_op->str_vals["local_size"] = str(p.local_size());
+	conv_op->str_vals["k"] = str(p.k());
       } else if( lp.type() == Softmax_coi.type ) {
 	// this may be inconvieniently strong; it's probably okay to ignore this here
 	//rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );
@@ -181,14 +181,14 @@ namespace boda
 	if( pp.pool() == caffe::PoolingParameter_PoolMethod_AVE ) { avg_pool = 1; } 
 	else if( pp.pool() == caffe::PoolingParameter_PoolMethod_MAX ) { avg_pool = 0; }
 	else { printf( "warning: unhanded pooling method pp.pool()=%s\n", str(pp.pool()).c_str() ); }
-	conv_op->params["avg_pool"] = str(avg_pool);
+	conv_op->str_vals["avg_pool"] = str(avg_pool);
 	// global pooling iff kernel size is all zeros (we use as a special value)
 	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
       } else if( lp.type() == InnerProduct_coi.type ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
 	conv_op->stride = {1,1};
-	conv_op->params["out_chans"] = str(ipp.num_output());
+	conv_op->str_vals["out_chans"] = str(ipp.num_output());
       } else if( lp.type() == Data_coi.type ) {
 	// note/FIXME: if there are multiple data layers, any values in in_dims will apply to all of them
 	assert_st( lp.has_data_param() );

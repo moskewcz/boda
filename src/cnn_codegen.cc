@@ -167,7 +167,7 @@ namespace boda
 		"(%(LOC_ID_1D_pels_tile)+%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim))");
       rcg->set( "out_chan_ix","(%(out_chan_tile)*%(work_out_chan_dim))" );
       for( uint32_t i = 0; i != work.dsz( "pels" ); ++i ) {
-	insert_nda_ix_exprs( rcg->template_var_values, "pel_ix_" + str(i), must_find(rcg->all_ix_dims,"out_pel_ix"),
+	insert_nda_ix_exprs( rcg->str_vals, "pel_ix_" + str(i), must_find(rcg->all_ix_dims,"out_pel_ix"),
 			     strprintf( "(%%(pel_tile)*%%(work_pels_dim)+%s)", str(i).c_str() ) );
       }
       string const get_in = strprintf( 
@@ -392,7 +392,7 @@ namespace boda
 	rcg->line( "stores", "  int32_t tpix[%(work_pels_dim)];" );
 	rcg->line( "stores", "  int32_t tcix[%(work_out_chan_dim)];" );
 	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { 
-	  insert_nda_ix_exprs( rcg->template_var_values, "out_pel_" + str(ty), must_find(rcg->all_ix_dims,"out_ref_pel"),
+	  insert_nda_ix_exprs( rcg->str_vals, "out_pel_" + str(ty), must_find(rcg->all_ix_dims,"out_ref_pel"),
 			       "( (%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile))*%(work_pels_dim) + "+str(ty)+" )" );
 	  rcg->line( "stores", strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_img_sz) + "
 					    " %%(out_pel_%s_x)*%%(out_x_sz) + %%(out_pel_%s_y)*%%(out_y_sz) " // FIXME_WXP:restore: y:x adj-dim opt?

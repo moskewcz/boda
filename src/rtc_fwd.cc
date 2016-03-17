@@ -33,7 +33,7 @@ namespace boda
   string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const ipconv_str = "ipconv"; string const conv_str = "conv";
   struct op_info_t {
     string tag;
-    map_str_str template_var_values; // str->str templates+values to pass directly to generated code (e.g. lrn params)
+    map_str_str str_vals; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     map_str_dims_t conv_ref_dims; // work + conv-type specific dims
     map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
     string cts; // cts --> conv-type-str
@@ -54,7 +54,7 @@ namespace boda
 	       bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
       tag = cop->tag;
-      template_var_values = cop->params;
+      str_vals = cop->str_vals;
       assert_st( cop->tops.size() >= 1 );
       assert_st( cop->bots.size() >= 1 );
       // add all bots/tops as ref dims and track the mapping from arg name to external (call-scope) name
@@ -441,8 +441,8 @@ namespace boda
 	dims_t & dims_in = cp->must_get_node( cop->bots[bi] )->dims;
 	assert_st( get_xy_dims( dims_in ) == get_xy_dims( oi->get_arg_dims("out") ) );
 	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->get_arg_dims("out").dsz("chan") );
-	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
-        oi->template_var_values = { {"ocix",str(chans_out_done)} };
+	// note: oi->str_vals is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
+        oi->str_vals = { {"ocix",str(chans_out_done)} };
 	oi->set_arg( rtc, "in", cop->bots[bi] );
 	gen_call( "copy", oi );
 	chans_out_done += dims_in.dsz("chan");
@@ -455,8 +455,8 @@ namespace boda
 	dims_t & dims_out = cp->must_get_node( cop->tops[ti] )->dims;
 	assert_st( get_xy_dims( dims_out ) == get_xy_dims( oi->get_arg_dims("in") ) );
 	assert_st( chans_in_done+dims_out.dsz("chan") <= oi->get_arg_dims("in").dsz("chan") );
-	// note: oi->template_var_values is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
-        oi->template_var_values = { {"icix",str(chans_in_done)} };
+	// note: oi->str_vals is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
+        oi->str_vals = { {"icix",str(chans_in_done)} };
 	oi->set_arg( rtc, "out", cop->tops[ti] );
 	gen_call( "split_copy", oi );
 	chans_in_done += dims_out.dsz("chan");
@@ -482,19 +482,19 @@ namespace boda
       string const in_id = oi->arg_map["in"];
       oi->reset_arg( rtc, "in", oi->get_arg("in") ); // reset in dims from rtc, since may now differ from conv_pipe dims
       if( oi->cts != ipconv_str ) { // ipconv uses untransformed filts
-	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->conv_ref_dims, oi->template_var_values } );
+	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->conv_ref_dims, oi->str_vals } );
 	oi->reset_arg( rtc, "filts", gen_apply_func_to_var( "filts", oi->get_arg("filts"), 
 							    "filts_xp", oi->get_arg_dims("filts_xp"), filts_xp_fn ) );
       }
       //in_arg_ids.push_back( cop->bots[2] ); // biases
       if( oi->cts == tconv_str ) {
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->conv_ref_dims, oi->template_var_values } );
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->conv_ref_dims, oi->str_vals } );
 	oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
 							 "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
       } else if( oi->cts == k1conv_str ) {
 	if( oi->get_arg_dims("in") != oi->get_arg_dims("in_xp") ) { 
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
-	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->conv_ref_dims, oi->template_var_values } );
+	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->conv_ref_dims, oi->str_vals } );
 	  oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
 							   "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
 	} 	
@@ -534,7 +534,7 @@ namespace boda
       oi->set_arg( rtc, "inout", oi->get_arg("in") );
       gen_call( "dropout", oi );
       // FIXME: move this check (and others like it) to conv_util.cc or similar?
-      double const dropout_ratio = lc_str_d( oi->template_var_values["dropout_ratio"] );
+      double const dropout_ratio = lc_str_d( oi->str_vals["dropout_ratio"] );
       assert_st( dropout_ratio > 0.0 );
       assert_st( dropout_ratio < 1.0 );
       fwd_calls.back().u32_args.push_back( 0 ); // see update code elsewhere. yeah, not the cleanest approach.
@@ -573,7 +573,7 @@ namespace boda
 	dims_t const & ogl_dims = rtc->get_var_dims_floats( ogl_vn );
 	dims_t const & ogl_xp_dims = ogl_dims; // oi->conv_ref_dims["out_grad_loss"];
 	string ogl_xp_fn = gen_func( rtc_func_sig_t{ "btconv_ogl_xpose", {ogl_dims,ogl_xp_dims}, 
-	      oi->conv_ref_dims, oi->template_var_values } );
+	      oi->conv_ref_dims, oi->str_vals } );
 	ogl_vn = gen_apply_func_to_var( ogl_vn, ogl_xp_dims, ogl_xp_fn );
 #endif
 	ogl_fn = "bconv";
@@ -593,7 +593,7 @@ namespace boda
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
-    rtc_func_sig_t rfs( fn, oi->conv_ref_dims, oi->template_var_values );
+    rtc_func_sig_t rfs( fn, oi->conv_ref_dims, oi->str_vals );
     string const & gen_fn = gen_func( rfs );
     fwd_calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
   }

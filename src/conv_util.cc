@@ -16,15 +16,15 @@ namespace boda
   // them into conv_op_info_t. now they are just all strings ...
 
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
-  map_str_str const Pooling_params{{"avg_pool","0"},{"emit_out_in_yx","0"}};
-  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_params };
+  map_str_str const Pooling_str_vals{{"avg_pool","0"},{"emit_out_in_yx","0"}};
+  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_str_vals };
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}} };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
   conv_op_info_t const BckDropout_coi{ "BckDropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
-  map_str_str const LRN_params{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"},{"emit_out_scale_base","0"}};
-  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_params };
-  conv_op_info_t const BckLRN_coi{ "BckLRN", {"in","out","out_grad_loss"}, {"in_grad_loss"}, LRN_params };
+  map_str_str const LRN_str_vals{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"},{"emit_out_scale_base","0"}};
+  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_str_vals };
+  conv_op_info_t const BckLRN_coi{ "BckLRN", {"in","out","out_grad_loss"}, {"in_grad_loss"}, LRN_str_vals };
   conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
   conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"prob"} };
   conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "in", "label" },{ "in_grad_loss", "loss" } };
@@ -36,7 +36,7 @@ namespace boda
   // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
   // other ops. so we try to understand what they do functionally and name them accordingly.
-  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" }, Pooling_params };
+  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" }, Pooling_str_vals };
   conv_op_info_t const ZeroIfNonPos_coi{ "ZeroIfNonPos", {"in","cond"}, {"out"} }; // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
   conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
     { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" } };
@@ -77,13 +77,13 @@ namespace boda
 			 coi->has_var_bots.v ? ">" : "",
 			 str(coi->bots.size()).c_str() ) );
     }
-    // check all params are set, set any missing ones to defaults
-    for( map_str_str::const_iterator i = coi->params.begin(); i != coi->params.end(); ++i ) {
-      if( !has( params, i->first ) ) { params[i->first] = i->second; }
+    // check all str_vals are set, set any missing ones to defaults
+    for( map_str_str::const_iterator i = coi->str_vals.begin(); i != coi->str_vals.end(); ++i ) {
+      if( !has( str_vals, i->first ) ) { str_vals[i->first] = i->second; }
     }
-    // check that there are no extra/unknown params
-    for( map_str_str::const_iterator i = params.begin(); i != params.end(); ++i ) {
-      if( !has( coi->params, i->first ) ) { 
+    // check that there are no extra/unknown str_vals
+    for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {
+      if( !has( coi->str_vals, i->first ) ) { 
 	rt_err( strprintf( "Unknown/invalid/extra parameter '%s' for operation of type '%s'.",
 			   i->first.c_str(), str(coi->type).c_str() ) );
       }
@@ -538,13 +538,13 @@ namespace boda
   // prior version in git if ressurection desired.
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     char const * const tag_id = cop->tag.c_str();
-    string params = strprintf( ",in_pad=\"%s\",stride=\"%s\",kern_sz=\"%s\"",
+    string str_vals = strprintf( ",in_pad=\"%s\",stride=\"%s\",kern_sz=\"%s\"",
 			       str(cop->in_pad).c_str(), str(cop->stride).c_str(), str(cop->kern_sz).c_str());
-    for( map_str_str::const_iterator i = cop->params.begin(); i != cop->params.end(); ++i ) {
-      params += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.c_str() );
+    for( map_str_str::const_iterator i = cop->str_vals.begin(); i != cop->str_vals.end(); ++i ) {
+      str_vals += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.c_str() );
     }
     out << strprintf( "net.add_op( %s(name=\"%s\",bot_names=%s,top_names=%s%s) )\n", 
-		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(), params.c_str() );
+		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(), str_vals.c_str() );
   }
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
@@ -637,7 +637,7 @@ namespace boda
     else if( cop->is( SoftmaxWithLoss_coi ) ) {
       assert_st( cop->bots[0]+"_grad_loss" == cop->tops[0] );
     } else if( cop->is( Pooling_coi ) ) {
-      cop->params["emit_out_in_yx"] = "1";
+      cop->str_vals["emit_out_in_yx"] = "1";
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
@@ -670,7 +670,7 @@ namespace boda
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
-      bcop->params.clear(); // don't need/want out_chans (arguably should be removed from Convolution after setup too?)
+      bcop->str_vals.clear(); // don't need/want out_chans (arguably should be removed from Convolution after setup too?)
       bcop->type = BckConv_coi.type;
       bcop->bots.push_back( bcop->tops[0] + "_grad_loss" ); // take _grad_loss of fwd conv output as input as well
       bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { 
@@ -687,7 +687,7 @@ namespace boda
       bcop->bots[0] += "_grad_loss";
       for( uint32_t i = 0; i != bcop->tops.size(); ++i ) { bcop->tops[i] = get_grad_loss_onn( cop, bcop->tops[i] ); }
     } else if( cop->is( LRN_coi ) ) {
-      cop->params["emit_out_scale_base"] = "1";
+      cop->str_vals["emit_out_scale_base"] = "1";
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
@@ -785,9 +785,9 @@ namespace boda
 	p_conv_node_t no = must_get_node( cop->tops[0] );
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
 	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
-	must_insert( cop->params, "conv_has_relu", str(conv_has_relu) );
+	must_insert( cop->str_vals, "conv_has_relu", str(conv_has_relu) );
       } else if ( cop->is( Reduce_coi ) ) {
-	must_insert( cop->params, "ins_num", str(cop->bots.size()) );
+	must_insert( cop->str_vals, "ins_num", str(cop->bots.size()) );
       }
       for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { framewx_rec( *j ); }
     }
