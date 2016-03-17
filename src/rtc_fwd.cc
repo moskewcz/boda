@@ -34,18 +34,18 @@ namespace boda
   struct op_info_t {
     string tag;
     map_str_str str_vals; // str->str templates+values to pass directly to generated code (e.g. lrn params)
-    map_str_dims_t conv_ref_dims; // work + conv-type specific dims
+    map_str_dims_t dims_vals; // work + conv-type specific dims
     map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
     string cts; // cts --> conv-type-str
 
     string get_arg( string const & an ) { return must_find( arg_map, an ); }
-    dims_t const & get_arg_dims( string const & an ) { return must_find( conv_ref_dims, an ); }
+    dims_t const & get_arg_dims( string const & an ) { return must_find( dims_vals, an ); }
     void set_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
-      must_insert( conv_ref_dims, an, rtc->get_var_dims_floats(vn) );
+      must_insert( dims_vals, an, rtc->get_var_dims_floats(vn) );
       must_insert( arg_map, an, vn );
     }
-    void set_null_arg( string const & an ) { must_insert( conv_ref_dims, an, dims_t() ); }
-    void erase_arg( string const & an ) { must_erase( conv_ref_dims, an ); must_erase( arg_map, an ); }
+    void set_null_arg( string const & an ) { must_insert( dims_vals, an, dims_t() ); }
+    void erase_arg( string const & an ) { must_erase( dims_vals, an ); must_erase( arg_map, an ); }
     void reset_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) { 
       erase_arg(an); set_arg(rtc,an,vn);
     }
@@ -59,11 +59,11 @@ namespace boda
       assert_st( cop->bots.size() >= 1 );
       // add all bots/tops as ref dims and track the mapping from arg name to external (call-scope) name
       for( uint32_t i = 0; i != cop->bots.size(); ++i ) { 
-	must_insert( conv_ref_dims, cop->coi->bot_an(i), cp->must_get_node( cop->bots[i] )->dims );
+	must_insert( dims_vals, cop->coi->bot_an(i), cp->must_get_node( cop->bots[i] )->dims );
 	must_insert( arg_map, cop->coi->bot_an(i), cop->bots[i] );
       }
       for( uint32_t i = 0; i != cop->tops.size(); ++i ) { 
-	must_insert( conv_ref_dims, cop->coi->top_an(i), cp->must_get_node( cop->tops[i] )->dims ); 
+	must_insert( dims_vals, cop->coi->top_an(i), cp->must_get_node( cop->tops[i] )->dims ); 
 	must_insert( arg_map, cop->coi->top_an(i), cop->tops[i] );
       }
       p_conv_node_t ni;
@@ -76,7 +76,7 @@ namespace boda
       if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
 	assert_st( ni );
 	in_dims = ni->dims;
-	conv_ref_dims["in_ref"] = in_dims; // tconv needs the standard input dims for reference
+	dims_vals["in_ref"] = in_dims; // tconv needs the standard input dims for reference
 	u32_pt_t kern_sz = cop->kern_sz;
 	if( kern_sz.is_zeros() ) { // 'global' input special case
 	  if( is_pool ) { kern_sz = get_xy_dims( ni->dims ); }
@@ -98,9 +98,9 @@ namespace boda
 		   cts = tconv_str; }
 	else { cts = conv_str; }
 
-	conv_ref_dims["kern_sz"] = dims_t( vect_uint32_t{ kern_sz.d[1], kern_sz.d[0] }, vect_string{"y","x"}, 1 );
-	conv_ref_dims["stride"] = dims_t( vect_uint32_t{ stride.d[1], stride.d[0] }, vect_string{"y","x"}, 1 );
-	conv_ref_dims["in_pad"] = dims_t( vect_uint32_t{ in_pad.d[1], in_pad.d[0] }, vect_string{"y","x"}, 1 );
+	dims_vals["kern_sz"] = dims_t( vect_uint32_t{ kern_sz.d[1], kern_sz.d[0] }, vect_string{"y","x"}, 1 );
+	dims_vals["stride"] = dims_t( vect_uint32_t{ stride.d[1], stride.d[0] }, vect_string{"y","x"}, 1 );
+	dims_vals["in_pad"] = dims_t( vect_uint32_t{ in_pad.d[1], in_pad.d[0] }, vect_string{"y","x"}, 1 );
 
 	if( cop->is( BckConv_coi ) ) {
 	  // note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will
@@ -124,19 +124,19 @@ namespace boda
 	  bck_pels_sz += i32_pt_t(1,1); // include starting pixel
 	  assert_st( bck_pels_sz.both_dims_gt( i32_pt_t() ) );
 
-	  conv_ref_dims["bck_in_pad"] = dims_t( vect_uint32_t{ uint32_t(bck_in_pad.d[1]), uint32_t(bck_in_pad.d[0]) }, 
+	  dims_vals["bck_in_pad"] = dims_t( vect_uint32_t{ uint32_t(bck_in_pad.d[1]), uint32_t(bck_in_pad.d[0]) }, 
 						vect_string{"y","x"}, 1 );
-	  conv_ref_dims["bck_pad_in_off"] = dims_t( vect_uint32_t{ bck_pad_in_off.d[1], bck_pad_in_off.d[0] }, vect_string{"y","x"}, 1 );
+	  dims_vals["bck_pad_in_off"] = dims_t( vect_uint32_t{ bck_pad_in_off.d[1], bck_pad_in_off.d[0] }, vect_string{"y","x"}, 1 );
 
 	  p_conv_node_t ogl = cp->must_get_node(get_arg("out_grad_loss"));
 	  p_conv_node_t fgl = cp->must_get_node(get_arg("filts_grad_loss"));
 
 	  gbt_tile_t gbt;
-	  conv_ref_dims["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride.d[1], stride.d[0] }, 
+	  dims_vals["oix"] = dims_t(  vect_uint32_t{ no->dims.dsz("chan"), stride.d[1], stride.d[0] }, 
 					  vect_string{ "in_chan", "sy", "sx" }, 1 );
-	  conv_ref_dims["pix"] = dims_t(  vect_uint32_t{ no->dims.dsz("img"), 
+	  dims_vals["pix"] = dims_t(  vect_uint32_t{ no->dims.dsz("img"), 
 		uint32_t(bck_pels_sz.d[1]), uint32_t(bck_pels_sz.d[0]) }, vect_string{ "img", "y", "x" }, 1 );
-	  gbt.init( t_tile_sz, 128, u32_pt_t( conv_ref_dims["pix"].dims_prod(), conv_ref_dims["oix"].dims_prod()));
+	  gbt.init( t_tile_sz, 128, u32_pt_t( dims_vals["pix"].dims_prod(), dims_vals["oix"].dims_prod()));
 	  dims_t work;
 	  work.add_dims( "pels_blk", gbt.num_blk.d[0] );
 	  work.add_dims( "out_ix_blk", gbt.num_blk.d[1] );
@@ -144,8 +144,8 @@ namespace boda
 	  work.add_dims( "out_ix_tile", gbt.thr_per_blk.d[1] );
 	  work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_ix", gbt.mn_per_thr.d[1] );
 	  work.calc_strides();
-	  conv_ref_dims["work"] = work;
-	  conv_ref_dims["fioc"] = dims_t( vect_uint32_t{ ogl->dims.dsz("chan"), u32_ceil_div(kern_sz.d[1],stride.d[1]), 
+	  dims_vals["work"] = work;
+	  dims_vals["fioc"] = dims_t( vect_uint32_t{ ogl->dims.dsz("chan"), u32_ceil_div(kern_sz.d[1],stride.d[1]), 
 		u32_ceil_div(kern_sz.d[0],stride.d[0]) }, vect_string{"out_chan","ky","kx"}, 1 );
 	  
 	  gbt_tile_t gbt_fb;
@@ -158,8 +158,8 @@ namespace boda
 	  work_fb.add_dims( "out_ix_tile", gbt_fb.thr_per_blk.d[1] );
 	  work_fb.add_dims( "pels", gbt_fb.mn_per_thr.d[0], "out_ix", gbt_fb.mn_per_thr.d[1] );
 	  work_fb.calc_strides();
-	  conv_ref_dims["work_fb"] = work_fb;
-	  conv_ref_dims["fioc_fb"] = dims_t( vect_uint32_t{ ogl->dims.dsz("img"), ogl->dims.dsz("y"), ogl->dims.dsz("x") },
+	  dims_vals["work_fb"] = work_fb;
+	  dims_vals["fioc_fb"] = dims_t( vect_uint32_t{ ogl->dims.dsz("img"), ogl->dims.dsz("y"), ogl->dims.dsz("x") },
 					     vect_string{"img","y","x"}, 1 );
 
 	}
@@ -233,11 +233,11 @@ namespace boda
 		work.dsz("pels_blk"), u32_ceil_div(ni->dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
 	  }
-	  conv_ref_dims["work"] = work;
-	  conv_ref_dims["out_ref"] = no->dims; // k1conv and in_tile_xpose need the standard output dims for reference
-	  conv_ref_dims["in_xp"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
+	  dims_vals["work"] = work;
+	  dims_vals["out_ref"] = no->dims; // k1conv and in_tile_xpose need the standard output dims for reference
+	  dims_vals["in_xp"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-	  conv_ref_dims["filts_xp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0],
+	  dims_vals["filts_xp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
 	  // dims_t( vect_uint32_t{cop->out_chans}, vect_string{"out_chan"}, 1 );
 	} // end if(is_conv)
@@ -482,24 +482,24 @@ namespace boda
       string const in_id = oi->arg_map["in"];
       oi->reset_arg( rtc, "in", oi->get_arg("in") ); // reset in dims from rtc, since may now differ from conv_pipe dims
       if( oi->cts != ipconv_str ) { // ipconv uses untransformed filts
-	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->conv_ref_dims, oi->str_vals } );
+	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( rtc, "filts", gen_apply_func_to_var( "filts", oi->get_arg("filts"), 
 							    "filts_xp", oi->get_arg_dims("filts_xp"), filts_xp_fn ) );
       }
       //in_arg_ids.push_back( cop->bots[2] ); // biases
       if( oi->cts == tconv_str ) {
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->conv_ref_dims, oi->str_vals } );
+	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
 							 "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
       } else if( oi->cts == k1conv_str ) {
 	if( oi->get_arg_dims("in") != oi->get_arg_dims("in_xp") ) { 
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
-	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->conv_ref_dims, oi->str_vals } );
+	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->dims_vals, oi->str_vals } );
 	  oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
 							   "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
 	} 	
       } 
-      dims_t no_dims = oi->conv_ref_dims["out_ref"];
+      dims_t no_dims = oi->dims_vals["out_ref"];
       if( oi->cts == k1conv_str ) { 
 	p_op_info_t noi;
 	p_conv_node_t no = cp->must_get_node( oi->get_arg("out") );
@@ -571,9 +571,9 @@ namespace boda
       if( enable_bconv ) {
 #if 0
 	dims_t const & ogl_dims = rtc->get_var_dims_floats( ogl_vn );
-	dims_t const & ogl_xp_dims = ogl_dims; // oi->conv_ref_dims["out_grad_loss"];
+	dims_t const & ogl_xp_dims = ogl_dims; // oi->dims_vals["out_grad_loss"];
 	string ogl_xp_fn = gen_func( rtc_func_sig_t{ "btconv_ogl_xpose", {ogl_dims,ogl_xp_dims}, 
-	      oi->conv_ref_dims, oi->str_vals } );
+	      oi->dims_vals, oi->str_vals } );
 	ogl_vn = gen_apply_func_to_var( ogl_vn, ogl_xp_dims, ogl_xp_fn );
 #endif
 	ogl_fn = "bconv";
@@ -593,7 +593,7 @@ namespace boda
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
-    rtc_func_sig_t rfs( fn, oi->conv_ref_dims, oi->str_vals );
+    rtc_func_sig_t rfs( fn, oi->dims_vals, oi->str_vals );
     string const & gen_fn = gen_func( rfs );
     fwd_calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
   }
