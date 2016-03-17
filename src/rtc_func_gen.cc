@@ -51,7 +51,7 @@ namespace boda
   string rtc_func_sig_t::gen_unused_fn( rtc_func_names_map_t & fns ) const {
     string maybe_fn_base = fn;
     set_string unique_dims;
-    for( map_str_dims_t::const_iterator ra = ref_dims.begin(); ra != ref_dims.end(); ++ra ) {
+    for( map_str_dims_t::const_iterator ra = dims_vals.begin(); ra != dims_vals.end(); ++ra ) {
       dims_t const & dims = ra->second;
       for( uint32_t i = 0; i != dims.sz(); ++i ) {
 	string const & dn = dims.names(i);
@@ -86,7 +86,7 @@ namespace boda
       if( an == rcg_func_call.arg_map.end() ) {
 	rt_err( "specified "+i->io_type+" arg '"+i->vn+"' not found in arg_map at call time." ); 
       }
-      // FIXME/note: we can't/don't check call dims for variable-sized ref_dims. this seems less than ideal.
+      // FIXME/note: we can't/don't check call dims for variable-sized dims_vals. this seems less than ideal.
       // one exampl of such usage is in var_stats.
       if( func_dims.has_sz_and_stride_and_name() ) { 
 	dims_t const & call_dims = rtc->get_var_dims_floats( an->second );

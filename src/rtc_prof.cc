@@ -81,9 +81,9 @@ namespace boda
       rtc->create_var_with_dims_floats( "a", dims_t{ {1000,1024}, {"M","K"}, 1 } );
       rtc->create_var_with_dims_floats( "b", dims_t{ {1000,1024}, {"N","K"}, 1 } );
       rtc->create_var_with_dims_floats( "c", dims_t{ {1000,1000}, {"M","N"}, 1 } );
-      map_str_dims_t bwai_ref_dims;
-      bwai_ref_dims["work"] = dims_t{ {10,10,10,10,32,10,10}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
-      gen_call( "bwai", map_str_str(), "bwai_sgemm", {"a","b","c"}, bwai_ref_dims, 0 );
+      map_str_dims_t bwai_dims_vals;
+      bwai_dims_vals["work"] = dims_t{ {10,10,10,10,32,10,10}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
+      gen_call( "bwai", map_str_str(), "bwai_sgemm", {"a","b","c"}, bwai_dims_vals, 0 );
     }
 #endif
     

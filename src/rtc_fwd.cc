@@ -377,15 +377,15 @@ namespace boda
     uint32_t primary_in = 1;
     assert_st( in_sz );
     dims_t arg_dims( {0}, {"v"}, 1 ); // all vars are single-dim with wild/any size
-    map_str_dims_t ref_dims; // note:constant after initial setup
+    map_str_dims_t dims_vals; // note:constant after initial setup
     vect_string cur_ins;
     for( uint32_t i = 0; i != reds.size(); ++i ) {  // input dims (const); initial inputs
-      must_insert( ref_dims, reds[i] + "_in", arg_dims ); 
-      must_insert( ref_dims, reds[i] + "_out", arg_dims ); 
+      must_insert( dims_vals, reds[i] + "_in", arg_dims ); 
+      must_insert( dims_vals, reds[i] + "_out", arg_dims ); 
       cur_ins.push_back( top_in ); 
     } 
     while( in_sz > 1 ) {
-      string const func = gen_func( rtc_func_sig_t{ "var_stats", ref_dims, {} } );
+      string const func = gen_func( rtc_func_sig_t{ "var_stats", dims_vals, {} } );
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;

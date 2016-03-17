@@ -48,14 +48,14 @@ namespace boda
   { 
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string fn; //NESI(help="name of operation; used to find template (filename is fn+'.cucl') and custom codegen hook",req=1)
-    map_str_dims_t ref_dims; //NESI(help="named template parameters that are nda dims",req=1)
+    map_str_dims_t dims_vals; //NESI(help="named template parameters that are nda dims",req=1)
     map_str_str str_vals; // //NESI(help="named template parameters that are raw strings",req=1)
     rtc_func_sig_t( void ) {}
-    rtc_func_sig_t( string const & fn_, map_str_dims_t const & ref_dims_, map_str_str const & str_vals_ ) :
-      fn(fn_), ref_dims(ref_dims_), str_vals(str_vals_) { }
+    rtc_func_sig_t( string const & fn_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
+      fn(fn_), dims_vals(dims_vals_), str_vals(str_vals_) { }
     bool operator < ( rtc_func_sig_t const & o ) const { 
       if( fn != o.fn ) { return fn < o.fn; }
-      if( ref_dims != o.ref_dims ) { return ref_dims < o.ref_dims; }
+      if( dims_vals != o.dims_vals ) { return dims_vals < o.dims_vals; }
       if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
       return 0;
     }
@@ -65,9 +65,9 @@ namespace boda
   typedef shared_ptr< rtc_func_sig_t > p_rtc_func_sig_t; 
 #if 0
   inline std::ostream & operator << ( std::ostream & out, rtc_func_sig_t const & o ) {
-    return out << strprintf( "(fn=%s,ref_dims=%s,str_vals=%s)", 
+    return out << strprintf( "(fn=%s,dims_vals=%s,str_vals=%s)", 
 			     str(o.fn).c_str(), 
-			     str(o.ref_dims).c_str(),
+			     str(o.dims_vals).c_str(),
 			     str(o.str_vals).c_str() );
   }
 #endif
@@ -158,7 +158,7 @@ namespace boda
     // are not used by the template won't have differing semantics.
     p_rtc_func_sig_t check_args( rtc_func_sig_t const & rfs_in, vect_arg_decl_t & flat_arg_decls ) {
       p_rtc_func_sig_t rfs_out( new rtc_func_sig_t( rfs_in ) );
-      rfs_out->ref_dims.clear(); // for now: keep all of rfs_in expect ref_dims (which we reduce to only the used elements)
+      rfs_out->dims_vals.clear(); // for now: keep all of rfs_in expect dims_vals (which we reduce to only the used elements)
       assert_st( flat_arg_decls.empty() );
       string arg_check_error;
 
@@ -179,9 +179,9 @@ namespace boda
       
       for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
 	uint32_t const ix = i - flat_arg_decls.begin();
-	map_str_dims_t::const_iterator adi = rfs_in.ref_dims.find( i->vn );
-	if( adi == rfs_in.ref_dims.end() ) {
-	  arg_check_error +=  strprintf( "referenced %s arg '%s' not present in ref_dims; ", 
+	map_str_dims_t::const_iterator adi = rfs_in.dims_vals.find( i->vn );
+	if( adi == rfs_in.dims_vals.end() ) {
+	  arg_check_error +=  strprintf( "referenced %s arg '%s' not present in dims_vals; ", 
 					 i->io_type.c_str(), i->vn.c_str() );
 	  continue;
 	}
@@ -198,15 +198,15 @@ namespace boda
 	}
 	if( !matches_decl ) { arg_check_error += "call arg "+str(ix)+" incompatible with decl arg "
 	    "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
-	must_insert( rfs_out->ref_dims, i->vn, arg_dims ); // keep exactly used ref_dims in signature
+	must_insert( rfs_out->dims_vals, i->vn, arg_dims ); // keep exactly used dims_vals in signature
       }
       if( !arg_check_error.empty() ) {
 	string arg_err = "RTC template function instantiation argument error: " + template_fn + ": " + arg_check_error + "\n";
 	for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
 	  arg_err += strprintf( "ARG[%s]:\n", str(i - flat_arg_decls.begin()).c_str() );
 	  arg_err += strprintf( "  DECL: %s\n", str(*i).c_str() );
-	  map_str_dims_t::const_iterator adi = rfs_in.ref_dims.find( i->vn );
-	  if( adi != rfs_in.ref_dims.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
+	  map_str_dims_t::const_iterator adi = rfs_in.dims_vals.find( i->vn );
+	  if( adi != rfs_in.dims_vals.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
 	  else { arg_err += "  CALL: not found in ref dims.\n"; }
 	}
 	arg_err += "full rfs: " + str(rfs_in) + "\n";
@@ -224,7 +224,7 @@ namespace boda
   // containing all the information that defines the semantics of this call, it also contains all the data (redundant,
   // generated) that makes the *instantiation* unique. that is, after init(), combined with the function template, the
   // signature of the rtc_call_gen_t defines a unique block of text for the generated function, using only the
-  // str_vals field, strictly for text substitution into the template. the ref_dims field remains unchanged,
+  // str_vals field, strictly for text substitution into the template. the dims_vals field remains unchanged,
   // and isn't used directly in template substition: all the info inside it is flattened into str_vals.
   struct rtc_call_gen_t : public rtc_func_sig_t {
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
@@ -247,9 +247,9 @@ namespace boda
     void set( string const &var, string const &val ) { must_insert( str_vals, var, val ); }
 
     dims_t const & get_arg_dims_by_name( string const & arg_vn, string const & err_tag = "TEMPLATE" ) {
-      map_str_dims_t::const_iterator i = ref_dims.find( arg_vn );
-      if( i == ref_dims.end() ) { 
-	rt_err( strprintf( "referenced %s arg '%s' not present in ref_dims", err_tag.c_str(), arg_vn.c_str() ) );
+      map_str_dims_t::const_iterator i = dims_vals.find( arg_vn );
+      if( i == dims_vals.end() ) { 
+	rt_err( strprintf( "referenced %s arg '%s' not present in dims_vals", err_tag.c_str(), arg_vn.c_str() ) );
       }
       return i->second;
     }
