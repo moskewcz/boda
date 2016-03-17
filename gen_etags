@@ -1,2 +1,0 @@
-etags src/*.{cc,H} pysrc/*.py
-

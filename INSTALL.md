@@ -3,9 +3,9 @@
 ## Boda config file setup (can be done after build if desired)
 ### note: all commands should be run from boda directory 
 
-First, copy and rename my sample configuration file from the root directory to the lib dir as a template for yours:
+First, copy and rename the sample configuration file from the root directory to the lib dir as a template for yours:
 
-    cp mwm_boda_cfg.xml lib/boda_cfg.xml
+    cp lib/boda_cfg.xml.example lib/boda_cfg.xml
 
 Then, edit the file. Important vars (see below): **alt_param_dir**, **pascal_data_dir**, **caffe_dir**
 
@@ -31,11 +31,16 @@ dpm_fast_cascade_dir: path to dpm_fast_cascade codebase, for old DPM experiments
 
 ffld_dir: path to ffld, for old DPM experiments, ignorable
 
-## Boda environment variables / bash completion setup (optional; can be done after build if desired)
+## Boda environment setup: putting boda in the PATH, enabling bash completion support (optional; can be done after build if desired)
 
-The file [boda_env.sh](boda_env.sh) is designated as a place to specify useful environment variables for running boda, such as the location of the boda tree **BODA_HOME**. Note that this variable is unused outside boda_env.sh currently. The rest of the script will use BODA_HOME to put the **boda** binary in the PATH, as well as running a script to enable some limited, WIP support for bash completion for Boda. All of this is optional; if you prefer to manage PATH yourself, and/or if you don't desire bash completion support, there's no need to edit or run this script.
+The file [scripts/boda_env.bash](scripts/boda_env.bash) is designated as a place to perform environment setup for running boda. In
+particular, it puts the boda **lib** directory in the PATH (so that the **lib/boda** binary can be found in the PATH) as
+well as running a script to enable some limited, WIP support for bash completion for Boda. All of this is optional; if
+you prefer to manage PATH yourself, and/or if you don't desire bash completion support, there's no need to run this
+script. In any event it should not need to be modified, and can be run from any location, once per shell, to modify the
+PATH and enable bash completion support. To source it from the root of the boda tree:
 
-Finally, this file includes a line to add a directory to LD_LIBRARY_PATH so that the caffe shared library can be found. Note that this may or may not be needed depending on if boda is compiled with caffe support and how the caffe shared lib is built. Again this is optional -- if you have a different strategy for managing LD_LIBRARY_PATH, that's fine.
+    source scripts/boda_env.bash
 
 ## Build
 
@@ -49,23 +54,63 @@ some generally useful other packages for development:
     sudo apt-get install git emacs
 
 
-### Build Configuration : editing [makefile](makefile) and [obj_list](obj_list)
+### Build Configuration : editing [obj/makefile](obj/makefile) and [obj/obj_list](obj/obj_list)
 
-    emacs obj_list
+    emacs obj/obj_list
 
-Generally, makefile need not be edited, as it's mostly a skelton used by the python-based pre-build system.
+Generally, the makefile need not be edited, as it's mostly a skeleton used by the python-based pre-build system.
 The file obj_list is where you control what software to link with and, if needed, any system specific paths. 
 For example, to disable Caffe integration, change `[caffe]` to `[caffe disable]`. 
 For initial builds, you may wish to disable various modules, in particular: octave, SDL2, caffe.
 In general, for any non-disabled modules, modify the paths as needed. 
 The build system will combine pieces of obj_list together with the Makefile template to form a complete Makefile.
-This process is driven by regular make at the top level.
+This process is driven by regular make at the top level. 
+The makefile invokes the python build system by running [pysrc/prebuild.py](pysrc/prebuild.py)
+The python part of the build system that processes obj_list lives in [pysrc/boda_make_util.py](pysrc/boda_make_util.py)
+Note: Additionally, the python part of the build system that handles C++ metaprogramming/NESI code generation lives in [pysrc/nesi_gen.py](pysrc/nesi_gen.py). 
+More documentation of this is TODO, but it should not require any special configuration or attention.
+
+Each dependency of boda has a **build stanza** that starts with a header that minimally has the name of the dependency in []'s, such as `[cuda]` or `[SDL2]`. Each stanza is implicitly ended by the start of the next stanza. Various options can also be included in the in the header for each dependency:
+
+    [foo needs=bar needs=baz] # this defines a dependency foo that has two sub-dependencies `bar` and `baz`
+    [magiwrapper gen_fn=foo.cc] # uncommon (used only for protobuf related features currently); declares a build-time generated file
+    [SDL2 disable] # used to disable a dependency; it's build stanza will be ignored
+
+A dependency is disabled if it is explicitly disabled with the `disable` option, or if any of its sub-dependencies is disabled.
+If a dependency is *not* disabled, they the contents of its build stanza are added to the makefile.
+In particular, each stanza should add to LDFLAGS and CPPFLAGS to add any need compiler/linker options to find needed header files and to find and link against any need libraries.
+For libraries not expected to be in the default dynamical library search path at runtime, stanza may optionally use mechanisms like `rpath` as an alternative to using LD_LIBRARY_PATH at runtime.
+By default, both the `caffe` and `cuda` dependencies use the rpath mechanism.
+The default obj_list has reasonable default paths and options for all dependencies, but these must be manually altered as needed to match the local build environment.
+
+One special final stanza named `[objs]` (which takes no options) lists all the object files in boda along with what dependencies each has. Files with no dependencies will always be compiled/linked. Files that have dependencies will only be compiled/linked if all of their dependencies are enabled. Files that are not compiled/linked will cause boda to be missing the features/modes/functionality provided by those files. In some case, a 'stub' version of a file/feature is provided for use when the dependency is unavailable; usually such stubs simply do nothing and/or emit an error if the needed functionality is used. For example:
+
+    [objs]
+    ...
+    img_io.o  # has no dependencies; will always be compiled and linked
+    img_io-turbojpeg.o turbojpeg # depends on `turbojpeg`; if turbojpeg is disabled, this file will not be compiled/linked
+    img_io-no-turbojpeg-stub.o -turbojpeg # anti-depends on turbojpeg; if turbojpeg is *not* disabled, this file will not be compiled/linked
+    ...
+
+In this case, if the uses attempts to load a jpeg file without the turbojpeg dependency, a run-time error will be generated. 
+
+Similar, for the python dependency we have: 
+
+    [objs]
+    ...
+    pyif.o python
+    pyif-no-python-stub.o -python
+    ...
+
+In this case, usage of a stub allows for main() to unconditionally call a boda's python init function (py_init()) and thus avoids the usage of #ifdef'd code depending on if python support is enabled. Instead, by linking either the real or stub version of the object, and thus of py_init(), we use the linker to manage feature dependencies.
+
+The final result of obj_list processing will be written to the file `obj/dependencies.make`, and can be inspected like any makefile. 
 
 #### Notes on caffe support: short version: you probably want `[caffe disable]`
 
 Enabling the `[caffe]` build stanza is *not* required for Boda to read caffe prototxt files.
 Boda includes its own copy of the caffe protobuf message description file (`caffe.proto`) along with some small amount of copied and modified caffe protobuf related code (in `update_proto.cpp`), both in the boda/src/ext directory.
-Using these files that are part of boda, 'basic' caffe support is controlled by the `[caffe_pb]` build stanza, which, unline the `[caffe]` stanza, probably should *not* be disabled, since many modes rely on it for reading input nets in caffe format.
+Using these files that are part of boda, 'basic' caffe support is controlled by the `[caffe_pb]` build stanza, which, unlike the `[caffe]` stanza, probably should *not* be disabled, since many modes rely on it for reading input nets in caffe format.
 Enabling `[caffe]` is only required if you desire using boda to use caffe to run nets *from inside boda* (a franken-middleware-mode, if you will), which is useful for certain forms of testing and profiling.
 If you do enable `[caffe]` support, you must ensure that Boda's caffe.proto agrees with the one from the caffe build you choose.
 I maintain a fork of caffe with a few patches applied to aid in integration with boda.
@@ -84,7 +129,20 @@ If you want to use your own caffe version, see boda issue #1 for the three optio
 
 ### compile
 
-    make -j12
+    make -C obj -j12 
+
+or equivalently, if you prefer:
+
+    cd obj && make -j12
+
+
+## Development Notes
+
+### Creating a TAGS file/table
+
+The script [scripts/gen_etags.sh](scripts/gen_etags.sh) can be sourced (or run) from the root of the boda tree to produce a emacs TAGS file:
+
+    ./scripts/gen_etags.sh
 
 ## Running Tests
 
@@ -103,7 +161,7 @@ Also, the images from the VOC-2007 dataset are used by the tests. Again, assumin
 
 ### running the tests
 
-From the boda/run directory, make a test-running directory, and cd into it. from there, run the test_all mode. Depending on which features you have enabled/disabled, you should see somethign like the below. Note that many of the tests do require caffe support, and so if you've disabled that, many individual tests will fail to initialize, since the 'caffe' computation backend won't exists. So, the part above about not needing caffe enabled above doesn't currently really hold true if you want to run the tests.
+From the boda/run directory, make a test-running directory, and cd into it. from there, run the test_all mode. Depending on which features you have enabled/disabled, you should see something like the below. Note that many of the tests do require caffe support, and so if you've disabled that, many individual tests will fail to initialize, since the 'caffe' computation backend won't exists. So, the part above about not needing caffe enabled above doesn't currently really hold true if you want to run the tests.
 
 
 ````
