@@ -246,6 +246,8 @@ namespace boda
 
   typedef shared_ptr< dims_t > p_dims_t; 
 
+  typedef set< conv_op_base_t > set_conv_op_base_t;
+
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
 			   // bases=["has_conv_fwd_t"], type_id="rtc" )
 
@@ -274,6 +276,8 @@ namespace boda
     vect_string dump_vars; // NESI(help="dump out values of these vars after forward")
 
     filename_t rtc_func_sigs_fn; //NESI(default="rtc_func_sigs.txt",help="file to hold all generated func signatures")
+    filename_t op_sigs_fn; //NESI(default="op_sigs.txt",help="file to hold unique op signatures")
+    set_conv_op_base_t all_op_sigs;
     p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
 
     p_conv_pipe_t cp;
@@ -432,7 +436,26 @@ namespace boda
     return ret_var;
   }
 
+  // FIXME: mostly dup'd with similar code in rtc_func_gen.cc for generated function signatures
+  typedef shared_ptr< conv_op_base_t > p_conv_op_base_t; 
+  p_conv_op_base_t make_p_conv_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+  void write_op_sigs( set_conv_op_base_t & all_op_sigs, filename_t const & op_sigs_fn ) {
+    if( boost::filesystem::is_regular_file( op_sigs_fn.exp ) ) {  // read in existing contents of file if it exists
+      p_vect_string in_lines = readlines_fn( op_sigs_fn );
+      for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
+	p_conv_op_base_t v = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+	all_op_sigs.insert( *v );
+      }
+    }
+    // write set back out
+    p_ofstream out = ofs_open( op_sigs_fn );
+    for( set_conv_op_base_t::const_iterator i = all_op_sigs.begin(); i != all_op_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
+  }
+
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
+    // unique ops if requested
+    // all_op_sigs.insert( *cop );
+
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
     if( cop->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
@@ -658,6 +681,7 @@ namespace boda
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
     //codegen.write_rtc_func_sigs( rtc_func_sigs_fn );
+    //write_op_sigs( all_op_sigs, op_sigs_fn );
     rtc->compile( codegen.rtc_prog_str, show_compile_log, enable_lineinfo );
     for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
