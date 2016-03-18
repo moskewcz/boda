@@ -1,68 +1,68 @@
 == BEGIN CONV PIPE ==
 support_sz=1 1 support_stride=1 1 eff_tot_pad=0 0
-    ----  conv=(tag=conv1,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=11,x=11),stride=(y=4,x=4)),str_vals=(out_chans=96)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=11,x=11),stride=(y=4,x=4)),str_vals=(out_chans=96),tag=conv1) 
 support_sz=11 11 support_stride=4 4 eff_tot_pad=0 0
-    ----  conv=(tag=cccp1,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=96)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=96),tag=cccp1) 
 support_sz=11 11 support_stride=4 4 eff_tot_pad=0 0
-    ----  conv=(tag=cccp2,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=96)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=96),tag=cccp2) 
 support_sz=11 11 support_stride=4 4 eff_tot_pad=0 0
-    ----  conv=(tag=pool0,type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0)) 
+    ----  conv=(type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool0) 
 support_sz=19 19 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=conv2,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=5,x=5),stride=(y=1,x=1)),str_vals=(out_chans=256)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=5,x=5),stride=(y=1,x=1)),str_vals=(out_chans=256),tag=conv2) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=cccp3,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=256)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=256),tag=cccp3) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=cccp4,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=256)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=256),tag=cccp4) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=pool2,type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(avg_pool=0,emit_out_in_yx=0)) 
+    ----  conv=(type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool2) 
 support_sz=67 67 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=conv3,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(out_chans=384)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(out_chans=384),tag=conv3) 
 support_sz=83 83 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=cccp5,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=384)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=384),tag=cccp5) 
 support_sz=83 83 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=cccp6,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=384)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=384),tag=cccp6) 
 support_sz=83 83 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=pool3,type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0)) 
+    ----  conv=(type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool3) 
 support_sz=99 99 support_stride=16 16 eff_tot_pad=0 0
-    ----  conv=(tag=conv4-1024,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(out_chans=1024)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(out_chans=1024),tag=conv4-1024) 
 support_sz=131 131 support_stride=16 16 eff_tot_pad=0 0
-    ----  conv=(tag=cccp7-1024,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=1024)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=1024),tag=cccp7-1024) 
 support_sz=131 131 support_stride=16 16 eff_tot_pad=0 0
-    ----  conv=(tag=cccp8-1024,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=1000)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=1000),tag=cccp8-1024) 
 support_sz=131 131 support_stride=16 16 eff_tot_pad=0 0
 == END CONV PIPE ==
 CONV_IOS: sz=227 227 -> conv1 -> sz=55 55 -> cccp1 -> sz=55 55 -> cccp2 -> sz=55 55 -> pool0 -> sz=27 27 -> conv2 -> sz=23 23 -> cccp3 -> sz=23 23 -> cccp4 -> sz=23 23 -> pool2 -> sz=21 21 -> conv3 -> sz=19 19 -> cccp5 -> sz=19 19 -> cccp6 -> sz=19 19 -> pool3 -> sz=9 9 -> conv4-1024 -> sz=7 7 -> cccp7-1024 -> sz=7 7 -> cccp8-1024 -> sz=7 7 -> [DATA DISCARDED; used_sz=0 0] -> 
 == BEGIN CONV PIPE ==
 support_sz=1 1 support_stride=1 1 eff_tot_pad=0 0
-    ----  conv=(tag=conv1,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=11,x=11),stride=(y=4,x=4)),str_vals=(out_chans=96)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=11,x=11),stride=(y=4,x=4)),str_vals=(out_chans=96),tag=conv1) 
 support_sz=11 11 support_stride=4 4 eff_tot_pad=0 0
-    ----  conv=(tag=cccp1,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=96)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=96),tag=cccp1) 
 support_sz=11 11 support_stride=4 4 eff_tot_pad=0 0
-    ----  conv=(tag=cccp2,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=96)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=96),tag=cccp2) 
 support_sz=11 11 support_stride=4 4 eff_tot_pad=0 0
-    ----  conv=(tag=pool0,type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0)) 
+    ----  conv=(type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool0) 
 support_sz=19 19 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=conv2,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=5,x=5),stride=(y=1,x=1)),str_vals=(out_chans=256)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=5,x=5),stride=(y=1,x=1)),str_vals=(out_chans=256),tag=conv2) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=cccp3,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=256)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=256),tag=cccp3) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=cccp4,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=256)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=256),tag=cccp4) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=pool2,type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(avg_pool=0,emit_out_in_yx=0)) 
+    ----  conv=(type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool2) 
 support_sz=67 67 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=conv3,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(out_chans=384)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(out_chans=384),tag=conv3) 
 support_sz=83 83 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=cccp5,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=384)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=384),tag=cccp5) 
 support_sz=83 83 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=cccp6,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=384)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=384),tag=cccp6) 
 support_sz=83 83 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(tag=pool3,type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0)) 
+    ----  conv=(type=Pooling,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool3) 
 support_sz=99 99 support_stride=16 16 eff_tot_pad=0 0
-    ----  conv=(tag=conv4-1024,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(out_chans=1024)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=3,x=3),stride=(y=1,x=1)),str_vals=(out_chans=1024),tag=conv4-1024) 
 support_sz=131 131 support_stride=16 16 eff_tot_pad=0 0
-    ----  conv=(tag=cccp7-1024,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=1024)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=1024),tag=cccp7-1024) 
 support_sz=131 131 support_stride=16 16 eff_tot_pad=0 0
-    ----  conv=(tag=cccp8-1024,type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=1000)) 
+    ----  conv=(type=Convolution,dims_vals=(in_pad=(y=0,x=0),kern_sz=(y=1,x=1),stride=(y=1,x=1)),str_vals=(out_chans=1000),tag=cccp8-1024) 
 support_sz=131 131 support_stride=16 16 eff_tot_pad=0 0
 == END CONV PIPE ==
 CONV_IOS: sz=500 500 -> [DATA DISCARDED; used_sz=499 499] -> conv1 -> sz=123 123 -> cccp1 -> sz=123 123 -> cccp2 -> sz=123 123 -> pool0 -> sz=61 61 -> conv2 -> sz=57 57 -> cccp3 -> sz=57 57 -> cccp4 -> sz=57 57 -> pool2 -> sz=55 55 -> conv3 -> sz=53 53 -> cccp5 -> sz=53 53 -> cccp6 -> sz=53 53 -> pool3 -> sz=26 26 -> conv4-1024 -> sz=24 24 -> cccp7-1024 -> sz=24 24 -> cccp8-1024 -> sz=24 24 -> [DATA DISCARDED; used_sz=0 0] -> 

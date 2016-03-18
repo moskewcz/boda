@@ -51,17 +51,34 @@ namespace boda
   typedef conv_op_info_t const * rp_conv_op_info_t; 
   typedef vector< rp_conv_op_info_t > vect_rp_conv_op_info_t;  
 
-  struct conv_op_t : virtual public nesi // NESI(help="conv_op descriptor") 
+  struct conv_op_base_t : virtual public nesi // NESI(help="conv_op base descriptor") 
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string type; //NESI(help="type of op; may impact in/out size calculations",req=1)
+    map_str_dims_t dims_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/dims list." )
+    map_str_str str_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
+
+    conv_op_base_t( void ) {}
+    conv_op_base_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
+      type(type_), dims_vals(dims_vals_), str_vals(str_vals_) { }
+    bool operator < ( conv_op_base_t const & o ) const { 
+      if( type != o.type ) { return type < o.type; }
+      if( dims_vals != o.dims_vals ) { return dims_vals < o.dims_vals; }
+      if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
+      return 0;
+    }
+
+  };
+
+  struct conv_op_t : public conv_op_base_t // NESI(help="conv_op descriptor",bases=["conv_op_base_t"])
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string tag; //NESI(help="tag to refer to conv op by",req=1)
-    string type; //NESI(help="type of op; may impact in/out size calculations",req=1)
+
     conv_op_info_t const * coi;
     u32_pt_t in_pad( void ) const { return get_xy_dims_strict( must_find( dims_vals, "in_pad" ) ); }
     u32_pt_t kern_sz( void ) const { return get_xy_dims_strict( must_find( dims_vals, "kern_sz" ) ); }
     u32_pt_t stride( void ) const { return get_xy_dims_strict( must_find( dims_vals, "stride" ) ); }
-    map_str_dims_t dims_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/dims list." )
-    map_str_str str_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
     uint32_t u32_param( string const & tvn ) { return lc_str_u32( must_find( str_vals, tvn ) ); }
     uint32_t double_param( string const & tvn ) { return lc_str_d( must_find( str_vals, tvn ) ); }
 
