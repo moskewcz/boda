@@ -36,7 +36,9 @@ namespace boda
     map_str_str str_vals; // str->str templates+values to pass directly to generated code (e.g. lrn params)
     map_str_dims_t dims_vals; // work + conv-type specific dims
     map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
-    string cts; // cts --> conv-type-str
+
+    string cts( void ) const { return must_find( str_vals, "cts" ); } // cts --> conv-type-str
+    void set_cts( string const & cts_ ) { must_insert( str_vals, "cts", cts_ ); }
 
     string get_arg( string const & an ) { return must_find( arg_map, an ); }
     dims_t const & get_arg_dims( string const & an ) { return must_find( dims_vals, an ); }
@@ -87,17 +89,17 @@ namespace boda
 	u32_pt_t const in_pad = cop->in_pad();
 	u32_pt_t const stride = cop->stride();
 	if( is_conv && enable_ipconv && in_pad.is_zeros() && (get_xy_dims(no->dims) == u32_pt_t{1,1}) ) {
-	  cts = ipconv_str; // single output per-chan-per-image: inner-product case
+	  set_cts( ipconv_str ); // single output per-chan-per-image: inner-product case
 	} else if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == u32_pt_t{1,1}) 
 	    && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no->dims.dsz("chan") >= 64) ) 
 	{ 
-	  if( !in_pad.is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); cts = conv_str; }
-	  else { cts = k1conv_str; }
+	  if( !in_pad.is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); set_cts( conv_str ); }
+	  else { set_cts( k1conv_str ); }
 	}
 	else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz.both_dims_le(u32_pt_t{11,11})
 								     && (kern_sz.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
-		   cts = tconv_str; }
-	else { cts = conv_str; }
+	  set_cts( tconv_str ); }
+	else { set_cts( conv_str ); }
 
 	if( cop->is( BckConv_coi ) ) {
 	  // note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will
@@ -169,7 +171,7 @@ namespace boda
 	  gbt.init( t_tile_sz, 128, u32_pt_t( pels_sz, no->dims.dsz("chan") ) );
 	  dims_t work;
 	  uint32_t const lines_sz = no->dims.dsz("img") * no_sz.d[1];
-	  if( cts == tconv_str ) {
+	  if( cts() == tconv_str ) {
 	    assert( gbt.thr_per_blk.d[0] >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
 	    work.add_dims( "blk_bline", u32_ceil_div( lines_sz, gbt.thr_per_blk.d[0] ), 
 			   "blk_bx", u32_ceil_div( no_sz.d[0], gbt.mn_per_thr.d[0] ) );
@@ -209,12 +211,12 @@ namespace boda
 	  work.add_dims( "out_chan_blk", gbt.num_blk.d[1] );
 
 	  // dims of per-group work (defines # threads per local group)
-	  if( cts == tconv_str ) { work.add_dims( "blk_y", gbt.thr_per_blk.d[0] ); }
+	  if( cts() == tconv_str ) { work.add_dims( "blk_y", gbt.thr_per_blk.d[0] ); }
 	  else { work.add_dims( "pels_tile", gbt.thr_per_blk.d[0] ); }
 	  work.add_dims(   "out_chan_tile", gbt.thr_per_blk.d[1] );
 
 	  work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_chan", gbt.mn_per_thr.d[1] ); // dims of per-thread work
-	  if( cts == ipconv_str ) { 
+	  if( cts() == ipconv_str ) { 
 	    uint32_t fioc_tile = 4;
 	    while( (fioc_tile < 32) && (fioc_tile*2*gbt.thr_per_blk.dims_prod()) <= 512 ) { fioc_tile *= 2; }
 	    assert_st( (ni->dims.dsz("chan") % fioc_tile) == 0 );
@@ -222,7 +224,7 @@ namespace boda
 	  } // unrolling/tiling of inner loop
 	  work.calc_strides();
 
-	  if( cts == k1conv_str ) { 
+	  if( cts() == k1conv_str ) { 
 	    uint32_t const in_blk_iter_chan_dim = 8; // FIXME: make into param?
 	    // the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	    // vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
@@ -453,7 +455,6 @@ namespace boda
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     // unique ops if requested
     // all_op_sigs.insert( *cop );
-
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
     if( cop->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
@@ -501,17 +502,17 @@ namespace boda
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const in_id = oi->arg_map["in"];
       oi->reset_arg( rtc, "in", oi->get_arg("in") ); // reset in dims from rtc, since may now differ from conv_pipe dims
-      if( oi->cts != ipconv_str ) { // ipconv uses untransformed filts
+      if( oi->cts() != ipconv_str ) { // ipconv uses untransformed filts
 	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( rtc, "filts", gen_apply_func_to_var( "filts", oi->get_arg("filts"), 
 							    "filts_xp", oi->get_arg_dims("filts_xp"), filts_xp_fn ) );
       }
       //in_arg_ids.push_back( cop->bots[2] ); // biases
-      if( oi->cts == tconv_str ) {
+      if( oi->cts() == tconv_str ) {
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
 							 "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
-      } else if( oi->cts == k1conv_str ) {
+      } else if( oi->cts() == k1conv_str ) {
 	if( oi->get_arg_dims("in") != oi->get_arg_dims("in_xp") ) { 
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
 	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->dims_vals, oi->str_vals } );
@@ -520,17 +521,19 @@ namespace boda
 	} 	
       } 
       dims_t no_dims = oi->dims_vals["out_ref"];
-      if( oi->cts == k1conv_str ) { 
+      if( oi->cts() == k1conv_str ) { 
 	p_op_info_t noi;
 	p_conv_node_t no = cp->must_get_node( oi->get_arg("out") );
 	if( no->in_place_ops.empty() && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
 	  noi = must_find( *op_infos, no->bot_for[0] ); // next operation
-	  if( enable_write_xpose && (noi->cts == k1conv_str) ) { no_dims = noi->get_arg_dims("in"); }
+	  if( enable_write_xpose && ( has(noi->str_vals,"cts") && (noi->cts() == k1conv_str) ) ) { 
+	    no_dims = noi->get_arg_dims("in"); 
+	  }
 	}
       }
       rtc->create_var_with_dims_floats( oi->get_arg("out"), no_dims );
       oi->reset_arg( rtc, "out", oi->get_arg("out") );
-      gen_call( oi->cts, oi );
+      gen_call( oi->cts(), oi );
     } else if( cop->is( ReLU_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       oi->set_arg( rtc, "inout", oi->get_arg("in") );
@@ -587,7 +590,7 @@ namespace boda
       string ogl_vn = oi->get_arg("out_grad_loss");
       string ogl_fn = "BckConv_in_grad_loss";
       string fgl_fn = "BckConv_filts_grad_loss";
-      assert_st( oi->cts == conv_str );
+      assert_st( oi->cts() == conv_str );
       if( enable_bconv ) {
 #if 0
 	dims_t const & ogl_dims = rtc->get_var_dims_floats( ogl_vn );
