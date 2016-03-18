@@ -105,7 +105,7 @@
   <li test_name="test_compute_alexnet_mutated_for_testing_opt" cli_str="boda test_compute --model-name=alexnet_ng_conv_mutated_for_testing --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf2='(mode=rtc,per_call_fn=out.py,enable_k1conv=1,enable_tconv=1,enable_write_xpose=1)' --max-err=1 --mad-toler=5e-4 --var-mad-toler=(fc8=1e-5,pool1=1e-3,norm1=1e-3)"/>
 
   <li test_name="test_compute_nin" cli_str="boda test_compute --model-name=nin_imagenet --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227))' --cf2='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
-  <li test_name="test_compute_googlenet_conv" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227))' --cf2='(mode=rtc,per_call_fn=out.py)' --max-err=1 --mad-toler=5e-4 --var-mad-toler=(cls1_fc=1e-5,cls2_fc=1e-5,cls3_fc=1e-5,conv2=1e-3,reduction2=1e-3,norm1=1e-3) "/>
+  <li test_name="test_compute_googlenet_conv" cli_str="boda test_compute --model-name=googlenet_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20,y=227,x=227))' --cf2='(mode=rtc,per_call_fn=out.py)' --max-err=1 --mad-toler=5e-4 --var-mad-toler='(cls1_fc=1e-5,cls2_fc=1e-5,cls3_fc=1e-5,conv2=1e-3,reduction2=1e-3,norm1=1e-3)' "/>
 
 <!--
   <li test_name="test_compute_alexnet_s1c" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims(img=20))' --cf2='(mode=rtc,per_call_fn=out.py,enable_s1conv=1)' --max-err=1 "/>
