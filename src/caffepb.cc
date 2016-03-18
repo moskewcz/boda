@@ -28,22 +28,31 @@ namespace boda_caffe { bool layer_included_for_state( caffe::LayerParameter cons
 
 namespace boda 
 {
+  // note: this function is only used in a few places, and is quite old. the conv_op it is passed should always be
+  // more-or-less of type Convolution_coi, although the type is not actually set in the usages. conv_op used only as a
+  // temporary to capture kern_sz/in_pad/stride from protobuf ConvolutionParam, modify them, and write them back to
+  // another ConvolutionParam.
   template< typename CP > void set_param_from_conv_op( CP & cp, p_conv_op_t conv_op ) {
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     cp.clear_pad_w(); cp.clear_pad_h(); cp.clear_pad();
-    u32_pt_t const & pad = conv_op->in_pad;
-    if( pad.dims_are_same() ) { cp.add_pad( pad.d[0] ); }
-    else { cp.set_pad_w( pad.d[0] ); cp.set_pad_h( pad.d[1] ); }
+    if( has( conv_op->dims_vals, "in_pad" ) ) { 
+      // FIXME: could attempt to handle ND case here
+      u32_pt_t const pad = conv_op->in_pad();
+      if( pad.dims_are_same() ) { cp.add_pad( pad.d[0] ); }
+      else { cp.set_pad_w( pad.d[0] ); cp.set_pad_h( pad.d[1] ); }
+    }
 
     cp.clear_kernel_w(); cp.clear_kernel_h(); cp.clear_kernel_size();
     if( conv_op->kern_sz.dims_are_same() ) { cp.add_kernel_size( conv_op->kern_sz.d[0] ); }
     else { cp.set_kernel_w( conv_op->kern_sz.d[0] ); cp.set_kernel_h( conv_op->kern_sz.d[1] ); }
 
-    // FIXME: could attempt to handle ND case here
-    cp.clear_stride_w(); cp.clear_stride_h(); cp.clear_stride();
-    if( conv_op->stride().dims_are_same() ) { cp.add_stride( conv_op->stride().d[0] ); }
-    else { cp.set_stride_w( conv_op->stride().d[0] ); cp.set_stride_h( conv_op->stride().d[1] ); }
+    if( has( conv_op->dims_vals, "stride" ) ) { 
+      // FIXME: could attempt to handle ND case here
+      cp.clear_stride_w(); cp.clear_stride_h(); cp.clear_stride();
+      if( conv_op->stride().dims_are_same() ) { cp.add_stride( conv_op->stride().d[0] ); }
+      else { cp.set_stride_w( conv_op->stride().d[0] ); cp.set_stride_h( conv_op->stride().d[1] ); }
+    }
   }
   template void set_param_from_conv_op< caffe::ConvolutionParameter >( caffe::ConvolutionParameter & cp, p_conv_op_t conv_op );
 
@@ -61,19 +70,20 @@ namespace boda
     // general. however, it's unclear if we really want to allow the dimentionality of the operation to be implicit
     // depending on the inputs ...
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
-      if( cp.pad_size() == 0 ) { u32_pt_t const p{ 0, 0 }; conv_op->in_pad = p; } // implicit default from comments in caffe.proto
-      else if( cp.pad_size() == 1 ) { u32_pt_t const p{ cp.pad(0), cp.pad(0) }; conv_op->in_pad = p; }
-      else if( cp.pad_size() == 2 ) { u32_pt_t const p{ cp.pad(1), cp.pad(0) }; conv_op->in_pad = p; } 
-      else { multi_dim_err( cp.pad_size(), "pad" ); }
+      // for the 0-dims case, we use the implicit default of 0 (from comments in caffe.proto) AND our default of 2 spatial axes
+      if( cp.pad_size() == 0 ) { } // leave un-set; will be set by coi default
+      else if( cp.pad_size() == 1 ) { conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(0), cp.pad(0) }, {"y","x"}, 1 }; }
+      else if( cp.pad_size() == 2 ) { conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(0), cp.pad(1) }, {"y","x"}, 1 }; }
+      else { multi_dim_err( cp.pad_size(), "in_pad" ); } // FIXME: we could handle this now as a first step for N-D support
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.pad_size()) );
-      u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = p; 
+      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, 1 }; 
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
       // for the 0-dims case, we use the implicit default of 1 (from comments in caffe.proto) AND our default of 2 spatial axes
       if( cp.stride_size() == 0 ) { } // leave un-set; will be set by coi default
       else if( cp.stride_size() == 1 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(0) }, {"y","x"}, 1 }; }
       else if( cp.stride_size() == 2 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(1) }, {"y","x"}, 1 }; }
-      else { multi_dim_err( cp.stride_size(), "stride" ); } // FIXME: we could handle this now as a first step for N-D conv support
+      else { multi_dim_err( cp.stride_size(), "stride" ); } // FIXME: we could handle this now as a first step for N-D support
     } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.stride_size()) );
       conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, 1 }; 
     }
@@ -89,9 +99,9 @@ namespace boda
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
-      u32_pt_t const p( cp.pad(), cp.pad() ); conv_op->in_pad = p;
+      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(), cp.pad() }, {"y","x"}, 1 };
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.has_pad()) );
-      u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = p; 
+      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, 1 };
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
       conv_op->dims_vals["stride"] = dims_t{ { cp.stride(), cp.stride() }, {"y","x"}, 1 };

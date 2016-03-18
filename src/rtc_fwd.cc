@@ -55,6 +55,7 @@ namespace boda
 	       uint32_t const t_tile_sz ) {
       tag = cop->tag;
       str_vals = cop->str_vals;
+      dims_vals = cop->dims_vals;
       assert_st( cop->tops.size() >= 1 );
       assert_st( cop->bots.size() >= 1 );
       // add all bots/tops as ref dims and track the mapping from arg name to external (call-scope) name
@@ -83,7 +84,7 @@ namespace boda
 	  else if( cop->is( Spreading_coi ) ) { kern_sz = get_xy_dims( no->dims ); }
 	  else { assert_st(0); }
 	} 
-	u32_pt_t const in_pad = cop->in_pad;
+	u32_pt_t const in_pad = cop->in_pad();
 	u32_pt_t const stride = cop->stride();
 	if( is_conv && enable_ipconv && in_pad.is_zeros() && (get_xy_dims(no->dims) == u32_pt_t{1,1}) ) {
 	  cts = ipconv_str; // single output per-chan-per-image: inner-product case
@@ -99,8 +100,6 @@ namespace boda
 	else { cts = conv_str; }
 
 	dims_vals["kern_sz"] = dims_t( vect_uint32_t{ kern_sz.d[1], kern_sz.d[0] }, vect_string{"y","x"}, 1 );
-	dims_vals["stride"] = dims_t( vect_uint32_t{ stride.d[1], stride.d[0] }, vect_string{"y","x"}, 1 );
-	dims_vals["in_pad"] = dims_t( vect_uint32_t{ in_pad.d[1], in_pad.d[0] }, vect_string{"y","x"}, 1 );
 
 	if( cop->is( BckConv_coi ) ) {
 	  // note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will

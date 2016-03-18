@@ -191,13 +191,19 @@ namespace boda
       fill_in_conv_op_from_param( conv_op, *cp );
       // FIXME: we probably need to deal with padding better here?
       conv_op->kern_sz = ceil_div( conv_op->kern_sz, u32_pt_t{2,2} );
-      conv_op->in_pad = ceil_div( conv_op->in_pad, u32_pt_t{2,2} );
-      dims_t & stride = must_find( conv_op->dims_vals, "stride" );
-      for( uint32_t i = 0; i != stride.size(); ++i ) {
-	if( stride[i].sz&1 ) { rt_err( "first conv layer has odd stride in some dim;don't know how to create upsampled network" ); }
-	stride[i].sz /= 2;
+      if( has( conv_op->dims_vals, "in_pad" ) ) { // scale in_pad if present
+	dims_t & in_pad = must_find( conv_op->dims_vals, "in_pad" );
+	for( uint32_t i = 0; i != in_pad.size(); ++i ) { in_pad[i].sz = u32_ceil_div( in_pad[i].sz, 2 ); } 
+	in_pad.calc_strides();
       }
-      stride.calc_strides();
+      if( has( conv_op->dims_vals, "stride" ) ) { // scale stride if present
+	dims_t & stride = must_find( conv_op->dims_vals, "stride" );
+	for( uint32_t i = 0; i != stride.size(); ++i ) {
+	  if( stride[i].sz&1 ) { rt_err( "first conv layer has odd stride in some dim;don't know how to create upsampled network" ); }
+	  stride[i].sz /= 2;
+	}
+	stride.calc_strides();
+      }
 	
       set_param_from_conv_op( *cp, conv_op );
       assert_st( lp->has_name() );

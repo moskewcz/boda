@@ -16,7 +16,7 @@ namespace boda
   // them into conv_op_info_t. now they are just all strings ...
 
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
-  map_str_dims_t const DefaultKernPadStride{ {"stride", dims_t{ {1,1},{"y","x"}, 1 } } };
+  map_str_dims_t const DefaultKernPadStride{ {"stride", dims_t{ {1,1},{"y","x"}, 1 } }, {"in_pad", dims_t{ {0,0}, {"y","x"}, 1 } } };
 
   map_str_str const Pooling_str_vals{{"avg_pool","0"},{"emit_out_in_yx","0"}};
   conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_str_vals, DefaultKernPadStride };
@@ -112,7 +112,7 @@ namespace boda
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
     }
-    u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():(in_pad+in_pad));
+    u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():(in_pad()+in_pad()));
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
     if( is(Convolution_coi) ) { return (pad_in_sz-kern_sz)/stride() + u32_pt_t(1,1); }
     else if( is(Pooling_coi) ) { return ceil_div( pad_in_sz-kern_sz,stride() ) + u32_pt_t(1,1); }
@@ -135,8 +135,8 @@ namespace boda
     // negative, indicating *no input* yields a larger out_sz than
     // requested (due to padding). this might be valid, but it's
     // unclear what to return (zero?), so for now we refuse to try.
-    assert_st( no_pad_in_sz.both_dims_ge( in_pad+in_pad ) ); 
-    return no_pad_in_sz - (in_pad+in_pad);
+    assert_st( no_pad_in_sz.both_dims_ge( in_pad()+in_pad() ) ); 
+    return no_pad_in_sz - (in_pad()+in_pad());
   }
 
   dims_t conv_pipe_t::get_data_img_dims( void ) const {
@@ -246,7 +246,7 @@ namespace boda
 	      "but perhaps not for other uses) cop->tag=%s\n", str(cop->tag).c_str() );
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 
       csi_out.support_stride = u32_pt_t{};
-      assert_st( cop->in_pad.is_zeros() ); csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
+      csi_out.eff_tot_pad = must_get_node(cop->bots[0])->csi.eff_tot_pad;
       p_conv_node_t const & loss_node = must_get_node( cop->tops[1] );
       loss_node->csi.support_sz = u32_pt_t{};
       loss_node->csi.eff_tot_pad = csi_out.eff_tot_pad; // FIXME: correct? needed? maybe set to bogus/sentinel value?
@@ -286,8 +286,10 @@ namespace boda
       if( has( cop->dims_vals, "stride" ) ) {
 	  assert_st( cop->stride().both_dims_non_zero() );
 	  csi_out.support_stride = csi_in.support_stride*cop->stride();
-      } else { csi_out.support_stride = csi_in.support_stride; } // no stride -> support stride unchanged
-      csi_out.eff_tot_pad = csi_in.eff_tot_pad + ( cop->in_pad * csi_in.support_stride );
+      } else { csi_out.support_stride = csi_in.support_stride; } // no stride --> support stride unchanged
+      if( has( cop->dims_vals, "in_pad" ) ) {
+	csi_out.eff_tot_pad = csi_in.eff_tot_pad + ( cop->in_pad() * csi_in.support_stride );
+      } else { csi_out.eff_tot_pad = csi_in.eff_tot_pad; } // no in_pad --> eff_tot_pad unchanged
     }
   }
   void conv_pipe_t::calc_support_forward_rec( string const & node_name, bool const ignore_padding ) {
@@ -555,8 +557,8 @@ namespace boda
   // prior version in git if ressurection desired.
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     char const * const tag_id = cop->tag.c_str();
-    string str_vals = strprintf( ",in_pad=\"%s\",kern_sz=\"%s\"",
-			       str(cop->in_pad).c_str(), str(cop->kern_sz).c_str());
+    string str_vals = strprintf( ",kern_sz=\"%s\"",
+				 str(cop->kern_sz).c_str());
     for( map_str_dims_t::const_iterator i = cop->dims_vals.begin(); i != cop->dims_vals.end(); ++i ) {
       str_vals += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.param_str().c_str() );
     }
