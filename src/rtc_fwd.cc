@@ -84,7 +84,7 @@ namespace boda
 	  else { assert_st(0); }
 	} 
 	u32_pt_t const in_pad = cop->in_pad;
-	u32_pt_t const stride = cop->stride;
+	u32_pt_t const stride = cop->stride();
 	if( is_conv && enable_ipconv && in_pad.is_zeros() && (get_xy_dims(no->dims) == u32_pt_t{1,1}) ) {
 	  cts = ipconv_str; // single output per-chan-per-image: inner-product case
 	} else if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == u32_pt_t{1,1}) 

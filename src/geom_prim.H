@@ -56,6 +56,12 @@ namespace boda
   typedef T_pt_t< double  > double_pt_t;
 
   inline u32_pt_t get_xy_dims( dims_t const & dims ) { return u32_pt_t{ dims.dsz("x"), dims.dsz("y") }; }
+  inline u32_pt_t get_xy_dims_strict( dims_t const & dims ) { 
+    if( (dims.size() != 2) || (dims[0].name != "y") || (dims[1].name != "x") ) {
+      rt_err( "expected exactly 2 dims, named y and then x, but dims were: " + dims.pretty_str() );
+    } 
+    return get_xy_dims( dims ); 
+  }
   inline void set_xy_dims( dims_t & dims, u32_pt_t const & sz ) {
     dims.must_get_dim_by_name("y").sz = sz.d[1]; dims.must_get_dim_by_name("x").sz = sz.d[0];
   }

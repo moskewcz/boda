@@ -16,9 +16,11 @@ namespace boda
   // them into conv_op_info_t. now they are just all strings ...
 
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
+  map_str_dims_t const DefaultKernPadStride{ {"stride", dims_t{ {1,1},{"y","x"}, 1 } } };
+
   map_str_str const Pooling_str_vals{{"avg_pool","0"},{"emit_out_in_yx","0"}};
-  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_str_vals };
-  conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}} };
+  conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_str_vals, DefaultKernPadStride };
+  conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}}, DefaultKernPadStride };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
   conv_op_info_t const BckDropout_coi{ "BckDropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
@@ -29,17 +31,17 @@ namespace boda
   conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"prob"} };
   conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "in", "label" },{ "in_grad_loss", "loss" } };
   conv_op_info_t const Data_coi{ "Data", {}, {"out"} }; // note: no inputs / source
-  conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, zi_bool(1) };
-  conv_op_info_t const Reduce_coi{ "Reduce", {"ins"}, {"out"}, {}, zi_bool(1) };
-  conv_op_info_t const Split_coi{ "Split", {"in"}, {"outs"}, {}, zi_bool(0), zi_bool(1) };
+  conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, {}, zi_bool(1) };
+  conv_op_info_t const Reduce_coi{ "Reduce", {"ins"}, {"out"}, {}, {}, zi_bool(1) };
+  conv_op_info_t const Split_coi{ "Split", {"in"}, {"outs"}, {}, {}, zi_bool(0), zi_bool(1) };
   conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"}, {{"out_chans","0"}} };
   // backwards-specific layers. there might be better/more-common names for these (and we will change/update them as
   // makes sense), but the idea is that they are operations in thier own right, not just 'backwards' versions of some
   // other ops. so we try to understand what they do functionally and name them accordingly.
-  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" }, Pooling_str_vals };
+  conv_op_info_t const Spreading_coi{ "Spreading", { "out", "out_grad_loss", "in" }, { "in_grad_loss" }, Pooling_str_vals, DefaultKernPadStride };
   conv_op_info_t const ZeroIfNonPos_coi{ "ZeroIfNonPos", {"in","cond"}, {"out"} }; // note: dims(cond)==dims(out)==dims(in);out=(cond>=0)?in:0
   conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
-    { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" } };
+    { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" }, {}, DefaultKernPadStride };
 
   vect_rp_conv_op_info_t conv_op_infos{ &Pooling_coi, &Convolution_coi, &ReLU_coi, &Dropout_coi, &LRN_coi, 
       &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &Reduce_coi, &Split_coi,
@@ -88,6 +90,20 @@ namespace boda
 			   i->first.c_str(), str(coi->type).c_str() ) );
       }
     }
+
+    // FIXME: dup'd with str_vals handling ... duplication is worse here than in some other places ...
+    // check all str_vals are set, set any missing ones to defaults
+    for( map_str_dims_t::const_iterator i = coi->dims_vals.begin(); i != coi->dims_vals.end(); ++i ) {
+      if( !has( dims_vals, i->first ) ) { dims_vals[i->first] = i->second; }
+    }
+    // check that there are no extra/unknown dims_vals
+    for( map_str_dims_t::const_iterator i = dims_vals.begin(); i != dims_vals.end(); ++i ) {
+      if( !has( coi->dims_vals, i->first ) ) { 
+	rt_err( strprintf( "Unknown/invalid/extra parameter '%s' for operation of type '%s'.",
+			   i->first.c_str(), str(coi->type).c_str() ) );
+      }
+    }
+
   }
   
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
@@ -98,8 +114,8 @@ namespace boda
     }
     u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():(in_pad+in_pad));
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
-    if( is(Convolution_coi) ) { return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1); }
-    else if( is(Pooling_coi) ) { return ceil_div( pad_in_sz-kern_sz,stride ) + u32_pt_t(1,1); }
+    if( is(Convolution_coi) ) { return (pad_in_sz-kern_sz)/stride() + u32_pt_t(1,1); }
+    else if( is(Pooling_coi) ) { return ceil_div( pad_in_sz-kern_sz,stride() ) + u32_pt_t(1,1); }
     else { rt_err("unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
@@ -113,7 +129,7 @@ namespace boda
       }
     } 
     assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
-    u32_pt_t const no_pad_in_sz =  kern_sz + (out_sz-u32_pt_t(1,1))*stride;
+    u32_pt_t const no_pad_in_sz =  kern_sz + (out_sz-u32_pt_t(1,1))*stride();
     if( ignore_padding ) { return no_pad_in_sz; }
     // if the following assert does not hold, the result would be
     // negative, indicating *no input* yields a larger out_sz than
@@ -267,8 +283,10 @@ namespace boda
 	assert_st( in_sz_1x1.both_dims_non_zero() );
 	csi_out.support_sz = csi_in.support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*csi_in.support_stride;
       }
-      assert_st( cop->stride.both_dims_non_zero() );
-      csi_out.support_stride = csi_in.support_stride*cop->stride;
+      if( has( cop->dims_vals, "stride" ) ) {
+	  assert_st( cop->stride().both_dims_non_zero() );
+	  csi_out.support_stride = csi_in.support_stride*cop->stride();
+      } else { csi_out.support_stride = csi_in.support_stride; } // no stride -> support stride unchanged
       csi_out.eff_tot_pad = csi_in.eff_tot_pad + ( cop->in_pad * csi_in.support_stride );
     }
   }
@@ -382,7 +400,6 @@ namespace boda
 	if( cop->is( InnerProduct_coi ) ) { out_chans = cop->u32_param("out_chans"); }
       }
       dims_t const & dims_in = j_node->dims;
-      assert_st( cop->stride.both_dims_non_zero() ); // FIXME: still belongs here? handled in in_sz_to_out_sz?
       dims_out = dims_in; // starting point
       dims_out.must_get_dim_by_name("chan").sz = out_chans ? out_chans : dims_in.dsz("chan"); // reset or propogate num_chans
       u32_pt_t const dims_out_sz = cop->in_sz_to_out_sz( get_xy_dims( dims_in ), 0 );
@@ -538,8 +555,11 @@ namespace boda
   // prior version in git if ressurection desired.
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     char const * const tag_id = cop->tag.c_str();
-    string str_vals = strprintf( ",in_pad=\"%s\",stride=\"%s\",kern_sz=\"%s\"",
-			       str(cop->in_pad).c_str(), str(cop->stride).c_str(), str(cop->kern_sz).c_str());
+    string str_vals = strprintf( ",in_pad=\"%s\",kern_sz=\"%s\"",
+			       str(cop->in_pad).c_str(), str(cop->kern_sz).c_str());
+    for( map_str_dims_t::const_iterator i = cop->dims_vals.begin(); i != cop->dims_vals.end(); ++i ) {
+      str_vals += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.param_str().c_str() );
+    }
     for( map_str_str::const_iterator i = cop->str_vals.begin(); i != cop->str_vals.end(); ++i ) {
       str_vals += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.c_str() );
     }

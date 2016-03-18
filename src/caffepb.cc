@@ -40,9 +40,10 @@ namespace boda
     if( conv_op->kern_sz.dims_are_same() ) { cp.add_kernel_size( conv_op->kern_sz.d[0] ); }
     else { cp.set_kernel_w( conv_op->kern_sz.d[0] ); cp.set_kernel_h( conv_op->kern_sz.d[1] ); }
 
+    // FIXME: could attempt to handle ND case here
     cp.clear_stride_w(); cp.clear_stride_h(); cp.clear_stride();
-    if( conv_op->stride.dims_are_same() ) { cp.add_stride( conv_op->stride.d[0] ); }
-    else { cp.set_stride_w( conv_op->stride.d[0] ); cp.set_stride_h( conv_op->stride.d[1] ); }
+    if( conv_op->stride().dims_are_same() ) { cp.add_stride( conv_op->stride().d[0] ); }
+    else { cp.set_stride_w( conv_op->stride().d[0] ); cp.set_stride_h( conv_op->stride().d[1] ); }
   }
   template void set_param_from_conv_op< caffe::ConvolutionParameter >( caffe::ConvolutionParameter & cp, p_conv_op_t conv_op );
 
@@ -55,6 +56,10 @@ namespace boda
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // FIXME: xxx_size() == 2 case, untested, is order right?
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
+    // FIXME: in caffe, if any of the following dims have a single dimention, this is interpreted to mean the number of
+    // spatial dims in the input blob. for now, we'll assume that is two, which certainly isn't right in
+    // general. however, it's unclear if we really want to allow the dimentionality of the operation to be implicit
+    // depending on the inputs ...
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
       if( cp.pad_size() == 0 ) { u32_pt_t const p{ 0, 0 }; conv_op->in_pad = p; } // implicit default from comments in caffe.proto
       else if( cp.pad_size() == 1 ) { u32_pt_t const p{ cp.pad(0), cp.pad(0) }; conv_op->in_pad = p; }
@@ -64,12 +69,13 @@ namespace boda
       u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = p; 
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
-      if( cp.stride_size() == 0 ) { conv_op->stride = u32_pt_t{ 1, 1 }; } // implicit default from comments in caffe.proto
-      else if( cp.stride_size() == 1 ) { conv_op->stride = u32_pt_t{ cp.stride(0), cp.stride(0) }; }
-      else if( cp.stride_size() == 2 ) { conv_op->stride = u32_pt_t{ cp.stride(1), cp.stride(0) }; }
-      else { multi_dim_err( cp.stride_size(), "stride" ); }
+      // for the 0-dims case, we use the implicit default of 1 (from comments in caffe.proto) AND our default of 2 spatial axes
+      if( cp.stride_size() == 0 ) { } // leave un-set; will be set by coi default
+      else if( cp.stride_size() == 1 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(0) }, {"y","x"}, 1 }; }
+      else if( cp.stride_size() == 2 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(1) }, {"y","x"}, 1 }; }
+      else { multi_dim_err( cp.stride_size(), "stride" ); } // FIXME: we could handle this now as a first step for N-D conv support
     } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.stride_size()) );
-      conv_op->stride = u32_pt_t( cp.stride_w(), cp.stride_h() );
+      conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, 1 }; 
     }
     if( !(cp.has_kernel_w() || cp.has_kernel_h()) ){ 
       if( cp.kernel_size_size() == 1 ) { conv_op->kern_sz = u32_pt_t{ cp.kernel_size(0), cp.kernel_size(0) }; }
@@ -88,9 +94,9 @@ namespace boda
       u32_pt_t const p( cp.pad_w(), cp.pad_h() ); conv_op->in_pad = p; 
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
-      conv_op->stride = u32_pt_t( cp.stride(), cp.stride() );
+      conv_op->dims_vals["stride"] = dims_t{ { cp.stride(), cp.stride() }, {"y","x"}, 1 };
     } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.has_stride()) );
-      conv_op->stride = u32_pt_t( cp.stride_w(), cp.stride_h() );
+      conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, 1 };
     }
     if( !(cp.has_kernel_w() || cp.has_kernel_h()) ){ 
       conv_op->kern_sz = u32_pt_t( cp.kernel_size(), cp.kernel_size() );
@@ -142,16 +148,13 @@ namespace boda
 	conv_op->bots.push_back( lp.name() + "_biases" );
 	//conv_pipe->some_kinda_node_names.push_back( {filts,biases}_node_name ); // FIXME?
       } else if( lp.type() == ReLU_coi.type ) {
-	conv_op->stride = {1,1}; // sensible, but currently unused
       } else if( lp.type() == Dropout_coi.type ) {
 	//rt_err( "TODO: handle dropout" );
 	caffe::DropoutParameter const & p = lp.dropout_param();	
-	conv_op->stride = {1,1}; // sensible, but currently unused
 	conv_op->str_vals["dropout_ratio"] = str(p.dropout_ratio());
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	
-	conv_op->stride = {1,1};
 	conv_op->str_vals["alpha"] = str(p.alpha());
 	conv_op->str_vals["beta"] = str(p.beta());
 	conv_op->str_vals["local_size"] = str(p.local_size());
@@ -168,7 +171,6 @@ namespace boda
 	  printf( "Warning, Saw unexpected SoftmaxWithLoss layer in caffpb caffe->boda net conversion given add_bck_ops==0. ignoring.\n" ); 
 	  conv_op.reset();
 	} else {
-	  conv_op->stride = {1,1}; // sensible, but currently unused
 	  if( conv_op->tops.size() > 1 ) { rt_err( "expected 0 or 1 outputs for SoftmaxWithLoss (i.e. just a loss output or nothing (an implicit missing loss output)). saw '"+str(conv_op->tops.size())+"' outputs." ); }
 	  if( conv_op->tops.size() == 0 ) { rt_err( "FIXME: restore loss auto-naming or fix prototxts"); conv_op->tops.push_back( "loss" ); } 
 	  conv_op->tops.insert( conv_op->tops.begin(), conv_op->bots[0] + "_grad_loss" ); // add gradient output for fwd_top input
@@ -187,7 +189,6 @@ namespace boda
       } else if( lp.type() == InnerProduct_coi.type ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
-	conv_op->stride = {1,1};
 	conv_op->str_vals["out_chans"] = str(ipp.num_output());
       } else if( lp.type() == Data_coi.type ) {
 	// note/FIXME: if there are multiple data layers, any values in in_dims will apply to all of them
@@ -238,7 +239,6 @@ namespace boda
       } else if( lp.type() == Accuracy_coi.type ) {
 	conv_op.reset(); // for now, just silently ignore acc layers.
       } else if( lp.type() == Concat_coi.type ) {
-	conv_op->stride = {1,1};
       } else {
 	conv_op.reset(); printf( "warning: ignoring layer with lp.type()=%s\n", str(lp.type()).c_str() );
       }

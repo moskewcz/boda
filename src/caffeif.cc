@@ -192,10 +192,13 @@ namespace boda
       // FIXME: we probably need to deal with padding better here?
       conv_op->kern_sz = ceil_div( conv_op->kern_sz, u32_pt_t{2,2} );
       conv_op->in_pad = ceil_div( conv_op->in_pad, u32_pt_t{2,2} );
-      for( uint32_t i = 0; i != 2; ++i ) {
-	if( (conv_op->stride.d[i]&1) ) { rt_err( "first conv layer has odd stride; don't know how to create upsampled network" ); }
-	conv_op->stride.d[i] /= 2;
+      dims_t & stride = must_find( conv_op->dims_vals, "stride" );
+      for( uint32_t i = 0; i != stride.size(); ++i ) {
+	if( stride[i].sz&1 ) { rt_err( "first conv layer has odd stride in some dim;don't know how to create upsampled network" ); }
+	stride[i].sz /= 2;
       }
+      stride.calc_strides();
+	
       set_param_from_conv_op( *cp, conv_op );
       assert_st( lp->has_name() );
       lp->set_name( lp->name() + "-in-2X-us" );

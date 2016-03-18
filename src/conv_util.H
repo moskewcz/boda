@@ -22,6 +22,7 @@ namespace boda
     vect_string bots; 
     vect_string tops;
     map_str_str str_vals;
+    map_str_dims_t dims_vals;
     zi_bool has_var_bots;
     zi_bool has_var_tops;
     string bot_an( uint32_t const & ix ) const;
@@ -58,8 +59,9 @@ namespace boda
     conv_op_info_t const * coi;
     u32_pt_t in_pad; //NESI(default="0 0",help="input padding")
     u32_pt_t kern_sz; //NESI(default="0 0",help="convolutional kernel size")
-    u32_pt_t stride; //NESI(default="1 1",help="step/stride in input")
-
+    //u32_pt_t stride; //xNESI(default="1 1",help="step/stride in input")
+    u32_pt_t stride( void ) const { return get_xy_dims_strict( must_find( dims_vals, "stride" ) ); }
+    map_str_dims_t dims_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/dims list." )
     map_str_str str_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
     uint32_t u32_param( string const & tvn ) { return lc_str_u32( must_find( str_vals, tvn ) ); }
     uint32_t double_param( string const & tvn ) { return lc_str_d( must_find( str_vals, tvn ) ); }
