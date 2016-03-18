@@ -59,6 +59,22 @@ namespace boda
     else { assert_st( ix < tops.size() ); return tops[ix]; }
   }
 
+  // NOTE/FIXME: move arg_map into conv_op_info_t? if so, set it up here (uncomment lines below)
+  void conv_op_t::set_arg_dims_from_pipe( conv_pipe_t const * const cp ) { 
+    for( uint32_t i = 0; i != bots.size(); ++i ) {
+      dims_t const & d = cp->must_get_node( bots[i] )->dims;
+      assert_st( !d.empty() ); // should have been already checked by calc_dims()
+      must_insert( dims_vals, coi->bot_an(i), d );
+      //must_insert( arg_map, coi->bot_an(i), bots[i] );
+    }
+    for( uint32_t i = 0; i != tops.size(); ++i ) { 
+      dims_t const & d = cp->must_get_node( tops[i] )->dims;
+      assert_st( !d.empty() ); // should have been already checked by calc_dims()
+      must_insert( dims_vals, coi->top_an(i), d ); 
+      //must_insert( arg_map, coi->top_an(i), tops[i] );
+    }
+  }
+
   // type string checking + verify input/output argument count and other sanity checks
   bool conv_op_t::is( conv_op_info_t const & coi_ ) const { assert_st( coi ); return coi == &coi_; }
   void conv_op_t::set_and_check_coi( void ) { 
@@ -446,6 +462,8 @@ namespace boda
     if( !no_dims_nodes.empty() ) {
       rt_err( strprintf( "error: no dims calculated for nodes '%s' after calc_dims()", str(no_dims_nodes).c_str() ) );
     }
+    // add dims of all bots/tops to val_dims. note: convs has all ops (including in_place ops)
+    for( map_str_p_conv_op_t::iterator i = convs->begin(); i != convs->end(); ++i ) { i->second->set_arg_dims_from_pipe( this ); }
   }
   
   void conv_pipe_t::topo_visit_setup( void ) {

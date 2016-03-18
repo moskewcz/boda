@@ -70,6 +70,11 @@ namespace boda
 
   };
 
+  struct conv_pipe_t;
+  typedef vector< conv_pipe_t > vect_conv_pipe_t; 
+  typedef shared_ptr< conv_pipe_t > p_conv_pipe_t; 
+  typedef vector< p_conv_pipe_t > vect_p_conv_pipe_t;
+
   struct conv_op_t : public conv_op_base_t // NESI(help="conv_op descriptor",bases=["conv_op_base_t"])
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -103,6 +108,7 @@ namespace boda
 
     conv_op_t( void ) : coi(0) { }
     void set_and_check_coi( void ); // verify input/output argument count and other sanity checks
+    void set_arg_dims_from_pipe( conv_pipe_t const * const cp ); // add arg_name->dims mappings to dims_vals
     bool is( conv_op_info_t const & coi ) const; // type string checking 
   };
 
@@ -209,11 +215,6 @@ namespace boda
     zi_bool has_bck_ops; 
 
   };
-
-
-  typedef vector< conv_pipe_t > vect_conv_pipe_t; 
-  typedef shared_ptr< conv_pipe_t > p_conv_pipe_t; 
-  typedef vector< p_conv_pipe_t > vect_p_conv_pipe_t;
 
 }
 

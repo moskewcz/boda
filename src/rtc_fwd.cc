@@ -60,11 +60,9 @@ namespace boda
       assert_st( cop->bots.size() >= 1 );
       // add all bots/tops as ref dims and track the mapping from arg name to external (call-scope) name
       for( uint32_t i = 0; i != cop->bots.size(); ++i ) { 
-	must_insert( dims_vals, cop->coi->bot_an(i), cp->must_get_node( cop->bots[i] )->dims );
 	must_insert( arg_map, cop->coi->bot_an(i), cop->bots[i] );
       }
       for( uint32_t i = 0; i != cop->tops.size(); ++i ) { 
-	must_insert( dims_vals, cop->coi->top_an(i), cp->must_get_node( cop->tops[i] )->dims ); 
 	must_insert( arg_map, cop->coi->top_an(i), cop->tops[i] );
       }
       p_conv_node_t ni;
