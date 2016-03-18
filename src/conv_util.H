@@ -57,10 +57,8 @@ namespace boda
     string tag; //NESI(help="tag to refer to conv op by",req=1)
     string type; //NESI(help="type of op; may impact in/out size calculations",req=1)
     conv_op_info_t const * coi;
-    //u32_pt_t in_pad; //xNESI(default="0 0",help="input padding")
     u32_pt_t in_pad( void ) const { return get_xy_dims_strict( must_find( dims_vals, "in_pad" ) ); }
-    u32_pt_t kern_sz; //NESI(default="0 0",help="convolutional kernel size")
-    //u32_pt_t stride; //xNESI(default="1 1",help="step/stride in input")
+    u32_pt_t kern_sz( void ) const { return get_xy_dims_strict( must_find( dims_vals, "kern_sz" ) ); }
     u32_pt_t stride( void ) const { return get_xy_dims_strict( must_find( dims_vals, "stride" ) ); }
     map_str_dims_t dims_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/dims list." )
     map_str_str str_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )

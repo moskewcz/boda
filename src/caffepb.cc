@@ -43,9 +43,11 @@ namespace boda
       else { cp.set_pad_w( pad.d[0] ); cp.set_pad_h( pad.d[1] ); }
     }
 
+    // FIXME: could attempt to handle ND case here
+    u32_pt_t const kern_sz = conv_op->kern_sz();
     cp.clear_kernel_w(); cp.clear_kernel_h(); cp.clear_kernel_size();
-    if( conv_op->kern_sz.dims_are_same() ) { cp.add_kernel_size( conv_op->kern_sz.d[0] ); }
-    else { cp.set_kernel_w( conv_op->kern_sz.d[0] ); cp.set_kernel_h( conv_op->kern_sz.d[1] ); }
+    if( kern_sz.dims_are_same() ) { cp.add_kernel_size( kern_sz.d[0] ); }
+    else { cp.set_kernel_w( kern_sz.d[0] ); cp.set_kernel_h( kern_sz.d[1] ); }
 
     if( has( conv_op->dims_vals, "stride" ) ) { 
       // FIXME: could attempt to handle ND case here
@@ -88,11 +90,13 @@ namespace boda
       conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, 1 }; 
     }
     if( !(cp.has_kernel_w() || cp.has_kernel_h()) ){ 
-      if( cp.kernel_size_size() == 1 ) { conv_op->kern_sz = u32_pt_t{ cp.kernel_size(0), cp.kernel_size(0) }; }
-      else if( cp.kernel_size_size() == 2 ) { conv_op->kern_sz = u32_pt_t{ cp.kernel_size(1), cp.kernel_size(0) }; }
+      // for the 0-dims case, we use the implicit default of 1 (from comments in caffe.proto) AND our default of 2 spatial axes
+      if( cp.kernel_size_size() == 0 ) { } // leave un-set; will be set by coi default
+      else if( cp.kernel_size_size() == 1 ) { conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(0), cp.kernel_size(0) }, {"y","x"}, 1 }; }
+      else if( cp.kernel_size_size() == 2 ) { conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(0), cp.kernel_size(1) }, {"y","x"}, 1 }; }
       else { multi_dim_err( cp.kernel_size_size(), "kernel_size" ); }
     } else { assert_st( cp.has_kernel_w() && cp.has_kernel_h() && (!cp.kernel_size_size()) );
-      conv_op->kern_sz = u32_pt_t( cp.kernel_w(), cp.kernel_h() );
+      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, 1 }; 
     }
   }
   void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, caffe::PoolingParameter const & cp ) {
@@ -108,11 +112,13 @@ namespace boda
     } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.has_stride()) );
       conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, 1 };
     }
-    if( !(cp.has_kernel_w() || cp.has_kernel_h()) ){ 
-      conv_op->kern_sz = u32_pt_t( cp.kernel_size(), cp.kernel_size() );
-    } else { assert_st( cp.has_kernel_w() && cp.has_kernel_h() && (!cp.has_kernel_size()) );
-      conv_op->kern_sz = u32_pt_t( cp.kernel_w(), cp.kernel_h() );
-    }
+    if( cp.has_kernel_size() ) {
+      assert_st( (!cp.has_kernel_w()) && (!cp.has_kernel_h()) ); 
+      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(), cp.kernel_size() }, {"y","x"}, 1 };
+    } else if( cp.has_kernel_w() || cp.has_kernel_h() ) { 
+      assert_st( cp.has_kernel_w() && cp.has_kernel_h() );
+      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, 1 };
+    } else { } // has neither kernel_size nor kernel_{w,h} // leave un-set; will be set by coi default
   }
 
   p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
@@ -153,6 +159,7 @@ namespace boda
 	fill_in_conv_op_from_param( conv_op, cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
 	conv_op->str_vals["out_chans"] = str(cp.num_output());
+	assert_st( has( conv_op->dims_vals, "kern_sz" ) ); // FIXME: convolutions *must* specify kernel size, i think? check in caffe
 	// add (make explicit) filts and biases as inputs 
 	conv_op->bots.push_back( lp.name() + "_filts" );
 	conv_op->bots.push_back( lp.name() + "_biases" );
@@ -194,8 +201,7 @@ namespace boda
 	else if( pp.pool() == caffe::PoolingParameter_PoolMethod_MAX ) { avg_pool = 0; }
 	else { printf( "warning: unhanded pooling method pp.pool()=%s\n", str(pp.pool()).c_str() ); }
 	conv_op->str_vals["avg_pool"] = str(avg_pool);
-	// global pooling iff kernel size is all zeros (we use as a special value)
-	assert_st( conv_op->kern_sz.is_zeros() == pp.global_pooling() ); 
+	assert_st( has( conv_op->dims_vals, "kern_sz" ) != pp.global_pooling() ); // global pooling iff no kernel size specified
       } else if( lp.type() == InnerProduct_coi.type ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
@@ -808,7 +814,7 @@ namespace boda
       caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
       p_conv_op_t conv_op( new conv_op_t );
       fill_in_conv_op_from_param( conv_op, *cp );
-      conv_op->kern_sz = targ_sz;
+      set_xy_dims( conv_op->dims_vals["kern_sz"], targ_sz );
 
       set_param_from_conv_op( *cp, conv_op );
       assert_st( lp->has_name() );

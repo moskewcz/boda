@@ -78,11 +78,13 @@ namespace boda
 	assert_st( ni );
 	in_dims = ni->dims;
 	dims_vals["in_ref"] = in_dims; // tconv needs the standard input dims for reference
-	u32_pt_t kern_sz = cop->kern_sz;
-	if( kern_sz.is_zeros() ) { // 'global' input special case
+	u32_pt_t kern_sz;
+	if( has( cop->dims_vals, "kern_sz" ) ) { kern_sz = cop->kern_sz(); }
+	else {
 	  if( is_pool ) { kern_sz = get_xy_dims( ni->dims ); }
 	  else if( cop->is( Spreading_coi ) ) { kern_sz = get_xy_dims( no->dims ); }
 	  else { assert_st(0); }
+	  dims_vals["kern_sz"] = dims_t{ {kern_sz.d[1],kern_sz.d[0]}, {"y","x"}, 1 }; // FIXME: not ideal ...
 	} 
 	u32_pt_t const in_pad = cop->in_pad();
 	u32_pt_t const stride = cop->stride();
@@ -98,8 +100,6 @@ namespace boda
 								     && (kern_sz.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
 		   cts = tconv_str; }
 	else { cts = conv_str; }
-
-	dims_vals["kern_sz"] = dims_t( vect_uint32_t{ kern_sz.d[1], kern_sz.d[0] }, vect_string{"y","x"}, 1 );
 
 	if( cop->is( BckConv_coi ) ) {
 	  // note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will

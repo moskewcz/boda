@@ -189,8 +189,10 @@ namespace boda
       caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
       p_conv_op_t conv_op( new conv_op_t );
       fill_in_conv_op_from_param( conv_op, *cp );
+      dims_t & kern_sz = must_find( conv_op->dims_vals, "kern_sz" );
+      for( uint32_t i = 0; i != kern_sz.size(); ++i ) { kern_sz[i].sz = u32_ceil_div( kern_sz[i].sz, 2 ); } 
+      kern_sz.calc_strides();
       // FIXME: we probably need to deal with padding better here?
-      conv_op->kern_sz = ceil_div( conv_op->kern_sz, u32_pt_t{2,2} );
       if( has( conv_op->dims_vals, "in_pad" ) ) { // scale in_pad if present
 	dims_t & in_pad = must_find( conv_op->dims_vals, "in_pad" );
 	for( uint32_t i = 0; i != in_pad.size(); ++i ) { in_pad[i].sz = u32_ceil_div( in_pad[i].sz, 2 ); } 

@@ -28,7 +28,7 @@ namespace boda
 
   void run_conv_op_one_img_conv( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
 				 p_nda_float_t const & bot, p_nda_float_t const & top ) {    
-    u32_pt_t kern_sz = cop->kern_sz;
+    u32_pt_t kern_sz = cop->kern_sz();
     if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
     p_nda_float_t const & filts = must_find( *fwd, cop->tag + "_filts" );
     p_nda_float_t const & biases = must_find( *fwd, cop->tag + "_biases" );
@@ -62,7 +62,7 @@ namespace boda
   void run_conv_op_one_img_pool( p_conv_op_t const & cop, p_map_str_p_nda_float_t const & fwd, uint32_t const img_ix, 
 				 p_nda_float_t const & bot, p_nda_float_t const & top ) {
     
-    u32_pt_t kern_sz = cop->kern_sz;
+    u32_pt_t kern_sz = cop->kern_sz();
     if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
     assert_st( top->dims.dims(1) == bot->dims.dims(1) ); // one-to-one chans IO
     uint32_t const out_pool_elems = kern_sz.dims_prod();

@@ -16,7 +16,9 @@ namespace boda
   // them into conv_op_info_t. now they are just all strings ...
 
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
-  map_str_dims_t const DefaultKernPadStride{ {"stride", dims_t{ {1,1},{"y","x"}, 1 } }, {"in_pad", dims_t{ {0,0}, {"y","x"}, 1 } } };
+  map_str_dims_t const DefaultKernPadStride{ 
+    {"stride", dims_t{ {1,1},{"y","x"}, 1 } }, 
+    {"in_pad", dims_t{ {0,0}, {"y","x"}, 1 } } };
 
   map_str_str const Pooling_str_vals{{"avg_pool","0"},{"emit_out_in_yx","0"}};
   conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_str_vals, DefaultKernPadStride };
@@ -96,8 +98,20 @@ namespace boda
     for( map_str_dims_t::const_iterator i = coi->dims_vals.begin(); i != coi->dims_vals.end(); ++i ) {
       if( !has( dims_vals, i->first ) ) { dims_vals[i->first] = i->second; }
     }
+    // kern_sz is manditory for Convolution, and has no default -- we have no magic/automatic for that, so we just check
+    // it manually here ...
+    if( (is( Convolution_coi )||is( BckConv_coi )) && !has( dims_vals, "kern_sz" ) ) { 
+      rt_err( strprintf( "Missing parameter 'kern_sz' for operation of type '%s'.", str(coi->type).c_str() ) );
+    }
+
     // check that there are no extra/unknown dims_vals
     for( map_str_dims_t::const_iterator i = dims_vals.begin(); i != dims_vals.end(); ++i ) {
+      if( i->first == "kern_sz" ) {
+	// kern_sz is manditory for convolution, but has no default, and is optional for pooling and has no
+	// default. again, we have no magic for either case, so we just manually check here.
+	if( is( Convolution_coi ) || is( Pooling_coi ) ) { continue; } // okay to be present for these types
+	if( is( BckConv_coi ) || is( Spreading_coi ) ) { continue; } // okay to be present for these types
+      }
       if( !has( coi->dims_vals, i->first ) ) { 
 	rt_err( strprintf( "Unknown/invalid/extra parameter '%s' for operation of type '%s'.",
 			   i->first.c_str(), str(coi->type).c_str() ) );
@@ -107,19 +121,19 @@ namespace boda
   }
   
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
-    if( kern_sz.is_zeros() ) { // handle non-conv cases
+    if( !has( dims_vals, "kern_sz" ) ) { // handle non-conv cases
       assert( !is(Convolution_coi) ); 
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
     }
     u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():(in_pad()+in_pad()));
-    if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
-    if( is(Convolution_coi) ) { return (pad_in_sz-kern_sz)/stride() + u32_pt_t(1,1); }
-    else if( is(Pooling_coi) ) { return ceil_div( pad_in_sz-kern_sz,stride() ) + u32_pt_t(1,1); }
+    if( !pad_in_sz.both_dims_ge(kern_sz()) ) { return u32_pt_t(); } // padded input too small to create any output
+    if( is(Convolution_coi) ) { return (pad_in_sz-kern_sz())/stride() + u32_pt_t(1,1); }
+    else if( is(Pooling_coi) ) { return ceil_div( pad_in_sz-kern_sz(),stride() ) + u32_pt_t(1,1); }
     else { rt_err("unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
-    if( kern_sz.is_zeros() ) { // handle non-conv cases
+    if( !has( dims_vals, "kern_sz" ) ) { // handle non-conv cases
       assert( !is(Convolution_coi) );
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { // inner product and global pooling special cases
 	if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
@@ -129,7 +143,7 @@ namespace boda
       }
     } 
     assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
-    u32_pt_t const no_pad_in_sz =  kern_sz + (out_sz-u32_pt_t(1,1))*stride();
+    u32_pt_t const no_pad_in_sz =  kern_sz() + (out_sz-u32_pt_t(1,1))*stride();
     if( ignore_padding ) { return no_pad_in_sz; }
     // if the following assert does not hold, the result would be
     // negative, indicating *no input* yields a larger out_sz than
@@ -387,7 +401,7 @@ namespace boda
       p_conv_node_t const & j_node = must_get_node(cop->bots[0]);
       uint32_t out_chans = 0;
       if( cop->is( Convolution_coi ) ) { 
-	u32_pt_t kern_sz = cop->kern_sz;
+	u32_pt_t kern_sz = cop->kern_sz();
 	if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( j_node->dims ); } // 'global' input special case
 	dims_t filts_dims( vect_uint32_t{ cop->u32_param("out_chans"), j_node->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
 			   vect_string{ "out_chan", "in_chan", "y", "x" }, 1 );
@@ -557,8 +571,7 @@ namespace boda
   // prior version in git if ressurection desired.
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     char const * const tag_id = cop->tag.c_str();
-    string str_vals = strprintf( ",kern_sz=\"%s\"",
-				 str(cop->kern_sz).c_str());
+    string str_vals;
     for( map_str_dims_t::const_iterator i = cop->dims_vals.begin(); i != cop->dims_vals.end(); ++i ) {
       str_vals += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.param_str().c_str() );
     }
