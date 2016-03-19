@@ -31,96 +31,64 @@ namespace boda
   typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
 
   string const k1conv_str = "k1conv"; string const tconv_str = "tconv"; string const ipconv_str = "ipconv"; string const conv_str = "conv";
-  struct op_info_t {
-    string tag;
-    map_str_str str_vals; // str->str templates+values to pass directly to generated code (e.g. lrn params)
-    map_str_dims_t dims_vals; // work + conv-type specific dims
-    map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
-
-    string cts( void ) const { return must_find( str_vals, "cts" ); } // cts --> conv-type-str
-    void set_cts( string const & cts_ ) { must_insert( str_vals, "cts", cts_ ); }
-
-    string get_arg( string const & an ) { return must_find( arg_map, an ); }
-    dims_t const & get_arg_dims( string const & an ) { return must_find( dims_vals, an ); }
-    void set_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
-      must_insert( dims_vals, an, rtc->get_var_dims_floats(vn) );
-      must_insert( arg_map, an, vn );
-    }
-    void set_null_arg( string const & an ) { must_insert( dims_vals, an, dims_t() ); }
-    void erase_arg( string const & an ) { must_erase( dims_vals, an ); must_erase( arg_map, an ); }
-    void reset_arg( p_rtc_compute_t const & rtc, string const & an, string const & vn ) { 
-      erase_arg(an); set_arg(rtc,an,vn);
-    }
-
-    void init( p_conv_pipe_t const & cp, p_conv_op_t const & cop, bool const & enable_ipconv,
-	       bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
+  struct op_info_t : public conv_op_t {
+    op_info_t( conv_op_t const & cop ) : conv_op_t(cop) { }
+    void init( bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
-      tag = cop->tag;
-      str_vals = cop->str_vals;
-      dims_vals = cop->dims_vals;
-      assert_st( cop->tops.size() >= 1 );
-      assert_st( cop->bots.size() >= 1 );
-      // add all bots/tops as ref dims and track the mapping from arg name to external (call-scope) name
-      for( uint32_t i = 0; i != cop->bots.size(); ++i ) { 
-	must_insert( arg_map, cop->coi->bot_an(i), cop->bots[i] );
-      }
-      for( uint32_t i = 0; i != cop->tops.size(); ++i ) { 
-	must_insert( arg_map, cop->coi->top_an(i), cop->tops[i] );
-      }
-      if( cop->is(Reduce_coi) ) { must_insert( str_vals, "ins_num", str(cop->bots.size()) ); } // codegen tidbit for reduce
+      assert_st( tops.size() >= 1 );
+      assert_st( bots.size() >= 1 );
+      if( is(Reduce_coi) ) { must_insert( str_vals, "ins_num", str(bots.size()) ); } // codegen tidbit for reduce
       dims_t ni_dims;
-      dims_t no_dims = get_arg_dims( cop->coi->top_an(0) );
+      dims_t no_dims = get_arg_dims( coi->top_an(0) );
       u32_pt_t const no_sz = get_xy_dims( no_dims );
-      if( !cop->is(Concat_coi) ) { ni_dims = get_arg_dims( cop->coi->bot_an(0) ); } // empty for Concat where we shouldn't use it, otherwise first input
-      bool const is_conv = cop->is( Convolution_coi );
-      bool const is_pool = cop->is( Pooling_coi );
+      if( !is(Concat_coi) ) { ni_dims = get_arg_dims( coi->bot_an(0) ); } // empty for Concat where we shouldn't use it, otherwise first input
+      bool const is_conv = is( Convolution_coi );
+      bool const is_pool = is( Pooling_coi );
       dims_t in_dims;
-      if( is_conv || is_pool || cop->is( Spreading_coi ) || cop->is( BckConv_coi ) ) {
+      if( is_conv || is_pool || is( Spreading_coi ) || is( BckConv_coi ) ) {
 	assert_st( !ni_dims.empty() );
 	in_dims = ni_dims;
 	dims_vals["in_ref"] = in_dims; // tconv needs the standard input dims for reference
-	u32_pt_t kern_sz;
-	if( has( cop->dims_vals, "kern_sz" ) ) { kern_sz = cop->kern_sz(); }
+	u32_pt_t kern_sz_;
+	if( has( dims_vals, "kern_sz" ) ) { kern_sz_ = kern_sz(); }
 	else {
-	  if( is_pool ) { kern_sz = get_xy_dims( ni_dims ); }
-	  else if( cop->is( Spreading_coi ) ) { kern_sz = get_xy_dims( no_dims ); }
+	  if( is_pool ) { kern_sz_ = get_xy_dims( ni_dims ); }
+	  else if( is( Spreading_coi ) ) { kern_sz_ = get_xy_dims( no_dims ); }
 	  else { assert_st(0); }
-	  dims_vals["kern_sz"] = dims_t{ {kern_sz.d[1],kern_sz.d[0]}, {"y","x"}, 1 }; // FIXME: not ideal ...
+	  dims_vals["kern_sz"] = dims_t{ {kern_sz_.d[1],kern_sz_.d[0]}, {"y","x"}, 1 }; // FIXME: not ideal ...
 	} 
-	u32_pt_t const in_pad = cop->in_pad();
-	u32_pt_t const stride = cop->stride();
-	if( is_conv && enable_ipconv && in_pad.is_zeros() && (get_xy_dims(no_dims) == u32_pt_t{1,1}) ) {
+	if( is_conv && enable_ipconv && in_pad().is_zeros() && (get_xy_dims(no_dims) == u32_pt_t{1,1}) ) {
 	  set_cts( ipconv_str ); // single output per-chan-per-image: inner-product case
-	} else if( is_conv && enable_k1conv && (kern_sz == u32_pt_t{1,1}) && (stride == u32_pt_t{1,1}) 
+	} else if( is_conv && enable_k1conv && (kern_sz_ == u32_pt_t{1,1}) && (stride() == u32_pt_t{1,1}) 
 	    && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no_dims.dsz("chan") >= 64) ) 
 	{ 
-	  if( !in_pad.is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); set_cts( conv_str ); }
+	  if( !in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); set_cts( conv_str ); }
 	  else { set_cts( k1conv_str ); }
 	}
-	else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz.both_dims_le(u32_pt_t{11,11})
-								     && (kern_sz.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
+	else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(u32_pt_t{11,11})
+								     && (kern_sz_.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
 	  set_cts( tconv_str ); }
 	else { set_cts( conv_str ); }
 
-	if( cop->is( BckConv_coi ) ) {
+	if( is( BckConv_coi ) ) {
 	  // note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will
 	  // always be 1 for the bck conv: 3x3@s2 -> 2x2@s1; 11x11@s4 -> 3x3@s1; 1x1@s1 -> 1x1@s1 ...
-	  u32_pt_t bck_kern_sz = ceil_div( kern_sz, stride ); 
+	  u32_pt_t bck_kern_sz = ceil_div( kern_sz_, stride() ); 
 	  // if back kernel conv is convolved aligned to the - corner of output space, it yields results for the
 	  // post-padding input space region: [bck_in_off,bck_in_off+stride)
-	  u32_pt_t const bck_pad_in_off = (bck_kern_sz - u32_pt_t(1,1)) * stride;
+	  u32_pt_t const bck_pad_in_off = (bck_kern_sz - u32_pt_t(1,1)) * stride();
 	  assert_st( bck_pad_in_off.dims_are_same() );
 	  // we don't need compute values for the input padding, so adjust to un-padded input space
-	  i32_pt_t bck_in_off = u32_to_i32( bck_pad_in_off ) - u32_to_i32(in_pad);
+	  i32_pt_t bck_in_off = u32_to_i32( bck_pad_in_off ) - u32_to_i32(in_pad());
 	  assert_st( bck_in_off.dims_are_same() ); // not handled, since we want/need per-axis padding for that
 	  // now, calculate where we need to really start in output space to have the first results region inlcude 0
-	  i32_pt_t bck_in_pad = ceil_div( bck_in_off, stride );
+	  i32_pt_t bck_in_pad = ceil_div( bck_in_off, stride() );
 	  // FIXME: 'too much' fwd-in-pad can the  bck-in-pad this negative. sensible, so handle?
 	  assert_st( bck_in_pad.both_dims_ge_zero() );
 	  // now, to get patch count, see how many in pels we're missing
-	  bck_in_off -= bck_in_pad * u32_to_i32(stride); // first region calculated at - corner of padding out space
+	  bck_in_off -= bck_in_pad * u32_to_i32(stride()); // first region calculated at - corner of padding out space
 	  // calculate number of extra pels needed to cover last pel in unpadded input space
-	  i32_pt_t bck_pels_sz = ceil_div( u32_to_i32(get_xy_dims(no_dims)) - (bck_in_off + u32_to_i32(stride)), stride ); 
+	  i32_pt_t bck_pels_sz = ceil_div( u32_to_i32(get_xy_dims(no_dims)) - (bck_in_off + u32_to_i32(stride())), stride() ); 
 	  bck_pels_sz += i32_pt_t(1,1); // include starting pixel
 	  assert_st( bck_pels_sz.both_dims_gt( i32_pt_t() ) );
 
@@ -132,7 +100,7 @@ namespace boda
 	  dims_t const & fgld = get_arg_dims("filts_grad_loss");
 
 	  gbt_tile_t gbt;
-	  dims_vals["oix"] = dims_t(  vect_uint32_t{ no_dims.dsz("chan"), stride.d[1], stride.d[0] }, 
+	  dims_vals["oix"] = dims_t(  vect_uint32_t{ no_dims.dsz("chan"), stride().d[1], stride().d[0] }, 
 					  vect_string{ "in_chan", "sy", "sx" }, 1 );
 	  dims_vals["pix"] = dims_t(  vect_uint32_t{ no_dims.dsz("img"), 
 		uint32_t(bck_pels_sz.d[1]), uint32_t(bck_pels_sz.d[0]) }, vect_string{ "img", "y", "x" }, 1 );
@@ -145,8 +113,8 @@ namespace boda
 	  work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_ix", gbt.mn_per_thr.d[1] );
 	  work.calc_strides();
 	  dims_vals["work"] = work;
-	  dims_vals["fioc"] = dims_t( vect_uint32_t{ ogld.dsz("chan"), u32_ceil_div(kern_sz.d[1],stride.d[1]), 
-		u32_ceil_div(kern_sz.d[0],stride.d[0]) }, vect_string{"out_chan","ky","kx"}, 1 );
+	  dims_vals["fioc"] = dims_t( vect_uint32_t{ ogld.dsz("chan"), u32_ceil_div(kern_sz_.d[1],stride().d[1]), 
+		u32_ceil_div(kern_sz_.d[0],stride().d[0]) }, vect_string{"out_chan","ky","kx"}, 1 );
 	  
 	  gbt_tile_t gbt_fb;
 	  gbt_fb.init( t_tile_sz, 128, u32_pt_t( fgld.dsz("in_chan")*fgld.dsz("y")*fgld.dsz("x"), fgld.dsz("out_chan") ) );
@@ -193,8 +161,9 @@ namespace boda
 	    //printf( "no_sz.d[1]=%s thr_per_blk.d[0]=%s\n", str(no_sz.d[1]).c_str(), str(thr_per_blk.d[0]).c_str() );
 	    //printf( "tconv_blk_max_imgs=%s\n", str(tconv_blk_max_imgs).c_str() );
 	    assert( gbt.thr_per_blk.d[0] >= tconv_blk_max_imgs );
-	    uint32_t const tconv_blk_max_in_lines = (gbt.thr_per_blk.d[0] - tconv_blk_max_imgs)*stride.d[1] + kern_sz.d[1]*tconv_blk_max_imgs;
-	    uint32_t const tconv_blk_x_sz = (gbt.mn_per_thr.d[0] - 1)*stride.d[0] + kern_sz.d[0];
+	    uint32_t const tconv_blk_max_in_lines = (gbt.thr_per_blk.d[0] - tconv_blk_max_imgs)*
+	      stride().d[1] + kern_sz_.d[1]*tconv_blk_max_imgs;
+	    uint32_t const tconv_blk_x_sz = (gbt.mn_per_thr.d[0] - 1)*stride().d[0] + kern_sz_.d[0];
 	    // the tconv/in_tile_xpose format is for use when both ni_sz.d[0/1] are small multiple of
 	    // gbt.mn_per_thr.d[0]/gbt.thr_per_blk.d[0] or >> than them (to avoid wasting too much work). each block will handle a
 	    // (x,y) window of the output of size (gbt.mn_per_thr.d[0],gbt.thr_per_blk.d[0]) across bix_pels_blk_sz*gbt.mn_per_thr.d[0]
@@ -236,9 +205,9 @@ namespace boda
 	  dims_vals["out_ref"] = no_dims; // k1conv and in_tile_xpose need the standard output dims for reference
 	  dims_vals["in_xp"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-	  dims_vals["filts_xp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0],
+	  dims_vals["filts_xp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
-	  // dims_t( vect_uint32_t{cop->out_chans}, vect_string{"out_chan"}, 1 );
+	  // dims_t( vect_uint32_t{out_chans}, vect_string{"out_chan"}, 1 );
 	} // end if(is_conv)
       }
     }
@@ -452,72 +421,79 @@ namespace boda
     for( set_conv_op_base_t::const_iterator i = all_op_sigs.begin(); i != all_op_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
   }
 
+  void set_rtc_arg( p_op_info_t const & oi, p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
+    oi->set_arg( rtc->get_var_dims_floats(vn), an, vn );
+  }
+  void reset_rtc_arg( p_op_info_t const & oi, p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
+    oi->reset_arg( rtc->get_var_dims_floats(vn), an, vn );
+  }
+  
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     // unique ops if requested
     // all_op_sigs.insert( *cop );
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
     if( has( oi->str_vals, "fused" ) ) { return; } // operation was fused into another, so do nothing here for it
-    if( cop->is( Concat_coi ) ) {      
+    if( oi->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
-      for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
-	dims_t const & dims_in = oi->get_arg_dims( cop->coi->bot_an(bi) );
+      for( uint32_t bi = 0; bi != oi->bots.size(); ++bi ) {
+	dims_t const & dims_in = oi->get_arg_dims( oi->coi->bot_an(bi) );
 	assert_st( get_xy_dims( dims_in ) == get_xy_dims( oi->get_arg_dims("out") ) );
 	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->get_arg_dims("out").dsz("chan") );
-	// note: oi->str_vals is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
+	// note: oi->str_vals is overwritten each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->str_vals = { {"ocix",str(chans_out_done)} };
-	oi->set_arg( rtc, "in", cop->bots[bi] );
+	set_rtc_arg( oi, rtc, "in", oi->bots[bi] );
 	gen_call( "copy", oi );
 	chans_out_done += dims_in.dsz("chan");
 	oi->erase_arg( "in" );
       }
       assert_st( chans_out_done == oi->get_arg_dims("out").dsz("chan") );
-    } else if( cop->is( Split_coi ) ) { // FIXME: pretty dup'd with Concat above ... generalize/merge/share?
+    } else if( oi->is( Split_coi ) ) { // FIXME: pretty dup'd with Concat above ... generalize/merge/share?
       uint32_t chans_in_done = 0;
-      for( uint32_t ti = 0; ti != cop->tops.size(); ++ti ) {
-	dims_t const & dims_out = oi->get_arg_dims( cop->coi->top_an(ti) );
+      for( uint32_t ti = 0; ti != oi->tops.size(); ++ti ) {
+	dims_t const & dims_out = oi->get_arg_dims( oi->coi->top_an(ti) );
 	assert_st( get_xy_dims( dims_out ) == get_xy_dims( oi->get_arg_dims("in") ) );
 	assert_st( chans_in_done+dims_out.dsz("chan") <= oi->get_arg_dims("in").dsz("chan") );
-	// note: oi->str_vals is overwritten each iter; also, oi->cop->tag+"__copy" is reused for all calls (FIXME either/both?)
+	// note: oi->str_vals is overwritten each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->str_vals = { {"icix",str(chans_in_done)} };
-	oi->set_arg( rtc, "out", cop->tops[ti] );
+	set_rtc_arg( oi, rtc, "out", oi->tops[ti] );
 	gen_call( "split_copy", oi );
 	chans_in_done += dims_out.dsz("chan");
 	oi->erase_arg( "out" );
       }
       assert_st( chans_in_done == oi->get_arg_dims("in").dsz("chan") );
-    } else if( cop->is( Reduce_coi ) ) {
+    } else if( oi->is( Reduce_coi ) ) {
       gen_call( "reduce", oi );
-    } else if( cop->is( Pooling_coi ) ) {
-      if( cop->u32_param("emit_out_in_yx") == 1 ) {
+    } else if( oi->is( Pooling_coi ) ) {
+      if( oi->u32_param("emit_out_in_yx") == 1 ) {
 	string const out_in_yx = oi->get_arg("out") + "_in_yx"; 
 	rtc->create_var_with_dims_floats( out_in_yx, oi->get_arg_dims("out") ); // same size as out
-	oi->set_arg( rtc, "out_in_yx", out_in_yx );
+	set_rtc_arg( oi, rtc, "out_in_yx", out_in_yx );
       } else {
-	assert_st( cop->u32_param("emit_out_in_yx") == 0 );
+	assert_st( oi->u32_param("emit_out_in_yx") == 0 );
 	oi->set_null_arg( "out_in_yx" );
       }
       gen_call( "pool", oi );
-    } else if( cop->is( Convolution_coi ) ) {
+    } else if( oi->is( Convolution_coi ) ) {
       op_param_names.push_back( oi->get_arg("filts") );
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const in_id = oi->arg_map["in"];
-      oi->reset_arg( rtc, "in", oi->get_arg("in") ); // reset in dims from rtc, since may now differ from conv_pipe dims
+      reset_rtc_arg( oi, rtc, "in", oi->get_arg("in") ); // reset in dims from rtc, since may now differ from conv_pipe dims
       if( oi->cts() != ipconv_str ) { // ipconv uses untransformed filts
 	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
-	oi->reset_arg( rtc, "filts", gen_apply_func_to_var( "filts", oi->get_arg("filts"), 
+	reset_rtc_arg( oi, rtc, "filts", gen_apply_func_to_var( "filts", oi->get_arg("filts"), 
 							    "filts_xp", oi->get_arg_dims("filts_xp"), filts_xp_fn ) );
       }
-      //in_arg_ids.push_back( cop->bots[2] ); // biases
+      //in_arg_ids.push_back( oi->bots[2] ); // biases
       if( oi->cts() == tconv_str ) {
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->dims_vals, oi->str_vals } );
-	oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
+	reset_rtc_arg( oi, rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
 							 "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
       } else if( oi->cts() == k1conv_str ) {
 	if( oi->get_arg_dims("in") != oi->get_arg_dims("in_xp") ) { 
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
 	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->dims_vals, oi->str_vals } );
-	  oi->reset_arg( rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
+	  reset_rtc_arg( oi, rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
 							   "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
 	} 	
       } 
@@ -533,29 +509,29 @@ namespace boda
 	}
       }
       rtc->create_var_with_dims_floats( oi->get_arg("out"), no_dims );
-      oi->reset_arg( rtc, "out", oi->get_arg("out") );
+      reset_rtc_arg( oi, rtc, "out", oi->get_arg("out") );
       gen_call( oi->cts(), oi );
-    } else if( cop->is( ReLU_coi ) ) {
+    } else if( oi->is( ReLU_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
-      oi->set_arg( rtc, "inout", oi->get_arg("in") );
+      set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( "relu", oi );
-    } else if( cop->is( LRN_coi ) ) {
+    } else if( oi->is( LRN_coi ) ) {
       assert_st( oi->get_arg_dims("in") == oi->get_arg_dims("out") ); // FIXME: better place/way for this check?
-      if( cop->u32_param("emit_out_scale_base") == 1 ) {
+      if( oi->u32_param("emit_out_scale_base") == 1 ) {
 	string const out_scale_base = oi->get_arg("out") + "_scale_base"; 
 	rtc->create_var_with_dims_floats( out_scale_base, oi->get_arg_dims("out") ); // same size as out
-	oi->set_arg( rtc, "out_scale_base", out_scale_base );
+	set_rtc_arg( oi, rtc, "out_scale_base", out_scale_base );
       } else {
-	assert_st( cop->u32_param("emit_out_scale_base") == 0 );
+	assert_st( oi->u32_param("emit_out_scale_base") == 0 );
 	oi->set_null_arg( "out_scale_base" );
       }
       gen_call( "lrn", oi );
-    } else if( cop->is( BckLRN_coi ) ) {
-      oi->set_arg( rtc, "out_scale_base", oi->get_arg("out") + "_scale_base" ); // generated by matching LRN op
+    } else if( oi->is( BckLRN_coi ) ) {
+      set_rtc_arg( oi, rtc, "out_scale_base", oi->get_arg("out") + "_scale_base" ); // generated by matching LRN op
       gen_call( "bck_lrn", oi );
-    } else if( cop->is( Dropout_coi ) ) {
+    } else if( oi->is( Dropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
-      oi->set_arg( rtc, "inout", oi->get_arg("in") );
+      set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( "dropout", oi );
       // FIXME: move this check (and others like it) to conv_util.cc or similar?
       double const dropout_ratio = lc_str_d( oi->str_vals["dropout_ratio"] );
@@ -563,30 +539,30 @@ namespace boda
       assert_st( dropout_ratio < 1.0 );
       fwd_calls.back().u32_args.push_back( 0 ); // see update code elsewhere. yeah, not the cleanest approach.
       dropout_cixs.push_back( fwd_calls.size() - 1 );
-    } else if( cop->is( BckDropout_coi ) ) {
+    } else if( oi->is( BckDropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
-      oi->set_arg( rtc, "inout", oi->get_arg("in") );
+      set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( "dropout", oi ); // Backwards of dropout is dropout
       fwd_calls.back().u32_args.push_back( 0 ); // see update code elsewhere. yeah, not the cleanest approach.
       dropout_cixs.push_back( fwd_calls.size() - 1 );
-    } else if( cop->is( Softmax_coi ) ) {
+    } else if( oi->is( Softmax_coi ) ) {
       gen_call( "softmax", oi );
-    } else if( cop->is( SoftmaxWithLoss_coi ) ) {
-      string const prob_node_name = cop->tag + "_prob";
+    } else if( oi->is( SoftmaxWithLoss_coi ) ) {
+      string const prob_node_name = oi->tag + "_prob";
       gen_node_var( prob_node_name, oi->get_arg("in") );
-      oi->set_arg( rtc, "prob", prob_node_name );
+      set_rtc_arg( oi, rtc, "prob", prob_node_name );
       string const loss_per_pel = oi->get_arg("loss") + "_per_pel"; // same size as label
       gen_node_var( loss_per_pel, oi->get_arg("label") );
-      oi->set_arg( rtc, "loss_per_pel", loss_per_pel );
+      set_rtc_arg( oi, rtc, "loss_per_pel", loss_per_pel );
       gen_call( "softmax", oi );
       gen_call( "sm_grad_and_loss", oi  );
       gen_call( "sum_loss_over_imgs", oi );
-    } else if( cop->is( Spreading_coi ) ) {
-      oi->set_arg( rtc, "out_in_yx", oi->get_arg("out") + "_in_yx" ); // generated by matching Pooling op
+    } else if( oi->is( Spreading_coi ) ) {
+      set_rtc_arg( oi, rtc, "out_in_yx", oi->get_arg("out") + "_in_yx" ); // generated by matching Pooling op
       gen_call( "spreading", oi );
-    } else if( cop->is( ZeroIfNonPos_coi ) ) {
-      gen_call( cop->type, oi );
-    } else if( cop->is( BckConv_coi ) ) { 
+    } else if( oi->is( ZeroIfNonPos_coi ) ) {
+      gen_call( oi->type, oi );
+    } else if( oi->is( BckConv_coi ) ) { 
       // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
       string ogl_vn = oi->get_arg("out_grad_loss");
       string ogl_fn = "BckConv_in_grad_loss";
@@ -606,7 +582,7 @@ namespace boda
       gen_call( ogl_fn, oi );
       gen_call( "BckConv_biases_grad_loss", oi );
       gen_call( fgl_fn, oi );
-    } else { rt_err( "gen_op: unhandled op of type: " + cop->type ); }
+    } else { rt_err( "gen_op: unhandled op of type: " + oi->type ); }
   }
 
   string conv_pipe_fwd_t::gen_func( rtc_func_sig_t const & rfs ) { 
@@ -668,18 +644,17 @@ namespace boda
     cp = cp_;
     assert_st( cp );
 
-    op_infos.reset( new map_str_p_op_info_t );
+    op_infos.reset( new map_str_p_op_info_t ); // maybe we should have our own copy of cp, but instead we only copy convs
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
-      must_insert( *op_infos, i->first, make_shared< op_info_t >() );
+      must_insert( *op_infos, i->first, make_shared< op_info_t >( *i->second ) );
     }
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t const & oi = must_find( *op_infos, i->first );
-      p_conv_op_t const & cop = i->second;
-      oi->init( cp, cop, enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
+      oi->init( enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
       // this might go in init, but like k1conv's write_xformed flag, it need to know about the overall graph of
       // operations. so we'll call this a post-init() graph operation on the set of op_info_t's
-      if( cop->is( Convolution_coi ) ) {
-	p_conv_node_t no = cp->must_get_node( oi->get_arg( cop->coi->top_an(0) ) );
+      if( oi->is( Convolution_coi ) ) {
+	p_conv_node_t no = cp->must_get_node( oi->get_arg( oi->coi->top_an(0) ) );
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
 	// mark relu as fused-away; mark conv as having fused-on relu // NOTE/FIXME(?): relu may be not-init()-yet here ...
 	if( conv_has_relu ) { must_insert( must_find( *op_infos, no->in_place_ops[0]->tag )->str_vals, "fused", "1" ); } 

@@ -87,6 +87,10 @@ namespace boda
     uint32_t u32_param( string const & tvn ) { return lc_str_u32( must_find( str_vals, tvn ) ); }
     uint32_t double_param( string const & tvn ) { return lc_str_d( must_find( str_vals, tvn ) ); }
 
+    // FIXME: special-case manipulation functions for "cts" member of str_vals -- not bad, but don't belong here ...
+    string cts( void ) const { return must_find( str_vals, "cts" ); } // cts --> conv-type-str
+    void set_cts( string const & cts_ ) { must_insert( str_vals, "cts", cts_ ); }
+
     vect_string tops; // inputs (by node/blob name)
     vect_string bots; // outputs (by node/blob name)
     zi_bool in_place; // set to 1 in add_conv() is the op in in_place (and omitted from top_for/bot_for lists)
@@ -108,8 +112,20 @@ namespace boda
 
     conv_op_t( void ) : coi(0) { }
     void set_and_check_coi( void ); // verify input/output argument count and other sanity checks
-    void set_arg_dims_from_pipe( conv_pipe_t const * const cp ); // add arg_name->dims mappings to dims_vals
     bool is( conv_op_info_t const & coi ) const; // type string checking 
+
+    // arg-map and related arg/dims handling -- generally for use after conv_pipe setup complete (i.e. in rtc)
+    map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
+    void set_arg_dims_and_map_from_pipe( conv_pipe_t const * const cp ); // add arg_name->dims mappings to dims_vals
+    string get_arg( string const & an ) { return must_find( arg_map, an ); }
+    dims_t const & get_arg_dims( string const & an ) { return must_find( dims_vals, an ); }
+    void set_arg( dims_t const & dims, string const & an, string const & vn ) {
+      must_insert( dims_vals, an, dims );
+      must_insert( arg_map, an, vn );
+    }
+    void set_null_arg( string const & an ) { must_insert( dims_vals, an, dims_t() ); }
+    void erase_arg( string const & an ) { must_erase( dims_vals, an ); must_erase( arg_map, an ); }
+    void reset_arg( dims_t const & dims, string const & an, string const & vn ) { erase_arg( an ); set_arg( dims, an, vn ); }
   };
 
   typedef vector< conv_op_t > vect_conv_op_t; 
