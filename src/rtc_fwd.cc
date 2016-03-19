@@ -67,6 +67,7 @@ namespace boda
       for( uint32_t i = 0; i != cop->tops.size(); ++i ) { 
 	must_insert( arg_map, cop->coi->top_an(i), cop->tops[i] );
       }
+      if( cop->is(Reduce_coi) ) { must_insert( str_vals, "ins_num", str(cop->bots.size()) ); } // codegen tidbit for reduce
       dims_t ni_dims;
       dims_t no_dims = get_arg_dims( cop->coi->top_an(0) );
       u32_pt_t const no_sz = get_xy_dims( no_dims );
@@ -669,23 +670,20 @@ namespace boda
 
     op_infos.reset( new map_str_p_op_info_t );
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
-      p_op_info_t & oi = (*op_infos)[i->first];
-      assert_st( !oi );
-      oi = make_shared< op_info_t >();
-      oi->init( cp, i->second, enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
+      must_insert( *op_infos, i->first, make_shared< op_info_t >() );
     }
-
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t const & oi = must_find( *op_infos, i->first );
       p_conv_op_t const & cop = i->second;
+      oi->init( cp, cop, enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
+      // this might go in init, but like k1conv's write_xformed flag, it need to know about the overall graph of
+      // operations. so we'll call this a post-init() graph operation on the set of op_info_t's
       if( cop->is( Convolution_coi ) ) {
 	p_conv_node_t no = cp->must_get_node( oi->get_arg( cop->coi->top_an(0) ) );
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
-	// mark relu as fused-away; mark conv as having fused-on relu
+	// mark relu as fused-away; mark conv as having fused-on relu // NOTE/FIXME(?): relu may be not-init()-yet here ...
 	if( conv_has_relu ) { must_insert( must_find( *op_infos, no->in_place_ops[0]->tag )->str_vals, "fused", "1" ); } 
 	must_insert( oi->str_vals, "conv_has_relu", str(conv_has_relu) );
-      } else if ( cop->is( Reduce_coi ) ) {
-	must_insert( oi->str_vals, "ins_num", str(cop->bots.size()) );
       }
     }
 
