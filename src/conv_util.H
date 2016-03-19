@@ -51,6 +51,7 @@ namespace boda
   typedef conv_op_info_t const * rp_conv_op_info_t; 
   typedef vector< rp_conv_op_info_t > vect_rp_conv_op_info_t;  
 
+  // conv_op_base_t: information that defines the semantics of an operation
   struct conv_op_base_t : virtual public nesi // NESI(help="conv_op base descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -75,6 +76,9 @@ namespace boda
   typedef shared_ptr< conv_pipe_t > p_conv_pipe_t; 
   typedef vector< p_conv_pipe_t > vect_p_conv_pipe_t;
 
+  // conv_opt_t: adds information to an operation about where how it relates to other operations (i.e what it's inputs
+  // and outputs are) and a global name for this particular instance of the underlying operation; but does not change
+  // the semantics of the operation defined by the conv_op_base_t part.
   struct conv_op_t : public conv_op_base_t // NESI(help="conv_op descriptor",bases=["conv_op_base_t"])
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
