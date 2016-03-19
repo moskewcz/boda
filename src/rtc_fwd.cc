@@ -246,7 +246,7 @@ namespace boda
 
     filename_t rtc_func_sigs_fn; //NESI(default="rtc_func_sigs.txt",help="file to hold all generated func signatures")
     uint32_t write_op_sigs; //NESI(default=0,help="if 1, write op sigs to op_sigs_fn")
-    filename_t op_sigs_fn; //NESI(default="op_sigs.txt",help="file to hold unique op signatures")
+    filename_t op_sigs_fn; //NESI(default="op_sigs_full.txt",help="file to hold unique op signatures")
     set_conv_op_base_t all_op_sigs;
     p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
 
