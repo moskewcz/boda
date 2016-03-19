@@ -813,40 +813,6 @@ namespace boda
     has_bck_ops.v = 1;
   }
 
-  // this will add a param named 'conv_has_relu' to all Convolution operations, with a default of false. If there
-  // (exactly) a ReLU operation using the Convolution's output, then 'conv_has_relu' is set to 1 and the ReLU is erased.
-  // similarly, the 'write_xposed' param is set for k1conv operations. (FIXME/TODO: actually do that)
-  
-  // also, the input-size param is set here for reduce
-
-  // FIXME: since this actually modifies the graph, it should be backend-neutral, and should be called from a
-  // backend. however, currently, rtc_fwd() calls this. normally there is only one backends, so this is kinda-okay. but,
-  // it means that other backends would see a different conv_pipe depending on the orderings of multiple backends in
-  // test_dense. we're currently lucky that since the relu conv stays in the 'convs' map, and caffe both uses that map
-  // and ignores the 'in_place_ops' list, caffe will do the same thing before or after this mutation happens. in general
-  // the caffe backend is brittle/not-quite-right in the way it processes the pipe (see the 'cheating' FIXMEs) ....
-  void conv_pipe_t::fuse_relus_and_maybe_enable_write_xposed( void ) {
-    topo_visit_setup();
-    for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { framewx_rec( *i ); }
-  }
-  void conv_pipe_t::framewx_rec( string const & node_name ) {
-    p_conv_node_t node = must_get_node( node_name );
-    for( vect_string::const_iterator i = node->bot_for.begin(); i != node->bot_for.end(); ++i ) {
-      p_conv_op_t const & cop = get_op( *i );
-      if( !cop->on_seen_bot() ) { continue; } // wait till we've seen all bottoms
-      if( cop->is( Convolution_coi ) ) {
-	p_conv_node_t no = must_get_node( cop->tops[0] );
-	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
-	if( conv_has_relu ) { no->in_place_ops.erase( no->in_place_ops.begin() ); } // remove fused relu
-	must_insert( cop->str_vals, "conv_has_relu", str(conv_has_relu) );
-      } else if ( cop->is( Reduce_coi ) ) {
-	must_insert( cop->str_vals, "ins_num", str(cop->bots.size()) );
-      }
-      for( vect_string::const_iterator j = cop->tops.begin(); j != cop->tops.end(); ++j ) { framewx_rec( *j ); }
-    }
-  }
-
-
   void conv_pipe_t::fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, bool const & sinks_only ) {
     for( map_str_p_conv_node_t::const_iterator i = nodes->begin(); i != nodes->end(); ++i ) {
       p_conv_node_t const & node = i->second;

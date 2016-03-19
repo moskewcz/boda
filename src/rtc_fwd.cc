@@ -455,6 +455,7 @@ namespace boda
     // unique ops if requested
     // all_op_sigs.insert( *cop );
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
+    if( has( oi->str_vals, "fused" ) ) { return; } // operation was fused into another, so do nothing here for it
     if( cop->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != cop->bots.size(); ++bi ) {
@@ -665,8 +666,7 @@ namespace boda
   void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_ ) {
     cp = cp_;
     assert_st( cp );
-    // note: the following modifies cp, so it's not clear that is exactly the right place for it to go.
-    cp->fuse_relus_and_maybe_enable_write_xposed(); 
+
     op_infos.reset( new map_str_p_op_info_t );
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t & oi = (*op_infos)[i->first];
@@ -674,6 +674,21 @@ namespace boda
       oi = make_shared< op_info_t >();
       oi->init( cp, i->second, enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
     }
+
+    for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
+      p_op_info_t const & oi = must_find( *op_infos, i->first );
+      p_conv_op_t const & cop = i->second;
+      if( cop->is( Convolution_coi ) ) {
+	p_conv_node_t no = cp->must_get_node( oi->get_arg( cop->coi->top_an(0) ) );
+	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
+	// mark relu as fused-away; mark conv as having fused-on relu
+	if( conv_has_relu ) { must_insert( must_find( *op_infos, no->in_place_ops[0]->tag )->str_vals, "fused", "1" ); } 
+	must_insert( oi->str_vals, "conv_has_relu", str(conv_has_relu) );
+      } else if ( cop->is( Reduce_coi ) ) {
+	must_insert( oi->str_vals, "ins_num", str(cop->bots.size()) );
+      }
+    }
+
     rtc->init();
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { 
       codegen.rtc_prog_str += "#define "+*i+" 1\n"; 
