@@ -591,12 +591,16 @@ namespace boda
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     char const * const tag_id = cop->tag.c_str();
     string str_vals;
+    str_vals += ",str_vals={";
     for( map_str_dims_t::const_iterator i = cop->dims_vals.begin(); i != cop->dims_vals.end(); ++i ) {
-      str_vals += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.param_str().c_str() );
+      str_vals += strprintf( "\"%s\":\"%s\",", i->first.c_str(), i->second.param_str().c_str() );
     }
+    str_vals += "}";
+    str_vals += ",dims_vals={";
     for( map_str_str::const_iterator i = cop->str_vals.begin(); i != cop->str_vals.end(); ++i ) {
-      str_vals += strprintf( ",%s=\"%s\"", i->first.c_str(), i->second.c_str() );
+      str_vals += strprintf( "\"%s\":\"%s\",", i->first.c_str(), i->second.c_str() );
     }
+    str_vals += "}";
     out << strprintf( "net.add_op( %s(name=\"%s\",bot_names=%s,top_names=%s%s) )\n", 
 		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(), str_vals.c_str() );
   }

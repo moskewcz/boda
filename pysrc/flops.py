@@ -70,7 +70,7 @@ class Net( object ):
 
 
 class Convolution( object ): 
-    def __init__( self, name, bot_names, top_names, in_pad, stride, kern_sz, out_chans=0, conv_has_relu=0 ): 
+    def __init__( self, name, bot_names, top_names, str_vals, dims_vals ): 
         # note: ignores in_pad and stride, but they sort-of aren't
         # needed since the output size is calculated using them. we
         # could use them as a check here, but that would require
@@ -122,7 +122,7 @@ class Convolution( object ):
             print ""
 
 class BckConv( object ): 
-    def __init__( self, name, bot_names, top_names, in_pad, stride, kern_sz ): 
+    def __init__( self, name, bot_names, top_names, str_vals, dims_vals ):
         global net
         assert len(bot_names) == 4
         assert len(top_names) == 3
