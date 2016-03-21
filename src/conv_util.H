@@ -128,9 +128,9 @@ namespace boda
       must_insert( arg_map, an, vn );
     }
     void reset_arg( string const & an, string const & vn ) { must_replace( arg_map, an, vn ); }
+    void reset_arg_dims( string const & an, dims_t const & dims ) { must_replace( dims_vals, an, dims ); }
     void set_null_arg( string const & an ) { must_insert( dims_vals, an, dims_t() ); }
     void erase_arg( string const & an ) { must_erase( dims_vals, an ); must_erase( arg_map, an ); }
-    void reset_arg( dims_t const & dims, string const & an, string const & vn ) { erase_arg( an ); set_arg( dims, an, vn ); }
   };
 
   typedef vector< conv_op_t > vect_conv_op_t; 

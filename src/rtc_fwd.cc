@@ -202,7 +202,10 @@ namespace boda
 	      vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
 	  }
 	  dims_vals["work"] = work;
-	  dims_vals["out_ref"] = no_dims; // k1conv and in_tile_xpose need the standard output dims for reference
+	  // k1conv and in_tile_xpose need the standard output dims for reference. curently this == the dims of "out",
+	  // but a later pass might change the desired output format by changing the "out" dims. however, the "out_ref"
+	  // dims will remain unchanged at this value.
+	  dims_vals["out_ref"] = no_dims; 
 	  // set final desired format for input. note: (1) original 'standard' format is stored as "in_ref" earlier (2)
 	  // the dims of "in" may now differ from the dims of the global/rtc variable in the arg_map that "in" is bound
 	  // to. our convention is that we expect or detect this in codegen and emit the need xform at that point. when
@@ -433,9 +436,6 @@ namespace boda
   void set_rtc_arg( p_op_info_t const & oi, p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
     oi->set_arg( rtc->get_var_dims_floats(vn), an, vn );
   }
-  void reset_rtc_arg( p_op_info_t const & oi, p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
-    oi->reset_arg( rtc->get_var_dims_floats(vn), an, vn );
-  }
   
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     if( write_op_sigs ) { all_op_sigs.insert( *cop ); } // unique ops if requested
@@ -504,19 +504,8 @@ namespace boda
 	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_arg_dims("in"), xp_fn ) );
 	} 	
       } 
-      dims_t no_dims = oi->dims_vals["out_ref"];
-      if( oi->cts() == k1conv_str ) { 
-	p_op_info_t noi;
-	p_conv_node_t no = cp->must_get_node( oi->get_arg("out") );
-	if( no->in_place_ops.empty() && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
-	  noi = must_find( *op_infos, no->bot_for[0] ); // next operation
-	  if( enable_write_xpose && ( has(noi->str_vals,"cts") && (noi->cts() == k1conv_str) ) ) { 
-	    no_dims = noi->get_arg_dims("in"); 
-	  }
-	}
-      }
-      rtc->create_var_with_dims_floats( oi->get_arg("out"), no_dims );
-      reset_rtc_arg( oi, rtc, "out", oi->get_arg("out") );
+      // FIXME: perhaps all ops should create outputs. but for now, only conv can have non-reference output dims ...
+      rtc->create_var_with_dims_floats( oi->get_arg("out"), oi->get_arg_dims("out") ); 
       gen_call( oi->cts(), oi );
     } else if( oi->is( ReLU_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
@@ -661,8 +650,9 @@ namespace boda
     }
 
     // these parts might go in init, but they need to know about the overall graph of operations. so we'll call these a
-    // set of post-init() but pre-codegen() graph operations on the set of op_info_t's. the each individual operation
-    // should be valid for codegen and correct both before and after this pass (i.e. it is stricty an optimzation pass).
+    // set of post-init() but pre-codegen() graph operations on the set of op_info_t's. both the whole graphs and all
+    // individual operations should be valid for codegen and correct both before and after this pass (i.e. it is stricty
+    // an optimzation pass).
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t const & oi = must_find( *op_infos, i->first );
       if( oi->is( Convolution_coi ) ) {
@@ -676,7 +666,8 @@ namespace boda
 	  if( ( no->in_place_ops.size() == conv_has_relu ) && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
 	    p_op_info_t const & noi = must_find( *op_infos, no->bot_for[0] ); // next operation
 	    if( enable_write_xpose && ( has(noi->str_vals,"cts") && (noi->cts() == k1conv_str) ) ) { 
-	      //no_dims = noi->get_arg_dims("in"); // modify output argument dims. codegen will notice this and write out correctly.
+	      // modify output argument dims to match user's input dims. codegen will notice this and write out correctly.
+	      oi->reset_arg_dims( "out", noi->get_arg_dims( "in" ) );
 	    }
 	  }
 	}
