@@ -478,6 +478,7 @@ namespace boda
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const in_id = oi->arg_map["in"];
+      assert_st( oi->get_arg_dims("in") == rtc->get_var_dims_floats( in_id ) ); // hmm...
       reset_rtc_arg( oi, rtc, "in", oi->get_arg("in") ); // reset in dims from rtc, since may now differ from conv_pipe dims
       if( oi->cts() != ipconv_str ) { // ipconv uses untransformed filts
 	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
@@ -651,14 +652,29 @@ namespace boda
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t const & oi = must_find( *op_infos, i->first );
       oi->init( enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
-      // this might go in init, but like k1conv's write_xformed flag, it need to know about the overall graph of
-      // operations. so we'll call this a post-init() graph operation on the set of op_info_t's
+    }
+
+    // these parts might go in init, but they need to know about the overall graph of operations. so we'll call these a
+    // set of post-init() but pre-codegen() graph operations on the set of op_info_t's. the each individual operation
+    // should be valid for codegen and correct both before and after this pass (i.e. it is stricty an optimzation pass).
+    for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
+      p_op_info_t const & oi = must_find( *op_infos, i->first );
       if( oi->is( Convolution_coi ) ) {
-	p_conv_node_t no = cp->must_get_node( oi->get_arg( oi->coi->top_an(0) ) );
+	p_conv_node_t no = cp->must_get_node( oi->get_arg("out") ); // aka oi->coi->top_an(0) ...
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
 	// mark relu as fused-away; mark conv as having fused-on relu // NOTE/FIXME(?): relu may be not-init()-yet here ...
 	if( conv_has_relu ) { must_insert( must_find( *op_infos, no->in_place_ops[0]->tag )->str_vals, "fused", "1" ); } 
 	must_insert( oi->str_vals, "conv_has_relu", str(conv_has_relu) );
+
+	if( oi->cts() == k1conv_str ) { 
+	  if( ( no->in_place_ops.size() == conv_has_relu ) && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
+	    p_op_info_t const & noi = must_find( *op_infos, no->bot_for[0] ); // next operation
+	    if( enable_write_xpose && ( has(noi->str_vals,"cts") && (noi->cts() == k1conv_str) ) ) { 
+	      //no_dims = noi->get_arg_dims("in"); // modify output argument dims. codegen will notice this and write out correctly.
+	    }
+	  }
+	}
+
       }
     }
 
