@@ -210,8 +210,11 @@ namespace boda
 	  // variable).
 	  dims_vals["in"] = in_dims; 
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-	  dims_vals["filts_xp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
-		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
+	  dims_vals["filts_ref"] = dims_vals["filts"];
+	  if( cts() != ipconv_str ) { 
+	    dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
+		  work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
+	  }
 	  // dims_t( vect_uint32_t{out_chans}, vect_string{"out_chan"}, 1 );
 	} // end if(is_conv)
       }
@@ -482,10 +485,11 @@ namespace boda
       op_param_names.push_back( oi->get_arg("filts") );
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
-      if( oi->cts() != ipconv_str ) { // ipconv uses untransformed filts
+      string const filts_id = oi->arg_map["filts"];
+      if( oi->get_arg_dims("filts") != rtc->get_var_dims_floats( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
 	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
-	reset_rtc_arg( oi, rtc, "filts", gen_apply_func_to_var( "filts", oi->get_arg("filts"), 
-							    "filts_xp", oi->get_arg_dims("filts_xp"), filts_xp_fn ) );
+	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_arg_dims("filts"), 
+						       filts_xp_fn ) );
       }
       string const in_id = oi->arg_map["in"];
       // note: as this point: oi->get_arg_dims("in") may not == rtc->get_var_dims_floats( in_id ); see comment in init()
