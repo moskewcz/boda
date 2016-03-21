@@ -47,14 +47,14 @@ namespace boda
   struct rtc_func_sig_t : virtual public nesi //NESI(help="defines function to instantiate with template and parameters") 
   { 
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string fn; //NESI(help="name of operation; used to find template (filename is fn+'.cucl') and custom codegen hook",req=1)
+    string type; //NESI(help="op type; determines overall semantics and locates named operation metadata",req=1)
     map_str_dims_t dims_vals; //NESI(help="named template parameters that are nda dims",req=1)
     map_str_str str_vals; // //NESI(help="named template parameters that are raw strings",req=1)
     rtc_func_sig_t( void ) {}
-    rtc_func_sig_t( string const & fn_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
-      fn(fn_), dims_vals(dims_vals_), str_vals(str_vals_) { }
+    rtc_func_sig_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
+      type(type_), dims_vals(dims_vals_), str_vals(str_vals_) { }
     bool operator < ( rtc_func_sig_t const & o ) const { 
-      if( fn != o.fn ) { return fn < o.fn; }
+      if( type != o.type ) { return type < o.type; }
       if( dims_vals != o.dims_vals ) { return dims_vals < o.dims_vals; }
       if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
       return 0;
@@ -63,14 +63,6 @@ namespace boda
     string gen_unused_fn( rtc_func_names_map_t & fns ) const;
   };
   typedef shared_ptr< rtc_func_sig_t > p_rtc_func_sig_t; 
-#if 0
-  inline std::ostream & operator << ( std::ostream & out, rtc_func_sig_t const & o ) {
-    return out << strprintf( "(fn=%s,dims_vals=%s,str_vals=%s)", 
-			     str(o.fn).c_str(), 
-			     str(o.dims_vals).c_str(),
-			     str(o.str_vals).c_str() );
-  }
-#endif
   struct arg_decl_t {
     string vn;
     string io_type;
@@ -300,7 +292,7 @@ namespace boda
       if( !tpb ) { tpb = default_tpb; } // if not set, use a reasonable default
       // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
       
-      if( custom_codegen ) { custom_codegen->gen_op( this, fn ); }
+      if( custom_codegen ) { custom_codegen->gen_op( this, type ); }
 
       // make these always availible as template vars, since why not?
       set( "tpb", str(tpb) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
@@ -321,7 +313,7 @@ namespace boda
 	insert_nda_dims_sz( str_vals, i->vn, arg_dims, dims_only );
       }
 
-      rtc_prog_str += "// -- codegen begins for '"+fn+
+      rtc_prog_str += "// -- codegen begins for '"+type+
 	"'; template substituion table used (bulk sections ommited): --\n";
       for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {
 	rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
@@ -337,7 +329,7 @@ namespace boda
 	str_format_from_nvm( rtc_func_str, template_str, tf_nvm );
       } catch( rt_exception const & rte ) {
 	printf( "rfs=%s\n", str((*this)).c_str() );
-	rt_err( strprintf( "instantiation failed; see above; fn=%s; error was: %s\n", fn.c_str(), rte.err_msg.c_str() ) );
+	rt_err( strprintf( "instantiation failed; see above; type=%s; error was: %s\n", type.c_str(), rte.err_msg.c_str() ) );
       }
       rtc_prog_str += rtc_func_str;
     }

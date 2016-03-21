@@ -54,11 +54,11 @@ namespace boda
     for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { 
       p_rtc_call_gen_t const &rcg = i->second;
       if( !rcg->blks ) { 
-	printf( "skipping %s; dynamic block sizes todo\n", str(rcg->fn).c_str() );
+	printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
 	continue; 
       }
-      if( (rcg->fn == "quantize") || (rcg->fn == "dropout") ) {
-	printf( "skipping %s; u32 arg handling todo\n", str(rcg->fn).c_str() );
+      if( (rcg->type == "quantize") || (rcg->type == "dropout") ) {
+	printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
 	continue; 
       }
       map_str_str arg_map;

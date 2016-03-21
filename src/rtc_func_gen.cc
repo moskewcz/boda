@@ -49,7 +49,7 @@ namespace boda
 
 
   string rtc_func_sig_t::gen_unused_fn( rtc_func_names_map_t & fns ) const {
-    string maybe_fn_base = fn;
+    string maybe_fn_base = type;
     set_string unique_dims;
     for( map_str_dims_t::const_iterator ra = dims_vals.begin(); ra != dims_vals.end(); ++ra ) {
       dims_t const & dims = ra->second;
@@ -124,8 +124,8 @@ namespace boda
 
   string rtc_codegen_t::gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs_full ) {
     // first, get template
-    p_rtc_template_t & rtc_template = rtc_templates[rfs_full.fn];
-    if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.fn ); }
+    p_rtc_template_t & rtc_template = rtc_templates[rfs_full.type];
+    if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.type ); }
 
     // note: flat_arg_decls is unused if we already created the needed rcg_call_gen_t, but is inconvienient not create
     // here as part of createing the reduced func sig.
