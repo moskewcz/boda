@@ -1,3 +1,6 @@
+-- add k1conv write_xposed 'is-acutally-doing-something' test case
+-- add flops.py minimal automated test
+
 -- test_compute compares all intermediate layers?
 -- flops.py should handle backwards 'better' (i.e. maybe not so specially?)
 
