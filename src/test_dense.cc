@@ -376,8 +376,14 @@ namespace boda {
 	p_nda_float_t out_batch_1 = must_find( *fwd1, *i );
 	p_nda_float_t out_batch_2 = must_find( *fwd2, *i );
 	// out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
-	ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
+	if( out_batch_1->elems.sz != out_batch_2->elems.sz ) {
+	  // treat size mismatch as warning, but print to log for regression tracking, since it may or may not be a 'real' error ...
+	  (*out) << strprintf( "%s: warning: size mismatch, can't compare: DIMS1[%s] DIMS2[%s]\n", 
+			       i->c_str(), out_batch_1->dims.pretty_str().c_str(), out_batch_2->dims.pretty_str().c_str() );
+	  continue;
+	}
 	bool is_fail = 0;
+	ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
 	double vmt = get( var_mad_toler, *i, mad_toler );
 	if( (ssds_diff.mad >= vmt) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
 	vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
