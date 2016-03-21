@@ -4,6 +4,7 @@
 #include"CL/cl.hpp"
 #include"ocl_err.H"
 #include"rtc_compute.H"
+#include"timers.H"
 
 namespace boda 
 {
@@ -117,6 +118,7 @@ typedef int int32_t;
     Program prog;
     zi_bool prog_valid;
     void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo ) {
+      timer_t t("ocl_compile");
       string const src = ocl_base_decls + cucl_src;
       assert( init_done.v );
       assert( !prog_valid.v );

@@ -214,6 +214,7 @@ namespace boda
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
     map_str_dims_t all_ix_dims;
     map_str_str cgs; // code-gen sections
+    
 
     // info needed to make call
     string gen_fn;
