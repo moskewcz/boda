@@ -91,8 +91,8 @@ namespace boda
       if( func_dims.has_sz_and_stride_and_name() ) { 
 	dims_t const & call_dims = rtc->get_var_dims_floats( an->second );
 	if( call_dims != func_dims ) {
-	  rt_err( strprintf( "error: dims mismatch at call time for arg %s: call_dims=%s func_dims=%s\n", 
-			     i->vn.c_str(), str(call_dims).c_str(), str(func_dims).c_str() ) );
+	  rt_err( strprintf( "error: dims mismatch at call time for arg %s: func_dims=%s call_dims=%s call_vn=%s", 
+			     i->vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() ) );
 	}	  
       }
       rfc.in_args.push_back( an->second );
