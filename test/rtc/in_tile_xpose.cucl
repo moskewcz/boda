@@ -1,15 +1,15 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
-					  GASQ float * const in_xp ) // CUCL OUT blk_bline:blk_bx:blk_in_chan:blk_y:blk_x
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CUCL IN img:chan:y:x
+					  GASQ float * const in ) // CUCL OUT blk_bline:blk_bx:blk_in_chan:blk_y:blk_x
                                                     /* out_ref */ // CUCL REF img:chan:y:x
 /* kern_sz */  // CUCL REF y:x
 /* stride */  // CUCL REF y:x
 /* in_pad */  // CUCL REF y:x 
 /* work */  // CUCL REF blk_bline:blk_bx:out_chan_blk:blk_y:out_chan_tile:pels:out_chan
 {
-  // note: dim(in.chan) == dim(out.blk_in_chan)
+  // note: dim(in_ref.chan) == dim(out.blk_in_chan)
   // note: for out, blk_y and blk_x are in input space, but blk_bline and blk_bx are in output space. 
-  // CUCL IX GLOB_ID_1D in_xp
-  if( GLOB_ID_1D >= %(in_xp_dims_prod) ) { return; }
+  // CUCL IX GLOB_ID_1D in
+  if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }
 
   int32_t const out_ref_line = %(GLOB_ID_1D_blk_bline)*%(work_blk_y_dim);
   // CUCL IX out_ref_line out_ref use_dims=img:y 
@@ -29,15 +29,15 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
   if(  1 
        && ( ix >= 0 )
        && ( iy >= 0 )
-       && ( ix < %(in_x_dim) )
-       && ( iy < %(in_y_dim) )
-       && ( img < %(in_img_dim) )
+       && ( ix < %(in_ref_x_dim) )
+       && ( iy < %(in_ref_y_dim) )
+       && ( img < %(in_ref_img_dim) )
        )
   {
-    v = in[ img*%(in_img_sz) +
-	    %(GLOB_ID_1D_blk_in_chan)*%(in_chan_sz) +
-	    iy*%(in_y_sz) +
-	    ix*%(in_x_sz) ];
+    v = in_ref[ img*%(in_ref_img_sz) +
+	    %(GLOB_ID_1D_blk_in_chan)*%(in_ref_chan_sz) +
+	    iy*%(in_ref_y_sz) +
+	    ix*%(in_ref_x_sz) ];
   }
-  in_xp[GLOB_ID_1D] = v;
+  in[GLOB_ID_1D] = v;
 }

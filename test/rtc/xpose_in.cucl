@@ -1,27 +1,27 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
-					  GASQ float * const in_xp ) // CUCL OUT blk:blk_iter:blk_iter_chan:blk_pel
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CUCL IN img:chan:y:x
+					  GASQ float * const in ) // CUCL OUT blk:blk_iter:blk_iter_chan:blk_pel
 {
-  // CUCL IX GLOB_ID_1D in_xp
-  if( GLOB_ID_1D >= %(in_xp_dims_prod) ) { return; }
-  int32_t const in_chan_ix = %(GLOB_ID_1D_blk_iter)*%(in_xp_blk_iter_chan_dim) + %(GLOB_ID_1D_blk_iter_chan);
-  int32_t const pel_ix = %(GLOB_ID_1D_blk)*%(in_xp_blk_pel_dim) + %(GLOB_ID_1D_blk_pel);
-  // CUCL IX pel_ix in use_dims=img:y:x
+  // CUCL IX GLOB_ID_1D in
+  if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }
+  int32_t const in_chan_ix = %(GLOB_ID_1D_blk_iter)*%(in_blk_iter_chan_dim) + %(GLOB_ID_1D_blk_iter_chan);
+  int32_t const pel_ix = %(GLOB_ID_1D_blk)*%(in_blk_pel_dim) + %(GLOB_ID_1D_blk_pel);
+  // CUCL IX pel_ix in_ref use_dims=img:y:x
   float v = 0.0f;
-  if( ( in_chan_ix < %(in_chan_dim) ) && ( %(pel_ix_img) < %(in_img_dim) ) ) {
-    v = in[ %(pel_ix_img)*%(in_img_sz) +
-	    in_chan_ix*%(in_chan_sz) +
-	    %(pel_ix_y)*%(in_y_sz) +
-	    %(pel_ix_x)*%(in_x_sz) ];
+  if( ( in_chan_ix < %(in_ref_chan_dim) ) && ( %(pel_ix_img) < %(in_ref_img_dim) ) ) {
+    v = in_ref[ %(pel_ix_img)*%(in_ref_img_sz) +
+	    in_chan_ix*%(in_ref_chan_sz) +
+	    %(pel_ix_y)*%(in_ref_y_sz) +
+	    %(pel_ix_x)*%(in_ref_x_sz) ];
   }
-  in_xp[GLOB_ID_1D] = v;
+  in[GLOB_ID_1D] = v;
 }
 
 /*
 
-in_pels = num_img * in.sz.dims_prod()
+in_pels = num_img * in_ref.sz.dims_prod()
 num_in_blks = u32_ceil_div( in_pels, block_chan_pels )
 
-normal in dims: img, chan, y, x OR img, chan, pels // where pels = x,y dims merged
+normal in_ref dims: img, chan, y, x OR img, chan, pels // where pels = x,y dims merged
 
 block_iters = u32_ceil_div( chan, in_chan_tile ) // for ccp1, 96/8=12
 pad_chan =  block_iter * in_chan_tile // pad by up to (in_chan_tile-1) [typ. 8; pad with zeros? garbage okay?]

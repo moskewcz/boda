@@ -203,7 +203,12 @@ namespace boda
 	  }
 	  dims_vals["work"] = work;
 	  dims_vals["out_ref"] = no_dims; // k1conv and in_tile_xpose need the standard output dims for reference
-	  dims_vals["in_xp"] = in_dims; // cached final desired format for input (original 'standard' format is stored as "in_ref" earlier)
+	  // set final desired format for input. note: (1) original 'standard' format is stored as "in_ref" earlier (2)
+	  // the dims of "in" may now differ from the dims of the global/rtc variable in the arg_map that "in" is bound
+	  // to. our convention is that we expect or detect this in codegen and emit the need xform at that point. when
+	  // we do this, we may change the binding for "in" (e.g. to point to an xformed version of the original
+	  // variable).
+	  dims_vals["in"] = in_dims; 
 	  // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
 	  dims_vals["filts_xp"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
@@ -400,8 +405,8 @@ namespace boda
     string const ret_var = in_var + "__" + func;
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
-      rtc->create_var_with_dims_floats( ret_var, ret_dims );
       fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_str{{in_an,in_var},{ret_an,ret_var}}} );
+      rtc->create_var_with_dims_floats( ret_var, ret_dims );
     }
     return ret_var;
   }
@@ -477,25 +482,22 @@ namespace boda
       op_param_names.push_back( oi->get_arg("filts") );
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
-      string const in_id = oi->arg_map["in"];
-      assert_st( oi->get_arg_dims("in") == rtc->get_var_dims_floats( in_id ) ); // hmm...
-      reset_rtc_arg( oi, rtc, "in", oi->get_arg("in") ); // reset in dims from rtc, since may now differ from conv_pipe dims
       if( oi->cts() != ipconv_str ) { // ipconv uses untransformed filts
 	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
 	reset_rtc_arg( oi, rtc, "filts", gen_apply_func_to_var( "filts", oi->get_arg("filts"), 
 							    "filts_xp", oi->get_arg_dims("filts_xp"), filts_xp_fn ) );
       }
-      //in_arg_ids.push_back( oi->bots[2] ); // biases
+      string const in_id = oi->arg_map["in"];
+      // note: as this point: oi->get_arg_dims("in") may not == rtc->get_var_dims_floats( in_id ); see comment in init()
       if( oi->cts() == tconv_str ) {
+	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->dims_vals, oi->str_vals } );
-	reset_rtc_arg( oi, rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
-							 "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
+	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_arg_dims("in"), xp_fn ) );
       } else if( oi->cts() == k1conv_str ) {
-	if( oi->get_arg_dims("in") != oi->get_arg_dims("in_xp") ) { 
-	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME: fails if unexpected format.
+	if( oi->get_arg_dims("in") != rtc->get_var_dims_floats( in_id ) ) {
+	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
 	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->dims_vals, oi->str_vals } );
-	  reset_rtc_arg( oi, rtc, "in", gen_apply_func_to_var( "in", oi->get_arg("in"),
-							   "in_xp", oi->get_arg_dims("in_xp"), xp_fn ) );
+	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_arg_dims("in"), xp_fn ) );
 	} 	
       } 
       dims_t no_dims = oi->dims_vals["out_ref"];
