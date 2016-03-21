@@ -8,6 +8,7 @@
 #include<boost/filesystem.hpp>
 #include"lexp.H"
 #include"str_util.H"
+#include"op_base.H"
 
 namespace boda 
 {
@@ -44,21 +45,12 @@ namespace boda
   struct cnn_custom_codegen_t; typedef shared_ptr< cnn_custom_codegen_t > p_cnn_custom_codegen_t;
   p_custom_codegen_t make_cnn_custom_codegen_t( void );
 
-  struct rtc_func_sig_t : virtual public nesi //NESI(help="defines function to instantiate with template and parameters") 
+  struct rtc_func_sig_t : public op_base_t // NESI(help="defines function to instantiate with template and parameters",bases=["op_base_t"])
   { 
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string type; //NESI(help="op type; determines overall semantics and locates named operation metadata",req=1)
-    map_str_dims_t dims_vals; //NESI(help="named template parameters that are nda dims",req=1)
-    map_str_str str_vals; // //NESI(help="named template parameters that are raw strings",req=1)
-    rtc_func_sig_t( void ) {}
-    rtc_func_sig_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
-      type(type_), dims_vals(dims_vals_), str_vals(str_vals_) { }
-    bool operator < ( rtc_func_sig_t const & o ) const { 
-      if( type != o.type ) { return type < o.type; }
-      if( dims_vals != o.dims_vals ) { return dims_vals < o.dims_vals; }
-      if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
-      return 0;
-    }
+    rtc_func_sig_t( void ) { }
+    rtc_func_sig_t( string const & fn, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) : 
+      op_base_t( fn, dims_vals_, str_vals_ ) {}
     uint32_t get_u32_tvv( string const & tvn ) const { return lc_str_u32( must_find( str_vals, tvn ) ); }
     string gen_unused_fn( rtc_func_names_map_t & fns ) const;
   };
