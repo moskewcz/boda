@@ -100,6 +100,11 @@ namespace boda
     bool const did_ins = kvm.insert( std::make_pair( k, v ) ).second;
     assert_st( did_ins );
   }		      
+  template< typename T > void must_replace( T & kvm, typename T::key_type const & k, typename T::mapped_type const & v ) {
+    typename T::iterator i = kvm.find( k );
+    if( i == kvm.end() ) { rt_err( "missing key-to-replace:" + str(k) ); }
+    i->second = v;
+  }		      
   template< typename T > void must_erase( T & kvm, typename T::key_type const & k ) {
     uint32_t const num_del = kvm.erase( k );
     assert_st( num_del == 1 );
