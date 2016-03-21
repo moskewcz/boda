@@ -2,6 +2,7 @@
 #define _CONV_UTIL_H_
 
 #include"conv_common.H"
+#include"op_base.H"
 #include"str_util.H"
 
 namespace caffe { struct NetParameter; struct NetState; }
@@ -51,25 +52,6 @@ namespace boda
   typedef conv_op_info_t const * rp_conv_op_info_t; 
   typedef vector< rp_conv_op_info_t > vect_rp_conv_op_info_t;  
 
-  // conv_op_base_t: information that defines the semantics of an operation
-  struct conv_op_base_t : virtual public nesi // NESI(help="conv_op base descriptor") 
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string type; //NESI(help="type of op; may impact in/out size calculations",req=1)
-    map_str_dims_t dims_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/dims list." )
-    map_str_str str_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
-
-    conv_op_base_t( void ) {}
-    conv_op_base_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
-      type(type_), dims_vals(dims_vals_), str_vals(str_vals_) { }
-    bool operator < ( conv_op_base_t const & o ) const { 
-      if( type != o.type ) { return type < o.type; }
-      if( dims_vals != o.dims_vals ) { return dims_vals < o.dims_vals; }
-      if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
-      return 0;
-    }
-
-  };
 
   struct conv_pipe_t;
   typedef vector< conv_pipe_t > vect_conv_pipe_t; 
@@ -78,8 +60,8 @@ namespace boda
 
   // conv_opt_t: adds information to an operation about where how it relates to other operations (i.e what it's inputs
   // and outputs are) and a global name for this particular instance of the underlying operation; but does not change
-  // the semantics of the operation defined by the conv_op_base_t part.
-  struct conv_op_t : public conv_op_base_t // NESI(help="conv_op descriptor",bases=["conv_op_base_t"])
+  // the semantics of the operation defined by the op_base_t part.
+  struct conv_op_t : public op_base_t // NESI(help="conv_op descriptor",bases=["op_base_t"])
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string tag; //NESI(help="tag to refer to conv op by",req=1)

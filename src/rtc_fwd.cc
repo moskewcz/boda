@@ -226,7 +226,7 @@ namespace boda
 
   typedef shared_ptr< dims_t > p_dims_t; 
 
-  typedef set< conv_op_base_t > set_conv_op_base_t;
+  typedef set< op_base_t > set_op_base_t;
 
   struct conv_pipe_fwd_t : virtual public nesi, public has_conv_fwd_t // NESI(help="compute conv pipe forward using rtc",
 			   // bases=["has_conv_fwd_t"], type_id="rtc" )
@@ -258,7 +258,7 @@ namespace boda
     filename_t rtc_func_sigs_fn; //NESI(default="rtc_func_sigs.txt",help="file to hold all generated func signatures")
     uint32_t write_op_sigs; //NESI(default=0,help="if 1, write op sigs to op_sigs_fn")
     filename_t op_sigs_fn; //NESI(default="op_sigs_full.txt",help="file to hold unique op signatures")
-    set_conv_op_base_t all_op_sigs;
+    set_op_base_t all_op_sigs;
     p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
 
     p_conv_pipe_t cp;
@@ -418,19 +418,19 @@ namespace boda
   }
 
   // FIXME: mostly dup'd with similar code in rtc_func_gen.cc for generated function signatures
-  typedef shared_ptr< conv_op_base_t > p_conv_op_base_t; 
-  p_conv_op_base_t make_p_conv_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
-  void write_sigs( set_conv_op_base_t & all_op_sigs, filename_t const & op_sigs_fn ) {
+  typedef shared_ptr< op_base_t > p_op_base_t; 
+  p_op_base_t make_p_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+  void write_sigs( set_op_base_t & all_op_sigs, filename_t const & op_sigs_fn ) {
     if( boost::filesystem::is_regular_file( op_sigs_fn.exp ) ) {  // read in existing contents of file if it exists
       p_vect_string in_lines = readlines_fn( op_sigs_fn );
       for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
-	p_conv_op_base_t v = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+	p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
 	all_op_sigs.insert( *v );
       }
     }
     // write set back out
     p_ofstream out = ofs_open( op_sigs_fn );
-    for( set_conv_op_base_t::const_iterator i = all_op_sigs.begin(); i != all_op_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
+    for( set_op_base_t::const_iterator i = all_op_sigs.begin(); i != all_op_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
   }
 
   void set_rtc_arg( p_op_info_t const & oi, p_rtc_compute_t const & rtc, string const & an, string const & vn ) {

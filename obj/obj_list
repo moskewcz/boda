@@ -73,6 +73,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+op_base.o
 rtc_prof.o
 cnn_codegen.o
 rtc_func_gen.o
