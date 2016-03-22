@@ -11,6 +11,11 @@
 #include<sys/stat.h>
 #include<fcntl.h>
 
+void boda_assert_fail( char const * expr, char const * file, unsigned int line, char const * func ) throw() {
+  fprintf(stderr,"boda: %s:%u: %s: Assertion failed: %s\n",file,line,func,expr);
+  abort();
+}
+
 namespace boda 
 {
   using std::get_deleter;

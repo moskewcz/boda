@@ -14,13 +14,11 @@
 #include<boost/integer_traits.hpp>
 #include<math.h>
 
-# define assert_st(expr)							\
-  ((expr)								\
-   ? __ASSERT_VOID_CAST (0)						\
-   : __assert_fail ((std::string(" failed:\n") + __STRING(expr)+\
-		     "\n "+stacktrace_str( get_backtrace(), 0 )).c_str(),	\
-		    __FILE__, __LINE__, __ASSERT_FUNCTION))
+void boda_assert_fail( char const * expr, char const * file, unsigned int line, char const * func )
+  throw() __attribute__ ((__noreturn__));
 
+#define assert_st(expr) ((expr) ? static_cast<void>(0) : boda_assert_fail( (std::string("\n") + #expr + \
+		     "\n "+stacktrace_str( get_backtrace(), 0 )).c_str(), __FILE__, __LINE__, __PRETTY_FUNCTION__ ) )
 
 namespace boost {
   namespace iostreams {
