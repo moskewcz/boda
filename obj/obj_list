@@ -5,7 +5,12 @@
 # adjust paths below as needed. note that if no special paths are needed for a feature (i.e. it is present in the system
 # include/library paths), one need not specify them here. in the limit, for system-wide header-only libraries, a
 # dependency section may be empty. however, it will still function in order to disable particular object files from
-# being built if desired.
+# being built if desired. note: the results of processing this file will be written to the file: dependencies.make
+
+[base] # special basic setup / global dependencies; always enabled, will always be emmited first in dependencies.make
+CPP := g++
+CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall 
+LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lboost_program_options 
 
 [lmdb]
 # assume system defaults include needed include/lib dirs
@@ -134,10 +139,10 @@ pyif.o python
 pyif-no-python-stub.o -python
 octif.o octave
 octif-no-octave-stub.o -octave
-boda.o  
 str_util.o 
 geom_prim.o
 boda_base.o 
 pugixml.o
 lodepng.o 
 boda_help.o
+boda.o

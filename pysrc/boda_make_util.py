@@ -43,7 +43,8 @@ class DepFileProc( object ):
 ospj = os.path.join
 
 class DepInfo( object ): 
-    def __init__( self ): 
+    def __init__( self, name ): 
+        self.name = name
         self.use_cnt = 0
         self.enable = 0
         self.force_disable = 0
@@ -109,7 +110,7 @@ class GenObjList( object ):
     def parse_dep( self, sec_start ):
         dep_name = sec_start[0]
         if dep_name in self.deps: self.parse_error( "duplicate dep section" )
-        new_dep = DepInfo()
+        new_dep = DepInfo(dep_name)
         needs_str = "needs="
         gen_fn_str = "gen_fn="
         for opt in sec_start[1:]:
@@ -122,9 +123,14 @@ class GenObjList( object ):
             new_dep.lines.append( self.cur_orig_line ) # note: whitespace preserved
             self.next_line();
         self.deps[dep_name] = new_dep
+        self.deps_list.append( new_dep )
 
     def __init__( self ):    
         self.deps = {}
+        # we also keep a list of deps (in addition to the map) to preserve declaration order to use when emmiting
+        # dependencies.make; this only matters for the 'base' dep currently, and probably should *not* be allowed to
+        # matter for other deps. however, having the orders agree does seem sensible overall.
+        self.deps_list = [] 
         self.gen_fns = set()
         self.gen_objs = []
         self.proj_root_dir = '..'
@@ -149,15 +155,18 @@ class GenObjList( object ):
         gen_objs.write( ''.join( gen_obj + '\n' for gen_obj in self.gen_objs ) )
         gen_objs.close()
 
+        # force enable the 'base' dep
+        self.deps['base'].make_enabled( 'base', self.deps )
+
         # enable directly used deps (and recursivly thier needs/sub-dep usages)
         for dep_name, dep in self.deps.iteritems(): 
             if dep.use_cnt != 0:
                 dep.make_enabled( dep_name, self.deps ) 
 
         dep_make = open('dependencies.make','w')
-        for dep_name, dep in self.deps.iteritems():
+        for dep in self.deps_list:
             dep_make.write( "# generated make lines for dependency: %s use_cnt=%s force_disable=%s\n" % 
-                            (dep_name,dep.use_cnt,dep.force_disable) )
+                            (dep.name,dep.use_cnt,dep.force_disable) )
             if not dep.enable: 
                 dep_make.write( "# not enabled, skipping.\n" )
                 continue 
