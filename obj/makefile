@@ -8,7 +8,8 @@
 $(info py_prebuild_rm_okay: $(shell rm -f prebuild.okay )) # remove marker file
 # run python build code: # reads obj_list; creates an empty prebuild.okay file on success. also generates code and bulk of makefile.
 # FIXME: make seems to somtimes like to run prebuild.py multiple times -- which is not great, but okay.
-$(info py_prebuild_hook:  $(shell python ../pysrc/prebuild.py )) 
+OBJ_LIST_FN := obj_list
+$(info py_prebuild_hook:  $(shell python ../pysrc/prebuild.py --obj-list-fn=${OBJ_LIST_FN} )) 
 ifeq ($(shell test -f prebuild.okay ; echo $$? ),1)
 $(error "prebuild.okay file does not exist. assuming prebuild.py failed, aborting make")
 endif

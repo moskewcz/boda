@@ -125,7 +125,7 @@ class GenObjList( object ):
         self.deps[dep_name] = new_dep
         self.deps_list.append( new_dep )
 
-    def __init__( self ):    
+    def __init__( self, obj_list_fn ):    
         self.deps = {}
         # we also keep a list of deps (in addition to the map) to preserve declaration order to use when emmiting
         # dependencies.make; this only matters for the 'base' dep currently, and probably should *not* be allowed to
@@ -134,7 +134,7 @@ class GenObjList( object ):
         self.gen_fns = set()
         self.gen_objs = []
         self.proj_root_dir = '..'
-        ol_fn = ospj(self.proj_root_dir,"obj","obj_list")
+        ol_fn = ospj(self.proj_root_dir,"obj", obj_list_fn )
         self.ol_lines = open( ol_fn ).readlines()
         if not self.ol_lines: raise ValueError( "empty obj_list file at: " + ol_fn )
         self.next_ol_line = 0
