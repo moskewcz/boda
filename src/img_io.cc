@@ -7,7 +7,7 @@
 #include<boost/iostreams/device/mapped_file.hpp>
 #include"has_main.H"
 #include"timers.H"
-#include<omp.h>
+// #include<omp.h> // not currently needed (even when OpenMP is used)
 
 namespace boda 
 {
