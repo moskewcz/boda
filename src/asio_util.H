@@ -77,9 +77,9 @@ namespace boda {
     }
   }
 
-  template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ = 0 > inline 
+  template< typename AsioWritable, typename check_T<typename AsioWritable::lowest_layer_type>::int_ > inline 
   void bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ) { write( out, buffer( d, sz ) ); }
-  template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > inline
+  template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ > inline
   void bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ) { read( in, buffer( d, sz ) ); }
 
   // shm related functionality. break this up more? de-templatize and/or explicitly instantiate to reduce header code?
