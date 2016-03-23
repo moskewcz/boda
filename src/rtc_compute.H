@@ -14,7 +14,6 @@ namespace boda
     string be; //NESI(help="name of back-end to use for rtc",req=1)
 
     virtual void init( void ) = 0;
-    virtual void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo ) = 0;
 
     // rp_float <-> var copies; var must exist; assumes the raw float pointer points to a block of floats of size at least as big as the var
     virtual void copy_to_var( string const & vn, float const * const v ) = 0;
@@ -24,12 +23,14 @@ namespace boda
     uint32_t get_var_sz_floats( string const & vn );
     virtual void set_var_to_zero( string const & vn ) = 0;
     
-    // note: post-compilation, MUST be called exactly once on all functions that will later be run()
-    virtual void check_runnable( string const name, bool const show_func_attrs ) = 0;
+    // note: must specify all functions that will ever be called from this source block at compile time.
+    virtual void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo,
+			  vect_string const & func_names, bool const show_func_attrs ) = 0;
     // note: run() overwrites / fills in the call_id field. it is valid after run() returns until realease_per_call_id_data() is called.
     virtual void run( rtc_func_call_t & rfc ) = 0; 
     virtual void finish_and_sync( void ) = 0;
     virtual void release_per_call_id_data( void ) = 0; // invalidates all call_ids inside rtc_func_call_t's
+    virtual void release_all_funcs( void ) = 0; 
 
     // get duration from start of call b to end of call e (where b may == e to time a single call).
 

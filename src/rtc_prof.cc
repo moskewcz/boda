@@ -87,8 +87,6 @@ namespace boda
     }
 #endif
     
-    rtc->compile( codegen.rtc_prog_str, show_compile_log, enable_lineinfo );
-    for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
 
     rtc->finish_and_sync();
     run_calls();
@@ -102,7 +100,9 @@ namespace boda
     if( enable_prof ) { rtc->profile_start(); }
     for( vect_rcg_func_call_t::iterator i = calls.begin(); i != calls.end(); ++i ) { 
       printf( "run: i->rtc_func_name=%s\n", str(i->rtc_func_name).c_str() );
+      rtc->compile( codegen.rtc_prog_str, show_compile_log, enable_lineinfo, {i->rtc_func_name}, show_func_attrs );
       run_rfc( *i ); 
+      rtc->release_all_funcs();
     }
     rtc->finish_and_sync();
     float const compute_dur = calls.empty() ? 0.0f : rtc->get_dur( calls.front().call_id, calls.back().call_id );

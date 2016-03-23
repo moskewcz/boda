@@ -84,7 +84,7 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
       rtc->init();
       p_string prog_str = read_whole_fn( prog_fn );
-      rtc->compile( *prog_str, 0, 0 );
+      rtc->compile( *prog_str, 0, 0, {"my_dot"}, 0 );
 
       vect_float a( data_sz, 0.0f );
       rand_fill_vect( a, 2.5f, 7.5f, gen );
@@ -100,11 +100,10 @@ namespace boda
       rfc.tpb.v = 256;
       rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
 
-      rtc->check_runnable( rfc.rtc_func_name, 0 );
-
       rtc->run( rfc );
       rtc->finish_and_sync();
       rtc->set_vect_float_from_var( c, "c" );
+      rtc->release_all_funcs();
       assert_st( b.size() == a.size() );
       assert_st( c.size() == a.size() );
       for( uint32_t i = 0; i != c.size(); ++i ) {

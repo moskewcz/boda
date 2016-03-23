@@ -191,22 +191,40 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       init_done.v = 1;
     }
 
-    p_CUmodule cu_mod;
-    void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo ) {
+    void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo,
+		  vect_string const & func_names, bool const show_func_attrs ) {
       string const src = cu_base_decls + cucl_src;
       assert( init_done.v );
       write_whole_fn( "out.cu", src );
       string const prog_ptx = nvrtc_compile( src, show_compile_log, enable_lineinfo );
       write_whole_fn( "out.ptx", prog_ptx );
-      assert( !cu_mod );
       CUmodule new_cu_mod;
       cu_err_chk( cuModuleLoadDataEx( &new_cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
-      cu_mod = make_p_CUmodule( new_cu_mod );
+      p_CUmodule cu_mod = make_p_CUmodule( new_cu_mod );
+      for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
+	check_runnable( cu_mod, *i, show_func_attrs );
+      }
     }
+
+    // note: post-compilation, MUST be called exactly once on all functions that will later be run()
+    void check_runnable( p_CUmodule const & cu_mod, string const name, bool const show_func_attrs ) {
+      assert_st( cu_mod );
+      CUfunction cu_func;
+      cu_err_chk( cuModuleGetFunction( &cu_func, *cu_mod, name.c_str() ), "cuModuleGetFunction" );
+      // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
+      // cu_err_chk( cuFuncSetCacheConfig( cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
+      if( show_func_attrs ) {
+	string rfas = cu_get_all_func_attrs( cu_func );
+	printf( "%s: \n%s", name.c_str(), str(rfas).c_str() );
+      }
+      must_insert( *cu_funcs, name, nv_func_info_t{ cu_func, cu_mod } );
+    }
+
     CUdeviceptr null_cup; // inited to 0; used to pass null device pointers to kernels. note, however, that the value is
 			  // generally unused, so the value doesn't really matter currently. it might later of course.
     p_map_str_var_info_t vis;
     p_map_str_nv_func_info_t cu_funcs;
+    virtual void release_all_funcs( void ) { cu_funcs->clear(); }
 
     vect_call_ev_t call_evs;
     call_ev_t & get_call_ev( uint32_t const & call_id ) { assert_st( call_id < call_evs.size() ); return call_evs[call_id]; }
@@ -235,20 +253,6 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     void set_var_to_zero( string const & vn ) { must_find( *vis, vn ).cup->set_to_zero(); }
     
     nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_nv_func_info_t ) { }
-
-    // note: post-compilation, MUST be called exactly once on all functions that will later be run()
-    void check_runnable( string const name, bool const show_func_attrs ) {
-      assert_st( cu_mod );
-      CUfunction cu_func;
-      cu_err_chk( cuModuleGetFunction( &cu_func, *cu_mod, name.c_str() ), "cuModuleGetFunction" );
-      // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
-      // cu_err_chk( cuFuncSetCacheConfig( cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
-      if( show_func_attrs ) {
-	string rfas = cu_get_all_func_attrs( cu_func );
-	printf( "%s: \n%s", name.c_str(), str(rfas).c_str() );
-      }
-      must_insert( *cu_funcs, name, nv_func_info_t{ cu_func, cu_mod } );
-    }
 
     void add_args( vect_string const & args, vect_rp_void & cu_func_args ) {
       for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {

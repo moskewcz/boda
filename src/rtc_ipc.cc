@@ -309,9 +309,11 @@ namespace boda
 	worker->flush();
       }
     }
-
-    void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo ) {
-      bwrite( *worker, string("compile") ); bwrite( *worker, cucl_src ); bwrite( *worker, show_compile_log ); bwrite( *worker, enable_lineinfo ); 
+    void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo,
+		  vect_string const & func_names, bool const show_func_attrs ) {
+      bwrite( *worker, string("compile") ); 
+      bwrite( *worker, cucl_src ); bwrite( *worker, show_compile_log ); bwrite( *worker, enable_lineinfo ); 
+      bwrite( *worker, func_names ); bwrite( *worker, show_func_attrs ); 
       worker->flush();
     }
     void copy_to_var( string const & vn, float const * const v ) {
@@ -333,12 +335,6 @@ namespace boda
     dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { bwrite( *worker, string("set_var_to_zero") ); bwrite( *worker, vn ); worker->flush(); }
     
-
-    // note: post-compilation, MUST be called exactly once on all functions that will later be run()
-    void check_runnable( string const name, bool const show_func_attrs ) {
-      bwrite( *worker, string("check_runnable") ); bwrite( *worker, name ); bwrite( *worker, show_func_attrs ); worker->flush();
-    }
-
     virtual float get_dur( uint32_t const & b, uint32_t const & e ) { 
       float ret;
       bwrite( *worker, string("get_dur") ); bwrite( *worker, b ); bwrite( *worker, e ); worker->flush(); bread( *worker, ret );
@@ -353,6 +349,7 @@ namespace boda
 
     void finish_and_sync( void ) { bwrite( *worker, string("finish_and_sync") ); worker->flush(); }
     void release_per_call_id_data( void ) { bwrite( *worker, string("release_per_call_id_data") ); worker->flush(); }
+    void release_all_funcs( void ) { bwrite( *worker, string("release_all_funcs") ); worker->flush(); }
 
     void profile_start( void ) { bwrite( *worker, string("profile_start") ); worker->flush(); }
     void profile_stop( void ) { bwrite( *worker, string("profile_stop") ); worker->flush(); }
@@ -476,9 +473,10 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	else if( cmd == "init" ) { rtc->init(); }
 	else if( cmd == "quit" ) { break; }
 	else if( cmd == "compile" ) {
-	  string cucl_src; bool show_compile_log; bool enable_lineinfo;
+	  string cucl_src; bool show_compile_log; bool enable_lineinfo; vect_string func_names; bool show_func_attrs;
 	  bread( *parent, cucl_src ); bread( *parent, show_compile_log ); bread( *parent, enable_lineinfo );
-	  rtc->compile( cucl_src, show_compile_log, enable_lineinfo );
+	  bread( *parent, func_names ); bread( *parent, show_func_attrs );
+	  rtc->compile( cucl_src, show_compile_log, enable_lineinfo, func_names, show_func_attrs );
 	}
 	else if( cmd == "copy_to_var" ) {
 	  string vn;
@@ -511,11 +509,6 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	  bread( *parent, vn );
 	  rtc->set_var_to_zero( vn );
 	}
-	else if( cmd == "check_runnable" ) { 
-	  string name; bool show_func_attrs;
-	  bread( *parent, name ); bread( *parent, show_func_attrs );
-	  rtc->check_runnable( name, show_func_attrs );
-	}
 	else if( cmd == "get_dur" ) { 
 	  uint32_t b,e; bread( *parent, b ); bread( *parent, e ); 
 	  float const ret = rtc->get_dur( b, e ); 
@@ -526,6 +519,7 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	else if( cmd == "profile_start" ) { rtc->profile_start(); }
 	else if( cmd == "profile_stop" ) { rtc->profile_stop(); }
 	else if( cmd == "release_per_call_id_data" ) { rtc->release_per_call_id_data(); }
+	else if( cmd == "release_all_funcs" ) { rtc->release_all_funcs(); }
 	else { rt_err("bad command:"+cmd); }
       }
     }

@@ -683,8 +683,10 @@ namespace boda
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
     //codegen.write_rtc_func_sigs( rtc_func_sigs_fn );
     if( write_op_sigs ) { write_sigs( all_op_sigs, op_sigs_fn ); }
-    rtc->compile( codegen.rtc_prog_str, show_compile_log, enable_lineinfo );
-    for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { rtc->check_runnable( i->first, show_func_attrs ); }
+    vect_string all_funcs;
+    for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) {
+      all_funcs.push_back( i->first ); }
+    rtc->compile( codegen.rtc_prog_str, show_compile_log, enable_lineinfo, all_funcs, show_func_attrs );
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
     for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( *i ); }
     for( vect_rcg_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); } // init-time-only calls

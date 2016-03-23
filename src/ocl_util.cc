@@ -186,26 +186,43 @@ typedef int int32_t;
       init_done.v = 1;
     }
 
-    cl_program_t prog;
+    // note: post-compilation, MUST be called exactly once on all functions that will later be run()
+    void check_runnable( cl_program_t const & prog, string const name, bool const show_func_attrs ) {
+      assert_st( prog.valid() );
+      cl_int err = 0;
+      cl_kernel_t kern;
+      kern.reset( clCreateKernel( prog.v, name.c_str(), &err ) );
+      cl_err_chk( err, "clCreateKernel()" );
+      if( show_func_attrs ) {
+	// FIXME: TODO
+      }
+      must_insert( *kerns, name, kern );
+    }
 
-    void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo ) {
+    void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo,
+		  vect_string const & func_names, bool const show_func_attrs ) {
       timer_t t("ocl_compile");
-      string const src = ocl_base_decls + cucl_src;
+      string const ocl_src = ocl_base_decls + src;
       assert( init_done.v );
-      write_whole_fn( "out.cl", src );
-      assert( !prog.valid() );
-      char const * rp_src = src.c_str();
+      write_whole_fn( "out.cl", ocl_src );
+      char const * rp_src = ocl_src.c_str();
       cl_int err;
+      cl_program_t prog;
       prog.reset( clCreateProgramWithSource( context.v, 1, &rp_src, 0, &err ) );
       cl_err_chk( err, "clCreateProgramWithSource" );
       err = clBuildProgram( prog.v, use_devices.size(), &use_devices[0], "-cl-fast-relaxed-math -cl-denorms-are-zero", 0, 0 );
       cl_err_chk_build( err, prog.v, use_devices );
+      for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
+	check_runnable( prog, *i, show_func_attrs );
+      }
     }
 
     cl_mem_t null_buf; // inited to 0; used to pass null device pointers to kernels. note, however, that the value is
                        // generally unused, so the value doesn't really matter currently. it might later of course.
     p_map_str_cl_var_info_t vis;
     p_map_str_cl_kernel_t kerns;
+    virtual void release_all_funcs( void ) { kerns->clear(); }
+
 
     void copy_to_var( string const & vn, float const * const v ) {
       cl_mem_t const & buf = must_find( *vis, vn ).buf;
@@ -248,19 +265,6 @@ typedef int int32_t;
     }
     
     ocl_compute_t( void ) : vis( new map_str_cl_var_info_t ), kerns( new map_str_cl_kernel_t ) { }
-
-    // note: post-compilation, MUST be called exactly once on all functions that will later be run()
-    void check_runnable( string const name, bool const show_func_attrs ) {
-      assert_st( prog.valid() );
-      cl_int err = 0;
-      cl_kernel_t kern;
-      kern.reset( clCreateKernel( prog.v, name.c_str(), &err ) );
-      cl_err_chk( err, "clCreateKernel()" );
-      if( show_func_attrs ) {
-	// FIXME: TODO
-      }
-      must_insert( *kerns, name, kern );
-    }
 
     vect_cl_event_t call_evs;
     cl_event_t & get_call_ev( uint32_t const & call_id ) { assert_st( call_id < call_evs.size() ); return call_evs[call_id]; }
