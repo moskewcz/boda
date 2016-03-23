@@ -1,4 +1,4 @@
-(fn=copy,ref_dims=(in=(img=3,chan=256,y=13,x=13),out=(img=3,chan=512,y=13,x=13)),template_var_values=(ocix=0))
-(fn=copy,ref_dims=(in=(img=3,chan=256,y=13,x=13),out=(img=3,chan=512,y=13,x=13)),template_var_values=(ocix=256))
-(fn=copy,ref_dims=(in=(img=3,chan=128,y=27,x=27),out=(img=3,chan=256,y=27,x=27)),template_var_values=(ocix=0))
-(fn=copy,ref_dims=(in=(img=3,chan=128,y=27,x=27),out=(img=3,chan=256,y=27,x=27)),template_var_values=(ocix=128))
+(type=copy,dims_vals=(in=(img=3,chan=256,y=13,x=13),out=(img=3,chan=512,y=13,x=13)),str_vals=(ocix=0))
+(type=copy,dims_vals=(in=(img=3,chan=256,y=13,x=13),out=(img=3,chan=512,y=13,x=13)),str_vals=(ocix=256))
+(type=copy,dims_vals=(in=(img=3,chan=128,y=27,x=27),out=(img=3,chan=256,y=27,x=27)),str_vals=(ocix=0))
+(type=copy,dims_vals=(in=(img=3,chan=128,y=27,x=27),out=(img=3,chan=256,y=27,x=27)),str_vals=(ocix=128))
