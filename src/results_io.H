@@ -115,7 +115,7 @@ namespace boda
   void score_results_file( std::string const & pil_fn, std::string const & res_fn, std::string const &class_name );
   void run_dfc( std::string const & pil_fn, std::string const & res_fn, std::string const &class_name );
 
-  class img_db_t;
+  struct img_db_t;
   typedef shared_ptr< img_db_t > p_img_db_t;
   void write_results_file( p_img_db_t img_db, string const & fn, p_per_class_scored_dets_t scored_dets );
   void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix );

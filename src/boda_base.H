@@ -22,9 +22,9 @@ void boda_assert_fail( char const * expr, char const * file, unsigned int line, 
 
 namespace boost {
   namespace iostreams {
-    struct mapped_file;
-    struct mapped_file_source;
-    struct mapped_file_sink;
+    class mapped_file;
+    class mapped_file_source;
+    class mapped_file_sink;
   }
 }
 namespace boda
@@ -158,7 +158,7 @@ namespace boda
   typedef map< string, double > map_str_double;
   typedef map< string, string > map_str_str;
   typedef map< string, vect_string > map_str_vect_string;
-  class dims_t;
+  struct dims_t;
   typedef map< string, dims_t > map_str_dims_t;
 
   template< typename T > struct check_T { typedef void void_; typedef int int_; };

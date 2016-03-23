@@ -5,7 +5,7 @@
 #include"op_base.H"
 #include"str_util.H"
 
-namespace caffe { struct NetParameter; struct NetState; }
+namespace caffe { class NetParameter; class NetState; }
 
 namespace boda 
 {

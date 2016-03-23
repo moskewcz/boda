@@ -4,7 +4,7 @@
 
 #include"boda_base.H"
 
-namespace pugi { struct xml_node; }
+namespace pugi { class xml_node; }
 
 namespace boda {
 

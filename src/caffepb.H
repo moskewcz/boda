@@ -10,7 +10,7 @@
 #include<string>
 #include"conv_util.H" // could use pre-decls instead ...
 
-namespace caffe { struct NetParameter; struct ConvolutionParameter; }
+namespace caffe { class NetParameter; class ConvolutionParameter; }
 
 namespace boda {
   typedef caffe::NetParameter net_param_t;
