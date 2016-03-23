@@ -108,7 +108,6 @@ namespace boda
 
   typedef shared_ptr< CUevent > p_CUevent; 
   typedef vector< p_CUevent > vect_p_CUevent; 
-
   void cuEventDestroy_wrap( CUevent const * const p ) { 
     if(!p){return;} 
     cu_err_chk( cuEventDestroy( *p ), "cuEventDestroy" ); 
@@ -119,8 +118,21 @@ namespace boda
     return p_CUevent( new CUevent( ret ), cuEventDestroy_wrap ); 
   }
 
-  typedef map< string, CUfunction > map_str_CUfunction_t;
-  typedef shared_ptr< map_str_CUfunction_t > p_map_str_CUfunction_t;
+  typedef shared_ptr< CUmodule > p_CUmodule; 
+  void cuModuleUnload_wrap( CUmodule const * const p ) { if(!p){return;}  cu_err_chk( cuModuleUnload( *p ), "cuModuleUnload" ); }
+  p_CUmodule make_p_CUmodule( CUmodule to_own ) { return p_CUmodule( new CUmodule( to_own ), cuModuleUnload_wrap ); }
+
+  // unlink opencl, functions implicity tied to the lifetime of thier module. if we use one-module-per-function, we need
+  // to keep a ref to the module alongside the func so we can free the module when we want to free the function. also,
+  // note that there is no reference counting for the module in the CUDA driver API, just load/unload, so we'd need to
+  // do that ourselves. this might not be needed currently, but allows for arbitrary funcs->modules mappings.
+  struct nv_func_info_t {
+    CUfunction func;
+    p_CUmodule mod;
+  };
+
+  typedef map< string, nv_func_info_t > map_str_nv_func_info_t;
+  typedef shared_ptr< map_str_nv_func_info_t > p_map_str_nv_func_info_t; 
 
   struct call_ev_t {
     p_CUevent b_ev;
@@ -179,22 +191,22 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       init_done.v = 1;
     }
 
-    CUmodule cu_mod;
-    zi_bool mod_valid;
+    p_CUmodule cu_mod;
     void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo ) {
       string const src = cu_base_decls + cucl_src;
       assert( init_done.v );
       write_whole_fn( "out.cu", src );
       string const prog_ptx = nvrtc_compile( src, show_compile_log, enable_lineinfo );
       write_whole_fn( "out.ptx", prog_ptx );
-      assert( !mod_valid.v );
-      cu_err_chk( cuModuleLoadDataEx( &cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
-      mod_valid.v = 1;
+      assert( !cu_mod );
+      CUmodule new_cu_mod;
+      cu_err_chk( cuModuleLoadDataEx( &new_cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
+      cu_mod = make_p_CUmodule( new_cu_mod );
     }
     CUdeviceptr null_cup; // inited to 0; used to pass null device pointers to kernels. note, however, that the value is
 			  // generally unused, so the value doesn't really matter currently. it might later of course.
     p_map_str_var_info_t vis;
-    p_map_str_CUfunction_t cu_funcs;
+    p_map_str_nv_func_info_t cu_funcs;
 
     vect_call_ev_t call_evs;
     call_ev_t & get_call_ev( uint32_t const & call_id ) { assert_st( call_id < call_evs.size() ); return call_evs[call_id]; }
@@ -222,20 +234,20 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { must_find( *vis, vn ).cup->set_to_zero(); }
     
-    nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_CUfunction_t ) { }
+    nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_nv_func_info_t ) { }
 
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()
     void check_runnable( string const name, bool const show_func_attrs ) {
-      assert_st( mod_valid.v );
+      assert_st( cu_mod );
       CUfunction cu_func;
-      cu_err_chk( cuModuleGetFunction( &cu_func, cu_mod, name.c_str() ), "cuModuleGetFunction" );
+      cu_err_chk( cuModuleGetFunction( &cu_func, *cu_mod, name.c_str() ), "cuModuleGetFunction" );
       // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
       // cu_err_chk( cuFuncSetCacheConfig( cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
       if( show_func_attrs ) {
 	string rfas = cu_get_all_func_attrs( cu_func );
 	printf( "%s: \n%s", name.c_str(), str(rfas).c_str() );
       }
-      must_insert( *cu_funcs, name, cu_func );
+      must_insert( *cu_funcs, name, nv_func_info_t{ cu_func, cu_mod } );
     }
 
     void add_args( vect_string const & args, vect_rp_void & cu_func_args ) {
@@ -254,7 +266,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     }
 #endif
     void run( rtc_func_call_t & rfc ) {
-      CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() );
+      CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() ).func;
       vect_rp_void cu_func_args;
       add_args( rfc.in_args, cu_func_args );
       add_args( rfc.inout_args, cu_func_args );
