@@ -145,7 +145,7 @@ namespace boda
     assert_st( in_sz.both_dims_non_zero() );
     assert_st( (in_sz.d[0] != uint32_t_const_max) && (in_sz.d[1] != uint32_t_const_max) ); // avoid overflow/sanity check
     for( uint32_t i = 0; i < interval; ++i ) { 
-      double const scale = pow(2.0d, 0.0d - (double(i) / double(interval) ) );
+      double const scale = pow(2.0, 0.0 - (double(i) / double(interval) ) );
       u32_pt_t scale_sz = in_sz.scale_and_round( scale );
       for( uint32_t oct_ix = 0; oct_ix != num_upsamp_octaves ; ++oct_ix ) { 
 	u32_pt_t const us_scale_sz( scale_sz.d[0] << 1, scale_sz.d[1] << 1 ); // scale up one octave (factor of 2)
