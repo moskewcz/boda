@@ -65,12 +65,6 @@ namespace boda
     if( endswith(s,suff) ) { s = s.substr( 0, s.size() - suff.size() ); return 1; } return 0;
   }
 
-  template< typename T > inline std::string str(T const & i) { // convert T i to string
-    std::stringstream s;
-    s << i;
-    return s.str();
-  }
-
   template< typename T > inline std::ostream & operator << ( std::ostream & out, vector< T > const & v ) {
     for( typename vector< T >::const_iterator i = v.begin(); i != v.end(); ++i ) {
       if( i != v.begin() ) { out << " "; }
@@ -88,6 +82,12 @@ namespace boda
   }
 
   template< typename T > inline std::ostream & operator << ( std::ostream & out, shared_ptr< T > const & v ) { return out << (*v); }
+
+  template< typename T > inline std::string str(T const & i) { // convert T i to string
+    std::stringstream s;
+    s << i;
+    return s.str();
+  }
 
   struct string_scoped_prefixer_t {
     std::string & s;
