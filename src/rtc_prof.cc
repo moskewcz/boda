@@ -22,7 +22,7 @@ namespace boda
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t enable_lineinfo; //NESI(default=0,help="if 1, enable lineinfo for ptx compilation")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
-
+    uint32_t eat_megs; //NESI(default=0,help="if non-zero, allocate unused var of size eat_mega Mfloats via rtc")
     filename_t rtc_func_sigs_fn; //NESI(default="%(boda_test_dir)/rtc_func_sigs_tiny.txt",help="file to hold all generated func signatures")
     p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
 
@@ -49,6 +49,7 @@ namespace boda
 
   void rtc_prof_t::main( nesi_init_arg_t * nia ) {
     rtc->init();
+    if( eat_megs ) { rtc->create_var_with_dims_floats( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, 1 } ); }
     codegen.read_rtc_func_sigs( rtc_func_sigs_fn );
     uint32_t call_ix = 0;
     for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { 
@@ -68,7 +69,7 @@ namespace boda
 	if( func_dims == dims_t() ) { continue; } // NULL case -- ignore
 	string const vn = "call_"+str(call_ix)+"__"+i->vn;
 	//printf( "alloc: i->vn=%s vn=%s func_dims=%s\n", str(i->vn).c_str(), str(vn).c_str(), str(func_dims).c_str() );
-	rtc->create_var_with_dims_floats( vn, func_dims );
+	//rtc->create_var_with_dims_floats( vn, func_dims );
 	must_insert( arg_map, i->vn, vn );
       }
       calls.push_back( rcg_func_call_t{ i->first, "tag", arg_map } );
@@ -100,9 +101,15 @@ namespace boda
     if( enable_prof ) { rtc->profile_start(); }
     for( vect_rcg_func_call_t::iterator i = calls.begin(); i != calls.end(); ++i ) { 
       printf( "run: i->rtc_func_name=%s\n", str(i->rtc_func_name).c_str() );
-      string const & func_prog_str = must_find( codegen.rtc_func_names_map, i->rtc_func_name )->rtc_prog_str;
-      rtc->compile( func_prog_str, show_compile_log, enable_lineinfo, {i->rtc_func_name}, show_func_attrs );
+      p_rtc_call_gen_t const & rcg = must_find( codegen.rtc_func_names_map, i->rtc_func_name );
+      rtc->compile( rcg->rtc_prog_str, show_compile_log, enable_lineinfo, {i->rtc_func_name}, show_func_attrs );
+      for( map_str_str::const_iterator j = i->arg_map.begin(); j != i->arg_map.end(); ++j ) {
+	rtc->create_var_with_dims_floats( j->second, must_find( rcg->dims_vals, j->first ) );
+      }
       run_rfc( *i ); 
+      for( map_str_str::const_iterator j = i->arg_map.begin(); j != i->arg_map.end(); ++j ) {
+	rtc->release_var( j->second );
+      }
       rtc->release_all_funcs();
     }
     rtc->finish_and_sync();
