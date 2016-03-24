@@ -249,6 +249,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     void create_var_with_dims_floats( string const & vn, dims_t const & dims ) { 
       must_insert( *vis, vn, var_info_t( dims ) ); 
     }
+    void release_var( string const & vn ) { must_erase( *vis, vn ); }
     dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { must_find( *vis, vn ).cup->set_to_zero(); }
     

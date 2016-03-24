@@ -248,6 +248,7 @@ typedef int int32_t;
       must_insert( *vis, vn, cl_var_info_t{buf,dims} ); 
       set_var_to_zero( vn );
     }
+    void release_var( string const & vn ) { must_erase( *vis, vn ); }
     dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { 
       cl_mem_t const & buf = must_find( *vis, vn ).buf;

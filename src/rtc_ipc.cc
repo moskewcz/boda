@@ -332,6 +332,11 @@ namespace boda
       bwrite( *worker, string("create_var_with_dims_floats") ); bwrite( *worker, vn ); bwrite( *worker, dims ); 
       worker->flush();
     }
+    void release_var( string const & vn ) {
+      must_erase( *vis, vn ); 
+      bwrite( *worker, string("release_var") ); bwrite( *worker, vn );
+      worker->flush();
+    }
     dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { bwrite( *worker, string("set_var_to_zero") ); bwrite( *worker, vn ); worker->flush(); }
     
@@ -503,6 +508,12 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	  bread( *parent, dims );
 	  must_insert( *vis, vn, ipc_var_info_t{dims} );
 	  rtc->create_var_with_dims_floats( vn, dims );
+	}
+	else if( cmd == "release_var" ) {
+	  string vn;
+	  bread( *parent, vn ); 
+	  must_erase( *vis, vn );
+	  rtc->release_var( vn );
 	}
 	else if( cmd == "set_var_to_zero" ) {
 	  string vn;
