@@ -100,7 +100,8 @@ namespace boda
     if( enable_prof ) { rtc->profile_start(); }
     for( vect_rcg_func_call_t::iterator i = calls.begin(); i != calls.end(); ++i ) { 
       printf( "run: i->rtc_func_name=%s\n", str(i->rtc_func_name).c_str() );
-      rtc->compile( codegen.rtc_prog_str, show_compile_log, enable_lineinfo, {i->rtc_func_name}, show_func_attrs );
+      string const & func_prog_str = must_find( codegen.rtc_func_names_map, i->rtc_func_name )->rtc_prog_str;
+      rtc->compile( func_prog_str, show_compile_log, enable_lineinfo, {i->rtc_func_name}, show_func_attrs );
       run_rfc( *i ); 
       rtc->release_all_funcs();
     }

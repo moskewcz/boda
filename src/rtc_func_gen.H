@@ -214,8 +214,8 @@ namespace boda
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
     map_str_dims_t all_ix_dims;
     map_str_str cgs; // code-gen sections
+    string rtc_prog_str; // final full program string
     
-
     // info needed to make call
     string gen_fn;
     bool has_final_flags_arg;
@@ -243,7 +243,7 @@ namespace boda
     rtc_call_gen_t( rtc_func_sig_t const & rfs_ ) : rtc_func_sig_t( rfs_ ) { }
 
     void init( p_rtc_template_t const & rtc_func_template, vect_arg_decl_t const & flat_arg_decls_, 
-	       custom_codegen_t * const custom_codegen, string const & gen_fn_, string & rtc_prog_str ){
+	       custom_codegen_t * const custom_codegen, string const & gen_fn_ ){
       gen_fn = gen_fn_;
       has_final_flags_arg = 0;
       set( "rtc_func_name", gen_fn );
@@ -292,12 +292,13 @@ namespace boda
       set( "blks", str(blks) ); // may be 0 if # of blocks is dynamic
       set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 
-      instantiate_template( *rtc_func_template->template_str, rtc_prog_str );
+      instantiate_template( *rtc_func_template->template_str );
     }
 
 
 
-    void instantiate_template( string const & template_str, string & rtc_prog_str ) {
+    void instantiate_template( string const & template_str ) {
+      assert_st( rtc_prog_str.empty() ); // should only call only
       // generate arg decl code for multi args
       for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
 	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
@@ -324,7 +325,7 @@ namespace boda
 	printf( "rfs=%s\n", str((*this)).c_str() );
 	rt_err( strprintf( "instantiation failed; see above; type=%s; error was: %s\n", type.c_str(), rte.err_msg.c_str() ) );
       }
-      rtc_prog_str += rtc_func_str;
+      rtc_prog_str += rtc_func_str;      
     }
 
   };

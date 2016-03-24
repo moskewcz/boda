@@ -137,7 +137,8 @@ namespace boda
       rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
       string gen_fn = rfs_reduced->gen_unused_fn( rtc_func_names_map );
       must_insert( rtc_func_names_map, gen_fn, rcg );
-      rcg->init( rtc_template, flat_arg_decls, cc, gen_fn, rtc_prog_str );
+      rcg->init( rtc_template, flat_arg_decls, cc, gen_fn );
+      rtc_prog_str += rcg->rtc_prog_str;
     }    
     return rcg->gen_fn;
   }
