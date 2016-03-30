@@ -1,0 +1,1 @@
+(type=bwai,dims_vals=(a=(M=128,K=100),bt=(N=128,K=100),c=(M=128,N=128),work=(Mg=4,Ng=4,Mb=8,Nb=8,Kb=4,Mt=4,Nt=4)))
