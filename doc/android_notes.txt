@@ -83,6 +83,25 @@ boda ipc_compute_worker --rtc=(be=ocl) --boda-parent-addr=tcp:127.0.0.1:12791
 All is Well.
 moskewcz@maaya:~/git_work/boda/run/tr3$ 
 
+########  running bwai/sgemm skeleton/example on msm8994 board #########
+# 1) run rtc_prof locally (might work on device) using host-compiled version of boda, using local compute, as sanity check:
 
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda rtc_prof --rtc='(be=ocl)' --rtc-func-sigs-fn='%(boda_test_dir)/bwai-sigs.txt'run: i->rtc_func_name=bwai__M_128__K_100__N_128__Mg_4__Ng_4__Mb_8__Nb_8__Kb_4__Mt_4__Nt_4
+TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  
+           1     11.515ms     11.515ms    rtc_prof_t::run_fwd
+           1     11.070ms     11.070ms    ocl_compile
+moskewcz@maaya:~/git_work/boda/run/tr1$ 
 
+# now, attempt to run using remote compute as per above examples. will hang waiting for compute client to connect:
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda rtc_prof --rtc='(be=ipc,print_dont_fork=1,boda_parent_addr=tcp:127.0.0.1:12791)' --rtc-func-sigs-fn='%(boda_test_dir)/bwai-sigs.txt'
+boda ipc_compute_worker --rtc=(be=ocl) --boda-parent-addr=tcp:127.0.0.1:12791
+<will hang here>
+
+# now, cross-compile boda for android using with msm8994 variant of android obj_list file:
+    cd ~/git_work/boda_android/obj; make -j12 OBJ_LIST_FN=obj_list.android.msm8994
+
+# use adb shell to run compute worker on device; will connect back to maaya (using previously setup 'adb reverse' and 'ssh -R' revers port forwards.
+adb shell "cd /data/local/boda/run/tr1; ../../lib/boda ipc_compute_worker --rtc='(be=ocl)' --boda-parent-addr=tcp:127.0.0.1:12791"
+
+#original locally-run boda process should now complete.
 
