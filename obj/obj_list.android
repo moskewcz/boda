@@ -9,7 +9,8 @@
 
 [base] # special basic setup / global dependencies; always enabled, will always be emmited first in dependencies.make
 CPP := /scratch/android-stc/bin/aarch64-linux-android-g++ 
-CPPFLAGS := -Wall -O3 -g -std=c++0x -fPIC -fopenmp -Wall -fPIE -pie -I/scratch/moskewcz/android/src/boost_1_60_0 -I/scratch/moskewcz/android/src/sparsehash-sparsehash-2.0.3/src
+CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall -I. # -I. is so files in gen/* can be included ... not ideal?
+CPPFLAGS := ${CPPFLAGS} -fPIE -pie -I/scratch/moskewcz/android/src/boost_1_60_0 -I/scratch/moskewcz/android/src/sparsehash-sparsehash-2.0.3/src # android specific
 
 SYSROOT := /scratch/moskewcz/android/sysroot_msm8996
 #SYSROOT := /scratch/moskewcz/android/sysroot_msm8994
@@ -38,11 +39,11 @@ CPPFLAGS := $(CPPFLAGS) -I/scratch/moskewcz/android/src/protobuf-2.6.1/src
 LDFLAGS := $(LDFLAGS) -L/scratch/moskewcz/android/src/protobuf-2.6.1/src/.libs -lprotobuf
 # manually add deps since we can create this particular header (which is unusual and otherwise unhandled by the header
 # deps system.
-caffepb.o : ../src/gen/caffe.pb.h 
-upgrade_proto.o : ../src/gen/caffe.pb.h 
+caffepb.o : caffe.pb.h 
+upgrade_proto.o : caffe.pb.h 
 # note: it may be possible to not rebuild caffe.pb.h / caffe.pb.cc in some cases
-../src/gen/caffe.pb.cc ../src/gen/caffe.pb.h : ../src/ext/caffe.proto
-	/home/moskewcz/src/protobuf-2.6.1/src/protoc -I../src/ext --cpp_out=../src/gen ../src/ext/caffe.proto
+caffe.pb.cc caffe.pb.h : ../src/ext/caffe.proto 
+	/home/moskewcz/src/protobuf-2.6.1/src/protoc -I../src/ext --cpp_out=. ../src/ext/caffe.proto
 
 
 [cuda disable]

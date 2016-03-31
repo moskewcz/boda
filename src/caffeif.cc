@@ -14,7 +14,7 @@
 #include"imagenet_util.H"
 #include<algorithm>
 #include<iostream>
-#include"gen/caffe.pb.h" 
+#include"caffe.pb.h" 
 
 namespace boda 
 {

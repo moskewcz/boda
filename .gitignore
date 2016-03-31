@@ -1,4 +1,3 @@
-src/gen
 nohup.out
 TAGS
 run/tr*
@@ -7,10 +6,13 @@ lib/boda_cfg.xml
 obj/*.o
 obj/*.d
 obj/dependencies.make
+obj/gen
 obj/gen_objs
 obj/make_make_ignore_missing_headers_in_d_files.make
 obj/makefile
 obj/prebuild.okay
+obj/caffe.pb.cc
+obj/caffe.pb.h
 obj2
 lib2
 .emacs*

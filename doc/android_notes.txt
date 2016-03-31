@@ -46,10 +46,15 @@ moskewcz@maaya:/scratch/moskewcz/android/src/libjpeg-turbo-1.4.90$ PATH=/scratch
 
     cd ~/git_work/boda_android/obj; make -j12 OBJ_LIST_FN=obj_list.android 
 
-#deploy/run boda (from boda lib dir on maaya)
-
+#deploy boda (from boda lib dir on maaya)
 moskewcz@maaya:~/git_work/boda_android/lib$ /scratch/android-stc/bin/aarch64-linux-android-strip boda && adb push boda /data/local/boda/lib
 559 KB/s (2456528 bytes in 4.287s)
+
+##### using build-system improvements, now you can make and push boda in one combo-line, which can be used from an empty 'obj2' extra build directory inside existing WC of boda (so a single WC can build locally in obj and for android in obj2 ########
+
+moskewcz@maaya:~/git_work/boda/obj2$ make -f ../obj/makefile -j12 TARGET=boda OBJ_LIST_FN=../obj/obj_list.android && /scratch/android-stc/bin/aarch64-linux-android-strip boda && adb -s e178dbfe push boda /data/local/boda/lib
+
+#run boda (from boda lib dir on maaya) # note: may need to adb push libgnustl_shared.so from NDK to boda lib dir before running.
 
 oskewcz@maaya:~/git_work/boda_android/lib$ adb shell "cd /data/local/boda/run/tr1; LD_LIBRARY_PATH=../../lib ../../lib/boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl' && cat rtc_test.txt"
 All is Well.

@@ -9,7 +9,7 @@
 
 [base] # special basic setup / global dependencies; always enabled, will always be emmited first in dependencies.make
 CPP := g++
-CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall 
+CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall -I. # -I. is so files in gen/* can be included ... not ideal?
 LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lboost_program_options 
 
 [lmdb]
@@ -28,11 +28,11 @@ LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 LDFLAGS := $(LDFLAGS) -lprotobuf
 # manually add deps since we can create this particular header (which is unusual and otherwise unhandled by the header
 # deps system.
-caffepb.o : ../src/gen/caffe.pb.h 
-upgrade_proto.o : ../src/gen/caffe.pb.h 
+caffepb.o : caffe.pb.h 
+upgrade_proto.o : caffe.pb.h 
 # note: it may be possible to not rebuild caffe.pb.h / caffe.pb.cc in some cases
-../src/gen/caffe.pb.cc ../src/gen/caffe.pb.h : ../src/ext/caffe.proto
-	protoc -I../src/ext --cpp_out=../src/gen ../src/ext/caffe.proto
+caffe.pb.cc caffe.pb.h : ../src/ext/caffe.proto
+	protoc -I../src/ext --cpp_out=. ../src/ext/caffe.proto
 
 
 [cuda]
