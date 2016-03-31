@@ -97,14 +97,15 @@ namespace boda
     string const & get_single_in_place_arg( void ) const { assert_st( has_one_top_one_bot() ); assert_st( tops[0] == bots[0] ); return tops[0]; }  
 
     conv_op_t( void ) : coi(0) { }
-    void set_and_check_coi( void ); // verify input/output argument count and other sanity checks
+    void set_and_check_coi( void ); // verify that 'type' string is recognized and set coi field accordingly to matching info struct
+    void set_and_check_coi_and_args( void ); // verify input/output argument count and other sanity checks
+
     bool is( conv_op_info_t const & coi ) const; // type string checking 
 
     // arg-map and related arg/dims handling -- generally for use after conv_pipe setup complete (i.e. in rtc)
     map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
     void set_arg_dims_and_map_from_pipe( conv_pipe_t const * const cp ); // add arg_name->dims mappings to dims_vals
     string get_arg( string const & an ) { return must_find( arg_map, an ); }
-    dims_t const & get_arg_dims( string const & an ) { return must_find( dims_vals, an ); }
     void set_arg( dims_t const & dims, string const & an, string const & vn ) {
       must_insert( dims_vals, an, dims );
       must_insert( arg_map, an, vn );

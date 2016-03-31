@@ -21,7 +21,11 @@ namespace boda
       if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
       return 0;
     }
+    // convenience access functions
+    dims_t const & get_dims( string const & an ) { return must_find( dims_vals, an ); }
   };
+  typedef shared_ptr< op_base_t > p_op_base_t; 
+  typedef set< op_base_t > set_op_base_t;
 }
 
 #endif /* _OP_BASE_H_ */

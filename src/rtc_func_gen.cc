@@ -148,6 +148,8 @@ namespace boda
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_rtc_func_sig_t v = make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       gen_func( make_cnn_custom_codegen_t().get(), *v );
+      uint32_t const ix = i - in_lines->begin();
+      if( !(ix % 100000)) { printf( "ix=%s\n", str(ix).c_str() ); }
     }
   }
 

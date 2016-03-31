@@ -82,6 +82,9 @@ namespace boda
       if( type == (*i)->type ) { coi = *i; }
     }
     if( !coi ) { rt_err( strprintf( "Unknown operation of type '%s'.", str(type).c_str() ) ); }
+  }
+  void conv_op_t::set_and_check_coi_and_args( void ) { 
+    set_and_check_coi();
     if( coi->has_var_tops.v ? ( coi->tops.size() > tops.size() ) : ( coi->tops.size() != tops.size() ) ) {
       rt_err( strprintf( "Wrong number of output arguments for operation of type '%s'. "
 			 "had: tops.size()=%s, expected: coi->tops.size()%s=%s\n", 
@@ -211,7 +214,7 @@ namespace boda
     return i->second;
   }
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
-    conv->set_and_check_coi();
+    conv->set_and_check_coi_and_args();
     //printf( "conv=%s\n", str(conv).c_str() );
     if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) || conv->is(BckDropout_coi) ) { 
       if( conv->is(ZeroIfNonPos_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }

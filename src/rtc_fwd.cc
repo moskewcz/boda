@@ -35,13 +35,14 @@ namespace boda
     op_info_t( conv_op_t const & cop ) : conv_op_t(cop) { }
     void init( bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv,
 	       uint32_t const t_tile_sz ) {
-      assert_st( tops.size() >= 1 );
-      assert_st( bots.size() >= 1 );
+      // FIXME: the below tidbit for reduce is the only thing here that needs bots. and beyond that, maybe it's better
+      // for op_info_t to derive from op_base_t instead of from conv_op_t, and pass in the correct coi directly here,
+      // since this code should not need/use the 'global' parts of conv_op_t, such as the arg_map, tops, and bots ...
       if( is(Reduce_coi) ) { must_insert( str_vals, "ins_num", str(bots.size()) ); } // codegen tidbit for reduce
       dims_t ni_dims;
-      dims_t no_dims = get_arg_dims( coi->top_an(0) );
+      dims_t no_dims = get_dims( coi->top_an(0) );
       u32_pt_t const no_sz = get_xy_dims( no_dims );
-      if( !is(Concat_coi) ) { ni_dims = get_arg_dims( coi->bot_an(0) ); } // empty for Concat where we shouldn't use it, otherwise first input
+      if( !is(Concat_coi) ) { ni_dims = get_dims( coi->bot_an(0) ); } // empty for Concat where we shouldn't use it, otherwise first input
       bool const is_conv = is( Convolution_coi );
       bool const is_pool = is( Pooling_coi );
       dims_t in_dims;
@@ -96,8 +97,8 @@ namespace boda
 						vect_string{"y","x"}, 1 );
 	  dims_vals["bck_pad_in_off"] = dims_t( vect_uint32_t{ bck_pad_in_off.d[1], bck_pad_in_off.d[0] }, vect_string{"y","x"}, 1 );
 
-	  dims_t const & ogld = get_arg_dims("out_grad_loss");
-	  dims_t const & fgld = get_arg_dims("filts_grad_loss");
+	  dims_t const & ogld = get_dims("out_grad_loss");
+	  dims_t const & fgld = get_dims("filts_grad_loss");
 
 	  gbt_tile_t gbt;
 	  dims_vals["oix"] = dims_t(  vect_uint32_t{ no_dims.dsz("chan"), stride().d[1], stride().d[0] }, 
@@ -223,6 +224,12 @@ namespace boda
       }
     }
   };
+
+  p_op_base_t op_info_t_init( p_conv_op_t cop, bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, bool const & force_enable_tconv, uint32_t const t_tile_sz ) {
+    op_info_t oi( *cop );
+    oi.init( enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
+    return make_shared<op_base_t>( oi );
+  }
 
   typedef shared_ptr< dims_t > p_dims_t; 
 
@@ -444,9 +451,9 @@ namespace boda
     if( oi->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != oi->bots.size(); ++bi ) {
-	dims_t const & dims_in = oi->get_arg_dims( oi->coi->bot_an(bi) );
-	assert_st( get_xy_dims( dims_in ) == get_xy_dims( oi->get_arg_dims("out") ) );
-	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->get_arg_dims("out").dsz("chan") );
+	dims_t const & dims_in = oi->get_dims( oi->coi->bot_an(bi) );
+	assert_st( get_xy_dims( dims_in ) == get_xy_dims( oi->get_dims("out") ) );
+	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->get_dims("out").dsz("chan") );
 	// note: oi->str_vals is overwritten each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->str_vals = { {"ocix",str(chans_out_done)} };
 	set_rtc_arg( oi, rtc, "in", oi->bots[bi] );
@@ -454,13 +461,13 @@ namespace boda
 	chans_out_done += dims_in.dsz("chan");
 	oi->erase_arg( "in" );
       }
-      assert_st( chans_out_done == oi->get_arg_dims("out").dsz("chan") );
+      assert_st( chans_out_done == oi->get_dims("out").dsz("chan") );
     } else if( oi->is( Split_coi ) ) { // FIXME: pretty dup'd with Concat above ... generalize/merge/share?
       uint32_t chans_in_done = 0;
       for( uint32_t ti = 0; ti != oi->tops.size(); ++ti ) {
-	dims_t const & dims_out = oi->get_arg_dims( oi->coi->top_an(ti) );
-	assert_st( get_xy_dims( dims_out ) == get_xy_dims( oi->get_arg_dims("in") ) );
-	assert_st( chans_in_done+dims_out.dsz("chan") <= oi->get_arg_dims("in").dsz("chan") );
+	dims_t const & dims_out = oi->get_dims( oi->coi->top_an(ti) );
+	assert_st( get_xy_dims( dims_out ) == get_xy_dims( oi->get_dims("in") ) );
+	assert_st( chans_in_done+dims_out.dsz("chan") <= oi->get_dims("in").dsz("chan") );
 	// note: oi->str_vals is overwritten each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->str_vals = { {"icix",str(chans_in_done)} };
 	set_rtc_arg( oi, rtc, "out", oi->tops[ti] );
@@ -468,13 +475,13 @@ namespace boda
 	chans_in_done += dims_out.dsz("chan");
 	oi->erase_arg( "out" );
       }
-      assert_st( chans_in_done == oi->get_arg_dims("in").dsz("chan") );
+      assert_st( chans_in_done == oi->get_dims("in").dsz("chan") );
     } else if( oi->is( Reduce_coi ) ) {
       gen_call( "reduce", oi );
     } else if( oi->is( Pooling_coi ) ) {
       if( oi->u32_param("emit_out_in_yx") == 1 ) {
 	string const out_in_yx = oi->get_arg("out") + "_in_yx"; 
-	rtc->create_var_with_dims_floats( out_in_yx, oi->get_arg_dims("out") ); // same size as out
+	rtc->create_var_with_dims_floats( out_in_yx, oi->get_dims("out") ); // same size as out
 	set_rtc_arg( oi, rtc, "out_in_yx", out_in_yx );
       } else {
 	assert_st( oi->u32_param("emit_out_in_yx") == 0 );
@@ -486,36 +493,36 @@ namespace boda
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const filts_id = oi->arg_map["filts"];
-      if( oi->get_arg_dims("filts") != rtc->get_var_dims_floats( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
+      if( oi->get_dims("filts") != rtc->get_var_dims_floats( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
 	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
-	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_arg_dims("filts"), 
+	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_dims("filts"), 
 						       filts_xp_fn ) );
       }
       string const in_id = oi->arg_map["in"];
-      // note: as this point: oi->get_arg_dims("in") may not == rtc->get_var_dims_floats( in_id ); see comment in init()
+      // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims_floats( in_id ); see comment in init()
       if( oi->cts() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
 	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->dims_vals, oi->str_vals } );
-	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_arg_dims("in"), xp_fn ) );
+	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
       } else if( oi->cts() == k1conv_str ) {
-	if( oi->get_arg_dims("in") != rtc->get_var_dims_floats( in_id ) ) {
+	if( oi->get_dims("in") != rtc->get_var_dims_floats( in_id ) ) {
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
 	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->dims_vals, oi->str_vals } );
-	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_arg_dims("in"), xp_fn ) );
+	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
 	} 	
       } 
       // FIXME: perhaps all ops should create outputs. but for now, only conv can have non-reference output dims ...
-      rtc->create_var_with_dims_floats( oi->get_arg("out"), oi->get_arg_dims("out") ); 
+      rtc->create_var_with_dims_floats( oi->get_arg("out"), oi->get_dims("out") ); 
       gen_call( oi->cts(), oi );
     } else if( oi->is( ReLU_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( "relu", oi );
     } else if( oi->is( LRN_coi ) ) {
-      assert_st( oi->get_arg_dims("in") == oi->get_arg_dims("out") ); // FIXME: better place/way for this check?
+      assert_st( oi->get_dims("in") == oi->get_dims("out") ); // FIXME: better place/way for this check?
       if( oi->u32_param("emit_out_scale_base") == 1 ) {
 	string const out_scale_base = oi->get_arg("out") + "_scale_base"; 
-	rtc->create_var_with_dims_floats( out_scale_base, oi->get_arg_dims("out") ); // same size as out
+	rtc->create_var_with_dims_floats( out_scale_base, oi->get_dims("out") ); // same size as out
 	set_rtc_arg( oi, rtc, "out_scale_base", out_scale_base );
       } else {
 	assert_st( oi->u32_param("emit_out_scale_base") == 0 );
@@ -667,7 +674,7 @@ namespace boda
 	    p_op_info_t const & noi = must_find( *op_infos, no->bot_for[0] ); // next operation
 	    if( enable_write_xpose && ( has(noi->str_vals,"cts") && (noi->cts() == k1conv_str) ) ) { 
 	      // modify output argument dims to match user's input dims. codegen will notice this and write out correctly.
-	      oi->reset_arg_dims( "out", noi->get_arg_dims( "in" ) );
+	      oi->reset_arg_dims( "out", noi->get_dims( "in" ) );
 	    }
 	  }
 	}
