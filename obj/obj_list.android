@@ -9,12 +9,17 @@
 
 [base] # special basic setup / global dependencies; always enabled, will always be emmited first in dependencies.make
 CPP := /scratch/android-stc/bin/aarch64-linux-android-g++ 
-CPPFLAGS := -Wall -O3 -g -std=c++0x -fPIC -fopenmp -Wall -fPIE -pie -I/scratch/moskewcz/android/src/boost_1_60_0 -I/scratch/moskewcz/android/adreno/include -DANDROID -I/scratch/moskewcz/android/src/sparsehash-sparsehash-2.0.3/src
-LDFLAGS := -lgnustl_shared -lz -fopenmp -fPIE -pie \
+CPPFLAGS := -Wall -O3 -g -std=c++0x -fPIC -fopenmp -Wall -fPIE -pie -I/scratch/moskewcz/android/src/boost_1_60_0 -I/scratch/moskewcz/android/src/sparsehash-sparsehash-2.0.3/src
+
+SYSROOT := /scratch/moskewcz/android/sysroot_msm8996
+#SYSROOT := /scratch/moskewcz/android/sysroot_msm8994
+LDFLAGS := -fPIE -pie \
+	-L${SYSROOT}/system/lib64 -Wl,-rpath-link,${SYSROOT}/system/lib64 \
+	-L${SYSROOT}/system/vendor/lib64 -Wl,-rpath-link,${SYSROOT}/system/vendor/lib64 \
+	-lgnustl_shared -fopenmp \
 	-L/scratch/moskewcz/android/src/boost_1_60_0/stage/lib \
 	-lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lboost_program_options \
-	-L/scratch/moskewcz/android/adreno/lib64 \
-	-lgsl -lc++ -llog -lutils -lbacktrace -lbase -lunwind -lc -lui -lhardware -lsync -lCB -lcutils -lm -lc -ldl
+	# ---- end of LDFLAGS (note: continued from above line, so keep this line here/last) ---- 
 
 [lmdb disable]
 # assume system defaults include needed include/lib dirs
@@ -53,6 +58,7 @@ LDFLAGS := $(LDFLAGS) -Wl,-rpath,$(CUDA_LIB)
 LDFLAGS := $(LDFLAGS) -lnvrtc
 
 [opencl]
+CPPFLAGS := $(CPPFLAGS) -I/scratch/moskewcz/android/adreno/include 
 LDFLAGS := $(LDFLAGS) -lOpenCL
 
 [caffe needs=cuda needs=caffe_pb disable]
