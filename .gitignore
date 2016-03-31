@@ -11,6 +11,8 @@ obj/gen_objs
 obj/make_make_ignore_missing_headers_in_d_files.make
 obj/makefile
 obj/prebuild.okay
+obj2
+lib2
 .emacs*
 *.pyc
 *~
