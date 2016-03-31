@@ -69,8 +69,8 @@ class GenObjList( object ):
             line = self.ol_lines[self.next_ol_line]
             self.next_ol_line += 1
             comment_char_idx = line.find('#')
-            if comment_char_idx != -1: line = line[:comment_char_idx] # remove comment if any
             orig_line = line
+            if comment_char_idx != -1: line = line[:comment_char_idx] # remove comment if any
             line = line.strip()
             if not line: continue # skip blank lines
             self.cur_line = line
@@ -120,7 +120,7 @@ class GenObjList( object ):
             elif opt.startswith( gen_fn_str ): new_dep.gen_fns.append( opt[len(gen_fn_str):] )
             else: self.parse_error( "unknown dep section option %r" % (opt,) )
         while not self.at_section_start_or_eof():
-            new_dep.lines.append( self.cur_orig_line ) # note: whitespace preserved
+            new_dep.lines.append( self.cur_orig_line ) # note: whitespace/comments preserved
             self.next_line();
         self.deps[dep_name] = new_dep
         self.deps_list.append( new_dep )
