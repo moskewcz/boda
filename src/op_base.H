@@ -15,14 +15,12 @@ namespace boda
     op_base_t( void ) {}
     op_base_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
       type(type_), dims_vals(dims_vals_), str_vals(str_vals_) { }
-    bool operator < ( op_base_t const & o ) const { 
-      if( type != o.type ) { return type < o.type; }
-      if( dims_vals != o.dims_vals ) { return dims_vals < o.dims_vals; }
-      if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
-      return 0;
-    }
+    bool operator < ( op_base_t const & o ) const;
     // convenience access functions
-    dims_t const & get_dims( string const & an ) { return must_find( dims_vals, an ); }
+    dims_t const & get_dims( string const & an ) const;
+    string const & get_str( string const & an ) const;
+    uint32_t get_u32( string const & an ) const;
+    uint32_t get_double( string const & an ) const;
   };
   typedef shared_ptr< op_base_t > p_op_base_t; 
   typedef set< op_base_t > set_op_base_t;

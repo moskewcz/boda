@@ -34,7 +34,7 @@ namespace boda
     p_nda_float_t const & biases = must_find( *fwd, cop->tag + "_biases" );
     assert_st( filts->dims == dims_t(vect_uint32_t{top->dims.dims(1),bot->dims.dims(1),kern_sz.d[1],kern_sz.d[0] },1) );
     assert_st( biases->dims == dims_t(vect_uint32_t{top->dims.dims(1)},1) );
-    assert_st( top->dims.dims(1) == cop->u32_param("out_chans") );
+    assert_st( top->dims.dims(1) == cop->get_u32("out_chans") );
 
     for( uint32_t fix = 0; fix != filts->dims.dims(0); ++fix ) {
       for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
@@ -66,7 +66,7 @@ namespace boda
     if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
     assert_st( top->dims.dims(1) == bot->dims.dims(1) ); // one-to-one chans IO
     uint32_t const out_pool_elems = kern_sz.dims_prod();
-    uint32_t const avg_pool = cop->u32_param("avg_pool");
+    uint32_t const avg_pool = cop->get_u32("avg_pool");
     for( uint32_t cix = 0; cix != top->dims.dims(1); ++cix ) {
       for( uint32_t y = 0; y != top->dims.dims(2); ++y ) {
 	for( uint32_t x = 0; x != top->dims.dims(3); ++x ) {
@@ -137,10 +137,10 @@ namespace boda
       p_nda_float_t const & top = must_find( *fwd, cop->tops[0] );
       assert( bot->dims == top->dims );
       assert( bot->dims.sz() == 4 );
-      uint32_t const local_size = cop->u32_param("local_size");
-      double const alpha = cop->double_param("alpha");
-      double const beta = cop->double_param("beta");
-      double const k = cop->double_param("k");
+      uint32_t const local_size = cop->get_u32("local_size");
+      double const alpha = cop->get_double("alpha");
+      double const beta = cop->get_double("beta");
+      double const k = cop->get_double("k");
       assert( local_size & 1 );
       int32_t const half_win = local_size >> 1;
       for( uint32_t i = 0; i != top->dims.dims(0); ++i ) {

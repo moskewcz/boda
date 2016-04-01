@@ -58,24 +58,36 @@ namespace boda
   typedef shared_ptr< conv_pipe_t > p_conv_pipe_t; 
   typedef vector< p_conv_pipe_t > vect_p_conv_pipe_t;
 
-  // conv_opt_t: adds information to an operation about where how it relates to other operations (i.e what it's inputs
-  // and outputs are) and a global name for this particular instance of the underlying operation; but does not change
-  // the semantics of the operation defined by the op_base_t part.
-  struct conv_op_t : public op_base_t // NESI(help="conv_op descriptor",bases=["op_base_t"])
+  // conv_opt_base_t: adds the coi field, which defines cnn-operation-type-specific information for this operation. In
+  // partiuclar, it has information on the valid values for the 'type' string, and for each valid type, information on
+  // the number and type of arguments for the operation and any other paramters.  this information is purely an
+  // annotation; there is no added information that changes the meaning of the operation defined by the type and vals in
+  // the base class fields.
+  struct conv_op_base_t : public op_base_t // NESI(help="conv_op descriptor",bases=["op_base_t"])
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string tag; //NESI(help="tag to refer to conv op by",req=1)
-
     conv_op_info_t const * coi;
+    void set_and_check_coi( void ); // verify that 'type' string is recognized and set coi field accordingly to matching info struct
+    bool is( conv_op_info_t const & coi ) const; // type string checking 
+    conv_op_base_t( void ) : coi(0) { }
+
+    // convienince accessor functions for commonly-used cnn operation fields
     u32_pt_t in_pad( void ) const { return get_xy_dims_strict( must_find( dims_vals, "in_pad" ) ); }
     u32_pt_t kern_sz( void ) const { return get_xy_dims_strict( must_find( dims_vals, "kern_sz" ) ); }
     u32_pt_t stride( void ) const { return get_xy_dims_strict( must_find( dims_vals, "stride" ) ); }
-    uint32_t u32_param( string const & tvn ) { return lc_str_u32( must_find( str_vals, tvn ) ); }
-    uint32_t double_param( string const & tvn ) { return lc_str_d( must_find( str_vals, tvn ) ); }
-
-    // FIXME: special-case manipulation functions for "cts" member of str_vals -- not bad, but don't belong here ...
+    // FIXME: these fields are only used codegen, so maybe they don't belong here?
     string cts( void ) const { return must_find( str_vals, "cts" ); } // cts --> conv-type-str
     void set_cts( string const & cts_ ) { must_insert( str_vals, "cts", cts_ ); }
+  };
+
+  // conv_opt_t: adds information to an operation about where how it relates to other operations (i.e what it's inputs
+  // and outputs actually are in a global context; stored in tops/bots/arg_map) and a global name for this particular
+  // instance of the underlying operation (tag). this added information does not change the semantics of the operation
+  // defined by the conv_op_base_t part.  FIXME: the in_place and seen fields really don't belong here ...
+  struct conv_op_t : public conv_op_base_t // NESI(help="conv_op descriptor",bases=["conv_op_base_t"])
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string tag; //NESI(help="tag to refer to conv op by",req=1)
 
     vect_string tops; // inputs (by node/blob name)
     vect_string bots; // outputs (by node/blob name)
@@ -96,11 +108,7 @@ namespace boda
     bool has_one_top_one_bot( void ) const { return (tops.size() == 1) && (bots.size() == 1); }
     string const & get_single_in_place_arg( void ) const { assert_st( has_one_top_one_bot() ); assert_st( tops[0] == bots[0] ); return tops[0]; }  
 
-    conv_op_t( void ) : coi(0) { }
-    void set_and_check_coi( void ); // verify that 'type' string is recognized and set coi field accordingly to matching info struct
     void set_and_check_coi_and_args( void ); // verify input/output argument count and other sanity checks
-
-    bool is( conv_op_info_t const & coi ) const; // type string checking 
 
     // arg-map and related arg/dims handling -- generally for use after conv_pipe setup complete (i.e. in rtc)
     map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)

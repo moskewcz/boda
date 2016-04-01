@@ -59,6 +59,16 @@ namespace boda
     else { assert_st( ix < tops.size() ); return tops[ix]; }
   }
 
+  // type string checking + verify input/output argument count and other sanity checks
+  bool conv_op_base_t::is( conv_op_info_t const & coi_ ) const { assert_st( coi ); return coi == &coi_; }
+  void conv_op_base_t::set_and_check_coi( void ) { 
+    assert_st( !coi );
+    for( vect_rp_conv_op_info_t::const_iterator i = conv_op_infos.begin(); i != conv_op_infos.end(); ++i ) {
+      if( type == (*i)->type ) { coi = *i; }
+    }
+    if( !coi ) { rt_err( strprintf( "Unknown operation of type '%s'.", str(type).c_str() ) ); }
+  }
+
   void conv_op_t::set_arg_dims_and_map_from_pipe( conv_pipe_t const * const cp ) { 
     for( uint32_t i = 0; i != bots.size(); ++i ) {
       dims_t const & d = cp->must_get_node( bots[i] )->dims;
@@ -66,23 +76,16 @@ namespace boda
       must_insert( dims_vals, coi->bot_an(i), d );
       must_insert( arg_map, coi->bot_an(i), bots[i] );
     }
+    if( coi->has_var_bots.v ) { must_insert( str_vals, coi->bots[0] + "_num", str(bots.size()) ); }
     for( uint32_t i = 0; i != tops.size(); ++i ) { 
       dims_t const & d = cp->must_get_node( tops[i] )->dims;
       assert_st( !d.empty() ); // should have been already checked by calc_dims()
       must_insert( dims_vals, coi->top_an(i), d ); 
       must_insert( arg_map, coi->top_an(i), tops[i] );
     }
+    if( coi->has_var_tops.v ) { must_insert( str_vals, coi->tops[0] + "_num", str(tops.size()) ); }
   }
 
-  // type string checking + verify input/output argument count and other sanity checks
-  bool conv_op_t::is( conv_op_info_t const & coi_ ) const { assert_st( coi ); return coi == &coi_; }
-  void conv_op_t::set_and_check_coi( void ) { 
-    assert_st( !coi );
-    for( vect_rp_conv_op_info_t::const_iterator i = conv_op_infos.begin(); i != conv_op_infos.end(); ++i ) {
-      if( type == (*i)->type ) { coi = *i; }
-    }
-    if( !coi ) { rt_err( strprintf( "Unknown operation of type '%s'.", str(type).c_str() ) ); }
-  }
   void conv_op_t::set_and_check_coi_and_args( void ) { 
     set_and_check_coi();
     if( coi->has_var_tops.v ? ( coi->tops.size() > tops.size() ) : ( coi->tops.size() != tops.size() ) ) {
@@ -421,17 +424,17 @@ namespace boda
       if( cop->is( Convolution_coi ) ) { 
 	u32_pt_t kern_sz = cop->kern_sz();
 	if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( j_node->dims ); } // 'global' input special case
-	dims_t filts_dims( vect_uint32_t{ cop->u32_param("out_chans"), j_node->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
+	dims_t filts_dims( vect_uint32_t{ cop->get_u32("out_chans"), j_node->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
 			   vect_string{ "out_chan", "in_chan", "y", "x" }, 1 );
 	must_get_node( cop->bots[1] )->dims = filts_dims;
-	out_chans = cop->u32_param("out_chans");
+	out_chans = cop->get_u32("out_chans");
 	dims_t bias_dims( vect_uint32_t{ out_chans }, vect_string{ "out_chan" }, 1 );
 	must_get_node( cop->bots[2] )->dims = bias_dims;
       } else {
 	if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
 	// FIXME?: for the most part, we don't handle InnerProduct, but for cnet_fc_to_conv (i.e. the tool to convert
 	// InnerProduct to Convolution) we need this at least handled.
-	if( cop->is( InnerProduct_coi ) ) { out_chans = cop->u32_param("out_chans"); }
+	if( cop->is( InnerProduct_coi ) ) { out_chans = cop->get_u32("out_chans"); }
       }
       dims_t const & dims_in = j_node->dims;
       dims_out = dims_in; // starting point
