@@ -270,7 +270,7 @@ namespace boda
   typedef hunk_T< float > hunk_float_t;
   typedef hunk_T< double > hunk_double_t;
 
-  uint32_t const boda_magic= *(uint32_t *)"BODA";
+  __attribute__((used)) uint32_t const boda_magic= *(uint32_t *)"BODA";
 
 
   // the b{read,write}_bytes() functions are the basic low-level read/write that must be implimented
