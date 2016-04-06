@@ -9,6 +9,7 @@
 #include<sys/mman.h>
 #include<sys/stat.h>
 #include<fcntl.h>
+#include<cmath>
 
 void boda_assert_fail( char const * expr, char const * file, unsigned int line, char const * func ) throw() {
   fprintf(stderr,"boda: %s:%u: %s: Assertion failed: %s\n",file,line,func,expr);
@@ -21,6 +22,7 @@ namespace boda
   using std::unique_ptr;
   using std::ifstream;
   using std::ofstream;
+  using std::isnan;
   using boost::filesystem::path;
   using boost::filesystem::filesystem_error;
 
