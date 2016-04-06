@@ -174,7 +174,7 @@ namespace boda {
     assert_st( found_scope ); // who doesn't want to know the found scope? nobody. could be optional, though.
     if( nvm_init ) { // skip uninited nvms (from vectors, leafs, etc)
       sstr_t ss_vname;
-      ss_vname.borrow_from_string( n );
+      ss_vname.borrow_from_cstr( n );
       std::map< sstr_t, p_lexp_t >::const_iterator nvmi = nvm.find( ss_vname );
       if( nvmi != nvm.end() ) {	*found_scope = this; return nvmi->second; } // if found at this scope, return value
     }
