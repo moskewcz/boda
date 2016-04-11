@@ -155,5 +155,43 @@ namespace boda
     }
     return ret;
   }
+
+
+  // pretty-printing support (with units); ported from boda's python prettyprint.py
+  // string pad( uint32_t const & v, string const & s ) {  } // TODO
+  string pp_val_part( double const & v, bool const & force ) { 
+    if( v < 10.0 ) { return strprintf( "%.2f", v ); }
+    if( v < 100.0 ) { return strprintf( "%.1f", v ); }
+    if( (v < 1000.0) or force ) { return strprintf( "%.0f", v ); }
+    return "***"; // too big to render
+  }
+  string pp_val( double const & orig_v ) { 
+    double v = orig_v;
+    int32_t exp = 0; // engineering exponent step: orig_v = v 10^(3*exp)
+    assert_st( v >= 0.0 );
+    while( v < 1.0 ) { v *= 1000.0; --exp; }
+    // while pp_val_part returns its 'too-big' return (i.e. "***" currently)
+    string ret;
+    while( 1 ) {
+      ret = pp_val_part(v,0);
+      if( ret != pp_val_part(1e6,exp==5) ) { break; }
+      v /= 1000.0; ++exp;
+    }
+    if( exp < -4 ) { return str(v); } // too small, give up
+    if( exp < 0 ) { return ret+"munp"[- 1 - exp]; }
+    if( exp == 0 ) { return ret; } // no size suffix
+    assert_st( exp <= 5 ); // should have forced earlier otherwise
+    return ret+"KMGTP"[exp - 1];
+  }
+  string pp_secs( double const & v, bool const & verbose ) { return pp_val(v) + (verbose ? " SECS" : "s"); }
+  string pp_flops( double const & v, bool const & verbose ) { return pp_val(v) + (verbose ? " FLOPS" : "F"); }
+  string pp_bytes( double const & v, bool const & verbose ) { return pp_val(v) + (verbose ? " BYTES" : "B"); }
+
+  string pp_bps( double const & v, bool const & verbose ) { return pp_val(v) + (verbose ? " BYTES/SEC" : "B/s"); }
+  string pp_fpb( double const & v, bool const & verbose ) { return pp_val(v) + (verbose ? " FLOPS/BYTE" : "F/B"); }
+  string pp_fps( double const & v, bool const & verbose ) { return pp_val(v) + (verbose ? " FLOPS/SEC" : "F/s"); }
+  string pp_fpspw( double const & v, bool const & verbose ) { return pp_val(v) + (verbose ? " FLOPS/SEC/WATT" : "F/s/W"); }
+  string pp_joules( double const & v, bool const & verbose ) { return pp_val(v) + (verbose ? " JOULES" : "J"); }
+
 }
 

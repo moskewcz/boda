@@ -103,6 +103,19 @@ namespace boda
     str_exception( std::string const & msg_ ) : msg(strdup(msg_.c_str())) { }
     virtual char const * what() const throw() { return msg; }
   };
+
+  // pretty printing (with units)
+  std::string pp_val( double const & orig_v );
+
+  std::string pp_secs( double const & v, bool const & verbose=0 );
+  std::string pp_flops( double const & v, bool const & verbose=0 );
+  std::string pp_bytes( double const & v, bool const & verbose=0 );
+  std::string pp_bps( double const & v, bool const & verbose=0 );
+  std::string pp_fpb( double const & v, bool const & verbose=0 );
+  std::string pp_fps( double const & v, bool const & verbose=0 );
+  std::string pp_fpspw( double const & v, bool const & verbose=0 );
+  std::string pp_joules( double const & v, bool const & verbose=0 );
+
 }
 
 #endif // MWM_str_util
