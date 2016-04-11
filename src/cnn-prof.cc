@@ -16,22 +16,26 @@ namespace boda
   typedef shared_ptr< conv_op_base_t > p_conv_op_base_t; 
   p_conv_op_base_t make_p_conv_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
-  string dims_yxc_str( dims_t const & d ) { return strprintf( "$%s \\dx %s \\dx %s$", str(d.dsz("y")).c_str(), 
-							      str(d.dsz("x")).c_str(), str(d.dsz("chan")).c_str() ); }
+  string dims_yxc_str( dims_t const & d, bool include_img = 0 ) { 
+    return strprintf( "$%s%s \\dx %s \\dx %s$", include_img ? (str(d.dsz("img"))+"\\dx ").c_str():"",
+		      str(d.dsz("y")).c_str(), str(d.dsz("x")).c_str(), str(d.dsz("chan")).c_str() ); }
   string mkn_str( uint64_t const & M, uint64_t const & K, uint64_t const & N  ) { 
     return strprintf( "$%s \\dx %s \\dx %s$", str(M).c_str(), str(K).c_str(), str(N).c_str() ); }
 
-  string conv_op_info_as_latex_tab_row( p_conv_op_base_t const & op ) {
-    string ret;
+  void conv_op_info_as_latex_tab_row( p_conv_op_base_t const & op, std::ostream * const info_out, std::ostream * const eff_out ) {
+    string info;
+    string eff;
     assert_st( op->kern_sz().dims_are_same() );
     assert_st( op->stride().dims_are_same() );
     dims_t const & dout = op->get_dims("out");
-    ret += strprintf( "%s & %s & %s", str(op->kern_sz().d[0]).c_str(), str(op->stride().d[0]).c_str(), 
+    info += strprintf( "%s & %s & %s", str(op->kern_sz().d[0]).c_str(), str(op->stride().d[0]).c_str(), 
 		      str(dout.dsz("chan")).c_str() );
+    eff = info;
     dims_t const & din = op->get_dims("in");
     uint64_t const B = din.dsz( "img" );
     assert_st( B == dout.dsz("img" ) );
-    ret += strprintf( " & %s & %s & %s", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
+    info += strprintf( " & %s & %s & %s", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
+    eff += strprintf( " & %s ", dims_yxc_str(din,1).c_str() );
 
     // AI-related calculations
     dims_t const & filts = op->get_dims("filts");
@@ -46,10 +50,16 @@ namespace boda
     uint64_t const forward_flops = M * N * K * 2;
     
     double const ai = double(forward_flops)/double(forward_bytes);
-    ret += strprintf( " & %s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
+    info += strprintf( " & %s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
 		      pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
 
-    return ret + " \\\\";
+    double const runtime_secs = 0.123f;
+    double const fps = double(forward_flops)/runtime_secs;
+    double const peak = 7000e9;
+    eff += strprintf( " & %s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak*100.0).c_str() );
+
+    if( info_out ) { (*info_out) << info << "\\\\ \n"; }
+    if( eff_out ) { (*eff_out) << eff << "\\\\ \n"; }
   }
 
   struct cnn_op_info_t : virtual public nesi, public has_main_t // NESI(help="print info for set of CNN operations",
@@ -59,6 +69,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/cnn_func_sigs_tiny.txt",help="file to read cnn ops from")
     filename_t op_info_tab_fn; //NESI(default="%(boda_output_dir)/op-info-tab.tex",help="file to write op info latex rows to")
+    filename_t op_eff_tab_fn; //NESI(default="%(boda_output_dir)/op-eff-tab.tex",help="file to write op info latex rows to")
     virtual void main( nesi_init_arg_t * nia );
   };
 
@@ -66,11 +77,11 @@ namespace boda
     vect_p_conv_op_t sigs;
     p_vect_string in_lines = readlines_fn( cnn_func_sigs_fn );
     p_ofstream oit_out = ofs_open( op_info_tab_fn );
+    p_ofstream oet_out = ofs_open( op_eff_tab_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
-      string const s = conv_op_info_as_latex_tab_row( op );
-      (*oit_out) << s << "\n";
+      conv_op_info_as_latex_tab_row( op, oit_out.get(), oet_out.get() );
     }
   }
 
