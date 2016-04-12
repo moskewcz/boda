@@ -125,8 +125,9 @@ namespace boda
 	codegen.rtc_func_names_map.clear();
 	codegen.rtc_prog_str.clear();
 
-	conv_op_info_as_latex_tab_row( op, rtc_op->type, rfc_dur_secs, oit_out.get(), oet_out.get() );
+	conv_op_info_as_latex_tab_row( op, rtc_op->type, rfc_dur_secs, 0, oet_out.get() );
       }
+      conv_op_info_as_latex_tab_row( op, "", 0, oit_out.get(), 0 );
     }
 
     if( enable_prof ) { rtc->profile_stop(); }
