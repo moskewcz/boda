@@ -33,6 +33,7 @@ namespace boda
     // rtc->create_var_with_dims_floats( name, cp->must_get_node(node_name)->dims );
     // calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
     
+    p_ofstream out;
     rtc_codegen_t codegen;
 
     virtual void main( nesi_init_arg_t * nia );
@@ -48,16 +49,21 @@ namespace boda
     return codegen.gen_func( ccc.get(), rfs ); 
   }
 
-  p_ofstream out;
+  p_rtc_func_sig_t make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
   void rtc_prof_t::main( nesi_init_arg_t * nia ) {
     out = ofs_open( per_call_fn );
     rtc->init();
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); }
     if( eat_megs ) { rtc->create_var_with_dims_floats( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, 1 } ); }
-    codegen.read_rtc_func_sigs( rtc_func_sigs_fn );
-    for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) { 
-      p_rtc_call_gen_t const &rcg = i->second;
+
+    p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
+    for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
+      p_rtc_func_sig_t v = make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+      codegen.gen_func( make_cnn_custom_codegen_t().get(), *v );
+      assert( codegen.rtc_func_names_map.size() == 1 );
+      p_rtc_call_gen_t const &rcg = codegen.rtc_func_names_map.begin()->second;
       if( !rcg->blks ) { 
 	printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
 	continue; 
@@ -66,7 +72,9 @@ namespace boda
 	printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
 	continue; 
       }
-      run_call( i->first, rcg );
+      run_call( codegen.rtc_func_names_map.begin()->first, rcg );
+      codegen.rtc_func_names_map.clear();
+      codegen.rtc_prog_str.clear();
     }
     if( enable_prof ) { rtc->profile_stop(); }
     rtc->finish_and_sync();
