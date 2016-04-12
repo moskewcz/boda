@@ -104,6 +104,60 @@ There are two basic phases by which CUCL templates are converted to CUCL functio
 - template parsing, which reads magic-comment-based CUCL annotations
 - template instantiation, which performs string substitution on template parameters
 
+### CUCL template parsing
+
+This is phase in which all CUCL magic comments are read.
+The relevant code is in the struct rtc_template_t in rtc_func_gen.H.
+
+CUCL declarations (magic comments) all begin with "// CUCL", and then a space-seperated list of arguments.
+The first argument is the type of declarations.
+It is one of:
+
+   if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { ... }
+
+With an optional suffix of "_MULTI" applied.
+
+IN, INOUT, and OUT are used to declare function arguments, and must be immediately preceded by the name of the argument:
+
+    GASQ float const * const in, // CUCL IN img:chan:y:x
+
+REF is similar, and must also by immediately preceded by the name of the name of the reference:
+
+/* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
+
+In both cases, the CUCL declaration specified the names of the dimensions of the ND-Array for the bound name.
+When a function is called, there must be a corresponding dims_t for each CUCL declaration, with a matching name.
+Further, the names of the dimensions must also match between the declaration and the dims_t found in the calling environment.
+Additionally, IN/INOUT/OUT declarations must correspond to a ND-Array in a CUCL variable.
+REF declarations need not have data, but only just a dims_t -- they represent an ND-Array type, not an actually memory-backed ND-Array.
+That is, REF declarations are a way to pass *just the dimensions* of an ND-Array to a template.
+
+Finally, IX declarations are used to mark that particular a particular variable acts as an index for a particular set of ND-Array dimensions:
+
+    // CUCL IX GLOB_ID_1D filts_ref
+
+As opposed to the other declaration types, include index expression string as part of the declaration, and thus stand alone on their own line.
+Later, we can see the usage of this index expression:
+
+    val = filts_ref[GLOB_ID_1D];
+
+Note that declaring GLOB_ID_1D, GRP_ID_1D, or LOC_ID_1D as indexed triggers special behaviour.
+See rtc_call_gen_t init().
+In particular, using these expressions as indexes will implicitly set the workgroup size and/or number of workgroups.
+Note also that IX declarations can use only a subset of the dims_t that they refer to via the use_dims=... option.
+
+### CUCL template variable synthesis
+
+While some template variables are explicitly constructed in codegen or passed in, many are created from the various CUCL declarations.
+See insert_nda_ix_exprs() and its calls.
+
+### CUCL template instantiation
+
+In this phase all, every string of the form %(template_var_name) in the CUCL template is replaced with the corresponding string value for the template variable 'template_var_name'.
+
+
+
+
 
 
 
