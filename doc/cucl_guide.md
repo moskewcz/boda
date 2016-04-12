@@ -12,11 +12,11 @@ Think of the CUCL support as simply part of the existing set of flows that has b
 
 ## CUCL runtime layer
 
-The boda rtc (real-time-compilation) interface is here: <src/rtc_compute.H>
+The boda rtc (real-time-compilation) interface is [here](/src/rtc_compute.H>).
 
-The OpenCL backend is here: <src/ocl_util.cc>
+The OpenCL backend is [here](/src/ocl_util.cc).
 
-The CUDA/nvrtc backend is here: <src/nvrtc_util.cc>
+The CUDA/nvrtc backend is [here](/src/nvrtc_util.cc).
 
 Note that the backend files are the only files that use any OpenCL/CUDA headers/libraries/functionality. 
 Also, they provide no direct interface -- they are strictly used via the rtc_compute_t interface class.
@@ -26,7 +26,7 @@ The rtc_compute_t interface provides for the compilation of code, management of 
 ### CUCL runtime variables
 
 Currently, all CUCL runtime variables are ND-Arrays of floats.
-A variable has a string name, a dims_t (defined in <src/boda_base.H>) which defines its ND-Array dimensions, and backing memory on the compute device.
+A variable has a string name, a dims_t (defined [here](/src/boda_base.H)) which defines its ND-Array dimensions, and backing memory on the compute device.
 Currently, only un-padded, fixed-size, always-resident ND-Arrays are supported.
 A dims_t primarily stores the number of dimensions of the ND-Array and the size of each dimension.
 However, of particular note is that a dims_t can (optionally) store semantic names for dimension.
@@ -47,7 +47,7 @@ This code/data is access elsewhere via usage of C function declarations and the 
 
 The CUCL language layer consists of just a few #defines, listed here.
 
-From the OpenCL backend <src/ocl_util.cc>:
+From the [OpenCL backend](/src/ocl_util.cc):
 
 
 ````
@@ -72,7 +72,7 @@ typedef int int32_t;
 #define powf(v,e) pow((float)v,(float)e)
 ````
 
-From the CUDA/nvrtc backend <src/nvrtc_util.cc>:
+From the [CUDA/nvrtc backend](/src/nvrtc_util.cc):
 
 ````
 typedef unsigned uint32_t;
@@ -98,7 +98,7 @@ Again, this abstraction layer is not intended to be complete or unchanging, and 
 
 The above layers are sufficient to use CUCL via the rtc_compute_t interface.
 However, to support metaprogramming and more automated management of function arguments, there is another layer of CUCL on top of the prior ones.
-This lives in <src/rtc_func_gen.H>. 
+This lives [here](/src/rtc_func_gen.H>).
 Rather than directly writing CUCL kernels, users of this layer instead write CUCL templates.
 There are two basic phases by which CUCL templates are converted to CUCL functions:
 - template parsing, which reads magic-comment-based CUCL annotations
