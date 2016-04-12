@@ -73,6 +73,7 @@ namespace boda
     rtc->release_all_funcs();
     // get call duration
     //if( rfc.call_tag.empty() ) { release; return; } // FIXME: possible here? 
+    rtc->finish_and_sync();
     double const rfc_dur = rtc->get_dur( rfc.call_id, rfc.call_id );
     rtc->release_per_call_id_data();
     return rfc_dur;
