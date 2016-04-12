@@ -38,6 +38,7 @@ namespace boda
     // we almost-only need to get the timing of a single call, but we allow spanning calls for convenience and/or to allow
     // detecting inconsistencies/overheads between the sum of per-call times and the overall all-calls time (as proxied by
     // calling get_dur( first_call, last_call ) ).
+    // note: return value is in milliseconds (ms)
     virtual float get_dur( uint32_t const & b, uint32_t const & e ) = 0; // note: uses call_id field, which must be valid
 
     virtual void profile_start( void ) = 0;
