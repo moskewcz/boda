@@ -23,6 +23,7 @@ namespace boda
     return strprintf( "$%s \\dx %s \\dx %s$", str(M).c_str(), str(K).c_str(), str(N).c_str() ); }
 
   void conv_op_info_as_latex_tab_row( p_conv_op_base_t const & op, string const & rtc_op_type, double const & runtime_secs, 
+				      double const & peak_flops,
 				      std::ostream * const info_out, std::ostream * const eff_out ) {
     string info;
     string eff;
@@ -55,8 +56,7 @@ namespace boda
 		      pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
 
     double const fps = double(forward_flops)/runtime_secs;
-    double const peak = 6600e9;
-    eff += strprintf( " & %s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak*100.0).c_str() );
+    eff += strprintf( " & %s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() );
 
     if( info_out ) { (*info_out) << info << "\\\\ \n"; }
     if( eff_out ) { (*eff_out) << eff << "\\\\ \n"; }
@@ -70,6 +70,10 @@ namespace boda
     filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/cnn_func_sigs_tiny.txt",help="file to read cnn ops from")
     filename_t op_info_tab_fn; //NESI(default="%(boda_output_dir)/op-info-tab.tex",help="file to write op info latex rows to")
     filename_t op_eff_tab_fn; //NESI(default="%(boda_output_dir)/op-eff-tab.tex",help="file to write op info latex rows to")
+
+    double peak_flops; //NESI(default=6600e9,help="peak flops of platform (for computing peak %s)")
+
+    uint32_t run_opt_variants; //NESI(default=1,help="if 1, run opt variants")
 
     uint32_t show_rtc_calls; //NESI(default=1,help="if 1, print rtc calls")
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
@@ -99,7 +103,7 @@ namespace boda
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
 
-      for( uint32_t opt = 0; opt < 2; ++opt ) {
+      for( uint32_t opt = 0; opt <= run_opt_variants; ++opt ) {
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
 	add_cnn_codegen_annotations( anno_op.get(), 0, opt, opt, opt, 4 );
@@ -125,9 +129,9 @@ namespace boda
 	codegen.rtc_func_names_map.clear();
 	codegen.rtc_prog_str.clear();
 
-	conv_op_info_as_latex_tab_row( op, rtc_op->type, rfc_dur_secs, 0, oet_out.get() );
+	conv_op_info_as_latex_tab_row( op, rtc_op->type, rfc_dur_secs, peak_flops, 0, oet_out.get() );
       }
-      conv_op_info_as_latex_tab_row( op, "", 0, oit_out.get(), 0 );
+      conv_op_info_as_latex_tab_row( op, "", 0, peak_flops, oit_out.get(), 0 );
     }
 
     if( enable_prof ) { rtc->profile_stop(); }
