@@ -141,22 +141,112 @@ Later, we can see the usage of this index expression:
 
     val = filts_ref[GLOB_ID_1D];
 
-Note that declaring GLOB_ID_1D, GRP_ID_1D, or LOC_ID_1D as indexed triggers special behaviour.
-See rtc_call_gen_t init().
+Note that declaring the expressions GLOB_ID_1D, GRP_ID_1D, or LOC_ID_1D as indexes (with a CUCL IX declaration) triggers special behaviour.
+See rtc_call_gen_t init() for details of these special cases.
 In particular, using these expressions as indexes will implicitly set the workgroup size and/or number of workgroups.
-Note also that IX declarations can use only a subset of the dims_t that they refer to via the use_dims=... option.
+Note also that IX declarations can use only a subset of the dims_t that they refer to via the use_dims=... option:
 
-### CUCL template variable synthesis
+    // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
+    // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
 
-While some template variables are explicitly constructed in codegen or passed in, many are created from the various CUCL declarations.
-See insert_nda_ix_exprs() and its calls.
+In the above, we see the usage of a common CUCL idiom.
+We declare both GRP_ID_1D and LOC_ID_1D as indexes in order to set both the workgroup size (via LOC_ID_1D) and number of workgroups (via GRP_ID_1D).
+Both declarations use the dims_t 'work', as previously declared with CUCL REF.
+However, each IX declaration uses only a subset of the dimensions of work.
+This can be though of as creating a new dims_t on the fly, containing only the dimensions listed, to be used as the dims_t for the given index.
+So, the net effect is that:
+- GRP_ID_1D acts as a linear index for an ND-Array with dims ( pels_blk x out_chan_blk )
+- LOC_ID_1D acts as a linear index for an ND-Array with dims ( pels_tile x out_chan_tile )
+Where all sizes are == to to the corresponding dimension sizes from 'work'.
 
 ### CUCL template instantiation
 
 In this phase all, every string of the form %(template_var_name) in the CUCL template is replaced with the corresponding string value for the template variable 'template_var_name'.
 
+### CUCL template variable synthesis
 
+While some template variables are explicitly constructed in codegen or passed in, many are created from the various CUCL declarations.
+See insert_nda_dims_sz()/insert_nda_ix_exprs() and their calls.
 
+Recall that for all IX/IN/INOUT/OUT CUCL declarations, there must be a corresponding dims_t with matching dimension names in the calling environment.
+For each such declaration, the corresponding dims_t is *bound* to the declared expression (i.e. name).
+Then, insert_nda_dims_sz() will add various template variables that expose the concrete sizes to the function template.
+Consider this full example, drawn from [here](/test/rtc/xpose_filts.cucl):
+
+````
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts_ref, // CUCL IN out_chan:in_chan:y:x
+					  GASQ float * const filts ) // CUCL OUT out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
+{
+  // CUCL IX GLOB_ID_1D filts_ref
+  if( GLOB_ID_1D >= %(filts_ref_dims_prod) ) { return; }
+  int32_t const fioc = %(GLOB_ID_1D_out_chan);
+  // CUCL IX fioc filts use_dims=out_chan_blk:out_chan_tile:out_chan_reg
+
+  float val = 0.0f;  
+  int32_t const filts_ix  = 
+    %(fioc_out_chan_blk)*%(filts_out_chan_blk_sz) +
+    %(fioc_out_chan_reg)*%(filts_out_chan_reg_sz) +
+    %(fioc_out_chan_tile)*%(filts_out_chan_tile_sz) +
+    %(GLOB_ID_1D_in_chan)*%(filts_in_chan_sz) +
+    %(GLOB_ID_1D_y)*%(filts_y_sz) +
+    %(GLOB_ID_1D_x)*%(filts_x_sz);
+  val = filts_ref[GLOB_ID_1D];
+  filts[filts_ix] = val;
+}
+````
+
+Consider the 'filts' variable.
+It is declared with CUCL OUT as being a 6D-Array.
+For each dimension of 'filts', boda will generate two template variables: one for the size of the dimension, and one for its stride.
+Additionally, boda will generate a template variable for the stride of the entire 6D-Array (i.e. what the stride of the 7'th dimensions would be).
+These can be seen here in an extract from the post-template-instantiation code (manually sorted for clarity):
+
+````
+/* filts_out_chan_blk_dim = 1 */
+/* filts_out_chan_blk_sz = 34848 */
+/* filts_in_chan_dim = 3 */
+/* filts_in_chan_sz = 11616 */
+/* filts_y_dim = 11 */
+/* filts_y_sz = 1056 */
+/* filts_x_dim = 11 */
+/* filts_x_sz = 96 */
+/* filts_out_chan_reg_dim = 8 */
+/* filts_out_chan_reg_sz = 12 */
+/* filts_out_chan_tile_dim = 12 */
+/* filts_out_chan_tile_sz = 1 */
+
+/* filts_dims_prod = 34848 */
+````
+
+In this case, the ND-Array has size 1 x 3 x 11 x 11 x 8 x 12, for a total size of 34848 (filts_dims_prod).
+Each dimension size variable is named *var_name*+"_"+*dim_name*+"_dim".
+For example, the size of the *out_chan_reg* dimension of *filts* is named filt_out_chan_reg_dim (and has value 8).
+Also, there are variables that represent the stride (in array elements) for each dimension.
+The stride of each dimension is calculated as the product of the sizes of all more-inner dimension.
+The stride variables are named *var_name*+"_"+*dim_name*+"_sz" (which is perhaps an unfortunate naming choice ...).
+For example, the stride of the *x* dimension of *filts* is named filt_x_sz, and has value 96, which is equal to the product of the more-inner dimension sizes: filts_out_chan_reg_dim * filts_out_chan_tile_dim = 8 * 12 = 96.
+
+Next, consider the CUCL IX declaration for 'fioc'.
+This declares that the expression 'fioc' should act as a linear index of the 23-Array with dims_t out_chan_blk:out_chan_tile:out_chan_reg draw from 'filts'.
+So, the dims for 'fioc' are 1 x 12 x 8 
+Note the differing order of dimensions from filts; this is because function is performing a partial transpose.
+For indexes, boda will create template variables that perform the required index calculations to transform the linear index 'fioc' into per-dimension indexes:
+
+````
+/* fioc_out_chan_blk = (fioc/96) */
+/* fioc_out_chan_reg = (fioc%%8) */
+/* fioc_out_chan_tile = ((fioc/8)%%12) */
+````
+
+See insert_nda_dims_sz() for details, but in short each the template variable for each dimension is named *index_name*+"_"+*dim_name*.
+The calculation for each dimension is: ((linear_index / dim_stride) % dim_size).
+However, note that boda will simplify the expression in some cases (i.e. removal of /1 or the like).
+Further, boda additionally will generate a '_nomod' version of each variable which omits the modulo operation.
+
+In the above example, the calculation of:
+    int32_t const filts_ix  = ...
+
+Combined various of these template variables in order to map from the index space of one ND-Array to another to perform a re-blocking/partial-transpose.
 
 
 
