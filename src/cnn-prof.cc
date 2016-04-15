@@ -22,45 +22,51 @@ namespace boda
   string mkn_str( uint64_t const & M, uint64_t const & K, uint64_t const & N  ) { 
     return strprintf( "$%s \\dx %s \\dx %s$", str(M).c_str(), str(K).c_str(), str(N).c_str() ); }
 
-  void conv_op_info_as_latex_tab_row( p_conv_op_base_t const & op, string const & rtc_op_type, double const & runtime_secs, 
-				      double const & peak_flops,
-				      std::ostream * const info_out, std::ostream * const eff_out ) {
-    string info;
-    string eff;
-    assert_st( op->kern_sz().dims_are_same() );
-    assert_st( op->stride().dims_are_same() );
-    dims_t const & dout = op->get_dims("out");
-    info += strprintf( "%s & %s & %s", str(op->kern_sz().d[0]).c_str(), str(op->stride().d[0]).c_str(), 
-		      str(dout.dsz("chan")).c_str() );
-    eff = info;
-    dims_t const & din = op->get_dims("in");
-    uint64_t const B = din.dsz( "img" );
-    assert_st( B == dout.dsz("img" ) );
-    info += strprintf( " & %s & %s & %s", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
-    eff += strprintf( " & %s & %s ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
 
-    // AI-related calculations
-    dims_t const & filts = op->get_dims("filts");
-    dims_t const & biases = op->get_dims("biases");
+  struct conv_op_info_to_latex_t {
+    p_conv_op_base_t op;    
+    dims_t din;
+    dims_t dout;
+    uint64_t B;
+    uint64_t M,N,K;
+    uint64_t forward_bytes, forward_flops;
 
-    uint64_t const M = dout.dsz("img")*dout.dsz("x")*dout.dsz("y"); // note: all-imgs M
-    uint64_t const K = filts.dsz("in_chan")*filts.dsz("x")*filts.dsz("y");
-    uint64_t const N = filts.dsz("out_chan");
-
-    uint64_t const forward_bytes = (din.dims_prod() + dout.dims_prod() + filts.dims_prod() + biases.dims_prod()) * 4;
-
-    uint64_t const forward_flops = M * N * K * 2;
-    
-    double const ai = double(forward_flops)/double(forward_bytes);
-    info += strprintf( " & %s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
-		      pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
-
-    double const fps = double(forward_flops)/runtime_secs;
-    eff += strprintf( " & %s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() );
-
-    if( info_out ) { (*info_out) << info << "\\\\ \n"; }
-    if( eff_out ) { (*eff_out) << eff << "\\\\ \n"; }
-  }
+    void base_info( std::ostream * const out ) {
+      assert_st( op->kern_sz().dims_are_same() );
+      assert_st( op->stride().dims_are_same() );
+      (*out) << strprintf( "%s & %s & %s", str(op->kern_sz().d[0]).c_str(), str(op->stride().d[0]).c_str(), str(dout.dsz("chan")).c_str() );
+    }
+    void info_row( std::ostream * const out ) {
+      base_info( out );
+      (*out) << strprintf( " & %s & %s & %s", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
+      double const ai = double(forward_flops)/double(forward_bytes);
+      (*out) << strprintf( " & %s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
+			   pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
+      (*out) << "\\\\ \n";
+    }
+    void eff_row( std::ostream * const out, string const & rtc_op_type, double const & runtime_secs, double const & peak_flops ) {
+      base_info( out );
+      (*out) << strprintf( " & %s & %s ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
+      double const fps = double(forward_flops)/runtime_secs;
+      (*out) << strprintf( " & %s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
+      (*out) << "\\\\ \n";
+    }
+    void init( p_conv_op_base_t const & op_ ) {
+      op = op_;
+      dout = op->get_dims("out");
+      din = op->get_dims("in");
+      B = din.dsz( "img" );
+      assert_st( B == dout.dsz("img" ) );
+      // AI-related calculations
+      dims_t const & filts = op->get_dims("filts");
+      dims_t const & biases = op->get_dims("biases");
+      M = dout.dsz("img")*dout.dsz("x")*dout.dsz("y"); // note: all-imgs M
+      K = filts.dsz("in_chan")*filts.dsz("x")*filts.dsz("y");
+      N = filts.dsz("out_chan");
+      forward_bytes = (din.dims_prod() + dout.dims_prod() + filts.dims_prod() + biases.dims_prod()) * 4;
+      forward_flops = M * N * K * 2;
+    }
+  };
 
   struct cnn_op_info_t : virtual public nesi, public has_main_t // NESI(help="print info for set of CNN operations",
 			 // bases=["has_main_t"], type_id="cnn_op_info" )
@@ -102,7 +108,9 @@ namespace boda
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
-
+      conv_op_info_to_latex_t to_latex;
+      to_latex.init( op );
+      to_latex.info_row( oit_out.get() );
       for( uint32_t opt = 0; opt <= run_opt_variants; ++opt ) {
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
@@ -128,10 +136,8 @@ namespace boda
 	printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	codegen.rtc_func_names_map.clear();
 	codegen.rtc_prog_str.clear();
-
-	conv_op_info_as_latex_tab_row( op, rtc_op->type, rfc_dur_secs, peak_flops, 0, oet_out.get() );
+	to_latex.eff_row( oet_out.get(), rtc_op->type, rfc_dur_secs, peak_flops );
       }
-      conv_op_info_as_latex_tab_row( op, "", 0, peak_flops, oit_out.get(), 0 );
     }
 
     if( enable_prof ) { rtc->profile_stop(); }
