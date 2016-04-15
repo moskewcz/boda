@@ -346,6 +346,8 @@ namespace boda
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
 
+    void clear( void );
+
   };
 
 }

@@ -143,6 +143,12 @@ namespace boda
     return rcg->gen_fn;
   }
 
+  void rtc_codegen_t::clear( void ) {
+    rtc_func_names_map.clear();
+    rtc_func_sigs_map.clear();
+    rtc_prog_str.clear();
+  }
+
   void rtc_codegen_t::read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {

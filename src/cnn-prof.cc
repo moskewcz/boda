@@ -42,14 +42,14 @@ namespace boda
       double const ai = double(forward_flops)/double(forward_bytes);
       (*out) << strprintf( " & %s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
 			   pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
-      (*out) << "\\\\ \n";
+      (*out) << "\\\\ " << std::endl;
     }
     void eff_row( std::ostream * const out, string const & rtc_op_type, double const & runtime_secs, double const & peak_flops ) {
       base_info( out );
       (*out) << strprintf( " & %s & %s ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
       double const fps = double(forward_flops)/runtime_secs;
       (*out) << strprintf( " & %s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
-      (*out) << "\\\\ \n";
+      (*out) << "\\\\ " << std::endl;
     }
     void init( p_conv_op_base_t const & op_ ) {
       op = op_;
@@ -78,8 +78,9 @@ namespace boda
     filename_t op_eff_tab_fn; //NESI(default="%(boda_output_dir)/op-eff-tab.tex",help="file to write op info latex rows to")
 
     double peak_flops; //NESI(default=6600e9,help="peak flops of platform (for computing peak %s)")
+    uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
-    uint32_t run_opt_variants; //NESI(default=1,help="if 1, run opt variants")
+    uint32_t run_opt_variants; //NESI(default=2,help="if 0, run no variants. if 1, run non-opt only, if 2, run non-opt+opt variants")
 
     uint32_t show_rtc_calls; //NESI(default=1,help="if 1, print rtc calls")
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
@@ -111,16 +112,19 @@ namespace boda
       conv_op_info_to_latex_t to_latex;
       to_latex.init( op );
       to_latex.info_row( oit_out.get() );
-      for( uint32_t opt = 0; opt <= run_opt_variants; ++opt ) {
+      for( uint32_t opt = 0; opt < run_opt_variants; ++opt ) {
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
-	add_cnn_codegen_annotations( anno_op.get(), 0, opt, opt, opt, 4 );
+	add_cnn_codegen_annotations( anno_op.get(), 0, opt, opt, 0, t_tile_sz );
 	p_rtc_func_sig_t rtc_op = make_shared< rtc_func_sig_t >( must_find( anno_op->str_vals, "cts" ), 
 								 anno_op->dims_vals, anno_op->str_vals );
 	must_insert( rtc_op->str_vals, "conv_has_relu", str(1) );
       
 	// profile rtc op
 	codegen.gen_func( make_cnn_custom_codegen_t().get(), *rtc_op );
+	if( codegen.rtc_func_names_map.size() != 1 ) {
+	  printf( "codegen.rtc_func_names_map=%s\n", str(codegen.rtc_func_names_map).c_str() );
+	}
 	assert( codegen.rtc_func_names_map.size() == 1 );
 	p_rtc_call_gen_t const &rcg = codegen.rtc_func_names_map.begin()->second;
 	string const & func_name = codegen.rtc_func_names_map.begin()->first;
@@ -134,8 +138,7 @@ namespace boda
 	}
 	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, func_name, rcg ) / 1000.0;
 	printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
-	codegen.rtc_func_names_map.clear();
-	codegen.rtc_prog_str.clear();
+	codegen.clear();
 	to_latex.eff_row( oet_out.get(), rtc_op->type, rfc_dur_secs, peak_flops );
       }
     }
