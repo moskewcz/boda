@@ -84,6 +84,7 @@ namespace boda
 
     uint32_t show_rtc_calls; //NESI(default=1,help="if 1, print rtc calls")
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
+    p_rtc_compute_t rtc_comp; //NESI(help="rtc back-end to use for correctness-testing comparison")
     rtc_codegen_t codegen;
 
     virtual void main( nesi_init_arg_t * nia );
@@ -103,8 +104,9 @@ namespace boda
     p_ofstream oet_out = ofs_open( op_eff_tab_fn );
 
     rtc->init();
+    if( rtc_comp ) { rtc_comp->init(); }
     bool const enable_prof = 0;
-    if( enable_prof ) { rtc->profile_start(); }
+    if( enable_prof ) { rtc->profile_start(); if(rtc_comp) { rtc_comp->init(); } }
 
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
@@ -138,13 +140,18 @@ namespace boda
 	}
 	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, func_name, rcg ) / 1000.0;
 	printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
+	if( rtc_comp ) {
+	  double const rfc_dur_secs = profile_rcg_call( rtc_comp, codegen, show_rtc_calls, func_name, rcg ) / 1000.0;
+	  printf( "COMP rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
+	}
 	codegen.clear();
 	to_latex.eff_row( oet_out.get(), rtc_op->type, rfc_dur_secs, peak_flops );
       }
     }
 
-    if( enable_prof ) { rtc->profile_stop(); }
-    rtc->finish_and_sync();
+    if( enable_prof ) { rtc->profile_stop(); if( rtc_comp ) { rtc_comp->profile_stop(); } }
+    rtc->finish_and_sync(); 
+    if( rtc_comp ) { rtc_comp->finish_and_sync(); }
   }
 
   struct cnn_prof_t : virtual public nesi, public has_main_t // NESI(help="profile set of rtc functions",

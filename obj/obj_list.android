@@ -94,6 +94,8 @@ LDFLAGS := $(LDFLAGS) -L/scratch/moskewcz/android/src/libjpeg-turbo-1.4.90/.libs
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+comp_util.o
+cnn-prof.o
 stacktrace_util_gnu.o stacktrace_gnu
 stacktrace_util_stub.o -stacktrace_gnu
 op_base.o
