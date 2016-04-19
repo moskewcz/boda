@@ -8,6 +8,8 @@
 #include"rtc_func_gen.H"
 #include"rtc_compute.H"
 #include"conv_util.H"
+#include"comp_util.H"
+#include<iostream>
 
 namespace boda 
 {
@@ -82,9 +84,18 @@ namespace boda
 
     uint32_t run_opt_variants; //NESI(default=2,help="if 0, run no variants. if 1, run non-opt only, if 2, run non-opt+opt variants")
 
+    double tpd_const; //NESI(default="1.0",help="test-pattern data constant offset")
+    uint32_t gen_input_data; //NESI(default=0,help="if 0, intputs are zeros. if non-zero, generate test-pattern input data")
+
     uint32_t show_rtc_calls; //NESI(default=1,help="if 1, print rtc calls")
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
+
+    // comparison testing related options:
     p_rtc_compute_t rtc_comp; //NESI(help="rtc back-end to use for correctness-testing comparison")
+    double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
+    map_str_double var_mad_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mad_toler per-layer if specified")
+    uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
+
     rtc_codegen_t codegen;
 
     virtual void main( nesi_init_arg_t * nia );
@@ -95,7 +106,8 @@ namespace boda
 				    bool const & force_enable_tconv, uint32_t const t_tile_sz );
 
   double profile_rcg_call( p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   string const & func_name, p_rtc_call_gen_t const & rcg );
+			   string const & func_name, p_rtc_call_gen_t const & rcg, 
+			   rtc_call_gen_t * const rcg_in_gen, map_str_p_nda_float_t * const outs );
 
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
     vect_p_conv_op_t sigs;
@@ -107,7 +119,13 @@ namespace boda
     if( rtc_comp ) { rtc_comp->init(); }
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); if(rtc_comp) { rtc_comp->init(); } }
-
+    p_map_str_p_nda_float_t vs1;
+    p_map_str_p_nda_float_t vs2;
+    if( rtc_comp ) { 
+      vs1 = make_shared<map_str_p_nda_float_t>();
+      vs2 = make_shared<map_str_p_nda_float_t>();
+    }
+    uint32_t num_mad_fail = 0;
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
@@ -115,21 +133,28 @@ namespace boda
       to_latex.init( op );
       to_latex.info_row( oit_out.get() );
       for( uint32_t opt = 0; opt < run_opt_variants; ++opt ) {
+	if( rtc_comp ) { vs1->clear(); vs2->clear(); }
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
 	add_cnn_codegen_annotations( anno_op.get(), 0, opt, opt, 0, t_tile_sz );
-	p_rtc_func_sig_t rtc_op = make_shared< rtc_func_sig_t >( must_find( anno_op->str_vals, "cts" ), 
-								 anno_op->dims_vals, anno_op->str_vals );
-	must_insert( rtc_op->str_vals, "conv_has_relu", str(1) );
-      
-	// profile rtc op
-	codegen.gen_func( make_cnn_custom_codegen_t().get(), *rtc_op );
-	if( codegen.rtc_func_names_map.size() != 1 ) {
-	  printf( "codegen.rtc_func_names_map=%s\n", str(codegen.rtc_func_names_map).c_str() );
+	p_op_base_t rtc_op = make_shared< op_base_t >( anno_op->type, anno_op->dims_vals, anno_op->str_vals );
+	if( rtc_op->type == string("Convolution") ) {
+	  rtc_op->type = must_find( rtc_op->str_vals, "cts" );
+	  must_insert( rtc_op->str_vals, "conv_has_relu", str(1) );
 	}
-	assert( codegen.rtc_func_names_map.size() == 1 );
-	p_rtc_call_gen_t const &rcg = codegen.rtc_func_names_map.begin()->second;
-	string const & func_name = codegen.rtc_func_names_map.begin()->first;
+	// profile rtc op
+	string const func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *rtc_op );
+	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
+	p_rtc_call_gen_t rcg_in_gen;
+	if( gen_input_data ) {
+	  p_op_base_t gd_op; // = make_shared< op_base_t >( "gen_data", anno_op->dims_vals, gen_data_params );
+	  string in_gen_func_name;
+	  if( 0 ) {
+	  } else if ( rtc_op->type == "conv" ) {
+	    in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *gd_op );
+	  } else { rt_err( "gen_input_data: unhandled op of type: " + rtc_op->type ); }
+	  rcg_in_gen = must_find( codegen.rtc_func_names_map, in_gen_func_name );
+	}
 	if( !rcg->blks ) { 
 	  printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
 	  continue; 
@@ -138,11 +163,18 @@ namespace boda
 	  printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
 	  continue; 
 	}
-	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, func_name, rcg ) / 1000.0;
+	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, func_name, rcg, 
+						      rcg_in_gen.get(), vs1.get() ) / 1000.0;
 	printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	if( rtc_comp ) {
-	  double const rfc_dur_secs = profile_rcg_call( rtc_comp, codegen, show_rtc_calls, func_name, rcg ) / 1000.0;
+	  double const rfc_dur_secs = profile_rcg_call( rtc_comp, codegen, show_rtc_calls, func_name, rcg, 
+							rcg_in_gen.get(), vs2.get() ) / 1000.0;
 	  printf( "COMP rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
+	  vect_string const vns1 = get_keys( *vs1 );
+	  vect_string const vns2 = get_keys( *vs2 );
+	  if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
+						  str(vns1).c_str(), str(vns2).c_str() ) ); }
+	  comp_vars( &std::cout, num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
 	}
 	codegen.clear();
 	to_latex.eff_row( oet_out.get(), rtc_op->type, rfc_dur_secs, peak_flops );
@@ -152,6 +184,10 @@ namespace boda
     if( enable_prof ) { rtc->profile_stop(); if( rtc_comp ) { rtc_comp->profile_stop(); } }
     rtc->finish_and_sync(); 
     if( rtc_comp ) { rtc_comp->finish_and_sync(); }
+
+    if( !num_mad_fail ) { std::cout << strprintf( "***ALL IS WELL***\n" ); }
+    else { std::cout << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
+
   }
 
   struct cnn_prof_t : virtual public nesi, public has_main_t // NESI(help="profile set of rtc functions",
@@ -163,9 +199,7 @@ namespace boda
     filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/cnn_func_sigs_tiny.txt",help="file to read cnn ops from")
     filename_t rtc_func_sigs_fn; //NESI(default="%(boda_output_dir)/cnn_rtc_func_sigs.txt",help="file to hold all generated rtc func signatures for the input cnn ops")
     virtual void main( nesi_init_arg_t * nia );
-
   };
-
 
   void cnn_prof_t::main( nesi_init_arg_t * nia ) {
     vect_p_conv_op_t sigs;
