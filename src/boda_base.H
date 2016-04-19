@@ -121,6 +121,12 @@ namespace boda
     return i->second;
   }
 
+  template< typename T > vector< typename T::key_type > get_keys( T & kvm ) {
+    vector< typename T::key_type > keys;
+    for( typename T::const_iterator i = kvm.begin(); i != kvm.end(); ++i ) { keys.push_back( i->first ); }
+    return keys;
+  }
+
   template< typename T > typename T::mapped_type const & get( T const & kvm, typename T::key_type const & k, typename T::mapped_type const & dv ) {
     typename T::const_iterator i = kvm.find( k );
     if( i == kvm.end() ) { return dv; }
