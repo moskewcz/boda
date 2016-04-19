@@ -48,10 +48,10 @@ namespace boda
   }
 
 
-  string rtc_func_sig_t::gen_unused_fn( rtc_func_names_map_t & fns ) const {
-    string maybe_fn_base = type;
+  string gen_unused_fn( op_base_t const & op, rtc_func_names_map_t & fns ) {
+    string maybe_fn_base = op.type;
     set_string unique_dims;
-    for( map_str_dims_t::const_iterator ra = dims_vals.begin(); ra != dims_vals.end(); ++ra ) {
+    for( map_str_dims_t::const_iterator ra = op.dims_vals.begin(); ra != op.dims_vals.end(); ++ra ) {
       dims_t const & dims = ra->second;
       for( uint32_t i = 0; i != dims.sz(); ++i ) {
 	string const & dn = dims.names(i);
@@ -61,7 +61,7 @@ namespace boda
     }
     // not the best/most-robust idea, but for now we can avoid most namegenconflicts by (questionally) stuffing the
     // str_vals into the function name as well. it'll be fine, right? this could be removed if problematic.
-    for( map_str_str::const_iterator ra = str_vals.begin(); ra != str_vals.end(); ++ra ) {
+    for( map_str_str::const_iterator ra = op.str_vals.begin(); ra != op.str_vals.end(); ++ra ) {
       maybe_fn_base += "__"+ra->first+"_"+as_pyid_fixme(ra->second);
     }
 
@@ -116,13 +116,11 @@ namespace boda
     // note: temporary rfc is gone after this
   }
 
-  typedef set< rtc_func_sig_t > set_rtc_func_sig_t;
-
-  p_rtc_func_sig_t make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+  p_op_base_t make_p_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
   using boost::filesystem::is_regular_file;
 
-  string rtc_codegen_t::gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs_full ) {
+  string rtc_codegen_t::gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full ) {
     // first, get template
     p_rtc_template_t & rtc_template = rtc_templates[rfs_full.type];
     if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.type ); }
@@ -130,12 +128,12 @@ namespace boda
     // note: flat_arg_decls is unused if we already created the needed rcg_call_gen_t, but is inconvienient not create
     // here as part of createing the reduced func sig.
     vect_arg_decl_t flat_arg_decls; 
-    p_rtc_func_sig_t rfs_reduced = rtc_template->check_args( rfs_full, flat_arg_decls );
+    p_op_base_t rfs_reduced = rtc_template->check_args( rfs_full, flat_arg_decls );
 
     p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
     if( !rcg ) { // need to instatiate function and pick unused name
       rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
-      string gen_fn = rfs_reduced->gen_unused_fn( rtc_func_names_map );
+      string gen_fn = gen_unused_fn( *rfs_reduced, rtc_func_names_map );
       must_insert( rtc_func_names_map, gen_fn, rcg );
       rcg->init( rtc_template, flat_arg_decls, cc, gen_fn );
       rtc_prog_str += rcg->rtc_prog_str;
@@ -152,7 +150,7 @@ namespace boda
   void rtc_codegen_t::read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
-      p_rtc_func_sig_t v = make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+      p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       gen_func( make_cnn_custom_codegen_t().get(), *v );
       uint32_t const ix = i - in_lines->begin();
       if( !(ix % 100000)) { printf( "ix=%s\n", str(ix).c_str() ); }
@@ -160,11 +158,11 @@ namespace boda
   }
 
   void rtc_codegen_t::write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {
-    set_rtc_func_sig_t all_sigs;
+    set_op_base_t all_sigs;
     if( is_regular_file( rtc_func_sigs_fn.exp ) ) {  // read in existing contents of file if it exists
       p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
       for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
-	p_rtc_func_sig_t v = make_p_rtc_func_sig_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+	p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
 	all_sigs.insert( *v );
       }
     }
@@ -174,8 +172,7 @@ namespace boda
     }
     // write set back out
     p_ofstream out = ofs_open( rtc_func_sigs_fn );
-    for( set_rtc_func_sig_t::const_iterator i = all_sigs.begin(); i != all_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
+    for( set_op_base_t::const_iterator i = all_sigs.begin(); i != all_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
   }
 
-#include"gen/rtc_func_gen.H.nesi_gen.cc"
 }

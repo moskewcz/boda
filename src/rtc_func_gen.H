@@ -18,10 +18,10 @@ namespace boda
   typedef map< string, float > map_str_float_t;
   typedef map< string, dims_t > map_str_dims_t;
 
-  struct rtc_func_sig_t;
+  struct op_base_t;
   struct rtc_call_gen_t;  
   typedef shared_ptr< rtc_call_gen_t > p_rtc_call_gen_t; 
-  typedef map< rtc_func_sig_t, p_rtc_call_gen_t > rtc_func_sigs_map_t;
+  typedef map< op_base_t, p_rtc_call_gen_t > rtc_func_sigs_map_t;
   typedef map< string, p_rtc_call_gen_t > rtc_func_names_map_t;
 
   struct rcg_func_call_t {
@@ -45,16 +45,8 @@ namespace boda
   struct cnn_custom_codegen_t; typedef shared_ptr< cnn_custom_codegen_t > p_cnn_custom_codegen_t;
   p_custom_codegen_t make_cnn_custom_codegen_t( void );
 
-  struct rtc_func_sig_t : public op_base_t // NESI(help="defines function to instantiate with template and parameters",bases=["op_base_t"])
-  { 
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    rtc_func_sig_t( void ) { }
-    rtc_func_sig_t( string const & fn, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) : 
-      op_base_t( fn, dims_vals_, str_vals_ ) {}
-    uint32_t get_u32_tvv( string const & tvn ) const { return lc_str_u32( must_find( str_vals, tvn ) ); }
-    string gen_unused_fn( rtc_func_names_map_t & fns ) const;
-  };
-  typedef shared_ptr< rtc_func_sig_t > p_rtc_func_sig_t; 
+  string gen_unused_fn( op_base_t const & op, rtc_func_names_map_t & fns );
+
   struct arg_decl_t {
     string vn;
     string io_type;
@@ -140,8 +132,8 @@ namespace boda
     // signature with only the arg dims needed/used by this template. this reduced signature is suitable for uniqueing
     // the semantics of this template wrt the input signature -- that is, input signatures that differ only in dims that
     // are not used by the template won't have differing semantics.
-    p_rtc_func_sig_t check_args( rtc_func_sig_t const & rfs_in, vect_arg_decl_t & flat_arg_decls ) {
-      p_rtc_func_sig_t rfs_out( new rtc_func_sig_t( rfs_in ) );
+    p_op_base_t check_args( op_base_t const & rfs_in, vect_arg_decl_t & flat_arg_decls ) {
+      p_op_base_t rfs_out( new op_base_t( rfs_in ) );
       rfs_out->dims_vals.clear(); // for now: keep all of rfs_in expect dims_vals (which we reduce to only the used elements)
       assert_st( flat_arg_decls.empty() );
       string arg_check_error;
@@ -150,7 +142,7 @@ namespace boda
       for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
 	if( i->multi_base_vn.empty() ) { flat_arg_decls.push_back( *i ); }
 	else {
-	  uint32_t const multi_sz = rfs_in.get_u32_tvv( i->multi_base_vn + "_num" );
+	  uint32_t const multi_sz = rfs_in.get_u32( i->multi_base_vn + "_num" );
 	  for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
 	    string const multi_arg_name = i->multi_base_vn + "_" + str(mix);
 	    // note: multi-derived args are (still) marked multi=1 in flat_arg_decls. this is used to later
@@ -204,13 +196,13 @@ namespace boda
   typedef shared_ptr< rtc_template_t > p_rtc_template_t; 
   typedef map< string, p_rtc_template_t > rtc_template_map_t;
 
-  // note that while this derives from rtc_func_sig_t, this represents the 'elaborated' signature, where instead of just
+  // note that while this derives from op_base_t, this represents the 'elaborated' signature, where instead of just
   // containing all the information that defines the semantics of this call, it also contains all the data (redundant,
   // generated) that makes the *instantiation* unique. that is, after init(), combined with the function template, the
   // signature of the rtc_call_gen_t defines a unique block of text for the generated function, using only the
   // str_vals field, strictly for text substitution into the template. the dims_vals field remains unchanged,
   // and isn't used directly in template substition: all the info inside it is flattened into str_vals.
-  struct rtc_call_gen_t : public rtc_func_sig_t {
+  struct rtc_call_gen_t : public op_base_t {
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
     map_str_dims_t all_ix_dims;
     map_str_str cgs; // code-gen sections
@@ -238,9 +230,8 @@ namespace boda
       }
       return i->second;
     }
-    uint32_t get_u32_tvv( string const & tvn ) { return lc_str_u32( must_find( str_vals, tvn ) ); }
 
-    rtc_call_gen_t( rtc_func_sig_t const & rfs_ ) : rtc_func_sig_t( rfs_ ) { }
+    rtc_call_gen_t( op_base_t const & rfs_ ) : op_base_t( rfs_ ) { }
 
     void init( p_rtc_template_t const & rtc_func_template, vect_arg_decl_t const & flat_arg_decls_, 
 	       custom_codegen_t * const custom_codegen, string const & gen_fn_ ){
@@ -337,7 +328,7 @@ namespace boda
     rtc_func_sigs_map_t rtc_func_sigs_map;
     string rtc_prog_str;
 
-    string gen_func( custom_codegen_t * const cc, rtc_func_sig_t const & rfs_full );
+    string gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
     void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls,
 		  rcg_func_call_t & rfc, uint32_t const & flags ) {    
       must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, flags );

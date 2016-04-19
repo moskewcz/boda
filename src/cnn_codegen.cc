@@ -28,7 +28,7 @@ namespace boda
 
     string add_bias_then_maybe_relu( rtc_call_gen_t * rcg, dims_t const & work, uint32_t const & tx, uint32_t const ty ) { 
       string const ve = strprintf( "(out_tile[%s] + filts_strip[%s])", str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
-      return rcg->get_u32_tvv("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
+      return rcg->get_u32("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
     }    
 
     void gen_op_bconv( rtc_call_gen_t * rcg ) {
@@ -274,7 +274,7 @@ namespace boda
 
       for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
 	string ve = strprintf( "(filts_strip[%s] + biases[ocix+%s])", str(tx).c_str(), str(tx).c_str() );
-	ve = rcg->get_u32_tvv("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
+	ve = rcg->get_u32("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
 	for( uint32_t wb = work.dsz("fioc_tile") / 2; wb; wb /= 2 ) {
 	  rcg->line( "stores", strprintf( "filts_strip[%s] += __shfl_down( filts_strip[%s], %s, %s );", 
 					    str(tx).c_str(), str(tx).c_str(), str(wb).c_str(), 

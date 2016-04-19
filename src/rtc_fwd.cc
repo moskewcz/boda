@@ -299,7 +299,7 @@ namespace boda
 
     rtc_codegen_t codegen;
 
-    string gen_func( rtc_func_sig_t const & rfs );
+    string gen_func( op_base_t const & rfs );
     void gen_call( string const & fn, p_op_info_t const & oi );
     string gen_apply_func_to_var( string const & in_an, string const & in_var, 
 				  string const & ret_an, dims_t const & ret_dims, string const & func );
@@ -368,7 +368,7 @@ namespace boda
       cur_ins.push_back( top_in ); 
     } 
     while( in_sz > 1 ) {
-      string const func = gen_func( rtc_func_sig_t{ "var_stats", dims_vals, {} } );
+      string const func = gen_func( op_base_t{ "var_stats", dims_vals, {} } );
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;
@@ -397,7 +397,7 @@ namespace boda
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-    string const func = gen_func( rtc_func_sig_t{ "quantize", {{"out",rtc->get_var_dims_floats(top_in)}}, {} } );
+    string const func = gen_func( op_base_t{ "quantize", {{"out",rtc->get_var_dims_floats(top_in)}}, {} } );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, {max_val,drop_mask} } );
   }
 
@@ -488,7 +488,7 @@ namespace boda
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const filts_id = oi->arg_map["filts"];
       if( oi->get_dims("filts") != rtc->get_var_dims_floats( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
-	string const filts_xp_fn = gen_func( rtc_func_sig_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
+	string const filts_xp_fn = gen_func( op_base_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_dims("filts"), 
 						       filts_xp_fn ) );
       }
@@ -496,12 +496,12 @@ namespace boda
       // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims_floats( in_id ); see comment in init()
       if( oi->cts() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
-	string const xp_fn = gen_func( rtc_func_sig_t{ "in_tile_xpose", oi->dims_vals, oi->str_vals } );
+	string const xp_fn = gen_func( op_base_t{ "in_tile_xpose", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
       } else if( oi->cts() == k1conv_str ) {
 	if( oi->get_dims("in") != rtc->get_var_dims_floats( in_id ) ) {
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
-	  string const xp_fn = gen_func( rtc_func_sig_t{ "xpose_in", oi->dims_vals, oi->str_vals } );
+	  string const xp_fn = gen_func( op_base_t{ "xpose_in", oi->dims_vals, oi->str_vals } );
 	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
 	} 	
       } 
@@ -569,7 +569,7 @@ namespace boda
 #if 0
 	dims_t const & ogl_dims = rtc->get_var_dims_floats( ogl_vn );
 	dims_t const & ogl_xp_dims = ogl_dims; // oi->dims_vals["out_grad_loss"];
-	string ogl_xp_fn = gen_func( rtc_func_sig_t{ "btconv_ogl_xpose", {ogl_dims,ogl_xp_dims}, 
+	string ogl_xp_fn = gen_func( op_base_t{ "btconv_ogl_xpose", {ogl_dims,ogl_xp_dims}, 
 	      oi->dims_vals, oi->str_vals } );
 	ogl_vn = gen_apply_func_to_var( ogl_vn, ogl_xp_dims, ogl_xp_fn );
 #endif
@@ -582,7 +582,7 @@ namespace boda
     } else { rt_err( "gen_op: unhandled op of type: " + oi->type ); }
   }
 
-  string conv_pipe_fwd_t::gen_func( rtc_func_sig_t const & rfs ) { 
+  string conv_pipe_fwd_t::gen_func( op_base_t const & rfs ) { 
     p_custom_codegen_t ccc = make_cnn_custom_codegen_t();
     return codegen.gen_func( ccc.get(), rfs ); 
   }
@@ -590,7 +590,7 @@ namespace boda
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
-    rtc_func_sig_t rfs( fn, oi->dims_vals, oi->str_vals );
+    op_base_t rfs( fn, oi->dims_vals, oi->str_vals );
     string const & gen_fn = gen_func( rfs );
     fwd_calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
   }
