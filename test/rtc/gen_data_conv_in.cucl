@@ -1,0 +1,25 @@
+CUCL_DEVICE float det_hash_rand( uint32_t const rv ) {
+  uint32_t h = rv;
+  h ^= h >> 16;
+  h *= 0x85ebca6b;
+  h ^= h >> 13;
+  h *= 0xc2b2ae35;
+  h ^= h >> 16;
+  return (float)( h ) * ( 20.0f / (float)( U32_MAX ) ) - 10.0f;
+}
+
+// generate data to be used as input to some other op (hence why we have an argument named 'in' of type CUCL OUT).
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const in ) // CUCL OUT img:chan:y:x
+{
+  // CUCL IX GLOB_ID_1D in
+  if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }
+  float val = %(vi); 
+  if( %(mode) == 2 ) { val += %(GLOB_ID_1D_x); }
+  if( %(mode) == 3 ) { val += %(GLOB_ID_1D_y); }
+  else if( %(mode) == 4 ) { 
+    if( (%(GLOB_ID_1D_x)==%(in_x_dim)/2) && (%(GLOB_ID_1D_y)==%(in_y_dim)/2) ) { val += 1.0f; }
+  } else if( %(mode) == 5 ) {
+    val += det_hash_rand( GLOB_ID_1D );
+  }
+  in[GLOB_ID_1D] = val;
+}

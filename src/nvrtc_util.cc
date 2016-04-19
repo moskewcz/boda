@@ -152,6 +152,7 @@ namespace boda
   typedef shared_ptr< map_str_var_info_t > p_map_str_var_info_t;
 
   string cu_base_decls = R"rstr(
+#define CUCL_BACKEND_IX 1
 typedef unsigned uint32_t;
 uint32_t const U32_MAX = 0xffffffffU;
 typedef int int32_t;
@@ -159,6 +160,7 @@ typedef int int32_t;
 float const FLT_MAX = /*0x1.fffffep127f*/ 340282346638528859811704183484516925440.0f;
 float const FLT_MIN = 1.175494350822287507969e-38f;
 #define CUCL_GLOBAL_KERNEL extern "C" __global__
+#define CUCL_DEVICE extern "C" __device__
 #define GASQ
 #define GLOB_ID_1D (blockDim.x * blockIdx.x + threadIdx.x)
 #define LOC_ID_1D (threadIdx.x)
@@ -167,6 +169,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 #define LOCSHAR_MEM __shared__
 #define LSMASQ
 #define BARRIER_SYNC __syncthreads()
+
 )rstr";
 
   struct nvrtc_compute_t : virtual public nesi, public rtc_compute_t // NESI(help="libnvrtc based rtc support (i.e. CUDA)",

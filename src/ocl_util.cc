@@ -134,11 +134,13 @@ namespace boda
   typedef shared_ptr< map_str_cl_var_info_t > p_map_str_cl_var_info_t;
 
   string ocl_base_decls = R"rstr(
+#define CUCL_BACKEND_IX 2
 typedef unsigned uint32_t;
 __constant uint32_t const U32_MAX = 0xffffffff;
 typedef int int32_t;
 //typedef long long int64_t;
 #define CUCL_GLOBAL_KERNEL kernel
+#define CUCL_DEVICE 
 #define GASQ global
 #define GLOB_ID_1D get_global_id(0)
 #define LOC_ID_1D get_local_id(0)

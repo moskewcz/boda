@@ -49,8 +49,8 @@ namespace boda
   }
 
   double profile_rcg_call( p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   string const & func_name, p_rtc_call_gen_t const & rcg, 
-			   rtc_call_gen_t * const rcg_in_gen, map_str_p_nda_float_t * const outs ) 
+			   p_rtc_call_gen_t const & rcg, 
+			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs ) 
   {
     timer_t t("profile_rcg_call");
     map_str_str arg_map;
@@ -61,13 +61,29 @@ namespace boda
       must_insert( arg_map, i->vn, i->vn );
       if( outs && (endswith( i->io_type, "OUT" )) ) { must_insert( *outs, i->vn, p_nda_float_t() ); }
     }
-    printf( "run: i->rtc_func_name=%s\n", str(func_name).c_str() );
+    printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     bool const show_compile_log = 0; bool const enable_lineinfo = 0; bool const show_func_attrs = 0;
-    rtc->compile( rcg->rtc_prog_str, show_compile_log, enable_lineinfo, {func_name}, show_func_attrs );
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       rtc->create_var_with_dims_floats( j->second, must_find( rcg->dims_vals, j->first ) );
     }
-    rcg_func_call_t rfc{ func_name, "tag", arg_map };
+    rtc->compile( rcg->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg->gen_fn}, show_func_attrs );
+    if( in_gen_op ) { 
+      for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
+	if( i->io_type != "IN" ) { continue; }
+
+	in_gen_op->type = "gen_data_" + rcg->type + "_" + i->vn;
+	in_gen_op->dims_vals.clear();
+	must_insert( in_gen_op->dims_vals, i->vn, must_find( rcg->dims_vals, i->vn ) );
+
+	string const in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
+	p_rtc_call_gen_t const & rcg_in_gen = must_find( codegen.rtc_func_names_map, in_gen_func_name );
+
+	rtc->compile( rcg_in_gen->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg_in_gen->gen_fn}, show_func_attrs );
+	rcg_func_call_t rfc_in_gen{ rcg_in_gen->gen_fn, "tag", arg_map };
+	codegen.run_rfc( rtc, show_rtc_calls, rfc_in_gen, 0 );
+      }
+    }
+    rcg_func_call_t rfc{ rcg->gen_fn, "tag", arg_map };
     codegen.run_rfc( rtc, show_rtc_calls, rfc, 0 );
     if( outs ) {
       for( map_str_p_nda_float_t::iterator j = outs->begin(); j != outs->end(); ++j ) {
@@ -110,7 +126,7 @@ namespace boda
 	printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
 	continue; 
       }
-      double const rfc_dur = profile_rcg_call( rtc, codegen, show_rtc_calls, func_name, rcg, 0, 0 );
+      double const rfc_dur = profile_rcg_call( rtc, codegen, show_rtc_calls, rcg, 0, 0 );
       (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s # %s \n", 
 			   str(rfc_dur/1000.0).c_str(), func_name.c_str() );
       codegen.rtc_func_names_map.clear();

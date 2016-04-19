@@ -84,9 +84,7 @@ namespace boda
 
     uint32_t run_opt_variants; //NESI(default=2,help="if 0, run no variants. if 1, run non-opt only, if 2, run non-opt+opt variants")
 
-    double tpd_const; //NESI(default="1.0",help="test-pattern data constant offset")
-    uint32_t gen_input_data; //NESI(default=0,help="if 0, intputs are zeros. if non-zero, generate test-pattern input data")
-
+    p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
     uint32_t show_rtc_calls; //NESI(default=1,help="if 1, print rtc calls")
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
 
@@ -106,8 +104,8 @@ namespace boda
 				    bool const & force_enable_tconv, uint32_t const t_tile_sz );
 
   double profile_rcg_call( p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   string const & func_name, p_rtc_call_gen_t const & rcg, 
-			   rtc_call_gen_t * const rcg_in_gen, map_str_p_nda_float_t * const outs );
+			   p_rtc_call_gen_t const & rcg, 
+			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs );
 
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
     vect_p_conv_op_t sigs;
@@ -145,16 +143,6 @@ namespace boda
 	// profile rtc op
 	string const func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *rtc_op );
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
-	p_rtc_call_gen_t rcg_in_gen;
-	if( gen_input_data ) {
-	  p_op_base_t gd_op; // = make_shared< op_base_t >( "gen_data", anno_op->dims_vals, gen_data_params );
-	  string in_gen_func_name;
-	  if( 0 ) {
-	  } else if ( rtc_op->type == "conv" ) {
-	    in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *gd_op );
-	  } else { rt_err( "gen_input_data: unhandled op of type: " + rtc_op->type ); }
-	  rcg_in_gen = must_find( codegen.rtc_func_names_map, in_gen_func_name );
-	}
 	if( !rcg->blks ) { 
 	  printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
 	  continue; 
@@ -163,12 +151,10 @@ namespace boda
 	  printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
 	  continue; 
 	}
-	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, func_name, rcg, 
-						      rcg_in_gen.get(), vs1.get() ) / 1000.0;
+	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, rcg, gen_data, vs1.get() ) / 1000.0;
 	printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	if( rtc_comp ) {
-	  double const rfc_dur_secs = profile_rcg_call( rtc_comp, codegen, show_rtc_calls, func_name, rcg, 
-							rcg_in_gen.get(), vs2.get() ) / 1000.0;
+	  double const rfc_dur_secs = profile_rcg_call( rtc_comp, codegen, show_rtc_calls, rcg, gen_data, vs2.get() )/1000.0;
 	  printf( "COMP rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	  vect_string const vns1 = get_keys( *vs1 );
 	  vect_string const vns2 = get_keys( *vs2 );
