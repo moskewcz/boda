@@ -28,6 +28,19 @@ namespace boda_caffe { bool layer_included_for_state( caffe::LayerParameter cons
 
 namespace boda 
 {
+  void dims_t_to_shape( dims_t const & dims, caffe::BlobShape & bs ) {
+    assert( bs.dim_size() == 0 );
+    for( uint32_t i = 0; i != dims.sz(); ++i ) { bs.add_dim( dims.dims(i) ); }
+  }
+
+  dims_t shape_to_dims_t( caffe::BlobShape const & shape ) {
+    dims_t ret;
+    uint32_t const num_dims = shape.dim_size();
+    ret.resize_and_zero( num_dims );
+    for( uint32_t i = 0; i != num_dims; ++i ) { ret.dims(i) = shape.dim(i); }
+    return ret;
+  }
+
   // note: this function is only used in a few places, and is quite old. the conv_op it is passed should always be
   // more-or-less of type Convolution_coi, although the type is not actually set in the usages. conv_op used only as a
   // temporary to capture kern_sz/in_pad/stride from protobuf ConvolutionParam, modify them, and write them back to
@@ -124,6 +137,31 @@ namespace boda
   p_conv_op_t make_p_conv_op_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
 #define RF_TO_VEC( V, RF ) { for( int32_t i = 0; i != RF##_size(); ++i ) { V.push_back( RF(i) ); } }
+  void net_input_err( p_net_param_t const &net_param ) {
+    rt_err( strprintf( "error: top-level input blob specification error. the number of input blobs (net_param->input_size()=%s) must be equal either to the number of input shapes (net_param->input_shape_size()=%s) or to the number of input dims (net_param->input_dim_size()=%s) divided by four. also, only one of the two shape-specification methods (input_dim or input_shape) may be used at the same time. \n", str(net_param->input_size()).c_str(), str(net_param->input_shape_size()).c_str(), str(net_param->input_dim_size()).c_str() ) );
+  }
+
+  void maybe_override_dims_and_calc_strides( dims_t & dims, map_str_uint32_t const & overrides ) {
+    map_str_uint32_t check_or = overrides;
+    for( uint32_t i = 0; i != dims.size(); ++i ) { 
+      dims.dims(i) = get_and_rem( check_or, dims.names(i), dims.dims(i) );
+    }
+    if( !check_or.empty() ) { 
+      // FIXME: error message is specific to current use case(s) ...
+      rt_err( strprintf( "error: unused/unknown dims in in_dims. original in_dims=%s; unused_dims=%s\n", 
+			 str(dims).c_str(), str(check_or).c_str() ) );
+    }
+    dims.calc_strides();
+  }
+
+  void add_data_img_node( p_conv_pipe_t const & conv_pipe, string const & data_img_node_name, dims_t const & data_img_node_dims ) {
+    p_conv_node_t const data_img_node = conv_pipe->get_or_make_node( data_img_node_name, 0, 0 );
+    conv_pipe->data_img_node_names.push_back( data_img_node_name );
+    data_img_node->csi.init_as_source();
+    if( !conv_pipe->data_num_imgs.v ) { conv_pipe->data_num_imgs.v = data_img_node_dims.dsz("img"); }
+    if( conv_pipe->data_num_imgs.v != data_img_node_dims.dsz("img") ) { rt_err( "unhandled: multiple data layers with differing numbers of images." ); }
+    data_img_node->dims = data_img_node_dims;
+  }
 
   p_conv_pipe_t create_pipe_from_param( p_net_param_t const &net_param, map_str_uint32_t const &in_dims, 
 					string const &out_node_name, bool const &add_bck_ops ) {
@@ -136,6 +174,31 @@ namespace boda
     // note: if out_node_name == empty string, won't match anything, so all layers will be read (barring a node actually named "")
     conv_pipe->out_node_name = out_node_name; 
     bool found_out_node = 0;
+    // handle 'old style' top-level input blobs by treating them as data layers
+    bool input_uses_shape = 0;
+    if( net_param->input_size() == net_param->input_shape_size() ) {
+      if( net_param->input_dim_size() != 0 ) { net_input_err( net_param ); }
+      input_uses_shape = 1;
+    } else if( net_param->input_size()*4 == (net_param->input_dim_size()) ) {
+      if( net_param->input_shape_size() != 0 ) { net_input_err( net_param ); }
+    } else { net_input_err( net_param ); }
+      
+    for( int32_t in_ix = 0; in_ix != net_param->input_size(); ++in_ix ) {
+      dims_t input_dims;
+      if( input_uses_shape ) { input_dims = shape_to_dims_t( net_param->input_shape(in_ix) ); }
+      else {
+	uint32_t const num_dims = 4;
+	input_dims.resize_and_zero( num_dims );
+	for( uint32_t i = 0; i != num_dims; ++i ) { input_dims.dims(i) = net_param->input_dim(i + 4*in_ix); }
+      } 
+      if( input_dims.size() == 4 ) { input_dims.names(0) = "img"; input_dims.names(1) = "chan"; 
+	input_dims.names(2) = "y"; input_dims.names(3) = "x";}
+      else { printf("warning: input blob with number of dims != 4, not handled, dims will be unnamed");  }
+      maybe_override_dims_and_calc_strides( input_dims, in_dims );
+      add_data_img_node( conv_pipe, net_param->input(in_ix), input_dims );
+      if( add_bck_ops ) { printf("warning: add_bck_ops + top-level input blobs unhandled ... label input may be missing"); }
+    }
+
     for( int32_t i = 0; i != net_param->layer_size(); ++i ) { 
       caffe::LayerParameter const & lp = net_param->layer(i);
       assert_st( lp.has_name() );
@@ -211,39 +274,18 @@ namespace boda
 	assert_st( lp.has_data_param() );
 	caffe::DataParameter const * const dp = &lp.data_param();
 	// if( hdf5 ) { data_dims = ...; } // FIXME: get dims from data layer 'better'
-	uint32_t data_dims_chan = 3;
+	uint32_t const data_dims_chan = 3;
 	// if( gray ) { data_dims_chan = 1; } 
-	map_str_uint32_t check_in_dims = in_dims;
-	data_dims_chan = get_and_rem( check_in_dims, "chan", data_dims_chan );
-       
-	uint32_t data_dims_img = dp->batch_size();
-	data_dims_img = get_and_rem( check_in_dims, "img", data_dims_img );
-
 	assert_st( lp.has_transform_param() );
 	caffe::TransformationParameter const * const tp = &lp.transform_param();
-	uint32_t data_dims_y = tp->crop_size();
-	data_dims_y = get_and_rem( check_in_dims, "y", data_dims_y );
-	uint32_t data_dims_x = tp->crop_size();
-	data_dims_x = get_and_rem( check_in_dims, "x", data_dims_x );
-
-	if( !check_in_dims.empty() ) { 
-	  rt_err( strprintf( "error: unused/unknown dims in in_dims. original in_dims=%s; unused_dims=%s\n", 
-			     str(in_dims).c_str(), str(check_in_dims).c_str() ) );
-	}
-
-	if( lp.bottom_size() != 0 ) { rt_err( "unhandled caffe data layer with num outputs != 0" ); }
-	if( lp.top_size() != 2 ) { rt_err( "unhandled caffe data layer with num inputs != 2" ); }
+	dims_t data_dims( vect_uint32_t{ dp->batch_size(), data_dims_chan, tp->crop_size(), tp->crop_size() }, 
+				      vect_string{ "img", "chan", "y", "x" }, 0 );
+	maybe_override_dims_and_calc_strides( data_dims, in_dims );
+	if( lp.bottom_size() != 0 ) { rt_err( "unhandled caffe data layer with num inputs != 0" ); }
+	if( lp.top_size() != 2 ) { rt_err( "unhandled caffe data layer with num outputs != 2" ); }
 	conv_op.reset(); // for now, don't add an op for data layers.
 	// but, create the outputs as source nodes, and set chans and set info for them
-	string const data_img_node_name = lp.top(0);
-	p_conv_node_t const data_img_node = conv_pipe->get_or_make_node(data_img_node_name, 0, 0 );
-	conv_pipe->data_img_node_names.push_back( data_img_node_name );
-	data_img_node->csi.init_as_source();	
-	if( !conv_pipe->data_num_imgs.v ) { conv_pipe->data_num_imgs.v = data_dims_img; }
-	if( conv_pipe->data_num_imgs.v != data_dims_img ) { rt_err( "unhandled: multiple data layers with differing numbers of images." ); }
-
-	data_img_node->dims = dims_t( vect_uint32_t{ data_dims_img, data_dims_chan, data_dims_y, data_dims_x }, 
-				      vect_string{ "img", "chan", "y", "x" }, 1 );
+	add_data_img_node( conv_pipe, lp.top(0), data_dims );
 	if( add_bck_ops ) {
 	  string const data_label_node_name = lp.top(1);
 	  p_conv_node_t const data_label_node = conv_pipe->get_or_make_node(data_label_node_name, 0, 0 );
@@ -467,11 +509,7 @@ namespace boda
 	blob_dims.dims(2) = lbp.height();
 	blob_dims.dims(1) = lbp.channels();
 	blob_dims.dims(0) = lbp.num();
-      } else {
-	uint32_t const num_dims = lbp.shape().dim_size();
-	blob_dims.resize_and_zero( num_dims );
-	for( uint32_t i = 0; i != num_dims; ++i ) { blob_dims.dims(i) = lbp.shape().dim(i); }
-      }
+      } else { blob_dims = shape_to_dims_t( lbp.shape() ); }
       p_nda_float_t blob( new nda_float_t( blob_dims ) );
       assert_st( blob->elems.sz == uint32_t(lbp.data_size()) );
       float * const dest = &blob->elems[0];
@@ -507,11 +545,6 @@ namespace boda
   void copy_layer_blobs( p_net_param_t const & net, string const & layer_name, vect_p_nda_float_t & blobs ) {
     uint32_t const layer_ix = get_layer_ix( *net, layer_name );
     copy_layer_blobs( net, layer_ix, blobs );
-  }
-
-  void dims_t_to_shape( dims_t const & dims, caffe::BlobShape & bs ) {
-    assert( bs.dim_size() == 0 );
-    for( uint32_t i = 0; i != dims.sz(); ++i ) { bs.add_dim( dims.dims(i) ); }
   }
 
   void set_layer_blobs( p_net_param_t const & net, uint32_t const & layer_ix, vect_p_nda_float_t & blobs ) {
