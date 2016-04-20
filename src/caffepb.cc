@@ -228,6 +228,8 @@ namespace boda
 	conv_op->bots.push_back( lp.name() + "_biases" );
 	//conv_pipe->some_kinda_node_names.push_back( {filts,biases}_node_name ); // FIXME?
       } else if( lp.type() == ReLU_coi.type ) {
+      } else if( lp.type() == Scale_coi.type ) { // FIXME: actually read params
+      } else if( lp.type() == BatchNorm_coi.type ) { // FIXME: actually read params
       } else if( lp.type() == Dropout_coi.type ) {
 	//rt_err( "TODO: handle dropout" );
 	caffe::DropoutParameter const & p = lp.dropout_param();	
@@ -296,7 +298,8 @@ namespace boda
 	}
       } else if( lp.type() == Accuracy_coi.type ) {
 	conv_op.reset(); // for now, just silently ignore acc layers.
-      } else if( lp.type() == Concat_coi.type ) {
+      } else if( lp.type() == Concat_coi.type ) { // no parameters to get
+      } else if( lp.type() == Eltwise_coi.type ) { // FIXME: actually read params
       } else {
 	conv_op.reset(); printf( "warning: ignoring layer with lp.type()=%s\n", str(lp.type()).c_str() );
       }

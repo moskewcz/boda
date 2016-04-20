@@ -121,6 +121,21 @@ class Convolution( object ):
                 print " --- ", pp_secs( plt ), pp_fps( forward_flops / float(plt) ),
             print ""
 
+
+# create filts/biases NDAs on the fly and treat IP as conv
+class InnerProduct( object ): 
+    def __init__( self, name, bot_names, top_names, str_vals, dims_vals ): 
+        global net
+        assert len(bot_names) == 1
+        assert len(top_names) == 1
+        bot = net.ndas[bot_names[0]]
+        top = net.ndas[top_names[0]]
+        filts_name = name + "_IP2CONV_filts"
+        biases_name = name + "_IP2CONV_biases"
+        net.ndas[filts_name] = NDA(filts_name,top.chan,bot.chan,bot.y,bot.x)
+        net.ndas[biases_name] = NDA(biases_name,top.chan)
+        ip_as_conv = Convolution( name, bot_names + [filts_name, biases_name], top_names, str_vals, dims_vals )
+
 class BckConv( object ): 
     def __init__( self, name, bot_names, top_names, str_vals, dims_vals ):
         global net
@@ -170,12 +185,6 @@ class BckConv( object ):
                 print " --- ", pp_secs( plt ), pp_fps( back_flops / float(plt) ),
             print ""
 
-
-# FIXME: in boda output, the ops/nodes of IP layers are printed out as if it
-# they were conv layers ... not ideal, since NDAs don't match caffe iface
-# for innerproduct. hmm.
-InnerProduct=Convolution 
-
 # stubs to ignore for now
 class Pooling( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
@@ -184,6 +193,10 @@ class LRN( object ):
 class Concat( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
 class ReLU( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
+class Scale( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
+class BatchNorm( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
 class Dropout( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
@@ -198,6 +211,8 @@ class ZeroIfNonPos( object ):
 class Split( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
 class Reduce( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
+class Eltwise( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
 class BckLRN( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs

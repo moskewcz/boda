@@ -24,6 +24,8 @@ namespace boda
   conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_str_vals, DefaultKernPadStride };
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}}, DefaultKernPadStride };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
+  conv_op_info_t const Scale_coi{ "Scale", {"in"}, {"out"} };
+  conv_op_info_t const BatchNorm_coi{ "BatchNorm", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
   conv_op_info_t const BckDropout_coi{ "BckDropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
   map_str_str const LRN_str_vals{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"},{"emit_out_scale_base","0"}};
@@ -34,6 +36,7 @@ namespace boda
   conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "in", "label" },{ "in_grad_loss", "loss" } };
   conv_op_info_t const Data_coi{ "Data", {}, {"out"} }; // note: no inputs / source
   conv_op_info_t const Concat_coi{ "Concat", {"ins"}, {"out"}, {}, {}, zi_bool(1) };
+  conv_op_info_t const Eltwise_coi{ "Eltwise", {"ins"}, {"out"}, {}, {}, zi_bool(1) };
   conv_op_info_t const Reduce_coi{ "Reduce", {"ins"}, {"out"}, {}, {}, zi_bool(1) };
   conv_op_info_t const Split_coi{ "Split", {"in"}, {"outs"}, {}, {}, zi_bool(0), zi_bool(1) };
   conv_op_info_t const InnerProduct_coi{ "InnerProduct", {"in"}, {"out"}, {{"out_chans","0"}} };
@@ -45,8 +48,11 @@ namespace boda
   conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
     { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" }, {}, DefaultKernPadStride };
 
-  vect_rp_conv_op_info_t conv_op_infos{ &Pooling_coi, &Convolution_coi, &ReLU_coi, &Dropout_coi, &LRN_coi, 
-      &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &Reduce_coi, &Split_coi,
+  vect_rp_conv_op_info_t conv_op_infos{ &Pooling_coi, &Convolution_coi, 
+      &ReLU_coi, &Scale_coi, &BatchNorm_coi,
+      &Dropout_coi, &LRN_coi, 
+      &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &Reduce_coi, &Eltwise_coi,
+      &Split_coi,
       &InnerProduct_coi, &Spreading_coi,
       &BckDropout_coi, &BckLRN_coi, &ZeroIfNonPos_coi, &BckConv_coi };
 
@@ -219,7 +225,8 @@ namespace boda
   void conv_pipe_t::add_conv( p_conv_op_t const & conv ) {
     conv->set_and_check_coi_and_args();
     //printf( "conv=%s\n", str(conv).c_str() );
-    if( conv->is(ReLU_coi) || conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) || conv->is(BckDropout_coi) ) { 
+    if( conv->is(ReLU_coi) || conv->is(Scale_coi) || conv->is(BatchNorm_coi) ||
+	conv->is(Dropout_coi) || conv->is(ZeroIfNonPos_coi) || conv->is(BckDropout_coi) ) { 
       if( conv->is(ZeroIfNonPos_coi) ) { assert_st( conv->tops[0] == conv->bots[0] ); }
       else { assert_st( conv->tops == conv->bots ); }
       get_or_make_node(conv->bots[0], 0, 0 )->in_place_ops.push_back( conv );
@@ -306,7 +313,9 @@ namespace boda
     } else {    
       assert_st( cop->has_one_top() );
       if( !cop->is( Convolution_coi ) ) { 
-	if( cop->bots.size() != 1 ) { rt_err( "calc_support_forward_op(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+	if( cop->bots.size() != 1 ) { 
+	  printstr( "warning: calc_support_forward_op(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+ ". Will propogate support info from first input only.\n" ); 
+	}
       }
       p_conv_node_t const & j_node = must_get_node(cop->bots[0]);
       conv_support_info_t const & csi_in = j_node->csi;
@@ -374,12 +383,12 @@ namespace boda
 	assert_st( is_gl );
 	must_get_node(cop->tops[i])->dims = must_get_node(non_gl_nn)->dims;
       }
-    } else if( cop->is( Reduce_coi ) ) {
+    } else if( cop->is( Reduce_coi ) || cop->is( Eltwise_coi ) ) {
       assert( cop->bots.size() );
       dims_out = must_get_node(cop->bots[0])->dims;
       for( uint32_t i = 1; i != cop->bots.size(); ++i ) {
 	if( must_get_node(cop->bots[i])->dims != dims_out ) {
-	  rt_err("internal error: Reduce operation inputs not all same dims: " + str(cop->bots));
+	  rt_err("internal error: Reduce/Eltwise operation inputs not all same dims: " + str(cop->bots));
 	}
       }
     } else if( cop->is( SoftmaxWithLoss_coi ) ) { 

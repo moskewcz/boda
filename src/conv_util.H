@@ -32,6 +32,8 @@ namespace boda
   extern conv_op_info_t const Pooling_coi;
   extern conv_op_info_t const Convolution_coi;
   extern conv_op_info_t const ReLU_coi;
+  extern conv_op_info_t const Scale_coi;
+  extern conv_op_info_t const BatchNorm_coi;
   extern conv_op_info_t const Dropout_coi;
   extern conv_op_info_t const BckDropout_coi;
   extern conv_op_info_t const LRN_coi;
@@ -42,6 +44,7 @@ namespace boda
   extern conv_op_info_t const Data_coi;
   extern conv_op_info_t const Concat_coi;
   extern conv_op_info_t const Reduce_coi;
+  extern conv_op_info_t const Eltwise_coi;
   extern conv_op_info_t const Split_coi;
   extern conv_op_info_t const InnerProduct_coi;
   extern conv_op_info_t const Spreading_coi;
