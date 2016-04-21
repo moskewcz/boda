@@ -1,13 +1,4 @@
-
-CUCL_DEVICE float det_hash_rand( uint32_t const rv ) {
-  uint32_t h = rv;
-  h ^= h >> 16;
-  h *= 0x85ebca6b;
-  h ^= h >> 13;
-  h *= 0xc2b2ae35;
-  h ^= h >> 16;
-  return (float)( h ) * ( 10.0f / (float)( U32_MAX ) ) - 5.0f;
-}
+// CUCL INCLUDE gen-util.h
 
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const filts ) // CUCL OUT out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
 {

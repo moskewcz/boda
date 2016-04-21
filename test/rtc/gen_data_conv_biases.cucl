@@ -1,5 +1,4 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const biases ) // CUCL OUT out_chan
-
 {
   // CUCL IX GLOB_ID_1D biases
   if( GLOB_ID_1D >= %(biases_dims_prod) ) { return; }

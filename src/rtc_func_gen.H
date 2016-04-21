@@ -86,8 +86,11 @@ namespace boda
       string const full_template_fn = (path(py_boda_test_dir()) / "rtc" / (template_fn+".cucl")).string();
       template_str = read_whole_fn( full_template_fn );
       vect_string lines = split( *template_str, '\n' );
+      template_str->clear();
       for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
 	// find magic CUCL comment (if any) and process it
+	template_str->append( *i );
+	template_str->append( "\n" );
 	string const mmc = get_part_after( *i, "//" );
 	vect_string mmc_parts = split_ws( strip_ws( mmc ) );
 	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
@@ -122,6 +125,12 @@ namespace boda
 	      }
 	      arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims, multi_base_vn } );
 	    }
+	  } else if( cd == "INCLUDE" ) {
+	    // note -- currently, include files are inserted verbatim, and cannot contain CUCL magic-comments (including
+	    // includes) themselves
+	    if( mmc_parts.size() != 3 ) { rt_err( "invalid CUCL INCLUDE decl; must be exactly CUCL INCLUDE filename.h; saw: " + *i);}
+	    string const full_include_fn = (path(py_boda_test_dir()) / "rtc" / mmc_parts[2]).string();
+	    template_str->append( *read_whole_fn( full_include_fn ) );
 	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
 	}
       }
