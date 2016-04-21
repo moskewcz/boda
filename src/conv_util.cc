@@ -16,6 +16,7 @@ namespace boda
   // them into conv_op_info_t. now they are just all strings ...
 
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
+  conv_op_info_t const sgemm_coi{ "sgemm", {"a","bt"}, {"c"}, {}, {} };
   map_str_dims_t const DefaultKernPadStride{ 
     {"stride", dims_t{ {1,1},{"y","x"}, 1 } }, 
     {"in_pad", dims_t{ {0,0}, {"y","x"}, 1 } } };
@@ -48,7 +49,8 @@ namespace boda
   conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
     { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" }, {}, DefaultKernPadStride };
 
-  vect_rp_conv_op_info_t conv_op_infos{ &Pooling_coi, &Convolution_coi, 
+  vect_rp_conv_op_info_t conv_op_infos{ &sgemm_coi,
+      &Pooling_coi, &Convolution_coi, 
       &ReLU_coi, &Scale_coi, &BatchNorm_coi,
       &Dropout_coi, &LRN_coi, 
       &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &Reduce_coi, &Eltwise_coi,

@@ -14,7 +14,7 @@ namespace boda
       else if( op_name == "ipconv" ) { gen_op_ipconv(rcg); } 
       else if( op_name == "k1conv" ) { gen_op_k1conv(rcg); } 
       else if( op_name == "tconv" ) { gen_op_tconv(rcg); } 
-      else if( op_name == "bwai" ) { gen_op_bwai(rcg); } 
+      else if( op_name == "sgemm" ) { gen_op_sgemm(rcg); } 
       else if( op_name == "bconv" ) { gen_op_bconv(rcg); } 
       else if( op_name == "bconv_fb" ) { gen_op_bconv_fb(rcg); } 
       else if( op_name == "reduce" ) { gen_op_reduce(rcg); } 
@@ -286,7 +286,7 @@ namespace boda
       }
     }
 
-    void gen_op_bwai( rtc_call_gen_t * rcg ) {
+    void gen_op_sgemm( rtc_call_gen_t * rcg ) {
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       uint32_t const a_sm_sz = work.dsz("Mb")*work.dsz("Mt")*work.dsz("Kb");
       rcg->set( "a_sm_sz", str(a_sm_sz) );

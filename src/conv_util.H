@@ -29,6 +29,7 @@ namespace boda
     string bot_an( uint32_t const & ix ) const;
     string top_an( uint32_t const & ix ) const;
   };
+  extern conv_op_info_t const sgemm_coi;
   extern conv_op_info_t const Pooling_coi;
   extern conv_op_info_t const Convolution_coi;
   extern conv_op_info_t const ReLU_coi;

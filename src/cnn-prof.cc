@@ -34,13 +34,17 @@ namespace boda
     uint64_t forward_bytes, forward_flops;
 
     void base_info( std::ostream * const out ) {
-      assert_st( op->kern_sz().dims_are_same() );
-      assert_st( op->stride().dims_are_same() );
-      (*out) << strprintf( "%s & %s & %s", str(op->kern_sz().d[0]).c_str(), str(op->stride().d[0]).c_str(), str(dout.dsz("chan")).c_str() );
+      if( op->is( Convolution_coi ) ) {
+	assert_st( op->kern_sz().dims_are_same() );
+	assert_st( op->stride().dims_are_same() );
+	(*out) << strprintf( "%s & %s & %s", str(op->kern_sz().d[0]).c_str(), str(op->stride().d[0]).c_str(), str(dout.dsz("chan")).c_str() );
+      }
     }
     void info_row( std::ostream * const out ) {
       base_info( out );
-      (*out) << strprintf( " & %s & %s & %s", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
+      if( op->is( Convolution_coi ) ) {
+	(*out) << strprintf( " & %s & %s & %s", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
+      }
       double const ai = double(forward_flops)/double(forward_bytes);
       (*out) << strprintf( " & %s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
 			   pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
@@ -48,25 +52,43 @@ namespace boda
     }
     void eff_row( std::ostream * const out, string const & rtc_op_type, double const & runtime_secs, double const & peak_flops ) {
       base_info( out );
-      (*out) << strprintf( " & %s & %s ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
+      if( op->is( Convolution_coi ) ) {
+	(*out) << strprintf( " & %s & %s ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
+      }
       double const fps = double(forward_flops)/runtime_secs;
       (*out) << strprintf( " & %s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
       (*out) << "\\\\ " << std::endl;
     }
     void init( p_conv_op_base_t const & op_ ) {
       op = op_;
-      dout = op->get_dims("out");
-      din = op->get_dims("in");
-      B = din.dsz( "img" );
-      assert_st( B == dout.dsz("img" ) );
-      // AI-related calculations
-      dims_t const & filts = op->get_dims("filts");
-      dims_t const & biases = op->get_dims("biases");
-      M = dout.dsz("img")*dout.dsz("x")*dout.dsz("y"); // note: all-imgs M
-      K = filts.dsz("in_chan")*filts.dsz("x")*filts.dsz("y");
-      N = filts.dsz("out_chan");
-      forward_bytes = (din.dims_prod() + dout.dims_prod() + filts.dims_prod() + biases.dims_prod()) * 4;
-      forward_flops = M * N * K * 2;
+      if( op->is( Convolution_coi ) ) {
+	dout = op->get_dims("out");
+	din = op->get_dims("in");
+	B = din.dsz( "img" );
+	assert_st( B == dout.dsz("img" ) );
+	// AI-related calculations
+	dims_t const & filts = op->get_dims("filts");
+	dims_t const & biases = op->get_dims("biases");
+	M = dout.dsz("img")*dout.dsz("x")*dout.dsz("y"); // note: all-imgs M
+	K = filts.dsz("in_chan")*filts.dsz("x")*filts.dsz("y");
+	N = filts.dsz("out_chan");
+	forward_bytes = (din.dims_prod() + dout.dims_prod() + filts.dims_prod() + biases.dims_prod()) * 4;
+	forward_flops = M * N * K * 2;
+      } else if( op->is( sgemm_coi ) ) {
+	dout = op->get_dims("c");
+	dims_t a = op->get_dims("a");
+	dims_t bt = op->get_dims("bt");
+	B = 1;
+	M = a.dsz("M");
+	K = a.dsz("K");
+	assert_st( bt.dsz("K") == K );
+	N = bt.dsz("N");
+	assert_st( dout.dsz("M") == M );
+	assert_st( dout.dsz("N") == N );
+	forward_flops = M * N * K * 2;
+	forward_bytes = (a.dims_prod() + bt.dims_prod() + dout.dims_prod()) * 4;
+      } else { rt_err( "cnn-op-info: unhandled op: " + op->type ); }
+      
     }
   };
 
@@ -134,14 +156,17 @@ namespace boda
 	if( rtc_comp ) { vs1->clear(); vs2->clear(); }
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
-	add_cnn_codegen_annotations( anno_op.get(), 0, opt, opt, 0, t_tile_sz );
-	p_op_base_t rtc_op = make_shared< op_base_t >( anno_op->type, anno_op->dims_vals, anno_op->str_vals );
-	if( rtc_op->type == string("Convolution") ) {
-	  rtc_op->type = must_find( rtc_op->str_vals, "cts" );
-	  must_insert( rtc_op->str_vals, "conv_has_relu", str(1) );
+	if( anno_op->is( Convolution_coi ) ) {
+	  add_cnn_codegen_annotations( anno_op.get(), 0, opt, opt, 0, t_tile_sz );
+	  anno_op->type = must_find( anno_op->str_vals, "cts" );
+	  must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
+	} else if( anno_op->is( sgemm_coi ) ) {
+	  uint64_t const Mg = anno_op->get_dims("c").dsz("M") / 32;
+	  uint64_t const Ng = anno_op->get_dims("c").dsz("N") / 32;
+	  must_insert( anno_op->dims_vals, "work", dims_t{ {(uint32_t)Mg,(uint32_t)Ng,8,8,1,4,4}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 } );	  
 	}
 	// profile rtc op
-	string const func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *rtc_op );
+	string const func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
 	if( !rcg->blks ) { 
 	  printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
@@ -163,7 +188,7 @@ namespace boda
 	  comp_vars( &std::cout, num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
 	}
 	codegen.clear();
-	to_latex.eff_row( oet_out.get(), rtc_op->type, rfc_dur_secs, peak_flops );
+	to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops );
       }
     }
 

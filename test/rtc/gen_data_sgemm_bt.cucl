@@ -1,0 +1,15 @@
+// CUCL INCLUDE gen-util.h
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const bt ) // CUCL OUT N:K
+{
+  // CUCL IX GLOB_ID_1D bt
+  if( GLOB_ID_1D >= %(bt_dims_prod) ) { return; }
+  float val = %(vi); 
+  if( %(mode) == 2 ) { val += %(GLOB_ID_1D_N); }
+  if( %(mode) == 3 ) { val += %(GLOB_ID_1D_K); }
+  else if( %(mode) == 4 ) { 
+    if( (%(GLOB_ID_1D_N)==%(bt_N_dim)/2) && (%(GLOB_ID_1D_K)==%(bt_K_dim)/2) ) { val += 1.0f; }
+  } else if( %(mode) == 5 ) {
+    val += det_hash_rand( GLOB_ID_1D + 12738732 );
+  }
+  bt[GLOB_ID_1D] = val;
+}
