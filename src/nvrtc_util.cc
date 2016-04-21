@@ -194,19 +194,26 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       init_done.v = 1;
     }
 
+    zi_uint32_t compile_call_ix;
     void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo,
 		  vect_string const & func_names, bool const show_func_attrs ) {
       string const src = cu_base_decls + cucl_src;
       assert( init_done.v );
-      write_whole_fn( "out.cu", src );
+      if( gen_src ) { ensure_is_dir( gen_src_output_dir.exp, 1 ); }
+      if( gen_src ) {
+	write_whole_fn( strprintf( "%s/out_%s.cu", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), src );
+      }
       string const prog_ptx = nvrtc_compile( src, show_compile_log, enable_lineinfo );
-      write_whole_fn( "out.ptx", prog_ptx );
+      if( gen_src ) {      
+	write_whole_fn( strprintf( "%s/out_%s.ptx", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), prog_ptx );
+      }
       CUmodule new_cu_mod;
       cu_err_chk( cuModuleLoadDataEx( &new_cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
       p_CUmodule cu_mod = make_p_CUmodule( new_cu_mod );
       for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
 	check_runnable( cu_mod, *i, show_func_attrs );
       }
+      ++compile_call_ix.v;
     }
 
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()

@@ -12,6 +12,8 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string be; //NESI(help="name of back-end to use for rtc",req=1)
+    uint32_t gen_src; //NESI(default=0,help="if 1, output generated src files just before compilation")
+    filename_t gen_src_output_dir; //NESI(default="%(boda_output_dir)/rtc-gen-src", help="if requested, directory where generated source files will be placed")
 
     virtual void init( void ) = 0;
 

@@ -201,22 +201,27 @@ typedef int int32_t;
       must_insert( *kerns, name, kern );
     }
 
+    zi_uint32_t compile_call_ix;
     void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo,
 		  vect_string const & func_names, bool const show_func_attrs ) {
       timer_t t("ocl_compile");
-      string const ocl_src = ocl_base_decls + src;
       assert( init_done.v );
-      write_whole_fn( "out.cl", ocl_src );
-      char const * rp_src = ocl_src.c_str();
+      if( gen_src ) {
+	string const ocl_src = ocl_base_decls + src;
+	ensure_is_dir( gen_src_output_dir.exp, 1 );
+	write_whole_fn( strprintf( "%s/out_%s.cl", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), ocl_src );
+      }
+      vect_rp_const_char srcs{ ocl_base_decls.c_str(), src.c_str() };
       cl_int err;
       cl_program_t prog;
-      prog.reset( clCreateProgramWithSource( context.v, 1, &rp_src, 0, &err ) );
+      prog.reset( clCreateProgramWithSource( context.v, srcs.size(), &srcs[0], 0, &err ) );
       cl_err_chk( err, "clCreateProgramWithSource" );
       err = clBuildProgram( prog.v, use_devices.size(), &use_devices[0], "-cl-fast-relaxed-math -cl-denorms-are-zero", 0, 0 );
       cl_err_chk_build( err, prog.v, use_devices );
       for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
 	check_runnable( prog, *i, show_func_attrs );
       }
+      ++compile_call_ix.v;
     }
 
     cl_mem_t null_buf; // inited to 0; used to pass null device pointers to kernels. note, however, that the value is
