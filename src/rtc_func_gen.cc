@@ -100,8 +100,8 @@ namespace boda
     uint32_t call_blks = blks; // if non-zero, blks is static, and we can check arg sizes
     if( !call_blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here
-      assert_st( rfc.u32_args.size() > 0 );
-      call_blks = u32_ceil_div( rfc.u32_args[0], tpb );
+      // FIXME: it gets worse! now, we allow no u32_args here, and defer error checking to later in that case
+      if( rfc.u32_args.size() > 0 ) { call_blks = u32_ceil_div( rfc.u32_args[0], tpb ); }
     }
     if( show_rtc_calls ) { 
       printf( "%s( in{%s} inout{%s} out{%s} -- u32{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 

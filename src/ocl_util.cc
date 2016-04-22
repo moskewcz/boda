@@ -310,7 +310,7 @@ typedef int int32_t;
 	set_kernel_arg( kern, cur_arg_ix, *i );
 	++cur_arg_ix;
       }
-
+      rtc_launch_check_blks_and_tpb( rfc.rtc_func_name, rfc.blks.v, rfc.tpb.v );
       rfc.call_id = alloc_call_id();
       size_t const glob_work_sz = rfc.tpb.v*rfc.blks.v;
       size_t const loc_work_sz = rfc.tpb.v;

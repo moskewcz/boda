@@ -79,6 +79,9 @@ namespace boda
   };
   typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
 
+  // FIXME: things shared by backends, but not used (should not be used?) by clients. move to shared-by-backends header?
+  void rtc_launch_check_blks_and_tpb( std::string const & rtc_func_name, uint64_t const blks, uint64_t const tpb );
+
 }
 
 #endif /* _RTC_COMPUTE_H_ */

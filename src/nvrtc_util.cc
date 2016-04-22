@@ -7,6 +7,7 @@
 #include<cuda.h>
 #include<cudaProfiler.h>
 #include"rtc_compute.H"
+#include"culibs-wrap.H"
 
 namespace boda 
 {
@@ -119,7 +120,10 @@ namespace boda
   }
 
   typedef shared_ptr< CUmodule > p_CUmodule; 
-  void cuModuleUnload_wrap( CUmodule const * const p ) { if(!p){return;}  cu_err_chk( cuModuleUnload( *p ), "cuModuleUnload" ); }
+  void cuModuleUnload_wrap( CUmodule const * const p ) { 
+    if(!p){return;}
+    cu_err_chk( cuModuleUnload( *p ), "cuModuleUnload" ); // FIXME/NOTE: breaks cuda-memcheck, but otherwise no effect?
+  }
   p_CUmodule make_p_CUmodule( CUmodule to_own ) { return p_CUmodule( new CUmodule( to_own ), cuModuleUnload_wrap ); }
 
   // unlink opencl, functions implicity tied to the lifetime of thier module. if we use one-module-per-function, we need
@@ -179,6 +183,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     // FIXME: can/should we init these cu_* vars?
     CUdevice cu_dev;
     CUcontext cu_context;
+    p_culibs_wrap_t cw; // wrapper for handle to nVidia closed libs (if availible)
     zi_bool init_done;
     void init( void ) {
       assert_st( !init_done.v );
@@ -190,7 +195,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
       cu_err_chk( cuCtxSetCurrent( cu_context ), "cuCtxSetCurrent" ); // is this always needed/okay?
       // cu_err_chk( cuCtxSetCacheConfig( CU_FUNC_CACHE_PREFER_L1 ), "cuCtxSetCacheConfig" ); // does nothing?
-
+      cw = culibs_wrap_init(); // creates cublas handle, cudnn handle, etc ...
       init_done.v = 1;
     }
 
@@ -234,7 +239,13 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 			  // generally unused, so the value doesn't really matter currently. it might later of course.
     p_map_str_var_info_t vis;
     p_map_str_nv_func_info_t cu_funcs;
-    virtual void release_all_funcs( void ) { cu_funcs->clear(); }
+    virtual void release_all_funcs( void ) { 
+      // FIXME/NOTE: it's unclear if syncs are needed here, but we added them when debugging cuda-memcheck +
+      // cumoduleunload. there's no evidence they do anything, but i guess they shouldn't hurt for now.
+      finish_and_sync();
+      cu_funcs->clear();
+      finish_and_sync(); 
+    }
 
     vect_call_ev_t call_evs;
     call_ev_t & get_call_ev( uint32_t const & call_id ) { assert_st( call_id < call_evs.size() ); return call_evs[call_id]; }
@@ -281,6 +292,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     }
 #endif
     void run( rtc_func_call_t & rfc ) {
+      timer_t t("cu_launch_and_sync");
       CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() ).func;
       vect_rp_void cu_func_args;
       add_args( rfc.in_args, cu_func_args );
@@ -288,18 +300,42 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       add_args( rfc.out_args, cu_func_args );
       for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
       rfc.call_id = alloc_call_id();
-
-      timer_t t("cu_launch_and_sync");
       record_event( get_call_ev(rfc.call_id).b_ev );
-      cu_err_chk( cuLaunchKernel( cu_func,
-				  rfc.blks.v, 1, 1, // grid x,y,z dims
-				  rfc.tpb.v, 1, 1, // block x,y,z dims
-				  0, 0, // smem_bytes, stream_ix
-				  &cu_func_args[0], // cu_func's args
-				  0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
+      if( startswith( rfc.rtc_func_name, "cublas_sgemm" ) ) { run_culibs( rfc, cu_func_args ); }
+      else {
+        rtc_launch_check_blks_and_tpb( rfc.rtc_func_name, rfc.blks.v, rfc.tpb.v );
+	cu_err_chk( cuLaunchKernel( cu_func,
+				    rfc.blks.v, 1, 1, // grid x,y,z dims
+				    rfc.tpb.v, 1, 1, // block x,y,z dims
+				    0, 0, // smem_bytes, stream_ix
+				    &cu_func_args[0], // cu_func's args
+				    0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
+      }
       record_event( get_call_ev(rfc.call_id).e_ev );
       //record_var_events( rfc.inout_args, rfc );
       //record_var_events( rfc.out_args, rfc );
+    }
+
+    // run externtal/library CUDA function using culibs_wrap_t object
+    void run_culibs( rtc_func_call_t & rfc, vect_rp_void const & cu_func_args ) {
+      // get arguments as cuda device pointers and check dims
+      if( (rfc.in_args.size() != 3) || (rfc.inout_args.size() != 0) || (rfc.out_args.size() != 0) ) {
+	rt_err( "error: expected rfc_in_args.size()==3 & other sizes() == zero for call to cublas sgemm." );
+      }
+      assert_st( cu_func_args.size() == 3 );
+      dims_t const & a = must_find( *vis, rfc.in_args[0] ).dims;
+      dims_t const & bt = must_find( *vis, rfc.in_args[1] ).dims;
+      dims_t const & c = must_find( *vis, rfc.in_args[2] ).dims;
+      uint64_t M,N,K;
+      M = a.dsz("M");
+      K = a.dsz("K");
+      assert_st( bt.dsz("K") == K );
+      N = bt.dsz("N");
+      assert_st( c.dsz("M") == M );
+      assert_st( c.dsz("N") == N );
+      printf( "calling cublas: a=%s bt=%s c=%s\n", str(a).c_str(), str(bt).c_str(), str(c).c_str() );
+      // invoke cublas
+      cublas_sgemm_wrap( cw, M, N, K, cu_func_args );
     }
 
     void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }

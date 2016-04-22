@@ -5,6 +5,13 @@
 
 namespace boda 
 {
+  void rtc_launch_check_blks_and_tpb( std::string const & rtc_func_name, uint64_t const blks, uint64_t const tpb ) {
+    if( !( (blks > 0) && (tpb > 0) ) ) {
+      rt_err( strprintf( "boda/rtc: can't launch kernel; blks or tpb is zero: rtc_func_name=%s blks=%s tpb=%s;"
+                         " perhaps is a culibs stub function that should not have been attempted to be run?", 
+                         str(rtc_func_name).c_str(), str(blks).c_str(), str(tpb).c_str() ) );
+    }
+  }
 
   uint32_t rtc_compute_t::get_var_sz_floats( string const & vn ){ return get_var_dims_floats( vn ).dims_prod(); }
     

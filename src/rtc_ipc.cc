@@ -110,7 +110,7 @@ namespace boda
 	read_fd = lc_str_u32( bpa_parts[is_worker?2:1] );
 	write_fd = lc_str_u32( bpa_parts[is_worker?1:2] );
 	open_streams();
-      } else { rt_err( "unknown boda_parent_addr type %s, should be either 'fns' (filenames) or 'fds' (open file descriptor integers)" ); }
+      } else { rt_err( "unknown boda_parent_addr type "+bpa_parts[0]+", should be either 'tcp' (tcp connection to host:port), 'fns' (filenames) or 'fds' (open file descriptor integers)" ); }
     }
     void open_streams( void ) {
       r.open( io::file_descriptor_source( read_fd, io::never_close_handle ) ); 

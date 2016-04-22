@@ -112,6 +112,7 @@ namespace boda
 
     // comparison testing related options:
     p_rtc_compute_t rtc_comp; //NESI(help="rtc back-end to use for correctness-testing comparison")
+    uint32_t use_culibs_comp; //NESI(default=0,help="if 1, set use_culibs=1 attr of func for rtc_comp run")
     double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
     map_str_double var_mad_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mad_toler per-layer if specified")
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
@@ -124,6 +125,28 @@ namespace boda
   void add_cnn_codegen_annotations( conv_op_base_t * const op, 
 				    bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, 
 				    bool const & force_enable_tconv, uint32_t const t_tile_sz );
+
+  string generate_func( rtc_codegen_t & codegen, p_conv_op_base_t const & anno_op,
+                        bool const use_culibs, bool const enable_opt, uint32_t const t_tile_sz ) {
+    if( anno_op->is( Convolution_coi ) ) {
+      if( use_culibs ) { 
+        rt_err( "cuDNN comp support TODO" );
+      } else { 
+        add_cnn_codegen_annotations( anno_op.get(), 0, 0, 0, 0, 4 ); 
+        anno_op->type = must_find( anno_op->str_vals, "cts" );
+        must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
+      }
+    } else if( anno_op->is( sgemm_coi ) ) {
+      if( use_culibs ) {
+        anno_op->type = "cublas_sgemm";
+      } else {
+        uint64_t const Mg = anno_op->get_dims("c").dsz("M") / 32;
+        uint64_t const Ng = anno_op->get_dims("c").dsz("N") / 32;
+        must_insert( anno_op->dims_vals, "work", dims_t{ {(uint32_t)Mg,(uint32_t)Ng,8,8,1,4,4}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 } );
+      }	  
+    }
+    return codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
+  }
 
   double profile_rcg_call( p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
 			   p_rtc_call_gen_t const & rcg, 
@@ -156,17 +179,17 @@ namespace boda
 	if( rtc_comp ) { vs1->clear(); vs2->clear(); }
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
-	if( anno_op->is( Convolution_coi ) ) {
-	  add_cnn_codegen_annotations( anno_op.get(), 0, opt, opt, 0, t_tile_sz );
-	  anno_op->type = must_find( anno_op->str_vals, "cts" );
-	  must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
-	} else if( anno_op->is( sgemm_coi ) ) {
-	  uint64_t const Mg = anno_op->get_dims("c").dsz("M") / 32;
-	  uint64_t const Ng = anno_op->get_dims("c").dsz("N") / 32;
-	  must_insert( anno_op->dims_vals, "work", dims_t{ {(uint32_t)Mg,(uint32_t)Ng,8,8,1,4,4}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 } );	  
-	}
-	// profile rtc op
-	string const func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
+        // generate boda variant according to tuning params (just opt and t_tile_sz currently)
+        // note: use_culibs is always set =0 here (we only use culibs for the comp case currently)
+	string const func_name = generate_func( codegen, anno_op, 0, opt, t_tile_sz );        
+        string func_name_comp;
+        if( rtc_comp ) {
+          // if requested, generate comparison function for correctness/performance testing:
+          // 1) if use_culibs_comp = 0: 'reference' conv operation (no optimizations, fixed t_tile_sz of 4)
+          // 2) if use_culibs_comp = 1: call out to reference nVidia library (nvrtc backend only; ocl will yield no-op)
+          p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
+          func_name_comp = generate_func( codegen, anno_op_comp, use_culibs_comp, 0, 4 );
+        }
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
 	if( !rcg->blks ) { 
 	  printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
@@ -179,7 +202,9 @@ namespace boda
 	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, rcg, gen_data, vs1.get() ) / 1000.0;
 	printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	if( rtc_comp ) {
-	  double const rfc_dur_secs = profile_rcg_call( rtc_comp, codegen, show_rtc_calls, rcg, gen_data, vs2.get() )/1000.0;
+          p_rtc_call_gen_t const &rcg_comp = must_find( codegen.rtc_func_names_map, func_name_comp );
+	  double const rfc_dur_secs = profile_rcg_call( rtc_comp, codegen, show_rtc_calls, rcg_comp, 
+                                                        gen_data, vs2.get() ) / 1000.0;
 	  printf( "COMP rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	  vect_string const vns1 = get_keys( *vs1 );
 	  vect_string const vns2 = get_keys( *vs2 );

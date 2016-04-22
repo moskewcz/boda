@@ -1,0 +1,15 @@
+# summary: cuModuleUnload + cuda-memcheck seems buggy and/or boda has a cuModuleUnload related bug?
+
+# works only without cumoduleunload, if >1 op
+cuda-memcheck boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-tiny.txt --run-opt-variants=1 --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))'
+
+# no data gen: seems to always work
+cuda-memcheck boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-tiny.txt --run-opt-variants=1 --rtc='(be=nvrtc)' 
+
+
+# using rtc_ipc to split-out cuda part
+cuda-memcheck boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-tiny.txt --run-opt-variants=1 --rtc='(be=ipc,print_dont_fork=1,boda_parent_addr=tcp:localhost:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))'
+
+# worker:
+cuda-memcheck boda ipc_compute_worker --rtc='(be=nvrtc)' --boda-parent-addr=tcp:localhost:12791
+
