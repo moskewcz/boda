@@ -29,17 +29,31 @@ def emit_conv( tag, img, in_xy, kern_xy, stride, in_chan, out_chan ):
             "stride=(y=%(sy)s,x=%(sx)s)),"
             "str_vals=(out_chans=%(out_chan)s))" % ( params ) )
 
-conv_ix = 0
-for batch_sz in [1, 2, 5, 10, 20]:
-    for activX in [8, 9, 16, 17, 32, 33, 64, 65 ]: # activations X-dim
-        for activY in [8, 9, 16, 17, 32, 33, 64, 65 ]: # activations Y-dim
-            for filtX in [1, 2, 3, 4, 5]:
-                for filtY in [1, 2, 3, 4, 5]:
-                    for strideX in xrange(1, filtX+1):
-                        for strideY in xrange(1, filtY+1):
-                            for chans_in in [3, 4, 5, 8, 9, 16, 17, 32, 33 ]:
-                                for chans_out in [3, 4, 5, 8, 9, 16, 17, 32, 33 ]:
-                                    tag = "op_"+str(conv_ix)
-                                    conv_ix += 1
-                                    emit_conv( tag, batch_sz, (activX, activY), (filtX, filtY), (strideX, strideY), 
-                                               chans_in, chans_out)
+def emit_conv_sweep():
+    conv_ix = 0
+    for batch_sz in [1, 2, 5, 10, 20]:
+        for activX in [8, 9, 16, 17, 32, 33, 64, 65 ]: # activations X-dim
+            for activY in [8, 9, 16, 17, 32, 33, 64, 65 ]: # activations Y-dim
+                for filtX in [1, 2, 3, 4, 5]:
+                    for filtY in [1, 2, 3, 4, 5]:
+                        for strideX in xrange(1, filtX+1):
+                            for strideY in xrange(1, filtY+1):
+                                for chans_in in [3, 4, 5, 8, 9, 16, 17, 32, 33 ]:
+                                    for chans_out in [3, 4, 5, 8, 9, 16, 17, 32, 33 ]:
+                                        tag = "op_"+str(conv_ix)
+                                        conv_ix += 1
+                                        emit_conv( tag, batch_sz, (activX, activY), (filtX, filtY), (strideX, strideY), 
+                                                   chans_in, chans_out)
+
+
+def emit_sgemm( M, N, K ):
+    params = {"M":M,"N":N,"K":K,} 
+    print ( "(type=sgemm,dims_vals=(a=(M=%(M)s,K=%(K)s),bt=(N=%(N)s,K=%(K)s),c=(M=%(M)s,N=%(N)s)))" % ( params ) )
+
+
+def emit_sgemm_sweep():
+    for MNK in [32,64,128,256,384,512,768,1024,1536,2048,3072,4096,5120,6144,7168,8192]:
+        emit_sgemm( MNK, MNK, MNK )
+
+# emit_conv_sweep()
+emit_sgemm_sweep()

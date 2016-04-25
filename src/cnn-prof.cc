@@ -43,20 +43,22 @@ namespace boda
     void info_row( std::ostream * const out ) {
       base_info( out );
       if( op->is( Convolution_coi ) ) {
-	(*out) << strprintf( " & %s & %s & %s", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
+	(*out) << strprintf( " & %s & %s & %s & ", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
       }
       double const ai = double(forward_flops)/double(forward_bytes);
-      (*out) << strprintf( " & %s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
+      (*out) << strprintf( "%s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
 			   pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
       (*out) << "\\\\ " << std::endl;
     }
     void eff_row( std::ostream * const out, string const & rtc_op_type, double const & runtime_secs, double const & peak_flops ) {
       base_info( out );
       if( op->is( Convolution_coi ) ) {
-	(*out) << strprintf( " & %s & %s ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
+	(*out) << strprintf( " & %s & \\verb|%s| & ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
+      } else if( op->is( sgemm_coi ) ) {
+        (*out) << strprintf( "%s & \\verb|%s| & ", mkn_str(M,K,N).c_str(), rtc_op_type.c_str()  );
       }
       double const fps = double(forward_flops)/runtime_secs;
-      (*out) << strprintf( " & %s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
+      (*out) << strprintf( "%s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
       (*out) << "\\\\ " << std::endl;
     }
     void init( p_conv_op_base_t const & op_ ) {
@@ -105,6 +107,7 @@ namespace boda
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
 
     uint32_t run_opt_variants; //NESI(default=2,help="if 0, run no variants. if 1, run non-opt only, if 2, run non-opt+opt variants")
+    uint32_t use_culibs; //NESI(default=0,help="if 1, set use_culibs=1 attr of func (non-comp run)")
 
     p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
     uint32_t show_rtc_calls; //NESI(default=1,help="if 1, print rtc calls")
@@ -180,8 +183,7 @@ namespace boda
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-        // note: use_culibs is always set =0 here (we only use culibs for the comp case currently)
-	string const func_name = generate_func( codegen, anno_op, 0, opt, t_tile_sz );        
+	string const func_name = generate_func( codegen, anno_op, use_culibs, opt, t_tile_sz );        
         string func_name_comp;
         if( rtc_comp ) {
           // if requested, generate comparison function for correctness/performance testing:
@@ -191,7 +193,7 @@ namespace boda
           func_name_comp = generate_func( codegen, anno_op_comp, use_culibs_comp, 0, 4 );
         }
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
-	if( !rcg->blks ) { 
+	if( (!rcg->blks) && (!use_culibs) ) { 
 	  printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
 	  continue; 
 	}
