@@ -202,6 +202,11 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     zi_uint32_t compile_call_ix;
     void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo,
 		  vect_string const & func_names, bool const show_func_attrs ) {
+      bool all_funcs_culibs = 1;
+      for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
+        if( !startswith( "cublas_", *i ) ) { all_funcs_culibs = 0; }
+      }
+      if( all_funcs_culibs ) { return; } // skip unneeded compilation if all funcs to compile are culibs stubs
       string const src = cu_base_decls + cucl_src;
       assert( init_done.v );
       if( gen_src ) { ensure_is_dir( gen_src_output_dir.exp, 1 ); }
@@ -293,7 +298,6 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 #endif
     void run( rtc_func_call_t & rfc ) {
       timer_t t("cu_launch_and_sync");
-      CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() ).func;
       vect_rp_void cu_func_args;
       add_args( rfc.in_args, cu_func_args );
       add_args( rfc.inout_args, cu_func_args );
@@ -304,7 +308,8 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       if( startswith( rfc.rtc_func_name, "cublas_sgemm" ) ) { run_culibs( rfc, cu_func_args ); }
       else {
         rtc_launch_check_blks_and_tpb( rfc.rtc_func_name, rfc.blks.v, rfc.tpb.v );
-	cu_err_chk( cuLaunchKernel( cu_func,
+        CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() ).func;
+        cu_err_chk( cuLaunchKernel( cu_func,
 				    rfc.blks.v, 1, 1, // grid x,y,z dims
 				    rfc.tpb.v, 1, 1, // block x,y,z dims
 				    0, 0, // smem_bytes, stream_ix
@@ -324,16 +329,16 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       }
       assert_st( cu_func_args.size() == 3 );
       dims_t const & a = must_find( *vis, rfc.in_args[0] ).dims;
-      dims_t const & bt = must_find( *vis, rfc.in_args[1] ).dims;
+      dims_t const & b = must_find( *vis, rfc.in_args[1] ).dims;
       dims_t const & c = must_find( *vis, rfc.in_args[2] ).dims;
       uint64_t M,N,K;
       M = a.dsz("M");
       K = a.dsz("K");
-      assert_st( bt.dsz("K") == K );
-      N = bt.dsz("N");
+      assert_st( b.dsz("K") == K );
+      N = b.dsz("N");
       assert_st( c.dsz("M") == M );
       assert_st( c.dsz("N") == N );
-      printf( "calling cublas: a=%s bt=%s c=%s\n", str(a).c_str(), str(bt).c_str(), str(c).c_str() );
+      printf( "calling cublas: a=%s b=%s c=%s\n", str(a).c_str(), str(b).c_str(), str(c).c_str() );
       // invoke cublas
       cublas_sgemm_wrap( cw, M, N, K, cu_func_args );
     }

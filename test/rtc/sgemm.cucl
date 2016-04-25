@@ -1,12 +1,12 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN M:K
-					  GASQ float const * const bt, // CUCL IN N:K
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN K:M
+					  GASQ float const * const b, // CUCL IN K:N
 					  GASQ float * const c )  // CUCL OUT M:N
 /* work */  // CUCL REF Mg:Ng:Mb:Nb:Kb:Mt:Nt
 {
-#if 0
   // CUCL IX GRP_ID_1D work use_dims=Mg:Ng
   // CUCL IX LOC_ID_1D work use_dims=Mb:Nb
-  // note: <each thread handles> work use_dims=Mt:Nt (1/Kb'th of the sum of each m,n output pt);loops over K with stride Kb
+  // note: <each thread handles> work use_dims=Mt:Nt output points;loops over K with unrollingfactor of Kb
+  // FIXME: for now, we assume Kb == 1
   LOCSHAR_MEM float a_sm[%(a_sm_sz)];
   LOCSHAR_MEM float b_sm[%(b_sm_sz)];
   float c_t[%(work_Mt_dim)*%(work_Nt_dim)] = {0}; // tile of output for this thread to compute, stored in registers
@@ -32,5 +32,5 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN
     // (stores);
     out_off += 1;
   }
-#endif
+
 }

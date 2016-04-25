@@ -48,11 +48,11 @@ def emit_conv_sweep():
 
 def emit_sgemm( M, N, K ):
     params = {"M":M,"N":N,"K":K,} 
-    print ( "(type=sgemm,dims_vals=(a=(M=%(M)s,K=%(K)s),bt=(N=%(N)s,K=%(K)s),c=(M=%(M)s,N=%(N)s)))" % ( params ) )
+    print ( "(type=sgemm,dims_vals=(a=(K=%(K)s,M=%(M)s),b=(K=%(K)s,N=%(N)s),c=(M=%(M)s,N=%(N)s)))" % ( params ) )
 
 
 def emit_sgemm_sweep():
-    for MNK in [32,64,128,256,384,512,768,1024,1536,2048,3072,4096,5120,6144,7168,8192]:
+    for MNK in [32,64,128,256,384,512,768,1024,1536,2048,3072,4096,5120,6144,7168,8192,10240,12288]:
         emit_sgemm( MNK, MNK, MNK )
 
 # emit_conv_sweep()

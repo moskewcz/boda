@@ -1,0 +1,6 @@
+# comparison test
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-micro.txt --op-info-tab-fn=sgemm-info-tab.tex --op-eff-tab-fn=sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=4))' --use-culibs-comp=1 --use-culibs=0 --rtc-comp='(be=nvrtc)'
+
+
+# cublas perf sweep
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=sgemm-info-tab.tex --op-eff-tab-fn=sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=4))' --use-culibs=1

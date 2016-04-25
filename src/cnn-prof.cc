@@ -79,16 +79,16 @@ namespace boda
       } else if( op->is( sgemm_coi ) ) {
 	dout = op->get_dims("c");
 	dims_t a = op->get_dims("a");
-	dims_t bt = op->get_dims("bt");
+	dims_t b = op->get_dims("b");
 	B = 1;
 	M = a.dsz("M");
 	K = a.dsz("K");
-	assert_st( bt.dsz("K") == K );
-	N = bt.dsz("N");
+	assert_st( b.dsz("K") == K );
+	N = b.dsz("N");
 	assert_st( dout.dsz("M") == M );
 	assert_st( dout.dsz("N") == N );
 	forward_flops = M * N * K * 2;
-	forward_bytes = (a.dims_prod() + bt.dims_prod() + dout.dims_prod()) * 4;
+	forward_bytes = (a.dims_prod() + b.dims_prod() + dout.dims_prod()) * 4;
       } else { rt_err( "cnn-op-info: unhandled op: " + op->type ); }
       
     }

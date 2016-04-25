@@ -1,5 +1,5 @@
 // CUCL INCLUDE gen-util.h
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const a ) // CUCL OUT M:K
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const a ) // CUCL OUT K:M
 {
   // CUCL IX GLOB_ID_1D a
   if( GLOB_ID_1D >= %(a_dims_prod) ) { return; }

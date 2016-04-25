@@ -16,7 +16,7 @@ namespace boda
   // them into conv_op_info_t. now they are just all strings ...
 
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
-  conv_op_info_t const sgemm_coi{ "sgemm", {"a","bt"}, {"c"}, {}, {} };
+  conv_op_info_t const sgemm_coi{ "sgemm", {"a","b"}, {"c"}, {}, {} };
   map_str_dims_t const DefaultKernPadStride{ 
     {"stride", dims_t{ {1,1},{"y","x"}, 1 } }, 
     {"in_pad", dims_t{ {0,0}, {"y","x"}, 1 } } };

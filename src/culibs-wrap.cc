@@ -41,14 +41,14 @@ namespace boda
   void cublas_sgemm_wrap( p_culibs_wrap_t const & cw, uint64_t const & M, uint64_t const & N, uint64_t const & K, 
 			  vect_rp_void const & args ) {
     assert_st( args.size() == 3 ); 
-    // our inputs are row-major: a:MxK, bt:NxK; we want an output of c:MxN (row major);
-    // if interpret our inputs as column-major, they are: a:KxM, bt:KxN; so for col-major sgemm, we want -->
-    // opA(A)=(bt)' opB(B)=a --> (bt)'*a = C:NxM (col major) --> 
+    // our inputs are row-major: a:KxM (pre-transposed), b:KxN; we want an output of c:MxN (row major);
+    // if interpret our inputs as column-major, they are: at:MxK, b:NxK; so for col-major sgemm, we want -->
+    // opA(A)=b opB(B)=a' --> b*a' = C:NxM (col major) --> 
     // so if we interpret C as row major, we get the desired c:MxN (row major)
-    // so we want A=bt opA=T, B=a opB=N, M=(our)N, N=(our)M, K=(our)K
+    // so we want A=b opA=N, B=a opB=T, M=(our)N, N=(our)M, K=(our)K
     float const alpha = 1.0f;
     float const beta = 0.0f;
-    cublas_err_chk( cublasSgemm( cw->cbh, CUBLAS_OP_T, CUBLAS_OP_N, N, M, K, 
+    cublas_err_chk( cublasSgemm( cw->cbh, CUBLAS_OP_N, CUBLAS_OP_T, N, M, K, 
 				 &alpha,
 				 *(float const **)(args[1]),  K, //const float           *A, int lda,
 				 *(float const **)(args[0]),  K, //const float           *B, int ldb,
