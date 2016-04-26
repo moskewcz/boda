@@ -288,21 +288,56 @@ namespace boda
 
     void gen_op_sgemm( rtc_call_gen_t * rcg ) {
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
-      uint32_t const a_sm_sz = work.dsz("Mb")*work.dsz("Mt")*work.dsz("Kb");
+      uint64_t const blk_M = work.dsz("Mb")*work.dsz("Mt");
+      uint32_t const a_sm_sz = blk_M*work.dsz("Kb");
       rcg->set( "a_sm_sz", str(a_sm_sz) );
       uint32_t const a_sm_load_iter = u32_ceil_div( a_sm_sz, rcg->tpb );    
       for( uint32_t i = 0; i != a_sm_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
-	string const filt_ix = "( LOC_ID_1D/%(work_Kb_dim) + %(tpb)/%(work_Kb_dim)* "+str(i)+")";
 	string eif;
 	if( (i+1)*rcg->tpb > a_sm_sz ) { 
 	  rcg->line( "sm_loads", "if( "+ixe+" < %(a_sm_sz) ) {" );eif = "}";}
-	rcg->line( "sm_loads", strprintf("a_sm[%s] = a[a_off+(%s*%%(a_M_sz))];%s",ixe.c_str(),filt_ix.c_str(),eif.c_str()) );
+	rcg->line( "sm_loads", strprintf("a_sm[%s] = a[a_off+%s];%s",ixe.c_str(),ixe.c_str(),eif.c_str()) );
       }
 
-      uint32_t const b_sm_sz = work.dsz("Mb")*work.dsz("Mt")*work.dsz("Kb");
+      uint64_t const blk_N = work.dsz("Nb")*work.dsz("Nt");
+      uint32_t const b_sm_sz = blk_N*work.dsz("Kb");
       rcg->set( "b_sm_sz", str(b_sm_sz) );
+      uint32_t const b_sm_load_iter = u32_ceil_div( b_sm_sz, rcg->tpb );    
+      for( uint32_t i = 0; i != b_sm_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string eif;
+	if( (i+1)*rcg->tpb > b_sm_sz ) { 
+	  rcg->line( "sm_loads", "if( "+ixe+" < %(b_sm_sz) ) {" );eif = "}";}
+	rcg->line( "sm_loads", strprintf("b_sm[%s] = b[b_off+%s];%s",ixe.c_str(),ixe.c_str(),eif.c_str()) );
+      }
+      
+      for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
+	for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = a_sm_off[%s];", str(Mt).c_str(), str(Mt).c_str() ) );
+	}
+	for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
+	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = b_sm_off[%s];", str(Nt).c_str(), str(Nt).c_str() ) );
+	}
+      }
 
+      rcg->line( "outs_to_b_r", "switch(Mt) { " );
+      for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+	rcg->line( "outs_to_b_r", "case "+str(Mt)+":" );
+        for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
+          uint32_t const rix = (Mt*work.dsz("Nt")+Nt);
+          rcg->line( "inner_loop_body", strprintf( "c_r[%s] += a_r[%s]*b_r[%s];",str(rix).c_str(), 
+                                                   str(Mt).c_str(), str(Nt).c_str()));
+          rcg->line( "outs_to_b_r", strprintf( "b_r[%s] = c_r[%s];", str(Nt).c_str(), str(rix).c_str() ) );  
+	}
+        rcg->line( "outs_to_b_r", "break;" );
+      }
+      rcg->line( "outs_to_b_r", "} " );
+
+      // note: for this section, there will be a local 'Mt' in scope, used to adjust c_off each iteration
+      for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
+        rcg->line( "stores", strprintf( "c[c_off+%s] = b_r[%s];", str(Nt).c_str(), str(Nt).c_str() ) );  
+      }
     }
 
     void gen_op_k1conv( rtc_call_gen_t * rcg ) {

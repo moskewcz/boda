@@ -105,6 +105,7 @@ namespace boda
 
     double peak_flops; //NESI(default=6600e9,help="peak flops of platform (for computing peak %s)")
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
+    uint32_t sgemm_bsz; //NESI(default=8,help="use sgemm_bsz^2 threads per block for sgemm")
 
     uint32_t run_opt_variants; //NESI(default=2,help="if 0, run no variants. if 1, run non-opt only, if 2, run non-opt+opt variants")
     uint32_t use_culibs; //NESI(default=0,help="if 1, set use_culibs=1 attr of func (non-comp run)")
@@ -130,7 +131,8 @@ namespace boda
 				    bool const & force_enable_tconv, uint32_t const t_tile_sz );
 
   string generate_func( rtc_codegen_t & codegen, p_conv_op_base_t const & anno_op,
-                        bool const use_culibs, bool const enable_opt, uint32_t const t_tile_sz ) {
+                        bool const use_culibs, bool const enable_opt, 
+                        uint32_t const t_tile_sz, uint32_t const sgemm_bsz ) {
     if( anno_op->is( Convolution_coi ) ) {
       if( use_culibs ) { 
         rt_err( "cuDNN comp support TODO" );
@@ -143,9 +145,21 @@ namespace boda
       if( use_culibs ) {
         anno_op->type = "cublas_sgemm";
       } else {
-        uint64_t const Mg = anno_op->get_dims("c").dsz("M") / 32;
-        uint64_t const Ng = anno_op->get_dims("c").dsz("N") / 32;
-        must_insert( anno_op->dims_vals, "work", dims_t{ {(uint32_t)Mg,(uint32_t)Ng,8,8,1,4,4}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 } );
+        dims_t const & c = anno_op->get_dims("c");
+        uint64_t const bsz = (t_tile_sz*sgemm_bsz);
+        uint64_t const Mg = c.dsz("M") / bsz;
+        uint64_t const Ng = c.dsz("N") / bsz;
+        if( Mg * bsz != c.dsz("M") ) { 
+          rt_err( strprintf( "FIXME: currently, M=%s must be a multiple of bsz=%s\n", 
+                             str(c.dsz("M")).c_str(), str(bsz).c_str() ) );
+        }
+        if( Ng * bsz != c.dsz("N") ) { 
+          rt_err( strprintf( "FIXME: currently, N=%s must be a multiple of bsz=%s\n", 
+                             str(c.dsz("N")).c_str(), str(bsz).c_str() ) );
+        }
+        dims_t work{ {(uint32_t)Mg,(uint32_t)Ng,sgemm_bsz,sgemm_bsz,1,t_tile_sz,t_tile_sz}, 
+          {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
+        must_insert( anno_op->dims_vals, "work", work );
       }	  
     }
     return codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
@@ -183,14 +197,14 @@ namespace boda
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-	string const func_name = generate_func( codegen, anno_op, use_culibs, opt, t_tile_sz );        
+	string const func_name = generate_func( codegen, anno_op, use_culibs, opt, t_tile_sz, sgemm_bsz );        
         string func_name_comp;
         if( rtc_comp ) {
           // if requested, generate comparison function for correctness/performance testing:
           // 1) if use_culibs_comp = 0: 'reference' conv operation (no optimizations, fixed t_tile_sz of 4)
           // 2) if use_culibs_comp = 1: call out to reference nVidia library (nvrtc backend only; ocl will yield no-op)
           p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
-          func_name_comp = generate_func( codegen, anno_op_comp, use_culibs_comp, 0, 4 );
+          func_name_comp = generate_func( codegen, anno_op_comp, use_culibs_comp, 0, 4, 8 );
         }
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
 	if( (!rcg->blks) && (!use_culibs) ) { 
