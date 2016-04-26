@@ -55,8 +55,13 @@ moskewcz@maaya:~/git_work/boda_android/lib$ /scratch/android-stc/bin/aarch64-lin
 moskewcz@maaya:~/git_work/boda/obj2$ make -f ../obj/makefile -j12 TARGET=boda OBJ_LIST_FN=../obj/obj_list.android && /scratch/android-stc/bin/aarch64-linux-android-strip boda && adb -s e178dbfe push boda /data/local/boda/lib
 
 #run boda (from boda lib dir on maaya) # note: may need to adb push libgnustl_shared.so from NDK to boda lib dir before running.
+adb root
+adb shell mkdir -p /data/local/boda/lib
+adb push ~moskewcz/sma/android-ndk-r10e/sources/cxx-stl/gnu-libstdc++/4.9/libs/arm64-v8a/libgnustl_shared.so /data/local/boda/lib
+# also may need to push boda_cfg.xml and/or set up dir (TODO automate/document/script better):
+adb push ~moskewcz/git_work/boda/lib/boda_cfg.xml /data/local/boda/lib
 
-oskewcz@maaya:~/git_work/boda_android/lib$ adb shell "cd /data/local/boda/run/tr1; LD_LIBRARY_PATH=../../lib ../../lib/boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl' && cat rtc_test.txt"
+moskewcz@maaya:~/git_work/boda_android/lib$ adb shell "cd /data/local/boda/run/tr1; LD_LIBRARY_PATH=../../lib ../../lib/boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl' && cat rtc_test.txt"
 All is Well.
 
 # test rtc-ipc compute-over-tcp
