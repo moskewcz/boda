@@ -69,8 +69,8 @@ namespace boda
 
   void boda_dirs_init( void ) {
     path pse_dir_dir = read_symlink( path("/proc")/"self"/"exe" ).parent_path().parent_path();
-    py_boda_dir_static = canonical(pse_dir_dir).string();
-    py_boda_test_dir_static = canonical(pse_dir_dir/"test").string();
+    py_boda_dir_static = pse_dir_dir.string();
+    py_boda_test_dir_static = (pse_dir_dir/"test").string();
   }
 
   // prints errno

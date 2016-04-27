@@ -18,8 +18,11 @@ namespace boda
   }
 
   void create_and_run_has_main_t( p_lexp_t lexp ) {
-    // add top-level extra fields
-    p_lexp_t boda_cfg = parse_lexp_xml_file( (path(py_boda_dir()) / "lib" / "boda_cfg.xml").string() );
+    path boda_cfg_fn = (path(py_boda_dir()) / "lib" / "boda_cfg.xml");
+    p_lexp_t boda_cfg;
+    // add top-level extra fields from config file, if present
+    if( is_regular_file( boda_cfg_fn ) ) { boda_cfg = parse_lexp_xml_file( boda_cfg_fn.string() ); }
+    else { boda_cfg = parse_lexp("()"); } // no config file --> empty lexp. FIXME: warn in this case?
     lexp_name_val_map_t cfg_nvm( boda_cfg );
     // these won't insert if the field exists, and use_cnt should not
     // be checked at this scope, so inc_use_cnt = 0 is okay. note that
@@ -29,6 +32,9 @@ namespace boda
     // important) check.
     cfg_nvm.insert_leaf( "boda_dir", py_boda_dir().c_str(), 0 ); 
     cfg_nvm.insert_leaf( "boda_test_dir", py_boda_test_dir().c_str(), 0 );
+    cfg_nvm.insert_leaf( "verbose", "0", 0 );
+    cfg_nvm.insert_leaf( "boda_output_dir", ".", 0 );
+
     lexp_name_val_map_t nvm( lexp, &cfg_nvm );
     // create and run mode. note: the unused fields check doesn't apply to 'parent' init data (i.e. nvm), only to lexp
     p_has_main_t has_main;

@@ -1,21 +1,19 @@
-<!-- this is an *example* boda_cfg.xml file for user moskewcz on
-     machine orihime. to use this file, after building boda, i symlink
-     it next to the boda exe named as boda_cfg.xml:
-
-     moskewcz@orihime:~/svn_work/boda/lib$ ln -s ../mwm_boda_cfg.xml boda_cfg.xml
+<!-- this is an *example* boda_cfg.xml file. see INSTALL.md for details.
      
-     if you are a developer, you can similarly commit your own copy of
-     the config file to the root boda dir and symlink it in your
-     working copies. 
-
-     or, you can just copy this file as a template and edit it:
-
-     moskewcz@orihime:~/svn_work/boda/lib$ cp ../mwm_boda_cfg.xml boda_cfg.xml
-     moskewcz@orihime:~/svn_work/boda/lib$ emacs boda_cfg.xml
+     values with internal defaults are listed here commented-out
+     with thier default values. to set them, uncomment them, move them
+     inside the root element, and set them to the desired
+     (non-default) value. note: they are placed outside the root
+     element here only because XML does not allow comments inside
+     elements.
 -->
 
-<root verbose="0" 
-      boda_output_dir="."
+<!--  boda_dir= set internally to cannonical(readlink('/proc/self/exe')+'/../..') -->
+<!--  boda_test_dir= set internally to: (boda_dir + '/test') -->
+<!--  verbose="0" --> 
+<!--  boda_output_dir="." -->
+
+<root 
       models_dir="%(boda_dir)/nets"
       alt_param_dir="/scratch/models" 
       caffe_dir="/home/moskewcz/git_work/caffe_dev"
@@ -29,8 +27,3 @@
 />
 <!-- note: if a model parameters file at path (for example) "%(models_dir)/foo/best.caffemodel" is not found, boda will
      try to load "%(alt_param_dir)/foo/best.caffemodel instead (where foo is the model name) -->
-
-<!-- note: if not set here, boda will automatically set:
-     boda_dir="PATH_TO_BODA_EXE/.."
-     boda_test_dir="PATH_TO_BODA_EXE/../test"
--->
