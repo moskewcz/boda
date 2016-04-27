@@ -14,10 +14,10 @@ CPPFLAGS := ${CPPFLAGS} -fPIE -pie -isystem /scratch/moskewcz/android/src/boost_
 
 SYSROOT := /scratch/moskewcz/android/sysroot_msm8996
 #SYSROOT := /scratch/moskewcz/android/sysroot_msm8994
-LDFLAGS := -fPIE -pie \
+LDFLAGS := -fopenmp -fPIE -pie \
 	-L${SYSROOT}/system/lib64 -Wl,-rpath-link,${SYSROOT}/system/lib64 \
 	-L${SYSROOT}/system/vendor/lib64 -Wl,-rpath-link,${SYSROOT}/system/vendor/lib64 \
-	-lgnustl_shared -fopenmp \
+	-lgnustl_shared \
 	-L/scratch/moskewcz/android/src/boost_1_60_0/stage/lib \
 	-lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lboost_program_options \
 	# ---- end of LDFLAGS (note: continued from above line, so keep this line here/last) ---- 

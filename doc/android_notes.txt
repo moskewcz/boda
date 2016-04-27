@@ -1,8 +1,6 @@
 #making standalone toolchain
 #stock ndk
 android-ndk-r10e/build/tools/make-standalone-toolchain.sh --install-dir=my-android-toolchain --platform=android-21 --toolchain=aarch64-linux-android-4.9
-#cyrstaX
-crystax-ndk-10.3.1/build/tools/make-standalone-toolchain.sh --install-dir=crys-android-tc --platform=android-21 --toolchain=aarch64-linux-android-4.9
 
 # port forwarding for adb server
 ssh -L 5037:localhost:5037  bitter -Nn &
