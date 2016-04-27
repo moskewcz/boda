@@ -52,7 +52,7 @@ moskewcz@maaya:~/git_work/boda_android/lib$ /scratch/android-stc/bin/aarch64-lin
 
 ##### using build-system improvements, now you can make and push boda in one combo-line, which can be used from an empty 'obj2' extra build directory inside existing WC of boda (so a single WC can build locally in obj and for android in obj2 ########
 
-moskewcz@maaya:~/git_work/boda/obj2$ make -f ../obj/makefile -j12 TARGET=boda OBJ_LIST_FN=../obj/obj_list.android && /scratch/android-stc/bin/aarch64-linux-android-strip boda && adb -s e178dbfe push boda /data/local/boda/lib
+moskewcz@maaya:~/git_work/boda/obj2$ make -f ../obj/makefile -j12 TARGET=boda OBJ_LIST_FN=../obj/obj_list.android && /scratch/android-stc/bin/aarch64-linux-android-strip boda && adb push boda /data/local/boda/lib
 
 #run boda (from boda lib dir on maaya) # note: may need to adb push libgnustl_shared.so from NDK to boda lib dir before running.
 adb root
@@ -68,6 +68,9 @@ All is Well.
 # port forwarding boda tcp port (12792); first from device to bitter (over adb), then from bitter to maaya (over ssh)
 moskewcz@maaya:~/scratch$ adb reverse tcp:12791 tcp:12791
 moskewcz@maaya:~/scratch$ ssh -R 12791:localhost:12791  bitter -Nn &
+
+# if ethernet networking is availible on the device, and not running, start it up (depending on local network setup):
+adb shell ifconfig eth0 10.0.0.101 netmask 255.255.255.0 broadcast 10.0.0.255
 
 
 # with forwarding set up, run some mode using rtc with be=ipc on maaya using the 'print_dont_fork=1' option:
