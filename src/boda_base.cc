@@ -238,7 +238,20 @@ namespace boda
     pid_t const ret = fork();
     if( ret == 0 ) {
       execve( self_exe.c_str(), &argp[0], environ );
-      rt_err( strprintf( "execve of '%s' failed. envp=environ, args=%s", self_exe.c_str(), str(args).c_str() ) );
+      rt_err( strprintf( "execve() of '%s' failed. envp=environ, args=%s", self_exe.c_str(), str(args).c_str() ) );
+    }
+    // ret == child pid, not used
+  }
+
+  void fork_and_exec_cmd( vect_string const & args ) {
+    vect_rp_char argp = get_vect_rp_char( args );
+    argp.push_back( 0 );
+    pid_t const ret = fork();
+    if( ret == 0 ) {
+      execvpe( argp[0], &argp[0], environ );
+      printf( "*** boda: post-fork() execvpe() failed. envp=environ, args=%s ***"
+              "\n*** boda: exiting child. parent will likely hang. ***\n", str(args).c_str() );
+      exit(1);
     }
     // ret == child pid, not used
   }

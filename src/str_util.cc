@@ -156,6 +156,18 @@ namespace boda
     return ret;
   }
 
+  string shell_escape( string const & str )
+  {
+    string ret;
+    for (string::const_iterator i = str.begin(); i != str.end(); ++i) {
+      switch (*i)
+      {
+      case '\'': ret += "'\\''"; break;
+      default: ret.push_back( *i );
+      }
+    }
+    return "'" + ret + "'";
+  }
 
   // pretty-printing support (with units); ported from boda's python prettyprint.py
   // string pad( uint32_t const & v, string const & s ) {  } // TODO

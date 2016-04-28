@@ -25,6 +25,7 @@ namespace boda
   filename_t filename_t_printf( filename_t const & fn, ... ); // note: can't use gcc format-string checking here
 
   std::string xml_escape( std::string const & str );
+  std::string shell_escape( std::string const & str );
 
   inline bool endswith( std::string const & s, std::string const & suf ) {
     if( s.size() < suf.size() ) { return false; }

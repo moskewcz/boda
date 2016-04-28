@@ -6,12 +6,13 @@
 #include"asio_util.H"
 #include"rand_util.H"
 #include"timers.H"
-
+#include"lexp.H"
 
 #include<fcntl.h>
 #include<stdio.h>
 #include<boost/iostreams/device/file_descriptor.hpp>
 #include<boost/iostreams/stream.hpp>
+#include<boost/program_options/parsers.hpp> // for split_unix()
 
 #include<netdb.h>
 #include<sys/types.h>
@@ -268,6 +269,8 @@ namespace boda
     string remote_rtc; //NESI(default="(be=ocl)",help="remote rtc configuration")
     p_string fifo_fn; //NESI(help="if set, use a named fifo for communication instead of a socketpair.")
     uint32_t print_dont_fork; //NESI(default=0,help="if set, don't actually fork to create a fifo-based worker, just print the command to do so.")
+    p_string spawn_str; //NESI(help="command to spawn worker process, passed to os.system(). if not set, boda will use fork() to create a local worker. the worker's arguments will be appended.")
+    uint32_t spawn_shell_escape_args; //NESI(default=0,help="if set, escape each worker arg suitably for use as a shell argument .")
 
     p_map_str_ipc_var_info_t vis;
 
@@ -278,13 +281,33 @@ namespace boda
       vis.reset( new map_str_ipc_var_info_t );
 
       vect_string worker_args{"boda","ipc_compute_worker","--rtc="+remote_rtc};
-
+      
       string bpa;
       if( !boda_parent_addr.empty() ) {
 	// new-and-approved flow: create stream first, then create worker process, ...
 	worker = make_stream_t( boda_parent_addr, 0 );
 	worker_args.push_back( "--boda-parent-addr="+boda_parent_addr );
-	if( print_dont_fork ) { fprintf( stderr, "%s\n", join(worker_args," ").c_str());} else { fork_and_exec_self( worker_args ); }
+        if( spawn_str ) {
+          vect_string args = boost::program_options::split_unix( *spawn_str );
+          if( spawn_shell_escape_args ) {
+            for( vect_string::iterator i = worker_args.begin(); i != worker_args.end(); ++i ) {
+              *i = shell_escape( *i );
+            }
+          } 
+          args.insert( args.end(), worker_args.begin()+1, worker_args.end() ); // omit first arg 'boda'
+          printf("final || delimted args to pass to execvpe():");
+          for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
+            printf( " |%s|", str(*i).c_str() );
+          }
+          printf("\n");
+          fork_and_exec_cmd( args );
+        } else {
+          if( print_dont_fork ) { 
+            fprintf( stderr, "%s\n", join(worker_args," ").c_str());
+          } else { 
+            fork_and_exec_self( worker_args ); 
+          }
+        }
       } else if( !fifo_fn ) {
 	// old-and-deprecated flow: create worker process, then create stream, ....
 	int const worker_fd = create_boda_worker_socketpair( worker_args  );
@@ -302,7 +325,7 @@ namespace boda
 
       init_done.v = 1;
     }
-
+    
     ~ipc_compute_t( void ) {
       if( init_done.v ) {
 	bwrite( *worker, string("quit") );

@@ -200,6 +200,7 @@ namespace boda
 
   void neg_one_fail( int const & ret, char const * const func_name );
   void fork_and_exec_self( vect_string const & args );
+  void fork_and_exec_cmd( vect_string const & args );
   void set_fd_cloexec( int const fd, bool const val );
 
   typedef shared_ptr< boost::iostreams::mapped_file > p_mapped_file;
