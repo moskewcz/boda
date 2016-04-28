@@ -81,7 +81,7 @@ namespace boda
 	rtc->compile( rcg_in_gen->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg_in_gen->gen_fn}, show_func_attrs );
 	rcg_func_call_t rfc_in_gen{ rcg_in_gen->gen_fn, "tag", arg_map };
 	codegen.run_rfc( rtc, show_rtc_calls, rfc_in_gen, 0 );
-	//if( outs ) { must_insert( *outs, i->vn, p_nda_float_t() ); }
+	//if( outs ) { must_insert( *outs, i->vn, p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
     rcg_func_call_t rfc{ rcg->gen_fn, "tag", arg_map };

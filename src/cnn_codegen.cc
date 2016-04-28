@@ -318,6 +318,7 @@ namespace boda
 	}
 	for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
 	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = b_sm_off[%s];", str(Nt).c_str(), str(Nt).c_str() ) );
+	  //rcg->line( "inner_loop_body", strprintf( "b_r[%s] = b[k*%%(b_K_sz)+thr_N+%s];", str(Nt).c_str(), str(Nt).c_str() ) );
 	}
       }
 

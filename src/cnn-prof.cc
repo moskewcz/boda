@@ -205,6 +205,7 @@ namespace boda
           // 2) if use_culibs_comp = 1: call out to reference nVidia library (nvrtc backend only; ocl will yield no-op)
           p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
           func_name_comp = generate_func( codegen, anno_op_comp, use_culibs_comp, 0, 4, 8 );
+          //func_name_comp = func_name;
         }
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
 	if( (!rcg->blks) && (!use_culibs) ) { 
