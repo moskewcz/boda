@@ -2,14 +2,17 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const a ) // CUCL OUT K:M
 {
   // CUCL IX GLOB_ID_1D a
+  int32_t mode = %(mode);
+  if( mode >= 100 ) { mode = mode / 100; }
   if( GLOB_ID_1D >= %(a_dims_prod) ) { return; }
   float val = %(vi); 
-  if( %(mode) == 2 ) { val += %(GLOB_ID_1D_M); }
-  if( %(mode) == 3 ) { val += %(GLOB_ID_1D_K); }
-  else if( %(mode) == 4 ) { 
+  if( mode == 2 ) { val += %(GLOB_ID_1D_M); }
+  if( mode == 3 ) { val += %(GLOB_ID_1D_K); }
+  else if( mode == 4 ) { 
     if( (%(GLOB_ID_1D_M)==%(a_M_dim)/2) && (%(GLOB_ID_1D_K)==%(a_K_dim)/2) ) { val += 1.0f; }
-  } else if( %(mode) == 5 ) {
+  } else if( mode == 5 ) {
     val += det_hash_rand( GLOB_ID_1D + 12738732 );
-  }
+  } else if( mode == 6 ) { val += %(GLOB_ID_1D_M)*1000 + %(GLOB_ID_1D_K); }
+
   a[GLOB_ID_1D] = val;
 }

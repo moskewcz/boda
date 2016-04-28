@@ -10,6 +10,10 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const b ) // CUCL OUT K:N
     if( (%(GLOB_ID_1D_N)==%(b_N_dim)/2) && (%(GLOB_ID_1D_K)==%(b_K_dim)/2) ) { val += 1.0f; }
   } else if( %(mode) == 5 ) {
     val += det_hash_rand( GLOB_ID_1D + 12738732 );
+  } else if( %(mode) >= 100 ) {
+    if( %(GLOB_ID_1D_N)==%(GLOB_ID_1D_K) ) { val += 1.0f; }
+    //if( (%(GLOB_ID_1D_N)==%(b_N_dim)/2) && (%(GLOB_ID_1D_K)==%(b_K_dim)/2) ) { val += 1.0f; }
   }
+
   b[GLOB_ID_1D] = val;
 }
