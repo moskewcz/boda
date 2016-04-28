@@ -14,13 +14,15 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN
   float b_r[%(work_Nt_dim)];
 
   int32_t a_off = %(GRP_ID_1D_Mg)*%(work_Mb_dim)*%(work_Mt_dim)*%(a_M_sz); // block-level offset into a 
-  int32_t b_off = %(GRP_ID_1D_Ng)*%(work_Nb_dim)*%(work_Nt_dim)*%(b_N_sz); // block-level offset into b
+  int32_t const b_off_base = %(GRP_ID_1D_Ng)*%(work_Nb_dim)*%(work_Nt_dim)*%(b_N_sz); // block-level offset into b
     
   LSMASQ float * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim);
   LSMASQ float * const b_sm_off = b_sm + %(LOC_ID_1D_Nb)*%(work_Nt_dim);
 
+  int32_t b_off = b_off_base;
   //LSMASQ float * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim)*%(work_Kb_dim) + %(LOC_ID_1D_Nb);
   for( int32_t k = 0; k < %(a_K_dim); k += %(work_Kb_dim) ) {
+    //b_off = b_off_base + k*%(work_Kb_dim)*%(b_K_sz); // FIXME: adding this line fixes 512x512 case on SD820 ...
     BARRIER_SYNC;
     %(sm_loads);
     a_off += %(work_Kb_dim)*%(a_K_sz);
