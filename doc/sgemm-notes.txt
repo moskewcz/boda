@@ -4,3 +4,11 @@ boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-micro.txt --op-
 
 # cublas perf sweep
 boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=sgemm-info-tab.tex --op-eff-tab-fn=sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=4))' --use-culibs=1
+
+# sweep using SD820 device:
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 && cat SD820-sgemm-eff-tab.tex
+
+
+# sweep using SD820 device (with cublas compare):
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 --rtc-comp='(be=nvrtc)' --use-culibs-comp=1 --mad-toler=1e-3 && cat SD820-sgemm-eff-tab.tex
+# TODO: investigate errors for 512 and 1024 sizes 
