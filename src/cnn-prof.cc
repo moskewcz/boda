@@ -173,12 +173,13 @@ namespace boda
         dims_t work{ {(uint32_t)Mg,(uint32_t)Ng,sgemm_bsz,sgemm_bsz,1,t_tile_sz,t_tile_sz}, 
           {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
         must_insert( anno_op->dims_vals, "work", work );
+        must_insert( anno_op->str_vals, "use_local_mem", str(use_local_mem) );
+        must_insert( anno_op->str_vals, "prof_variant", str(prof_variant) );
         if( prof_variant ) { 
           anno_op->type = "sgemm_prof";
-          must_insert( anno_op->str_vals, "prof_variant", str(prof_variant) );
-          must_insert( anno_op->str_vals, "use_local_mem", str(use_local_mem) );
         } else {
           if( !use_local_mem ) { anno_op->type = "sgemm_no_local"; }
+          if( use_local_mem == 2 ) { anno_op->type = "sgemm_simd"; }
         }
       }	  
     }
