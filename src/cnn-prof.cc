@@ -32,6 +32,7 @@ namespace boda
     uint64_t B;
     uint64_t M,N,K;
     uint64_t forward_bytes, forward_flops;
+    bool emit_bw;
 
     void base_info( std::ostream * const out ) {
       if( op->is( Convolution_coi ) ) {
@@ -59,10 +60,19 @@ namespace boda
       }
       double const fps = double(forward_flops)/runtime_secs;
       (*out) << strprintf( "%s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
+
+      if( emit_bw ) {
+        // HACK: emit human-readable BW #s for now, breaks later flow/latex
+        double const peak_bps = 20e9;
+        double const bps = double(forward_bytes)/runtime_secs;
+        (*out) << strprintf( " -- %s %s --", pp_bps(bps).c_str(), pp_val(bps/peak_bps*100.0).c_str() );
+      }
+
       (*out) << "\\\\ " << std::endl;
     }
     void init( p_conv_op_base_t const & op_ ) {
       op = op_;
+      emit_bw = 0;
       if( op->is( Convolution_coi ) ) {
 	dout = op->get_dims("out");
 	din = op->get_dims("in");
@@ -107,6 +117,7 @@ namespace boda
     uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
     uint32_t sgemm_bsz; //NESI(default=8,help="use sgemm_bsz^2 threads per block for sgemm")
     uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm")
+    uint32_t prof_variant; //NESI(default=0,help="if nonzero, run special experimental profiling variant")
 
     uint32_t run_opt_variants; //NESI(default=2,help="if 0, run no variants. if 1, run non-opt only, if 2, run non-opt+opt variants")
     uint32_t use_culibs; //NESI(default=0,help="if 1, set use_culibs=1 attr of func (non-comp run)")
@@ -133,7 +144,8 @@ namespace boda
 
   string generate_func( rtc_codegen_t & codegen, p_conv_op_base_t const & anno_op,
                         bool const use_culibs, bool const enable_opt, 
-                        uint32_t const t_tile_sz, uint32_t const sgemm_bsz, uint32_t const use_local_mem ) {
+                        uint32_t const t_tile_sz, uint32_t const sgemm_bsz, uint32_t const use_local_mem,
+                        uint32_t const prof_variant ) {
     if( anno_op->is( Convolution_coi ) ) {
       if( use_culibs ) { 
         rt_err( "cuDNN comp support TODO" );
@@ -161,7 +173,13 @@ namespace boda
         dims_t work{ {(uint32_t)Mg,(uint32_t)Ng,sgemm_bsz,sgemm_bsz,1,t_tile_sz,t_tile_sz}, 
           {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
         must_insert( anno_op->dims_vals, "work", work );
-        if( !use_local_mem ) { anno_op->type = "sgemm_no_local"; }
+        if( prof_variant ) { 
+          anno_op->type = "sgemm_prof";
+          must_insert( anno_op->str_vals, "prof_variant", str(prof_variant) );
+          must_insert( anno_op->str_vals, "use_local_mem", str(use_local_mem) );
+        } else {
+          if( !use_local_mem ) { anno_op->type = "sgemm_no_local"; }
+        }
       }	  
     }
     return codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
@@ -193,21 +211,27 @@ namespace boda
       op->set_and_check_coi();
       conv_op_info_to_latex_t to_latex;
       to_latex.init( op );
+      if( prof_variant ) { to_latex.emit_bw = 1; } // HACK; see comment in conv_op_info_to_latex_t
       to_latex.info_row( oit_out.get() );
       for( uint32_t opt = 0; opt < run_opt_variants; ++opt ) {
 	if( rtc_comp ) { vs1->clear(); vs2->clear(); }
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-	string const func_name = generate_func( codegen, anno_op, use_culibs, opt, t_tile_sz, sgemm_bsz, use_local_mem );        
+	string const func_name = generate_func( codegen, anno_op, use_culibs, opt, t_tile_sz, sgemm_bsz, use_local_mem, prof_variant );        
         string func_name_comp;
         if( rtc_comp ) {
           // if requested, generate comparison function for correctness/performance testing:
           // 1) if use_culibs_comp = 0: 'reference' conv operation (no optimizations, fixed t_tile_sz of 4)
           // 2) if use_culibs_comp = 1: call out to reference nVidia library (nvrtc backend only; ocl will yield no-op)
           p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
-          func_name_comp = generate_func( codegen, anno_op_comp, use_culibs_comp, 0, 4, 8, 1 );
-          //func_name_comp = func_name;
+          if( prof_variant ) { 
+            printf( "*** WARNING *** using hacked-up prof_variant flow for comparison -- forcing opts of:"
+                    "0 0 1 1 1 1 (culibs,opt,t_tile_sz,sgemm_bsz,use_local_mem,prof_variant) \n" );
+            func_name_comp = generate_func( codegen, anno_op_comp, 0, 0, 1, 1, 1, 1 );
+          } else {
+            func_name_comp = generate_func( codegen, anno_op_comp, use_culibs_comp, 0, 4, 8, 1, 0 );
+          }
         }
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
 	if( (!rcg->blks) && (!use_culibs) ) { 

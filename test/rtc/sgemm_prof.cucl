@@ -1,0 +1,55 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN K:M
+					  GASQ float const * const b, // CUCL IN K:N
+					  GASQ float * const c )  // CUCL OUT M:N
+/* work */  // CUCL REF Mg:Ng:Mb:Nb:Kb:Mt:Nt
+{
+  // CUCL IX GRP_ID_1D work use_dims=Mg:Ng
+  // CUCL IX LOC_ID_1D work use_dims=Mb:Nb
+  // note: <each thread handles> work use_dims=Mt:Nt output points;loops over K with unrollingfactor of Kb
+  // FIXME: for now, we assume Kb == 1
+
+#if %(prof_variant) == 1 // 7.7 GB/s (tsz must = 1)
+  c[GLOB_ID_1D] = a[GLOB_ID_1D] + b[GLOB_ID_1D];
+#elif %(prof_variant) == 2 // 7.7 GB/s (tsz must = 2)
+  int32_t const ix = GLOB_ID_1D << 2;
+  c[ix+0] = a[ix+0] + b[ix+0];
+  c[ix+1] = a[ix+1] + b[ix+1];
+  c[ix+2] = a[ix+2] + b[ix+2];
+  c[ix+3] = a[ix+3] + b[ix+3];
+#elif %(prof_variant) == 3 // ~17 GB/s (tsz must = 2)
+  int32_t const ix = GLOB_ID_1D << 2;
+  float4 const av = *(GASQ float4*)(a+ix);
+  float4 const bv = *(GASQ float4*)(b+ix);
+  float4 const cv = av + bv;
+  *(GASQ float4*)(c+ix) =  cv; 
+#elif %(prof_variant) == 4 // ~19 GB/s (tsz must = 4)
+  int32_t const ix = GLOB_ID_1D << 4;
+  float8 av = *(GASQ float8*)(a+ix);
+  float8 bv = *(GASQ float8*)(b+ix);
+  float8 cv = av + bv;
+  *(GASQ float8*)(c+ix) =  cv; 
+  av = *(GASQ float8*)(a+ix+8);
+  bv = *(GASQ float8*)(b+ix+8);
+  cv = av + bv;
+  *(GASQ float8*)(c+ix+8) =  cv; 
+
+#elif %(prof_variant) == 5 // 7.7 Gb/s (almost exactly 2.5X less than 19 GB/s ...)
+  int32_t const ix = GLOB_ID_1D << 2;
+  float av0 = a[ix+0];
+  float av1 = a[ix+1];
+  float av2 = a[ix+2];
+  float av3 = a[ix+3];
+  float bv0 = b[ix+0];
+  float bv1 = b[ix+1];
+  float bv2 = b[ix+2];
+  float bv3 = b[ix+3];
+  float cv0 = av0 + bv0;
+  float cv1 = av1 + bv1;
+  float cv2 = av2 + bv2;
+  float cv3 = av3 + bv3;
+  c[ix+0] = cv0;
+  c[ix+1] = cv1;
+  c[ix+2] = cv2;
+  c[ix+3] = cv3;
+#endif
+}
