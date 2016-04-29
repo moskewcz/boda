@@ -15,6 +15,7 @@ namespace boda
       else if( op_name == "k1conv" ) { gen_op_k1conv(rcg); } 
       else if( op_name == "tconv" ) { gen_op_tconv(rcg); } 
       else if( op_name == "sgemm" ) { gen_op_sgemm(rcg); } 
+      else if( op_name == "sgemm_no_local" ) { gen_op_sgemm_no_local(rcg); } 
       else if( op_name == "bconv" ) { gen_op_bconv(rcg); } 
       else if( op_name == "bconv_fb" ) { gen_op_bconv_fb(rcg); } 
       else if( op_name == "reduce" ) { gen_op_reduce(rcg); } 
@@ -286,6 +287,19 @@ namespace boda
       }
     }
 
+    void gen_op_sgemm_no_local( rtc_call_gen_t * rcg ) {
+      dims_t const & work = rcg->get_arg_dims_by_name( "work" );
+      for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
+	for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = a[a_off+%s];", str(Mt).c_str(), str(Mt).c_str() ) );
+	}
+	for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
+	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = b[b_off+%s];", str(Nt).c_str(), str(Nt).c_str() ) );
+	}
+      }
+      gen_sgemm_write_out( rcg );
+    }
+
     void gen_op_sgemm( rtc_call_gen_t * rcg ) {
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       uint64_t const blk_M = work.dsz("Mb")*work.dsz("Mt");
@@ -321,7 +335,11 @@ namespace boda
 	  //rcg->line( "inner_loop_body", strprintf( "b_r[%s] = b[k*%%(b_K_sz)+thr_N+%s];", str(Nt).c_str(), str(Nt).c_str() ) );
 	}
       }
-
+      
+      gen_sgemm_write_out( rcg );
+    }
+    void gen_sgemm_write_out( rtc_call_gen_t * rcg ) {
+      dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       rcg->line( "outs_to_b_r", "switch(Mt) { " );
       for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
 	rcg->line( "outs_to_b_r", "case "+str(Mt)+":" );
