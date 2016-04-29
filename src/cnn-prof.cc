@@ -218,6 +218,11 @@ namespace boda
 	  printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
 	  continue; 
 	}
+        // for now, make generation only dependent on orig op type; this is convenient currently, but won't work well
+        // if/when dealing with operations that require alternate data formats. maybe in those cases we'll need to deal
+        // with auto-generating the need conversion functions anyway ...
+        if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
+
 	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, rcg, gen_data, vs1.get() ) / 1000.0;
 	printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	if( rtc_comp ) {

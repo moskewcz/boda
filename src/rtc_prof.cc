@@ -50,7 +50,7 @@ namespace boda
 
   double profile_rcg_call( p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
 			   p_rtc_call_gen_t const & rcg, 
-			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs ) 
+			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_float_t * const outs ) 
   {
     timer_t t("profile_rcg_call");
     map_str_str arg_map;
@@ -67,11 +67,11 @@ namespace boda
       rtc->create_var_with_dims_floats( j->second, must_find( rcg->dims_vals, j->first ) );
     }
     rtc->compile( rcg->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg->gen_fn}, show_func_attrs );
-    if( in_gen_op ) { 
+    if( in_gen_op_orig ) { 
       for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
+        p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
 	if( i->io_type != "IN" ) { continue; }
-
-	in_gen_op->type = "gen_data_" + rcg->type + "_" + i->vn;
+	in_gen_op->type += "_" + i->vn;
 	in_gen_op->dims_vals.clear();
 	must_insert( in_gen_op->dims_vals, i->vn, must_find( rcg->dims_vals, i->vn ) );
 
