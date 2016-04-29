@@ -1,0 +1,29 @@
+
+adrendo profiler kernel metrics not usable?
+
+i'm trying to get the OpenCL kernel metrics described in the adreno profiler documentation on the ScrubberCL_Metrics.html page.
+
+however, i can't seem to figure out the GUI and/or something seems broken.
+
+as per the docs, here's the info for my issue:
+
+Adreno Profiler application version, as listed in the about box : 
+  4.0.5511.694
+
+Mobile device model and build version : 
+  SD820-based devel board: Intrinsyc Open-Q 820
+  device usb:2-4 product:msm8996 model:MSM8996_for_arm64 device:msm8996 
+
+Detailed steps to reproduce the problem : 
+   follow basic OpenCL scubber instructions (blocking mode, CLI-based OpenCL program); note that the metrics button/drop-down is greyed out at all stages. otherwise flow seems to work. more details on request, not sure how detailed to be here.
+
+A screen shot of the problem : 
+   both pre and post capture screenshots:
+     https://drive.google.com/open?id=0B2T3gdjZVy_RQml3eUxoZFFaYXc
+     https://drive.google.com/open?id=0B2T3gdjZVy_RbWREei04U3lxbVE
+
+Binaries of the embedded content used, if possible : 
+   on request. would issue be binary specific? is there a particular baseline/sample i should try?
+
+A "Microsoft System Information" file : 
+   N/A (ubuntu linux; tried both 12.04 and 14.04, both with mono-complete installed)
