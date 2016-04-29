@@ -12,6 +12,7 @@ namespace boda
     if( ret != CL_SUCCESS ) { rt_err( strprintf( "%s() failed with ret=%s (%s)", tag, str(ret).c_str(), get_cl_err_str(ret) ) ); } 
   }
 
+  typedef vector< size_t > vect_size_t;
   // let's experiment with using the C bindings directly. it may be that this is easier/cleaner for us than using the
   // 'default' C++ wrappers? hmm. i keep getting lost in the 12K+ lines of cl.hpp ... here we only seem to need ~100
   // lines of wrappers, some of which we needed even when using the official cl.hpp wrappers.
@@ -45,6 +46,12 @@ namespace boda
     cl_int operator ()( size_t const & pvs, void  * const & pv, size_t * const & pvsr ) const {
       return clGetProgramBuildInfo( p, d, i, pvs, pv, pvsr ); }
   };
+  struct Program_t {
+    cl_program p; cl_program_info i;
+    Program_t( cl_program const & p_, cl_program_info const & i_ ):p(p_),i(i_) {}
+    cl_int operator ()( size_t const & pvs, void  * const & pv, size_t * const & pvsr ) const {
+      return clGetProgramInfo( p, i, pvs, pv, pvsr ); }
+  };
   struct Device_t {
     cl_device_id d; cl_device_info i;
     Device_t( cl_device_id const & d_, cl_device_info const & i_ ): d(d_),i(i_) {}
@@ -64,13 +71,17 @@ namespace boda
     cl_err_chk( err, "clGet...Info()" );
     return ret;
   }
-  template< typename GI > string get_info_str( GI const & gi ) {
-    string ret; size_t sz; cl_int err; 
-    err = gi( 0, 0, &sz ); cl_err_chk( err, "clGet...Info(get_size_of_str)" );
-    ret.resize(sz); err = gi( sz, &ret[0], 0 ); 
-    cl_err_chk( err, "clGet...Info(get_str)" );
+  template< typename T, typename GI > T get_info_vect( GI const & gi ) {
+    T ret; size_t sz; cl_int err; 
+    err = gi( 0, 0, &sz ); cl_err_chk( err, "clGet...Info(get_size_of_var_sized_thing)" );
+    size_t const elems = sz / sizeof(typename T::value_type);
+    assert_st( elems*sizeof(typename T::value_type) == sz );
+    ret.resize(elems); 
+    err = gi( sz, &ret[0], 0 ); 
+    cl_err_chk( err, "clGet...Info(get_var_sized_thing)" );
     return ret;
   }
+  template< typename GI > string get_info_str( GI const & gi ) { return get_info_vect< string, GI >( gi ); }
 
   cl_ulong get_prof_info( cl_event_t const & event, cl_profiling_info const & pn ) {
     cl_ulong ret; cl_int err = clGetEventProfilingInfo( event.v, pn, sizeof(ret), &ret, 0 );
@@ -218,6 +229,24 @@ typedef int int32_t;
       cl_err_chk( err, "clCreateProgramWithSource" );
       err = clBuildProgram( prog.v, use_devices.size(), &use_devices[0], "-cl-fast-relaxed-math -cl-denorms-are-zero", 0, 0 );
       cl_err_chk_build( err, prog.v, use_devices );
+      if( gen_src ) {
+        // get binaries
+        cl_uint const num_devs = get_info<cl_uint>(Program_t(prog.v,CL_PROGRAM_NUM_DEVICES));
+        assert_st( num_devs == 1 ); // FIXME: should only be one device here ever, right?
+        vect_size_t pb_szs;
+        pb_szs.resize( num_devs );
+
+        cl_int const sz_err = Program_t(prog.v,CL_PROGRAM_BINARY_SIZES)( pb_szs.size()*sizeof(pb_szs[0]), &pb_szs[0], 0 );
+        cl_err_chk( sz_err, "clGetProgramInfo(prog,CL_PROGRAM_BINARY_SIZES)" );
+
+        string ocl_bin;
+        ocl_bin.resize( pb_szs[0] );
+        vect_rp_char pbs{ &ocl_bin[0] };
+        cl_int const err = Program_t(prog.v,CL_PROGRAM_BINARIES)( pbs.size()*sizeof(pbs[0]), &pbs[0], 0 );
+        cl_err_chk( err, "clGetProgramInfo(prog,CL_PROGRAM_BINARIES)" );
+        
+	write_whole_fn( strprintf( "%s/out_%s.clb", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), ocl_bin );
+      }
       for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
 	check_runnable( prog, *i, show_func_attrs );
       }
