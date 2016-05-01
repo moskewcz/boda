@@ -91,3 +91,22 @@ $768 \dx 768 \dx 768$ & \verb|sgemm| & 33.0ms & 27.5GF/s & 12.5\\
 $1024 \dx 1024 \dx 1024$ & \verb|sgemm| & 77.6ms & 27.7GF/s & 12.6\\ 
 $1536 \dx 1536 \dx 1536$ & \verb|sgemm| & 254ms & 28.5GF/s & 13.0\\ 
 $2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 621ms & 27.7GF/s & 12.6\\ 
+
+# initial version of sgemm_simd, basen on sgemm_no_local with vectorized global loads/stores
+
+$128 \dx 128 \dx 128$ & \verb|sgemm_simd| & 255us & 16.4GF/s & 7.48\\ 
+$256 \dx 256 \dx 256$ & \verb|sgemm_simd| & 511us & 65.7GF/s & 29.8\\ 
+$384 \dx 384 \dx 384$ & \verb|sgemm_simd| & 2.10ms & 54.0GF/s & 24.5\\ 
+$512 \dx 512 \dx 512$ & \verb|sgemm_simd| & 3.58ms & 75.1GF/s & 34.1\\ 
+$768 \dx 768 \dx 768$ & \verb|sgemm_simd| & 11.5ms & 78.7GF/s & 35.8\\ 
+$1024 \dx 1024 \dx 1024$ & \verb|sgemm_simd| & 27.8ms & 77.3GF/s & 35.1\\ 
+$1536 \dx 1536 \dx 1536$ & \verb|sgemm_simd| & 88.4ms & 82.0GF/s & 37.3\\ 
+$2048 \dx 2048 \dx 2048$ & \verb|sgemm_simd| & 219ms & 78.6GF/s & 35.7\\ 
+
+# FIXME/TODO: track ocl backend version, and check local vs. remote version in rtc_ipc to avoid mismatch errors? not
+  obvious how to do this usefully: (1) most changes to ocl_util.cc would require updating remote version, but how to we
+  version one object file? hash of object post compilation? hash of source file? (2) if we track changes only to
+  ocl_util.cc, what about changes to headers/etc that effect the behavior of ocl_util.cc (not relevant if we use
+  binary/object versioning ...
+
+

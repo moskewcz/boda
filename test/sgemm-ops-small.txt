@@ -1,4 +1,3 @@
-(type=sgemm,dims_vals=(a=(K=64,M=64),b=(K=64,N=64),c=(M=64,N=64)))
 (type=sgemm,dims_vals=(a=(K=128,M=128),b=(K=128,N=128),c=(M=128,N=128)))
 (type=sgemm,dims_vals=(a=(K=256,M=256),b=(K=256,N=256),c=(M=256,N=256)))
 (type=sgemm,dims_vals=(a=(K=384,M=384),b=(K=384,N=384),c=(M=384,N=384)))
