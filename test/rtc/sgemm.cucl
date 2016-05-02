@@ -13,8 +13,9 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN
   float a_r[%(work_Mt_dim)]; 
   float b_r[%(work_Nt_dim)];
 
-  int32_t a_off = %(GRP_ID_1D_Mg)*%(work_Mb_dim)*%(work_Mt_dim)*%(a_M_sz); // block-level offset into a 
-  int32_t const b_off_base = %(GRP_ID_1D_Ng)*%(work_Nb_dim)*%(work_Nt_dim)*%(b_N_sz); // block-level offset into b
+  // block-level constant offsets into a + b, each plus the thread id (LOC_ID_1D), for shared-memory loading
+  int32_t a_off = %(GRP_ID_1D_Mg)*%(work_Mb_dim)*%(work_Mt_dim)*%(a_M_sz) + LOC_ID_1D;
+  int32_t const b_off_base = %(GRP_ID_1D_Ng)*%(work_Nb_dim)*%(work_Nt_dim)*%(b_N_sz) + LOC_ID_1D;
     
   LSMASQ float * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim);
   LSMASQ float * const b_sm_off = b_sm + %(LOC_ID_1D_Nb)*%(work_Nt_dim);

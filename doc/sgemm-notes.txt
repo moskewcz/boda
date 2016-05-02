@@ -5,6 +5,37 @@ boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-micro.txt --op-
 # cublas perf sweep
 boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=sgemm-info-tab.tex --op-eff-tab-fn=sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=4))' --use-culibs=1
 
+# cublas sweep results
+$128 \dx 128 \dx 128$ & \verb|cublas_sgemm| & 64.2us & 65.3GF/s & 990m\\ 
+$256 \dx 256 \dx 256$ & \verb|cublas_sgemm| & 62.5us & 537GF/s & 8.14\\ 
+$384 \dx 384 \dx 384$ & \verb|cublas_sgemm| & 76.5us & 1.48TF/s & 22.4\\ 
+$512 \dx 512 \dx 512$ & \verb|cublas_sgemm| & 121us & 2.22TF/s & 33.7\\ 
+$768 \dx 768 \dx 768$ & \verb|cublas_sgemm| & 218us & 4.16TF/s & 63.1\\ 
+$1024 \dx 1024 \dx 1024$ & \verb|cublas_sgemm| & 625us & 3.44TF/s & 52.1\\ 
+$1536 \dx 1536 \dx 1536$ & \verb|cublas_sgemm| & 1.37ms & 5.29TF/s & 80.1\\ 
+$2048 \dx 2048 \dx 2048$ & \verb|cublas_sgemm| & 3.56ms & 4.83TF/s & 73.1\\ 
+
+# 'standard' sgemm on titan X
+$128 \dx 128 \dx 128$ & \verb|sgemm| & 78.5us & 53.5GF/s & 810m\\ 
+$256 \dx 256 \dx 256$ & \verb|sgemm| & 142us & 237GF/s & 3.59\\ 
+$384 \dx 384 \dx 384$ & \verb|sgemm| & 216us & 524GF/s & 7.94\\ 
+$512 \dx 512 \dx 512$ & \verb|sgemm| & 320us & 838GF/s & 12.7\\ 
+$768 \dx 768 \dx 768$ & \verb|sgemm| & 579us & 1.57TF/s & 23.7\\ 
+$1024 \dx 1024 \dx 1024$ & \verb|sgemm| & 1.48ms & 1.45TF/s & 22.0\\ 
+$1536 \dx 1536 \dx 1536$ & \verb|sgemm| & 3.43ms & 2.11TF/s & 32.0\\ 
+$2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 7.56ms & 2.27TF/s & 34.4\\ 
+
+# with Kb unrolling of 8
+$128 \dx 128 \dx 128$ & \verb|sgemm| & 41.0us & 102GF/s & 1.55\\ 
+$256 \dx 256 \dx 256$ & \verb|sgemm| & 64.5us & 520GF/s & 7.88\\ 
+$384 \dx 384 \dx 384$ & \verb|sgemm| & 96.9us & 1.17TF/s & 17.7\\ 
+$512 \dx 512 \dx 512$ & \verb|sgemm| & 147us & 1.82TF/s & 27.6\\ 
+$768 \dx 768 \dx 768$ & \verb|sgemm| & 305us & 2.97TF/s & 45.0\\ 
+$1024 \dx 1024 \dx 1024$ & \verb|sgemm| & 755us & 2.85TF/s & 43.1\\ 
+$1536 \dx 1536 \dx 1536$ & \verb|sgemm| & 2.05ms & 3.54TF/s & 53.6\\ 
+$2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 5.07ms & 3.39TF/s & 51.3\\ 
+
+
 # sweep using SD820 device:
 boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 && cat SD820-sgemm-eff-tab.tex
 
