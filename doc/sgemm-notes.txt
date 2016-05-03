@@ -1,9 +1,9 @@
-# comparison test
-boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-micro.txt --op-info-tab-fn=sgemm-info-tab.tex --op-eff-tab-fn=sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=4))' --use-culibs-comp=1 --use-culibs=0 --rtc-comp='(be=nvrtc)'
+# comparison test (with cublas by default via default value of op_tune_comp)
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=sgemm-info-tab.tex --op-eff-tab-fn=sgemm-eff-tab.tex  --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --rtc-comp='(be=nvrtc)'
 
 
 # cublas perf sweep
-boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=sgemm-info-tab.tex --op-eff-tab-fn=sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=4))' --use-culibs=1
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=cublas-sgemm-info-tab.tex --op-eff-tab-fn=cublas-sgemm-eff-tab.tex --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --op-tune='(use_culibs=1)'
 
 # cublas sweep results
 $128 \dx 128 \dx 128$ & \verb|cublas_sgemm| & 64.2us & 65.3GF/s & 990m\\ 
@@ -47,18 +47,18 @@ $2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 4.46ms & 3.85TF/s & 58.4\\
 
 
 # sweep using SD820 device:
-boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 && cat SD820-sgemm-eff-tab.tex
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 && cat SD820-sgemm-eff-tab.tex
 
 
 # sweep using SD820 device (with cublas compare):
-boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 --rtc-comp='(be=nvrtc)' --use-culibs-comp=1 --mad-toler=1e-3 && cat SD820-sgemm-eff-tab.tex
-# TODO: investigate errors for 512 and 1024 sizes 
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-small.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 --rtc-comp='(be=nvrtc)'
+# TODO: investigate errors for 512 and 1024 sizes; UPDATE see log; seems like compiler bug? need to reduce/debug more.
 
 # test case for 512x512 case:
-boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-debug.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 --rtc-comp='(be=ocl,gen_src=1)'  --mad-toler=1e-3 --max-err=10 && cat SD820-sgemm-eff-tab.tex 
+boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-debug.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --rtc='(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --peak-flops=220e9 --rtc-comp='(be=nvrtc)'  --mad-toler=1e-3 --max-err=10 && cat SD820-sgemm-eff-tab.tex 
 
-# 512x512 test case with t-tile-sz=8, sgemm-bsz=16, and remote gen_src=1 set:
-moskewcz@maaya:~/git_work/boda/run/tr1$ boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-debug.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --run-opt-variants=1 --rtc='(be=ipc,remote_rtc=(be=ocl,gen_src=1,gen_src_output_dir=/data/local/rtc-gen-src),spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=600))' --peak-flops=220e9 --rtc-comp='(be=ocl,gen_src=1)'  --mad-toler=1e-3 --max-err=10 --t-tile-sz=8 --sgemm-bsz=16 && cat SD820-sgemm-eff-tab.tex 
+# 512x512 test case with t-tile-sz=8, sgemm-bsz=16, and remote gen_src=1 set. FIXME: seems to just straight-up crash now? runs with MNb set to 8:8, 16:8, or 8:16, but produces incorrect results in all cases. the 16:8 case is extra neat?
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/sgemm-ops-debug.txt --op-info-tab-fn=SD820-sgemm-info-tab.tex --op-eff-tab-fn=SD820-sgemm-eff-tab.tex  --rtc='(be=ipc,remote_rtc=(be=ocl,gen_src=1,gen_src_output_dir=/data/local/rtc-gen-src),spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=600))' --peak-flops=220e9 --rtc-comp='(be=nvrtc)'  --mad-toler=1e-3 --max-err=10 --op-tune='(MNt=8:8,MNb=16:16,Kb=1)' && cat SD820-sgemm-eff-tab.tex 
 
 # note: works on nvidia (ocl/nvrtc). fails on SD820. adding redundant index set fixes issue. 
 # seems to be reading from bogus location in b[]. compiler bug? some undefined behavior that works on nVidia? hmm.
