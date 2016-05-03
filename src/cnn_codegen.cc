@@ -300,21 +300,25 @@ namespace boda
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("Mt") % vw) == 0 );
       assert( (work.dsz("Nt") % vw) == 0 );
+      uint64_t a_K_sz = rcg->get_arg_dims_by_name("a").dstride("K");
+      uint64_t b_K_sz = rcg->get_arg_dims_by_name("b").dstride("K");
+      assert_st( ( a_K_sz % vw ) == 0 ); a_K_sz /= vw;
+      assert_st( ( b_K_sz % vw ) == 0 ); b_K_sz /= vw;
       for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
 	for( uint32_t Mt = 0; Mt != work.dsz("Mt")/vw; ++Mt ) {
 	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = ((GASQ float%s *)a)[a_off+%s];", 
-                                                   str(Mt).c_str(), str(vw).c_str(), str(Mt).c_str() ) );
+                                                   str(Mt).c_str(), str(vw).c_str(), str(Mt+Kb*a_K_sz).c_str() ) );
 	}
 	for( uint32_t Nt = 0; Nt != work.dsz("Nt")/vw; ++Nt ) {
 	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = ((GASQ float%s *)b)[b_off+%s];", 
-                                                   str(Nt).c_str(), str(vw).c_str(), str(Nt).c_str() ) );
+                                                   str(Nt).c_str(), str(vw).c_str(), str(Nt+Kb*b_K_sz).c_str() ) );
 	}
-      }
-      for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
-        for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
-          uint32_t const rix = (Mt*work.dsz("Nt")+Nt);
-          rcg->line( "inner_loop_body", strprintf( "c_r[%s] += a_r%s*b_r%s;",str(rix).c_str(), 
-                                                   gva(vw,Mt).c_str(), gva(vw,Nt).c_str()));
+        for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+          for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
+            uint32_t const rix = (Mt*work.dsz("Nt")+Nt);
+            rcg->line( "inner_loop_body", strprintf( "c_r[%s] += a_r%s*b_r%s;",str(rix).c_str(), 
+                                                     gva(vw,Mt).c_str(), gva(vw,Nt).c_str()));
+          }
         }
       }
       rcg->line( "outs_to_b_r", "switch(Mt) { " );
