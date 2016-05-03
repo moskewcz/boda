@@ -104,6 +104,23 @@ namespace boda
     }
   };
 
+  struct op_tune_t : virtual public nesi // NESI(help="operation tuning parameters")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    // shared
+    uint32_t use_culibs; //NESI(default=0,help="if 1, set use_culibs=1")
+
+    // sgemm-specific (sort of)
+    u32_pt_t MNt; //NESI(default="8 8",help="register blocking, M and N dims: compute Mt*Nt outputs per thread")
+    u32_pt_t MNb;  //NESI(default="8 8",help="thread blocking, M and N dims: use Mb*Nb threads per block")
+    uint32_t Kb; //NESI(default=8,help="inner loop unroll factor")
+    uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm")
+    uint32_t prof_variant; //NESI(default=0,help="if nonzero, run special experimental profiling variant")
+
+    // cnn-specific
+    uint32_t opt; //NESI(default=1,help="if 1, choose optimized variant (cnn operations only)")
+  };
+
   struct cnn_op_info_t : virtual public nesi, public has_main_t // NESI(help="print info for set of CNN operations",
 			 // bases=["has_main_t"], type_id="cnn_op_info" )
 
@@ -112,16 +129,10 @@ namespace boda
     filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/cnn_func_sigs_tiny.txt",help="file to read cnn ops from")
     filename_t op_info_tab_fn; //NESI(default="%(boda_output_dir)/op-info-tab.tex",help="file to write op info latex rows to")
     filename_t op_eff_tab_fn; //NESI(default="%(boda_output_dir)/op-eff-tab.tex",help="file to write op info latex rows to")
-
     double peak_flops; //NESI(default=6600e9,help="peak flops of platform (for computing peak %s)")
-    uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
-    uint32_t sgemm_bsz; //NESI(default=8,help="use sgemm_bsz^2 threads per block for sgemm")
-    uint32_t sgemm_Kb; //NESI(default=1,help="sgemm inner loop unroll factor")
-    uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm")
-    uint32_t prof_variant; //NESI(default=0,help="if nonzero, run special experimental profiling variant")
 
-    uint32_t run_opt_variants; //NESI(default=2,help="if 0, run no variants. if 1, run non-opt only, if 2, run non-opt+opt variants")
-    uint32_t use_culibs; //NESI(default=0,help="if 1, set use_culibs=1 attr of func (non-comp run)")
+    op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
+    op_tune_t op_tune_comp; //NESI(default="(use_culibs=1,MNt=4:4,MNb=8:8,Kb=1,opt=0)",help="tuning parameters / options")
 
     p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
     uint32_t show_rtc_calls; //NESI(default=1,help="if 1, print rtc calls")
@@ -129,8 +140,7 @@ namespace boda
 
     // comparison testing related options:
     p_rtc_compute_t rtc_comp; //NESI(help="rtc back-end to use for correctness-testing comparison")
-    uint32_t use_culibs_comp; //NESI(default=0,help="if 1, set use_culibs=1 attr of func for rtc_comp run")
-    double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
+     double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
     map_str_double var_mad_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mad_toler per-layer if specified")
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
@@ -143,50 +153,50 @@ namespace boda
 				    bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, 
 				    bool const & force_enable_tconv, uint32_t const t_tile_sz );
 
-  string generate_func( rtc_codegen_t & codegen, p_conv_op_base_t const & anno_op,
-                        bool const use_culibs, bool const enable_opt, 
-                        uint32_t const t_tile_sz, uint32_t const sgemm_bsz, uint32_t const sgemm_Kb,
-                        uint32_t const use_local_mem, uint32_t const prof_variant ) {
+  string generate_func( rtc_codegen_t & codegen, p_conv_op_base_t const & anno_op, op_tune_t const & op_tune ) 
+  {
     if( anno_op->is( Convolution_coi ) ) {
-      if( use_culibs ) { 
+      if( op_tune.use_culibs ) { 
         rt_err( "cuDNN comp support TODO" );
       } else { 
-        add_cnn_codegen_annotations( anno_op.get(), 0, 0, 0, 0, 4 ); 
+        assert_st( op_tune.MNt.dims_are_same() ); // FIXME: could pass down if not same
+        add_cnn_codegen_annotations( anno_op.get(), 0, op_tune.opt, op_tune.opt, 0, op_tune.MNt.d[0] ); 
         anno_op->type = must_find( anno_op->str_vals, "cts" );
         must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       }
     } else if( anno_op->is( sgemm_coi ) ) {
-      if( use_culibs ) {
+      if( op_tune.use_culibs ) {
         anno_op->type = "cublas_sgemm";
       } else {
         uint64_t const K = anno_op->get_dims("a").dsz("K"); // note == b.dsz("K")
         dims_t const & c = anno_op->get_dims("c");
-        uint64_t const bsz = (t_tile_sz*sgemm_bsz);
-        uint64_t const Mg = c.dsz("M") / bsz;
-        uint64_t const Ng = c.dsz("N") / bsz;
-        if( Mg * bsz != c.dsz("M") ) { 
-          rt_err( strprintf( "FIXME: currently, M=%s must be a multiple of bsz=%s\n", 
-                             str(c.dsz("M")).c_str(), str(bsz).c_str() ) );
+        uint64_t const M_blk = op_tune.MNb.d[0] * op_tune.MNt.d[0];
+        uint64_t const N_blk = op_tune.MNb.d[1] * op_tune.MNt.d[1];
+        uint64_t const Mg = c.dsz("M") / M_blk;
+        uint64_t const Ng = c.dsz("N") / N_blk;
+        if( Mg * M_blk != c.dsz("M") ) { 
+          rt_err( strprintf( "FIXME: currently, M=%s must be a multiple of M_blk=%s\n", 
+                             str(c.dsz("M")).c_str(), str(M_blk).c_str() ) );
         }
-        if( Ng * bsz != c.dsz("N") ) { 
-          rt_err( strprintf( "FIXME: currently, N=%s must be a multiple of bsz=%s\n", 
-                             str(c.dsz("N")).c_str(), str(bsz).c_str() ) );
+        if( Ng * N_blk != c.dsz("N") ) { 
+          rt_err( strprintf( "FIXME: currently, N=%s must be a multiple of N_blk=%s\n", 
+                             str(c.dsz("N")).c_str(), str(N_blk).c_str() ) );
         }
-        if( K % sgemm_Kb ) { 
+        if( K % op_tune.Kb ) { 
           rt_err( strprintf( "FIXME: currently, K=%s must be a multiple of Kb=%s\n", 
-                             str(K).c_str(), str(sgemm_Kb).c_str() ) );
+                             str(K).c_str(), str(op_tune.Kb).c_str() ) );
         }
 
-        dims_t work{ {(uint32_t)Mg,(uint32_t)Ng,sgemm_bsz,sgemm_bsz,sgemm_Kb,t_tile_sz,t_tile_sz}, 
-          {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
+        dims_t work{ {(uint32_t)Mg,(uint32_t)Ng,op_tune.MNb.d[0],op_tune.MNb.d[1],op_tune.Kb,
+              op_tune.MNt.d[0],op_tune.MNt.d[1]}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, 1 };
         must_insert( anno_op->dims_vals, "work", work );
-        must_insert( anno_op->str_vals, "use_local_mem", str(use_local_mem) );
-        must_insert( anno_op->str_vals, "prof_variant", str(prof_variant) );
-        if( prof_variant ) { 
+        must_insert( anno_op->str_vals, "use_local_mem", str(op_tune.use_local_mem) );
+        must_insert( anno_op->str_vals, "prof_variant", str(op_tune.prof_variant) );
+        if( op_tune.prof_variant ) { 
           anno_op->type = "sgemm_prof";
         } else {
-          if( !use_local_mem ) { anno_op->type = "sgemm_no_local"; }
-          if( use_local_mem == 2 ) { anno_op->type = "sgemm_simd"; }
+          if( !op_tune.use_local_mem ) { anno_op->type = "sgemm_no_local"; }
+          if( op_tune.use_local_mem == 2 ) { anno_op->type = "sgemm_simd"; }
         }
       }	  
     }
@@ -219,30 +229,22 @@ namespace boda
       op->set_and_check_coi();
       conv_op_info_to_latex_t to_latex;
       to_latex.init( op );
-      if( prof_variant ) { to_latex.emit_bw = 1; } // HACK; see comment in conv_op_info_to_latex_t
+      if( op_tune.prof_variant ) { to_latex.emit_bw = 1; } // HACK; see comment in conv_op_info_to_latex_t
       to_latex.info_row( oit_out.get() );
-      for( uint32_t opt = 0; opt < run_opt_variants; ++opt ) {
+      for( uint32_t opt = 0; opt < 1; ++opt ) { // FIXME: iter-over-opt support broken
 	if( rtc_comp ) { vs1->clear(); vs2->clear(); }
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-	string const func_name = generate_func( codegen, anno_op, use_culibs, opt, t_tile_sz, sgemm_bsz, sgemm_Kb, use_local_mem, prof_variant );        
+	string const func_name = generate_func( codegen, anno_op, op_tune );        
         string func_name_comp;
         if( rtc_comp ) {
           // if requested, generate comparison function for correctness/performance testing:
-          // 1) if use_culibs_comp = 0: 'reference' conv operation (no optimizations, fixed t_tile_sz of 4)
-          // 2) if use_culibs_comp = 1: call out to reference nVidia library (nvrtc backend only; ocl will yield no-op)
           p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
-          if( prof_variant ) { 
-            printf( "*** WARNING *** using hacked-up prof_variant flow for comparison -- forcing opts of:"
-                    "0 0 1 1 1 1 (culibs,opt,t_tile_sz,sgemm_bsz,sgemm_Kb,use_local_mem,prof_variant) \n" );
-            func_name_comp = generate_func( codegen, anno_op_comp, 0, 0, 1, 1, 1, 1, 1 );
-          } else {
-            func_name_comp = generate_func( codegen, anno_op_comp, use_culibs_comp, 0, 4, 8, 1, 1, 0 );
-          }
+          func_name_comp = generate_func( codegen, anno_op_comp, op_tune_comp );
         }
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
-	if( (!rcg->blks) && (!use_culibs) ) { 
+	if( (!rcg->blks) && (!op_tune.use_culibs) ) { 
 	  printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
 	  continue; 
 	}
