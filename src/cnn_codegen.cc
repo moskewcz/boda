@@ -337,19 +337,21 @@ namespace boda
 
     void gen_op_sgemm_no_local( rtc_call_gen_t * rcg ) {
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
+      uint64_t const a_K_sz = rcg->get_arg_dims_by_name("a").dstride("K");
+      uint64_t const b_K_sz = rcg->get_arg_dims_by_name("b").dstride("K");
       for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
-	for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
-	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = a[a_off+%s];", str(Mt).c_str(), str(Mt).c_str() ) );
-	}
-	for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
-	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = b[b_off+%s];", str(Nt).c_str(), str(Nt).c_str() ) );
-	}
-      }
-      for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+        for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+          rcg->line( "inner_loop_body", strprintf( "a_r[%s] = a[a_off+%s];", str(Mt).c_str(), str(Mt+Kb*a_K_sz).c_str() ) );
+        }
         for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
-          uint32_t const rix = (Mt*work.dsz("Nt")+Nt);
-          rcg->line( "inner_loop_body", strprintf( "c_r[%s] += a_r[%s]*b_r[%s];",str(rix).c_str(), 
-                                                   str(Mt).c_str(), str(Nt).c_str()));
+          rcg->line( "inner_loop_body", strprintf( "b_r[%s] = b[b_off+%s];", str(Nt).c_str(), str(Nt+Kb*b_K_sz).c_str() ) );
+        }
+        for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+          for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
+            uint32_t const rix = (Mt*work.dsz("Nt")+Nt);
+            rcg->line( "inner_loop_body", strprintf( "c_r[%s] += a_r[%s]*b_r[%s];",str(rix).c_str(), 
+                                                     str(Mt).c_str(), str(Nt).c_str()));
+          }
         }
       }
       gen_sgemm_write_out( rcg );
