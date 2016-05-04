@@ -35,15 +35,16 @@ $1024 \dx 1024 \dx 1024$ & \verb|sgemm| & 755us & 2.85TF/s & 43.1\\
 $1536 \dx 1536 \dx 1536$ & \verb|sgemm| & 2.05ms & 3.54TF/s & 53.6\\ 
 $2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 5.07ms & 3.39TF/s & 51.3\\ 
 
-# a bit better with 32x4 thread blocking (probably indicates issues with sm access pattern?)
-$128 \dx 128 \dx 128$ & \verb|sgemm| & 39.5us & 106GF/s & 1.61\\ 
-$256 \dx 256 \dx 256$ & \verb|sgemm| & 62.5us & 537GF/s & 8.14\\ 
-$384 \dx 384 \dx 384$ & \verb|sgemm| & 93.2us & 1.21TF/s & 18.4\\ 
-$512 \dx 512 \dx 512$ & \verb|sgemm| & 143us & 1.87TF/s & 28.4\\ 
-$768 \dx 768 \dx 768$ & \verb|sgemm| & 277us & 3.28TF/s & 49.6\\ 
-$1024 \dx 1024 \dx 1024$ & \verb|sgemm| & 670us & 3.21TF/s & 48.6\\ 
-$1536 \dx 1536 \dx 1536$ & \verb|sgemm| & 1.80ms & 4.02TF/s & 61.0\\ 
-$2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 4.46ms & 3.85TF/s & 58.4\\ 
+# a bit better with 16x4 thread blocking (probably indicates issues with sm access pattern?)
+# --op-tune='(MNt=16:4,MNb=8:16,Kb=8,use_local_mem=1,vw=1)
+$128 \dx 128 \dx 128$ & \verb|sgemm| & 35.9us & 117GF/s & 1.77\\ 
+$256 \dx 256 \dx 256$ & \verb|sgemm| & 59.4us & 565GF/s & 8.56\\ 
+$384 \dx 384 \dx 384$ & \verb|sgemm| & 82.0us & 1.38TF/s & 20.9\\ 
+$512 \dx 512 \dx 512$ & \verb|sgemm| & 133us & 2.02TF/s & 30.5\\ 
+$768 \dx 768 \dx 768$ & \verb|sgemm| & 261us & 3.47TF/s & 52.6\\ 
+$1024 \dx 1024 \dx 1024$ & \verb|sgemm| & 622us & 3.45TF/s & 52.3\\ 
+$1536 \dx 1536 \dx 1536$ & \verb|sgemm| & 1.70ms & 4.27TF/s & 64.6\\ 
+$2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 4.31ms & 3.99TF/s & 60.4\\ 
 
 
 # sweep using SD820 device:
@@ -134,7 +135,7 @@ $1536 \dx 1536 \dx 1536$ & \verb|sgemm| & 254ms & 28.5GF/s & 13.0\\
 $2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 621ms & 27.7GF/s & 12.6\\ 
 
 # initial version of sgemm_simd, basen on sgemm_no_local with vectorized global loads/stores
-
+# --op-tune='(MNt=8:8,MNb=16:16,Kb=1,use_local_mem=2,vw=8)'
 $128 \dx 128 \dx 128$ & \verb|sgemm_simd| & 255us & 16.4GF/s & 7.48\\ 
 $256 \dx 256 \dx 256$ & \verb|sgemm_simd| & 511us & 65.7GF/s & 29.8\\ 
 $384 \dx 384 \dx 384$ & \verb|sgemm_simd| & 2.10ms & 54.0GF/s & 24.5\\ 
