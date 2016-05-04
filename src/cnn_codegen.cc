@@ -17,6 +17,7 @@ namespace boda
       else if( op_name == "sgemm" ) { gen_op_sgemm(rcg); } 
       else if( op_name == "sgemm_no_local" ) { gen_op_sgemm_no_local(rcg); } 
       else if( op_name == "sgemm_simd" ) { gen_op_sgemm_simd(rcg); } 
+      else if( op_name == "sgemm_simd_local" ) { gen_op_sgemm_simd_local(rcg); } 
       else if( op_name == "bconv" ) { gen_op_bconv(rcg); } 
       else if( op_name == "bconv_fb" ) { gen_op_bconv_fb(rcg); } 
       else if( op_name == "reduce" ) { gen_op_reduce(rcg); } 
@@ -292,6 +293,51 @@ namespace boda
       assert_st( vw <= 16 );
       string const pss("0123456789abcdef");
       return strprintf( "[%s].s%s", str(ix/vw).c_str(), string(pss,ix%vw,1).c_str() );
+    }
+
+    void gen_op_sgemm_simd_local( rtc_call_gen_t * rcg ) {
+      uint32_t const vw = 8;
+      rcg->set( "vw", str(vw) );
+      dims_t const & work = rcg->get_arg_dims_by_name( "work" );
+      assert( (work.dsz("Mt") % vw) == 0 );
+      assert( (work.dsz("Nt") % vw) == 0 );
+      uint64_t a_K_sz = rcg->get_arg_dims_by_name("a").dstride("K");
+      uint64_t b_K_sz = rcg->get_arg_dims_by_name("b").dstride("K");
+      assert_st( ( a_K_sz % vw ) == 0 ); a_K_sz /= vw;
+      assert_st( ( b_K_sz % vw ) == 0 ); b_K_sz /= vw;
+      for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
+	for( uint32_t Mt = 0; Mt != work.dsz("Mt")/vw; ++Mt ) {
+	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = ((GASQ float%s *)a)[a_off+%s];", 
+                                                   str(Mt).c_str(), str(vw).c_str(), str(Mt+Kb*a_K_sz).c_str() ) );
+	}
+	for( uint32_t Nt = 0; Nt != work.dsz("Nt")/vw; ++Nt ) {
+	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = ((GASQ float%s *)b)[b_off+%s];", 
+                                                   str(Nt).c_str(), str(vw).c_str(), str(Nt+Kb*b_K_sz).c_str() ) );
+	}
+        for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+          for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
+            uint32_t const rix = (Mt*work.dsz("Nt")+Nt);
+            rcg->line( "inner_loop_body", strprintf( "c_r[%s] += a_r%s*b_r%s;",str(rix).c_str(), 
+                                                     gva(vw,Mt).c_str(), gva(vw,Nt).c_str()));
+          }
+        }
+      }
+      rcg->line( "outs_to_b_r", "switch(Mt) { " );
+      for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
+	rcg->line( "outs_to_b_r", "case "+str(Mt)+":" );
+        for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
+          uint32_t const rix = (Mt*work.dsz("Nt")+Nt);
+          rcg->line( "outs_to_b_r", strprintf( "b_r%s = c_r[%s];", gva(vw,Nt).c_str(), str(rix).c_str() ) );  
+	}
+        rcg->line( "outs_to_b_r", "break;" );
+      }
+      rcg->line( "outs_to_b_r", "} " );
+
+      // note: for this section, there will be a local 'Mt' in scope, used to adjust c_off each iteration
+      for( uint32_t Nt = 0; Nt != work.dsz("Nt")/vw; ++Nt ) {
+        rcg->line( "stores", strprintf( "((GASQ float%s *)c)[c_off+%s] = b_r[%s];", 
+                                        str(vw).c_str(), str(Nt).c_str(), str(Nt).c_str() ) );  
+      }
     }
 
     void gen_op_sgemm_simd( rtc_call_gen_t * rcg ) {

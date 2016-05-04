@@ -195,8 +195,9 @@ namespace boda
         if( op_tune.prof_variant ) { 
           anno_op->type = "sgemm_prof";
         } else {
-          if( !op_tune.use_local_mem ) { anno_op->type = "sgemm_no_local"; }
+          if( op_tune.use_local_mem == 0 ) { anno_op->type = "sgemm_no_local"; }
           if( op_tune.use_local_mem == 2 ) { anno_op->type = "sgemm_simd"; }
+          if( op_tune.use_local_mem == 3 ) { anno_op->type = "sgemm_simd_local"; }
         }
       }	  
     }
