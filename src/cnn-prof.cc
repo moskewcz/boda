@@ -116,6 +116,7 @@ namespace boda
     uint32_t Kb; //NESI(default=8,help="inner loop unroll factor")
     uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm")
     uint32_t prof_variant; //NESI(default=0,help="if nonzero, run special experimental profiling variant")
+    uint32_t vw; //NESI(default=8,help="vector width for simd variants")
 
     // cnn-specific
     uint32_t opt; //NESI(default=1,help="if 1, choose optimized variant (cnn operations only)")
@@ -192,6 +193,7 @@ namespace boda
         must_insert( anno_op->dims_vals, "work", work );
         must_insert( anno_op->str_vals, "use_local_mem", str(op_tune.use_local_mem) );
         must_insert( anno_op->str_vals, "prof_variant", str(op_tune.prof_variant) );
+        must_insert( anno_op->str_vals, "vw", str(op_tune.vw) );
         if( op_tune.prof_variant ) { 
           anno_op->type = "sgemm_prof";
         } else {

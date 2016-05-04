@@ -144,6 +144,22 @@ $1024 \dx 1024 \dx 1024$ & \verb|sgemm_simd| & 27.8ms & 77.3GF/s & 35.1\\
 $1536 \dx 1536 \dx 1536$ & \verb|sgemm_simd| & 88.4ms & 82.0GF/s & 37.3\\ 
 $2048 \dx 2048 \dx 2048$ & \verb|sgemm_simd| & 219ms & 78.6GF/s & 35.7\\ 
 
+# initial version of sgemm_simd_local with --op-tune='(MNt=4:4,MNb=16:16,Kb=4,use_local_mem=3,vw=4)' note: competetive
+# with sgemm_simd, but not exactly better, except maybe tiny case? however, this is (by far) the closest we've gotten to
+# being able to use local memory well. in particular, not that *both* using a smaller # of threads *and* using inner
+# loop unrolling are neccessary to get good perf. it's unclear if this might be improved or if it's important for more
+# general problem sizes or cnn calculations.
+
+$128 \dx 128 \dx 128$ & \verb|sgemm_simd_local| & 78.0us & 53.8GF/s & 24.4\\ 
+$256 \dx 256 \dx 256$ & \verb|sgemm_simd_local| & 579us & 58.0GF/s & 26.3\\ 
+$384 \dx 384 \dx 384$ & \verb|sgemm_simd_local| & 1.88ms & 60.3GF/s & 27.4\\ 
+$512 \dx 512 \dx 512$ & \verb|sgemm_simd_local| & 4.45ms & 60.3GF/s & 27.4\\ 
+$768 \dx 768 \dx 768$ & \verb|sgemm_simd_local| & 14.9ms & 60.8GF/s & 27.6\\ 
+$1024 \dx 1024 \dx 1024$ & \verb|sgemm_simd_local| & 35.8ms & 60.0GF/s & 27.3\\ 
+$1536 \dx 1536 \dx 1536$ & \verb|sgemm_simd_local| & 126ms & 57.6GF/s & 26.2\\ 
+$2048 \dx 2048 \dx 2048$ & \verb|sgemm_simd_local| & 313ms & 54.9GF/s & 24.9\\ 
+
+
 # FIXME/TODO: track ocl backend version, and check local vs. remote version in rtc_ipc to avoid mismatch errors? not
   obvious how to do this usefully: (1) most changes to ocl_util.cc would require updating remote version, but how to we
   version one object file? hash of object post compilation? hash of source file? (2) if we track changes only to

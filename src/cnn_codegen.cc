@@ -296,8 +296,7 @@ namespace boda
     }
 
     void gen_op_sgemm_simd_local( rtc_call_gen_t * rcg ) {
-      uint32_t const vw = 8;
-      rcg->set( "vw", str(vw) );
+      uint32_t const vw = rcg->get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("Mt") % vw) == 0 );
       assert( (work.dsz("Nt") % vw) == 0 );
@@ -305,14 +304,23 @@ namespace boda
       uint64_t b_K_sz = rcg->get_arg_dims_by_name("b").dstride("K");
       assert_st( ( a_K_sz % vw ) == 0 ); a_K_sz /= vw;
       assert_st( ( b_K_sz % vw ) == 0 ); b_K_sz /= vw;
+
+      uint64_t const blk_M = work.dsz("Mb")*work.dsz("Mt")/vw;
+      uint32_t const a_sm_sz = blk_M*work.dsz("Kb");
+      gen_sgemm_sm_load( rcg, "sm_loads", "a", a_sm_sz, blk_M, a_K_sz, vw );
+      uint64_t const blk_N = work.dsz("Nb")*work.dsz("Nt")/vw;
+      uint32_t const b_sm_sz = blk_N*work.dsz("Kb");
+      gen_sgemm_sm_load( rcg, "sm_loads", "b", b_sm_sz, blk_N, b_K_sz, vw );
+
+
       for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
 	for( uint32_t Mt = 0; Mt != work.dsz("Mt")/vw; ++Mt ) {
-	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = ((GASQ float%s *)a)[a_off+%s];", 
-                                                   str(Mt).c_str(), str(vw).c_str(), str(Mt+Kb*a_K_sz).c_str() ) );
+	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = a_sm_off[%s];", 
+                                                   str(Mt).c_str(), str(Mt+Kb*blk_M).c_str() ) );
 	}
 	for( uint32_t Nt = 0; Nt != work.dsz("Nt")/vw; ++Nt ) {
-	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = ((GASQ float%s *)b)[b_off+%s];", 
-                                                   str(Nt).c_str(), str(vw).c_str(), str(Nt+Kb*b_K_sz).c_str() ) );
+	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = b_sm_off[%s];", 
+                                                   str(Nt).c_str(), str(Nt+Kb*blk_N).c_str() ) );
 	}
         for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
           for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
@@ -341,8 +349,7 @@ namespace boda
     }
 
     void gen_op_sgemm_simd( rtc_call_gen_t * rcg ) {
-      uint32_t const vw = 8;
-      rcg->set( "vw", str(vw) );
+      uint32_t const vw = rcg->get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("Mt") % vw) == 0 );
       assert( (work.dsz("Nt") % vw) == 0 );
@@ -352,11 +359,11 @@ namespace boda
       assert_st( ( b_K_sz % vw ) == 0 ); b_K_sz /= vw;
       for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
 	for( uint32_t Mt = 0; Mt != work.dsz("Mt")/vw; ++Mt ) {
-	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = ((GASQ float%s *)a)[a_off+%s];", 
+	  rcg->line( "inner_loop_body", strprintf( "a_r[%s] = ((GASQ float%s const *)a)[a_off+%s];", 
                                                    str(Mt).c_str(), str(vw).c_str(), str(Mt+Kb*a_K_sz).c_str() ) );
 	}
 	for( uint32_t Nt = 0; Nt != work.dsz("Nt")/vw; ++Nt ) {
-	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = ((GASQ float%s *)b)[b_off+%s];", 
+	  rcg->line( "inner_loop_body", strprintf( "b_r[%s] = ((GASQ float%s const *)b)[b_off+%s];", 
                                                    str(Nt).c_str(), str(vw).c_str(), str(Nt+Kb*b_K_sz).c_str() ) );
 	}
         for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
@@ -408,7 +415,7 @@ namespace boda
     }
 
     void gen_sgemm_sm_load( rtc_call_gen_t * rcg, string const & code_sec, string const & vn, uint64_t const & sm_sz,
-                            uint64_t const row_len, uint64_t const stride ) 
+                            uint64_t const row_len, uint64_t const stride, uint32_t const & vw ) 
     {
       uint64_t const rows = sm_sz / row_len;
       assert_st( row_len * rows == sm_sz ); // must be loading exactly an integer number of rows (not sensible otherwise?)
@@ -433,10 +440,13 @@ namespace boda
         
 	string eif;
 	if( (iter_sm_off + rcg->tpb) > sm_sz ) {  // block extends past end of sm, need to add guard
-	  rcg->line( code_sec, strprintf("if( (LOC_ID_1D+%s) > %s ) {", str(iter_sm_off).c_str(), str(sm_sz).c_str() ) ); eif="}";}
+	  rcg->line( code_sec, strprintf("if( (LOC_ID_1D+%s) < %s ) {", str(iter_sm_off).c_str(), str(sm_sz).c_str() ) ); eif="}";}
+        string vn_vw = vn;
+        assert_st( vw );
+        if( vw > 1 ) { vn_vw = strprintf("((GASQ float%s const *)(%s))", str(vw).c_str(), vn.c_str() ); }
 	rcg->line( code_sec, strprintf("%s[LOC_ID_1D+%s] = %s[%s_off+%s%s];%s",
                                        smvn.c_str(), str(iter_sm_off).c_str(),
-                                       vn.c_str(), vn.c_str(), str(iter_off).c_str(), 
+                                       vn_vw.c_str(), vn.c_str(), str(iter_off).c_str(), 
                                        extra_off_str.c_str(), eif.c_str()) );
       }
     }
@@ -445,10 +455,10 @@ namespace boda
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       uint64_t const blk_M = work.dsz("Mb")*work.dsz("Mt");
       uint32_t const a_sm_sz = blk_M*work.dsz("Kb");
-      gen_sgemm_sm_load( rcg, "sm_loads", "a", a_sm_sz, blk_M, rcg->get_arg_dims_by_name("a").dstride("K") );
+      gen_sgemm_sm_load( rcg, "sm_loads", "a", a_sm_sz, blk_M, rcg->get_arg_dims_by_name("a").dstride("K"), 1 );
       uint64_t const blk_N = work.dsz("Nb")*work.dsz("Nt");
       uint32_t const b_sm_sz = blk_N*work.dsz("Kb");
-      gen_sgemm_sm_load( rcg, "sm_loads", "b", b_sm_sz, blk_N, rcg->get_arg_dims_by_name("b").dstride("K") );
+      gen_sgemm_sm_load( rcg, "sm_loads", "b", b_sm_sz, blk_N, rcg->get_arg_dims_by_name("b").dstride("K"), 1 );
       
       for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
 	for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {

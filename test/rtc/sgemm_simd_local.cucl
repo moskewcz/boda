@@ -7,19 +7,26 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN
   // CUCL IX LOC_ID_1D work use_dims=Mb:Nb
   // note: <each thread handles> work use_dims=Mt:Nt output points;loops over K with unrollingfactor of Kb
   // FIXME: for now, we assume Kb == 1
+  LOCSHAR_MEM float%(vw) a_sm[%(a_sm_sz)];
+  LOCSHAR_MEM float%(vw) b_sm[%(b_sm_sz)];
+
   float c_r[%(work_Mt_dim)*%(work_Nt_dim)] = {0}; // tile of output for this thread to compute, stored in registers
   float%(vw) a_r[%(work_Mt_dim)/%(vw)]; 
   float%(vw) b_r[%(work_Nt_dim)/%(vw)];
 
-  int const a_off_thr = ( %(GRP_ID_1D_Mg)*%(work_Mb_dim) + %(LOC_ID_1D_Mb) )*%(work_Mt_dim)/%(vw)*%(a_M_sz);
-  int const b_off_thr = ( %(GRP_ID_1D_Ng)*%(work_Nb_dim) + %(LOC_ID_1D_Nb) )*%(work_Nt_dim)/%(vw)*%(b_N_sz);
+  int32_t a_off = %(GRP_ID_1D_Mg)*%(work_Mb_dim)*%(work_Mt_dim)*%(a_M_sz)/%(vw) + LOC_ID_1D;
+  int32_t b_off = %(GRP_ID_1D_Ng)*%(work_Nb_dim)*%(work_Nt_dim)*%(b_N_sz)/%(vw) + LOC_ID_1D;
 
-  int32_t a_off = a_off_thr;
-  int32_t b_off = b_off_thr;
+  LSMASQ float%(vw) * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim)/%(vw);
+  LSMASQ float%(vw) * const b_sm_off = b_sm + %(LOC_ID_1D_Nb)*%(work_Nt_dim)/%(vw);
+
   for( int32_t k = 0; k < %(a_K_dim); k += %(work_Kb_dim) ) {
+    %(sm_loads);
+    BARRIER_SYNC;
     %(inner_loop_body);
     a_off += %(work_Kb_dim)*%(a_K_sz)/%(vw);
     b_off += %(work_Kb_dim)*%(b_K_sz)/%(vw);
+    BARRIER_SYNC;
   }
 
   int32_t c_off = // thread-level offset into c
