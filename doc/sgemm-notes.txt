@@ -69,6 +69,9 @@ moskewcz@maaya:~$ adb shell getprop | grep cl
 [debug.cl.enable.blocking]: [1]
 [debug.cl.profiler]: [1]
 
+adb shell setprop debug.cl.profiler 1
+adb shell setprop debug.cl.enable.blocking 1
+
 # to clear blocking:
 moskewcz@maaya:~$ adb shell setprop debug.cl.enable.blocking \'\'
 
@@ -160,6 +163,30 @@ $1024 \dx 1024 \dx 1024$ & \verb|sgemm_simd_local| & 35.8ms & 60.0GF/s & 27.3\\
 $1536 \dx 1536 \dx 1536$ & \verb|sgemm_simd_local| & 126ms & 57.6GF/s & 26.2\\ 
 $2048 \dx 2048 \dx 2048$ & \verb|sgemm_simd_local| & 313ms & 54.9GF/s & 24.9\\ 
 
+Instruction stats (for sgemm_simd_local)
+- All Instructions:      166,     244 (rpt), ratio  1.47
+- ALUs          :       97,     130 (rpt), ratio  1.34
+- Half ALUs     :        2,       2 (rpt), ratio  1.00
+- Total NOPs    :       15,      39 (rpt), ratio  2.60
+- NOPs          :       13,      35 (rpt), ratio  2.69
+- Post-NOPs     :        2,       4 (rpt), ratio  2.00
+- MOVs          :       33,      52 (rpt), ratio  1.58
+- Loads/Stores  :       16,      64 (rpt), ratio  4.00
+- ldg          :        2,       8 (rpt), ratio  4.00
+- ldl          :        8,      32 (rpt), ratio  4.00
+- stg          :        4,      16 (rpt), ratio  4.00
+- stl          :        2,       8 (rpt), ratio  4.00
+- Flow Instrs   :        3
+- Sync Instrs   :        2
+- Barriers      :        2
+- Short sync flags:        7
+- Long sync flags :        4
+- Full Registers  :       14
+- Half Registers  :        1
+- uGPR Registers  :        4
+- Unified Regs    :       15
+- Total footprint :      240
+- Maximal Waves   :        4 (A5x)
 
 # FIXME/TODO: track ocl backend version, and check local vs. remote version in rtc_ipc to avoid mismatch errors? not
   obvious how to do this usefully: (1) most changes to ocl_util.cc would require updating remote version, but how to we
