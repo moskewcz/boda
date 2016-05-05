@@ -594,6 +594,21 @@ namespace boda
   template< typename STREAM > inline void bwrite( STREAM & out, dims_t const & o ) { bwrite( out, (vect_dim_t const &)o ); }
   template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { bread( in, (vect_dim_t &)o ); }
 
+  // for no-ownership-transfer references to 'remote' NDAs where the data is behine an opaque void *
+  struct nda_raw_t {
+    void * elems;
+    dims_t dims;
+    nda_raw_t() : elems(0) { }
+    nda_raw_t( void * const & elems_, dims_t const & dims_ ) : elems(elems_), dims(dims_) { }
+  };
+  typedef shared_ptr< nda_raw_t > p_nda_raw_t; 
+  typedef map< string, p_nda_raw_t > map_str_p_nda_raw_t;
+  typedef shared_ptr< map_str_p_nda_raw_t > p_map_str_p_nda_raw_t;
+
+  inline std::ostream & operator << ( std::ostream & out, nda_raw_t const & o ) {
+    out << "nda " << o.elems << " " << o.dims; return out;
+  }
+
   template< typename T > struct nda_T {
     nda_T( void ) { }
     nda_T( dims_t const & dims_ ) { set_dims( dims_ ); }

@@ -281,13 +281,21 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     
     nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_nv_func_info_t ) { }
 
-    void add_args( vect_string const & args, vect_rp_void & cu_func_args ) {
+    void add_args( vect_string const & args, vect_rp_void & cu_func_args, p_map_str_p_nda_raw_t const & func_args ) {
       for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
+        // FIXME: we really want the func arg names from the layer above this here, but we'll make do for now: 
+        string const an = "arg_" + str( func_args->size() ); 
 	if( *i == "<NULL>" ) { 
 	  cu_func_args.push_back( &null_cup );
+          must_insert( *func_args, an, make_shared<nda_raw_t>() );
 	} else {
-	  p_cup_float const & cu_v = must_find( *vis, *i ).cup;
-	  cu_func_args.push_back( &cu_v->p );
+	  var_info_t const & vi = must_find( *vis, *i );
+	  cu_func_args.push_back( &vi.cup->p );
+          // note that we assume here both host and device pointers are 64 bits (or at least the same size ... or maybe
+          // just that the host size is >= the device size). curious about conversion between CUdeviceptr and (void *)?
+          // take a look here:
+          // http://www.cudahandbook.com/2013/08/why-does-cuda-cudeviceptr-use-unsigned-int-instead-of-void/
+          must_insert( *func_args, an, make_shared<nda_raw_t>((void *)(uintptr_t)vi.cup->p,vi.dims) );
 	}
       }
     }
@@ -298,17 +306,20 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 #endif
     void run( rtc_func_call_t & rfc ) {
       timer_t t("cu_launch_and_sync");
+      string const & fn = rfc.rtc_func_name;
+      // FIXME/NOTE: for now, for interfacing with culibs, we create an extra/redundant argument map 'func_args':
+      p_map_str_p_nda_raw_t func_args = make_shared<map_str_p_nda_raw_t>();
       vect_rp_void cu_func_args;
-      add_args( rfc.in_args, cu_func_args );
-      add_args( rfc.inout_args, cu_func_args );
-      add_args( rfc.out_args, cu_func_args );
+      add_args( rfc.in_args, cu_func_args, func_args );
+      add_args( rfc.inout_args, cu_func_args, func_args );
+      add_args( rfc.out_args, cu_func_args, func_args );
       for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
       rfc.call_id = alloc_call_id();
       record_event( get_call_ev(rfc.call_id).b_ev );
-      if( startswith( rfc.rtc_func_name, "cublas_sgemm" ) ) { run_culibs( rfc, cu_func_args ); }
+      if( startswith( fn, "cublas_" ) || startswith( fn, "cudnn_" )) { culibs_wrap_call( cw, fn, func_args ); } 
       else {
-        rtc_launch_check_blks_and_tpb( rfc.rtc_func_name, rfc.blks.v, rfc.tpb.v );
-        CUfunction & cu_func = must_find( *cu_funcs, rfc.rtc_func_name.c_str() ).func;
+        rtc_launch_check_blks_and_tpb( fn, rfc.blks.v, rfc.tpb.v );
+        CUfunction & cu_func = must_find( *cu_funcs, fn.c_str() ).func;
         cu_err_chk( cuLaunchKernel( cu_func,
 				    rfc.blks.v, 1, 1, // grid x,y,z dims
 				    rfc.tpb.v, 1, 1, // block x,y,z dims
@@ -319,28 +330,6 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       record_event( get_call_ev(rfc.call_id).e_ev );
       //record_var_events( rfc.inout_args, rfc );
       //record_var_events( rfc.out_args, rfc );
-    }
-
-    // run externtal/library CUDA function using culibs_wrap_t object
-    void run_culibs( rtc_func_call_t & rfc, vect_rp_void const & cu_func_args ) {
-      // get arguments as cuda device pointers and check dims
-      if( (rfc.in_args.size() != 3) || (rfc.inout_args.size() != 0) || (rfc.out_args.size() != 0) ) {
-	rt_err( "error: expected rfc_in_args.size()==3 & other sizes() == zero for call to cublas sgemm." );
-      }
-      assert_st( cu_func_args.size() == 3 );
-      dims_t const & a = must_find( *vis, rfc.in_args[0] ).dims;
-      dims_t const & b = must_find( *vis, rfc.in_args[1] ).dims;
-      dims_t const & c = must_find( *vis, rfc.in_args[2] ).dims;
-      uint64_t M,N,K;
-      M = a.dsz("M");
-      K = a.dsz("K");
-      assert_st( b.dsz("K") == K );
-      N = b.dsz("N");
-      assert_st( c.dsz("M") == M );
-      assert_st( c.dsz("N") == N );
-      printf( "calling cublas: a=%s b=%s c=%s\n", str(a).c_str(), str(b).c_str(), str(c).c_str() );
-      // invoke cublas
-      cublas_sgemm_wrap( cw, M, N, K, cu_func_args );
     }
 
     void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }
