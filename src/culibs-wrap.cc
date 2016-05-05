@@ -65,7 +65,7 @@ namespace boda
       uint64_t const N = b.dims.dsz("N");
       assert_st( c.dims.dsz("M") == M );
       assert_st( c.dims.dsz("N") == N );
-      printf( "calling cublas: a=%s b=%s c=%s\n", str(a).c_str(), str(b).c_str(), str(c).c_str() );
+      //printf( "calling cublas: a=%s b=%s c=%s\n", str(a).c_str(), str(b).c_str(), str(c).c_str() );
       // our inputs are row-major: a:KxM (pre-transposed), b:KxN; we want an output of c:MxN (row major);
       // if interpret our inputs as column-major, they are: at:MxK, b:NxK; so for col-major sgemm, we want -->
       // opA(A)=b opB(B)=a' --> b*a' = C:NxM (col major) --> 

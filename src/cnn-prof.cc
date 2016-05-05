@@ -128,15 +128,16 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/cnn_func_sigs_tiny.txt",help="file to read cnn ops from")
-    filename_t op_info_tab_fn; //NESI(default="%(boda_output_dir)/op-info-tab.tex",help="file to write op info latex rows to")
-    filename_t op_eff_tab_fn; //NESI(default="%(boda_output_dir)/op-eff-tab.tex",help="file to write op info latex rows to")
+    p_filename_t out_fn; //NESI(help="output file (output goes to stdout if not specified)")
+    p_filename_t op_info_tab_fn; //NESI(help="file to write op info latex rows to")
+    p_filename_t op_eff_tab_fn; //NESI(help="file to write op info latex rows to")
     double peak_flops; //NESI(default=6600e9,help="peak flops of platform (for computing peak %s)")
 
     op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
     op_tune_t op_tune_comp; //NESI(default="(use_culibs=1,MNt=4:4,MNb=8:8,Kb=1,opt=0)",help="tuning parameters / options")
 
     p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
-    uint32_t show_rtc_calls; //NESI(default=1,help="if 1, print rtc calls")
+    uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
 
     // comparison testing related options:
@@ -213,8 +214,9 @@ namespace boda
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
     vect_p_conv_op_t sigs;
     p_vect_string in_lines = readlines_fn( cnn_func_sigs_fn );
-    p_ofstream oit_out = ofs_open( op_info_tab_fn );
-    p_ofstream oet_out = ofs_open( op_eff_tab_fn );
+    p_ostream out = out_fn ? ofs_open( *out_fn ) : p_ostream( &std::cout, null_deleter<std::ostream>() );
+    p_ostream oit_out = op_info_tab_fn ? ofs_open( *op_info_tab_fn ) : 0;
+    p_ostream oet_out = op_info_tab_fn ? ofs_open( *op_eff_tab_fn ) : 0;
 
     rtc->init();
     if( rtc_comp ) { rtc_comp->init(); }
@@ -233,7 +235,7 @@ namespace boda
       conv_op_info_to_latex_t to_latex;
       to_latex.init( op );
       if( op_tune.prof_variant ) { to_latex.emit_bw = 1; } // HACK; see comment in conv_op_info_to_latex_t
-      to_latex.info_row( oit_out.get() );
+      if( oit_out ) { to_latex.info_row( oit_out.get() ); }
       for( uint32_t opt = 0; opt < 1; ++opt ) { // FIXME: iter-over-opt support broken
 	if( rtc_comp ) { vs1->clear(); vs2->clear(); }
 	// create rtc op
@@ -248,11 +250,11 @@ namespace boda
         }
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
 	if( (!rcg->blks) && (!op_tune.use_culibs) ) { 
-	  printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
+	  (*out) << strprintf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
 	  continue; 
 	}
 	if( (rcg->type == "quantize") || (rcg->type == "dropout") ) {
-	  printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
+          (*out) << strprintf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
 	  continue; 
 	}
         // for now, make generation only dependent on orig op type; this is convenient currently, but won't work well
@@ -261,20 +263,18 @@ namespace boda
         if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
 
 	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, rcg, gen_data, vs1.get() ) / 1000.0;
-	printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
+	// (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	if( rtc_comp ) {
           p_rtc_call_gen_t const &rcg_comp = must_find( codegen.rtc_func_names_map, func_name_comp );
-	  double const rfc_dur_secs = profile_rcg_call( rtc_comp, codegen, show_rtc_calls, rcg_comp, 
-                                                        gen_data, vs2.get() ) / 1000.0;
-	  printf( "COMP rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
+	  profile_rcg_call( rtc_comp, codegen, show_rtc_calls, rcg_comp, gen_data, vs2.get() );
 	  vect_string const vns1 = get_keys( *vs1 );
 	  vect_string const vns2 = get_keys( *vs2 );
 	  if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
 						  str(vns1).c_str(), str(vns2).c_str() ) ); }
-	  comp_vars( &std::cout, num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
+	  comp_vars( out.get(), num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
 	}
 	codegen.clear();
-	to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops );
+	if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops ); }
       }
     }
 
@@ -282,8 +282,8 @@ namespace boda
     rtc->finish_and_sync(); 
     if( rtc_comp ) { rtc_comp->finish_and_sync(); }
 
-    if( !num_mad_fail ) { std::cout << strprintf( "***ALL IS WELL***\n" ); }
-    else { std::cout << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
+    if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
+    else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
 
   }
 

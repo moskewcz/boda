@@ -61,7 +61,7 @@ namespace boda
       must_insert( arg_map, i->vn, i->vn );
       if( outs && (endswith( i->io_type, "OUT" )) ) { must_insert( *outs, i->vn, p_nda_float_t() ); }
     }
-    printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
+    //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     bool const show_compile_log = 0; bool const enable_lineinfo = 0; bool const show_func_attrs = 0;
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       rtc->create_var_with_dims_floats( j->second, must_find( rcg->dims_vals, j->first ) );
