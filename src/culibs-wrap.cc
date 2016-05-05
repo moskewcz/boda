@@ -3,6 +3,7 @@
 #include"culibs-wrap.H"
 #include"str_util.H"
 #include"cublas_v2.h"
+#include"cudnn.h"
 namespace boda 
 {
 
@@ -26,16 +27,23 @@ namespace boda
 
   void cublas_err_chk( cublasStatus_t const & ret, char const * const func_name ) {
     if( ret != CUBLAS_STATUS_SUCCESS ) { rt_err( strprintf( "%s() failed with ret=%s (%s)", func_name, str(ret).c_str(), cublasGetErrorString(ret) ) ); } }
+  void cudnn_err_chk( cudnnStatus_t const & ret, char const * const func_name ) {
+    if( ret != CUDNN_STATUS_SUCCESS ) { rt_err( strprintf( "%s() failed with ret=%s (%s)", func_name, str(ret).c_str(), cudnnGetErrorString(ret) ) ); } }
 
   struct culibs_wrap_t { 
     cublasHandle_t cbh;
+    cudnnHandle_t cdh;
     culibs_wrap_t( void ) { 
       cublas_err_chk( cublasCreate(&cbh), "cublasCreate" ); 
+      cudnn_err_chk( cudnnCreate(&cdh), "cublasCreate" ); 
       // FIXME: can we assume the default pointer mode is host? docs don't seem to say.
       //cublasPointerMode_t mode;
       //cublas_err_chk( cublasGetPointerMode( cbh, &mode ), "cublasGetPointerMode" );
     }
-    ~culibs_wrap_t( void ) { cublas_err_chk( cublasDestroy(cbh), "cublasDestroy" ); }
+    ~culibs_wrap_t( void ) { 
+      cublas_err_chk( cublasDestroy(cbh), "cublasDestroy" ); 
+      cudnn_err_chk( cudnnDestroy(cdh), "cudnnDestroy" ); 
+    }
   };
   p_culibs_wrap_t culibs_wrap_init( void ) { return make_shared< culibs_wrap_t >(); }
   void cublas_sgemm_wrap( p_culibs_wrap_t const & cw, uint64_t const & M, uint64_t const & N, uint64_t const & K, 

@@ -39,10 +39,13 @@ caffe.pb.cc caffe.pb.h : ../src/ext/caffe.proto
 CUDA_HOME := /usr/local/cuda
 CPPFLAGS := $(CPPFLAGS) -I$(CUDA_HOME)/include
 CUDA_LIB = $(CUDA_HOME)/lib64
-LDFLAGS := $(LDFLAGS) -L$(CUDA_LIB) -lcudart -lcublas -lcurand -lcuda
+LDFLAGS := $(LDFLAGS) -L$(CUDA_LIB) -lcudart -lcurand -lcuda
 # we choose to rpath the CUDA library dir here, since it is not commonly in the system library path. this is optional;
 # if you prefer to use LD_LIBRARY_PATH or other methods, comment out the following line:
 LDFLAGS := $(LDFLAGS) -Wl,-rpath,$(CUDA_LIB)
+
+[culibs needs=cuda]
+LDFLAGS := $(LDFLAGS) -lcublas -lcudnn
 
 [nvrtc needs=cuda]
 LDFLAGS := $(LDFLAGS) -lnvrtc
@@ -81,7 +84,8 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
-culibs-wrap.o
+culibs-wrap.o culibs
+culibs-wrap-stub.o -culibs
 comp_util.o
 cnn-prof.o
 stacktrace_util_gnu.o stacktrace_gnu
