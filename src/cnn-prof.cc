@@ -159,7 +159,7 @@ namespace boda
   {
     if( anno_op->is( Convolution_coi ) ) {
       if( op_tune.use_culibs ) { 
-        rt_err( "cuDNN comp support TODO" );
+        anno_op->type = "cudnn_conv";
       } else { 
         assert_st( op_tune.MNt.dims_are_same() ); // FIXME: could pass down if not same
         add_cnn_codegen_annotations( anno_op.get(), 0, op_tune.opt, op_tune.opt, 0, op_tune.MNt.d[0] ); 

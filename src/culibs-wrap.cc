@@ -30,6 +30,18 @@ namespace boda
   void cudnn_err_chk( cudnnStatus_t const & ret, char const * const func_name ) {
     if( ret != CUDNN_STATUS_SUCCESS ) { rt_err( strprintf( "%s() failed with ret=%s (%s)", func_name, str(ret).c_str(), cudnnGetErrorString(ret) ) ); } }
 
+  template< typename T > struct cudnn_create_T { typedef cudnnStatus_t (*p_func)( T * ); };
+  template< typename T > struct cudnn_destroy_T { typedef cudnnStatus_t (*p_func)( T ); };
+
+  template< typename T, typename cudnn_create_T<T>::p_func CREATE, typename cudnn_destroy_T<T>::p_func DESTROY > 
+  struct cudnn_wrap_t {
+    T v;
+    cudnn_wrap_t( void ) { cudnn_err_chk( CREATE(&v), "cudnnCreate<T>(&v)" ); }
+    ~cudnn_wrap_t( void ) { cudnn_err_chk( DESTROY(v), "cudnnDestroy<T>(v)" ); }
+  };
+  
+  typedef cudnn_wrap_t< cudnnTensorDescriptor_t,cudnnCreateTensorDescriptor,cudnnDestroyTensorDescriptor > cudnn_tensor_t;
+
   struct culibs_wrap_t { 
     cublasHandle_t cbh;
     cudnnHandle_t cdh;
@@ -51,7 +63,8 @@ namespace boda
       else { rt_err( "unknown/unhandled culibs_wrap function: " + fn ); }
     }
 
-    void conv( p_map_str_p_nda_raw_t const & args ) { 
+    void conv( p_map_str_p_nda_raw_t const & args ) {
+      cudnn_tensor_t in;
       rt_err( "TODO" );
     }
 
