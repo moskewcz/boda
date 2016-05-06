@@ -84,6 +84,11 @@ LDFLAGS := $(LDFLAGS) -L/scratch/moskewcz/android/src/libjpeg-turbo-1.4.90/.libs
 
 [stacktrace_gnu disable] # if enabled, get stacktrace using gnu extentions backtrace() and backtrace_symbols() 
 
+[qblas disable]
+CPPFLAGS := $(CPPFLAGS) -I/scratch/moskewcz/android/qsml/QSML-0.14.0/ilp64/aarch64-linux-android/include
+LDFLAGS := $(LDFLAGS) -L/scratch/moskewcz/android/qsml/QSML-0.14.0/ilp64/aarch64-linux-android/lib -lQSML-0.14.0 -Wl,-rpath-link,/scratch/moskewcz/android/qsml/Symphony-1.0.0/aarch64-linux-android/lib
+
+
 
 # list of object files to compile. at least the objects that are direct dependencies of the above sections should be
 # marked by adding the dependency section name after the object file below. thus, if the dependency is disabled, the
@@ -94,6 +99,7 @@ LDFLAGS := $(LDFLAGS) -L/scratch/moskewcz/android/src/libjpeg-turbo-1.4.90/.libs
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+qblas-test.o qblas
 comp_util.o
 cnn-prof.o
 stacktrace_util_gnu.o stacktrace_gnu
