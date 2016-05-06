@@ -48,7 +48,8 @@ namespace boda
     return codegen.gen_func( ccc.get(), rfs ); 
   }
 
-  double profile_rcg_call( p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
+  double profile_rcg_call( p_op_base_t const & anno_op,
+                           p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
 			   p_rtc_call_gen_t const & rcg, 
 			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_float_t * const outs ) 
   {
@@ -73,14 +74,28 @@ namespace boda
 	if( i->io_type != "IN" ) { continue; }
 	in_gen_op->type += "_" + i->vn;
 	in_gen_op->dims_vals.clear();
-	must_insert( in_gen_op->dims_vals, i->vn, must_find( rcg->dims_vals, i->vn ) );
-
+        dims_t const & in_dims = must_find( rcg->dims_vals, i->vn );
+        dims_t const & ref_in_dims = get( anno_op->dims_vals, i->vn + "_ref", in_dims );
+	must_insert( in_gen_op->dims_vals, i->vn, ref_in_dims );
+        string gen_vn = i->vn;
+        if( in_dims != ref_in_dims ) { gen_vn += "_ref"; rtc->create_var_with_dims_floats( gen_vn, ref_in_dims ); }
 	string const in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
 	p_rtc_call_gen_t const & rcg_in_gen = must_find( codegen.rtc_func_names_map, in_gen_func_name );
 
 	rtc->compile( rcg_in_gen->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg_in_gen->gen_fn}, show_func_attrs );
-	rcg_func_call_t rfc_in_gen{ rcg_in_gen->gen_fn, "tag", arg_map };
+	rcg_func_call_t rfc_in_gen{ rcg_in_gen->gen_fn, "tag", map_str_str{{i->vn,gen_vn}} };
 	codegen.run_rfc( rtc, show_rtc_calls, rfc_in_gen, 0 );
+        // check if xpose needed:
+        if( gen_vn != i->vn ) {
+          // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
+          string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
+                                                      op_base_t{ "xpose_"+i->vn, anno_op->dims_vals, anno_op->str_vals } );
+          p_rtc_call_gen_t const & rcg_in_gen_xpose = must_find( codegen.rtc_func_names_map, xpose_func );
+          rtc->compile( rcg_in_gen_xpose->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg_in_gen_xpose->gen_fn}, 
+                        show_func_attrs );
+          rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i->vn,i->vn}} };
+          codegen.run_rfc( rtc, show_rtc_calls, rfc_in_gen_xpose, 0 );
+        }
 	//if( outs ) { must_insert( *outs, i->vn, p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
@@ -127,7 +142,7 @@ namespace boda
 	printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
 	continue; 
       }
-      double const rfc_dur = profile_rcg_call( rtc, codegen, show_rtc_calls, rcg, 0, 0 );
+      double const rfc_dur = profile_rcg_call( v, rtc, codegen, show_rtc_calls, rcg, 0, 0 );
       (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s # %s \n", 
 			   str(rfc_dur/1000.0).c_str(), func_name.c_str() );
       codegen.rtc_func_names_map.clear();

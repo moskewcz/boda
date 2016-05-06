@@ -207,7 +207,8 @@ namespace boda
     return codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
   }
 
-  double profile_rcg_call( p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
+  double profile_rcg_call( p_op_base_t const & anno_op,
+                           p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
 			   p_rtc_call_gen_t const & rcg, 
 			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs );
 
@@ -240,12 +241,12 @@ namespace boda
 	if( rtc_comp ) { vs1->clear(); vs2->clear(); }
 	// create rtc op
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
+        p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
 	string const func_name = generate_func( codegen, anno_op, op_tune );        
         string func_name_comp;
         if( rtc_comp ) {
           // if requested, generate comparison function for correctness/performance testing:
-          p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
           func_name_comp = generate_func( codegen, anno_op_comp, op_tune_comp );
         }
 	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
@@ -262,11 +263,11 @@ namespace boda
         // with auto-generating the need conversion functions anyway ...
         if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
 
-	double const rfc_dur_secs = profile_rcg_call( rtc, codegen, show_rtc_calls, rcg, gen_data, vs1.get() ) / 1000.0;
+	double const rfc_dur_secs = profile_rcg_call( anno_op, rtc, codegen, show_rtc_calls, rcg, gen_data, vs1.get() ) / 1000.0;
 	// (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	if( rtc_comp ) {
           p_rtc_call_gen_t const &rcg_comp = must_find( codegen.rtc_func_names_map, func_name_comp );
-	  profile_rcg_call( rtc_comp, codegen, show_rtc_calls, rcg_comp, gen_data, vs2.get() );
+	  profile_rcg_call( anno_op_comp, rtc_comp, codegen, show_rtc_calls, rcg_comp, gen_data, vs2.get() );
 	  vect_string const vns1 = get_keys( *vs1 );
 	  vect_string const vns2 = get_keys( *vs2 );
 	  if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
