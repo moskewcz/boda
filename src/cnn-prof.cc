@@ -160,11 +160,12 @@ namespace boda
     if( anno_op->is( Convolution_coi ) ) {
       if( op_tune.use_culibs ) { 
         anno_op->type = "cudnn_conv";
+        must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       } else { 
         assert_st( op_tune.MNt.dims_are_same() ); // FIXME: could pass down if not same
         add_cnn_codegen_annotations( anno_op.get(), 0, op_tune.opt, op_tune.opt, 0, op_tune.MNt.d[0] ); 
         anno_op->type = must_find( anno_op->str_vals, "cts" );
-        must_insert( anno_op->str_vals, "conv_has_relu", str(0) );
+        must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       }
     } else if( anno_op->is( sgemm_coi ) ) {
       if( op_tune.use_culibs ) {

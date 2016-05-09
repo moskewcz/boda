@@ -191,6 +191,18 @@ namespace boda
                                         &alpha, // aka 1
                                         cu_out.v,
                                         out.elems), "cudnnAddTensor_v3" );
+
+      bool const conv_has_relu = op.get_u32( "conv_has_relu" );
+      if( conv_has_relu ) {
+        cudnn_err_chk( cudnnActivationForward( cdh,
+                                               CUDNN_ACTIVATION_RELU,
+                                               &alpha,
+                                               cu_out.v,
+                                               out.elems,
+                                               &beta,
+                                               cu_out.v,
+                                               out.elems), "cudnnActivationForward" );
+      }
     }
 
     void sgemm( p_map_str_p_nda_raw_t const & args ) { 
