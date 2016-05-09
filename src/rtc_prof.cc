@@ -104,8 +104,11 @@ namespace boda
         // check if xpose needed:
         if( gen_vn != i->vn ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
+          string xpose_op = "xpose_"+i->vn;
+          if( ( i->vn == "in" ) && 
+              has( anno_op->str_vals, "cts" ) ) { xpose_op = anno_op->type + "_" + xpose_op; } // FIXME: sigh.
           string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
-                                                      op_base_t{ "xpose_"+i->vn, anno_op->dims_vals, anno_op->str_vals } );
+                                                      op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
           codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
           rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i->vn,i->vn}} };
           codegen.run_rfc( show_rtc_calls, rfc_in_gen_xpose, 0 );

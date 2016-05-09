@@ -496,12 +496,12 @@ namespace boda
       // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims_floats( in_id ); see comment in init()
       if( oi->cts() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
-	string const xp_fn = gen_func( op_base_t{ "in_tile_xpose", oi->dims_vals, oi->str_vals } );
+	string const xp_fn = gen_func( op_base_t{ "tconv_xpose_in", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
       } else if( oi->cts() == k1conv_str ) {
 	if( oi->get_dims("in") != rtc->get_var_dims_floats( in_id ) ) {
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
-	  string const xp_fn = gen_func( op_base_t{ "xpose_in", oi->dims_vals, oi->str_vals } );
+	  string const xp_fn = gen_func( op_base_t{ "k1conv_xpose_in", oi->dims_vals, oi->str_vals } );
 	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
 	} 	
       } 
