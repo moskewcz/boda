@@ -201,10 +201,11 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 
     zi_uint32_t compile_call_ix;
     void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo,
-		  vect_string const & func_names, bool const show_func_attrs ) {
+		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
       bool all_funcs_culibs = 1;
-      for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
-        if( !startswith( "cublas_", *i ) ) { all_funcs_culibs = 0; }
+      for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
+        string const & fn = i->func_name;
+        if( !(startswith( "cublas_", fn ) || startswith( fn, "cudnn_" ) ) ) { all_funcs_culibs = 0; }
       }
       if( all_funcs_culibs ) { return; } // skip unneeded compilation if all funcs to compile are culibs stubs
       string const src = cu_base_decls + cucl_src;
@@ -220,8 +221,8 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       CUmodule new_cu_mod;
       cu_err_chk( cuModuleLoadDataEx( &new_cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
       p_CUmodule cu_mod = make_p_CUmodule( new_cu_mod );
-      for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
-	check_runnable( cu_mod, *i, show_func_attrs );
+      for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
+	check_runnable( cu_mod, i->func_name, show_func_attrs );
       }
       ++compile_call_ix.v;
     }

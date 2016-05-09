@@ -3,9 +3,16 @@
 #define _RTC_COMPUTE_H_
 
 #include"boda_base.H"
+#include"op_base.H"
 
 namespace boda 
 {
+  struct rtc_func_info_t {
+    string func_name;
+    op_base_t op;
+  };
+  typedef vector< rtc_func_info_t > vect_rtc_func_info_t; 
+
   struct rtc_func_call_t;
 
   struct rtc_compute_t : virtual public nesi // NESI(help="modes that can be used for rtc",is_abstract=1,tid_vn="be")
@@ -28,7 +35,7 @@ namespace boda
     
     // note: must specify all functions that will ever be called from this source block at compile time.
     virtual void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo,
-			  vect_string const & func_names, bool const show_func_attrs ) = 0;
+			  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) = 0;
     // note: run() overwrites / fills in the call_id field. it is valid after run() returns until realease_per_call_id_data() is called.
     virtual void run( rtc_func_call_t & rfc ) = 0; 
     virtual void finish_and_sync( void ) = 0;

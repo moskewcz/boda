@@ -214,7 +214,7 @@ typedef int int32_t;
 
     zi_uint32_t compile_call_ix;
     void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo,
-		  vect_string const & func_names, bool const show_func_attrs ) {
+		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
       timer_t t("ocl_compile");
       assert( init_done.v );
       if( gen_src ) {
@@ -247,8 +247,8 @@ typedef int int32_t;
         
 	write_whole_fn( strprintf( "%s/out_%s.clb", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), ocl_bin );
       }
-      for( vect_string::const_iterator i = func_names.begin(); i != func_names.end(); ++i ) {
-	check_runnable( prog, *i, show_func_attrs );
+      for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
+	check_runnable( prog, i->func_name, show_func_attrs );
       }
       ++compile_call_ix.v;
     }

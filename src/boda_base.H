@@ -305,10 +305,18 @@ namespace boda
   void bread_bytes( T & in, char * const & d, size_t const & sz );
 
 
-  template< typename STREAM, typename T > inline void bwrite( STREAM & out, T const & o ) { 
-    bwrite_bytes( out, (char *)&o, sizeof(o) ); }
-  template< typename STREAM, typename T > inline void bread( STREAM & in, T & o ) { 
-    bread_bytes( in, (char *)&o, sizeof(o) ); }
+  template< typename T > struct breadwrite_raw_T { };
+  template<> struct breadwrite_raw_T<bool>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<uint8_t>{ typedef int int_; };
+  template< typename T > struct T_pt_t; template<> struct breadwrite_raw_T<T_pt_t<uint32_t> >{ typedef int int_; };
+  template<> struct breadwrite_raw_T<uint32_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<float>{ typedef int int_; };
+  
+  template< typename STREAM, typename T, typename breadwrite_raw_T<T>::int_ = 0 > 
+  inline void bwrite( STREAM & out, T const & o ) { bwrite_bytes( out, (char *)&o, sizeof(o) ); }
+  template< typename STREAM, typename T, typename breadwrite_raw_T<T>::int_ = 0 > 
+  inline void bread( STREAM & in, T & o ) { bread_bytes( in, (char *)&o, sizeof(o) ); }
+
   template< typename STREAM > inline void bwrite( STREAM & out, string const & o ) {
     uint32_t const sz = o.size();
     bwrite( out, sz );
@@ -338,6 +346,32 @@ namespace boda
     bread( in, sz );
     o.resize( sz );
     for( uint32_t i = 0; i < sz; ++i ) { bread( in, o[i] ); }
+  }
+
+  template< typename STREAM, typename T, 
+            typename check_T<typename T::mapped_type>::int_ = 0,
+            typename check_T<typename T::key_type>::int_ = 0 >
+  inline void bwrite( STREAM & out, T const & o ) { 
+    uint32_t const sz = o.size();
+    bwrite( out, sz );
+    for( typename T::const_iterator i = o.begin(); i != o.end(); ++i ) {
+      bwrite( out, i->first );
+      bwrite( out, i->second );
+    }
+  }
+  template< typename STREAM, typename T,
+            typename check_T<typename T::mapped_type>::int_ = 0,
+            typename check_T<typename T::key_type>::int_ = 0 >
+  inline void bread( STREAM & in, T & o ) { 
+    uint32_t sz = 0;
+    bread( in, sz );
+    for( uint32_t i = 0; i < sz; ++i ) { 
+      typename T::key_type k;
+      bread( in, k ); 
+      typename T::mapped_type v;
+      bread( in, v );
+      must_insert( o, k, v );
+    }
   }
 
   template< typename STREAM >
