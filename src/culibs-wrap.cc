@@ -4,6 +4,7 @@
 #include"str_util.H"
 #include"cublas_v2.h"
 #include"cudnn.h"
+#include"rtc_compute.H" // for rtc_func_info_t
 #include<cuda.h> // FIXME: use rtc for things from here?
 namespace boda 
 {
@@ -92,14 +93,15 @@ namespace boda
       cublas_err_chk( cublasDestroy(cbh), "cublasDestroy" ); 
       cudnn_err_chk( cudnnDestroy(cdh), "cudnnDestroy" ); 
     }
-    void call( string const & fn, p_map_str_p_nda_raw_t const & args ) { 
+    void call( rtc_func_info_t const & fi, p_map_str_p_nda_raw_t const & args ) { 
+      string const & fn = fi.func_name;
       if( 0 ) {}
       else if( startswith( fn, "cublas_sgemm" ) ) { sgemm( args ); }
-      else if( startswith( fn, "cudnn_conv" ) ) { conv( args ); }
+      else if( startswith( fn, "cudnn_conv" ) ) { conv( fi.op, args ); }
       else { rt_err( "unknown/unhandled culibs_wrap function: " + fn ); }
     }
 
-    void conv( p_map_str_p_nda_raw_t const & args ) {
+    void conv( op_base_t const & op, p_map_str_p_nda_raw_t const & args ) {
       nda_raw_t const & filts = *must_find(*args,"arg_0");
       nda_raw_t const & biases = *must_find(*args,"arg_1");
       nda_raw_t const & in = *must_find(*args,"arg_2");
@@ -112,14 +114,15 @@ namespace boda
       set_cudnn_tensor_from_nda_raw_t( cu_out, out );
 
       cudnn_convolution_t cu_conv;
-      // FIXME: need to pass/get pad/stride ... need access to op_base_t at level +1? (or +2?) hmm.
-      int const pad = 1;
-      int const stride = 1;
+      dims_t const & in_pad = op.get_dims( "in_pad" );
+      dims_t const & stride = op.get_dims( "stride" );
+      assert_st( in_pad.size() == 2 );
+      assert_st( stride.size() == 2 );
       cudnn_err_chk( cudnnSetConvolution2dDescriptor(  cu_conv.v,
-                                                       pad,    // zero-padding height
-                                                       pad,    // zero-padding width
-                                                       stride,        // vertical filter stride
-                                                       stride,        // horizontal filter stride
+                                                       in_pad.dsz("y"),    // zero-padding height
+                                                       in_pad.dsz("x"),    // zero-padding width
+                                                       stride.dsz("y"),        // vertical filter stride
+                                                       stride.dsz("x"),        // horizontal filter stride
                                                        1, // upscale the input in x-direction
                                                        1, // upscale the input in y-direction
                                                        CUDNN_CROSS_CORRELATION
@@ -195,8 +198,8 @@ namespace boda
                       ,"cublasSgemm" );
     }
   };
-  void culibs_wrap_call( p_culibs_wrap_t const & cw, string const & fn, p_map_str_p_nda_raw_t const & args ) {
-    cw->call( fn, args );
+  void culibs_wrap_call( p_culibs_wrap_t const & cw, rtc_func_info_t const & fi, p_map_str_p_nda_raw_t const & args ) {
+    cw->call( fi, args );
   }
   p_culibs_wrap_t culibs_wrap_init( void ) { return make_shared< culibs_wrap_t >(); }
 }
