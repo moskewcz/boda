@@ -687,7 +687,7 @@ namespace boda
     vect_string all_funcs;
     for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) {
       all_funcs.push_back( i->first ); }
-    rtc->compile( codegen.rtc_prog_str, show_compile_log, enable_lineinfo, all_funcs, show_func_attrs );
+    codegen.compile( rtc, show_compile_log, enable_lineinfo, show_func_attrs );
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
     for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( *i ); }
     for( vect_rcg_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); } // init-time-only calls

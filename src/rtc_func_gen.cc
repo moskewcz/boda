@@ -137,14 +137,24 @@ namespace boda
       must_insert( rtc_func_names_map, gen_fn, rcg );
       rcg->init( rtc_template, flat_arg_decls, cc, gen_fn );
       rtc_prog_str += rcg->rtc_prog_str;
+      rtc_prog_str_funcs.push_back( gen_fn );
     }    
     return rcg->gen_fn;
   }
 
+  // compile pending (generated but not compiled) functions 
+  void rtc_codegen_t::compile( p_rtc_compute_t const & rtc, bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs ) {
+    rtc->compile( rtc_prog_str, show_compile_log, enable_lineinfo, rtc_prog_str_funcs, show_func_attrs );
+    rtc_prog_str.clear();
+    rtc_prog_str_funcs.clear();
+  }
+
+  // clear all functions, including pending ones, and (FIXME/TODO) clear all function from the interal rtc
   void rtc_codegen_t::clear( void ) {
     rtc_func_names_map.clear();
     rtc_func_sigs_map.clear();
     rtc_prog_str.clear();
+    rtc_prog_str_funcs.clear();
   }
 
   void rtc_codegen_t::read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {

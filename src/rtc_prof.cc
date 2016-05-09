@@ -50,10 +50,30 @@ namespace boda
 
   double profile_rcg_call( p_op_base_t const & anno_op,
                            p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   p_rtc_call_gen_t const & rcg, 
 			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_float_t * const outs ) 
   {
     timer_t t("profile_rcg_call");
+    // FIXME: pass these? fix some other way? at least group them into some opts sturct?
+    bool const show_compile_log = 0;
+    bool const enable_lineinfo = 0;
+    bool const show_func_attrs = 0;
+
+    string const func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
+    p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
+#if 0
+    if( (!rcg->blks) && (!op_tune.use_culibs) ) { 
+      assert_st(0);
+      //(*out) << strprintf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
+      //return 0.0;
+    }
+#endif
+    if( (rcg->type == "quantize") || (rcg->type == "dropout") ) {
+      assert_st(0);
+      //(*out) << strprintf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
+      //return 0.0; 
+    }
+    codegen.compile( rtc, show_compile_log, enable_lineinfo, show_func_attrs );
+
     map_str_str arg_map;
     for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
       if( i->io_type == "REF" ) { continue; }
@@ -63,11 +83,10 @@ namespace boda
       if( outs && (endswith( i->io_type, "OUT" )) ) { must_insert( *outs, i->vn, p_nda_float_t() ); }
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
-    bool const show_compile_log = 0; bool const enable_lineinfo = 0; bool const show_func_attrs = 0;
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       rtc->create_var_with_dims_floats( j->second, must_find( rcg->dims_vals, j->first ) );
     }
-    rtc->compile( rcg->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg->gen_fn}, show_func_attrs );
+
     if( in_gen_op_orig ) { 
       for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
         p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
@@ -80,19 +99,15 @@ namespace boda
         string gen_vn = i->vn;
         if( in_dims != ref_in_dims ) { gen_vn += "_ref"; rtc->create_var_with_dims_floats( gen_vn, ref_in_dims ); }
 	string const in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
-	p_rtc_call_gen_t const & rcg_in_gen = must_find( codegen.rtc_func_names_map, in_gen_func_name );
-
-	rtc->compile( rcg_in_gen->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg_in_gen->gen_fn}, show_func_attrs );
-	rcg_func_call_t rfc_in_gen{ rcg_in_gen->gen_fn, "tag", map_str_str{{i->vn,gen_vn}} };
+        codegen.compile( rtc, show_compile_log, enable_lineinfo, show_func_attrs );
+	rcg_func_call_t rfc_in_gen{ in_gen_func_name, "tag", map_str_str{{i->vn,gen_vn}} };
 	codegen.run_rfc( rtc, show_rtc_calls, rfc_in_gen, 0 );
         // check if xpose needed:
         if( gen_vn != i->vn ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
           string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                       op_base_t{ "xpose_"+i->vn, anno_op->dims_vals, anno_op->str_vals } );
-          p_rtc_call_gen_t const & rcg_in_gen_xpose = must_find( codegen.rtc_func_names_map, xpose_func );
-          rtc->compile( rcg_in_gen_xpose->rtc_prog_str, show_compile_log, enable_lineinfo, {rcg_in_gen_xpose->gen_fn}, 
-                        show_func_attrs );
+          codegen.compile( rtc, show_compile_log, enable_lineinfo, show_func_attrs );
           rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i->vn,i->vn}} };
           codegen.run_rfc( rtc, show_rtc_calls, rfc_in_gen_xpose, 0 );
         }
@@ -109,6 +124,7 @@ namespace boda
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       rtc->release_var( j->second );
     }
+    codegen.clear();
     rtc->release_all_funcs();
     // get call duration
     //if( rfc.call_tag.empty() ) { release; return; } // FIXME: possible here? 
@@ -130,23 +146,8 @@ namespace boda
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
-      codegen.gen_func( make_cnn_custom_codegen_t().get(), *v );
-      assert( codegen.rtc_func_names_map.size() == 1 );
-      p_rtc_call_gen_t const &rcg = codegen.rtc_func_names_map.begin()->second;
-      string const & func_name = codegen.rtc_func_names_map.begin()->first;
-      if( !rcg->blks ) { 
-	printf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
-	continue; 
-      }
-      if( (rcg->type == "quantize") || (rcg->type == "dropout") ) {
-	printf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
-	continue; 
-      }
-      double const rfc_dur = profile_rcg_call( v, rtc, codegen, show_rtc_calls, rcg, 0, 0 );
-      (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s # %s \n", 
-			   str(rfc_dur/1000.0).c_str(), func_name.c_str() );
-      codegen.rtc_func_names_map.clear();
-      codegen.rtc_prog_str.clear();
+      double const rfc_dur = profile_rcg_call( v, rtc, codegen, show_rtc_calls, 0, 0 );
+      (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s\n", str(rfc_dur/1000.0).c_str() );
     }
     if( enable_prof ) { rtc->profile_stop(); }
     rtc->finish_and_sync();

@@ -335,6 +335,8 @@ namespace boda
 
     rtc_func_names_map_t rtc_func_names_map;
     rtc_func_sigs_map_t rtc_func_sigs_map;
+
+    vect_string rtc_prog_str_funcs;
     string rtc_prog_str;
 
     string gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
@@ -342,6 +344,8 @@ namespace boda
 		  rcg_func_call_t & rfc, uint32_t const & flags ) {    
       must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, flags );
     }
+
+    void compile( p_rtc_compute_t const & rtc, bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs );
 
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );

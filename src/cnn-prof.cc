@@ -155,8 +155,7 @@ namespace boda
 				    bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, 
 				    bool const & force_enable_tconv, uint32_t const t_tile_sz );
 
-  string generate_func( rtc_codegen_t & codegen, p_conv_op_base_t const & anno_op, op_tune_t const & op_tune ) 
-  {
+  void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune ) {
     if( anno_op->is( Convolution_coi ) ) {
       if( op_tune.use_culibs ) { 
         anno_op->type = "cudnn_conv";
@@ -204,12 +203,10 @@ namespace boda
         }
       }	  
     }
-    return codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
   }
 
   double profile_rcg_call( p_op_base_t const & anno_op,
                            p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   p_rtc_call_gen_t const & rcg, 
 			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs );
 
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
@@ -243,38 +240,24 @@ namespace boda
 	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
         p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-	string const func_name = generate_func( codegen, anno_op, op_tune );        
-        string func_name_comp;
-        if( rtc_comp ) {
-          // if requested, generate comparison function for correctness/performance testing:
-          func_name_comp = generate_func( codegen, anno_op_comp, op_tune_comp );
-        }
-	p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
-	if( (!rcg->blks) && (!op_tune.use_culibs) ) { 
-	  (*out) << strprintf( "skipping %s; dynamic block sizes todo\n", str(rcg->type).c_str() );
-	  continue; 
-	}
-	if( (rcg->type == "quantize") || (rcg->type == "dropout") ) {
-          (*out) << strprintf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
-	  continue; 
-	}
+	add_codegen_annotations( anno_op, op_tune );        
+        if( rtc_comp ) { add_codegen_annotations( anno_op_comp, op_tune_comp ); }
+
         // for now, make generation only dependent on orig op type; this is convenient currently, but won't work well
         // if/when dealing with operations that require alternate data formats. maybe in those cases we'll need to deal
         // with auto-generating the need conversion functions anyway ...
         if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
 
-	double const rfc_dur_secs = profile_rcg_call( anno_op, rtc, codegen, show_rtc_calls, rcg, gen_data, vs1.get() ) / 1000.0;
+	double const rfc_dur_secs = profile_rcg_call( anno_op, rtc, codegen, show_rtc_calls, gen_data, vs1.get() ) / 1000.0;
 	// (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	if( rtc_comp ) {
-          p_rtc_call_gen_t const &rcg_comp = must_find( codegen.rtc_func_names_map, func_name_comp );
-	  profile_rcg_call( anno_op_comp, rtc_comp, codegen, show_rtc_calls, rcg_comp, gen_data, vs2.get() );
+	  profile_rcg_call( anno_op_comp, rtc_comp, codegen, show_rtc_calls, gen_data, vs2.get() );
 	  vect_string const vns1 = get_keys( *vs1 );
 	  vect_string const vns2 = get_keys( *vs2 );
 	  if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
 						  str(vns1).c_str(), str(vns2).c_str() ) ); }
 	  comp_vars( out.get(), num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
 	}
-	codegen.clear();
 	if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops ); }
       }
     }
