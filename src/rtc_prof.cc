@@ -83,7 +83,7 @@ namespace boda
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      codegen.rtc->create_var_with_dims_floats( j->second, must_find( rcg->dims_vals, j->first ) );
+      codegen.rtc->create_var_with_dims_floats( j->second, must_find( anno_op->dims_vals, j->first ) );
     }
 
     if( in_gen_op_orig ) { 
@@ -92,7 +92,7 @@ namespace boda
 	if( i->io_type != "IN" ) { continue; }
 	in_gen_op->type += "_" + i->vn;
 	in_gen_op->dims_vals.clear();
-        dims_t const & in_dims = must_find( rcg->dims_vals, i->vn );
+        dims_t const & in_dims = must_find( anno_op->dims_vals, i->vn );
         dims_t const & ref_in_dims = get( anno_op->dims_vals, i->vn + "_ref", in_dims );
 	must_insert( in_gen_op->dims_vals, i->vn, ref_in_dims );
         string gen_vn = i->vn;
