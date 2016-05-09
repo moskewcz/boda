@@ -47,17 +47,18 @@ namespace boda
   typedef cudnn_wrap_t< cudnnConvolutionDescriptor_t,cudnnCreateConvolutionDescriptor,cudnnDestroyConvolutionDescriptor > cudnn_convolution_t;
 
   typedef vector< int > vect_int;
-  void set_cudnn_tensor_from_nda_raw_t( cudnn_tensor_t & cu_v, nda_raw_t const & v ) {
-    vect_int dims;
+
+  void set_cudnn_tensor_from_dims_t( cudnn_tensor_t & cu_v, dims_t const & dims ) {
+    vect_int dims_;
     vect_int strides;
-    for( uint32_t i = 0; i != v.dims.size(); ++i ) { dims.push_back( v.dims.dims(i) );strides.push_back( v.dims.strides(i) ); }
-    cudnn_err_chk( cudnnSetTensorNdDescriptor( cu_v.v, CUDNN_DATA_FLOAT, v.dims.size(), &dims[0], &strides[0] ), 
+    for( uint32_t i = 0; i != dims.size(); ++i ) { dims_.push_back( dims.dims(i) );strides.push_back( dims.strides(i) ); }
+    cudnn_err_chk( cudnnSetTensorNdDescriptor( cu_v.v, CUDNN_DATA_FLOAT, dims.size(), &dims_[0], &strides[0] ), 
                    "cudnnSetTensorNdDescriptor");
   }
-  void set_cudnn_filter_from_nda_raw_t( cudnn_filter_t & cu_v, nda_raw_t const & v ) { // like tensor, but no strides
-    vect_int dims;
-    for( uint32_t i = 0; i != v.dims.size(); ++i ) { dims.push_back( v.dims.dims(i) ); }
-    cudnn_err_chk( cudnnSetFilterNdDescriptor( cu_v.v, CUDNN_DATA_FLOAT, v.dims.size(), &dims[0] ), 
+  void set_cudnn_filter_from_dims_t( cudnn_filter_t & cu_v, dims_t const & dims ) { // like tensor, but no strides
+    vect_int dims_;
+    for( uint32_t i = 0; i != dims.size(); ++i ) { dims_.push_back( dims.dims(i) ); }
+    cudnn_err_chk( cudnnSetFilterNdDescriptor( cu_v.v, CUDNN_DATA_FLOAT, dims.size(), &dims_[0] ), 
                    "cudnnSetFilterNdDescriptor");
   }
 
@@ -109,9 +110,24 @@ namespace boda
       cudnn_filter_t cu_filts;
       cudnn_tensor_t cu_in;
       cudnn_tensor_t cu_out;
-      set_cudnn_filter_from_nda_raw_t( cu_filts, filts );
-      set_cudnn_tensor_from_nda_raw_t( cu_in, in );
-      set_cudnn_tensor_from_nda_raw_t( cu_out, out );
+      set_cudnn_filter_from_dims_t( cu_filts, filts.dims );
+      set_cudnn_tensor_from_dims_t( cu_in, in.dims );
+      set_cudnn_tensor_from_dims_t( cu_out, out.dims );
+      
+      // create 'expanded' biases dims, with dim names/order that match the output, but sizes 1 expect for dims present in the biases
+      dims_t biases_dims_exp; 
+      uint32_t biases_dims_used = 0;
+      for( uint32_t i = 0; i != out.dims.size(); ++i ) {
+        string dn = out.dims.names(i);
+        uint32_t dim_sz = 1;
+        dim_t const * const mbd = biases.dims.get_dim_by_name( (dn=="chan")?"out_chan":dn ); // FIXME: maybe dim of biases should be just 'chan'?
+        if( mbd ) { ++biases_dims_used; dim_sz = mbd->sz; }
+        biases_dims_exp.add_dims( dn, dim_sz );
+      }
+      assert_st( biases_dims_used == biases.dims.size() );
+      biases_dims_exp.calc_strides();
+      cudnn_tensor_t cu_biases;
+      set_cudnn_tensor_from_dims_t( cu_biases, biases_dims_exp );
 
       cudnn_convolution_t cu_conv;
       dims_t const & in_pad = op.get_dims( "in_pad" );
@@ -168,7 +184,13 @@ namespace boda
                                               out.elems
                                               ), "cudnnConvolutionForward" );
 
-      // FIXME: add biases
+      cudnn_err_chk( cudnnAddTensor_v3( cdh,
+                                        &alpha,
+                                        cu_biases.v,
+                                        biases.elems,
+                                        &alpha, // aka 1
+                                        cu_out.v,
+                                        out.elems), "cudnnAddTensor_v3" );
     }
 
     void sgemm( p_map_str_p_nda_raw_t const & args ) { 

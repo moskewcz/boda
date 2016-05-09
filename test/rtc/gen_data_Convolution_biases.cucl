@@ -6,7 +6,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const biases ) // CUCL OU
   if( GLOB_ID_1D >= %(biases_dims_prod) ) { return; }
   float val = %(vi); 
   if( %(mode) == 5 ) {
-    //val += det_hash_rand( GLOB_ID_1D + 39475612 );
+    val += det_hash_rand( GLOB_ID_1D + 39475612 );
   }
   biases[GLOB_ID_1D] = val;
 }
