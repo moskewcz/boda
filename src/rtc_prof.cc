@@ -48,8 +48,7 @@ namespace boda
     return codegen.gen_func( ccc.get(), rfs ); 
   }
 
-  double profile_rcg_call( p_op_base_t const & anno_op,
-                           p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
+  double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen, bool const & show_rtc_calls,
 			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_float_t * const outs ) 
   {
     timer_t t("profile_rcg_call");
@@ -72,7 +71,7 @@ namespace boda
       //(*out) << strprintf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
       //return 0.0; 
     }
-    codegen.compile( rtc, show_compile_log, enable_lineinfo, show_func_attrs );
+    codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
 
     map_str_str arg_map;
     for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
@@ -84,7 +83,7 @@ namespace boda
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      rtc->create_var_with_dims_floats( j->second, must_find( rcg->dims_vals, j->first ) );
+      codegen.rtc->create_var_with_dims_floats( j->second, must_find( rcg->dims_vals, j->first ) );
     }
 
     if( in_gen_op_orig ) { 
@@ -97,40 +96,39 @@ namespace boda
         dims_t const & ref_in_dims = get( anno_op->dims_vals, i->vn + "_ref", in_dims );
 	must_insert( in_gen_op->dims_vals, i->vn, ref_in_dims );
         string gen_vn = i->vn;
-        if( in_dims != ref_in_dims ) { gen_vn += "_ref"; rtc->create_var_with_dims_floats( gen_vn, ref_in_dims ); }
+        if( in_dims != ref_in_dims ) { gen_vn += "_ref"; codegen.rtc->create_var_with_dims_floats( gen_vn, ref_in_dims ); }
 	string const in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
-        codegen.compile( rtc, show_compile_log, enable_lineinfo, show_func_attrs );
+        codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
 	rcg_func_call_t rfc_in_gen{ in_gen_func_name, "tag", map_str_str{{i->vn,gen_vn}} };
-	codegen.run_rfc( rtc, show_rtc_calls, rfc_in_gen, 0 );
+	codegen.run_rfc( show_rtc_calls, rfc_in_gen, 0 );
         // check if xpose needed:
         if( gen_vn != i->vn ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
           string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                       op_base_t{ "xpose_"+i->vn, anno_op->dims_vals, anno_op->str_vals } );
-          codegen.compile( rtc, show_compile_log, enable_lineinfo, show_func_attrs );
+          codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
           rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i->vn,i->vn}} };
-          codegen.run_rfc( rtc, show_rtc_calls, rfc_in_gen_xpose, 0 );
+          codegen.run_rfc( show_rtc_calls, rfc_in_gen_xpose, 0 );
         }
 	//if( outs ) { must_insert( *outs, i->vn, p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
     rcg_func_call_t rfc{ rcg->gen_fn, "tag", arg_map };
-    codegen.run_rfc( rtc, show_rtc_calls, rfc, 0 );
+    codegen.run_rfc( show_rtc_calls, rfc, 0 );
     if( outs ) {
       for( map_str_p_nda_float_t::iterator j = outs->begin(); j != outs->end(); ++j ) {
-	j->second = rtc->create_nda_from_var( j->first );
+	j->second = codegen.rtc->create_nda_from_var( j->first );
       }
     }
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      rtc->release_var( j->second );
+      codegen.rtc->release_var( j->second );
     }
     codegen.clear();
-    rtc->release_all_funcs();
     // get call duration
     //if( rfc.call_tag.empty() ) { release; return; } // FIXME: possible here? 
-    rtc->finish_and_sync();
-    double const rfc_dur = rtc->get_dur( rfc.call_id, rfc.call_id );
-    rtc->release_per_call_id_data();
+    codegen.rtc->finish_and_sync();
+    double const rfc_dur = codegen.rtc->get_dur( rfc.call_id, rfc.call_id );
+    codegen.rtc->release_per_call_id_data();
     return rfc_dur;
   }
 
@@ -138,7 +136,7 @@ namespace boda
 
   void rtc_prof_t::main( nesi_init_arg_t * nia ) {
     out = ofs_open( per_call_fn );
-    rtc->init();
+    rtc->init(); codegen.init( rtc );
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); }
     if( eat_megs ) { rtc->create_var_with_dims_floats( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, 1 } ); }
@@ -146,7 +144,7 @@ namespace boda
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
-      double const rfc_dur = profile_rcg_call( v, rtc, codegen, show_rtc_calls, 0, 0 );
+      double const rfc_dur = profile_rcg_call( v, codegen, show_rtc_calls, 0, 0 );
       (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s\n", str(rfc_dur/1000.0).c_str() );
     }
     if( enable_prof ) { rtc->profile_stop(); }

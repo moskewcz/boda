@@ -676,7 +676,7 @@ namespace boda
       }
     }
 
-    rtc->init();
+    rtc->init(); codegen.init( rtc );
     for( vect_string::const_iterator i = def.begin(); i != def.end(); ++i ) { 
       codegen.rtc_prog_str += "#define "+*i+" 1\n"; 
     }
@@ -687,14 +687,14 @@ namespace boda
     vect_string all_funcs;
     for( rtc_func_names_map_t::iterator i = codegen.rtc_func_names_map.begin(); i != codegen.rtc_func_names_map.end(); ++i ) {
       all_funcs.push_back( i->first ); }
-    codegen.compile( rtc, show_compile_log, enable_lineinfo, show_func_attrs );
+    codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
     for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( *i ); }
     for( vect_rcg_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); } // init-time-only calls
     rtc->finish_and_sync();
   }
 
-  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { codegen.run_rfc( rtc, show_rtc_calls, rfc, flags );  }
+  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { codegen.run_rfc( show_rtc_calls, rfc, flags );  }
 
   void conv_pipe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     if( enable_double_run ) {

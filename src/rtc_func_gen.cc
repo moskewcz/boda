@@ -143,7 +143,7 @@ namespace boda
   }
 
   // compile pending (generated but not compiled) functions 
-  void rtc_codegen_t::compile( p_rtc_compute_t const & rtc, bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs ) {
+  void rtc_codegen_t::compile( bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs ) {
     rtc->compile( rtc_prog_str, show_compile_log, enable_lineinfo, rtc_prog_str_funcs, show_func_attrs );
     rtc_prog_str.clear();
     rtc_prog_str_funcs.clear();
@@ -155,6 +155,7 @@ namespace boda
     rtc_func_sigs_map.clear();
     rtc_prog_str.clear();
     rtc_prog_str_funcs.clear();
+    rtc->release_all_funcs();
   }
 
   void rtc_codegen_t::read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {

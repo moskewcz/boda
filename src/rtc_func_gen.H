@@ -331,6 +331,8 @@ namespace boda
   };
   
   struct rtc_codegen_t {
+    p_rtc_compute_t rtc;
+    void init( p_rtc_compute_t const & rtc_ ) { rtc = rtc_; }
     rtc_template_map_t rtc_templates;
 
     rtc_func_names_map_t rtc_func_names_map;
@@ -340,12 +342,11 @@ namespace boda
     string rtc_prog_str;
 
     string gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
-    void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls,
-		  rcg_func_call_t & rfc, uint32_t const & flags ) {    
+    void run_rfc( bool const & show_rtc_calls, rcg_func_call_t & rfc, uint32_t const & flags ) {    
       must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, flags );
     }
 
-    void compile( p_rtc_compute_t const & rtc, bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs );
+    void compile( bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs );
 
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );

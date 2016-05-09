@@ -147,6 +147,7 @@ namespace boda
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
     rtc_codegen_t codegen;
+    rtc_codegen_t codegen_comp;
 
     virtual void main( nesi_init_arg_t * nia );
   };
@@ -205,8 +206,7 @@ namespace boda
     }
   }
 
-  double profile_rcg_call( p_op_base_t const & anno_op,
-                           p_rtc_compute_t const & rtc, rtc_codegen_t & codegen, bool const & show_rtc_calls,
+  double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen, bool const & show_rtc_calls,
 			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs );
 
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
@@ -216,8 +216,8 @@ namespace boda
     p_ostream oit_out = op_info_tab_fn ? ofs_open( *op_info_tab_fn ) : 0;
     p_ostream oet_out = op_info_tab_fn ? ofs_open( *op_eff_tab_fn ) : 0;
 
-    rtc->init();
-    if( rtc_comp ) { rtc_comp->init(); }
+    rtc->init(); codegen.init( rtc );
+    if( rtc_comp ) { rtc_comp->init(); codegen_comp.init( rtc_comp ); }
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); if(rtc_comp) { rtc_comp->init(); } }
     p_map_str_p_nda_float_t vs1;
@@ -248,10 +248,10 @@ namespace boda
         // with auto-generating the need conversion functions anyway ...
         if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
 
-	double const rfc_dur_secs = profile_rcg_call( anno_op, rtc, codegen, show_rtc_calls, gen_data, vs1.get() ) / 1000.0;
+	double const rfc_dur_secs = profile_rcg_call( anno_op, codegen, show_rtc_calls, gen_data, vs1.get() ) / 1000.0;
 	// (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
 	if( rtc_comp ) {
-	  profile_rcg_call( anno_op_comp, rtc_comp, codegen, show_rtc_calls, gen_data, vs2.get() );
+	  profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get() );
 	  vect_string const vns1 = get_keys( *vs1 );
 	  vect_string const vns2 = get_keys( *vs2 );
 	  if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
