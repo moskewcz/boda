@@ -131,6 +131,7 @@ namespace boda
   // note that there is no reference counting for the module in the CUDA driver API, just load/unload, so we'd need to
   // do that ourselves. this might not be needed currently, but allows for arbitrary funcs->modules mappings.
   struct nv_func_info_t {
+    rtc_func_info_t info;
     CUfunction func;
     p_CUmodule mod;
   };
@@ -202,12 +203,17 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     zi_uint32_t compile_call_ix;
     void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo,
 		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
+#if 0
+      // for now, this is disabled, since:
+      // 1) it doesn't really help (much) yet (we still need to compile other function in all flows
+      // 2) we now need to create the nv_func_info object in all cases to cache the func info (even if we need not compile)
       bool all_funcs_culibs = 1;
       for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
         string const & fn = i->func_name;
         if( !(startswith( "cublas_", fn ) || startswith( fn, "cudnn_" ) ) ) { all_funcs_culibs = 0; }
       }
       if( all_funcs_culibs ) { return; } // skip unneeded compilation if all funcs to compile are culibs stubs
+#endif
       string const src = cu_base_decls + cucl_src;
       assert( init_done.v );
       if( gen_src ) { ensure_is_dir( gen_src_output_dir.exp, 1 ); }
@@ -222,23 +228,23 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       cu_err_chk( cuModuleLoadDataEx( &new_cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
       p_CUmodule cu_mod = make_p_CUmodule( new_cu_mod );
       for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
-	check_runnable( cu_mod, i->func_name, show_func_attrs );
+	check_runnable( cu_mod, *i, show_func_attrs );
       }
       ++compile_call_ix.v;
     }
 
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()
-    void check_runnable( p_CUmodule const & cu_mod, string const name, bool const show_func_attrs ) {
+    void check_runnable( p_CUmodule const & cu_mod, rtc_func_info_t const & info, bool const show_func_attrs ) {
       assert_st( cu_mod );
       CUfunction cu_func;
-      cu_err_chk( cuModuleGetFunction( &cu_func, *cu_mod, name.c_str() ), "cuModuleGetFunction" );
+      cu_err_chk( cuModuleGetFunction( &cu_func, *cu_mod, info.func_name.c_str() ), "cuModuleGetFunction" );
       // FIXME: i'd like to play with enabling L1 caching for these kernels, but it's not clear how to do that
       // cu_err_chk( cuFuncSetCacheConfig( cu_func, CU_FUNC_CACHE_PREFER_L1 ), "cuFuncSetCacheConfig" ); // does nothing?
       if( show_func_attrs ) {
 	string rfas = cu_get_all_func_attrs( cu_func );
-	printf( "%s: \n%s", name.c_str(), str(rfas).c_str() );
+	printf( "%s: \n%s", info.func_name.c_str(), str(rfas).c_str() );
       }
-      must_insert( *cu_funcs, name, nv_func_info_t{ cu_func, cu_mod } );
+      must_insert( *cu_funcs, info.func_name, nv_func_info_t{ info, cu_func, cu_mod } );
     }
 
     CUdeviceptr null_cup; // inited to 0; used to pass null device pointers to kernels. note, however, that the value is
@@ -317,11 +323,11 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
       rfc.call_id = alloc_call_id();
       record_event( get_call_ev(rfc.call_id).b_ev );
+      nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );
       if( startswith( fn, "cublas_" ) || startswith( fn, "cudnn_" )) { culibs_wrap_call( cw, fn, func_args ); } 
       else {
         rtc_launch_check_blks_and_tpb( fn, rfc.blks.v, rfc.tpb.v );
-        CUfunction & cu_func = must_find( *cu_funcs, fn.c_str() ).func;
-        cu_err_chk( cuLaunchKernel( cu_func,
+        cu_err_chk( cuLaunchKernel( nfi.func,
 				    rfc.blks.v, 1, 1, // grid x,y,z dims
 				    rfc.tpb.v, 1, 1, // block x,y,z dims
 				    0, 0, // smem_bytes, stream_ix
