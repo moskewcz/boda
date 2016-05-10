@@ -215,7 +215,7 @@ namespace boda
     p_vect_string in_lines = readlines_fn( cnn_func_sigs_fn );
     p_ostream out = out_fn ? ofs_open( *out_fn ) : p_ostream( &std::cout, null_deleter<std::ostream>() );
     p_ostream oit_out = op_info_tab_fn ? ofs_open( *op_info_tab_fn ) : 0;
-    p_ostream oet_out = op_info_tab_fn ? ofs_open( *op_eff_tab_fn ) : 0;
+    p_ostream oet_out = op_eff_tab_fn ? ofs_open( *op_eff_tab_fn ) : 0;
 
     rtc->init(); codegen.init( rtc );
     if( rtc_comp ) { rtc_comp->init(); codegen_comp.init( rtc_comp ); }
