@@ -74,16 +74,16 @@ Each dependency of boda has a **build stanza** that starts with a header that mi
 
     [foo needs=bar needs=baz] # this defines a dependency foo that has two sub-dependencies `bar` and `baz`
     [magiwrapper gen_fn=foo.cc] # uncommon (used only for protobuf related features currently); declares a build-time generated file
-    [SDL2 disable] # used to disable a dependency; it's build stanza will be ignored
+    [SDL2 disable] # used to disable a dependency; its build stanza will be ignored
 
 A dependency is disabled if it is explicitly disabled with the `disable` option, or if any of its sub-dependencies is disabled.
-If a dependency is *not* disabled, they the contents of its build stanza are added to the makefile.
-In particular, each stanza should add to LDFLAGS and CPPFLAGS to add any need compiler/linker options to find needed header files and to find and link against any need libraries.
-For libraries not expected to be in the default dynamical library search path at runtime, stanza may optionally use mechanisms like `rpath` as an alternative to using LD_LIBRARY_PATH at runtime.
+If a dependency is *not* disabled, then the contents of its build stanza are added to the makefile.
+In particular, each stanza should add to LDFLAGS and CPPFLAGS to add any needed compiler/linker options to find needed header files and to find and link against any needed libraries.
+For libraries not expected to be in the dynamic linker search path at runtime, a stanza may optionally use mechanisms like `rpath` as an alternative to using LD_LIBRARY_PATH at runtime.
 By default, both the `caffe` and `cuda` dependencies use the rpath mechanism.
-The default obj_list has reasonable default paths and options for all dependencies, but these must be manually altered as needed to match the local build environment.
+The default obj_list has reasonable default paths and options for all dependencies, but these must be manually altered as needed to match the local build environment if they are not correct for a given setup.
 
-One special final stanza named `[objs]` (which takes no options) lists all the object files in boda along with what dependencies each has. Files with no dependencies will always be compiled/linked. Files that have dependencies will only be compiled/linked if all of their dependencies are enabled. Files that are not compiled/linked will cause boda to be missing the features/modes/functionality provided by those files. In some case, a 'stub' version of a file/feature is provided for use when the dependency is unavailable; usually such stubs simply do nothing and/or emit an error if the needed functionality is used. For example:
+One special final stanza named `[objs]` (which takes no options) lists all the object files in boda along with what dependencies each has. Files with no dependencies will always be compiled/linked. Files that have dependencies will only be compiled/linked if all of their dependencies are enabled. Generally, files that are not compiled/linked will only cause boda to be missing the features/modes/functionality provided by those files, but will not prevent linking. In some case, a 'stub' version of a file/feature is provided for use when the dependency is unavailable; usually such stubs simply do nothing and/or emit an error if the needed functionality is used. For example:
 
     [objs]
     ...
@@ -92,7 +92,7 @@ One special final stanza named `[objs]` (which takes no options) lists all the o
     img_io-no-turbojpeg-stub.o -turbojpeg # anti-depends on turbojpeg; if turbojpeg is *not* disabled, this file will not be compiled/linked
     ...
 
-In this case, if the uses attempts to load a jpeg file without the turbojpeg dependency, a run-time error will be generated. 
+If the user attempts to load a jpeg file using a build of boda where the turbojpeg dependency was disabled, a run-time error will be generated. 
 
 Similar, for the python dependency we have: 
 
@@ -102,15 +102,15 @@ Similar, for the python dependency we have:
     pyif-no-python-stub.o -python
     ...
 
-In this case, usage of a stub allows for main() to unconditionally call a boda's python init function (py_init()) and thus avoids the usage of #ifdef'd code depending on if python support is enabled. Instead, by linking either the real or stub version of the object, and thus of py_init(), we use the linker to manage feature dependencies.
+In general, usage of stubs allows for boda to unconditionally call some function. In this case, the boda python init function (py_init()) is always called from main(). This avoids the usage of #ifdef'd code depending on if python support is enabled. Instead, by linking either the real or stub version of the object, and thus of the py_init() function, we use the linker to manage optional feature dependencies.
 
-The final result of obj_list processing will be written to the file `obj/dependencies.make`, and can be inspected like any makefile. 
+The final result of obj_list processing will be written to the file `obj/dependencies.make`. This file is included in the root makefile, and can be inspected like any regular makefile.
 
 #### Notes on caffe support: short version: you probably want `[caffe disable]`
 
 Enabling the `[caffe]` build stanza is *not* required for Boda to read caffe prototxt files.
 Boda includes its own copy of the caffe protobuf message description file (`caffe.proto`) along with some small amount of copied and modified caffe protobuf related code (in `update_proto.cpp`), both in the boda/src/ext directory.
-Using these files that are part of boda, 'basic' caffe support is controlled by the `[caffe_pb]` build stanza, which, unlike the `[caffe]` stanza, probably should *not* be disabled, since many modes rely on it for reading input nets in caffe format.
+Using just these files that are included in the boda distribution, 'basic' caffe support is controlled by the `[caffe_pb]` build stanza, which, unlike the `[caffe]` stanza, probably should *not* be disabled, since many modes rely on it for reading input nets in caffe protobuf format.
 Enabling `[caffe]` is only required if you desire using boda to use caffe to run nets *from inside boda* (a franken-middleware-mode, if you will), which is useful for certain forms of testing and profiling.
 If you do enable `[caffe]` support, you must ensure that Boda's caffe.proto agrees with the one from the caffe build you choose.
 I maintain a fork of caffe with a few patches applied to aid in integration with boda.
@@ -125,7 +125,7 @@ So, if you're not too picky about what caffe version to use, the easiest path to
 
 [https://github.com/moskewcz/caffe/tree/fix-sign-comp-in-hpps](https://github.com/moskewcz/caffe/tree/fix-sign-comp-in-hpps)
 
-If you want to use your own caffe version, see boda issue #1 for the three options of how to proceed (TODO_DOCS: cleanup an inline here).
+If you want to use your own caffe version, see boda issue #1 for the three options of how to proceed (TODO_DOCS: cleanup and inline here).
 
 ### compile
 
@@ -150,7 +150,7 @@ The script [scripts/gen_etags.sh](scripts/gen_etags.sh) can be sourced (or run) 
 
 Assuming you have all the needed model files on some machine in /scratch/models, using where each model is /scratch/models/$net/best.caffemodel, you can use rsync to copy them to another machine. The list of models needed for testing (hopefully up to date, but otherwise a good starting place) is in boda/test/test_all_nets.txt. Here is a sample command to copy the models from the local machine to a remote machine named 'targ_machine':
 
-    # FIXME: UNTESTED!!! needs a /scratch dir already setup, maybe with +t / stick-bit set like /tmp ...
+    # FIXME: UNTESTED!!! needs a /scratch dir already setup, maybe with +t / sticky-bit set like /tmp ...
     moskewcz@maaya:~/git_work/boda$ for net in `cat test/test_all_nets.txt`; do ssh targ_machine mkdir -p /scratch/models/$net ; scp {,targ_machine:}/scratch/models/$net/best.caffemodel; done
 
 ### copying needed dataset files
@@ -161,7 +161,11 @@ Also, the images from the VOC-2007 dataset are used by the tests. Again, assumin
 
 ### running the tests
 
-From the boda/run directory, make a test-running directory, and cd into it. from there, run the test_all mode. Depending on which features you have enabled/disabled, you should see something like the below. Note that many of the tests do require caffe support, and so if you've disabled that, many individual tests will fail to initialize, since the 'caffe' computation backend won't exists. So, the part above about not needing caffe enabled above doesn't currently really hold true if you want to run the tests.
+From the boda/run directory, make a test-running directory, and cd into it.
+From there, run the test_all mode.
+Depending on which features you have enabled/disabled, you should see something like the below.
+Note that many of the tests do require caffe support, and so if you've disabled that, many individual tests will fail to initialize, since the 'caffe' computation backend won't exist.
+So, the part above about not needing caffe enabled above doesn't currently really hold true if you want to run the tests.
 
 
 ````
