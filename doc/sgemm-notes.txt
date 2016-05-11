@@ -72,8 +72,9 @@ moskewcz@maaya:~$ adb shell getprop | grep cl
 adb shell setprop debug.cl.profiler 1
 adb shell setprop debug.cl.enable.blocking 1
 
-# to clear blocking:
-moskewcz@maaya:~$ adb shell setprop debug.cl.enable.blocking \'\'
+# to clear blocking[/profiler]:
+adb shell setprop debug.cl.enable.blocking \'\'
+adb shell setprop debug.cl.profiler \'\'
 
 
 
