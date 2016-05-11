@@ -85,7 +85,7 @@ namespace boda
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       codegen.rtc->create_var_with_dims_floats( j->second, must_find( anno_op->dims_vals, j->first ) );
     }
-
+    vect_string xpose_vars_to_release;
     if( in_gen_op_orig ) { 
       for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
         p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
@@ -96,7 +96,11 @@ namespace boda
         dims_t const & ref_in_dims = get( anno_op->dims_vals, i->vn + "_ref", in_dims );
 	must_insert( in_gen_op->dims_vals, i->vn, ref_in_dims );
         string gen_vn = i->vn;
-        if( in_dims != ref_in_dims ) { gen_vn += "_ref"; codegen.rtc->create_var_with_dims_floats( gen_vn, ref_in_dims ); }
+        if( in_dims != ref_in_dims ) { 
+          gen_vn += "_ref"; 
+          codegen.rtc->create_var_with_dims_floats( gen_vn, ref_in_dims ); 
+          xpose_vars_to_release.push_back( gen_vn );
+        }
 	string const in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
         codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
 	rcg_func_call_t rfc_in_gen{ in_gen_func_name, "tag", map_str_str{{i->vn,gen_vn}} };
@@ -125,6 +129,9 @@ namespace boda
     }
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       codegen.rtc->release_var( j->second );
+    }
+    for( vect_string::const_iterator i = xpose_vars_to_release.begin(); i != xpose_vars_to_release.end(); ++i ) {
+      codegen.rtc->release_var( *i );
     }
     codegen.clear();
     // get call duration
