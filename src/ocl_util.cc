@@ -12,6 +12,10 @@ namespace boda
     if( ret != CL_SUCCESS ) { rt_err( strprintf( "%s() failed with ret=%s (%s)", tag, str(ret).c_str(), get_cl_err_str(ret) ) ); } 
   }
 
+
+  template< typename T > void debug_rr( string const & tag, T const  & v ) {
+    //printf( "%s %s v=%s\n", cxx_demangle(typeid(T).name()).c_str(), str(tag).c_str(), str(v).c_str() );
+  }
   typedef vector< size_t > vect_size_t;
   // let's experiment with using the C bindings directly. it may be that this is easier/cleaner for us than using the
   // 'default' C++ wrappers? hmm. i keep getting lost in the 12K+ lines of cl.hpp ... here we only seem to need ~100
@@ -22,12 +26,33 @@ namespace boda
     cl_wrap_t( void ) : v(0) {}
     bool valid( void ) const { return v != 0; }
     void reset( void ) { 
-      if( valid() ) { cl_int const ret = RELEASE(v); v = 0; cl_err_chk( ret, "clRelease<T>" ); } 
+      if( valid() ) { 
+        debug_rr( "RELEASE (reset)", v );
+        cl_int const ret = RELEASE(v); v = 0; cl_err_chk( ret, "clRelease<T>" );
+      } 
     }
     void reset( T const & v_ ) { reset(); v = v_; } // assume ref cnt == 1
-    ~cl_wrap_t( void ) { reset(); }
-    cl_wrap_t( cl_wrap_t const & o ) { if(o.valid()) { RETAIN(o.v); v = o.v; } }
-    void operator = ( cl_wrap_t const & o ) { reset(); if(o.valid()) { RETAIN(o.v); v = o.v; }}
+    ~cl_wrap_t( void ) { 
+      debug_rr( "DTOR ", v );
+      reset(); 
+    }
+    cl_wrap_t( cl_wrap_t const & o ) : v(0) { 
+      if(o.valid()) { 
+        debug_rr( "RETAIN (copy ctor)", o.v );
+        cl_err_chk( RETAIN(o.v), "clRetain<T>");
+        v = o.v; 
+      } 
+    }
+    void operator = ( cl_wrap_t const & o ) { 
+      if(this == &o) { return; } 
+      debug_rr( "OP = (about to reset)", v );
+      reset(); 
+      if(o.valid()) { 
+        debug_rr( "RETAIN (OP =)", o.v );
+        cl_err_chk( RETAIN(o.v), "clRetain<T>");
+        v = o.v; 
+      }
+    }
   };
   
   typedef cl_wrap_t< cl_program, clReleaseProgram, clRetainProgram > cl_program_t;
@@ -343,8 +368,10 @@ typedef int int32_t;
       rfc.call_id = alloc_call_id();
       size_t const glob_work_sz = rfc.tpb.v*rfc.blks.v;
       size_t const loc_work_sz = rfc.tpb.v;
-      cl_int const err = clEnqueueNDRangeKernel( cq.v, kern.v, 1, 0, &glob_work_sz, &loc_work_sz, 0, 0, &get_call_ev(rfc.call_id).v);
+      cl_event ev = 0;
+      cl_int const err = clEnqueueNDRangeKernel( cq.v, kern.v, 1, 0, &glob_work_sz, &loc_work_sz, 0, 0, &ev);
       cl_err_chk( err, "clEnqueueNDRangeKernel()" );
+      get_call_ev(rfc.call_id).reset(ev);
     }
 
     void finish_and_sync( void ) { cl_err_chk( clFinish( cq.v ), "clFinish()" ); }
