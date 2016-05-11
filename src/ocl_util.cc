@@ -89,6 +89,12 @@ namespace boda
     cl_int operator ()( size_t const & pvs, void  * const & pv, size_t * const & pvsr ) const {
       return clGetMemObjectInfo( v, i, pvs, pv, pvsr ); }
   };
+  struct KernelWorkGroup_t {
+    cl_kernel k; cl_device_id d; cl_kernel_work_group_info i;
+    KernelWorkGroup_t( cl_kernel const & k_, cl_device_id const & d_, cl_kernel_work_group_info const & i_ ): k(k_),d(d_),i(i_) {}
+    cl_int operator ()( size_t const & pvs, void  * const & pv, size_t * const & pvsr ) const {
+      return clGetKernelWorkGroupInfo( k, d, i, pvs, pv, pvsr ); }
+  };
 
   // get_info<T>() for (all) fixed-size types + get_info_str() for (var-sized) strings (i.e. char[] in OpenCL spec)
   template< typename T, typename GI > T get_info( GI const & gi ) {
@@ -368,6 +374,11 @@ typedef int int32_t;
       rfc.call_id = alloc_call_id();
       size_t const glob_work_sz = rfc.tpb.v*rfc.blks.v;
       size_t const loc_work_sz = rfc.tpb.v;
+      size_t const kwgs = get_info<size_t>(KernelWorkGroup_t(kern.v,use_devices[0],CL_KERNEL_WORK_GROUP_SIZE));
+      if( loc_work_sz > kwgs ) {
+        rt_err( strprintf( "Error: can't run kernel: loc_work_sz is %s but OpenCL says max is %s for this kernel+device.\n", 
+                           str(loc_work_sz).c_str(), str(kwgs).c_str() ) );
+      }
       cl_event ev = 0;
       cl_int const err = clEnqueueNDRangeKernel( cq.v, kern.v, 1, 0, &glob_work_sz, &loc_work_sz, 0, 0, &ev);
       cl_err_chk( err, "clEnqueueNDRangeKernel()" );
