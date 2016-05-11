@@ -11,6 +11,7 @@
 
 namespace boda
 {
+  string cxx_demangle( string const & sym );
 
   double lc_str_d( char const * const s );
   uint32_t lc_str_u32( char const * const s );

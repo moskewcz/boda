@@ -6,10 +6,18 @@
 #include<malloc.h>
 #include<boost/lexical_cast.hpp>
 #include<boost/algorithm/string.hpp>
+#include<cxxabi.h>
 
 namespace boda
 {
   using std::string;
+
+  string cxx_demangle( string const & sym ) {
+    int dm_ret = 0;
+    std::unique_ptr< char > dm_fn( abi::__cxa_demangle( sym.c_str(), 0, 0, &dm_ret ) );
+    if( dm_ret == 0 ) { return string( dm_fn.get() ); } // demangled okay, return copy of demangled result
+    return sym; // can't demangle, return copy of input 
+  }
 
   string get_part_before( string const & s, string const & to_find ) {
     size_t const ix = s.find( to_find );
