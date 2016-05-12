@@ -108,9 +108,9 @@ namespace boda
         // check if xpose needed:
         if( gen_vn != i->vn ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
-          string xpose_op = "xpose_"+i->vn;
-          if( ( i->vn == "in" ) && 
-              has( anno_op->str_vals, "cts" ) ) { xpose_op = anno_op->type + "_" + xpose_op; } // FIXME: sigh.
+          string xpose_op = anno_op->type+"_xpose_"+i->vn;
+          // FIXME: sigh.
+          if( ( i->vn == "filts" ) && (get( anno_op->str_vals, "cts", "" ) != "k1conv_simd" )) { xpose_op = "xpose_filts"; }
           string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                       op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
           codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );

@@ -177,6 +177,8 @@ namespace boda
 	} // unrolling/tiling of inner loop
 	work.calc_strides();
 
+        uint32_t out_chan_pad = op->dims_vals["filts"].dsz("out_chan"); // not padded yet but may be layer
+        uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
 	if( op->cts() == k1conv_str ) { 
 	  uint32_t const in_blk_iter_chan_dim = op_tune.Kb;
 	  // the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
@@ -188,16 +190,18 @@ namespace boda
           // FIXME/NOTE: WIP to become simd, no-local-mem version of k1conv -- but initially with no SIMD
           // for SIMD, we'll need to pad in_chans to a multiple of vw, but for now we don't need to.
           // we also xpose to pels:chans format for both the filts and input. each blk will handle:
-          uint32_t const in_chans_pad = ni_dims.dsz("chan");
           uint32_t const blk_pels = work.dsz("pels_tile")*work.dsz("pels");
-          // if the input in not an exact number of pels, add enough images to at least fill the final partial blk
+          // if the output is not an exact number of pels blks, add enough images to at least fill the final partial blk
           uint32_t const in_blks = u32_ceil_div( pels_sz, blk_pels );
           uint32_t const img_pels = pels_sz / ni_dims.dsz("img");
           assert_st( img_pels * ni_dims.dsz("img") == pels_sz ); // by construction
           uint32_t const in_imgs_pad = u32_ceil_div( in_blks*blk_pels, img_pels );
 	  must_insert( op->str_vals, "Kb", str(op_tune.Kb) );
-	  in_dims = dims_t( vect_uint32_t{ in_imgs_pad, ni_dims.dsz("y"), ni_dims.dsz("x"), in_chans_pad }, 
+          // if the output is not an exact number of out_chan blks, add enough out_chans to make it exact
+          out_chan_pad = u32_ceil_align( out_chan_pad, work.dsz("out_chan_tile")*work.dsz("out_chan") );
+          in_dims = dims_t( vect_uint32_t{ in_imgs_pad, ni_dims.dsz("y"), ni_dims.dsz("x"), in_chan_pad }, 
                             vect_string{"img","y","x","chan"}, 1 ); 
+          // note: for now, we don't pad and/or xpose out, so the store code must handle that.
 	}
 	op->dims_vals["work"] = work;
 	// k1conv and in_tile_xpose need the standard output dims for reference. curently this == the dims of "out",
@@ -215,7 +219,7 @@ namespace boda
         if( op->cts() == k1conv_simd_str ) {
           // match padded chans of input
 	  op->dims_vals["filts"] = dims_t( 
-            vect_uint32_t{ op->dims_vals["filts"].dsz("out_chan"), kern_sz_.d[1], kern_sz_.d[0], in_dims.dsz("chan") }, 
+            vect_uint32_t{ out_chan_pad, kern_sz_.d[1], kern_sz_.d[0], in_chan_pad }, 
             vect_string{"out_chan","y","x","in_chan"}, 1 ); 
 
         } else if( op->cts() != ipconv_str ) { 

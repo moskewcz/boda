@@ -13,6 +13,7 @@ namespace boda
       if( op_name == "conv" ) { gen_op_conv(rcg); } 
       else if( op_name == "ipconv" ) { gen_op_ipconv(rcg); } 
       else if( op_name == "k1conv" ) { gen_op_k1conv(rcg); } 
+      else if( op_name == "k1conv_simd" ) { gen_op_k1conv_simd(rcg); } 
       else if( op_name == "tconv" ) { gen_op_tconv(rcg); } 
       else if( op_name == "sgemm" ) { gen_op_sgemm(rcg); } 
       else if( op_name == "sgemm_no_local" ) { gen_op_sgemm_no_local(rcg); } 
@@ -496,6 +497,10 @@ namespace boda
       for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
         rcg->line( "stores", strprintf( "c[c_off+%s] = b_r[%s];", str(Nt).c_str(), str(Nt).c_str() ) );  
       }
+    }
+
+    void gen_op_k1conv_simd( rtc_call_gen_t * rcg ) {
+      rcg->has_final_flags_arg = 1;
     }
 
     void gen_op_k1conv( rtc_call_gen_t * rcg ) {
