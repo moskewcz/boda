@@ -84,6 +84,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+cnn_op.o
 culibs-wrap.o culibs
 culibs-wrap-stub.o -culibs
 comp_util.o

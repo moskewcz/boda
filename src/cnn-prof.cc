@@ -10,6 +10,7 @@
 #include"conv_util.H"
 #include"comp_util.H"
 #include<iostream>
+#include"cnn_op.H"
 
 namespace boda 
 {
@@ -104,23 +105,6 @@ namespace boda
     }
   };
 
-  struct op_tune_t : virtual public nesi // NESI(help="operation tuning parameters")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    // shared
-    uint32_t use_culibs; //NESI(default=0,help="if 1, set use_culibs=1")
-
-    // sgemm-specific (sort of)
-    u32_pt_t MNt; //NESI(default="8 8",help="register blocking, M and N dims: compute Mt*Nt outputs per thread")
-    u32_pt_t MNb;  //NESI(default="8 8",help="thread blocking, M and N dims: use Mb*Nb threads per block")
-    uint32_t Kb; //NESI(default=8,help="inner loop unroll factor")
-    uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm")
-    uint32_t prof_variant; //NESI(default=0,help="if nonzero, run special experimental profiling variant")
-    uint32_t vw; //NESI(default=8,help="vector width for simd variants")
-
-    // cnn-specific
-    uint32_t opt; //NESI(default=1,help="if 1, choose optimized variant (cnn operations only)")
-  };
 
   struct cnn_op_info_t : virtual public nesi, public has_main_t // NESI(help="print info for set of CNN operations",
 			 // bases=["has_main_t"], type_id="cnn_op_info" )
@@ -152,10 +136,6 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia );
   };
 
-  void add_cnn_codegen_annotations( conv_op_base_t * const op, 
-				    bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, 
-				    bool const & force_enable_tconv, uint32_t const t_tile_sz );
-
   void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune ) {
     if( anno_op->is( Convolution_coi ) ) {
       if( op_tune.use_culibs ) { 
@@ -163,7 +143,7 @@ namespace boda
         must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       } else { 
         assert_st( op_tune.MNt.dims_are_same() ); // FIXME: could pass down if not same
-        add_cnn_codegen_annotations( anno_op.get(), 0, op_tune.opt, op_tune.opt, 0, op_tune.MNt.d[0] ); 
+        add_cnn_codegen_annotations( anno_op.get(), op_tune.ipconv, op_tune.k1conv, op_tune.tconv, op_tune.tconv==2, op_tune.MNt.d[0] ); 
         anno_op->type = must_find( anno_op->str_vals, "cts" );
         must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       }
