@@ -45,7 +45,7 @@ namespace boda
 	if( !op->in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); op->set_cts( conv_str ); }
 	else { op->set_cts( k1conv_str ); }
       }
-      else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(u32_pt_t{11,11})
+      else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(op_tune.tconv_max_ksz)
 								   && (kern_sz_.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
 	op->set_cts( tconv_str ); }
       else { op->set_cts( conv_str ); }
@@ -174,7 +174,7 @@ namespace boda
 	work.calc_strides();
 
 	if( op->cts() == k1conv_str ) { 
-	  uint32_t const in_blk_iter_chan_dim = 8; // FIXME: make into param?
+	  uint32_t const in_blk_iter_chan_dim = op_tune.Kb;
 	  // the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	  // vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
 	  in_dims = dims_t( vect_uint32_t{

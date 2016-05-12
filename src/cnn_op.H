@@ -16,7 +16,7 @@ namespace boda
     // sgemm-specific (sort of)
     u32_pt_t MNt; //NESI(default="8 8",help="register blocking, M and N dims: compute Mt*Nt outputs per thread (sgemm+cnn)")
     u32_pt_t MNb;  //NESI(default="8 8",help="thread blocking, M and N dims: use Mb*Nb threads per block")
-    uint32_t Kb; //NESI(default=8,help="inner loop unroll factor")
+    uint32_t Kb; //NESI(default=8,help="inner loop unroll factor (for sgemm and k1conv)")
     uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm")
     uint32_t prof_variant; //NESI(default=0,help="if nonzero, run special experimental profiling variant")
     uint32_t vw; //NESI(default=8,help="vector width for simd variants")
@@ -25,6 +25,7 @@ namespace boda
     //uint32_t opt; //xNESI(default=1,help="if 1, choose optimized variant (cnn operations only)")
     uint32_t k1conv; //NESI(default=0,help="if 1, enable k1conv variant (cnn operations only)")
     uint32_t tconv; //NESI(default=0,help="if 1, enable tconv variant (cnn operations only). if 2, (force-)enable tconv in more cases.")
+    u32_pt_t tconv_max_ksz;  //NESI(default="11:11",help="max kernel size to use for tconv")
     uint32_t ipconv; //NESI(default=0,help="if 1, enable ipconv variant (cnn operations only)")
   };
 
