@@ -27,11 +27,11 @@ namespace boda
     u32_pt_t num_thr; // total space in threads; == ceil_div( num_mn, mn_per_thr )
     u32_pt_t mn_per_thr;
     u32_pt_t num_mn; // total space
-    void init( uint32_t const & t_tile_sz, uint32_t const max_tpb, u32_pt_t const & num_mn_ ) {
+    void init( u32_pt_t const & t_tile_sz, uint32_t const max_tpb, u32_pt_t const & num_mn_ ) {
       num_mn = num_mn_;
       //mn_per_thr.d[0] = t_tile_sz;
-      mn_per_thr.d[0] = get_good_div( num_mn.d[0], t_tile_sz );
-      mn_per_thr.d[1] = t_tile_sz;
+      mn_per_thr.d[0] = get_good_div( num_mn.d[0], t_tile_sz.d[0] );
+      mn_per_thr.d[1] = t_tile_sz.d[1];
       mn_per_thr.d[1] = std::min( mn_per_thr.d[1], mn_per_thr.d[0]*3 ); // little benefit to higher aspect ratios
       //if( mn_per_thr.d[0] * 3 <= t_tile_sz ) { mn_per_thr.d[1] *= 2; } // experimental bump if small mn_per_thr.d[0]
       num_thr = ceil_div( num_mn, mn_per_thr );

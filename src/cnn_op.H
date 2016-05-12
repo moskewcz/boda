@@ -33,9 +33,7 @@ namespace boda
   string const ipconv_str = "ipconv"; 
   string const conv_str = "conv";
   
-  void add_cnn_codegen_annotations( conv_op_base_t * const op, 
-				    bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, 
-				    bool const & force_enable_tconv, uint32_t const t_tile_sz );
+  void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune );
   
 }
 

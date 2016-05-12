@@ -51,15 +51,14 @@ namespace boda
     uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
-    uint32_t enable_k1conv; //NESI(default=0,help="if 1, enable experimental k1conv special case")
-    uint32_t enable_ipconv; //NESI(default=0,help="if 1, enable ipconv special case")
-    uint32_t enable_tconv; //NESI(default=0,help="if 1, enable tconv special case")
+
+    op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
+
     uint32_t enable_bconv; //NESI(default=0,help="if 1, enable bconv")
-    uint32_t force_enable_tconv; //NESI(default=0,help="if 1, force-enable experimental tconv special case even for not-sensible sizes")
     uint32_t enable_write_xpose; //NESI(default=0,help="if 1, enable experimental k1conv write xposing")
     uint32_t force_zero_bias; //NESI(default=0,help="if 1, force biases to zero")
     uint32_t flags; //NESI(default=0,help="dynamic flags to pass to kernels that request them (often to trick compiler)")
-    uint32_t t_tile_sz; //NESI(default=8,help="register blocking tile size: compute t_tile_sz^2 outputs in registers per thread")
+
     vect_string dump_vars; // NESI(help="dump out values of these vars after forward")
 
     filename_t rtc_func_sigs_fn; //NESI(default="rtc_func_sigs.txt",help="file to hold all generated func signatures")
@@ -455,7 +454,7 @@ namespace boda
     }
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t const & oi = must_find( *op_infos, i->first );
-      add_cnn_codegen_annotations( oi.get(), enable_ipconv, enable_k1conv, enable_tconv, force_enable_tconv, t_tile_sz );
+      add_cnn_codegen_annotations( oi.get(), op_tune );
     }
 
     // these parts might go in init, but they need to know about the overall graph of operations. so we'll call these a

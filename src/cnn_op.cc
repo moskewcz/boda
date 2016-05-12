@@ -10,9 +10,14 @@ namespace boda
   // based on the semantics/type of the operation represented by conv_op_base_t and the code generation parameters,
   // annotate the operation with the information needed for the next stage of code generation. In particular, this code
   // selects an operation variant and selects tuning paramters for this operations for that variant.
-  void add_cnn_codegen_annotations( conv_op_base_t * const op, 
-				    bool const & enable_ipconv, bool const & enable_k1conv, bool const & enable_tconv, 
-				    bool const & force_enable_tconv, uint32_t const t_tile_sz ) {
+void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune ) {
+
+bool const enable_ipconv = op_tune.ipconv;
+bool const enable_k1conv = op_tune.k1conv;
+bool const enable_tconv = op_tune.tconv;
+bool const force_enable_tconv = (op_tune.tconv==2);
+u32_pt_t const & t_tile_sz = op_tune.MNt;
+
     dims_t ni_dims;
     dims_t no_dims = op->get_dims( op->coi->top_an(0) );
     u32_pt_t const no_sz = get_xy_dims( no_dims );

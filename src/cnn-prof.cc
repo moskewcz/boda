@@ -143,7 +143,7 @@ namespace boda
         must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       } else { 
         assert_st( op_tune.MNt.dims_are_same() ); // FIXME: could pass down if not same
-        add_cnn_codegen_annotations( anno_op.get(), op_tune.ipconv, op_tune.k1conv, op_tune.tconv, op_tune.tconv==2, op_tune.MNt.d[0] ); 
+        add_cnn_codegen_annotations( anno_op.get(), op_tune ); 
         anno_op->type = must_find( anno_op->str_vals, "cts" );
         must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       }
@@ -257,6 +257,7 @@ namespace boda
 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
 
     filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/cnn_func_sigs_tiny.txt",help="file to read cnn ops from")
     filename_t rtc_func_sigs_fn; //NESI(default="%(boda_output_dir)/cnn_rtc_func_sigs.txt",help="file to hold all generated rtc func signatures for the input cnn ops")
@@ -271,7 +272,7 @@ namespace boda
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
-      add_cnn_codegen_annotations( op.get(), 0, 0, 0, 0, 4 );
+      add_cnn_codegen_annotations( op.get(), op_tune );
       op->type = must_find( op->str_vals, "cts" );
       must_insert( op->str_vals, "conv_has_relu", str(1) );
       (*out) << str( *op ) << "\n";
