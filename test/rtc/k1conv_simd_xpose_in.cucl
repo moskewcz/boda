@@ -1,0 +1,14 @@
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CUCL IN img:chan:y:x
+					  GASQ float * const in ) // CUCL OUT img:y:x:chan
+{
+  // CUCL IX GLOB_ID_1D in
+  if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }
+  float v = 0.0f;
+  if( ( %(GLOB_ID_1D_chan) < %(in_ref_chan_dim) ) && ( %(GLOB_ID_1D_ix) < %(in_ref_img_dim) ) ) {
+    v = in_ref[ %(GLOB_ID_1D_img)*%(in_ref_img_sz) +
+                %(GLOB_ID_1D_chan)*%(in_ref_chan_sz) +
+                %(GLOB_ID_1D_y)*%(in_ref_y_sz) +
+                %(GLOB_ID_1D_x)*%(in_ref_x_sz) ];
+  }
+  in[GLOB_ID_1D] = v;
+}

@@ -17,7 +17,7 @@ namespace boda
     u32_pt_t MNt; //NESI(default="8 8",help="register blocking, M and N dims: compute Mt*Nt outputs per thread (sgemm+cnn)")
     u32_pt_t MNb;  //NESI(default="8 8",help="thread blocking, M and N dims: use Mb*Nb threads per block")
     uint32_t Kb; //NESI(default=8,help="inner loop unroll factor (for sgemm and k1conv)")
-    uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm")
+    uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm (affects some cnn ops too, like k1conv)")
     uint32_t prof_variant; //NESI(default=0,help="if nonzero, run special experimental profiling variant")
     uint32_t vw; //NESI(default=8,help="vector width for simd variants")
 
@@ -29,6 +29,7 @@ namespace boda
     uint32_t ipconv; //NESI(default=0,help="if 1, enable ipconv variant (cnn operations only)")
   };
 
+  string const k1conv_simd_str = "k1conv_simd"; 
   string const k1conv_str = "k1conv"; 
   string const tconv_str = "tconv"; 
   string const ipconv_str = "ipconv"; 

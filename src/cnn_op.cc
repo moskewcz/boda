@@ -43,11 +43,15 @@ namespace boda
 		 && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no_dims.dsz("chan") >= 64) ) 
       { 
 	if( !op->in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); op->set_cts( conv_str ); }
-	else { op->set_cts( k1conv_str ); }
+	else { 
+          if( op_tune.use_local_mem == 0 ) { op->set_cts( k1conv_simd_str ); }
+          else { op->set_cts( k1conv_str ); }
+        }
       }
       else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(op_tune.tconv_max_ksz)
 								   && (kern_sz_.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
-	op->set_cts( tconv_str ); }
+        op->set_cts( tconv_str );
+      }
       else { op->set_cts( conv_str ); }
 
       if( op->is( BckConv_coi ) ) {
@@ -180,6 +184,20 @@ namespace boda
 	  in_dims = dims_t( vect_uint32_t{
 	      work.dsz("pels_blk"), u32_ceil_div(ni_dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
+	} else if( op->cts() == k1conv_simd_str ) { 
+          // FIXME/NOTE: WIP to become simd, no-local-mem version of k1conv -- but initially with no SIMD
+          // for SIMD, we'll need to pad in_chans to a multiple of vw, but for now we don't need to.
+          // we also xpose to pels:chans format for both the filts and input. each blk will handle:
+          uint32_t const in_chans_pad = ni_dims.dsz("chan");
+          uint32_t const blk_pels = work.dsz("pels_tile")*work.dsz("pels");
+          // if the input in not an exact number of pels, add enough images to at least fill the final partial blk
+          uint32_t const in_blks = u32_ceil_div( pels_sz, blk_pels );
+          uint32_t const img_pels = pels_sz / ni_dims.dsz("img");
+          assert_st( img_pels * ni_dims.dsz("img") == pels_sz ); // by construction
+          uint32_t const in_imgs_pad = u32_ceil_div( in_blks*blk_pels, img_pels );
+	  must_insert( op->str_vals, "Kb", str(op_tune.Kb) );
+	  in_dims = dims_t( vect_uint32_t{ in_imgs_pad, ni_dims.dsz("y"), ni_dims.dsz("x"), in_chans_pad }, 
+                            vect_string{"img","y","x","chan"}, 1 ); 
 	}
 	op->dims_vals["work"] = work;
 	// k1conv and in_tile_xpose need the standard output dims for reference. curently this == the dims of "out",
@@ -194,7 +212,13 @@ namespace boda
 	op->dims_vals["in"] = in_dims; 
 	// 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
 	op->dims_vals["filts_ref"] = op->dims_vals["filts"];
-	if( op->cts() != ipconv_str ) { 
+        if( op->cts() == k1conv_simd_str ) {
+          // match padded chans of input
+	  op->dims_vals["filts"] = dims_t( 
+            vect_uint32_t{ op->dims_vals["filts"].dsz("out_chan"), kern_sz_.d[1], kern_sz_.d[0], in_dims.dsz("chan") }, 
+            vect_string{"out_chan","y","x","in_chan"}, 1 ); 
+
+        } else if( op->cts() != ipconv_str ) { 
 	  op->dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
 	}
