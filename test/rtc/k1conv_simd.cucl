@@ -18,17 +18,19 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 
   float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts, for the same filts_ix_out_chan_elem
-  float filts_strip[%(work_out_chan_dim)]; // across output chans (stride is blk_filt_ix_sz )
-  float in_strip[%(work_pels_dim)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
+  float%(vw) filts_strip[%(work_out_chan_dim)/%(vw)]; // across output chans (stride is blk_filt_ix_sz )
+  float%(vw) in_strip[%(work_pels_dim)/%(vw)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
 
-  int filts_off_thr = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)*%(filts_out_chan_sz);
-  int in_off_thr = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)*%(in_x_sz);
+  int const filts_off_thr = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw)*%(filts_out_chan_sz);
+  int const in_off_thr = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(in_x_sz);
 
+  int32_t filts_off = filts_off_thr;
+  int32_t in_off = in_off_thr;
   // iteratate over filter elements
   for( int32_t ic = 0; ic < %(in_chan_dim); ic += %(Kb) ) {
     %(inner_loop_body);
-    filts_off_thr += %(filts_in_chan_sz)*%(Kb);
-    in_off_thr += %(in_chan_sz)*%(Kb);
+    filts_off += %(Kb)*%(filts_in_chan_sz)/%(vw);
+    in_off += %(Kb)*%(in_chan_sz)/%(vw);
   }
   // load per-block biases into smem
   if( flags == 2 ) { return; }
@@ -38,8 +40,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   int32_t out_pel = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim);
   int32_t out_chan = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim);
 
-  float bias_strip[%(work_out_chan_dim)]; // across output chans (stride is blk_filt_ix_sz ) (note: could mostly share regs with in_strip)
-  for( int32_t ty = 0; ty < %(work_out_chan_dim); ++ty ) { bias_strip[ty] = biases[out_chan+ty]; }
+  float%(vw) bias_strip[%(work_out_chan_dim)/%(vw)]; // across output chans (stride is blk_filt_ix_sz ) (note: could mostly share regs with in_strip)
+  for( int32_t ty = 0; ty < %(work_out_chan_dim)/%(vw); ++ty ) { bias_strip[ty] = ((GASQ float%(vw) const *)biases)[out_chan/%(vw)+ty]; }
 
   for( int32_t tx = 0; tx < %(work_pels_dim); ++tx, ++out_pel ) {
     if( %(out_pel_img) >= %(out_img_dim) ) { continue; } // off-the-end pixel

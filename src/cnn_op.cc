@@ -17,7 +17,7 @@ namespace boda
     bool const enable_tconv = op_tune.tconv;
     bool const force_enable_tconv = (op_tune.tconv==2);
     u32_pt_t const & t_tile_sz = op_tune.MNt;
-
+    uint32_t const max_tpb = op_tune.MNb.dims_prod(); // FIXME: pass as M/N parts, not product.
     dims_t ni_dims;
     dims_t no_dims = op->get_dims( op->coi->top_an(0) );
     u32_pt_t const no_sz = get_xy_dims( no_dims );
@@ -44,7 +44,7 @@ namespace boda
       { 
 	if( !op->in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); op->set_cts( conv_str ); }
 	else { 
-          if( op_tune.use_local_mem == 0 ) { op->set_cts( k1conv_simd_str ); }
+          if( op_tune.use_local_mem == 2 ) { op->set_cts( k1conv_simd_str ); }
           else { op->set_cts( k1conv_str ); }
         }
       }
@@ -88,7 +88,7 @@ namespace boda
 				    vect_string{ "in_chan", "sy", "sx" }, 1 );
 	op->dims_vals["pix"] = dims_t(  vect_uint32_t{ no_dims.dsz("img"), 
 	      uint32_t(bck_pels_sz.d[1]), uint32_t(bck_pels_sz.d[0]) }, vect_string{ "img", "y", "x" }, 1 );
-	gbt.init( t_tile_sz, 128, u32_pt_t( op->dims_vals["pix"].dims_prod(), op->dims_vals["oix"].dims_prod()));
+	gbt.init( t_tile_sz, max_tpb, u32_pt_t( op->dims_vals["pix"].dims_prod(), op->dims_vals["oix"].dims_prod()));
 	dims_t work;
 	work.add_dims( "pels_blk", gbt.num_blk.d[0] );
 	work.add_dims( "out_ix_blk", gbt.num_blk.d[1] );
@@ -101,7 +101,7 @@ namespace boda
 	      u32_ceil_div(kern_sz_.d[0],op->stride().d[0]) }, vect_string{"out_chan","ky","kx"}, 1 );
 	  
 	gbt_tile_t gbt_fb;
-	gbt_fb.init( t_tile_sz, 128, u32_pt_t( fgld.dsz("in_chan")*fgld.dsz("y")*fgld.dsz("x"), fgld.dsz("out_chan") ) );
+	gbt_fb.init( t_tile_sz, max_tpb, u32_pt_t( fgld.dsz("in_chan")*fgld.dsz("y")*fgld.dsz("x"), fgld.dsz("out_chan") ) );
 	dims_t work_fb;
 	work_fb.add_dims( "pels_blk", gbt_fb.num_blk.d[0] );
 	work_fb.add_dims( "out_ix_blk", gbt_fb.num_blk.d[1] );
@@ -120,7 +120,7 @@ namespace boda
 	uint32_t const pels_sz = out_ix_sz / no_dims.dsz("chan");
 	assert_st( pels_sz * no_dims.dsz("chan") == out_ix_sz ); // by construction
 	gbt_tile_t gbt;
-	gbt.init( t_tile_sz, 128, u32_pt_t( pels_sz, no_dims.dsz("chan") ) );
+	gbt.init( t_tile_sz, max_tpb, u32_pt_t( pels_sz, no_dims.dsz("chan") ) );
 	dims_t work;
 	uint32_t const lines_sz = no_dims.dsz("img") * no_sz.d[1];
 	if( op->cts() == tconv_str ) {
@@ -187,6 +187,7 @@ namespace boda
 	      work.dsz("pels_blk"), u32_ceil_div(ni_dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
 	} else if( op->cts() == k1conv_simd_str ) { 
+          must_insert( op->str_vals, "vw", str(op_tune.vw) );
           // FIXME/NOTE: WIP to become simd, no-local-mem version of k1conv -- but initially with no SIMD for SIMD,
           // we'll need to pad in_chans to a multiple of Kb (which in turn should be a mult of vw), but for now we don't
           // need to.  we also xpose to pels:chans format for both the filts and input. each blk will handle:

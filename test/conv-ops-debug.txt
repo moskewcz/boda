@@ -1,1 +1,1 @@
-(type=Convolution,dims_vals=(biases=(out_chan=1000),filts=(out_chan=1000,in_chan=1024,y=1,x=1),in=(img=20,chan=1024,y=6,x=6),in_pad=(y=0,x=0),kern_sz=(y=1,x=1),out=(img=20,chan=1000,y=6,x=6),stride=(y=1,x=1)),str_vals=(out_chans=1000))
+(type=Convolution,dims_vals=(biases=(out_chan=1000),filts=(out_chan=1000,in_chan=1024,y=1,x=1),in=(img=4,chan=1024,y=16,x=16),in_pad=(y=0,x=0),kern_sz=(y=1,x=1),out=(img=4,chan=1000,y=16,x=16),stride=(y=1,x=1)),str_vals=(out_chans=1000))

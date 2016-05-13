@@ -99,6 +99,7 @@ LDFLAGS := $(LDFLAGS) -L/scratch/moskewcz/android/qsml/QSML-0.14.0/ilp64/aarch64
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+cnn_op.o
 qblas-test.o qblas
 comp_util.o
 cnn-prof.o

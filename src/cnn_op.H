@@ -14,8 +14,8 @@ namespace boda
     uint32_t use_culibs; //NESI(default=0,help="if 1, set use_culibs=1")
 
     // sgemm-specific (sort of)
-    u32_pt_t MNt; //NESI(default="8 8",help="register blocking, M and N dims: compute Mt*Nt outputs per thread (sgemm+cnn)")
-    u32_pt_t MNb;  //NESI(default="8 8",help="thread blocking, M and N dims: use Mb*Nb threads per block")
+    u32_pt_t MNt; //NESI(default="8:8",help="register blocking, M and N dims: compute Mt*Nt outputs per thread (sgemm+cnn)")
+    u32_pt_t MNb;  //NESI(default="8:16",help="thread blocking, M and N dims: use Mb*Nb threads per block")
     uint32_t Kb; //NESI(default=8,help="inner loop unroll factor (for sgemm and k1conv)")
     uint32_t use_local_mem; //NESI(default=1,help="if 1, use local memory for sgemm (affects some cnn ops too, like k1conv)")
     uint32_t prof_variant; //NESI(default=0,help="if nonzero, run special experimental profiling variant")

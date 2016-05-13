@@ -1,1 +1,1 @@
-(type=sgemm,dims_vals=(a=(K=512,M=512),b=(K=512,N=512),c=(M=512,N=512)))
+(type=sgemm,dims_vals=(a=(K=1024,M=1024),b=(K=1024,N=1024),c=(M=1024,N=1024)))
