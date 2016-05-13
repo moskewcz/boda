@@ -1,13 +1,16 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const out, // CUCL IN chan:img:y:x
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const out, // CUCL IN chan:pel
 					  GASQ float * const out_ref ) // CUCL OUT img:chan:y:x
 {
   // it is assumed that all dims of out are >= (padded) the dims of out_ref
   // CUCL IX GLOB_ID_1D out_ref
+  // CUCL IX pel_ix out_ref use_dims=img:y:x
   if( GLOB_ID_1D >= %(out_ref_dims_prod) ) { return; }
+  // FIXME: what we want to do here is *assign/set* the components of pel_ix, but we don't have support for that, so we
+  // do it manually. worse, we don't even have a way to declare a ref dims to match pel_ix, so that's manual too.
+  int32_t const pel_ix = (%(GLOB_ID_1D_img)*%(out_ref_y_dim)+%(GLOB_ID_1D_y))*%(out_ref_x_dim)+%(GLOB_ID_1D_x);
+  // here, we could assert that %(pel_ix_img) == %(GLOB_ID_1D_img) and so on for the dims of pel_ix
   float v = 0.0f;
-  v = out[ %(GLOB_ID_1D_img)*%(out_img_sz) +
-               %(GLOB_ID_1D_chan)*%(out_chan_sz) +
-               %(GLOB_ID_1D_y)*%(out_y_sz) +
-               %(GLOB_ID_1D_x)*%(out_x_sz) ];
+  v = out[ %(GLOB_ID_1D_chan)*%(out_chan_sz) +
+           pel_ix*%(out_pel_sz) ];
   out_ref[GLOB_ID_1D] = v;
 }
