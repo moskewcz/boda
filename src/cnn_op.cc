@@ -55,8 +55,10 @@ namespace boda
 								   && (kern_sz_.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
         op->set_cts( tconv_str );
       }
-      else { op->set_cts( conv_str ); }
-
+      else { 
+          if( op_tune->use_local_mem == 2 ) { op->set_cts( conv_simd_str ); }
+          else { op->set_cts( conv_str ); }
+      }
       // NOTE/FIXME: this whole per_op_tune thing is hacky and experimental ... but we do need to do something. i guess
       // we're creeping toward what we need for supporting autotuning in the long run, but we need to figure out the
       // clean way to do things. there seem to really be multiple stages of tuning paramers. in this case, we use the
@@ -215,7 +217,24 @@ namespace boda
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
             vect_string{"in_chan","y","x","out_chan"}, 1 ); 
 	  op->dims_vals["out"] = dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 1 ); 
-	}
+	} else if( op->cts() == conv_simd_str ) { 
+          must_insert( op->str_vals, "vw", str(op_tune->vw) );
+          // simd, no-local-mem version of k1conv.  we xpose to pels:chans format for the file, input, and output. we
+          // pad the pels and out_chans to exactly match the blocking.
+          uint32_t const pels_sz_pad = work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels");
+          assert_st( pels_sz_pad >= pels_sz );
+          uint32_t const out_chan_pad = work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan");
+          assert_st( out_chan_pad >= op->dims_vals["filts"].dsz("out_chan") );
+          // FIXME: pad in_chan to multiple of Kb?
+	  must_insert( op->str_vals, "Kb", str(op_tune->Kb) );
+          uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
+          in_dims = dims_t( vect_uint32_t{ in_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 1 ); 
+          // note: for now, we don't pad and/or xpose out, so the store code must handle that.
+	  op->dims_vals["filts"] = dims_t( 
+            vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
+            vect_string{"in_chan","y","x","out_chan"}, 1 ); 
+	  op->dims_vals["out"] = dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 1 ); 
+        }
 	op->dims_vals["work"] = work;
 	// k1conv and in_tile_xpose need the standard output dims for reference. curently this == the dims of "out",
 	// but a later pass might change the desired output format by changing the "out" dims. however, the "out_ref"
@@ -227,12 +246,12 @@ namespace boda
 	// we do this, we may change the binding for "in" (e.g. to point to an xformed version of the original
 	// variable).
 	op->dims_vals["in"] = in_dims; 
-        if( op->cts() == k1conv_simd_str ) {
-          // handled in above k1conv_simd block
-        } else if( op->cts() != ipconv_str ) { 
-	  op->dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
-		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
-	}
+        if( is_k1_or_t_or_reg_conv( op->cts() ) ) {
+            op->dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), 
+                  kern_sz_.d[1], kern_sz_.d[0],
+                  work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x",
+                                                                       "out_chan_reg","out_chan_tile"}, 1 );
+          }
 	// dims_t( vect_uint32_t{out_chans}, vect_string{"out_chan"}, 1 );
       } // end if(is_conv)
     }

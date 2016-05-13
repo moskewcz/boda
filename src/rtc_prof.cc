@@ -7,6 +7,7 @@
 #include"has_main.H"
 #include"rtc_func_gen.H"
 #include"rtc_compute.H"
+#include"cnn_op.H"
 
 namespace boda 
 {
@@ -109,7 +110,7 @@ namespace boda
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
           string xpose_op = anno_op->type+"_xpose_"+i->vn;
           // FIXME: sigh.
-          if( ( i->vn == "filts" ) && (get( anno_op->str_vals, "cts", "" ) != "k1conv_simd" )) { xpose_op = "xpose_filts"; }
+          if( ( i->vn == "filts" ) && is_k1_or_t_or_reg_conv(get( anno_op->str_vals, "cts", "" ))) { xpose_op = "xpose_filts"; }
           string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                       op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
           codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
