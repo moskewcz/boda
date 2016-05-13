@@ -1,5 +1,5 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CUCL IN img:chan:y:x
-					  GASQ float * const in ) // CUCL OUT img:y:x:chan
+					  GASQ float * const in ) // CUCL OUT chan:img:y:x
 {
   // CUCL IX GLOB_ID_1D in
   if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }

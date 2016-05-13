@@ -29,10 +29,13 @@ namespace boda
 	rcg->line( "ins_ops", "v += ins_"+str(i)+"[GLOB_ID_1D];" ); 
       }
     }
+    string maybe_add_relu( rtc_call_gen_t * rcg, string const & ve ) { 
+      return rcg->get_u32("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve; 
+    }
 
     string add_bias_then_maybe_relu( rtc_call_gen_t * rcg, dims_t const & work, uint32_t const & tx, uint32_t const ty ) { 
       string const ve = strprintf( "(out_tile[%s] + filts_strip[%s])", str((ty*work.dsz("out_chan")+tx)).c_str(), str(tx).c_str() );
-      return rcg->get_u32("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
+      return maybe_add_relu( rcg, ve );
     }    
 
     void gen_op_bconv( rtc_call_gen_t * rcg ) {
@@ -501,6 +504,47 @@ namespace boda
 
     void gen_op_k1conv_simd( rtc_call_gen_t * rcg ) {
       rcg->has_final_flags_arg = 1;
+      dims_t const & work = rcg->get_arg_dims_by_name( "work" );
+      uint64_t const in_chan_sz = rcg->get_arg_dims_by_name("in").dstride("chan");
+      uint64_t const filts_in_chan_sz = rcg->get_arg_dims_by_name("filts").dstride("in_chan");
+      uint32_t const Kb_dim = rcg->get_u32( "Kb" );
+      for( uint32_t Kb = 0; Kb != Kb_dim; ++Kb ) {
+	for( uint32_t tx = 0; tx != work.dsz("pels"); ++tx ) { 
+          rcg->line( "inner_loop_body", strprintf( "in_strip[%s] = in[in_off_thr+%s];", 
+                                                   str(tx).c_str(), str(tx+Kb*in_chan_sz).c_str() ) );
+        }
+	for( uint32_t ty = 0; ty != work.dsz("out_chan"); ++ty ) { 
+          rcg->line( "inner_loop_body", strprintf( "filts_strip[%s] = filts[filts_off_thr+%s];", 
+                                                   str(ty).c_str(), str(ty+Kb*filts_in_chan_sz).c_str() ) );
+        }
+	for( uint32_t tx = 0; tx != work.dsz("pels"); ++tx ) { 
+          for( uint32_t ty = 0; ty != work.dsz("out_chan"); ++ty ) { 
+            uint32_t const rix = (tx*work.dsz("out_chan")+ty);
+            rcg->line( "inner_loop_body", strprintf( "out_tile[%s] += in_strip[%s]*filts_strip[%s];",str(rix).c_str(), 
+                                                     str(tx).c_str(), str(ty).c_str()));
+          }
+        }
+      }
+
+      rcg->line( "outs_to_filts_strip", "switch(tx) { " );
+      for( uint32_t tx = 0; tx != work.dsz("pels"); ++tx ) { 
+	rcg->line( "outs_to_filts_strip", "case "+str(tx)+":" );
+	for( uint32_t ty = 0; ty != work.dsz("out_chan"); ++ty ) { 
+          uint32_t const rix = (tx*work.dsz("out_chan")+ty);
+          rcg->line( "outs_to_filts_strip", strprintf( "filts_strip[%s] = out_tile[%s] + bias_strip[%s];", 
+                                                       str(ty).c_str(), str(rix).c_str(), str(ty).c_str() ) );  
+	}
+        rcg->line( "outs_to_filts_strip", "break;" );
+      }
+      rcg->line( "outs_to_filts_strip", "} " );
+
+      // note: for this section, there will be a local 'Mt' in scope, used to adjust c_off each iteration
+      for( uint32_t ty = 0; ty != work.dsz("out_chan"); ++ty ) { 
+        rcg->line( "stores", strprintf( "if( (out_chan+%s) >= %%(out_chan_dim) ) { continue; }", str(ty).c_str() ) );  
+        string const ve = strprintf( "(filts_strip[%s])", str(ty).c_str() );
+        rcg->line( "stores", strprintf( "out[out_off] = %s; out_off += %%(out_chan_sz);", maybe_add_relu(rcg,ve).c_str() ) );  
+      }
+
     }
 
     void gen_op_k1conv( rtc_call_gen_t * rcg ) {

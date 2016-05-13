@@ -187,9 +187,9 @@ namespace boda
 	      work.dsz("pels_blk"), u32_ceil_div(ni_dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
 	} else if( op->cts() == k1conv_simd_str ) { 
-          // FIXME/NOTE: WIP to become simd, no-local-mem version of k1conv -- but initially with no SIMD
-          // for SIMD, we'll need to pad in_chans to a multiple of vw, but for now we don't need to.
-          // we also xpose to pels:chans format for both the filts and input. each blk will handle:
+          // FIXME/NOTE: WIP to become simd, no-local-mem version of k1conv -- but initially with no SIMD for SIMD,
+          // we'll need to pad in_chans to a multiple of Kb (which in turn should be a mult of vw), but for now we don't
+          // need to.  we also xpose to pels:chans format for both the filts and input. each blk will handle:
           uint32_t const blk_pels = work.dsz("pels_tile")*work.dsz("pels");
           // if the output is not an exact number of pels blks, add enough images to at least fill the final partial blk
           uint32_t const in_blks = u32_ceil_div( pels_sz, blk_pels );
@@ -199,8 +199,8 @@ namespace boda
 	  must_insert( op->str_vals, "Kb", str(op_tune.Kb) );
           // if the output is not an exact number of out_chan blks, add enough out_chans to make it exact
           out_chan_pad = u32_ceil_align( out_chan_pad, work.dsz("out_chan_tile")*work.dsz("out_chan") );
-          in_dims = dims_t( vect_uint32_t{ in_imgs_pad, ni_dims.dsz("y"), ni_dims.dsz("x"), in_chan_pad }, 
-                            vect_string{"img","y","x","chan"}, 1 ); 
+          in_dims = dims_t( vect_uint32_t{ in_chan_pad, in_imgs_pad, ni_dims.dsz("y"), ni_dims.dsz("x") }, 
+                            vect_string{"chan","img","y","x"}, 1 ); 
           // note: for now, we don't pad and/or xpose out, so the store code must handle that.
 	}
 	op->dims_vals["work"] = work;
@@ -219,8 +219,8 @@ namespace boda
         if( op->cts() == k1conv_simd_str ) {
           // match padded chans of input
 	  op->dims_vals["filts"] = dims_t( 
-            vect_uint32_t{ out_chan_pad, kern_sz_.d[1], kern_sz_.d[0], in_chan_pad }, 
-            vect_string{"out_chan","y","x","in_chan"}, 1 ); 
+            vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
+            vect_string{"in_chan","y","x","out_chan"}, 1 ); 
 
         } else if( op->cts() != ipconv_str ) { 
 	  op->dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
