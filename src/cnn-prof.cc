@@ -215,32 +215,32 @@ namespace boda
       to_latex.init( op );
       if( op_tune.prof_variant ) { to_latex.emit_bw = 1; } // HACK; see comment in conv_op_info_to_latex_t
       if( oit_out ) { to_latex.info_row( oit_out.get() ); }
-      for( uint32_t opt = 0; opt < 1; ++opt ) { // FIXME: iter-over-opt support broken
-	if( rtc_comp ) { vs1->clear(); vs2->clear(); }
-	// create rtc op
-	p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
-        p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
-        // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-	add_codegen_annotations( anno_op, op_tune );        
-        if( rtc_comp ) { add_codegen_annotations( anno_op_comp, op_tune_comp ); }
 
-        // for now, make generation only dependent on orig op type; this is convenient currently, but won't work well
-        // if/when dealing with operations that require alternate data formats. maybe in those cases we'll need to deal
-        // with auto-generating the need conversion functions anyway ...
-        if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
+      if( rtc_comp ) { vs1->clear(); vs2->clear(); }
+      // create rtc op
+      p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
+      p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
+      // generate boda variant according to tuning params (just opt and t_tile_sz currently)
+      add_codegen_annotations( anno_op, op_tune );        
+      if( rtc_comp ) { add_codegen_annotations( anno_op_comp, op_tune_comp ); }
 
-	double const rfc_dur_secs = profile_rcg_call( anno_op, codegen, show_rtc_calls, gen_data, vs1.get() ) / 1000.0;
-	// (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
-	if( rtc_comp ) {
-	  profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get() );
-	  vect_string const vns1 = get_keys( *vs1 );
-	  vect_string const vns2 = get_keys( *vs2 );
-	  if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
-						  str(vns1).c_str(), str(vns2).c_str() ) ); }
-	  comp_vars( out.get(), num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
-	}
-	if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops ); }
+      // for now, make generation only dependent on orig op type; this is convenient currently, but won't work well
+      // if/when dealing with operations that require alternate data formats. maybe in those cases we'll need to deal
+      // with auto-generating the need conversion functions anyway ...
+      if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
+
+      double const rfc_dur_secs = profile_rcg_call( anno_op, codegen, show_rtc_calls, gen_data, vs1.get() ) / 1000.0;
+      // (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
+      if( rtc_comp ) {
+        profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get() );
+        vect_string const vns1 = get_keys( *vs1 );
+        vect_string const vns2 = get_keys( *vs2 );
+        if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
+                                                str(vns1).c_str(), str(vns2).c_str() ) ); }
+        comp_vars( out.get(), num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
       }
+      if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops ); }
+
     }
 
     if( enable_prof ) { rtc->profile_stop(); if( rtc_comp ) { rtc_comp->profile_stop(); } }
