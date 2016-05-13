@@ -196,3 +196,30 @@ Instruction stats (for sgemm_simd_local)
   binary/object versioning ...
 
 
+
+# k1conv/sgemm comparison debugging. k1conv 'fast' version (hacked-up writing):
+
+- Instruction stats
+- All Instructions:       93,     122 (rpt), ratio  1.31
+- ALUs          :       31,      35 (rpt), ratio  1.13
+- Total NOPs    :       15,      33 (rpt), ratio  2.20
+- NOPs          :       11,      24 (rpt), ratio  2.18
+- Post-NOPs     :        4,       9 (rpt), ratio  2.25
+- MOVs          :       28,      31 (rpt), ratio  1.11
+- Loads/Stores  :       20,      29 (rpt), ratio  1.45
+- ldp          :        7,       7 (rpt), ratio  1.00
+- ldg          :        3,       9 (rpt), ratio  3.00
+- stp          :        2,       5 (rpt), ratio  2.50
+- stg          :        8,       8 (rpt), ratio  1.00
+- Flow Instrs   :        3
+- Short sync flags:        2
+- Long sync flags :        2
+- Full Registers  :        6
+- uGPR Registers  :        4
+- Unified Regs    :        6
+- Scratch space   :      256
+- Total footprint :      352
+- Maximal Waves   :       10 (A5x)
+
+# k1conv/sgemm comparison debugging. k1conv 'slow' version (correct, normal writing):
+

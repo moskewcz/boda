@@ -36,6 +36,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // load biases into filts_strip
   //(bias_loads);
   // add bias to each elem of out_tile[] and store the results to out[]
+#if 1
   int32_t out_pel = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim);
   int32_t out_chan = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim);
 
@@ -49,7 +50,13 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
     %(outs_to_filts_strip);
     %(stores);
   }
-
+#else
+  int32_t out_off = 0;
+  for( int32_t tx = 0; tx < %(work_pels_dim); ++tx ) {
+    %(outs_to_filts_strip);
+    %(stores);
+  }
+#endif
   //(stores);
 }
 

@@ -537,19 +537,27 @@ namespace boda
 	rcg->line( "outs_to_filts_strip", "case "+str(tx)+":" );
 	for( uint32_t ty = 0; ty != work.dsz("out_chan"); ++ty ) { 
           uint32_t const rix = (tx*work.dsz("out_chan")+ty);
-          rcg->line( "outs_to_filts_strip", strprintf( "filts_strip%s = out_tile[%s] + bias_strip%s;", 
-                                                       gva(vw,ty).c_str(), str(rix).c_str(), gva(vw,ty).c_str() ) );  
+          rcg->line( "outs_to_filts_strip", strprintf( "filts_strip%s = out_tile[%s];", 
+                                                       gva(vw,ty).c_str(), str(rix).c_str() ) );  
 	}
         rcg->line( "outs_to_filts_strip", "break;" );
       }
       rcg->line( "outs_to_filts_strip", "} " );
 
-      // note: for this section, there will be a local 'Mt' in scope, used to adjust c_off each iteration
+      // note: for this section, there will be a local 'ty' in scope
+#if 1
       for( uint32_t ty = 0; ty != work.dsz("out_chan"); ++ty ) { 
         rcg->line( "stores", strprintf( "if( (out_chan+%s) >= %%(out_chan_dim) ) { continue; }", str(ty).c_str() ) );  
         string const ve = strprintf( "(filts_strip%s)", gva(vw,ty).c_str() );
         rcg->line( "stores", strprintf( "out[out_off] = %s; out_off += %%(out_chan_sz);", maybe_add_relu(rcg,ve).c_str() ) );  
       }
+#else
+      for( uint32_t ty = 0; ty != work.dsz("out_chan")/vw; ++ty ) { 
+        string const ve = strprintf( "filts_strip%s", gva(vw,ty).c_str() );
+        rcg->line( "stores", strprintf( "out[out_off] = %s; out_off += %%(out_chan_sz);", 
+                                        ve.c_str() ) );  
+      }
+#endif
 
     }
 
