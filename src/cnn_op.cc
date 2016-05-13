@@ -214,7 +214,7 @@ namespace boda
 	  op->dims_vals["filts"] = dims_t( 
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
             vect_string{"in_chan","y","x","out_chan"}, 1 ); 
-	  op->dims_vals["out"] = in_dims;
+	  op->dims_vals["out"] = dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 1 ); 
 	}
 	op->dims_vals["work"] = work;
 	// k1conv and in_tile_xpose need the standard output dims for reference. curently this == the dims of "out",
