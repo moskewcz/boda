@@ -503,7 +503,7 @@ namespace boda
     }
 
     void gen_op_k1conv_simd( rtc_call_gen_t * rcg ) {
-      rcg->has_final_flags_arg = 1;
+      //rcg->has_final_flags_arg = 1;
       uint32_t const vw = rcg->get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("pels") % vw) == 0 );

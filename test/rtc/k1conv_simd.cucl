@@ -1,8 +1,8 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN in_chan:y:x:out_chan
 					  GASQ float const * const biases, // CUCL IN out_chan
 					  GASQ float const * const in, // CUCL IN chan:img:y:x
-					  GASQ float * const out, // CUCL OUT img:chan:y:x
-					  int32_t const flags )
+					  GASQ float * const out // CUCL OUT img:chan:y:x
+                                          )
 // yeah, okay, we don't use stride/in_pad here. but in codegen, we
 // check that the stride is really 1, so we must declare then here.
 /* stride */  // CUCL REF y:x 
@@ -33,7 +33,6 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
     in_off += %(Kb)*%(in_chan_sz)/%(vw);
   }
   // load per-block biases into smem
-  if( flags == 2 ) { return; }
   // load biases into filts_strip
   //(bias_loads);
   // add bias to each elem of out_tile[] and store the results to out[]
