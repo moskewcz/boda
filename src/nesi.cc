@@ -17,6 +17,7 @@ using std::string;
 #include"str_util.H"
 #include"xml_util.H"
 #include"geom_prim.H"
+#include"cnn_op.H"
 
 namespace boda 
 {
@@ -698,7 +699,15 @@ namespace boda
       must_insert( *v, i->n.str(), *p_vv );
     }
   }
-  
+
+  // map_str_op_tune_t
+  init_t * nesi_map_str_op_tune_t_init = &nesi_map_str_T_init< op_tune_t >;
+  make_p_t * map_str_op_tune_t_make_p = &has_def_ctor_make_p< map_str_op_tune_t >;
+  vect_push_back_t * map_str_op_tune_t_vect_push_back = &has_def_ctor_vect_push_back_t< map_str_op_tune_t >;
+  nesi_dump_t * map_str_op_tune_t_nesi_dump = &with_op_left_shift_nesi_dump< map_str_op_tune_t >;
+  extern tinfo_t tinfo_op_tune_t;
+  void *map_str_op_tune_t_init_arg = (void *)&tinfo_op_tune_t;
+
   // map_str_dims_t
   init_t * nesi_map_str_dims_t_init = &nesi_map_str_T_init< dims_t >;
   make_p_t * map_str_dims_t_make_p = &has_def_ctor_make_p< map_str_dims_t >;

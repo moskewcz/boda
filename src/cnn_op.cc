@@ -10,14 +10,14 @@ namespace boda
   // based on the semantics/type of the operation represented by conv_op_base_t and the code generation parameters,
   // annotate the operation with the information needed for the next stage of code generation. In particular, this code
   // selects an operation variant and selects tuning paramters for this operations for that variant.
-  void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune ) {
-
-    bool const enable_ipconv = op_tune.ipconv;
-    bool const enable_k1conv = op_tune.k1conv;
-    bool const enable_tconv = op_tune.tconv;
-    bool const force_enable_tconv = (op_tune.tconv==2);
-    u32_pt_t const & t_tile_sz = op_tune.MNt;
-    uint32_t const max_tpb = op_tune.MNb.dims_prod(); // FIXME: pass as M/N parts, not product.
+  void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune_,
+                                    map_str_op_tune_t const *per_op_tune )
+  {
+    op_tune_t const * op_tune = &op_tune_;
+    bool const enable_ipconv = op_tune->ipconv;
+    bool const enable_k1conv = op_tune->k1conv;
+    bool const enable_tconv = op_tune->tconv;
+    bool const force_enable_tconv = (op_tune->tconv==2);
     dims_t ni_dims;
     dims_t no_dims = op->get_dims( op->coi->top_an(0) );
     u32_pt_t const no_sz = get_xy_dims( no_dims );
@@ -44,15 +44,26 @@ namespace boda
       { 
 	if( !op->in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); op->set_cts( conv_str ); }
 	else { 
-          if( op_tune.use_local_mem == 2 ) { op->set_cts( k1conv_simd_str ); }
+          if( op_tune->use_local_mem == 2 ) { op->set_cts( k1conv_simd_str ); }
           else { op->set_cts( k1conv_str ); }
         }
       }
-      else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(op_tune.tconv_max_ksz)
+      else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(op_tune->tconv_max_ksz)
 								   && (kern_sz_.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
         op->set_cts( tconv_str );
       }
       else { op->set_cts( conv_str ); }
+
+      // NOTE/FIXME: this whole per_op_tune thing is hacky and experimental ... but we do need to do something. i guess
+      // we're creeping toward what we need for supporting autotuning in the long run, but we need to figure out the
+      // clean way to do things. there seem to really be multiple stages of tuning paramers. in this case, we use the
+      // 'base' op_tune to select a variant (which uses some subset of the tuning params, mostly enable related ones),
+      // and then if there's a per-variant op_tune we use it for some remaining params (mostly blocking related
+      // ones). so maybe we need to split op_tune_t? or not?
+      if( per_op_tune ) { op_tune = &get(*per_op_tune,op->cts(),op_tune_); };
+
+      u32_pt_t const & t_tile_sz = op_tune->MNt;
+      uint32_t const max_tpb = op_tune->MNb.dims_prod(); // FIXME: pass as M/N parts, not product.
 
       if( op->is( BckConv_coi ) ) {
 	// note: since fwd strides are always N/1, bck 'strides' are always 1/N, meaning stride in the fwd sense will
@@ -180,20 +191,20 @@ namespace boda
         uint32_t out_chan_pad = op->dims_vals["filts"].dsz("out_chan"); // not padded yet but may be layer
         uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
 	if( op->cts() == k1conv_str ) { 
-	  uint32_t const in_blk_iter_chan_dim = op_tune.Kb;
+	  uint32_t const in_blk_iter_chan_dim = op_tune->Kb;
 	  // the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	  // vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
 	  in_dims = dims_t( vect_uint32_t{
 	      work.dsz("pels_blk"), u32_ceil_div(ni_dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
 	} else if( op->cts() == k1conv_simd_str ) { 
-          must_insert( op->str_vals, "vw", str(op_tune.vw) );
+          must_insert( op->str_vals, "vw", str(op_tune->vw) );
           // FIXME/NOTE: WIP to become simd, no-local-mem version of k1conv -- but initially with no SIMD for SIMD,
           // we'll need to pad in_chans to a multiple of Kb (which in turn should be a mult of vw), but for now we don't
           // need to.  we also xpose to pels:chans format for both the filts and input. each blk will handle:
           uint32_t const pels_sz_pad = work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels");
           assert_st( pels_sz_pad >= pels_sz );
-	  must_insert( op->str_vals, "Kb", str(op_tune.Kb) );
+	  must_insert( op->str_vals, "Kb", str(op_tune->Kb) );
           // if the output is not an exact number of out_chan blks, add enough out_chans to make it exact
           out_chan_pad = u32_ceil_align( out_chan_pad, work.dsz("out_chan_tile")*work.dsz("out_chan") );
           in_dims = dims_t( vect_uint32_t{ in_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 1 ); 

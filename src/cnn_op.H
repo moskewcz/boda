@@ -28,6 +28,11 @@ namespace boda
     u32_pt_t tconv_max_ksz;  //NESI(default="11:11",help="max kernel size to use for tconv")
     uint32_t ipconv; //NESI(default=0,help="if 1, enable ipconv variant (cnn operations only)")
   };
+  typedef vector< op_tune_t > vect_op_tune_t; 
+  typedef shared_ptr< op_tune_t > p_op_tune_t; 
+  typedef vector< p_op_tune_t > vect_p_op_tune_t;
+  typedef map< string, op_tune_t > map_str_op_tune_t;
+
 
   string const k1conv_simd_str = "k1conv_simd"; 
   string const k1conv_str = "k1conv"; 
@@ -35,7 +40,8 @@ namespace boda
   string const ipconv_str = "ipconv"; 
   string const conv_str = "conv";
   
-  void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune );
+  void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune,
+                                    map_str_op_tune_t const *per_op_tune );
   
 }
 

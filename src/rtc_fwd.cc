@@ -454,7 +454,7 @@ namespace boda
     }
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
       p_op_info_t const & oi = must_find( *op_infos, i->first );
-      add_cnn_codegen_annotations( oi.get(), op_tune );
+      add_cnn_codegen_annotations( oi.get(), op_tune, 0 );
     }
 
     // these parts might go in init, but they need to know about the overall graph of operations. so we'll call these a

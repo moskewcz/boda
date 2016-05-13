@@ -120,6 +120,8 @@ namespace boda
     op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
     op_tune_t op_tune_comp; //NESI(default="(use_culibs=1,MNt=4:4,MNb=8:8,Kb=1,opt=0)",help="tuning parameters / options")
 
+    map_str_op_tune_t per_op_tune; //NESI(default="()",help="tuning parameters / options")
+
     p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
@@ -136,14 +138,14 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia );
   };
 
-  void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune ) {
+  void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune, 
+                                map_str_op_tune_t const *per_op_tune ) {
     if( anno_op->is( Convolution_coi ) ) {
       if( op_tune.use_culibs ) { 
         anno_op->type = "cudnn_conv";
         must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       } else { 
-        assert_st( op_tune.MNt.dims_are_same() ); // FIXME: could pass down if not same
-        add_cnn_codegen_annotations( anno_op.get(), op_tune ); 
+        add_cnn_codegen_annotations( anno_op.get(), op_tune, per_op_tune ); 
         anno_op->type = must_find( anno_op->str_vals, "cts" );
         must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
       }
@@ -221,8 +223,8 @@ namespace boda
       p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
       p_conv_op_base_t anno_op_comp = make_shared<conv_op_base_t>( *op );
       // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-      add_codegen_annotations( anno_op, op_tune );        
-      if( rtc_comp ) { add_codegen_annotations( anno_op_comp, op_tune_comp ); }
+      add_codegen_annotations( anno_op, op_tune, &per_op_tune );        
+      if( rtc_comp ) { add_codegen_annotations( anno_op_comp, op_tune_comp, 0 ); }
 
       // for now, make generation only dependent on orig op type; this is convenient currently, but won't work well
       // if/when dealing with operations that require alternate data formats. maybe in those cases we'll need to deal
@@ -272,7 +274,7 @@ namespace boda
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
-      add_cnn_codegen_annotations( op.get(), op_tune );
+      add_cnn_codegen_annotations( op.get(), op_tune, 0 );
       op->type = must_find( op->str_vals, "cts" );
       must_insert( op->str_vals, "conv_has_relu", str(1) );
       (*out) << str( *op ) << "\n";
