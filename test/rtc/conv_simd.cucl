@@ -9,11 +9,15 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 /* in_pad */  // CUCL REF y:x 
 /* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
 /* out_ref */  // CUCL REF img:chan:y:x
+/* in_pels */  // CUCL REF img:y:x
+/* out_pels */  // CUCL REF img:y:x
 {
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
   // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
   // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
   // note: for k1conv we have filts_y_dim==filts_x_dim==1
+  // CUCL IX filt_pix filts use_dims=in_chan:y:x
+  // CUCL IX in_pix in_pels
 
   float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts, for the same filts_ix_out_chan_elem

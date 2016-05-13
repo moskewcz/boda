@@ -562,6 +562,7 @@ namespace boda
       assert( (work.dsz("out_chan") % vw) == 0 );
       uint64_t in_chan_sz = rcg->get_arg_dims_by_name("in").dstride("chan");
       uint64_t filts_in_chan_sz = rcg->get_arg_dims_by_name("filts").dstride("in_chan");
+      printf( "in_chan_sz=%s\n", str(in_chan_sz).c_str() );
       assert_st( ( in_chan_sz % vw ) == 0 ); in_chan_sz /= vw;
       assert_st( ( filts_in_chan_sz % vw ) == 0 ); filts_in_chan_sz /= vw;
 

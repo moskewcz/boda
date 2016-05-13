@@ -217,18 +217,40 @@ namespace boda
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
             vect_string{"in_chan","y","x","out_chan"}, 1 ); 
 	  op->dims_vals["out"] = dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 1 ); 
-	} else if( op->cts() == conv_simd_str ) { 
+	} else if( op->cts() == conv_simd_str ) {
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
-          // simd, no-local-mem version of k1conv.  we xpose to pels:chans format for the file, input, and output. we
-          // pad the pels and out_chans to exactly match the blocking.
-          uint32_t const pels_sz_pad = work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels");
-          assert_st( pels_sz_pad >= pels_sz );
-          uint32_t const out_chan_pad = work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan");
-          assert_st( out_chan_pad >= op->dims_vals["filts"].dsz("out_chan") );
           // FIXME: pad in_chan to multiple of Kb?
 	  must_insert( op->str_vals, "Kb", str(op_tune->Kb) );
           uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
-          in_dims = dims_t( vect_uint32_t{ in_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 1 ); 
+          // calculate padded x/y dims
+          u32_pt_t in_xy = get_xy_dims( in_dims );
+          in_xy += op->in_pad(); // add pre-padding (will also function as post-padding for prior y value
+          in_xy = ceil_align( in_xy, op->stride() ); // align to stride
+          u32_pt_t out_xy = in_xy / op->stride(); // will divide exactly by construction
+          // these are (for reference) the nested dims for the pel dim of in/out
+	  op->dims_vals["in_pels"] = dims_t( vect_uint32_t{ in_dims.dsz("img"), in_xy.d[1], in_xy.d[0] },
+                                             vect_string{"img","y","x"}, 1 ); 
+	  op->dims_vals["out_pels"] = dims_t( vect_uint32_t{ in_dims.dsz("img"), out_xy.d[1], out_xy.d[0] },
+                                              vect_string{"img","y","x"}, 1 ); // min output pels we must calculate
+          work = dims_t(); // need to recalculate work. FIXME: need to refactor to make this cleaner across cases
+          gbt_tile_t gbt;
+          gbt.init( t_tile_sz, max_tpb, u32_pt_t( op->dims_vals["out_pels"].dims_prod(), no_dims.dsz("chan") ) );
+	  work.add_dims( "pels_blk", gbt.num_blk.d[0], "out_chan_blk", gbt.num_blk.d[1] );
+          work.add_dims( "pels_tile", gbt.thr_per_blk.d[0], "out_chan_tile", gbt.thr_per_blk.d[1] );
+          work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_chan", gbt.mn_per_thr.d[1] ); // dims of per-thread work
+          work.calc_strides();
+
+          uint32_t const pels_sz_pad = work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels"); // final pels we will calc
+          assert_st( pels_sz_pad >= op->dims_vals["out_pels"].dims_prod() );
+          uint32_t const out_chan_pad = work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan");
+          assert_st( out_chan_pad >= op->dims_vals["filts"].dsz("out_chan") );
+
+          // in needs final x/y padding + extra pels padding depending on the filter size: 
+          u32_pt_t const fin_pad_xy = kern_sz_ - op->stride() + op->in_pad();
+          uint32_t filt_dep_extra_in_pad = (fin_pad_xy.d[1])*op->dims_vals["in_pels"].dstride("y") +
+            (fin_pad_xy.d[0])*op->dims_vals["in_pels"].dstride("x"); 
+          uint32_t final_in_pels_pad = u32_ceil_align( op->dims_vals["in_pels"].dims_prod()+filt_dep_extra_in_pad,op_tune->vw);
+          in_dims = dims_t( vect_uint32_t{ in_chan_pad, final_in_pels_pad }, vect_string{"chan","pel"}, 1 ); 
           // note: for now, we don't pad and/or xpose out, so the store code must handle that.
 	  op->dims_vals["filts"] = dims_t( 
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
