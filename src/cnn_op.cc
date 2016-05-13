@@ -222,7 +222,7 @@ namespace boda
 	  op->dims_vals["filts"] = dims_t( 
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
             vect_string{"in_chan","y","x","out_chan"}, 1 ); 
-
+	  op->dims_vals["out"] = in_dims;
         } else if( op->cts() != ipconv_str ) { 
 	  op->dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );

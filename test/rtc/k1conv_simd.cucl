@@ -1,7 +1,7 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN in_chan:y:x:out_chan
 					  GASQ float const * const biases, // CUCL IN out_chan
 					  GASQ float const * const in, // CUCL IN chan:img:y:x
-					  GASQ float * const out // CUCL OUT img:chan:y:x
+					  GASQ float * const out // CUCL OUT chan:img:y:x
                                           )
 // yeah, okay, we don't use stride/in_pad here. but in codegen, we
 // check that the stride is really 1, so we must declare then here.
@@ -32,31 +32,19 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
     filts_off += %(Kb)*%(filts_in_chan_sz)/%(vw);
     in_off += %(Kb)*%(in_chan_sz)/%(vw);
   }
-  // load per-block biases into smem
-  // load biases into filts_strip
-  //(bias_loads);
-  // add bias to each elem of out_tile[] and store the results to out[]
-#if 1
-  int32_t out_pel = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim);
-  int32_t out_chan = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim);
 
-  float%(vw) bias_strip[%(work_out_chan_dim)/%(vw)]; // across output chans (stride is blk_filt_ix_sz ) (note: could mostly share regs with in_strip)
-  for( int32_t ty = 0; ty < %(work_out_chan_dim)/%(vw); ++ty ) { bias_strip[ty] = ((GASQ float%(vw) const *)biases)[out_chan/%(vw)+ty]; }
+  int32_t const out_chan = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw);
+  int32_t out_off = 
+    ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(out_x_sz) +
+    out_chan*%(out_chan_sz);
+  
+  for( int32_t ty = 0; ty < %(work_out_chan_dim)/%(vw); ++ty ) { 
+    filts_strip[ty] = ((GASQ float%(vw) const *)biases)[out_chan+ty]; }
 
-  for( int32_t tx = 0; tx < %(work_pels_dim); ++tx, ++out_pel ) {
-    if( %(out_pel_img) >= %(out_img_dim) ) { continue; } // off-the-end pixel
-    int32_t out_off = ( %(out_pel_img)*%(out_img_sz) + %(out_pel_y)*%(out_y_sz) + %(out_pel_x)*%(out_x_sz) +
-                        out_chan*%(out_chan_sz) );// thread-level offset into c
-    %(outs_to_filts_strip);
+  for( int32_t ty = 0; ty < %(work_out_chan_dim); ++ty ) {
+    %(outs_to_in_strip);
     %(stores);
+    out_off += %(out_chan_sz)/%(vw);
   }
-#else
-  int32_t out_off = 0;
-  for( int32_t tx = 0; tx < %(work_pels_dim); ++tx ) {
-    %(outs_to_filts_strip);
-    %(stores);
-  }
-#endif
-  //(stores);
 }
 
