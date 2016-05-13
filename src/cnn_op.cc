@@ -29,6 +29,9 @@ namespace boda
       assert_st( !ni_dims.empty() );
       in_dims = ni_dims;
       op->dims_vals["in_ref"] = in_dims; // tconv needs the standard input dims for reference
+      // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
+      op->dims_vals["filts_ref"] = op->dims_vals["filts"];
+
       u32_pt_t kern_sz_;
       if( has( op->dims_vals, "kern_sz" ) ) { kern_sz_ = op->kern_sz(); }
       else {
@@ -188,8 +191,6 @@ namespace boda
 	} // unrolling/tiling of inner loop
 	work.calc_strides();
 
-        uint32_t out_chan_pad = op->dims_vals["filts"].dsz("out_chan"); // not padded yet but may be layer
-        uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
 	if( op->cts() == k1conv_str ) { 
 	  uint32_t const in_blk_iter_chan_dim = op_tune->Kb;
 	  // the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
@@ -199,16 +200,21 @@ namespace boda
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, 1 ); 
 	} else if( op->cts() == k1conv_simd_str ) { 
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
-          // FIXME/NOTE: WIP to become simd, no-local-mem version of k1conv -- but initially with no SIMD for SIMD,
-          // we'll need to pad in_chans to a multiple of Kb (which in turn should be a mult of vw), but for now we don't
-          // need to.  we also xpose to pels:chans format for both the filts and input. each blk will handle:
+          // simd, no-local-mem version of k1conv.  we xpose to pels:chans format for the file, input, and output. we
+          // pad the pels and out_chans to exactly match the blocking.
           uint32_t const pels_sz_pad = work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels");
           assert_st( pels_sz_pad >= pels_sz );
+          uint32_t const out_chan_pad = work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan");
+          assert_st( out_chan_pad >= op->dims_vals["filts"].dsz("out_chan") );
+          // FIXME: pad in_chan to multiple of Kb?
 	  must_insert( op->str_vals, "Kb", str(op_tune->Kb) );
-          // if the output is not an exact number of out_chan blks, add enough out_chans to make it exact
-          out_chan_pad = u32_ceil_align( out_chan_pad, work.dsz("out_chan_tile")*work.dsz("out_chan") );
+          uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
           in_dims = dims_t( vect_uint32_t{ in_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 1 ); 
           // note: for now, we don't pad and/or xpose out, so the store code must handle that.
+	  op->dims_vals["filts"] = dims_t( 
+            vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
+            vect_string{"in_chan","y","x","out_chan"}, 1 ); 
+	  op->dims_vals["out"] = in_dims;
 	}
 	op->dims_vals["work"] = work;
 	// k1conv and in_tile_xpose need the standard output dims for reference. curently this == the dims of "out",
@@ -221,14 +227,8 @@ namespace boda
 	// we do this, we may change the binding for "in" (e.g. to point to an xformed version of the original
 	// variable).
 	op->dims_vals["in"] = in_dims; 
-	// 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-	op->dims_vals["filts_ref"] = op->dims_vals["filts"];
         if( op->cts() == k1conv_simd_str ) {
-          // match padded chans of input
-	  op->dims_vals["filts"] = dims_t( 
-            vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
-            vect_string{"in_chan","y","x","out_chan"}, 1 ); 
-	  op->dims_vals["out"] = in_dims;
+          // handled in above k1conv_simd block
         } else if( op->cts() != ipconv_str ) { 
 	  op->dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), kern_sz_.d[1], kern_sz_.d[0],
 		work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x","out_chan_reg","out_chan_tile"}, 1 );
