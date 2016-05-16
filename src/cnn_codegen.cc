@@ -558,6 +558,7 @@ namespace boda
       //rcg->has_final_flags_arg = 1;
       uint32_t const vw = rcg->get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
+      dims_t const & in_pels = rcg->get_arg_dims_by_name( "in_pels" );
       assert( (work.dsz("pels") % vw) == 0 );
       assert( (work.dsz("out_chan") % vw) == 0 );
       uint64_t in_chan_sz = rcg->get_arg_dims_by_name("in").dstride("chan");
@@ -567,14 +568,19 @@ namespace boda
       assert_st( ( filts_in_chan_sz % vw ) == 0 ); filts_in_chan_sz /= vw;
 
       dims_t const & stride = rcg->get_arg_dims_by_name( "stride" );
+
+      uint32_t const row_extra_off = (stride.dsz("y")-1)*in_pels.dstride("y");
       assert_st( stride.dsz("y") == stride.dsz("x") ); // FIXME/NOTE: see uniform stride FIXMEs in kernel and cnn_op.cc
+
       uint32_t const Kb_dim = rcg->get_u32( "Kb" );
       for( uint32_t Kb = 0; Kb != Kb_dim; ++Kb ) {
 	for( uint32_t tx = 0; tx != work.dsz("pels"); ++tx ) { 
           assert_st( Kb == 0 ); // see FIXME in cnn_op.cc; stride in in is wrong here (needs to be per X/Y/chan,
                                 // prob. need other approach like fixed unroll over x dim or the like to be eff.)
-          rcg->line( "inner_loop_body", strprintf( "in_strip%s = in[in_off+%s];", 
-                                                   gva(vw,tx).c_str(), str(tx*stride.dsz("x")).c_str() ) ); // FIXME: +Kb*???
+          string reo; 
+          if( row_extra_off ) { reo = strprintf( "+((out_x + %s)/%%(out_pels_x_dim)*%s)", str(tx).c_str(),str(row_extra_off).c_str() ); }
+          rcg->line( "inner_loop_body", strprintf( "in_strip%s = in[in_off+%s %s];",  // FIXME: use Kb
+                                                   gva(vw,tx).c_str(), str(tx*stride.dsz("x")).c_str(), reo.c_str() ) ); 
         }
 	for( uint32_t ty = 0; ty != work.dsz("out_chan")/vw; ++ty ) { 
           rcg->line( "inner_loop_body", strprintf( "filts_strip[%s] = ((GASQ float%s const *)filts)[filts_off+%s];", 

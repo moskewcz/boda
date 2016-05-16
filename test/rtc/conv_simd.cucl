@@ -18,6 +18,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // note: for k1conv we have filts_y_dim==filts_x_dim==1
   // CUCL IX filt_pix filts use_dims=in_chan:y:x
   // CUCL IX in_pix in_pels
+  // CUCL IX out_pix out_pels
 
   float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts, for the same filts_ix_out_chan_elem
@@ -25,8 +26,11 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   float%(vw) in_strip[%(work_pels_dim)/%(vw)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
 
   int const filts_off_thr = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw)*%(filts_out_chan_sz);
-  // FIXME/NOTE: this assumes stride is uniform in X/Y (and arbitrarily uses the X stride)
-  int const in_off_thr = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)*%(stride_x_dim)*%(in_pel_sz);
+  int const out_pix = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim);
+  int const in_off_thr = %(out_pix_x)*%(stride_x_dim)*%(in_pels_x_sz) + %(out_pix_y_nomod)*%(stride_y_dim)*%(in_pels_y_sz);
+  // note: (out_x + out_reg_ix) is the per-register output x coord; this value divided by out_pels_x_dim gives the
+  // intra-thread row offset, which we need if the y stride is > 1 to adjust our Y indexing into in.
+  int const out_x = %(out_pix_x); 
 
   int32_t filts_off = filts_off_thr;
   // iteratate over filter elements
