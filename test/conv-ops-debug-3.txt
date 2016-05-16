@@ -1,0 +1,1 @@
+(type=Convolution,dims_vals=(biases=(out_chan=384),filts=(out_chan=384,in_chan=256,y=3,x=3),in=(img=20,chan=256,y=13,x=13),in_pad=(y=1,x=1),kern_sz=(y=3,x=3),out=(img=20,chan=384,y=13,x=13),stride=(y=1,x=1)),str_vals=(out_chans=384))

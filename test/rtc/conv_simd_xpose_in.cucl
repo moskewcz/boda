@@ -1,16 +1,25 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CUCL IN img:chan:y:x
 					  GASQ float * const in ) // CUCL OUT chan:pel
+/* in_pels */  // CUCL REF img:y:x
+/* in_pad */  // CUCL REF y:x
 {
   // CUCL IX GLOB_ID_1D in
-  // CUCL IX pel_ix in_ref use_dims=img:y:x
+  // CUCL IX pel_ix in_pels
   if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }
   int32_t const pel_ix = %(GLOB_ID_1D_pel);
   float v = 0.0f;
-  if( %(pel_ix_img) < %(in_ref_img_dim) ) {
+  int32_t const in_ref_y = %(pel_ix_y) - %(in_pad_y_dim);
+  int32_t const in_ref_x = %(pel_ix_x) - %(in_pad_x_dim);
+#if 1
+  if( (%(pel_ix_img) < %(in_ref_img_dim)) &&
+      (in_ref_y >= 0) && (in_ref_y < %(in_ref_y_dim)) &&
+      (in_ref_x >= 0) && (in_ref_x < %(in_ref_x_dim)) &&
+      1 ) {
     v = in_ref[ %(pel_ix_img)*%(in_ref_img_sz) +
                 %(GLOB_ID_1D_chan)*%(in_ref_chan_sz) +
-                %(pel_ix_y)*%(in_ref_y_sz) +
-                %(pel_ix_x)*%(in_ref_x_sz) ];
+                in_ref_y*%(in_ref_y_sz) +
+                in_ref_x*%(in_ref_x_sz) ];
   }
+#endif
   in[GLOB_ID_1D] = v;
 }

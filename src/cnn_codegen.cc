@@ -563,14 +563,18 @@ namespace boda
       uint64_t in_chan_sz = rcg->get_arg_dims_by_name("in").dstride("chan");
       uint64_t filts_in_chan_sz = rcg->get_arg_dims_by_name("filts").dstride("in_chan");
       printf( "in_chan_sz=%s\n", str(in_chan_sz).c_str() );
-      assert_st( ( in_chan_sz % vw ) == 0 ); in_chan_sz /= vw;
+      //assert_st( ( in_chan_sz % vw ) == 0 ); in_chan_sz /= vw;
       assert_st( ( filts_in_chan_sz % vw ) == 0 ); filts_in_chan_sz /= vw;
 
+      dims_t const & stride = rcg->get_arg_dims_by_name( "stride" );
+      assert_st( stride.dsz("y") == stride.dsz("x") ); // FIXME/NOTE: see uniform stride FIXMEs in kernel and cnn_op.cc
       uint32_t const Kb_dim = rcg->get_u32( "Kb" );
       for( uint32_t Kb = 0; Kb != Kb_dim; ++Kb ) {
-	for( uint32_t tx = 0; tx != work.dsz("pels")/vw; ++tx ) { 
-          rcg->line( "inner_loop_body", strprintf( "in_strip[%s] = ((GASQ float%s const *)in)[in_off+%s];", 
-                                                   str(tx).c_str(), str(vw).c_str(), str(tx+Kb*in_chan_sz).c_str() ) );
+	for( uint32_t tx = 0; tx != work.dsz("pels"); ++tx ) { 
+          assert_st( Kb == 0 ); // see FIXME in cnn_op.cc; stride in in is wrong here (needs to be per X/Y/chan,
+                                // prob. need other approach like fixed unroll over x dim or the like to be eff.)
+          rcg->line( "inner_loop_body", strprintf( "in_strip%s = in[in_off+%s];", 
+                                                   gva(vw,tx).c_str(), str(tx*stride.dsz("x")).c_str() ) ); // FIXME: +Kb*???
         }
 	for( uint32_t ty = 0; ty != work.dsz("out_chan")/vw; ++ty ) { 
           rcg->line( "inner_loop_body", strprintf( "filts_strip[%s] = ((GASQ float%s const *)filts)[filts_off+%s];", 

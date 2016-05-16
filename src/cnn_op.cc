@@ -220,11 +220,16 @@ namespace boda
 	} else if( op->cts() == conv_simd_str ) {
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
           // FIXME: pad in_chan to multiple of Kb?
+          assert_st( op_tune->Kb == 1 ); // FIXME: for now, no inner loop unroll ...
 	  must_insert( op->str_vals, "Kb", str(op_tune->Kb) );
           uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
           // calculate padded x/y dims
           u32_pt_t in_xy = get_xy_dims( in_dims );
           in_xy += op->in_pad(); // add pre-padding (will also function as post-padding for prior y value
+          // FIXME/NOTE: most things below work when the stride is different in X and Y. however, determining the
+          // offsets into in inside the kernel is harder if we can't do it using a linear indexing system (i.e. in_pel =
+          // out_pel*uniform_stride). so, for now, we only allow uniform X/Y stride, and note this in the kernel
+          assert_st( op->stride().dims_are_same() ); 
           in_xy = ceil_align( in_xy, op->stride() ); // align to stride
           u32_pt_t out_xy = in_xy / op->stride(); // will divide exactly by construction
           // these are (for reference) the nested dims for the pel dim of in/out
@@ -245,8 +250,11 @@ namespace boda
           uint32_t const out_chan_pad = work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan");
           assert_st( out_chan_pad >= op->dims_vals["filts"].dsz("out_chan") );
 
-          // in needs final x/y padding + extra pels padding depending on the filter size: 
-          u32_pt_t const fin_pad_xy = kern_sz_ - op->stride() + op->in_pad();
+          // in needs final x/y padding + extra pels padding depending on the filter size. for correctness, we would
+          // only need in_pad padding in X/Y, since no valid output should use more than that. however, to avoid invalid
+          // memory access, we need (kern_sz_ - stride) pels of padding, since that's how far the last output pixel will
+          // hang off the last image. so we max over those two quantities (either could be higher).
+          u32_pt_t const fin_pad_xy = max( kern_sz_ - op->stride(), op->in_pad() );
           uint32_t filt_dep_extra_in_pad = (fin_pad_xy.d[1])*op->dims_vals["in_pels"].dstride("y") +
             (fin_pad_xy.d[0])*op->dims_vals["in_pels"].dstride("x"); 
           uint32_t final_in_pels_pad = u32_ceil_align( op->dims_vals["in_pels"].dims_prod()+filt_dep_extra_in_pad,op_tune->vw);

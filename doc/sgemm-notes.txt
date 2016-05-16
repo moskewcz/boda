@@ -223,3 +223,15 @@ Instruction stats (for sgemm_simd_local)
 
 # k1conv/sgemm comparison debugging. k1conv 'slow' version (correct, normal writing):
 
+# best k1conv_simd configuration example (~52GF/s):
+export LOCAL_RTC="--rtc=(be=ocl,gen_src=1)"
+export SD820_RTC="--rtc=(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)"
+
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/conv-ops-debug-2.txt --op-info-tab-fn=op-info.tex --op-eff-tab-fn=eff-tab.tex  "${SD820_RTC}" --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --rtc-comp='(be=nvrtc)'  --max-err=10 --op-tune='(use_culibs=0,MNt=8:8,MNb=16:16,k1conv=1,tconv=1,Kb=1,tconv_max_ksz=7:7,vw=8,use_local_mem=2)' --op-tune-comp='(use_culibs=1)' --show-rtc-calls=1 --peak-flops=256e9 --mad-toler=3e-3 && cat eff-tab.tex
+1 & 1 & 256 & $20\dx 27 \dx 27 \dx 256$ & \verb|k1conv_simd| & 36.5ms & 52.4GF/s & 20.5\\ 
+
+# new conv_simd (incomplete; without X/Y loops) is correct/works in this case as well, about same perf:
+# ... --op-tune='(use_culibs=0,MNt=8:8,MNb=16:16,k1conv=0,tconv=0,Kb=1,tconv_max_ksz=7:7,vw=8,use_local_mem=2)' ...
+conv_simd__out_chan_256__in_chan_256__y_1__x_1__chan_256__pel_14584__img_20__pels_blk_114__out_chan_blk_2__pels_tile_16__out_chan_tile_16__pels_8__Kb_1__conv_has_relu_1__cts_conv_simd__out_chans_256__vw_8( in{filts biases in out} inout{} out{} -- u32{} ) tpb=256 call_blks=228
+1 & 1 & 256 & $20\dx 27 \dx 27 \dx 256$ & \verb|conv_simd| & 35.6ms & 53.6GF/s & 20.9\\ 
+

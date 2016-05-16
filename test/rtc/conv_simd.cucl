@@ -25,15 +25,15 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   float%(vw) in_strip[%(work_pels_dim)/%(vw)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
 
   int const filts_off_thr = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw)*%(filts_out_chan_sz);
-  int const in_off_thr = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(in_pel_sz);
+  // FIXME/NOTE: this assumes stride is uniform in X/Y (and arbitrarily uses the X stride)
+  int const in_off_thr = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)*%(stride_x_dim)*%(in_pel_sz);
 
   int32_t filts_off = filts_off_thr;
-  int32_t in_off = in_off_thr;
   // iteratate over filter elements
-  for( int32_t ic = 0; ic < %(in_chan_dim); ic += %(Kb) ) {
+  for( int32_t filt_pix = 0; filt_pix < %(filt_pix_dims_prod); filt_pix += %(Kb) ) {
+    int32_t in_off = in_off_thr + %(filt_pix_in_chan)*%(in_chan_sz) + %(filt_pix_y)*%(in_pels_y_sz) + %(filt_pix_x)*%(in_pels_x_sz);
     %(inner_loop_body);
-    filts_off += %(Kb)*%(filts_in_chan_sz)/%(vw);
-    in_off += %(Kb)*%(in_chan_sz)/%(vw);
+    filts_off += %(Kb)*%(filts_x_sz)/%(vw);
   }
 
   int32_t const out_chan = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw);
