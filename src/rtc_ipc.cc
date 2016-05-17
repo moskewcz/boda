@@ -358,6 +358,15 @@ namespace boda
       bwrite( *worker, cucl_src ); bwrite( *worker, show_compile_log ); bwrite( *worker, enable_lineinfo ); 
       bwrite( *worker, func_infos ); bwrite( *worker, show_func_attrs ); 
       worker->flush();
+
+      uint32_t ret = 0;
+      string err_str;
+      bread( *worker, ret ); // 0 --> no error
+      if( ret ) { 
+        bread( *worker, err_str );
+        rt_err( "------BEGIN NESTED ERROR FROM IPC WORKER ------\n" + err_str 
+                + "------END NESTED ERROR FROM IPC WORKER ------\n" );
+      }
     }
     void copy_to_var( string const & vn, float const * const v ) {
       uint32_t const sz = get_var_sz_floats( vn );
@@ -524,7 +533,14 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	  string cucl_src; bool show_compile_log; bool enable_lineinfo; vect_rtc_func_info_t func_infos; bool show_func_attrs;
 	  bread( *parent, cucl_src ); bread( *parent, show_compile_log ); bread( *parent, enable_lineinfo );
 	  bread( *parent, func_infos ); bread( *parent, show_func_attrs );
-	  rtc->compile( cucl_src, show_compile_log, enable_lineinfo, func_infos, show_func_attrs );
+          uint32_t ret = 0;
+          string err_str;
+          try {
+            rtc->compile( cucl_src, show_compile_log, enable_lineinfo, func_infos, show_func_attrs );
+          } catch( rt_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
+          bwrite( *parent, ret ); // 0 --> no error
+          if( ret ) { bwrite( *parent, err_str ); }
+	  parent->flush();
 	}
 	else if( cmd == "copy_to_var" ) {
 	  string vn;
