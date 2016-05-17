@@ -225,7 +225,7 @@ Instruction stats (for sgemm_simd_local)
 
 # best k1conv_simd configuration example (~52GF/s):
 export LOCAL_RTC="rtc=(be=ocl,gen_src=1)"
-export SD820_RTC="rtc=(be=ipc,spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)"
+export SD820_RTC="rtc=(be=ipc,remote_rtc=(be=ocl,gen_src=1,gen_src_output_dir=/data/local/rtc-gen-src),spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)"
 export OP_TUNE="op_tune=(use_culibs=0,MNt=8:8,MNb=16:16,k1conv=1,tconv=0,Kb=1,vw=8,use_local_mem=2)"
 
 moskewcz@maaya:~/git_work/boda/run/tr1$ boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/conv-ops-debug-2.txt --op-info-tab-fn=op-info.tex --op-eff-tab-fn=eff-tab.tex  "${SD820_RTC}" --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --rtc-comp='(be=nvrtc)'  --max-err=10 --op-tune='(use_culibs=0,MNt=8:8,MNb=16:16,k1conv=1,tconv=1,Kb=1,tconv_max_ksz=7:7,vw=8,use_local_mem=2)' --op-tune-comp='(use_culibs=1)' --show-rtc-calls=1 --peak-flops=256e9 --mad-toler=3e-3 && cat eff-tab.tex
