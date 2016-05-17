@@ -806,7 +806,6 @@ namespace boda
   {
     string err_msg;
     p_vect_rp_void bt;
-    string what_str;
     rt_exception( string const & err_msg_, p_vect_rp_void bt_ );
     virtual ~rt_exception() throw () {}
     virtual char const * what( void ) const throw();
