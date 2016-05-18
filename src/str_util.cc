@@ -186,6 +186,7 @@ namespace boda
     return "***"; // too big to render
   }
   string pp_val( double const & orig_v ) { 
+    if( isnan(orig_v) ) { return "NAN"; }
     double v = orig_v;
     int32_t exp = 0; // engineering exponent step: orig_v = v 10^(3*exp)
     assert_st( v >= 0.0 );

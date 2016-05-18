@@ -53,6 +53,7 @@ namespace boda
       (*out) << "\\\\ " << std::endl;
     }
     void eff_row( std::ostream * const out, string const & rtc_op_type, double const & runtime_secs, double const & peak_flops ) {
+      printf( "runtime_secs=%s\n", str(runtime_secs).c_str() );
       base_info( out );
       if( op->is( Convolution_coi ) ) {
 	(*out) << strprintf( " & %s & \\verb|%s| & ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
@@ -231,9 +232,18 @@ namespace boda
       // with auto-generating the need conversion functions anyway ...
       if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
 
-      double const rfc_dur_secs = profile_rcg_call( anno_op, codegen, show_rtc_calls, gen_data, vs1.get() ) / 1000.0;
+      double rfc_dur_secs = NAN;
+      string err;
+      try { rfc_dur_secs = profile_rcg_call( anno_op, codegen, show_rtc_calls, gen_data, vs1.get() ) / 1000.0; }
+      catch( rt_exception const & rte ) {
+        if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
+          err = "CL_OUT_OF_HOST_MEMORY"; 
+          codegen.clear();
+        }
+        else { throw; }
+      }
       // (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
-      if( rtc_comp ) {
+      if( err.empty() && rtc_comp ) {
         profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get() );
         vect_string const vns1 = get_keys( *vs1 );
         vect_string const vns2 = get_keys( *vs2 );
