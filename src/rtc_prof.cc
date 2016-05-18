@@ -50,7 +50,8 @@ namespace boda
   }
 
   double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_float_t * const outs ) 
+			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_float_t * const outs,
+                           uint32_t const & run_iter ) 
   {
     timer_t t("profile_rcg_call");
     // FIXME: pass these? fix some other way? at least group them into some opts sturct?
@@ -121,7 +122,7 @@ namespace boda
       }
     }
     rcg_func_call_t rfc{ rcg->gen_fn, "tag", arg_map };
-    codegen.run_rfc( show_rtc_calls, rfc, 0 );
+    for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_rfc( show_rtc_calls, rfc, 0 ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
     for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
@@ -173,7 +174,7 @@ namespace boda
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
-      double const rfc_dur = profile_rcg_call( v, codegen, show_rtc_calls, 0, 0 );
+      double const rfc_dur = profile_rcg_call( v, codegen, show_rtc_calls, 0, 0, 1 );
       (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s\n", str(rfc_dur/1000.0).c_str() );
     }
     if( enable_prof ) { rtc->profile_stop(); }

@@ -20,10 +20,10 @@ namespace boda
   p_conv_op_base_t make_p_conv_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
   string dims_yxc_str( dims_t const & d, bool include_img = 0 ) { 
-    return strprintf( "$%s%s \\dx %s \\dx %s$", include_img ? (str(d.dsz("img"))+"\\dx ").c_str():"",
+    return strprintf( "$ %s %s \\dx %s \\dx %s $", include_img ? (str(d.dsz("img"))+" \\dx").c_str():"",
 		      str(d.dsz("y")).c_str(), str(d.dsz("x")).c_str(), str(d.dsz("chan")).c_str() ); }
   string mkn_str( uint64_t const & M, uint64_t const & K, uint64_t const & N  ) { 
-    return strprintf( "$%s \\dx %s \\dx %s$", str(M).c_str(), str(K).c_str(), str(N).c_str() ); }
+    return strprintf( "$ %s \\dx %s \\dx %s $", str(M).c_str(), str(K).c_str(), str(N).c_str() ); }
 
 
   struct conv_op_info_to_latex_t {
@@ -34,6 +34,12 @@ namespace boda
     uint64_t M,N,K;
     uint64_t forward_bytes, forward_flops;
     bool emit_bw;
+    uint32_t inc_op_info_in_eff;
+    // locally override the global pp_foo() function with member functions that can control formatting
+    uint32_t print_format;
+#define PP_FMT( t ) string pp_##t( double const v ) const { return (print_format == 0) ? boda::pp_##t( v ) : str(v); }
+    PP_FMT( bytes ) PP_FMT( flops ) PP_FMT( val ) PP_FMT( secs ) PP_FMT( fps ) PP_FMT( bps )
+#undef PP_FMT
 
     void base_info( std::ostream * const out ) {
       if( op->is( Convolution_coi ) ) {
@@ -42,26 +48,30 @@ namespace boda
 	(*out) << strprintf( "%s & %s & %s", str(op->kern_sz().d[0]).c_str(), str(op->stride().d[0]).c_str(), str(dout.dsz("chan")).c_str() );
       }
     }
+    void ai_mnk_row( std::ostream * const out ) {
+      double const ai = double(forward_flops)/double(forward_bytes);
+      (*out) << strprintf( "%s & %s & %s & %s ", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
+			   pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
+    }
     void info_row( std::ostream * const out ) {
       base_info( out );
       if( op->is( Convolution_coi ) ) {
 	(*out) << strprintf( " & %s & %s & %s & ", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
       }
-      double const ai = double(forward_flops)/double(forward_bytes);
-      (*out) << strprintf( "%s & %s & %s & %s", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
-			   pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
+      ai_mnk_row( out );
       (*out) << "\\\\ " << std::endl;
     }
     void eff_row( std::ostream * const out, string const & rtc_op_type, double const & runtime_secs, double const & peak_flops ) {
       printf( "runtime_secs=%s\n", str(runtime_secs).c_str() );
       base_info( out );
       if( op->is( Convolution_coi ) ) {
-	(*out) << strprintf( " & %s & \\verb|%s| & ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
+        (*out) << strprintf( " & %s & \\verb|%s| & ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
+        if( inc_op_info_in_eff ) { ai_mnk_row( out ); }
       } else if( op->is( sgemm_coi ) ) {
         (*out) << strprintf( "%s & \\verb|%s| & ", mkn_str(M,K,N).c_str(), rtc_op_type.c_str()  );
       }
       double const fps = double(forward_flops)/runtime_secs;
-      (*out) << strprintf( "%s & %s & %s", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
+      (*out) << strprintf( "%s & %s & %s ", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
 
       if( emit_bw ) {
         // HACK: emit human-readable BW #s for now, breaks later flow/latex
@@ -72,7 +82,9 @@ namespace boda
 
       (*out) << "\\\\ " << std::endl;
     }
-    void init( p_conv_op_base_t const & op_ ) {
+    void init( p_conv_op_base_t const & op_, uint32_t const & print_format_, uint32_t const & inc_op_info_in_eff_) {
+      print_format = print_format_;
+      inc_op_info_in_eff = inc_op_info_in_eff_;
       op = op_;
       emit_bw = 0;
       if( op->is( Convolution_coi ) ) {
@@ -116,9 +128,12 @@ namespace boda
     p_filename_t out_fn; //NESI(help="output file (output goes to stdout if not specified)")
     p_filename_t op_info_tab_fn; //NESI(help="file to write op info latex rows to")
     p_filename_t op_eff_tab_fn; //NESI(help="file to write op info latex rows to")
+    uint32_t print_format; //NESI(default="0",help="0 == pretty printing; 1 == raw printing")
+    uint32_t inc_op_info_in_eff; //NESI(default="0",help="if 1 includ full op info in eff lines")
     double peak_flops; //NESI(default=6600e9,help="peak flops of platform (for computing peak %s)")
 
     op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
+    uint32_t run_iter; //NESI(default="1",help="re-run op to profile this many times (for power testing)")
     op_tune_t op_tune_comp; //NESI(default="(use_culibs=1,MNt=4:4,MNb=8:8,Kb=1,opt=0)",help="tuning parameters / options")
 
     map_str_op_tune_t per_op_tune; //NESI(default="()",help="tuning parameters / options")
@@ -191,7 +206,7 @@ namespace boda
   }
 
   double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs );
+			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs, uint32_t const & run_iter );
 
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
     vect_p_conv_op_t sigs;
@@ -215,7 +230,7 @@ namespace boda
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
       conv_op_info_to_latex_t to_latex;
-      to_latex.init( op );
+      to_latex.init( op, print_format, inc_op_info_in_eff );
       if( op_tune.prof_variant ) { to_latex.emit_bw = 1; } // HACK; see comment in conv_op_info_to_latex_t
       if( oit_out ) { to_latex.info_row( oit_out.get() ); }
 
@@ -234,7 +249,7 @@ namespace boda
 
       double rfc_dur_secs = NAN;
       string err;
-      try { rfc_dur_secs = profile_rcg_call( anno_op, codegen, show_rtc_calls, gen_data, vs1.get() ) / 1000.0; }
+      try { rfc_dur_secs = profile_rcg_call( anno_op, codegen, show_rtc_calls, gen_data, vs1.get(), run_iter ) / 1000.0; }
       catch( rt_exception const & rte ) {
         if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
           err = "CL_OUT_OF_HOST_MEMORY"; 
@@ -244,7 +259,7 @@ namespace boda
       }
       // (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
       if( err.empty() && rtc_comp ) {
-        profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get() );
+        profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get(), 1 );
         vect_string const vns1 = get_keys( *vs1 );
         vect_string const vns2 = get_keys( *vs2 );
         if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
