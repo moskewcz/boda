@@ -41,7 +41,7 @@ class EffPlot( object ):
             elps = [ elp for elp in elps if (elp not in ["$","&","\\dx","\\\\"]) ]
             self.epts.append( EffPt( elps ) )
         self.do_plots()
-        for zl in []: # [1,2]:
+        for zl in [1,2]:
             self.args.out_fn += "-zoom"
             max_flops = max( ept.flops for ept in self.epts )
             self.epts = [ ept for ept in self.epts if ept.flops < (max_flops/10.0) ]
@@ -98,7 +98,7 @@ class EffPlot( object ):
         fig = plt.figure()
         ax = fig.add_subplot(111)
         #formatting:
-        ax.set_title("GF/s vs Arithmetic Intensity; size == log10(#-of-FLOPS)",fontsize=12,fontweight='bold')
+        ax.set_title("GF/s vs Arithmetic Intensity",fontsize=12,fontweight='bold')
         ax.set_xlabel("Arithmetic Intensity", fontsize=12) # ,fontproperties = font)
         ax.set_ylabel("GF/s", fontsize=12) # ,fontproperties = font)
 
@@ -120,8 +120,15 @@ class EffPlot( object ):
 
         leg_art = [vi.art for vi in vis]
         leg_lab = [vi.name for vi in vis]
+
+        max_flops = max( ept.flops for ept in self.epts )
+        mfl = int(math.ceil(math.log(max_flops,10)))
+        for ls in range(max(mfl-5,1),mfl):
+            ms=2*max(1,ls-6)
+            leg_art += [plt.Line2D((0,0),(0,0), color="black", marker='o', linestyle='', markersize=ms)]
+            leg_lab += ["10^"+str(ls)+" Flops"]
     
-        legend = ax.legend(leg_art,leg_lab,loc='lower right', shadow=True, fontsize='small',numpoints=1,ncol=1)
+        legend = ax.legend(leg_art,leg_lab,loc='upper right', shadow=True, fontsize='small',numpoints=1,ncol=1)
         legend.get_frame().set_facecolor('#eeddcc')
 
         #self.add_fps_line( ax, .2, 10*1e9 )
@@ -139,25 +146,24 @@ class EffPlot( object ):
         ax.axis([self.x_min,self.x_max,self.y_min,self.y_max])
 
         self.data_aspect = float(self.x_max - self.x_min ) / (self.y_max - self.y_min)
-        #self.axis_aspect = 0.618 * self.data_aspect
-        #self.axis_aspect_rat = 1
-        #self.axis_aspect = self.axis_aspect_rat * self.data_aspect
-        #ax.set_aspect(self.axis_aspect)
+        #self.axis_aspect_rat = .618
+        self.axis_aspect_rat = 1
+        self.axis_aspect = self.axis_aspect_rat * self.data_aspect
+        ax.set_aspect(self.axis_aspect)
 
 
     def add_fps_line( self, ax, tx, fps ):
         #Peak performance line and text
-        x = [self.x_min,(self.x_min+self.x_max)/2,self.x_max]
+        x = [self.x_min,(self.x_min+self.x_max)*tx,self.x_max]
         y = [ v/fps for v in x ]
         ax.plot(x,y, linewidth=1.0, color='black', linestyle=':' )
 
         label_string = "%.1fGF/s" % (fps/1e9)
         #yCoordinateTransformed = (log(peakPerf)-log(Y_MIN))/(log(Y_MAX/Y_MIN))
         print self.data_aspect
-        ty = tx * self.data_aspect / fps
         #ty = .115
-        rot=np.arctan(ty/tx) * 180 / np.pi
-        ax.text(tx, ty, label_string, fontsize=8, transform=ax.transAxes, rotation=rot)
+        rot=np.arctan(y[1]/x[1]*self.axis_aspect) * 180 / np.pi
+        ax.text(x[1], y[1], label_string, fontsize=8, rotation=rot, ha="left", va="bottom")
 
 
 
