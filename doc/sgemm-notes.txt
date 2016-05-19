@@ -36,7 +36,10 @@ $1536 \dx 1536 \dx 1536$ & \verb|sgemm| & 2.05ms & 3.54TF/s & 53.6\\
 $2048 \dx 2048 \dx 2048$ & \verb|sgemm| & 5.07ms & 3.39TF/s & 51.3\\ 
 
 # a bit better with 16x4 thread blocking (probably indicates issues with sm access pattern?)
-# --op-tune='(MNt=16:4,MNb=8:16,Kb=8,use_local_mem=1,vw=1)
+# --op-tune='(MNt=16:4,MNb=8:16,Kb=8,use_local_mem=1,vw=1) 
+# FIXME/NOTE: slightly, but significantly, faster with nvrtc
+# backend instread of ocl -- investigate PTX-level differences? tweak indexing?
+
 $128 \dx 128 \dx 128$ & \verb|sgemm| & 35.9us & 117GF/s & 1.77\\ 
 $256 \dx 256 \dx 256$ & \verb|sgemm| & 59.4us & 565GF/s & 8.56\\ 
 $384 \dx 384 \dx 384$ & \verb|sgemm| & 82.0us & 1.38TF/s & 20.9\\ 
