@@ -23,7 +23,9 @@ namespace boda
     return strprintf( "$ %s %s \\dx %s \\dx %s $", include_img ? (str(d.dsz("img"))+" \\dx").c_str():"",
 		      str(d.dsz("y")).c_str(), str(d.dsz("x")).c_str(), str(d.dsz("chan")).c_str() ); }
   string mkn_str( uint64_t const & M, uint64_t const & K, uint64_t const & N  ) { 
-    return strprintf( "$ %s \\dx %s \\dx %s $", str(M).c_str(), str(K).c_str(), str(N).c_str() ); }
+    if( M == K && K == N ) { return strprintf( "$ %s $", str(M).c_str() ); }
+    else { return strprintf( "$ %s \\dx %s \\dx %s $", str(M).c_str(), str(K).c_str(), str(N).c_str() ); }
+  }
 
 
   struct conv_op_info_to_latex_t {
@@ -48,38 +50,49 @@ namespace boda
 	(*out) << strprintf( "%s & %s & %s", str(op->kern_sz().d[0]).c_str(), str(op->stride().d[0]).c_str(), str(dout.dsz("chan")).c_str() );
       }
     }
-    void ai_mnk_row( std::ostream * const out ) {
+    // MKN & Bytes & FLOPs & F/B
+    void ai_mkn_row( std::ostream * const out ) {
       double const ai = double(forward_flops)/double(forward_bytes);
-      (*out) << strprintf( "%s & %s & %s & %s ", pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), 
-			   pp_val(ai).c_str(), mkn_str(M,K,N).c_str() );
+      (*out) << strprintf( " %s & %s & %s & %s ", mkn_str(M,K,N).c_str(), 
+                           pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), pp_val(ai).c_str() );
     }
     void info_row( std::ostream * const out ) {
       base_info( out );
       if( op->is( Convolution_coi ) ) {
 	(*out) << strprintf( " & %s & %s & %s & ", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
       }
-      ai_mnk_row( out );
+      ai_mkn_row( out );
       (*out) << "\\\\ " << std::endl;
     }
-    void eff_row( std::ostream * const out, string const & rtc_op_type, double const & runtime_secs, double const & peak_flops ) {
-      printf( "runtime_secs=%s\n", str(runtime_secs).c_str() );
-      base_info( out );
-      if( op->is( Convolution_coi ) ) {
+
+    // SGEMM comp eff row
+    // MKN & Bytes & FLOPs & F/B & Runtime(comp) & GF/s(comp) & Runtime(non-comp) & GF/s(non-comp) & Speedup-of-non-comp (comp/non-comp)
+
+    void eff_row( std::ostream * const out, string const & rtc_op_type, 
+                  double const & runtime_secs, double const & peak_flops,
+                  double const & runtime_secs_comp ) {
+      if( op->is( sgemm_coi ) ) {
+        ai_mkn_row( out );
+        double const fps_comp = double(forward_flops)/runtime_secs_comp;
+        (*out) << strprintf( " & %s & %s ", pp_secs(runtime_secs_comp).c_str(), pp_fps(fps_comp).c_str() );
+        double const fps = double(forward_flops)/runtime_secs;
+        (*out) << strprintf( " & %s & %s ", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str() ); 
+        (*out) << strprintf( " & %.2f ", double(runtime_secs_comp/runtime_secs) );
+      }
+      else {
+        base_info( out );
         (*out) << strprintf( " & %s & \\verb|%s| & ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
-        if( inc_op_info_in_eff ) { ai_mnk_row( out ); }
-      } else if( op->is( sgemm_coi ) ) {
-        (*out) << strprintf( "%s & \\verb|%s| & ", mkn_str(M,K,N).c_str(), rtc_op_type.c_str()  );
-      }
-      double const fps = double(forward_flops)/runtime_secs;
-      (*out) << strprintf( "%s & %s & %s ", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
+        if( inc_op_info_in_eff ) { ai_mkn_row( out ); }
+        double const fps = double(forward_flops)/runtime_secs;
+        (*out) << strprintf( "%s & %s & %s ", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
 
-      if( emit_bw ) {
-        // HACK: emit human-readable BW #s for now, breaks later flow/latex
-        double const peak_bps = 20e9;
-        double const bps = double(forward_bytes)/runtime_secs;
-        (*out) << strprintf( " -- %s %s --", pp_bps(bps).c_str(), pp_val(bps/peak_bps*100.0).c_str() );
+        if( emit_bw ) {
+          // HACK: emit human-readable BW #s for now, breaks later flow/latex
+          double const peak_bps = 20e9;
+          double const bps = double(forward_bytes)/runtime_secs;
+          (*out) << strprintf( " -- %s %s --", pp_bps(bps).c_str(), pp_val(bps/peak_bps*100.0).c_str() );
+        }
       }
-
       (*out) << "\\\\ " << std::endl;
     }
     void init( p_conv_op_base_t const & op_, uint32_t const & print_format_, uint32_t const & inc_op_info_in_eff_) {
@@ -257,16 +270,17 @@ namespace boda
         }
         else { throw; }
       }
+      double rfc_dur_secs_comp = NAN;
       // (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
       if( err.empty() && rtc_comp ) {
-        profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get(), 1 );
+        rfc_dur_secs_comp = profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get(), 1 ) / 1000.0;
         vect_string const vns1 = get_keys( *vs1 );
         vect_string const vns2 = get_keys( *vs2 );
         if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
                                                 str(vns1).c_str(), str(vns2).c_str() ) ); }
         comp_vars( out.get(), num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
       }
-      if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops ); }
+      if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops, rfc_dur_secs_comp ); }
 
     }
 
