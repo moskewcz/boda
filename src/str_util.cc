@@ -192,7 +192,7 @@ namespace boda
     assert_st( v >= 0.0 );
     while( v < 1.0 ) { 
       v *= 1000.0; --exp; 
-      if( exp < -4 ) { return str(v); } // too small, give up
+      if( exp < -4 ) { return str(orig_v); } // too small, give up
     }
     // while pp_val_part returns its 'too-big' return (i.e. "***" currently)
     string ret;
