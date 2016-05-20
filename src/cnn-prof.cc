@@ -68,6 +68,8 @@ namespace boda
     // SGEMM comp eff row
     // MKN & Bytes & FLOPs & F/B & Runtime(comp) & GF/s(comp) & Runtime(non-comp) & GF/s(non-comp) & Speedup-of-non-comp (comp/non-comp)
 
+    // conv eff row
+    // KSZ & Stride & out_chans & $dims(in)$ & variant & MxKxN & Bytes & FLOPs & F/B & Runtime & GF/s & %Peak
     void eff_row( std::ostream * const out, string const & rtc_op_type, 
                   double const & runtime_secs, double const & peak_flops,
                   double const & runtime_secs_comp ) {
@@ -82,9 +84,9 @@ namespace boda
       else {
         base_info( out );
         (*out) << strprintf( " & %s & \\verb|%s| & ", dims_yxc_str(din,1).c_str(), rtc_op_type.c_str() );
-        if( inc_op_info_in_eff ) { ai_mkn_row( out ); }
+        if( inc_op_info_in_eff ) { ai_mkn_row( out ); (*out) << " & "; }
         double const fps = double(forward_flops)/runtime_secs;
-        (*out) << strprintf( "%s & %s & %s ", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
+        (*out) << strprintf( " %s & %s & %s ", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str(), pp_val(fps/peak_flops*100.0).c_str() ); 
 
         if( emit_bw ) {
           // HACK: emit human-readable BW #s for now, breaks later flow/latex
