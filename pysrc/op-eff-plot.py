@@ -1,5 +1,5 @@
 from matplotlib import rc
-#rc('text', usetex=True) # this is if you want to use latex to print text. If you do you can create strings that go on labels or titles like this for example (with an r in front): r"$n=$ " + str(int(n))
+rc('text', usetex=True) # this is if you want to use latex to print text. If you do you can create strings that go on labels or titles like this for example (with an r in front): r"$n=$ " + str(int(n))
 from numpy import *
 from pylab import *
 import random
@@ -9,6 +9,14 @@ import matplotlib.lines as lns
 from scipy import stats
 from matplotlib.patches import Polygon, Circle
 import matplotlib.font_manager as fm
+
+def latex_float(f):
+    float_str = "{0:.2g}".format(f)
+    if "e" in float_str:
+        base, exponent = float_str.split("e")
+        return r"{0} \times 10^{{{1}}}".format(base, int(exponent))
+    else:
+        return float_str
 
 class EffPt( object ):
     def __init__( self, elp ):
@@ -46,12 +54,13 @@ class varinfo( object ):
         return self.mark_comp if is_comp else self.mark
 
     def get_leg( self, leg_art, leg_lab ):
+        verb_name = "\\verb|"+self.name+"|"
         if self.num_use:
             leg_art.append( self.art) 
-            leg_lab.append( self.name )
+            leg_lab.append( verb_name )
         if self.num_use_comp:
             leg_art.append( self.art_comp) 
-            leg_lab.append( self.name + "(Comparison)" )
+            leg_lab.append( verb_name[:-1] + " (Comp)|" )
         self.clear_use()
         
 vis = [ 
@@ -82,9 +91,10 @@ def read_eff_file( epts, fn ):
 def adj_tick_lab( lab ): 
     lt = lab.get_text()
     if not lt: return "" 
+    if lt[0] == "$": lt = lt[1:-1]
     neg = 1.0
     if lt[0] == u'\u2212': lt = lt[1:]; neg = -1.0
-    return "%.2e" % (10**(neg*float(lt)))
+    return "$%s$" % latex_float(10**(neg*float(lt)))
 
 class EffPlot( object ):
     def __init__( self, args ):
@@ -153,8 +163,8 @@ class EffPlot( object ):
         fig = plt.figure()
         ax = fig.add_subplot(111)
         #formatting:
-        ax.set_title("RUNTIME (seconds) vs #-of-FLOPS",fontsize=14,fontweight='bold')
-        ax.set_xlabel("#-of-FLOPS", fontsize=12) # ,fontproperties = font)
+        ax.set_title("RUNTIME (seconds) vs \\#-of-FLOPS [log/log scale]",fontsize=12,fontweight='bold')
+        ax.set_xlabel("\\#-of-FLOPS", fontsize=12) # ,fontproperties = font)
         ax.set_ylabel("RUNTIME (seconds)", fontsize=12) # ,fontproperties = font)
 
         x = [ math.log(ept.flops,10) for ept in inc_comp(self.epts) ]
@@ -214,7 +224,7 @@ class EffPlot( object ):
         for ls in range(max(mfl-5,1),mfl):
             ms=2*max(1,ls-6)
             leg_art += [plt.Line2D((0,0),(0,0), color="black", marker='o', linestyle='', markersize=ms)]
-            leg_lab += ["10^"+str(ls)+" Flops"]
+            leg_lab += ["$10^{"+str(ls)+"}$ Flops"]
         legend = ax.legend(leg_art,leg_lab,loc='upper right', shadow=True, fontsize='small',numpoints=1,ncol=1)
         legend.get_frame().set_facecolor('#eeddcc')
 
