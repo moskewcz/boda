@@ -79,12 +79,21 @@ X_MIN=0.1
 X_MAX=1000.0
 Y_MIN=1.0
 Y_MAX=10000.0
-PEAK_PERF=[256.0, 5600.0, 6700.0 ]
-PEAK_PERF_LABELS=['Adreno 530 Compute','GTX-980 Compute', 'Titan-X Compute (1.1GHz)']
-PEAK_BW=[20.0, 224.0, 336.0 ]
-PEAK_BW_LABELS = ['Adreno 530 BW','GTX-980 BW', 'Titan-X BW (3.5GGz)']
-knee_ais = [ knee_ai(a,b) for a,b in zip( PEAK_PERF, PEAK_BW ) ]
-knee_ais = zip( knee_ais, ["--","-","-"] )
+
+
+class hw_info( object ):
+    def __init__( self, name, ls, perf, bw ):
+        self.name = name
+        self.ls = ls
+        self.perf = perf
+        self.bw = bw
+        self.knee_ai = knee_ai( self.perf, self.bw )
+
+hardware_targets = [ 
+    hw_info('Adreno 530',"--",256.0,20.0),
+    hw_info('GTX-980',"-",5600.0,224.0),
+    hw_info('Titan-X',"-",6700.0,336.0), # note: compute clock 1.1GHz, mem clock 3.5GHz
+]
 
 INVERSE_GOLDEN_RATIO=0.618
 TITLE=""
@@ -213,13 +222,12 @@ for i in range(minloc,maxloc):
 yticks(newlocs, newlabels)
 
 
-for net_ai in net_ais.itervalues(): addAILine( net_ai )
 
-print "KAIs",knee_ais
+print "KAIs", [hwi.knee_ai for hwi in hardware_targets]
 #Peak performance line and text
-for p,l,kai in zip(PEAK_PERF, PEAK_PERF_LABELS, knee_ais): addPerfLine(p,l,kai[0], kai[1])
+for hwi in hardware_targets: addPerfLine(hwi.perf,hwi.name + " Compute",hwi.knee_ai,hwi.ls)
 #BW line and text
-for bw,l,kai in zip(PEAK_BW, PEAK_BW_LABELS, knee_ais ): addBWLine(bw,l,kai[0], kai[1])
+for hwi in hardware_targets: addBWLine(hwi.bw,hwi.name + " BW",hwi.knee_ai,hwi.ls)
 #save file
 
 out_fn = "cnn-gtx980-roofline%s.png"
@@ -228,6 +236,8 @@ fig.savefig( out_fn % "-no-perf", dpi=600,  bbox_inches='tight')
 show_perf = 1
 
 if show_perf:
+    for net_ai in net_ais.itervalues(): addAILine( net_ai )
+
     for alg in algs:
         for (net,perf) in alg.perfs.iteritems():
             addPerfPt( alg, net, perf )
