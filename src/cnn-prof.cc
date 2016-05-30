@@ -79,7 +79,7 @@ namespace boda
         (*out) << strprintf( " & %s & %s ", pp_secs(runtime_secs_comp).c_str(), pp_fps(fps_comp).c_str() );
         double const fps = double(forward_flops)/runtime_secs;
         (*out) << strprintf( " & %s & %s ", pp_secs(runtime_secs).c_str(), pp_fps(fps).c_str() ); 
-        (*out) << strprintf( " & %.2f ", double(runtime_secs_comp/runtime_secs) );
+        (*out) << strprintf( " & %.2fx ", double(runtime_secs_comp/runtime_secs) );
       }
       else {
         base_info( out );
