@@ -417,6 +417,20 @@ namespace boda
   };
   typedef vector< dim_t > vect_dim_t; 
 
+  // oh, what type to choose for these fields? size_t(signed, but 'official'), uint8_t (right-sized), uint32_t
+  // (fast/compact-ish and big enough)? sigh. i'm still not on the size_t bandwagon, and i'm worried about dealing with
+  // upcasts for size computations where 32 bits isn't enough, and surely 64 bits is enough forever (and fast/native
+  // enough), so uint64_t it is.
+  struct ndat_info_t {
+    string tn;
+    uint64_t sz;
+    bool is_float;
+    bool is_signed;
+  };
+  
+  typedef map< string, ndat_info_t > ndat_infos_t;
+  ndat_infos_t const ndat_infos{ {"float",{"float",4,1,1}}, {"uint32_t",{"uint32_t",4,0,0}} };
+
   // row-major dimensions holder; consists of a vector of dim_t's and a type string.
   // cm_ variants implicitly operate on the reversed dims list to provide column-major access
   // using less than the full # of dims uses a prefix (or suffix for the cm_ variants) of the dims
@@ -431,24 +445,27 @@ namespace boda
     void add_dims( string const & name1_, uint32_t const & sz1_, string const & name2_, uint32_t const & sz2_,
 		   string const & name3_, uint32_t const & sz3_, string const & name4_, uint32_t const & sz4_ ) { 
       add_dims( name1_, sz1_ ); add_dims( name2_, sz2_ ); add_dims( name3_, sz3_ ); add_dims( name4_, sz4_ ); }
-    string type;  // empty for wildcard; otherwise "float", "uint32_t", "int8_t", etc ...
 
+    string tn;  // empty for wildcard; otherwise "float", "uint32_t", "int8_t", etc ...
+    ndat_info_t const & tinfo( void ) const { return must_find( ndat_infos, tn ); }
+    uint64_t tsz( void ) const { return tinfo().sz; }
+        
 
     //hunk_uint32_t dss; // dims and strides, strides first, in T units (i.e. not neccessarily bytes). can be set manually.
     dims_t clone( void ) const { return *this; }
 
     // note: == and < compare: dims *and* strides *and* names
-    bool operator == ( dims_t const & o ) const { return (type==o.type)&&(((vect_dim_t const &)(*this)) == ((vect_dim_t const &)(o)));}
+    bool operator == ( dims_t const & o ) const { return (tn==o.tn)&&(((vect_dim_t const &)(*this)) == ((vect_dim_t const &)(o)));}
     bool operator < ( dims_t const & o ) const { 
-      return (type==o.type)?(((vect_dim_t const &)(*this)) < ((vect_dim_t const &)(o))):(type<o.type); }
+      return (tn==o.tn)?(((vect_dim_t const &)(*this)) < ((vect_dim_t const &)(o))):(tn<o.tn); }
     // like ==, but treats zero/empty sz/stride/names as wild in the passed template/'o' dims_t (NOT in the *this dims_t)
     bool matches_template( dims_t const & o ) const { // note: o is the template, not *this
-      if( o.has_type() && (type != o.type) ) { return 0; }
+      if( o.has_tn() && (tn != o.tn) ) { return 0; }
       if( sz() != o.sz() ) { return 0; }
       for( uint32_t i = 0; i != sz(); ++i ) { if( !at(i).matches_template( o.at(i) ) ) { return 0; } }
       return 1;
     }
-    bool has_type( void ) const { return type.size(); }
+    bool has_tn( void ) const { return tn.size(); }
     bool has_sz_and_stride_and_name( void ) const { 
       for( uint32_t i = 0; i != sz(); ++i ) { if( !at(i).has_sz_and_stride_and_name() ) { return 0; } }
       return 1;
@@ -459,7 +476,7 @@ namespace boda
     }
 
     bool fits_in( dims_t const & o ) const {
-      assert_st( o.type == type ); // FIXME: too strong?
+      assert_st( o.tn == tn ); // FIXME: too strong?
       if( sz() != o.sz() ) { return 0; }
       for( uint32_t ix = 0; ix != sz(); ++ix ) { if( dims(ix) > o.dims(ix) ) { return 0; } }
       return 1;
