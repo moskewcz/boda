@@ -82,17 +82,23 @@ Y_MAX=10000.0
 
 
 class hw_info( object ):
-    def __init__( self, name, ls, perf, bw ):
+    def __init__( self, name, ls, perf, bw, color, knee_marker ):
         self.name = name
         self.ls = ls
         self.perf = perf
         self.bw = bw
         self.knee_ai = knee_ai( self.perf, self.bw )
+        self.color = color
+        self.knee_marker = knee_marker
+        self.art = plt.Line2D((0,0),(0,0), color=self.color, marker=self.knee_marker, linestyle='')
+    def get_leg( self, leg_art, leg_lab ):
+        leg_art.append( self.art )
+        leg_lab.append( self.name + (" knee AI = %.1f" % (self.knee_ai)) )
 
 hardware_targets = [ 
-    hw_info('Adreno 530',"--",256.0,20.0),
-    hw_info('GTX-980',"-",5600.0,224.0),
-    hw_info('Titan-X',"-",6700.0,336.0), # note: compute clock 1.1GHz, mem clock 3.5GHz
+    hw_info('Adreno 530',"--",256.0,20.0,"k","d"),
+    #    hw_info('GTX-980',"-",5600.0,224.0,"k","d"),
+    hw_info('Titan-X',"-",6700.0,336.0,"k","o"), # note: compute clock 1.1GHz, mem clock 3.5GHz
 ]
 
 INVERSE_GOLDEN_RATIO=0.618
@@ -224,13 +230,22 @@ yticks(newlocs, newlabels)
 
 
 print "KAIs", [hwi.knee_ai for hwi in hardware_targets]
+
+show_knee_ai = 0
+if show_knee_ai:
+    leg_art = []; leg_lab = []
+    for hwi in hardware_targets:
+        ax.plot( hwi.knee_ai, hwi.perf, color=hwi.color, marker=hwi.knee_marker )
+        hwi.get_leg( leg_art, leg_lab )
+    legend = ax.legend(leg_art,leg_lab,loc='lower right', shadow=True, fontsize='small',numpoints=1,ncol=1)
+
 #Peak performance line and text
 for hwi in hardware_targets: addPerfLine(hwi.perf,hwi.name + " Compute",hwi.knee_ai,hwi.ls)
 #BW line and text
 for hwi in hardware_targets: addBWLine(hwi.bw,hwi.name + " BW",hwi.knee_ai,hwi.ls)
 #save file
 
-out_fn = "cnn-gtx980-roofline%s.png"
+out_fn = "roofline%s.pdf"
 fig.savefig( out_fn % "-no-perf", dpi=600,  bbox_inches='tight')
 
 show_perf = 1
