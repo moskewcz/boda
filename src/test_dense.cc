@@ -34,6 +34,7 @@ namespace boda
   p_nda_float_t feats_copy_clip( p_nda_float_t const & in, i32_box_t const & cbox ) {
     dims_t b(4);
     dims_t e = in->dims;
+    b.tn = e.tn;
     b.dims(2) = cbox.p[0].d[1];
     e.dims(2) = cbox.p[1].d[1];
     b.dims(3) = cbox.p[0].d[0];
