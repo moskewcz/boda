@@ -83,10 +83,12 @@ namespace boda {
 
     // memory for HOG features
     dims_t out_dims;
+    out_dims.tn = dims_.tn; // propogate input type; but note that it is known to be "double" here
     out_dims.resize_and_zero( 3 );
     out_dims.dims(0) = 27 + 4 + 1;
     out_dims.dims(1) = max(blocks[1]-2, 0);
     out_dims.dims(2) = max(blocks[0]-2, 0);
+    out_dims.calc_strides();
     p_nda_double_t mxfeat( new nda_double_t( out_dims ) );
     double *feat = &mxfeat->cm_at1(0);
 

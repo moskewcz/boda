@@ -116,6 +116,7 @@ namespace boda
       
       // create 'expanded' biases dims, with dim names/order that match the output, but sizes 1 expect for dims present in the biases
       dims_t biases_dims_exp; 
+      biases_dims_exp.tn = biases.dims.tn;
       uint32_t biases_dims_used = 0;
       for( uint32_t i = 0; i != out.dims.size(); ++i ) {
         string dn = out.dims.names(i);

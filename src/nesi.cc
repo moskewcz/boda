@@ -644,10 +644,11 @@ namespace boda
       rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
     }
     ++l->use_cnt;
+    string tn = "float"; // FIXME_TNDA: user-input dims_t's have a hard-coded default type of float for now ...
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
       uint32_t dim_v = 0;
-      // note: for vector initialization, i->n (the name of the name/value pair) is ignored.
       lexp_name_val_map_t nvm( i->v, nia );
+      if( i->n.str() == "__tn__" ) { nesi_string_init( &nvm, 0, &tn ); continue; } // handle __tn__ pseudo-dim special case
       try { 
 	nesi_uint32_t_init( &nvm, &tinfo_uint32_t, &dim_v ); 
       }
@@ -657,6 +658,7 @@ namespace boda
       }
       v->add_dims( i->n.str(), dim_v );
     }
+    v->tn = tn;
     if( !v->empty() ) { v->calc_strides(); } // if not null/empty, calc strides. FIXME: strides not really handled here, obv.
   }
   make_p_t * dims_t_make_p = &has_def_ctor_make_p< dims_t >;

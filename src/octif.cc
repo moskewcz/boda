@@ -31,8 +31,9 @@ namespace boda
   p_nda_double_t pad_nda( double const v, vect_uint32_t const & pad_n, vect_uint32_t const & pad_p, p_nda_double_t in ) {
     assert( pad_n.size() == in->dims.sz() );
     assert( pad_p.size() == in->dims.sz() );
-    dims_t ret_dims( in->dims.sz() );
+    dims_t ret_dims = in->dims;
     for( uint32_t i = 0; i < ret_dims.sz(); ++i ) { ret_dims.dims(i) = in->dims.dims(i) + pad_n[i] + pad_p[i]; }
+    ret_dims.calc_strides();
     p_nda_double_t ret( new nda_double_t( ret_dims ) );    
     for( uint32_t i = 0; i < ret->elems_sz(); ++i ) { ret->elems_ptr()[i] = v; } //  init
     for( dims_iter_t di( in->dims ) ; ; ) { ret->at(di.di,pad_n) = in->at(di.di);  if( !di.next() ) { break; } }
@@ -298,9 +299,11 @@ namespace boda
 
   p_nda_double_t create_p_nda_double_from_img( p_img_t img ) {
     dims_t dims(3);
+    dims.tn = "double";
     dims.dims(0) = 3;
     dims.dims(1) = img->sz.d[0];
     dims.dims(2) = img->sz.d[1];
+    dims.calc_strides();
     p_nda_double_t ret( new nda_double_t( dims ) );
     for( uint32_t y = 0; y < img->sz.d[1]; ++y ) {
       for( uint32_t x = 0; x < img->sz.d[0]; ++x ) {
@@ -316,6 +319,7 @@ namespace boda
   p_nda_double_t create_p_nda_double_from_oct_NDArray( NDArray const & nda ) {
     dim_vector const & dv = nda.dims();
     dims_t dims( dv.length() ); // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
+    dims.tn = "double"; // FIXME_TNDA: check that NDArray is of type double
     for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims(i) = dv.elem(dv.length()-1-i); }
     p_nda_double_t ret( new nda_double_t( dims ) );
     assert_st( ret->elems_sz() == (uint32_t)nda.numel() );
@@ -490,6 +494,7 @@ namespace boda
 
     // convert scales to a p_nda_double_t
     dims_t scales_dims( 2 );
+    scales_dims.tn = "double";
     scales_dims.dims(0) = 1;
     scales_dims.dims(1) = scales.size();
     p_nda_double_t scales_out( new nda_double_t( scales_dims ) );

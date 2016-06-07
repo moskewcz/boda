@@ -258,6 +258,7 @@ namespace boda
 	dims_t ix_dims;
 	if( i->use_dims.empty() ) { ix_dims = ix_arg_dims; } 
 	else {
+          ix_dims.tn = ix_arg_dims.tn;
 	  for( vect_string::const_iterator j = i->use_dims.begin(); j != i->use_dims.end(); ++j ) {
 	    dim_t const * use_dim = ix_arg_dims.get_dim_by_name( *j );
 	    if( !use_dim ) { rt_err( "specified use_dim '"+*j+"' not found in target arg's dims" ); }

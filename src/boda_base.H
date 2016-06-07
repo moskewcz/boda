@@ -435,10 +435,12 @@ namespace boda
     }
     dims_t( void ) { }
     explicit dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
-    dims_t( vect_uint32_t const & dims_, bool const & calc_no_pad_strides = 0 ) { init( dims_, 0, calc_no_pad_strides ); }
-    dims_t( vect_uint32_t const & dims_, vect_string const & names_, bool const & calc_no_pad_strides = 0 ) { 
-      init( dims_, &names_, calc_no_pad_strides ); }
-    void init( vect_uint32_t const & dims_, vect_string const * const names_, bool const & calc_no_pad_strides = 0 ) { 
+    dims_t( vect_uint32_t const & dims_, bool const & calc_no_pad_strides, string const & tn_ ) { init( dims_, 0, calc_no_pad_strides, tn_ ); }
+    dims_t( vect_uint32_t const & dims_, vect_string const & names_, bool const & calc_no_pad_strides, string const & tn_ ) { 
+      init( dims_, &names_, calc_no_pad_strides, tn_ ); }
+    void init( vect_uint32_t const & dims_, vect_string const * const names_, bool const & calc_no_pad_strides, string const & tn_ ) {
+      tn = tn_;
+      assert_st( !tn.empty() );
       resize_and_zero( dims_.size() ); 
       for( uint32_t i = 0; i != dims_.size(); ++i ) { dims(i) = dims_[i]; }
       if( calc_no_pad_strides ) { calc_strides(); }
@@ -465,8 +467,9 @@ namespace boda
 
     dims_t operator - ( dims_t const & o ) const { 
       assert_st( o.fits_in( *this ) );
-      dims_t ret( sz() );
-      for( uint32_t ix = 0; ix != sz(); ++ix ) { ret.dims(ix) = dims(ix) - o.dims(ix); } 
+      dims_t ret( *this );
+      for( uint32_t ix = 0; ix != sz(); ++ix ) { ret.dims(ix) -= o.dims(ix); }
+      ret.calc_strides();
       return ret;
     }
     uint32_t sz( void ) const { return size(); }
@@ -505,6 +508,7 @@ namespace boda
     }
 
     uint32_t calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
+      assert_st( !tn.empty() ); // FIXME: good place for this?
       strides(sz()-1) = 1;
       for( uint32_t d = 1; d < sz(); ++d ) { strides(sz()-d-1) = strides(sz()-d)*dims(sz()-d); }
       return strides(0)*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
@@ -580,9 +584,14 @@ namespace boda
     bread( in, o.sz ); bread( in, o.stride ); bread( in, o.name );  
   }
 
-  // for dims_t, let bread/bwrite template magic know to use standard vector bread/bwrite
-  template< typename STREAM > inline void bwrite( STREAM & out, dims_t const & o ) { bwrite( out, (vect_dim_t const &)o ); }
-  template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { bread( in, (vect_dim_t &)o ); }
+  template< typename STREAM > inline void bwrite( STREAM & out, dims_t const & o ) { 
+    bwrite( out, (vect_dim_t const &)o ); 
+    bwrite( out, o.tn );
+  }
+  template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { 
+    bread( in, (vect_dim_t &)o ); 
+    bread( in, o.tn );
+  }
 
   // for no-ownership-transfer references to 'remote' NDAs where the data is behine an opaque void *
   struct nda_raw_t {
@@ -614,12 +623,8 @@ namespace boda
       assert_st( elems_sz_ );
       d = ma_p_T<uint8_t>(elems_sz()*dims.tsz(),32UL);
     }
-    void set_dims( dims_t const & dims_, string const tn_override = string() ) { 
+    void set_dims( dims_t const & dims_ ) { 
       dims = dims_;
-      if( !tn_override.empty() ) { 
-        if( dims.tn.empty() ) { dims.tn = tn_override; }
-        else{ assert_st( dims.tn == tn_override ); }
-      }
       assert_st( !dims.tn.empty() );
       uint32_t strides_sz = 0;
       if( !dims.strides(0) ) { strides_sz = dims.calc_strides(); } 
@@ -636,11 +641,10 @@ namespace boda
   template< typename T > struct nda_T : public nda_t {
     nda_T( void ) { }
     nda_T( dims_t const & dims_ )  { 
-      string tn;
-      if( std::is_same<T,float>::value ) { tn = "float"; }
-      else if( std::is_same<T,double>::value ) { tn = "double"; }
+      set_dims( dims_ );
+      if( std::is_same<T,float>::value ) { assert_st( dims.tn == "float" ); }
+      else if( std::is_same<T,double>::value ) { assert_st( dims.tn == "double" ); }
       else { assert_st(0); } // unknown type
-      set_dims( dims_, tn );
     }
     T const * elems_ptr( void ) const { return reinterpret_cast<T const *>(d.get()); }
     T * elems_ptr( void ) { return reinterpret_cast<T *>(d.get()); }

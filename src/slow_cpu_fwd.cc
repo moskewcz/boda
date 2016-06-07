@@ -32,8 +32,8 @@ namespace boda
     if( kern_sz.is_zeros() ) { kern_sz = {bot->dims.dims(3), bot->dims.dims(2)}; } // 'global' input special case
     p_nda_float_t const & filts = must_find( *fwd, cop->tag + "_filts" );
     p_nda_float_t const & biases = must_find( *fwd, cop->tag + "_biases" );
-    assert_st( filts->dims == dims_t(vect_uint32_t{top->dims.dims(1),bot->dims.dims(1),kern_sz.d[1],kern_sz.d[0] },1) );
-    assert_st( biases->dims == dims_t(vect_uint32_t{top->dims.dims(1)},1) );
+    assert_st( filts->dims == dims_t(vect_uint32_t{top->dims.dims(1),bot->dims.dims(1),kern_sz.d[1],kern_sz.d[0] },1,"float") );
+    assert_st( biases->dims == dims_t(vect_uint32_t{top->dims.dims(1)},1,"float") );
     assert_st( top->dims.dims(1) == cop->get_u32("out_chans") );
 
     for( uint32_t fix = 0; fix != filts->dims.dims(0); ++fix ) {

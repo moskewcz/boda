@@ -58,7 +58,8 @@ namespace boda
   std::string dims_t::param_str( void ) const { 
     string ret;
     bool its_comma_time = 0;
-    if( !tn.empty() ) { ret += "__tn__="+tn; its_comma_time = 1; }
+    // FIXME_TNDA: probably need to print out tn here ...
+    //if( tn != "float" ) { ret += "__tn__="+tn; its_comma_time = 1; } // note: matches hard-coded default in nesi dims_t init
     for( uint32_t i = 0; i != sz(); ++i ) { 
       if( its_comma_time ) { ret += ","; }
       its_comma_time = 1;
