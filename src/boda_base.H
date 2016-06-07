@@ -13,6 +13,7 @@
 #include<poll.h>
 #include<boost/integer_traits.hpp>
 #include<math.h>
+#include<type_traits>
 
 void boda_assert_fail( char const * expr, char const * file, unsigned int line, char const * func )
   throw() __attribute__ ((__noreturn__));
@@ -238,17 +239,6 @@ namespace boda
   inline p_float ma_p_float( size_t const num, uint32_t const a ) { return ma_p_T<float>(num,a); }
   inline p_double ma_p_double( size_t const num, uint32_t const a ) { return ma_p_T<double>(num,a); }
 
-  template< typename T > struct hunk_T {
-    uint32_t sz; // in units of Ts
-    shared_ptr< T > p;
-    hunk_T( void ) : sz(0) { }
-    hunk_T( shared_ptr< T > const & p_, uint32_t const sz_ ) : sz(sz_), p(p_) { }
-    hunk_T( uint32_t const sz_ ) : sz(sz_), p( ma_p_T<T>( sz_ ) ) { } // hunk owns whole block
-    T & operator []( uint32_t const & ix ) { assert_st( ix < sz ); return p.get()[ix]; }
-    T const & operator []( uint32_t const & ix ) const { assert_st( ix < sz ); return p.get()[ix]; }
-  };
-
-
   __attribute__((used)) uint32_t const boda_magic= *(uint32_t *)"BODA";
 
 
@@ -282,6 +272,7 @@ namespace boda
   template<> struct breadwrite_raw_T<uint8_t>{ typedef int int_; };
   template< typename T > struct T_pt_t; template<> struct breadwrite_raw_T<T_pt_t<uint32_t> >{ typedef int int_; };
   template<> struct breadwrite_raw_T<uint32_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<uint64_t>{ typedef int int_; };
   template<> struct breadwrite_raw_T<float>{ typedef int int_; };
   
   template< typename STREAM, typename T, typename breadwrite_raw_T<T>::int_ = 0 > 
@@ -349,16 +340,6 @@ namespace boda
   template< typename STREAM >
   inline void bwrite_id( STREAM & out, string const & o ) { bwrite( out, string("id") ); bwrite( out, o ); }
 
-  template< typename STREAM, typename T > inline void bwrite( STREAM & out, hunk_T< T > const & o ) { 
-    bwrite( out, o.sz );
-    bwrite_bytes( out, (char *)o.p.get(), o.sz*sizeof(T) );
-  }
-  template< typename STREAM, typename T > inline void bread( STREAM & in, hunk_T< T > & o ) { 
-    bread( in, o.sz );
-    o.p = ma_p_T<T>( o.sz );
-    bread_bytes( in, (char *)o.p.get(), o.sz*sizeof(T) );
-  }
-
   // (note: experimental/unfinished) as opposed to dims_t/nda_float_t, these struct are intended for metaprogramming
   // use, and thus compactness and speed are less of a concern, and convenience/functionality more of a concern.
   struct dim_t {
@@ -401,7 +382,11 @@ namespace boda
   };
   
   typedef map< string, ndat_info_t > ndat_infos_t;
-  ndat_infos_t const ndat_infos{ {"float",{"float",4,1,1}}, {"uint32_t",{"uint32_t",4,0,0}} };
+  ndat_infos_t const ndat_infos{ 
+    {"float",{"float",4,1,1}}, 
+    {"double",{"double",8,1,1}}, 
+    {"uint32_t",{"uint32_t",4,0,0}} 
+  };
 
   // row-major dimensions holder; consists of a vector of dim_t's and a type string.
   // cm_ variants implicitly operate on the reversed dims list to provide column-major access
@@ -619,73 +604,96 @@ namespace boda
     out << "nda " << o.elems << " " << o.dims; return out;
   }
 
-  template< typename T > struct nda_T {
+  struct nda_t {
+    nda_t( void )  : elems_sz_(0) { }
+    nda_t( dims_t const & dims_ ) : elems_sz_(0) { set_dims( dims_ ); }
+    p_uint8_t d;
+    uint64_t elems_sz_;
+    uint64_t const elems_sz( void ) const { return elems_sz_; }
+    dims_t dims;
+    void alloc( void ) {
+      assert_st( !d );
+      assert_st( elems_sz_ );
+      d = ma_p_T<uint8_t>(elems_sz()*dims.tsz(),32UL);
+    }
+  protected:
+    void set_dims( dims_t const & dims_, string const tn_override = string() ) { 
+      dims = dims_;
+      if( !tn_override.empty() ) { 
+        if( dims.tn.empty() ) { dims.tn = tn_override; }
+        else{ assert_st( dims.tn == tn_override ); }
+      }
+      assert_st( !dims.tn.empty() );
+      uint32_t strides_sz = 0;
+      if( !dims.strides(0) ) { strides_sz = dims.calc_strides(); } 
+      else { strides_sz = (dims.dims(0) * dims.strides(0)); }
+      if( d ) { assert( strides_sz == elems_sz() ); }
+      else { // if hunk is null, allocate it
+	assert( !elems_sz() ); // should not be set yet
+        elems_sz_ = strides_sz;
+        alloc();
+      }
+      dims.tn.clear(); // FIXME
+    }
+  };
+
+  template< typename T > struct nda_T : public nda_t {
     nda_T( void ) { }
-    nda_T( dims_t const & dims_ ) { set_dims( dims_ ); }
-    hunk_T< T > elems; 
-    uint64_t const elems_sz( void ) const { return elems.sz; }
-    T const * elems_ptr( void ) const { return &elems[0]; }
-    T * elems_ptr( void ) { return &elems[0]; }
+    nda_T( dims_t const & dims_ )  { 
+      string tn;
+      if( std::is_same<T,float>::value ) { tn = "float"; }
+      else if( std::is_same<T,double>::value ) { tn = "double"; }
+      else { assert_st(0); } // unknown type
+      set_dims( dims_, tn );
+    }
+    T const * elems_ptr( void ) const { return reinterpret_cast<T const *>(d.get()); }
+    T * elems_ptr( void ) { return reinterpret_cast<T *>(d.get()); }
     void copy_elems_with_reshape( nda_T< T > const & o ) {
       assert_st( elems_sz() == o.elems_sz() );
       for( uint32_t i = 0; i != elems_sz(); ++i ) { elems_ptr()[i] = o.elems_ptr()[i]; }
     }
-    dims_t dims;
-  private:
-    void set_dims( dims_t const & dims_ ) { 
-      dims = dims_;
-      uint32_t strides_sz = 0;
-      if( !dims.strides(0) ) { strides_sz = dims.calc_strides(); } 
-      else { strides_sz = (dims.dims(0) * dims.strides(0)); }
-      if( elems.p ) { assert( strides_sz == elems.sz ); }
-      else { // if hunk is null, allocate it
-	assert( !elems.sz ); // should not be set yet
-	elems = hunk_T< T >( strides_sz );
-      }
-    }
-  public:
 
     T & cm_at1( uint32_t const d0i ) { 
-      uint32_t const ix = dims.cm_ix1( d0i ); return elems[ix]; }
+      uint32_t const ix = dims.cm_ix1( d0i ); return elems_ptr()[ix]; }
     T & cm_at2( uint32_t const d0i, uint32_t const d1i ) { 
-      uint32_t const ix = dims.cm_ix2( d0i,d1i ); return elems[ix]; }
+      uint32_t const ix = dims.cm_ix2( d0i,d1i ); return elems_ptr()[ix]; }
     T & cm_at3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
-      uint32_t const ix = dims.cm_ix3( d0i,d1i,d2i ); return elems[ix]; }
+      uint32_t const ix = dims.cm_ix3( d0i,d1i,d2i ); return elems_ptr()[ix]; }
     T & cm_at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
-      uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
+      uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems_ptr()[ix]; }
 
-    T & at( vect_uint32_t const & di ) { uint32_t const ix = dims.ix( di ); return elems[ix]; }
+    T & at( vect_uint32_t const & di ) { uint32_t const ix = dims.ix( di ); return elems_ptr()[ix]; }
     T & at( vect_uint32_t const & di, vect_uint32_t const & di2 ) { 
-      uint32_t const ix = dims.ix_sum( di, di2 ); return elems[ix]; }
+      uint32_t const ix = dims.ix_sum( di, di2 ); return elems_ptr()[ix]; }
     T & at1( uint32_t const d0i ) { 
-      uint32_t const ix = dims.ix1( d0i ); return elems[ix]; }
+      uint32_t const ix = dims.ix1( d0i ); return elems_ptr()[ix]; }
     T & at2( uint32_t const d0i, uint32_t const d1i ) { 
-      uint32_t const ix = dims.ix2( d0i,d1i ); return elems[ix]; }
+      uint32_t const ix = dims.ix2( d0i,d1i ); return elems_ptr()[ix]; }
     T & at3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) { 
-      uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems[ix]; }
+      uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems_ptr()[ix]; }
     T & at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) { 
-      uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
+      uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems_ptr()[ix]; }
 
     T const & cm_at1( uint32_t const d0i ) const { 
-      uint32_t const ix = dims.cm_ix1( d0i ); return elems[ix]; }
+      uint32_t const ix = dims.cm_ix1( d0i ); return elems_ptr()[ix]; }
     T const & cm_at2( uint32_t const d0i, uint32_t const d1i ) const { 
-      uint32_t const ix = dims.cm_ix2( d0i,d1i ); return elems[ix]; }
+      uint32_t const ix = dims.cm_ix2( d0i,d1i ); return elems_ptr()[ix]; }
     T const& cm_at3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) const { 
-      uint32_t const ix = dims.cm_ix3( d0i,d1i,d2i ); return elems[ix]; }
+      uint32_t const ix = dims.cm_ix3( d0i,d1i,d2i ); return elems_ptr()[ix]; }
     T const& cm_at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
-      uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
+      uint32_t const ix = dims.cm_ix4( d0i,d1i,d2i,d3i ); return elems_ptr()[ix]; }
 
-    T const& at( vect_uint32_t const & di ) const { uint32_t const ix = dims.ix( di ); return elems[ix]; }
+    T const& at( vect_uint32_t const & di ) const { uint32_t const ix = dims.ix( di ); return elems_ptr()[ix]; }
     T const& at( vect_uint32_t const & di, vect_uint32_t const & di2 ) const { 
-      uint32_t const ix = dims.ix_sum( di, di2 ); return elems[ix]; }
+      uint32_t const ix = dims.ix_sum( di, di2 ); return elems_ptr()[ix]; }
     T const& at1( uint32_t const d0i ) const { 
-      uint32_t const ix = dims.ix1( d0i ); return elems[ix]; }
+      uint32_t const ix = dims.ix1( d0i ); return elems_ptr()[ix]; }
     T const& at2( uint32_t const d0i, uint32_t const d1i ) const { 
-      uint32_t const ix = dims.ix2( d0i,d1i ); return elems[ix]; }
+      uint32_t const ix = dims.ix2( d0i,d1i ); return elems_ptr()[ix]; }
     T const& at3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) const { 
-      uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems[ix]; }
+      uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems_ptr()[ix]; }
     T const& at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
-      uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems[ix]; }
+      uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems_ptr()[ix]; }
   };
 
   template< typename T >
@@ -702,7 +710,7 @@ namespace boda
       }
     } else { // 1D case
       for( uint32_t ix = 0; ix != o.elems.sz; ++ix ) {
-	out << " " << o.elems[ix];
+	out << " " << o.elems_ptr()[ix];
       }
     }    
 
@@ -737,12 +745,17 @@ namespace boda
     return ret;
   }
 
-
-
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_T<T> const & o ) { 
-    bwrite(out,o.dims); bwrite(out,o.elems); }
+    bwrite(out,o.dims); 
+    bwrite(out,o.elems_sz_ );
+    bwrite_bytes( out, (char *)o.d.get(), o.elems_sz_*sizeof(T) );
+  }
   template< typename STREAM, typename T > inline void bread( STREAM & in, nda_T<T> & o ) { 
-    bread(in,o.dims); bread(in,o.elems); }
+    bread(in,o.dims); 
+    bread(in,o.elems_sz_ );
+    o.alloc();
+    bread_bytes( in, (char *)o.d.get(), o.elems_sz_*sizeof(T) );
+  }
   
   typedef nda_T< float > nda_float_t;
 
