@@ -62,7 +62,7 @@ namespace boda {
   void register_lb_handler( T & has_quit, MFUNC const & mfunc, OBJ const  & obj ) {
     get_lb_event( &has_quit ).async_wait( bind( mfunc, obj, _1 ) ); }
 
-  struct multi_alss_t : public vect_p_asio_alss_t { typedef void has_bread_bwrite; };
+  struct multi_alss_t : public vect_p_asio_alss_t {};
 
   inline void bwrite_bytes( multi_alss_t & out, char const * const & d, size_t const & sz ) {
     for( vect_p_asio_alss_t::const_iterator i = out.begin(); i != out.end(); ++i ) { bwrite_bytes( **i, d, sz ); } }

@@ -261,11 +261,6 @@ namespace boda
   template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > void 
   bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ); // read( in, buffer( d, sz ) ); }
 #endif
-  template< typename T, typename check_T<typename T::has_bread_bwrite>::int_ = 0 > 
-  void bwrite_bytes( T & out, char const * const & d, size_t const & sz );
-  template< typename T, typename check_T<typename T::has_bread_bwrite>::int_ = 0  >
-  void bread_bytes( T & in, char * const & d, size_t const & sz );
-
 
   template< typename T > struct breadwrite_raw_T { };
   template<> struct breadwrite_raw_T<bool>{ typedef int int_; };
@@ -607,16 +602,18 @@ namespace boda
   struct nda_t {
     nda_t( void )  : elems_sz_(0) { }
     nda_t( dims_t const & dims_ ) : elems_sz_(0) { set_dims( dims_ ); }
+  protected:
     p_uint8_t d;
     uint64_t elems_sz_;
+  public:
     uint64_t const elems_sz( void ) const { return elems_sz_; }
     dims_t dims;
+  protected:
     void alloc( void ) {
       assert_st( !d );
       assert_st( elems_sz_ );
       d = ma_p_T<uint8_t>(elems_sz()*dims.tsz(),32UL);
     }
-  protected:
     void set_dims( dims_t const & dims_, string const tn_override = string() ) { 
       dims = dims_;
       if( !tn_override.empty() ) { 
@@ -694,28 +691,21 @@ namespace boda
       uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems_ptr()[ix]; }
     T const& at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems_ptr()[ix]; }
+    // FIXME_TNDA: use dims.tsz() here instead of sizeof(T) and promote to nda_t
+    template< typename STREAM > void bwrite_( STREAM & out ) const {
+      bwrite(out,dims); 
+      bwrite(out,elems_sz_ );
+      bwrite_bytes( out, (char *)d.get(), elems_sz_*sizeof(T) );
+    }
+    template< typename STREAM > void bread_( STREAM & in ) {
+      bread(in,dims); 
+      bread(in,elems_sz_ );
+      alloc();
+      bread_bytes( in, (char *)d.get(), elems_sz_*sizeof(T) );
+    } 
   };
-
-  template< typename T >
-  inline std::ostream & operator << ( std::ostream & out, nda_T< T > const & o ) {
-    out << "nda " << o.dims << std::endl;
-    if( o.dims.sz() > 1 ) {
-      // print rows by iterating over dim with fastest/smallest stride (using column major indexing, of course)
-      for( uint32_t rix = 0; o.dims.cm_ix2( 0, rix ) != o.elems.sz; ++rix ) {
-	out << "row=" << rix << ":";
-	for( uint32_t cix = 0; cix != o.dims.cm_ix2( 0, 1 ); ++cix ) {
-	  out << " " << o.cm_at2( cix, rix );
-	}
-	out << std::endl;
-      }
-    } else { // 1D case
-      for( uint32_t ix = 0; ix != o.elems.sz; ++ix ) {
-	out << " " << o.elems_ptr()[ix];
-      }
-    }    
-
-    return out;
-  }
+  template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_T<T> const & o ) { o.bwrite_( out ); }
+  template< typename STREAM, typename T > inline void bread( STREAM & in, nda_T<T> & o ) { o.bread_( in ); }
 
   template< typename T > struct max_functor { 
     typedef T Result; 
@@ -743,18 +733,6 @@ namespace boda
     typename BF::Result ret = iv;
     for( dims_iter_t di( b, e ) ; ; ) { ret = bf(ret,vt.at(di.di));  if( !di.next() ) { break; } }    
     return ret;
-  }
-
-  template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_T<T> const & o ) { 
-    bwrite(out,o.dims); 
-    bwrite(out,o.elems_sz_ );
-    bwrite_bytes( out, (char *)o.d.get(), o.elems_sz_*sizeof(T) );
-  }
-  template< typename STREAM, typename T > inline void bread( STREAM & in, nda_T<T> & o ) { 
-    bread(in,o.dims); 
-    bread(in,o.elems_sz_ );
-    o.alloc();
-    bread_bytes( in, (char *)o.d.get(), o.elems_sz_*sizeof(T) );
   }
   
   typedef nda_T< float > nda_float_t;
