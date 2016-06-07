@@ -9,7 +9,7 @@ namespace boda
   struct culibs_wrap_t; typedef shared_ptr< culibs_wrap_t > p_culibs_wrap_t; 
   struct rtc_func_info_t;
   p_culibs_wrap_t culibs_wrap_init( void );
-  void culibs_wrap_call( p_culibs_wrap_t const & cw, rtc_func_info_t const & fi, p_map_str_p_nda_raw_t const & args );
+  void culibs_wrap_call( p_culibs_wrap_t const & cw, rtc_func_info_t const & fi, p_map_str_p_nda_t const & args );
 
 }
 #endif /* _CULIBS_WRAP_H_ */

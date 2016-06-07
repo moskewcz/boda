@@ -598,24 +598,13 @@ namespace boda
     bread( in, o.strides_sz );
   }
 
-  // for no-ownership-transfer references to 'remote' NDAs where the data is behine an opaque void *
-  struct nda_raw_t {
-    void * elems;
-    dims_t dims;
-    nda_raw_t() : elems(0) { }
-    nda_raw_t( void * const & elems_, dims_t const & dims_ ) : elems(elems_), dims(dims_) { }
-  };
-  typedef shared_ptr< nda_raw_t > p_nda_raw_t; 
-  typedef map< string, p_nda_raw_t > map_str_p_nda_raw_t;
-  typedef shared_ptr< map_str_p_nda_raw_t > p_map_str_p_nda_raw_t;
-
-  inline std::ostream & operator << ( std::ostream & out, nda_raw_t const & o ) {
-    out << "nda " << o.elems << " " << o.dims; return out;
-  }
-
   struct nda_t {
     nda_t( void ) { }
     nda_t( dims_t const & dims_ ) { set_dims( dims_ ); }
+    // below ctor is for no-ownership-transfer references to 'remote' NDAs where the data is behine an opaque void *
+    nda_t( dims_t const & dims_, void * const & elems_ ) { d.reset( (uint8_t *)elems_, null_deleter<uint8_t>() ); set_dims( dims_ ); }
+    void const * rp_elems( void ) const { return (void const *)d.get(); }
+    void * rp_elems( void ) { return (void *)d.get(); }
   protected:
     p_uint8_t d;
   public:
@@ -634,6 +623,10 @@ namespace boda
       if( !d ) { alloc(); } // if hunk is null, allocate it
     }
   };
+
+  typedef shared_ptr< nda_t > p_nda_t; 
+  typedef map< string, p_nda_t > map_str_p_nda_t;
+  typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
 
   template< typename T > struct nda_T : public nda_t {
     nda_T( void ) { }

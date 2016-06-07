@@ -94,7 +94,7 @@ namespace boda
       cublas_err_chk( cublasDestroy(cbh), "cublasDestroy" ); 
       cudnn_err_chk( cudnnDestroy(cdh), "cudnnDestroy" ); 
     }
-    void call( rtc_func_info_t const & fi, p_map_str_p_nda_raw_t const & args ) { 
+    void call( rtc_func_info_t const & fi, p_map_str_p_nda_t const & args ) { 
       string const & fn = fi.func_name;
       if( 0 ) {}
       else if( startswith( fn, "cublas_sgemm" ) ) { sgemm( args ); }
@@ -102,11 +102,11 @@ namespace boda
       else { rt_err( "unknown/unhandled culibs_wrap function: " + fn ); }
     }
 
-    void conv( op_base_t const & op, p_map_str_p_nda_raw_t const & args ) {
-      nda_raw_t const & filts = *must_find(*args,"arg_0");
-      nda_raw_t const & biases = *must_find(*args,"arg_1");
-      nda_raw_t const & in = *must_find(*args,"arg_2");
-      nda_raw_t const & out = *must_find(*args,"arg_3");
+    void conv( op_base_t const & op, p_map_str_p_nda_t const & args ) {
+      nda_t const & filts = *must_find(*args,"arg_0");
+      nda_t const & biases = *must_find(*args,"arg_1");
+      nda_t const & in = *must_find(*args,"arg_2");
+      nda_t const & out = *must_find(*args,"arg_3");
       cudnn_filter_t cu_filts;
       cudnn_tensor_t cu_in;
       cudnn_tensor_t cu_out;
@@ -173,25 +173,25 @@ namespace boda
       cudnn_err_chk( cudnnConvolutionForward( cdh,
                                               &alpha,
                                               cu_in.v,
-                                              in.elems,
+                                              in.rp_elems(),
                                               cu_filts.v,
-                                              filts.elems,
+                                              filts.rp_elems(),
                                               cu_conv.v,
                                               cu_conv_algo,
                                               need_scratch ? ((void *)(uintptr_t)cu_work->p) : 0,
                                               need_scratch,
                                               &beta,
                                               cu_out.v,
-                                              out.elems
+                                              (void *)out.rp_elems()
                                               ), "cudnnConvolutionForward" );
 
       cudnn_err_chk( cudnnAddTensor_v3( cdh,
                                         &alpha,
                                         cu_biases.v,
-                                        biases.elems,
+                                        biases.rp_elems(),
                                         &alpha, // aka 1
                                         cu_out.v,
-                                        out.elems), "cudnnAddTensor_v3" );
+                                        (void *)out.rp_elems()), "cudnnAddTensor_v3" );
 
       bool const conv_has_relu = op.get_u32( "conv_has_relu" );
       if( conv_has_relu ) {
@@ -199,17 +199,17 @@ namespace boda
                                                CUDNN_ACTIVATION_RELU,
                                                &alpha,
                                                cu_out.v,
-                                               out.elems,
+                                               out.rp_elems(),
                                                &beta,
                                                cu_out.v,
-                                               out.elems), "cudnnActivationForward" );
+                                               (void *)out.rp_elems()), "cudnnActivationForward" );
       }
     }
 
-    void sgemm( p_map_str_p_nda_raw_t const & args ) { 
-      nda_raw_t const & a = *must_find(*args,"arg_0");
-      nda_raw_t const & b = *must_find(*args,"arg_1");
-      nda_raw_t const & c = *must_find(*args,"arg_2");
+    void sgemm( p_map_str_p_nda_t const & args ) { 
+      nda_t const & a = *must_find(*args,"arg_0");
+      nda_t const & b = *must_find(*args,"arg_1");
+      nda_t const & c = *must_find(*args,"arg_2");
       uint64_t const M = a.dims.dsz("M");
       uint64_t const K = a.dims.dsz("K");
       assert_st( b.dims.dsz("K") == K );
@@ -226,14 +226,14 @@ namespace boda
       float const beta = 0.0f;
       cublas_err_chk( cublasSgemm( cbh, CUBLAS_OP_N, CUBLAS_OP_T, N, M, K, 
                                    &alpha,
-                                   (float const *)(b.elems),  K, //const float           *A, int lda,
-                                   (float const *)(a.elems),  K, //const float           *B, int ldb,
+                                   (float const *)(b.rp_elems()),  K, //const float           *A, int lda,
+                                   (float const *)(a.rp_elems()),  K, //const float           *B, int ldb,
                                    &beta,
-                                   (float *)(c.elems),  N)  //float           *C, int ldc)
+                                   (float *)(c.rp_elems()),  N)  //float           *C, int ldc)
                       ,"cublasSgemm" );
     }
   };
-  void culibs_wrap_call( p_culibs_wrap_t const & cw, rtc_func_info_t const & fi, p_map_str_p_nda_raw_t const & args ) {
+  void culibs_wrap_call( p_culibs_wrap_t const & cw, rtc_func_info_t const & fi, p_map_str_p_nda_t const & args ) {
     cw->call( fi, args );
   }
   p_culibs_wrap_t culibs_wrap_init( void ) { return make_shared< culibs_wrap_t >(); }

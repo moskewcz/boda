@@ -288,13 +288,13 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     
     nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_nv_func_info_t ) { }
 
-    void add_args( vect_string const & args, vect_rp_void & cu_func_args, p_map_str_p_nda_raw_t const & func_args ) {
+    void add_args( vect_string const & args, vect_rp_void & cu_func_args, p_map_str_p_nda_t const & func_args ) {
       for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
         // FIXME: we really want the func arg names from the layer above this here, but we'll make do for now: 
         string const an = "arg_" + str( func_args->size() ); 
 	if( *i == "<NULL>" ) { 
 	  cu_func_args.push_back( &null_cup );
-          must_insert( *func_args, an, make_shared<nda_raw_t>() );
+          must_insert( *func_args, an, make_shared<nda_t>() );
 	} else {
 	  var_info_t const & vi = must_find( *vis, *i );
 	  cu_func_args.push_back( &vi.cup->p );
@@ -302,7 +302,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
           // just that the host size is >= the device size). curious about conversion between CUdeviceptr and (void *)?
           // take a look here:
           // http://www.cudahandbook.com/2013/08/why-does-cuda-cudeviceptr-use-unsigned-int-instead-of-void/
-          must_insert( *func_args, an, make_shared<nda_raw_t>((void *)(uintptr_t)vi.cup->p,vi.dims) );
+          must_insert( *func_args, an, make_shared<nda_t>(vi.dims,(void *)(uintptr_t)vi.cup->p) );
 	}
       }
     }
@@ -315,7 +315,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       timer_t t("cu_launch_and_sync");
       string const & fn = rfc.rtc_func_name;
       // FIXME/NOTE: for now, for interfacing with culibs, we create an extra/redundant argument map 'func_args':
-      p_map_str_p_nda_raw_t func_args = make_shared<map_str_p_nda_raw_t>();
+      p_map_str_p_nda_t func_args = make_shared<map_str_p_nda_t>();
       vect_rp_void cu_func_args;
       add_args( rfc.in_args, cu_func_args, func_args );
       add_args( rfc.inout_args, cu_func_args, func_args );
