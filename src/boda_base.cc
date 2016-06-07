@@ -57,8 +57,11 @@ namespace boda
   // wraps output in ()'s, omits strides, prints names near dims if they exist, otherwise create anon name
   std::string dims_t::param_str( void ) const { 
     string ret;
+    bool its_comma_time = 0;
+    if( !tn.empty() ) { ret += "__tn__="+tn; its_comma_time = 1; }
     for( uint32_t i = 0; i != sz(); ++i ) { 
-      if( i ) { ret += ","; }
+      if( its_comma_time ) { ret += ","; }
+      its_comma_time = 1;
       string print_name = names(i);
       if( print_name.empty() ) { print_name = "dim_" + str(i); }
       ret += print_name + "=";
