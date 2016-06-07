@@ -435,19 +435,18 @@ namespace boda
     }
     dims_t( void ) { }
     explicit dims_t( uint32_t const num_dims ) { resize_and_zero( num_dims ); }
-    dims_t( vect_uint32_t const & dims_, bool const & calc_no_pad_strides, string const & tn_ ) { init( dims_, 0, calc_no_pad_strides, tn_ ); }
-    dims_t( vect_uint32_t const & dims_, vect_string const & names_, bool const & calc_no_pad_strides, string const & tn_ ) { 
-      init( dims_, &names_, calc_no_pad_strides, tn_ ); }
-    void init( vect_uint32_t const & dims_, vect_string const * const names_, bool const & calc_no_pad_strides, string const & tn_ ) {
+    dims_t( vect_uint32_t const & dims_, string const & tn_ ) { init( dims_, 0, tn_ ); }
+    dims_t( vect_uint32_t const & dims_, vect_string const & names_, string const & tn_ ) { init( dims_, &names_, tn_ ); }
+    void init( vect_uint32_t const & dims_, vect_string const * const names_, string const & tn_ ) {
       tn = tn_;
       assert_st( !tn.empty() );
       resize_and_zero( dims_.size() ); 
       for( uint32_t i = 0; i != dims_.size(); ++i ) { dims(i) = dims_[i]; }
-      if( calc_no_pad_strides ) { calc_strides(); }
       if( names_ ) {
 	assert_st( names_->size() == size() );
 	for( uint32_t i = 0; i != size(); ++i ) { names(i) = names_->at(i); }
       }
+      calc_strides();
     }
     dim_t const * get_dim_by_name( string const & name ) const {
       for( uint32_t i = 0; i != sz(); ++i ) { if( names(i) == name ) { return &at(i); } }
@@ -507,6 +506,8 @@ namespace boda
       return 0;
     }
 
+    // note: calc_strides() can/must be called if any dims are modified after dims_t creation, since all the strides
+    // become invalid/stale in that case.
     uint32_t calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
       assert_st( !tn.empty() ); // FIXME: good place for this?
       strides(sz()-1) = 1;

@@ -166,7 +166,7 @@ namespace boda
     uint32_t in_sz = rtc->get_var_dims_floats( top_in ).dims_prod(); // treat input as flat
     uint32_t primary_in = 1;
     assert_st( in_sz );
-    dims_t arg_dims( {0}, {"v"}, 1, "float" ); // all vars are single-dim with wild/any size
+    dims_t arg_dims( {0}, {"v"}, "float" ); // all vars are single-dim with wild/any size
     map_str_dims_t dims_vals; // note:constant after initial setup
     vect_string cur_ins;
     for( uint32_t i = 0; i != reds.size(); ++i ) {  // input dims (const); initial inputs
@@ -182,7 +182,7 @@ namespace boda
       uint32_t const out_sz = u32_ceil_div( in_sz, must_find(codegen.rtc_func_names_map,func)->tpb );
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
 	string cur_out = top_in + "_" + reds[i] + "_out_sz_" + str(out_sz);
-	rtc->create_var_with_dims_floats( cur_out, dims_t{ {out_sz}, {"v"}, 1, "float" } );
+	rtc->create_var_with_dims_floats( cur_out, dims_t{ {out_sz}, {"v"}, "float" } );
 	cur_outs.push_back( cur_out );
 	//args.push_back( cur_out );
       }

@@ -87,50 +87,50 @@ namespace boda
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
       // for the 0-dims case, we use the implicit default of 0 (from comments in caffe.proto) AND our default of 2 spatial axes
       if( cp.pad_size() == 0 ) { } // leave un-set; will be set by coi default
-      else if( cp.pad_size() == 1 ) { conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(0), cp.pad(0) }, {"y","x"}, 1, "none" }; }
-      else if( cp.pad_size() == 2 ) { conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(0), cp.pad(1) }, {"y","x"}, 1, "none" }; }
+      else if( cp.pad_size() == 1 ) { conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(0), cp.pad(0) }, {"y","x"}, "none" }; }
+      else if( cp.pad_size() == 2 ) { conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(0), cp.pad(1) }, {"y","x"}, "none" }; }
       else { multi_dim_err( cp.pad_size(), "in_pad" ); } // FIXME: we could handle this now as a first step for N-D support
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.pad_size()) );
-      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, 1, "none" }; 
+      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, "none" }; 
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
       // for the 0-dims case, we use the implicit default of 1 (from comments in caffe.proto) AND our default of 2 spatial axes
       if( cp.stride_size() == 0 ) { } // leave un-set; will be set by coi default
-      else if( cp.stride_size() == 1 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(0) }, {"y","x"}, 1, "none" }; }
-      else if( cp.stride_size() == 2 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(1) }, {"y","x"}, 1, "none" }; }
+      else if( cp.stride_size() == 1 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(0) }, {"y","x"}, "none" }; }
+      else if( cp.stride_size() == 2 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(1) }, {"y","x"}, "none" }; }
       else { multi_dim_err( cp.stride_size(), "stride" ); } // FIXME: we could handle this now as a first step for N-D support
     } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.stride_size()) );
-      conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, 1, "none" }; 
+      conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, "none" }; 
     }
     if( !(cp.has_kernel_w() || cp.has_kernel_h()) ){ 
       // for the 0-dims case, we use the implicit default of 1 (from comments in caffe.proto) AND our default of 2 spatial axes
       if( cp.kernel_size_size() == 0 ) { } // leave un-set; will be set by coi default
-      else if( cp.kernel_size_size() == 1 ) { conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(0), cp.kernel_size(0) }, {"y","x"}, 1, "none" }; }
-      else if( cp.kernel_size_size() == 2 ) { conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(0), cp.kernel_size(1) }, {"y","x"}, 1, "none" }; }
+      else if( cp.kernel_size_size() == 1 ) { conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(0), cp.kernel_size(0) }, {"y","x"}, "none" }; }
+      else if( cp.kernel_size_size() == 2 ) { conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(0), cp.kernel_size(1) }, {"y","x"}, "none" }; }
       else { multi_dim_err( cp.kernel_size_size(), "kernel_size" ); }
     } else { assert_st( cp.has_kernel_w() && cp.has_kernel_h() && (!cp.kernel_size_size()) );
-      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, 1, "none" }; 
+      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, "none" }; 
     }
   }
   void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, caffe::PoolingParameter const & cp ) {
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
-      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(), cp.pad() }, {"y","x"}, 1, "none" };
+      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(), cp.pad() }, {"y","x"}, "none" };
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.has_pad()) );
-      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, 1, "none" };
+      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, "none" };
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
-      conv_op->dims_vals["stride"] = dims_t{ { cp.stride(), cp.stride() }, {"y","x"}, 1, "none" };
+      conv_op->dims_vals["stride"] = dims_t{ { cp.stride(), cp.stride() }, {"y","x"}, "none" };
     } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.has_stride()) );
-      conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, 1, "none" };
+      conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, "none" };
     }
     if( cp.has_kernel_size() ) {
       assert_st( (!cp.has_kernel_w()) && (!cp.has_kernel_h()) ); 
-      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(), cp.kernel_size() }, {"y","x"}, 1, "none" };
+      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(), cp.kernel_size() }, {"y","x"}, "none" };
     } else if( cp.has_kernel_w() || cp.has_kernel_h() ) { 
       assert_st( cp.has_kernel_w() && cp.has_kernel_h() );
-      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, 1, "none" };
+      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, "none" };
     } else { } // has neither kernel_size nor kernel_{w,h} // leave un-set; will be set by coi default
   }
 
@@ -282,7 +282,7 @@ namespace boda
 	assert_st( lp.has_transform_param() );
 	caffe::TransformationParameter const * const tp = &lp.transform_param();
 	dims_t data_dims( vect_uint32_t{ dp->batch_size(), data_dims_chan, tp->crop_size(), tp->crop_size() }, 
-                          vect_string{ "img", "chan", "y", "x" }, 0, "float" );
+                          vect_string{ "img", "chan", "y", "x" }, "float" );
 	maybe_override_dims_and_calc_strides( data_dims, in_dims );
 	if( lp.bottom_size() != 0 ) { rt_err( "unhandled caffe data layer with num inputs != 0" ); }
 	if( lp.top_size() != 2 ) { rt_err( "unhandled caffe data layer with num outputs != 2" ); }
@@ -351,7 +351,7 @@ namespace boda
     uint32_t const hi = caffe_datum.width();
     uint32_t const wi = caffe_datum.height();
 
-    if( !out ) { out.reset( new nda_float_t( dims_t( { 1, chans, hi, wi }, 1, "float" ) ) ); }
+    if( !out ) { out.reset( new nda_float_t( dims_t( { 1, chans, hi, wi }, "float" ) ) ); }
 
     assert( out->dims.sz() == 4 );
     assert_st( out_ix < out->dims.dims(0) );
@@ -536,7 +536,7 @@ namespace boda
       // for 'old style' bias blobs, squwish out leading size 1 dims
       if( bd.sz() == 4 ) {
 	for( uint32_t i = 0; i != bd.sz()-1; ++i ) { assert_st( bd.dims(i) == 1 ); }
-	bd = dims_t( vect_uint32_t{ bd.dims(3) }, 1, bd.tn );
+	bd = dims_t( vect_uint32_t{ bd.dims(3) }, bd.tn );
       }
       assert( bd.sz() == 1 );
       bd.names(0) = "out_chan";

@@ -18,8 +18,8 @@ namespace boda
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
   conv_op_info_t const sgemm_coi{ "sgemm", {"a","b"}, {"c"}, {}, {} };
   map_str_dims_t const DefaultKernPadStride{ 
-    {"stride", dims_t{ {1,1},{"y","x"}, 1, "none" } }, 
-    {"in_pad", dims_t{ {0,0}, {"y","x"}, 1, "none" } } };
+    {"stride", dims_t{ {1,1},{"y","x"}, "none" } }, 
+    {"in_pad", dims_t{ {0,0}, {"y","x"}, "none" } } };
 
   map_str_str const Pooling_str_vals{{"avg_pool","0"},{"emit_out_in_yx","0"}};
   conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_str_vals, DefaultKernPadStride };
@@ -397,14 +397,14 @@ namespace boda
       dims_out = must_get_node(cop->bots[0])->dims;
       dims_t & loss_dims = must_get_node( cop->tops[1] )->dims;
       // loss is a singleton (no img or chan dims anyway)... but, FIXME: why are there exactly 2 spatial dims? what else could you put? just 'x'?
-      loss_dims = dims_t( vect_uint32_t{1,1}, vect_string{"y","x"}, 1, dims_out.tn ); // note: loss gets same type as SM output
+      loss_dims = dims_t( vect_uint32_t{1,1}, vect_string{"y","x"}, dims_out.tn ); // note: loss gets same type as SM output
       // FIXME: even though the label is an input, we currently can't/don't try to set it's dims intially (i.e. from the data
       // layer), although perhaps that would make more sense. instead, we allow it to be set here, but check that it is
       // correct if it is already set. if it ever is set 'feed forward', this check is still good/okay. however, if it
       // is used by other things as an input, and they expect it to be set (i.e. becuase they use it), then that's no
       // good -- it might or might not get randomly set here depending on traversal order. really it's just not
       // generally okay to set it here.
-      dims_t implied_label_dims( vect_uint32_t{ dims_out.dsz("img"), dims_out.dsz("y"), dims_out.dsz("x") }, vect_string{ "img", "y", "x" }, 1, "float" );
+      dims_t implied_label_dims( vect_uint32_t{ dims_out.dsz("img"), dims_out.dsz("y"), dims_out.dsz("x") }, vect_string{ "img", "y", "x" }, "float" );
       dims_t & label_dims = must_get_node( cop->bots[1] )->dims;
       if( label_dims.empty() ) { label_dims = implied_label_dims; }
       else if( label_dims != implied_label_dims ) { rt_err( "error: label used by multiple SoftmaxWithLoss layers with differing xy size or # imgs" ); }
@@ -437,10 +437,10 @@ namespace boda
 	if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( j_node->dims ); } // 'global' input special case
         string const & filts_bias_tn = j_node->dims.tn; // assume same type as input for filts/bias
 	dims_t filts_dims( vect_uint32_t{ cop->get_u32("out_chans"), j_node->dims.dsz("chan"), kern_sz.d[1], kern_sz.d[0] },
-			   vect_string{ "out_chan", "in_chan", "y", "x" }, 1, filts_bias_tn );
+			   vect_string{ "out_chan", "in_chan", "y", "x" }, filts_bias_tn );
 	must_get_node( cop->bots[1] )->dims = filts_dims;
 	out_chans = cop->get_u32("out_chans");
-	dims_t bias_dims( vect_uint32_t{ out_chans }, vect_string{ "out_chan" }, 1, filts_bias_tn );
+	dims_t bias_dims( vect_uint32_t{ out_chans }, vect_string{ "out_chan" }, filts_bias_tn );
 	must_get_node( cop->bots[2] )->dims = bias_dims;
       } else {
 	if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
@@ -933,7 +933,7 @@ namespace boda
 
       p_conv_node_t const data_img_node = conv_pipe->get_or_make_node(cur_node_name, 0, 0 );
       data_img_node->csi.init_as_source();
-      data_img_node->dims = dims_t( vect_uint32_t{ 1, in_chans, in_sz ? *in_sz : 1, in_sz ? *in_sz : 1 }, vect_string{ "img", "chan", "y", "x" }, 1, "float" );
+      data_img_node->dims = dims_t( vect_uint32_t{ 1, in_chans, in_sz ? *in_sz : 1, in_sz ? *in_sz : 1 }, vect_string{ "img", "chan", "y", "x" }, "float" );
 
       for( vect_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) {
 	p_conv_op_t cop( new conv_op_t( *i ) );

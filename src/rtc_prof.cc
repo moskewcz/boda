@@ -169,7 +169,7 @@ namespace boda
     rtc->init(); codegen.init( rtc );
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); }
-    if( eat_megs ) { rtc->create_var_with_dims_floats( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, 1, "float" } ); }
+    if( eat_megs ) { rtc->create_var_with_dims_floats( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, "float" } ); }
 
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
