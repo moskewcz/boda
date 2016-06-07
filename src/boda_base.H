@@ -630,7 +630,6 @@ namespace boda
         elems_sz_ = strides_sz;
         alloc();
       }
-      dims.tn.clear(); // FIXME
     }
   };
 
