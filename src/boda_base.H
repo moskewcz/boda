@@ -508,11 +508,13 @@ namespace boda
 
     // note: calc_strides() can/must be called if any dims are modified after dims_t creation, since all the strides
     // become invalid/stale in that case.
-    uint32_t calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
+    uint64_t strides_sz; // aka strides(-1), stride of all data; in no-padding case == dims_prod()
+    // FIXME: cache dims_prod() here too?
+    void calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
       assert_st( !tn.empty() ); // FIXME: good place for this?
       strides(sz()-1) = 1;
       for( uint32_t d = 1; d < sz(); ++d ) { strides(sz()-d-1) = strides(sz()-d)*dims(sz()-d); }
-      return strides(0)*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
+      strides_sz = uint64_t(strides(0))*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
     }
 
     uint32_t cm_ix1( uint32_t const d0i ) const {
@@ -588,10 +590,12 @@ namespace boda
   template< typename STREAM > inline void bwrite( STREAM & out, dims_t const & o ) { 
     bwrite( out, (vect_dim_t const &)o ); 
     bwrite( out, o.tn );
+    bwrite( out, o.strides_sz );
   }
   template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { 
     bread( in, (vect_dim_t &)o ); 
     bread( in, o.tn );
+    bread( in, o.strides_sz );
   }
 
   // for no-ownership-transfer references to 'remote' NDAs where the data is behine an opaque void *
@@ -610,31 +614,24 @@ namespace boda
   }
 
   struct nda_t {
-    nda_t( void )  : elems_sz_(0) { }
-    nda_t( dims_t const & dims_ ) : elems_sz_(0) { set_dims( dims_ ); }
+    nda_t( void ) { }
+    nda_t( dims_t const & dims_ ) { set_dims( dims_ ); }
   protected:
     p_uint8_t d;
-    uint64_t elems_sz_;
   public:
-    uint64_t const elems_sz( void ) const { return elems_sz_; }
+    uint64_t const elems_sz( void ) const { return dims.strides_sz; }
     dims_t dims;
   protected:
     void alloc( void ) {
       assert_st( !d );
-      assert_st( elems_sz_ );
+      assert_st( dims.strides_sz );
       d = ma_p_T<uint8_t>(elems_sz()*dims.tsz(),32UL);
     }
     void set_dims( dims_t const & dims_ ) { 
       dims = dims_;
       assert_st( !dims.tn.empty() );
-      assert_st( dims.strides(0) ); // stride
-      uint64_t const strides_sz = (dims.dims(0) * dims.strides(0));
-      if( d ) { assert( strides_sz == elems_sz() ); }
-      else { // if hunk is null, allocate it
-	assert( !elems_sz() ); // should not be set yet
-        elems_sz_ = strides_sz;
-        alloc();
-      }
+      assert_st( dims.strides_sz ); // strides must be set (and non-zero)
+      if( !d ) { alloc(); } // if hunk is null, allocate it
     }
   };
 
@@ -697,14 +694,12 @@ namespace boda
     // FIXME_TNDA: use dims.tsz() here instead of sizeof(T) and promote to nda_t
     template< typename STREAM > void bwrite_( STREAM & out ) const {
       bwrite(out,dims); 
-      bwrite(out,elems_sz_ );
-      bwrite_bytes( out, (char *)d.get(), elems_sz_*sizeof(T) );
+      bwrite_bytes( out, (char *)d.get(), elems_sz()*sizeof(T) );
     }
     template< typename STREAM > void bread_( STREAM & in ) {
       bread(in,dims); 
-      bread(in,elems_sz_ );
       alloc();
-      bread_bytes( in, (char *)d.get(), elems_sz_*sizeof(T) );
+      bread_bytes( in, (char *)d.get(), elems_sz()*sizeof(T) );
     } 
   };
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_T<T> const & o ) { o.bwrite_( out ); }
