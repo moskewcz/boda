@@ -14,7 +14,7 @@ namespace boda {
       p_nda_float_t out_batch_1 = must_find( *vs1, *i );
       p_nda_float_t out_batch_2 = must_find( *vs2, *i );
       // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
-      if( out_batch_1->elems.sz != out_batch_2->elems.sz ) {
+      if( out_batch_1->elems_sz() != out_batch_2->elems_sz() ) {
 	// treat size mismatch as warning, but print to log for regression tracking, since it may or may not be a 'real' error ...
 	(*out) << strprintf( "%s: warning: size mismatch, can't compare: DIMS1[%s] DIMS2[%s]\n", 
 			     i->c_str(), out_batch_1->dims.pretty_str().c_str(), out_batch_2->dims.pretty_str().c_str() );

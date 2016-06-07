@@ -279,9 +279,8 @@ namespace boda
       eq_diff< dims_t > dims_eq( has_diff );
       dims_eq( o1->dims, o2->dims ); 
       if( has_diff ) { return; }
-      assert_st( o1->elems.sz == o2->elems.sz ); // dims are same implies this
-      eq_diff< hunk_double_t > elems_eq( has_diff, 0 );
-      elems_eq( o1->elems, o2->elems ); 
+      assert_st( o1->elems_sz() == o2->elems_sz() ); // dims are same implies this
+      for( uint64_t i = 0; i < o1->elems_sz(); ++i ) { if( o1->elems_ptr()[i] != o2->elems_ptr()[i] ) { has_diff = 1; } }
       if( has_diff ) {
 	ssds_diff_t const ssds_diff(o1,o2);
 	printf( "DIFF: nda_double_t differing elems %s", str( ssds_diff ).c_str() );

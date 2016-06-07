@@ -99,9 +99,8 @@ namespace boda
 
   // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1. mad == max absolute diff
   template< typename RT, typename DT >
-  void sum_squared_diffs( RT & v, DT const & o1, DT const & o2 ) {
-    assert_st( o1.sz == o2.sz );
-    for( uint32_t i = 0; i < o1.sz; ++i ) { 
+  void sum_squared_diffs( RT & v, DT const & o1, DT const & o2, uint64_t const sz ) {
+    for( uint64_t i = 0; i < sz; ++i ) { 
       v.sum1 += double(o1[i]);
       v.sum2 += double(o2[i]);
       double const d = double(o2[i])-double(o1[i]); // difference
@@ -118,11 +117,18 @@ namespace boda
     }
   }
 
+  template< typename DT > uint64_t cnt_diff_elems( DT const & o1, DT const & o2, uint64_t const sz ) {
+    uint64_t ret = 0;
+    for( uint64_t i = 0; i < sz; ++i ) { if( o1[i] != o2[i] ) { ++ret; } }
+    return ret;
+  }
+
   template< typename T > ssds_diff_t::ssds_diff_t( T const & o1, T const & o2 ) {
     clear();
-    sz = o1->elems.sz;
-    sum_squared_diffs( *this, o1->elems, o2->elems );
-    num_diff = o1->elems.cnt_diff_elems( o2->elems );
+    sz = o1->elems_sz();
+    assert_st( sz == o2->elems_sz() );
+    sum_squared_diffs( *this, o1->elems_ptr(), o2->elems_ptr(), sz );
+    num_diff = cnt_diff_elems( o1->elems_ptr(), o2->elems_ptr(), sz );
     aad = sqrt(ssds / sz);
     ad = sds / sz;
     avg1 = sum1 / sz;

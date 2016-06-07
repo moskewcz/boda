@@ -34,7 +34,7 @@ namespace boda
     dims_t ret_dims( in->dims.sz() );
     for( uint32_t i = 0; i < ret_dims.sz(); ++i ) { ret_dims.dims(i) = in->dims.dims(i) + pad_n[i] + pad_p[i]; }
     p_nda_double_t ret( new nda_double_t( ret_dims ) );    
-    for( uint32_t i = 0; i < ret->elems.sz; ++i ) { ret->elems[i] = v; } //  init
+    for( uint32_t i = 0; i < ret->elems_sz(); ++i ) { ret->elems_ptr()[i] = v; } //  init
     for( dims_iter_t di( in->dims ) ; ; ) { ret->at(di.di,pad_n) = in->at(di.di);  if( !di.next() ) { break; } }
     return ret;
   }
@@ -318,10 +318,10 @@ namespace boda
     dims_t dims( dv.length() ); // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
     for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims(i) = dv.elem(dv.length()-1-i); }
     p_nda_double_t ret( new nda_double_t( dims ) );
-    assert_st( ret->elems.sz == (uint32_t)nda.numel() );
+    assert_st( ret->elems_sz() == (uint32_t)nda.numel() );
     double const * oct_data = nda.fortran_vec();
-    double * data = &ret->elems[0]; // our data layout is now an exact match to the octave one ...
-    for( uint32_t i = 0; i < ret->elems.sz; ++i ) { data[i] = oct_data[i]; } // ... so, just copy the elements flat
+    double * data = ret->elems_ptr(); // our data layout is now an exact match to the octave one ...
+    for( uint32_t i = 0; i < ret->elems_sz(); ++i ) { data[i] = oct_data[i]; } // ... so, just copy the elements flat
     return ret;
   }
 
@@ -349,7 +349,7 @@ namespace boda
     dims.dims(1) = 20;
     dims.dims(0) = 1;
     scales.reset( new nda_double_t( dims ) );
-    for( uint32_t i = 0; i < scales->elems.sz; ++i ) { scales->elems[i]  = 1.1; }
+    for( uint32_t i = 0; i < scales->elems_sz(); ++i ) { scales->elems[i]  = 1.1; }
 #endif
     bwrite( *out, boda_magic );
     bwrite_id( *out, string("scales") );
@@ -581,7 +581,7 @@ namespace boda
       p_nda_double_t boda_scales;
       vect_p_nda_double_t boda_feats;
       boda_scales = oct_featpyra_inner( boda_feats, img, 8, 10 );
-      assert_st( boda_scales->elems.sz == boda_feats.size() );
+      assert_st( boda_scales->elems_sz() == boda_feats.size() );
 
       p_nda_double_t scales;
       vect_p_nda_double_t feats;
@@ -620,19 +620,19 @@ namespace boda
       get_ndas_from_field( oct_feats, ret_osm, "feat" );
       //printf( "scales.size()=%s\n", str(scales.size()).c_str() );
       //printf( "oct_feats.size()=%s\n", str(oct_feats.size()).c_str() );
-      assert_st( scales->elems.sz == oct_feats.size() );
+      assert_st( scales->elems_sz() == oct_feats.size() );
       vect_uint32_t pad = {0,2,3};
       for( vect_NDAarray::const_iterator i = oct_feats.begin(); i != oct_feats.end(); ++i ) {
 	feats.push_back( create_p_nda_double_from_oct_NDArray( *i ) );
       }
 
-      assert_st( scales->elems.sz == boda_scales->elems.sz );
+      assert_st( scales->elems_sz() == boda_scales->elems_sz() );
       assert_st( feats.size() == boda_feats.size() );
-      assert_st( feats.size() == scales->elems.sz );
+      assert_st( feats.size() == scales->elems_sz() );
       
       for( uint32_t i = 0; i < feats.size(); ++i ) {
-	out << strprintf( "scale=%s boda_scale=%s\n", str(scales->elems[i]).c_str(), 
-			  str(boda_scales->elems[i]).c_str() );
+	out << strprintf( "scale=%s boda_scale=%s\n", str(scales->elems_ptr()[i]).c_str(), 
+			  str(boda_scales->elems_ptr()[i]).c_str() );
 	out << strprintf( "feats: ssds_str(oct,boda)=%s\n", ssds_diff_t(feats[i],boda_feats[i]).basic_str().c_str() );
       }
 

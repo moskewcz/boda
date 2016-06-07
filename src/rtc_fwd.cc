@@ -131,8 +131,8 @@ namespace boda
   void conv_pipe_fwd_t::update_stats( void ) {
     for( vect_string::const_iterator i = stats_names.begin(); i != stats_names.end(); ++i ) {
       p_nda_float_t nda = rtc->copy_var_as_flat_nda( *i );
-      assert_st( nda->elems.sz == 1 );
-      float v = nda->elems[0];
+      assert_st( nda->elems_sz() == 1 );
+      float v = *nda->elems_ptr();
       if( has( stats_map, *i ) ) { v = stats_reduce( *i, v, stats_map[*i] ); }
       stats_map[*i] = v;
     }

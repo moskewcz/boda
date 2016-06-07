@@ -29,6 +29,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 #include"../boda_tu_base.H"
+#include"../str_util.H"
 #include <math.h>
 // small value, used to avoid division by zero
 #define eps 0.0001

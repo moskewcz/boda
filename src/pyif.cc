@@ -10,6 +10,7 @@
 #include<numpy/arrayobject.h>
 #include"pyif.H"
 #include"img_io.H"
+#include"str_util.H"
 #include"results_io.H"
 #include<boost/filesystem.hpp>
 

@@ -369,7 +369,7 @@ namespace boda
     assert_st( (ho+yi) <= hi );
     assert_st( (wo+xi) <= wi );
 
-    float * const ret_data = &out->elems[ out_ix * (chans*wo*ho) ];
+    float * const ret_data = out->elems_ptr() + (out_ix * (chans*wo*ho));
 
     if( chans*hi*wi != caffe_datum.data().size() ) {
       rt_err( strprintf( "inconsistency in datum data size vs datum dims: chans=%s hi=%s wi=%s so chans*h*w=%s but caffe_datum.data().size()=%s\n", 
@@ -415,7 +415,7 @@ namespace boda
     p_img_t ret( new img_t );
     ret->set_sz_and_alloc_pels( {w,h} );
 
-    float const * const vd = &v->elems[0];
+    float const * const vd = v->elems_ptr();
 
     uint32_t const c_off = w*h;
     for( uint32_t y = 0; y != h; ++y ) {
@@ -514,10 +514,10 @@ namespace boda
 	blob_dims.dims(0) = lbp.num();
       } else { blob_dims = shape_to_dims_t( lbp.shape() ); }
       p_nda_float_t blob( new nda_float_t( blob_dims ) );
-      assert_st( blob->elems.sz == uint32_t(lbp.data_size()) );
-      float * const dest = &blob->elems[0];
+      assert_st( blob->elems_sz() == uint32_t(lbp.data_size()) );
+      float * const dest = blob->elems_ptr();
       float const * const src = lbp.data().data();
-      for( uint32_t i = 0; i != blob->elems.sz ; ++i ) { dest[i] = src[i]; }
+      for( uint32_t i = 0; i != blob->elems_sz() ; ++i ) { dest[i] = src[i]; }
       blobs.push_back( blob );
     }
 
@@ -562,8 +562,8 @@ namespace boda
       caffe::BlobShape & lbp_shape = *lbp.mutable_shape();
       dims_t_to_shape( blob_dims, lbp_shape );
       assert( lbp.data_size() == 0 );
-      const float * const src = &blob->elems[0];
-      for( uint32_t i = 0; i != blob->elems.sz ; ++i ) { lbp.add_data( src[i] ); }
+      const float * const src = blob->elems_ptr();
+      for( uint32_t i = 0; i != blob->elems_sz() ; ++i ) { lbp.add_data( src[i] ); }
     }
   }
   void set_layer_blobs( p_net_param_t const & net, string const & layer_name, vect_p_nda_float_t & blobs ) {
@@ -830,7 +830,7 @@ namespace boda
       assert_st( blobs_mod.size() == 2 ); // filters, biases
       // assert_st( blobs[1]->dims == blobs_mod[1]->dims ); // biases should be same shape (and same strides?) too strong
       assert_st( blobs[1]->dims.dims_prod() == blobs_mod[1]->dims.dims_prod() );
-      blobs_mod[1]->elems = blobs[1]->elems; // reshape
+      blobs_mod[1]->copy_elems_with_reshape( *blobs[1] ); // reshape
 
       assert_st( blobs[0]->dims.dims(0) == blobs_mod[0]->dims.dims(0) );
       assert_st( blobs[0]->dims.dims(1) == blobs_mod[0]->dims.dims(1) );
@@ -968,11 +968,11 @@ namespace boda
       printf( "blobs[1]->dims=%s blobs_mod[1]->dims=%s\n", str(blobs[1]->dims).c_str(), str(blobs_mod[1]->dims).c_str() );
       // assert_st( blobs[1]->dims == blobs_mod[1]->dims ); // biases should be same shape (and same strides?) too strong
       assert_st( blobs[1]->dims.dims_prod() == blobs_mod[1]->dims.dims_prod() );
-      blobs_mod[1]->elems = blobs[1]->elems; // reshape
+      blobs_mod[1]->copy_elems_with_reshape( *blobs[1] ); // reshape
 
       assert( blobs_mod[0]->dims.dims_prod() == blobs[0]->dims.dims_prod() );
-      assert( blobs_mod[0]->elems.sz == blobs[0]->elems.sz );
-      blobs_mod[0]->elems = blobs[0]->elems; // reshape
+      assert( blobs_mod[0]->elems_sz() == blobs[0]->elems_sz() );
+      blobs_mod[0]->copy_elems_with_reshape( *blobs[0] ); // reshape
 
       set_layer_blobs( mod_net_param, layer_name + "-conv", blobs_mod );
     }

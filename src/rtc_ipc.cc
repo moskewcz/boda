@@ -547,18 +547,18 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	  bread( *parent, vn );
 	  ipc_var_info_t & vi = must_find( *vis, vn );
 	  uint32_t const sz = rtc->get_var_sz_floats( vn );
-	  assert_st( sz == vi.buf->elems.sz );
-	  bread_bytes( *parent, (char *)&vi.buf->elems[0], sz*sizeof(float) ); 
-	  rtc->copy_to_var( vn, &vi.buf->elems[0] );
+	  assert_st( sz == vi.buf->elems_sz() );
+	  bread_bytes( *parent, (char *)vi.buf->elems_ptr(), sz*sizeof(float) ); 
+	  rtc->copy_to_var( vn, vi.buf->elems_ptr() );
 	}
 	else if( cmd == "copy_from_var" ) {
 	  string vn;
 	  bread( *parent, vn );
 	  ipc_var_info_t & vi = must_find( *vis, vn );
 	  uint32_t const sz = rtc->get_var_sz_floats( vn );
-	  assert_st( sz == vi.buf->elems.sz );
-	  rtc->copy_from_var( &vi.buf->elems[0], vn );
-	  bwrite_bytes( *parent, (char const *)&vi.buf->elems[0], sz*sizeof(float) ); 
+	  assert_st( sz == vi.buf->elems_sz() );
+	  rtc->copy_from_var( vi.buf->elems_ptr(), vn );
+	  bwrite_bytes( *parent, (char const *)vi.buf->elems_ptr(), sz*sizeof(float) ); 
 	  parent->flush();
 	}
 	else if( cmd == "create_var_with_dims_floats" ) {

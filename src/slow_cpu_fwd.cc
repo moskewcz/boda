@@ -110,8 +110,8 @@ namespace boda
       run_conv_op_per_img( cop, fwd, bot, top );
     } else if( cop->is( ReLU_coi ) ) {
       p_nda_float_t const & top = must_find( *fwd, cop->get_single_in_place_arg() );
-      float * const r_top = &top->elems[0];
-      for( uint32_t i = 0; i != top->elems.sz; ++i ) { if( r_top[i] <= 0 ) { r_top[i] = 0; } }
+      float * const r_top = top->elems_ptr();
+      for( uint32_t i = 0; i != top->elems_sz(); ++i ) { if( r_top[i] <= 0 ) { r_top[i] = 0; } }
     } else if( cop->is( Dropout_coi ) ) {
       // ingore 
     } else if( cop->is( Softmax_coi ) ) {

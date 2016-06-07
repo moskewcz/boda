@@ -70,8 +70,8 @@ namespace boda
     dims_t const & nda_dims = nda->dims;
     assert_st( nda_dims.sz() == uint32_t(blob->num_axes()) );
     for( uint32_t i = 0; i != nda_dims.sz(); ++i ) { assert_st( nda_dims.dims(i) == uint32_t(blob->shape(i)) ); }
-    assert_st( nda->elems.sz == uint32_t(blob->count()) );
-    float * const src = &nda->elems[0];
+    assert_st( nda->elems_sz() == uint32_t(blob->count()) );
+    float * const src = nda->elems_ptr();
     switch (Caffe::mode()) {
     case Caffe::CPU: memcpy( set_diff ? blob->mutable_cpu_diff() : blob->mutable_cpu_data(), src, sizeof(float) * blob->count()); break;
     case Caffe::GPU: cudaMemcpy( set_diff ? blob->mutable_gpu_diff() : blob->mutable_gpu_data(), src, sizeof(float) * blob->count(), cudaMemcpyHostToDevice); break;
@@ -97,8 +97,8 @@ namespace boda
     //printf( "nda_dims=%s blob->shape->str()=%s\n", str(nda_dims).c_str(), str(blob->shape_string()).c_str() );
     assert_st( nda_dims.sz() == uint32_t(blob->num_axes()) );
     for( uint32_t i = 0; i != nda_dims.sz(); ++i ) { assert_st( nda_dims.dims(i) == uint32_t(blob->shape(i)) ); }
-    assert_st( nda->elems.sz == uint32_t(blob->count()) );
-    float * const dest = &nda->elems[0];
+    assert_st( nda->elems_sz() == uint32_t(blob->count()) );
+    float * const dest = nda->elems_ptr();
     switch (Caffe::mode()) {
     case Caffe::CPU: memcpy(dest, get_diff ? blob->cpu_diff() : blob->cpu_data(), sizeof(float) * blob->count() ); break;
     case Caffe::GPU: cudaMemcpy(dest, get_diff ? blob->gpu_diff() : blob->gpu_data(), sizeof(float) * blob->count(), 

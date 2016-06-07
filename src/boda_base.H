@@ -246,36 +246,8 @@ namespace boda
     hunk_T( uint32_t const sz_ ) : sz(sz_), p( ma_p_T<T>( sz_ ) ) { } // hunk owns whole block
     T & operator []( uint32_t const & ix ) { assert_st( ix < sz ); return p.get()[ix]; }
     T const & operator []( uint32_t const & ix ) const { assert_st( ix < sz ); return p.get()[ix]; }
-    bool operator == ( hunk_T<T> const & o ) const { 
-      if( sz != o.sz ) { return 0; }
-      for( uint32_t ix = 0; ix < sz; ++ix ) { if( (*this)[ix] != o[ix] ) { return 0; } }
-      return 1;
-    }
-    uint32_t cnt_diff_elems( hunk_T<T> const & o ) const { 
-      if( sz != o.sz ) { return uint32_t_const_max; }
-      uint32_t ret = 0;
-      for( uint32_t ix = 0; ix < sz; ++ix ) { if( (*this)[ix] != o[ix] ) { ++ret; } }
-      return ret;
-    }
-    hunk_T< T > clone( void ) const { // clone will have newly allocated memory with a copy of the data
-      hunk_T<T> ret( sz ); 
-      for( uint32_t ix = 0; ix < sz; ++ix ) { ret[ix] = (*this)[ix]; }
-      return ret;
-    }
   };
 
-  template< typename T >
-  inline std::ostream & operator << ( std::ostream & out, hunk_T< T > const & o ) {
-    out << "hunk of " << typeid(T).name() << " size=" << o.sz;
-    for( uint32_t ix = 0; ix < o.sz; ++ix ) { out << " " << o[ix]; }
-    out << std::endl;
-    return out;
-  }
-
-
-  typedef hunk_T< uint32_t > hunk_uint32_t;
-  typedef hunk_T< float > hunk_float_t;
-  typedef hunk_T< double > hunk_double_t;
 
   __attribute__((used)) uint32_t const boda_magic= *(uint32_t *)"BODA";
 
@@ -619,23 +591,7 @@ namespace boda
     }
   };
 
-#if 0
-  inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) {
-    out << "RM_DIMS=";
-    for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?"*":"") << o.dims(ix); }
-    if( o.has_any_strides() ) {
-      out << " STRIDES=";
-      for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?",":"") << o.strides(ix); }
-    }
-    if( o.has_any_names() ) {
-      out << " NAMES=";
-      for( uint32_t ix = 0; ix != o.sz(); ++ix ) { out << (ix?",":"") << o.names(ix); }
-    }
-    return out;
-  }
-#else
   inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { out << o.param_str(); return out; }
-#endif
 
   template< typename STREAM > inline void bwrite( STREAM & out, dim_t const & o ) { 
     bwrite( out, o.sz ); bwrite( out, o.stride ); bwrite( out, o.name ); 
@@ -667,6 +623,13 @@ namespace boda
     nda_T( void ) { }
     nda_T( dims_t const & dims_ ) { set_dims( dims_ ); }
     hunk_T< T > elems; 
+    uint64_t const elems_sz( void ) const { return elems.sz; }
+    T const * elems_ptr( void ) const { return &elems[0]; }
+    T * elems_ptr( void ) { return &elems[0]; }
+    void copy_elems_with_reshape( nda_T< T > const & o ) {
+      assert_st( elems_sz() == o.elems_sz() );
+      for( uint32_t i = 0; i != elems_sz(); ++i ) { elems_ptr()[i] = o.elems_ptr()[i]; }
+    }
     dims_t dims;
   private:
     void set_dims( dims_t const & dims_ ) { 
