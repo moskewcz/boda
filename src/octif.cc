@@ -321,6 +321,7 @@ namespace boda
     dims_t dims( dv.length() ); // boda nda stores dims in row-major order, so we reverse the octave dims as we copy them
     dims.tn = "double"; // FIXME_TNDA: check that NDArray is of type double
     for( uint32_t i = 0; i < uint32_t(dv.length()); ++i ) { dims.dims(i) = dv.elem(dv.length()-1-i); }
+    dims.calc_strides();
     p_nda_double_t ret( new nda_double_t( dims ) );
     assert_st( ret->elems_sz() == (uint32_t)nda.numel() );
     double const * oct_data = nda.fortran_vec();
@@ -497,6 +498,7 @@ namespace boda
     scales_dims.tn = "double";
     scales_dims.dims(0) = 1;
     scales_dims.dims(1) = scales.size();
+    scales_dims.calc_strides();
     p_nda_double_t scales_out( new nda_double_t( scales_dims ) );
     for( uint32_t i = 0; i < scales.size(); ++i ) { scales_out->cm_at1(i) = scales[i]; }
     return scales_out;

@@ -626,9 +626,8 @@ namespace boda
     void set_dims( dims_t const & dims_ ) { 
       dims = dims_;
       assert_st( !dims.tn.empty() );
-      uint32_t strides_sz = 0;
-      if( !dims.strides(0) ) { strides_sz = dims.calc_strides(); } 
-      else { strides_sz = (dims.dims(0) * dims.strides(0)); }
+      assert_st( dims.strides(0) ); // stride
+      uint64_t const strides_sz = (dims.dims(0) * dims.strides(0));
       if( d ) { assert( strides_sz == elems_sz() ); }
       else { // if hunk is null, allocate it
 	assert( !elems_sz() ); // should not be set yet
