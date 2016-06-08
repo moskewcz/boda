@@ -163,7 +163,7 @@ namespace boda
 
   vect_string conv_pipe_fwd_t::gen_op_stats( string const & top_in ) {
     vect_string const reds{ "min","max","sum","hist","cnt" }; // FIXME: dup'd with kernel code
-    uint32_t in_sz = rtc->get_var_dims_floats( top_in ).dims_prod(); // treat input as flat
+    uint32_t in_sz = rtc->get_var_dims( top_in ).dims_prod(); // treat input as flat
     uint32_t primary_in = 1;
     assert_st( in_sz );
     dims_t arg_dims( {0}, {"v"}, "float" ); // all vars are single-dim with wild/any size
@@ -204,7 +204,7 @@ namespace boda
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-    string const func = gen_func( op_base_t{ "quantize", {{"out",rtc->get_var_dims_floats(top_in)}}, {} } );
+    string const func = gen_func( op_base_t{ "quantize", {{"out",rtc->get_var_dims(top_in)}}, {} } );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, {max_val,drop_mask} } );
   }
 
@@ -240,7 +240,7 @@ namespace boda
   }
 
   void set_rtc_arg( p_op_info_t const & oi, p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
-    oi->set_arg( rtc->get_var_dims_floats(vn), an, vn );
+    oi->set_arg( rtc->get_var_dims(vn), an, vn );
   }
   
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
@@ -294,19 +294,19 @@ namespace boda
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const filts_id = oi->arg_map["filts"];
-      if( oi->get_dims("filts") != rtc->get_var_dims_floats( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
+      if( oi->get_dims("filts") != rtc->get_var_dims( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
 	string const filts_xp_fn = gen_func( op_base_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_dims("filts"), 
 						       filts_xp_fn ) );
       }
       string const in_id = oi->arg_map["in"];
-      // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims_floats( in_id ); see comment in init()
+      // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims( in_id ); see comment in init()
       if( oi->cts() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
 	string const xp_fn = gen_func( op_base_t{ "tconv_xpose_in", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
       } else if( oi->cts() == k1conv_str ) {
-	if( oi->get_dims("in") != rtc->get_var_dims_floats( in_id ) ) {
+	if( oi->get_dims("in") != rtc->get_var_dims( in_id ) ) {
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
 	  string const xp_fn = gen_func( op_base_t{ "k1conv_xpose_in", oi->dims_vals, oi->str_vals } );
 	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
@@ -374,7 +374,7 @@ namespace boda
       assert_st( oi->cts() == conv_str );
       if( enable_bconv ) {
 #if 0
-	dims_t const & ogl_dims = rtc->get_var_dims_floats( ogl_vn );
+	dims_t const & ogl_dims = rtc->get_var_dims( ogl_vn );
 	dims_t const & ogl_xp_dims = ogl_dims; // oi->dims_vals["out_grad_loss"];
 	string ogl_xp_fn = gen_func( op_base_t{ "btconv_ogl_xpose", {ogl_dims,ogl_xp_dims}, 
 	      oi->dims_vals, oi->str_vals } );

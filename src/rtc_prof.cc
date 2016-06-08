@@ -84,7 +84,7 @@ namespace boda
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      codegen.rtc->create_var_with_dims_floats( j->second, must_find( anno_op->dims_vals, j->first ) );
+      codegen.rtc->create_var_with_dims( j->second, must_find( anno_op->dims_vals, j->first ) );
     }
     vect_string xpose_vars_to_release;
     if( in_gen_op_orig ) { 
@@ -99,7 +99,7 @@ namespace boda
         string gen_vn = i->vn;
         if( in_dims != ref_in_dims ) { 
           gen_vn += "_ref"; 
-          codegen.rtc->create_var_with_dims_floats( gen_vn, ref_in_dims ); 
+          codegen.rtc->create_var_with_dims( gen_vn, ref_in_dims ); 
           xpose_vars_to_release.push_back( gen_vn );
         }
 	string const in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
@@ -132,7 +132,7 @@ namespace boda
       string gen_vn = i->vn;
       if( out_dims != ref_out_dims ) { 
         gen_vn += "_ref"; 
-        codegen.rtc->create_var_with_dims_floats( gen_vn, ref_out_dims ); 
+        codegen.rtc->create_var_with_dims( gen_vn, ref_out_dims ); 
         xpose_vars_to_release.push_back( gen_vn );
       }
       // check if xpose needed:
@@ -169,7 +169,7 @@ namespace boda
     rtc->init(); codegen.init( rtc );
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); }
-    if( eat_megs ) { rtc->create_var_with_dims_floats( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, "float" } ); }
+    if( eat_megs ) { rtc->create_var_with_dims( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, "float" } ); }
 
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {

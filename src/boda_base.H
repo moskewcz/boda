@@ -472,6 +472,7 @@ namespace boda
       return ret;
     }
     uint32_t sz( void ) const { return size(); }
+    uint64_t bytes_sz( void ) const { return tsz()*strides_sz; }
 
     uint32_t & dims( uint32_t const ix ) { return at(ix).sz; }
     string & names( uint32_t const ix ) { return at(ix).name; }

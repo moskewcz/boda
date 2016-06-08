@@ -290,33 +290,32 @@ typedef int int32_t;
     p_map_str_cl_kernel_t kerns;
     virtual void release_all_funcs( void ) { kerns->clear(); }
 
-
-    void copy_to_var( string const & vn, float const * const v ) {
-      cl_mem_t const & buf = must_find( *vis, vn ).buf;
-      cl_int const err = clEnqueueWriteBuffer( cq.v, buf.v, 1, 
-					       0, get_info<size_t>(MemObject_t(buf.v,CL_MEM_SIZE)), &v[0], 
-					       0, 0, 0);  // note: blocking write
+    void copy_nda_to_var( string const & vn, p_nda_t const & nda ) {
+      cl_var_info_t const & vi = must_find( *vis, vn );
+      assert_st( nda->dims == vi.dims );
+      size_t const buf_sz = get_info<size_t>(MemObject_t(vi.buf.v,CL_MEM_SIZE));
+      assert_st( buf_sz == nda->dims.bytes_sz() );
+      cl_int const err = clEnqueueWriteBuffer( cq.v, vi.buf.v, 1, 0, buf_sz, nda->rp_elems(), 0, 0, 0);  // note: blocking write
       cl_err_chk( err, "clEnqueueWriteBuffer()" );
     }
-    void copy_from_var( float * const v, string const & vn ) {
-      cl_mem_t const & buf = must_find( *vis, vn ).buf;
-      cl_int const err = clEnqueueReadBuffer( cq.v, buf.v, 1, 
-					      0, get_info<size_t>(MemObject_t(buf.v,CL_MEM_SIZE)), &v[0], 
-					      0, 0, 0 ); // note: blocking_read=1
+    void copy_var_to_nda( p_nda_t const & nda, string const & vn ) {
+      cl_var_info_t const & vi = must_find( *vis, vn );
+      assert_st( nda->dims == vi.dims );
+      size_t const buf_sz = get_info<size_t>(MemObject_t(vi.buf.v,CL_MEM_SIZE));
+      assert_st( buf_sz == nda->dims.bytes_sz() );
+      cl_int const err = clEnqueueReadBuffer( cq.v, vi.buf.v, 1, 0, buf_sz, nda->rp_elems(), 0, 0, 0 ); // note: blocking_read=1
       cl_err_chk( err, "clEnqueueReadBuffer()" );
     }
-    void create_var_with_dims_floats( string const & vn, dims_t const & dims ) { 
-      uint32_t const sz = dims.dims_prod();
-      uint32_t const bytes_sz = sizeof(float)*sz;
+    void create_var_with_dims( string const & vn, dims_t const & dims ) { 
       cl_int err;
       cl_mem_t buf;
-      buf.reset( clCreateBuffer( context.v, CL_MEM_READ_WRITE, bytes_sz, 0, &err ) );
-      cl_err_chk( err, "Buffer() from vect_float" );
+      buf.reset( clCreateBuffer( context.v, CL_MEM_READ_WRITE, dims.bytes_sz(), 0, &err ) );
+      cl_err_chk( err, "Buffer() from dims" );
       must_insert( *vis, vn, cl_var_info_t{buf,dims} ); 
       set_var_to_zero( vn );
     }
     void release_var( string const & vn ) { must_erase( *vis, vn ); }
-    dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
+    dims_t get_var_dims( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { 
       cl_mem_t const & buf = must_find( *vis, vn ).buf;
 #if 0

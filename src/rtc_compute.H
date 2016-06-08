@@ -24,13 +24,9 @@ namespace boda
 
     virtual void init( void ) = 0;
 
-    // rp_float <-> var copies; var must exist; assumes the raw float pointer points to a block of floats of size at least as big as the var
-    virtual void copy_to_var( string const & vn, float const * const v ) = 0;
-    virtual void copy_from_var( float * const v, string const & vn ) = 0;
-    virtual void create_var_with_dims_floats( string const & vn, dims_t const & dims ) = 0;
+    virtual void create_var_with_dims( string const & vn, dims_t const & dims ) = 0;
     virtual void release_var( string const & vn ) = 0;
-    virtual dims_t get_var_dims_floats( string const & vn ) = 0;
-    uint32_t get_var_sz_floats( string const & vn );
+    virtual dims_t get_var_dims( string const & vn ) = 0;
     virtual void set_var_to_zero( string const & vn ) = 0;
     
     // note: must specify all functions that will ever be called from this source block at compile time.
@@ -57,15 +53,15 @@ namespace boda
     // vect_float <-> var conversions/copies
     void init_var_from_vect_float( string const & vn, vect_float const & v );
     void set_vect_float_from_var( vect_float & v, string const & vn );
-    void copy_var_to_nda( p_nda_float_t const & nda, string const & vn );
-    void copy_nda_to_var( string const & vn, p_nda_float_t const & nda );
+    void copy_var_to_nda( p_nda_t const & nda, string const & vn );
+    void copy_nda_to_var( string const & vn, p_nda_t const & nda );
 
-    p_nda_float_t copy_var_as_flat_nda( string const & vn );
-    void copy_ndas_to_vars( vect_string const & names, map_str_p_nda_float_t const & ndas );
-    void copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas );
+    p_nda_t copy_var_as_flat_nda( string const & vn );
+    void copy_ndas_to_vars( vect_string const & names, map_str_p_nda_t const & ndas );
+    void copy_vars_to_ndas( vect_string const & names, map_str_p_nda_t & ndas );
 
-    void create_var_from_nda( p_nda_float_t const & nda, string const & vn );
-    p_nda_float_t create_nda_from_var( string const & vn );
+    void create_var_from_nda( p_nda_t const & nda, string const & vn );
+    p_nda_t create_nda_from_var( string const & vn );
 
   };
   struct rtc_compute_t; typedef shared_ptr< rtc_compute_t > p_rtc_compute_t; 

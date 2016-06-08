@@ -65,11 +65,9 @@ namespace boda
   }
 
   struct ipc_var_info_t {
-    p_nda_float_t buf;
+    p_nda_t buf;
     dims_t dims;
-    ipc_var_info_t( dims_t const & dims_ ) : dims(dims_) {
-      buf.reset( new nda_float_t( dims ) );
-    }
+    ipc_var_info_t( dims_t const & dims_ ) : dims(dims_) { buf = make_shared<nda_t>( dims ); }
   };
 
   typedef map< string, ipc_var_info_t > map_str_ipc_var_info_t;
@@ -368,20 +366,27 @@ namespace boda
                 + "------END NESTED ERROR FROM IPC WORKER ------\n" );
       }
     }
-    void copy_to_var( string const & vn, float const * const v ) {
-      uint32_t const sz = get_var_sz_floats( vn );
-      bwrite( *worker, string("copy_to_var") ); bwrite( *worker, vn ); bwrite_bytes( *worker, (char const *)v, sz*sizeof(float) ); 
+    void copy_nda_to_var( string const & vn, p_nda_t const & nda ) {
+      dims_t const & dims = get_var_dims( vn );
+      assert_st( dims == nda->dims );
+      bwrite( *worker, string("copy_nda_to_var") ); 
+      bwrite( *worker, vn );
+      bwrite( *worker, dims );
+      bwrite_bytes( *worker, (char const *)nda->rp_elems(), dims.bytes_sz() ); 
       worker->flush();
     }
-    void copy_from_var( float * const v, string const & vn ) {
-      uint32_t const sz = get_var_sz_floats( vn );
-      bwrite( *worker, string("copy_from_var") ); bwrite( *worker, vn ); 
+    void copy_var_to_nda( p_nda_t const & nda, string const & vn ) {
+      dims_t const & dims = get_var_dims( vn );
+      assert_st( dims == nda->dims );
+      bwrite( *worker, string("copy_var_to_nda") ); 
+      bwrite( *worker, vn );
+      bwrite( *worker, dims );
       worker->flush();
-      bread_bytes( *worker, (char *)v, sz*sizeof(float) ); 
+      bread_bytes( *worker, (char *)nda->rp_elems(), dims.bytes_sz() ); 
     }
-    void create_var_with_dims_floats( string const & vn, dims_t const & dims ) { 
+    void create_var_with_dims( string const & vn, dims_t const & dims ) { 
       must_insert( *vis, vn, ipc_var_info_t{dims} ); 
-      bwrite( *worker, string("create_var_with_dims_floats") ); bwrite( *worker, vn ); bwrite( *worker, dims ); 
+      bwrite( *worker, string("create_var_with_dims") ); bwrite( *worker, vn ); bwrite( *worker, dims ); 
       worker->flush();
     }
     void release_var( string const & vn ) {
@@ -389,7 +394,7 @@ namespace boda
       bwrite( *worker, string("release_var") ); bwrite( *worker, vn );
       worker->flush();
     }
-    dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
+    dims_t get_var_dims( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { bwrite( *worker, string("set_var_to_zero") ); bwrite( *worker, vn ); worker->flush(); }
     
     virtual float get_dur( uint32_t const & b, uint32_t const & e ) { 
@@ -542,31 +547,33 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
           if( ret ) { bwrite( *parent, err_str ); }
 	  parent->flush();
 	}
-	else if( cmd == "copy_to_var" ) {
+	else if( cmd == "copy_nda_to_var" ) {
 	  string vn;
+	  dims_t dims;
 	  bread( *parent, vn );
+	  bread( *parent, dims );
 	  ipc_var_info_t & vi = must_find( *vis, vn );
-	  uint32_t const sz = rtc->get_var_sz_floats( vn );
-	  assert_st( sz == vi.buf->elems_sz() );
-	  bread_bytes( *parent, (char *)vi.buf->elems_ptr(), sz*sizeof(float) ); 
-	  rtc->copy_to_var( vn, vi.buf->elems_ptr() );
+          assert_st( dims == vi.buf->dims );
+	  bread_bytes( *parent, (char *)vi.buf->rp_elems(), vi.buf->dims.bytes_sz() );
+	  rtc->copy_nda_to_var( vn, vi.buf );
 	}
-	else if( cmd == "copy_from_var" ) {
+	else if( cmd == "copy_var_to_nda" ) {
 	  string vn;
+	  dims_t dims;
 	  bread( *parent, vn );
+	  bread( *parent, dims );
 	  ipc_var_info_t & vi = must_find( *vis, vn );
-	  uint32_t const sz = rtc->get_var_sz_floats( vn );
-	  assert_st( sz == vi.buf->elems_sz() );
-	  rtc->copy_from_var( vi.buf->elems_ptr(), vn );
-	  bwrite_bytes( *parent, (char const *)vi.buf->elems_ptr(), sz*sizeof(float) ); 
+          assert_st( dims == vi.buf->dims );
+	  rtc->copy_var_to_nda( vi.buf, vn );
+	  bwrite_bytes( *parent, (char const *)vi.buf->rp_elems(), vi.buf->dims.bytes_sz() );
 	  parent->flush();
 	}
-	else if( cmd == "create_var_with_dims_floats" ) {
+	else if( cmd == "create_var_with_dims" ) {
 	  string vn; dims_t dims;
 	  bread( *parent, vn ); 
 	  bread( *parent, dims );
 	  must_insert( *vis, vn, ipc_var_info_t{dims} );
-	  rtc->create_var_with_dims_floats( vn, dims );
+	  rtc->create_var_with_dims( vn, dims );
 	}
 	else if( cmd == "release_var" ) {
 	  string vn;

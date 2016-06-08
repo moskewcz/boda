@@ -90,22 +90,20 @@ namespace boda
 #undef CU_GET_FUNC_ATTR_HELPER_MACRO
 
   
-  template< typename T >  struct cup_T {
-    typedef T element_type;
+  struct cup_t {
     CUdeviceptr p;
-    uint32_t sz;
-    void set_to_zero( void ) { cu_err_chk( cuMemsetD8(  p, 0, sz * sizeof(element_type) ), "cuMemsetD8" ); }
-    cup_T( uint32_t const sz_ ) : p(0), sz(sz_) { 
-      cu_err_chk( cuMemAlloc( &p,    sz * sizeof(element_type) ), "cuMemAlloc" ); 
+    uint64_t sz;
+    void set_to_zero( void ) { cu_err_chk( cuMemsetD8(  p, 0, sz ), "cuMemsetD8" ); }
+    cup_t( uint64_t const sz_ ) : p(0), sz(sz_) { 
+      cu_err_chk( cuMemAlloc( &p, sz ), "cuMemAlloc" ); 
       set_to_zero();
     }
-    ~cup_T( void ) { cu_err_chk( cuMemFree( p ), "cuMemFree" ); }
+    ~cup_t( void ) { cu_err_chk( cuMemFree( p ), "cuMemFree" ); }
   };
-  typedef cup_T< float > cup_float;
-  typedef shared_ptr< cup_float > p_cup_float; 
+  typedef shared_ptr< cup_t > p_cup_t; 
 
-  typedef map< string, p_cup_float > map_str_p_cup_float_t;
-  typedef shared_ptr< map_str_p_cup_float_t > p_map_str_p_cup_float_t;
+  typedef map< string, p_cup_t > map_str_p_cup_t;
+  typedef shared_ptr< map_str_p_cup_t > p_map_str_p_cup_t;
 
   typedef shared_ptr< CUevent > p_CUevent; 
   typedef vector< p_CUevent > vect_p_CUevent; 
@@ -147,10 +145,10 @@ namespace boda
   typedef vector< call_ev_t > vect_call_ev_t; 
 
   struct var_info_t {
-    p_cup_float cup;
+    p_cup_t cup;
     dims_t dims;
     //p_void ev; // when ready
-    var_info_t( dims_t const & dims_ ) : cup( make_shared<cup_float>( dims_.dims_prod() ) ), dims(dims_) {} // , ev( make_p_CUevent() ) { }
+    var_info_t( dims_t const & dims_ ) : cup( make_shared<cup_t>( dims_.bytes_sz() ) ), dims(dims_) {} // , ev( make_p_CUevent() ) { }
   };
 
   typedef map< string, var_info_t > map_str_var_info_t;
@@ -270,20 +268,22 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       return compute_dur;
     }
 
-    void copy_to_var( string const & vn, float const * const v ) {
+    void copy_nda_to_var( string const & vn, p_nda_t const & nda ) {
       var_info_t const & vi = must_find( *vis, vn );
-      cu_err_chk( cuMemcpyHtoDAsync( vi.cup->p, v, vi.cup->sz*sizeof(float), 0 ), "cuMemcpyHtoD" );
+      assert_st( vi.dims == nda->dims );
+      assert_st( vi.cup->sz == nda->dims.bytes_sz() );
+      cu_err_chk( cuMemcpyHtoDAsync( vi.cup->p, nda->rp_elems(), vi.cup->sz, 0 ), "cuMemcpyHtoD" );
       //record_event( vi.ev );
     }
-    void copy_from_var( float * const v, string const & vn ) {
-      p_cup_float const & cup = must_find( *vis, vn ).cup;
-      cu_err_chk( cuMemcpyDtoH( v, cup->p, cup->sz*sizeof(float) ), "cuMemcpyDtoH" );
+    void copy_var_to_nda( p_nda_t const & nda, string const & vn ) {
+      var_info_t const & vi = must_find( *vis, vn );
+      assert_st( vi.dims == nda->dims );
+      assert_st( vi.cup->sz == nda->dims.bytes_sz() );
+      cu_err_chk( cuMemcpyDtoH( nda->rp_elems(), vi.cup->p, vi.cup->sz ), "cuMemcpyDtoH" );
     }
-    void create_var_with_dims_floats( string const & vn, dims_t const & dims ) { 
-      must_insert( *vis, vn, var_info_t( dims ) ); 
-    }
+    void create_var_with_dims( string const & vn, dims_t const & dims ) { must_insert( *vis, vn, var_info_t( dims ) ); }
     void release_var( string const & vn ) { must_erase( *vis, vn ); }
-    dims_t get_var_dims_floats( string const & vn ) { return must_find( *vis, vn ).dims; }
+    dims_t get_var_dims( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { must_find( *vis, vn ).cup->set_to_zero(); }
     
     nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_nv_func_info_t ) { }

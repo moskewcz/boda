@@ -89,7 +89,7 @@ namespace boda
       // FIXME/note: we can't/don't check call dims for variable-sized dims_vals. this seems less than ideal.
       // one exampl of such usage is in var_stats.
       if( func_dims.has_sz_and_stride_and_name() ) { 
-	dims_t const & call_dims = rtc->get_var_dims_floats( an->second );
+	dims_t const & call_dims = rtc->get_var_dims( an->second );
 	if( call_dims != func_dims ) {
 	  rt_err( strprintf( "error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s", 
 			     rfc.call_tag.c_str(), i->vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() ) );
