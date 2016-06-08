@@ -450,11 +450,21 @@ namespace boda
 	  rcg->line( code_sec, strprintf("if( (LOC_ID_1D+%s) < %s ) {", str(iter_sm_off).c_str(), str(sm_sz).c_str() ) ); eif="}";}
         string vn_vw = vn;
         assert_st( vw );
-        if( vw > 1 ) { vn_vw = strprintf("((GASQ float%s const *)(%s))", str(vw).c_str(), vn.c_str() ); }
-	rcg->line( code_sec, strprintf("%s[LOC_ID_1D+%s] = %s[%s_off+%s%s];%s",
-                                       smvn.c_str(), str(iter_sm_off).c_str(),
-                                       vn_vw.c_str(), vn.c_str(), str(iter_off).c_str(), 
-                                       extra_off_str.c_str(), eif.c_str()) );
+        if( vw > 1 ) { vn_vw = strprintf("((GASQ %%(a_tn)%s const *)(%s))", str(vw).c_str(), vn.c_str() ); }
+        bool const half_to_float = 0;
+        if( half_to_float ) {
+          rcg->line( code_sec, strprintf("%s[LOC_ID_1D+%s] = vload_half( %s_off+%s%s, %s );%s",
+                                         smvn.c_str(), str(iter_sm_off).c_str(),
+                                         vn.c_str(), str(iter_off).c_str(), 
+                                         extra_off_str.c_str(),  
+                                         vn_vw.c_str(),
+                                         eif.c_str()) );
+        } else {
+          rcg->line( code_sec, strprintf("%s[LOC_ID_1D+%s] = %s[%s_off+%s%s];%s",
+                                         smvn.c_str(), str(iter_sm_off).c_str(),
+                                         vn_vw.c_str(), vn.c_str(), str(iter_off).c_str(), 
+                                         extra_off_str.c_str(), eif.c_str()) );
+        }
       }
     }
 
@@ -501,7 +511,12 @@ namespace boda
 
       // note: for this section, there will be a local 'Mt' in scope, used to adjust c_off each iteration
       for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
-        rcg->line( "stores", strprintf( "c[c_off+%s] = b_r[%s];", str(Nt).c_str(), str(Nt).c_str() ) );  
+        bool const half_to_float = 0;
+        if( half_to_float ) {
+          rcg->line( "stores", strprintf( "vstore_half( b_r[%s], c_off+%s, c );", str(Nt).c_str(), str(Nt).c_str() ) );  
+        } else {
+          rcg->line( "stores", strprintf( "c[c_off+%s] = b_r[%s];", str(Nt).c_str(), str(Nt).c_str() ) );  
+        }
       }
     }
 

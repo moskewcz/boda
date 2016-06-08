@@ -1,6 +1,6 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN K:M
-					  GASQ float const * const b, // CUCL IN K:N
-					  GASQ float * const c )  // CUCL OUT M:N
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(a_tn) const * const a, // CUCL IN K:M
+					  GASQ %(b_tn) const * const b, // CUCL IN K:N
+					  GASQ %(c_tn) * const c )  // CUCL OUT M:N
 /* work */  // CUCL REF Mg:Ng:Mb:Nb:Kb:Mt:Nt
 {
   // CUCL IX GRP_ID_1D work use_dims=Mg:Ng
@@ -21,7 +21,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN
   LSMASQ float * const b_sm_off = b_sm + %(LOC_ID_1D_Nb)*%(work_Nt_dim);
 
   int32_t b_off = b_off_base;
-  //LSMASQ float * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim)*%(work_Kb_dim) + %(LOC_ID_1D_Nb);
+  //LSMASQ %(a_tn) * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim)*%(work_Kb_dim) + %(LOC_ID_1D_Nb);
   for( int32_t k = 0; k < %(a_K_dim); k += %(work_Kb_dim) ) {
     //b_off = b_off_base + k*%(work_Kb_dim)*%(b_K_sz); // FIXME: adding this line fixes 512x512 case on SD820 ...
     BARRIER_SYNC;

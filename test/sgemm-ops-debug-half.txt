@@ -1,0 +1,1 @@
+(type=sgemm,dims_vals=(a=(__tn__=half,K=2048,M=2048),b=(__tn__=half,K=2048,N=2048),c=(__tn__=half,M=2048,N=2048)))
