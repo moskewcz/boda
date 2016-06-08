@@ -297,7 +297,9 @@ namespace boda
     string gva( uint32_t const & vw, uint32_t const & ix ) {
       assert_st( vw <= 16 );
       string const pss("0123456789abcdef");
-      return strprintf( "[%s].s%s", str(ix/vw).c_str(), string(pss,ix%vw,1).c_str() );
+      string const pss_alt("xyzw");
+      string const maybe_s( (vw<=4) ? "" : "s" );
+      return strprintf( "[%s].%s%s", str(ix/vw).c_str(), maybe_s.c_str(), string((vw<=4)?pss_alt:pss,ix%vw,1).c_str() );
     }
 
     void gen_op_sgemm_simd_local( rtc_call_gen_t * rcg ) {
