@@ -377,7 +377,8 @@ namespace boda
   };
   
   typedef map< string, ndat_info_t > ndat_infos_t;
-  ndat_infos_t const ndat_infos{ 
+  ndat_infos_t const ndat_infos{
+    {"half",{"half",2,1,1}},  
     {"float",{"float",4,1,1}}, 
     {"double",{"double",8,1,1}}, 
     {"uint32_t",{"uint32_t",4,0,0}} 
