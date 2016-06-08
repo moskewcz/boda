@@ -6,6 +6,8 @@ namespace boda
 {
 
   void insert_nda_dims_sz( map_str_str & mss, string const & nda_vn, dims_t const & dims, bool const & dims_only ) {
+    assert_st( dims.valid() );
+    must_insert( mss, nda_vn+"_tn", str(dims.tn) );
     for( uint32_t i = 0; i != dims.sz(); ++i ) {
       must_insert( mss, nda_vn+"_"+dims[i].name+"_dim", str(dims[i].sz) );
       if( !dims_only ) { 
