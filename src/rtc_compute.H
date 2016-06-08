@@ -53,12 +53,17 @@ namespace boda
     // vect_float <-> var conversions/copies
     void init_var_from_vect_float( string const & vn, vect_float const & v );
     void set_vect_float_from_var( vect_float & v, string const & vn );
-    void copy_var_to_nda( p_nda_t const & nda, string const & vn );
-    void copy_nda_to_var( string const & vn, p_nda_t const & nda );
+    virtual void copy_var_to_nda( p_nda_t const & nda, string const & vn ) = 0;
+    virtual void copy_nda_to_var( string const & vn, p_nda_t const & nda ) = 0;
 
     p_nda_t copy_var_as_flat_nda( string const & vn );
     void copy_ndas_to_vars( vect_string const & names, map_str_p_nda_t const & ndas );
     void copy_vars_to_ndas( vect_string const & names, map_str_p_nda_t & ndas );
+
+    // FIXME_TNDA: for now, allow these wrappers to use nda_float_t (due to the 'can't pass container-of-derived for
+    // container-of-base' language issue)
+    void copy_ndas_to_vars( vect_string const & names, map_str_p_nda_float_t const & ndas );
+    void copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas );
 
     void create_var_from_nda( p_nda_t const & nda, string const & vn );
     p_nda_t create_nda_from_var( string const & vn );

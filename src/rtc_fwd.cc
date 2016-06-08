@@ -130,7 +130,7 @@ namespace boda
 
   void conv_pipe_fwd_t::update_stats( void ) {
     for( vect_string::const_iterator i = stats_names.begin(); i != stats_names.end(); ++i ) {
-      p_nda_float_t nda = rtc->copy_var_as_flat_nda( *i );
+      p_nda_float_t nda = make_shared< nda_float_t >( rtc->copy_var_as_flat_nda( *i ) );
       assert_st( nda->elems_sz() == 1 );
       float v = *nda->elems_ptr();
       if( has( stats_map, *i ) ) { v = stats_reduce( *i, v, stats_map[*i] ); }
@@ -140,7 +140,7 @@ namespace boda
 
   string conv_pipe_fwd_t::dump_var( string const & n ) {
     string ret;
-    p_nda_float_t nda = rtc->create_nda_from_var( n );
+    p_nda_float_t nda = make_shared< nda_float_t >( rtc->create_nda_from_var( n ) );
     // dump nda
     ret += strprintf( "dumping var '%s'\n", str(n).c_str() );
     for( dims_iter_t di( nda->dims ) ; ; )  {
@@ -182,7 +182,7 @@ namespace boda
       uint32_t const out_sz = u32_ceil_div( in_sz, must_find(codegen.rtc_func_names_map,func)->tpb );
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
 	string cur_out = top_in + "_" + reds[i] + "_out_sz_" + str(out_sz);
-	rtc->create_var_with_dims_floats( cur_out, dims_t{ {out_sz}, {"v"}, "float" } );
+	rtc->create_var_with_dims( cur_out, dims_t{ {out_sz}, {"v"}, "float" } );
 	cur_outs.push_back( cur_out );
 	//args.push_back( cur_out );
       }
@@ -218,7 +218,7 @@ namespace boda
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
       fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_str{{in_an,in_var},{ret_an,ret_var}}} );
-      rtc->create_var_with_dims_floats( ret_var, ret_dims );
+      rtc->create_var_with_dims( ret_var, ret_dims );
     }
     return ret_var;
   }
@@ -282,7 +282,7 @@ namespace boda
     } else if( oi->is( Pooling_coi ) ) {
       if( oi->get_u32("emit_out_in_yx") == 1 ) {
 	string const out_in_yx = oi->get_arg("out") + "_in_yx"; 
-	rtc->create_var_with_dims_floats( out_in_yx, oi->get_dims("out") ); // same size as out
+	rtc->create_var_with_dims( out_in_yx, oi->get_dims("out") ); // same size as out
 	set_rtc_arg( oi, rtc, "out_in_yx", out_in_yx );
       } else {
 	assert_st( oi->get_u32("emit_out_in_yx") == 0 );
@@ -313,7 +313,7 @@ namespace boda
 	} 	
       } 
       // FIXME: perhaps all ops should create outputs. but for now, only conv can have non-reference output dims ...
-      rtc->create_var_with_dims_floats( oi->get_arg("out"), oi->get_dims("out") ); 
+      rtc->create_var_with_dims( oi->get_arg("out"), oi->get_dims("out") ); 
       gen_call( oi->cts(), oi );
     } else if( oi->is( ReLU_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
@@ -323,7 +323,7 @@ namespace boda
       assert_st( oi->get_dims("in") == oi->get_dims("out") ); // FIXME: better place/way for this check?
       if( oi->get_u32("emit_out_scale_base") == 1 ) {
 	string const out_scale_base = oi->get_arg("out") + "_scale_base"; 
-	rtc->create_var_with_dims_floats( out_scale_base, oi->get_dims("out") ); // same size as out
+	rtc->create_var_with_dims( out_scale_base, oi->get_dims("out") ); // same size as out
 	set_rtc_arg( oi, rtc, "out_scale_base", out_scale_base );
       } else {
 	assert_st( oi->get_u32("emit_out_scale_base") == 0 );
@@ -405,7 +405,7 @@ namespace boda
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
   // that case the var is directly mirroring a pipe node
   void conv_pipe_fwd_t::gen_node_var( string const & name, string const & node_name ) { 
-    rtc->create_var_with_dims_floats( name, cp->must_get_node(node_name)->dims );
+    rtc->create_var_with_dims( name, cp->must_get_node(node_name)->dims );
   }
 
   // quantize command line example:

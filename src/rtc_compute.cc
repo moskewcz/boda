@@ -53,6 +53,23 @@ namespace boda
       else { must_insert( ndas, *i, create_nda_from_var( *i ) ); }
     } 
   }
+
+  // FIXME_TNDA: dup'd for now, see FIXME_TNDA in header
+  // batch nda<->var copies
+  void rtc_compute_t::copy_ndas_to_vars( vect_string const & names, map_str_p_nda_float_t const & ndas ) {
+    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) {
+      copy_nda_to_var( *i, must_find( ndas, *i ) );
+    }
+  }
+  // assumes that names do not exist in ndas, or alreay exist with proper dims
+  void rtc_compute_t::copy_vars_to_ndas( vect_string const & names, map_str_p_nda_float_t & ndas ) {
+    for( vect_string::const_iterator i = names.begin(); i != names.end(); ++i ) { 
+      if( has( ndas, *i ) ) { copy_var_to_nda( ndas[*i], *i ); }
+      else { must_insert( ndas, *i, make_shared< nda_float_t >( create_nda_from_var( *i ) ) ); }
+    } 
+  }
+
+
 }
 
 // extra includes only for test mode

@@ -517,7 +517,11 @@ namespace boda
       for( uint32_t d = 1; d < sz(); ++d ) { strides(sz()-d-1) = strides(sz()-d)*dims(sz()-d); }
       strides_sz = uint64_t(strides(0))*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
     }
-
+    bool valid( void ) const {
+      if( tn.empty() ) { return 0; }
+      if( !strides_sz ) { return 0; } // strides must be set (and non-zero)
+      return 1;
+    }
     uint32_t cm_ix1( uint32_t const d0i ) const {
       return strides(sz()-1)*d0i; }
     uint32_t cm_ix2( uint32_t const d0i, uint32_t const d1i ) const { 
@@ -619,8 +623,7 @@ namespace boda
     }
     void set_dims( dims_t const & dims_ ) { 
       dims = dims_;
-      assert_st( !dims.tn.empty() );
-      assert_st( dims.strides_sz ); // strides must be set (and non-zero)
+      assert_st( dims.valid() );
       if( !d ) { alloc(); } // if hunk is null, allocate it
     }
   };
@@ -631,8 +634,9 @@ namespace boda
 
   template< typename T > struct nda_T : public nda_t {
     nda_T( void ) { }
-    nda_T( dims_t const & dims_ )  { 
-      set_dims( dims_ );
+    nda_T( dims_t const & dims_ ) : nda_t( dims_ ) { check_tn(); }
+    nda_T( p_nda_t const & nda_ ) : nda_t( *nda_ ) { assert_st( dims.valid() ); check_tn(); }
+    void check_tn( void ) const {
       if( std::is_same<T,float>::value ) { assert_st( dims.tn == "float" ); }
       else if( std::is_same<T,double>::value ) { assert_st( dims.tn == "double" ); }
       else { assert_st(0); } // unknown type
