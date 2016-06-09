@@ -304,6 +304,7 @@ namespace boda
       for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
 	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
 	dims_t const & arg_dims = get_arg_dims_by_name( i->vn );
+        if( arg_dims == dims_t() ) { continue; } // skip null dims
 	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
 	insert_nda_dims_sz( str_vals, i->vn, arg_dims, dims_only );
       }

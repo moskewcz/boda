@@ -510,16 +510,18 @@ namespace boda
     // note: calc_strides() can/must be called if any dims are modified after dims_t creation, since all the strides
     // become invalid/stale in that case.
     uint64_t strides_sz; // aka strides(-1), stride of all data; in no-padding case == dims_prod()
+    zi_bool strides_valid;
     // FIXME: cache dims_prod() here too?
     void calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
       assert_st( !tn.empty() ); // FIXME: good place for this?
       strides(sz()-1) = 1;
       for( uint32_t d = 1; d < sz(); ++d ) { strides(sz()-d-1) = strides(sz()-d)*dims(sz()-d); }
       strides_sz = uint64_t(strides(0))*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
+      strides_valid.v = 1;
     }
     bool valid( void ) const {
       if( tn.empty() ) { return 0; }
-      if( !strides_sz ) { return 0; } // strides must be set (and non-zero)
+      if( !strides_valid.v ) { return 0; } // strides must be set (and non-zero)
       return 1;
     }
     uint32_t cm_ix1( uint32_t const d0i ) const {
@@ -596,11 +598,13 @@ namespace boda
     bwrite( out, (vect_dim_t const &)o ); 
     bwrite( out, o.tn );
     bwrite( out, o.strides_sz );
+    bwrite( out, o.strides_valid.v );
   }
   template< typename STREAM > inline void bread( STREAM & in, dims_t & o ) { 
     bread( in, (vect_dim_t &)o ); 
     bread( in, o.tn );
     bread( in, o.strides_sz );
+    bread( in, o.strides_valid.v );
   }
 
   struct nda_t {
