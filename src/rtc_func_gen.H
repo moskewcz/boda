@@ -112,11 +112,20 @@ namespace boda
 	      }
 	    } else {
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
-	      // get var name 
-	      vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{*/", ' ' ) ) );
+	      // get var name
+              string arg_name;
+              //printf( "cd=%s (*i)=%s\n", str(cd).c_str(), str((*i)).c_str() );
+              if( cd == "REF" ) {
+                vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), "*/", ' ' ) ) );
+                arg_name = arg_decl.back();
+
+              } else {
+                vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{", ' ' ) ) );
+                arg_name = arg_decl.back();
+              }
 	      vect_dims_t ok_dims;
 	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { ok_dims.push_back( dims_from_nda_spec( mmc_parts[i] ) );}
-	      string const arg_name = arg_decl.back();
+
 	      string multi_base_vn; // default -> empty/not-multi
 	      if( multi ) {
 		multi_base_vn = arg_name;
