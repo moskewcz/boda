@@ -244,7 +244,7 @@ namespace boda
   // time boda test_compute --model-name=nin_imagenet_nopad --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=256),ptt_fn=%(models_dir)/%(model_name)/train_val.prototxt,trained_fn=%(models_dir)/%(model_name)/best.caffemodel,out_node_name=pool4)' --use-nvrtc=1 --max-err=10 && cat test_compute.txt
 
   // matching cnet_ana+flops.py command line:
-  // boda cnet_ana --in-model=nin_imagenet_nopad --print-ops=1 --in-sz=227 --out-layer-name=relu0  && python ../../pysrc/flops.py --per-layer=1 --backward=0 --runtime=.015 --num-imgs=20
+  // boda cnet_ana --in-model=nin_imagenet_nopad --print-ops=1 --in-dims='(img=1)' && python ../../pysrc/flops.py --per-layer=1 --ai-mnk=1 --per-layer-in-info=1
 
   struct test_compute_t : virtual public nesi, public has_main_t // NESI( help="comparison test 2 CNN computation methods",
 			// bases=["has_main_t"], type_id="test_compute")

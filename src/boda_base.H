@@ -484,7 +484,7 @@ namespace boda
     uint32_t const & strides( uint32_t const ix ) const { return at(ix).stride; }
 
     std::string pretty_str( void ) const; // omits strides, prints names near dims if they exist
-    std::string param_str( void ) const; // in NESI/param format, see comment at def.
+    std::string param_str( bool const & show_type ) const; // in NESI/param format, see comment at def.
 
     void clear_strides( void ) { for( uint32_t i = 0; i != sz(); ++i ) { strides(i) = 0; } }
     bool has_any_strides( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( strides(i) ) { return 1; } } return 0; }
@@ -513,8 +513,11 @@ namespace boda
     uint64_t strides_sz; // aka strides(-1), stride of all data; in no-padding case == dims_prod()
     zi_bool strides_valid;
     // FIXME: cache dims_prod() here too?
-    void calc_strides( void ) { // assuming no padding, i.e. unit stride for fast dim and so on
-      assert_st( !tn.empty() ); // FIXME: good place for this?
+    void calc_strides( bool const is_template = 0 ) { // assuming no padding, i.e. unit stride for fast dim and so on
+      if( !is_template ) {
+        assert_st( !tn.empty() ); // FIXME: good place for this?
+      }
+      // FIXME: do something different in is_template case here?
       strides(sz()-1) = 1;
       for( uint32_t d = 1; d < sz(); ++d ) { strides(sz()-d-1) = strides(sz()-d)*dims(sz()-d); }
       strides_sz = uint64_t(strides(0))*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
@@ -586,7 +589,7 @@ namespace boda
     }
   };
 
-  inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { out << o.param_str(); return out; }
+  inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { out << o.param_str(1); return out; }
 
   template< typename STREAM > inline void bwrite( STREAM & out, dim_t const & o ) { 
     bwrite( out, o.sz ); bwrite( out, o.stride ); bwrite( out, o.name ); 

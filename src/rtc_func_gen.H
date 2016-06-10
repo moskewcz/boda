@@ -70,7 +70,7 @@ namespace boda
 
   void insert_nda_dims_sz( map_str_str & mss, string const & nda_vn, dims_t const & dims, bool const & dims_only );
   void insert_nda_ix_exprs( map_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr = string() );
-  dims_t dims_from_nda_spec( string const & nda_spec );
+  dims_t dims_from_nda_spec( string const & tn, string const & nda_spec );
   
   // this parses and stores a cucl function template for later instantiation. in particular, we process all CUCL
   // declarations and store the results into arg_decls and ix_decls. after init, the contents of this object are
@@ -114,18 +114,32 @@ namespace boda
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
 	      // get var name
               string arg_name;
+              string arg_type;
               //printf( "cd=%s (*i)=%s\n", str(cd).c_str(), str((*i)).c_str() );
               if( cd == "REF" ) {
                 vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), "*/", ' ' ) ) );
+                if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL REF decl; no var name present:" + str(*i) ); }
                 arg_name = arg_decl.back();
 
               } else {
                 vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{", ' ' ) ) );
+                if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL io var decl; no var name found:" + str(*i) ); }
                 arg_name = arg_decl.back();
+                uint32_t loi = 0; // levels of indirection
+                for( vect_string::const_reverse_iterator i = arg_decl.rbegin()+1; i != arg_decl.rend(); ++i ) {
+                  if( (*i) == "*" ) { ++loi; continue; }
+                  if( (*i) == "const" ) { continue; } // FIXME: for now, ignore const?
+                  arg_type = *i; break;
+                }
+                if( arg_type.empty() ) { rt_err( "invalid CUCL io var decl; no var type found:" + str(*i) ); }
+                if( loi != 1 ) { rt_err( "invalid CUCL io var decl; should be exactly one level-of-indirection/*:" + str(*i) ); }
               }
+              arg_type = ""; // FIXME_TNDA : temp hack to disable arg_type usage while fixing dims_t type printing
 	      vect_dims_t ok_dims;
-	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { ok_dims.push_back( dims_from_nda_spec( mmc_parts[i] ) );}
-
+	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
+                ok_dims.push_back( dims_from_nda_spec( arg_type, mmc_parts[i] ) );
+              }
+              
 	      string multi_base_vn; // default -> empty/not-multi
 	      if( multi ) {
 		multi_base_vn = arg_name;

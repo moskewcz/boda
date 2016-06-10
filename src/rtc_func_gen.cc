@@ -39,13 +39,15 @@ namespace boda
     must_insert( mss, ix_vn+"_dims_prod", str(dims.dims_prod()) ); // also emit dim(0)*stride(0)?
   }
 
-  dims_t dims_from_nda_spec( string const & nda_spec ) {
+  dims_t dims_from_nda_spec( string const & tn, string const & nda_spec ) {
     vect_string const dim_names = split( nda_spec, ':' );
     dims_t arg_dims;
     // for now, assume template: (1) can handle any size for all nda dims (to relax, could allow spec of size,
     // then use that instead of 0/wild for sz below) (2) all dims are static (to relax: unclear what
     // syntax/encoding would be)
     for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
+    arg_dims.tn = tn; // note: may be empty string for wild type
+    arg_dims.calc_strides(1);
     return arg_dims;
   }
 

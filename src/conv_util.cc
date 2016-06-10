@@ -611,7 +611,7 @@ namespace boda
     string str_vals;
     str_vals += ",str_vals={";
     for( map_str_dims_t::const_iterator i = cop->dims_vals.begin(); i != cop->dims_vals.end(); ++i ) {
-      str_vals += strprintf( "\"%s\":\"%s\",", i->first.c_str(), i->second.param_str().c_str() );
+      str_vals += strprintf( "\"%s\":\"%s\",", i->first.c_str(), i->second.param_str(1).c_str() );
     }
     str_vals += "}";
     str_vals += ",dims_vals={";
