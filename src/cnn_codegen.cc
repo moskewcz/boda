@@ -307,17 +307,14 @@ namespace boda
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("Mt") % vw) == 0 );
       assert( (work.dsz("Nt") % vw) == 0 );
-      uint64_t a_K_sz = rcg->get_arg_dims_by_name("a").dstride("K");
-      uint64_t b_K_sz = rcg->get_arg_dims_by_name("b").dstride("K");
-      assert_st( ( a_K_sz % vw ) == 0 ); a_K_sz /= vw;
-      assert_st( ( b_K_sz % vw ) == 0 ); b_K_sz /= vw;
-
+      dims_t const & a_dims = rcg->get_arg_dims_by_name("a");
+      dims_t const & b_dims = rcg->get_arg_dims_by_name("b");
       uint64_t const blk_M = work.dsz("Mb")*work.dsz("Mt")/vw;
       uint32_t const a_sm_sz = blk_M*work.dsz("Kb");
-      gen_sgemm_sm_load( rcg, "sm_loads", "a", a_sm_sz, blk_M, a_K_sz, vw );
+      gen_sgemm_sm_load( rcg, "sm_loads", "a", a_sm_sz, blk_M, a_dims, vw );
       uint64_t const blk_N = work.dsz("Nb")*work.dsz("Nt")/vw;
       uint32_t const b_sm_sz = blk_N*work.dsz("Kb");
-      gen_sgemm_sm_load( rcg, "sm_loads", "b", b_sm_sz, blk_N, b_K_sz, vw );
+      gen_sgemm_sm_load( rcg, "sm_loads", "b", b_sm_sz, blk_N, b_dims, vw );
 
 
       for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
@@ -418,12 +415,14 @@ namespace boda
           }
         }
       }
-      gen_sgemm_write_out( rcg );
+      gen_sgemm_write_out( rcg, 0 );
     }
 
     void gen_sgemm_sm_load( rtc_call_gen_t * rcg, string const & code_sec, string const & vn, uint64_t const & sm_sz,
-                            uint64_t const row_len, uint64_t const stride, uint32_t const & vw ) 
+                            uint64_t const row_len, dims_t const & vdims, uint32_t const & vw ) 
     {
+      uint64_t stride = vdims.dstride("K");
+      assert_st( ( stride % vw ) == 0 ); stride /= vw;
       uint64_t const rows = sm_sz / row_len;
       assert_st( row_len * rows == sm_sz ); // must be loading exactly an integer number of rows (not sensible otherwise?)
       assert_st( rows ); // no null load allowed (could just return no-op i suppose, if that ever made sense)
@@ -451,7 +450,8 @@ namespace boda
         string vn_vw = vn;
         assert_st( vw );
         if( vw > 1 ) { vn_vw = strprintf("((GASQ %%(a_tn)%s const *)(%s))", str(vw).c_str(), vn.c_str() ); }
-        bool const half_to_float = 0;
+        assert_st( vdims.tinfo().is_float == 1 );
+        bool const half_to_float = (vdims.tsz() == 2);
         if( half_to_float ) {
           rcg->line( code_sec, strprintf("%s[LOC_ID_1D+%s] = vload_half( %s_off+%s%s, %s );%s",
                                          smvn.c_str(), str(iter_sm_off).c_str(),
@@ -459,7 +459,8 @@ namespace boda
                                          extra_off_str.c_str(),  
                                          vn_vw.c_str(),
                                          eif.c_str()) );
-        } else {
+        } else {                                                       
+          assert_st( vdims.tsz() == 4 ); // i.e. float
           rcg->line( code_sec, strprintf("%s[LOC_ID_1D+%s] = %s[%s_off+%s%s];%s",
                                          smvn.c_str(), str(iter_sm_off).c_str(),
                                          vn_vw.c_str(), vn.c_str(), str(iter_off).c_str(), 
@@ -472,10 +473,10 @@ namespace boda
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       uint64_t const blk_M = work.dsz("Mb")*work.dsz("Mt");
       uint32_t const a_sm_sz = blk_M*work.dsz("Kb");
-      gen_sgemm_sm_load( rcg, "sm_loads", "a", a_sm_sz, blk_M, rcg->get_arg_dims_by_name("a").dstride("K"), 1 );
+      gen_sgemm_sm_load( rcg, "sm_loads", "a", a_sm_sz, blk_M, rcg->get_arg_dims_by_name("a"), 1 );
       uint64_t const blk_N = work.dsz("Nb")*work.dsz("Nt");
       uint32_t const b_sm_sz = blk_N*work.dsz("Kb");
-      gen_sgemm_sm_load( rcg, "sm_loads", "b", b_sm_sz, blk_N, rcg->get_arg_dims_by_name("b").dstride("K"), 1 );
+      gen_sgemm_sm_load( rcg, "sm_loads", "b", b_sm_sz, blk_N, rcg->get_arg_dims_by_name("b"), 1 );
       
       for( uint32_t Kb = 0; Kb != work.dsz("Kb"); ++Kb ) {
 	for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
@@ -493,10 +494,13 @@ namespace boda
           }
         }
       }
-      
-      gen_sgemm_write_out( rcg );
+      dims_t const & c_dims = rcg->get_arg_dims_by_name("c");
+      assert( c_dims.tinfo().is_float );
+      bool const half_to_float = (c_dims.tsz() == 2);
+      assert( half_to_float || (c_dims.tsz() == 4) );
+      gen_sgemm_write_out( rcg, half_to_float );
     }
-    void gen_sgemm_write_out( rtc_call_gen_t * rcg ) {
+    void gen_sgemm_write_out( rtc_call_gen_t * rcg, bool const & half_to_float ) {
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       rcg->line( "outs_to_b_r", "switch(Mt) { " );
       for( uint32_t Mt = 0; Mt != work.dsz("Mt"); ++Mt ) {
@@ -511,7 +515,6 @@ namespace boda
 
       // note: for this section, there will be a local 'Mt' in scope, used to adjust c_off each iteration
       for( uint32_t Nt = 0; Nt != work.dsz("Nt"); ++Nt ) {
-        bool const half_to_float = 0;
         if( half_to_float ) {
           rcg->line( "stores", strprintf( "vstore_half( b_r[%s], c_off+%s, c );", str(Nt).c_str(), str(Nt).c_str() ) );  
         } else {
