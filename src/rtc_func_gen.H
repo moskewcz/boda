@@ -122,7 +122,7 @@ namespace boda
                 arg_name = arg_decl.back();
 
               } else {
-                vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), ",);{", ' ' ) ) );
+                vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( *i, "//" ), ",);{ ") ) );
                 if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL io var decl; no var name found:" + str(*i) ); }
                 arg_name = arg_decl.back();
                 uint32_t loi = 0; // levels of indirection
@@ -133,8 +133,12 @@ namespace boda
                 }
                 if( arg_type.empty() ) { rt_err( "invalid CUCL io var decl; no var type found:" + str(*i) ); }
                 if( loi != 1 ) { rt_err( "invalid CUCL io var decl; should be exactly one level-of-indirection/*:" + str(*i) ); }
+                // special case: if type is CUCL type of this var, then there is no restriction on the type that can be
+                // passed for this var. note that the only supported types are basic types and this case; there's no
+                // ability to use the type of other vars or some other string template or the like to restrict/set the
+                // type.
+                if( arg_type == ("%("+arg_name+"_tn)") ) { arg_type = ""; } 
               }
-              arg_type = ""; // FIXME_TNDA : temp hack to disable arg_type usage while fixing dims_t type printing
 	      vect_dims_t ok_dims;
 	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
                 ok_dims.push_back( dims_from_nda_spec( arg_type, mmc_parts[i] ) );

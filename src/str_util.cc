@@ -84,6 +84,7 @@ namespace boda
     return ret;
   }
 
+  // note: leading or trailing space will create empty strings in the front or back of the output vector.
   vect_string split_ws( std::string const & s ) {
     vect_string parts;
     boost::algorithm::split( parts, s, boost::algorithm::is_space(), boost::algorithm::token_compress_on );
@@ -146,6 +147,13 @@ namespace boda
       else { ret.push_back( *i ); }
     }
     return ret;
+  }
+
+  string strip_ending_chars( string const & s, string const & chars_to_strip ) { 
+    string ret;
+    size_t epos = s.size();
+    while( epos && ( chars_to_strip.find( s[epos - 1] ) != string::npos ) ) { --epos; }
+    return string( s, 0, epos );
   }
 
   string xml_escape( string const & str )
