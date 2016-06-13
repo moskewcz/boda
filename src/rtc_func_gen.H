@@ -71,7 +71,33 @@ namespace boda
   void insert_nda_dims_sz( map_str_str & mss, string const & nda_vn, dims_t const & dims, bool const & dims_only );
   void insert_nda_ix_exprs( map_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr = string() );
   dims_t dims_from_nda_spec( string const & tn, string const & nda_spec );
-  
+
+  struct cucl_arg_decl_t {
+    string arg_name;
+    string arg_type;
+    zi_uint32_t loi;
+  };
+
+  inline cucl_arg_decl_t cucl_ref_decl_parse( string const & line ) {
+    cucl_arg_decl_t cad;
+    vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " */" ) ) );
+    if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL REF decl; no var name present:" + line ); }
+    cad.arg_name = arg_decl.back();
+    return cad;
+  }
+  inline cucl_arg_decl_t cucl_arg_decl_parse( string const & line ) {
+    cucl_arg_decl_t cad;
+    vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " ,);{" ) ) );
+    if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL io var decl; no var name found:" + line ); }
+    cad.arg_name = arg_decl.back();
+    for( vect_string::const_reverse_iterator i = arg_decl.rbegin()+1; i != arg_decl.rend(); ++i ) {
+      if( (*i) == "*" ) { ++cad.loi.v; continue; }
+      if( (*i) == "const" ) { continue; } // FIXME: for now, ignore const?
+      cad.arg_type = *i; break;
+    }
+    return cad;
+  }
+
   // this parses and stores a cucl function template for later instantiation. in particular, we process all CUCL
   // declarations and store the results into arg_decls and ix_decls. after init, the contents of this object are
   // constant, and all contents are purly derived from the contents of the template file. this object exists both to
@@ -112,46 +138,38 @@ namespace boda
 	      }
 	    } else {
 	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
-	      // get var name
-              string arg_name;
-              string arg_type;
-              //printf( "cd=%s (*i)=%s\n", str(cd).c_str(), str((*i)).c_str() );
+              cucl_arg_decl_t cad;
               if( cd == "REF" ) {
-                vect_string const arg_decl = split_ws( strip_ws( replace_chars_with_char( get_part_before( *i, "//" ), "*/", ' ' ) ) );
-                if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL REF decl; no var name present:" + str(*i) ); }
-                arg_name = arg_decl.back();
-
+                cad = cucl_ref_decl_parse( *i );
               } else {
-                vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( *i, "//" ), ",);{ ") ) );
-                if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL io var decl; no var name found:" + str(*i) ); }
-                arg_name = arg_decl.back();
-                uint32_t loi = 0; // levels of indirection
-                for( vect_string::const_reverse_iterator i = arg_decl.rbegin()+1; i != arg_decl.rend(); ++i ) {
-                  if( (*i) == "*" ) { ++loi; continue; }
-                  if( (*i) == "const" ) { continue; } // FIXME: for now, ignore const?
-                  arg_type = *i; break;
-                }
-                if( arg_type.empty() ) { rt_err( "invalid CUCL io var decl; no var type found:" + str(*i) ); }
-                if( loi != 1 ) { rt_err( "invalid CUCL io var decl; should be exactly one level-of-indirection/*:" + str(*i) ); }
+                cad = cucl_arg_decl_parse( *i );
+                if( cad.arg_type.empty() ) { rt_err( "invalid CUCL io var decl; no var type found:" + str(*i) ); }
+                if( cad.loi.v != 1 ) { rt_err( "invalid CUCL io var decl; should be exactly one level-of-indirection/*:" + str(*i) ); }
                 // special case: if type is CUCL type of this var, then there is no restriction on the type that can be
                 // passed for this var. note that the only supported types are basic types and this case; there's no
                 // ability to use the type of other vars or some other string template or the like to restrict/set the
                 // type.
-                if( arg_type == ("%("+arg_name+"_tn)") ) { arg_type = ""; } 
+                if( cad.arg_type == ("%("+cad.arg_name+"_tn)") ) { cad.arg_type = ""; } 
               }
 	      vect_dims_t ok_dims;
 	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
-                ok_dims.push_back( dims_from_nda_spec( arg_type, mmc_parts[i] ) );
+                ok_dims.push_back( dims_from_nda_spec( cad.arg_type, mmc_parts[i] ) );
               }
               
 	      string multi_base_vn; // default -> empty/not-multi
 	      if( multi ) {
-		multi_base_vn = arg_name;
+		multi_base_vn = cad.arg_name;
 		bool const did_strip = maybe_strip_suffix( multi_base_vn, "_N" );
 		if( !did_strip ) { rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); }
 	      }
-	      arg_decls.push_back( arg_decl_t{ arg_name, cd, ok_dims, multi_base_vn } );
+	      arg_decls.push_back( arg_decl_t{ cad.arg_name, cd, ok_dims, multi_base_vn } );
 	    }
+	  } else if( cd == "ARGINFO" ) {
+            cucl_arg_decl_t const cad = cucl_arg_decl_parse( *i );
+            if( cad.arg_type.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found:" + str(*i) ); }
+            if( cad.arg_type != "int32_t" ) { rt_err( "invalid CUCL ARGINFO decl; only type int32_t supported:" + str(*i) ); }
+            if( cad.loi.v != 0 ) { rt_err( "invalid CUCL ARGINGO decl; should be exactly zero levels-of-indirection/*s:" + str(*i) ); }
+            
 	  } else if( cd == "INCLUDE" ) {
 	    // note -- currently, include files are inserted verbatim, and cannot contain CUCL magic-comments (including
 	    // includes) themselves
