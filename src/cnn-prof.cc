@@ -221,7 +221,7 @@ namespace boda
   }
 
   double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   p_op_base_t const & in_gen_op, map_str_p_nda_float_t * const outs, uint32_t const & run_iter );
+			   p_op_base_t const & in_gen_op, map_str_p_nda_t * const outs, uint32_t const & run_iter );
 
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
     vect_p_conv_op_t sigs;
@@ -234,11 +234,11 @@ namespace boda
     if( rtc_comp ) { rtc_comp->init(); codegen_comp.init( rtc_comp ); }
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); if(rtc_comp) { rtc_comp->init(); } }
-    p_map_str_p_nda_float_t vs1;
-    p_map_str_p_nda_float_t vs2;
+    p_map_str_p_nda_t vs1;
+    p_map_str_p_nda_t vs2;
     if( rtc_comp ) { 
-      vs1 = make_shared<map_str_p_nda_float_t>();
-      vs2 = make_shared<map_str_p_nda_float_t>();
+      vs1 = make_shared<map_str_p_nda_t>();
+      vs2 = make_shared<map_str_p_nda_t>();
     }
     uint32_t num_mad_fail = 0;
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {

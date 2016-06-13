@@ -10,6 +10,7 @@
 #include<sys/stat.h>
 #include<fcntl.h>
 #include<cmath>
+#include"ext/half.hpp"
 
 void boda_assert_fail( char const * expr, char const * file, unsigned int line, char const * func ) throw() {
   fprintf(stderr,"boda: %s:%u: %s: Assertion failed: %s\n",file,line,func,expr);
@@ -140,6 +141,28 @@ namespace boda
 
   template ssds_diff_t::ssds_diff_t( p_nda_float_t const & o1, p_nda_float_t const & o2 );
   template ssds_diff_t::ssds_diff_t( p_nda_double_t const & o1, p_nda_double_t const & o2 );
+  using half_float::half;
+#define PER_TYPE_COMP( TN_TYPE )                                        \
+      TN_TYPE * const o1_elems = static_cast<TN_TYPE *>(o1->rp_elems()); \
+      TN_TYPE * const o2_elems = static_cast<TN_TYPE *>(o2->rp_elems()); \
+      sum_squared_diffs( *this, o1_elems, o2_elems, sz );               \
+      num_diff = cnt_diff_elems( o1_elems, o2_elems, sz );
+  template<> ssds_diff_t::ssds_diff_t( p_nda_t const & o1, p_nda_t const & o2 ) {
+    clear();
+    sz = o1->elems_sz();
+    assert_st( sz == o2->elems_sz() );
+    assert_st( o1->dims.tn == o2->dims.tn );
+    if( 0 ) { }
+    else if( o1->dims.tn == "half" ) { PER_TYPE_COMP( half ); }
+    else if( o1->dims.tn == "float" ) { PER_TYPE_COMP( float ); }
+    else if( o1->dims.tn == "double" ) { PER_TYPE_COMP( double ); }
+    else { rt_err( "unhandled type in ssds_diff_t: " + o1->dims.tn ); }
+    aad = sqrt(ssds / sz);
+    ad = sds / sz;
+    avg1 = sum1 / sz;
+    avg2 = sum2 / sz;
+  }
+#undef PER_TYPE_COMP
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 

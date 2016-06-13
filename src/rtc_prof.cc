@@ -50,7 +50,7 @@ namespace boda
   }
 
   double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen, bool const & show_rtc_calls,
-			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_float_t * const outs,
+			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
                            uint32_t const & run_iter ) 
   {
     timer_t t("profile_rcg_call");
@@ -145,7 +145,7 @@ namespace boda
         rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i->vn,i->vn}} };
         codegen.run_rfc( show_rtc_calls, rfc_in_gen_xpose, 0 );
       }
-      if( outs ) { must_insert( *outs, i->vn, make_shared< nda_float_t >( codegen.rtc->create_nda_from_var( gen_vn ) ) ); } 
+      if( outs ) { must_insert( *outs, i->vn, codegen.rtc->create_nda_from_var( gen_vn ) ); } 
     }
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       codegen.rtc->release_var( j->second );

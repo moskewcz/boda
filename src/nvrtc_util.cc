@@ -173,6 +173,9 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 #define LSMASQ
 #define BARRIER_SYNC __syncthreads()
 
+#define store_float_to_rp_half( val, ix, p ) vstore_half( val, ix, p )
+#define store_float_to_rp_float( val, ix, p ) p[ix] = val
+
 )rstr";
 
   struct nvrtc_compute_t : virtual public nesi, public rtc_compute_t // NESI(help="libnvrtc based rtc support (i.e. CUDA)",
