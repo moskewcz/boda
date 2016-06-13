@@ -1,5 +1,5 @@
 // CUCL INCLUDE gen-util.h
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const b ) // CUCL OUT K:N
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(b_tn) * const b ) // CUCL OUT K:N
 {
   // CUCL IX GLOB_ID_1D b
   if( GLOB_ID_1D >= %(b_dims_prod) ) { return; }
@@ -14,6 +14,5 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const b ) // CUCL OUT K:N
     if( %(GLOB_ID_1D_N)==%(GLOB_ID_1D_K) ) { val += 1.0f; }
     //if( (%(GLOB_ID_1D_N)==%(b_N_dim)/2) && (%(GLOB_ID_1D_K)==%(b_K_dim)/2) ) { val += 1.0f; }
   }
-
-  b[GLOB_ID_1D] = val;
+  store_float_to_rp_%(b_tn)( val, GLOB_ID_1D, b );
 }

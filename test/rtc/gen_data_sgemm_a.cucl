@@ -1,5 +1,5 @@
 // CUCL INCLUDE gen-util.h
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const a ) // CUCL OUT K:M
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(a_tn) * const a ) // CUCL OUT K:M
 {
   // CUCL IX GLOB_ID_1D a
   int32_t mode = %(mode);
@@ -13,6 +13,5 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const a ) // CUCL OUT K:M
   } else if( mode == 5 ) {
     val += det_hash_rand( GLOB_ID_1D + 12738732 );
   } else if( mode == 6 ) { val += %(GLOB_ID_1D_M)*1000 + %(GLOB_ID_1D_K); }
-
-  a[GLOB_ID_1D] = val;
+  store_float_to_rp_%(a_tn)( val, GLOB_ID_1D, a );
 }

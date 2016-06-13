@@ -197,6 +197,8 @@ typedef int int32_t;
 // the casts should help uses that might expect implict casts from double->float when using powf() 
 // ... or maybe that's a bad idea?
 #define powf(v,e) pow((float)v,(float)e)
+#define store_float_to_rp_half( val, ix, p ) vstore_half( val, ix, p )
+#define store_float_to_rp_float( val, ix, p ) p[ix] = val
 
 )rstr";
 
