@@ -3,8 +3,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
 {
   // CUCL IX GLOB_ID_1D out
   if( GLOB_ID_1D >= %(out_dims_prod) ) { return; }
-  int32_t const in_ix = %(GLOB_ID_1D_img)*%(in_img_sz) + (%(GLOB_ID_1D_chan)+%(icix))*%(in_chan_sz) +
-    %(GLOB_ID_1D_y)*%(in_y_sz) + %(GLOB_ID_1D_x)*%(in_x_sz);  
+  int32_t const in_ix = %(GLOB_ID_1D_img)*%(in_img_stride) + (%(GLOB_ID_1D_chan)+%(icix))*%(in_chan_stride) +
+    %(GLOB_ID_1D_y)*%(in_y_stride) + %(GLOB_ID_1D_x)*%(in_x_stride);  
   out[GLOB_ID_1D] = in[in_ix];
 }
 

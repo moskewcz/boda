@@ -14,7 +14,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 {
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
   // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
-  // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
+  // note: <each thread handles> work use_dims=pels:out_chan; with pels_stride==out_chan_stride==t_tile_sz (currently); loops over in.chan==filts.in_chan
   // note: for k1conv we have filts_y_dim==filts_x_dim==1
   // CUCL IX filt_pix filts use_dims=in_chan:y:x
   // CUCL IX in_pix in_pels
@@ -25,9 +25,9 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   float%(vw) filts_strip[%(work_out_chan_dim)/%(vw)]; // across output chans (stride is blk_filt_ix_sz )
   float%(vw) in_strip[%(work_pels_dim)/%(vw)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
 
-  int const filts_off_thr = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw)*%(filts_out_chan_sz);
+  int const filts_off_thr = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw)*%(filts_out_chan_stride);
   int const out_pix = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim);
-  int const in_off_thr = %(out_pix_x)*%(stride_x_dim)*%(in_pels_x_sz) + %(out_pix_y_nomod)*%(stride_y_dim)*%(in_pels_y_sz);
+  int const in_off_thr = %(out_pix_x)*%(stride_x_dim)*%(in_pels_x_stride) + %(out_pix_y_nomod)*%(stride_y_dim)*%(in_pels_y_stride);
   // note: (out_x + out_reg_ix) is the per-register output x coord; this value divided by out_pels_x_dim gives the
   // intra-thread row offset, which we need if the y stride is > 1 to adjust our Y indexing into in.
   int const out_x = %(out_pix_x); 
@@ -35,15 +35,15 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   int32_t filts_off = filts_off_thr;
   // iteratate over filter elements
   for( int32_t filt_pix = 0; filt_pix < %(filt_pix_dims_prod); filt_pix += %(Kb) ) {
-    int32_t in_off = in_off_thr + %(filt_pix_in_chan)*%(in_chan_sz) + %(filt_pix_y)*%(in_pels_y_sz) + %(filt_pix_x)*%(in_pels_x_sz);
+    int32_t in_off = in_off_thr + %(filt_pix_in_chan)*%(in_chan_stride) + %(filt_pix_y)*%(in_pels_y_stride) + %(filt_pix_x)*%(in_pels_x_stride);
     %(inner_loop_body);
-    filts_off += %(Kb)*%(filts_x_sz)/%(vw);
+    filts_off += %(Kb)*%(filts_x_stride)/%(vw);
   }
 
   int32_t const out_chan = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw);
   int32_t out_off = 
-    ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(out_pel_sz) +
-    out_chan*%(out_chan_sz);
+    ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(out_pel_stride) +
+    out_chan*%(out_chan_stride);
   
   for( int32_t ty = 0; ty < %(work_out_chan_dim)/%(vw); ++ty ) { 
     filts_strip[ty] = ((GASQ float%(vw) const *)biases)[out_chan+ty]; }
@@ -51,7 +51,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   for( int32_t ty = 0; ty < %(work_out_chan_dim); ++ty ) {
     %(outs_to_in_strip);
     %(stores);
-    out_off += %(out_chan_sz)/%(vw);
+    out_off += %(out_chan_stride)/%(vw);
   }
 }
 

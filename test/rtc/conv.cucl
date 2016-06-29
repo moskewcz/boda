@@ -10,7 +10,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // CUCL IX filts_ix_out_chan_elem filts use_dims=in_chan:y:x
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
   // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
-  // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
+  // note: <each thread handles> work use_dims=pels:out_chan; with pels_stride==out_chan_stride==t_tile_sz (currently); loops over in.chan==filts.in_chan
   LOCSHAR_MEM float in_smem[%(work_pels_tile_dim)*%(work_pels_dim)];
   LOCSHAR_MEM float filts_smem[%(filts_smem_sz)];
   float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
@@ -21,7 +21,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   int32_t const blk_pel_ix_sz = %(work_pels_tile_dim)*%(work_pels_dim);
   int32_t const blk_pel_ix_base = %(GRP_ID_1D_pels_blk)*blk_pel_ix_sz;
   // iteratate over filter elements
-  int32_t filts_off = %(GRP_ID_1D_out_chan_blk)*%(filts_out_chan_blk_sz) + LOC_ID_1D; // index of first out chan (for this block) + LOC_ID_1D
+  int32_t filts_off = %(GRP_ID_1D_out_chan_blk)*%(filts_out_chan_blk_stride) + LOC_ID_1D; // index of first out chan (for this block) + LOC_ID_1D
   for( int32_t filts_ix_out_chan_elem = 0; filts_ix_out_chan_elem != 
 	 (%(filts_in_chan_dim) * %(filts_x_dim) * %(filts_y_dim)); ++filts_ix_out_chan_elem ) {
     BARRIER_SYNC;
@@ -33,7 +33,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 	in_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
       }
     }
-    filts_off += %(filts_x_sz);
+    filts_off += %(filts_x_stride);
     BARRIER_SYNC;
     %(loads);
     %(fmas);

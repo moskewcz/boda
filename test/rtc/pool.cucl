@@ -20,8 +20,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
       int const in_y = %(GLOB_ID_1D_y)*%(stride_y_dim) + ky - %(in_pad_y_dim);
       int const in_x = %(GLOB_ID_1D_x)*%(stride_x_dim) + kx - %(in_pad_x_dim);
       if(in_y >= 0 && in_x >= 0 && in_x < %(in_x_dim) && in_y < %(in_y_dim) ) {
-	int32_t const in_ix = %(GLOB_ID_1D_img)*%(in_img_sz) + %(GLOB_ID_1D_chan)*%(in_chan_sz) + 
-	  in_y*%(in_y_sz) + in_x*%(in_x_sz);
+	int32_t const in_ix = %(GLOB_ID_1D_img)*%(in_img_stride) + %(GLOB_ID_1D_chan)*%(in_chan_stride) + 
+	  in_y*%(in_y_stride) + in_x*%(in_x_stride);
 	float const v = in[in_ix];
 	if( %(avg_pool) ) { 
 	  out_v += v; 

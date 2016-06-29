@@ -12,7 +12,7 @@ namespace boda
       must_insert( mss, nda_vn+"_"+dims[i].name+"_dim", str(dims[i].sz) );
       if( !dims_only ) { 
 	assert_st( dims[i].has_sz_and_stride_and_name() );
-	must_insert( mss, nda_vn+"_"+dims[i].name+"_sz", str(dims[i].stride) );
+	must_insert( mss, nda_vn+"_"+dims[i].name+"_stride", str(dims[i].stride) );
       }
     }
     if( !dims_only ) { must_insert( mss, nda_vn+"_dims_prod", str(dims.dims_prod()) ); } // also emit dim(0)*stride(0)?

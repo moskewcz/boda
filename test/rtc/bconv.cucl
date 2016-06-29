@@ -16,7 +16,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // CUCL IX out_ix oix
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_ix_blk
   // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_ix_tile
-  // note: <each thread handles> work use_dims=pels:out_out_ix; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
+  // note: <each thread handles> work use_dims=pels:out_out_ix; with pels_stride==out_chan_stride==t_tile_sz (currently); loops over in.chan==filts.in_chan
 
   LOCSHAR_MEM float in_smem[%(in_smem_sz)];
   LOCSHAR_MEM float filts_smem[%(filts_smem_sz)];
@@ -38,10 +38,10 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 	int const smem_in_ix_x = %(pel_ix_x)+%(filt_elem_ix_kx) - %(bck_in_pad_x_dim);
 	if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && %(pel_ix_img) < %(out_grad_loss_img_dim) &&
 	   smem_in_ix_x < %(out_grad_loss_x_dim) && smem_in_ix_y < %(out_grad_loss_y_dim) ) {
-	  v = out_grad_loss[%(pel_ix_img)*%(out_grad_loss_img_sz) +
-			    %(filt_elem_ix_out_chan)*%(out_grad_loss_chan_sz) +
-			    smem_in_ix_y*%(out_grad_loss_y_sz) +
-			    smem_in_ix_x*%(out_grad_loss_x_sz)];
+	  v = out_grad_loss[%(pel_ix_img)*%(out_grad_loss_img_stride) +
+			    %(filt_elem_ix_out_chan)*%(out_grad_loss_chan_stride) +
+			    smem_in_ix_y*%(out_grad_loss_y_stride) +
+			    smem_in_ix_x*%(out_grad_loss_x_stride)];
 	}
 	in_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
       }
@@ -54,10 +54,10 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 	int const smem_filt_ix_x = %(filts_x_dim) - 1 + %(out_ix_sx) - %(filt_elem_ix_kx)*%(stride_x_dim);
 	if( %(out_ix_in_chan) < %(filts_in_chan_dim) && %(filt_elem_ix_out_chan) < %(filts_out_chan_dim)
 	    && smem_filt_ix_x < %(filts_x_dim) && smem_filt_ix_y < %(filts_y_dim) ) {
-	  v = filts[%(filt_elem_ix_out_chan)*%(filts_out_chan_sz) +
-		    %(out_ix_in_chan)*%(filts_in_chan_sz) + 
-		    smem_filt_ix_y*%(filts_y_sz) +
-		    smem_filt_ix_x*%(filts_x_sz)];
+	  v = filts[%(filt_elem_ix_out_chan)*%(filts_out_chan_stride) +
+		    %(out_ix_in_chan)*%(filts_in_chan_stride) + 
+		    smem_filt_ix_y*%(filts_y_stride) +
+		    smem_filt_ix_x*%(filts_x_stride)];
 	}
 	filts_smem[LOC_ID_1D+LOC_SZ_1D*i] = v;
       }

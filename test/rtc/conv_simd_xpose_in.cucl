@@ -15,10 +15,10 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CU
       (in_ref_y >= 0) && (in_ref_y < %(in_ref_y_dim)) &&
       (in_ref_x >= 0) && (in_ref_x < %(in_ref_x_dim)) &&
       1 ) {
-    v = in_ref[ %(pel_ix_img)*%(in_ref_img_sz) +
-                %(GLOB_ID_1D_chan)*%(in_ref_chan_sz) +
-                in_ref_y*%(in_ref_y_sz) +
-                in_ref_x*%(in_ref_x_sz) ];
+    v = in_ref[ %(pel_ix_img)*%(in_ref_img_stride) +
+                %(GLOB_ID_1D_chan)*%(in_ref_chan_stride) +
+                in_ref_y*%(in_ref_y_stride) +
+                in_ref_x*%(in_ref_x_stride) ];
   }
 #endif
   in[GLOB_ID_1D] = v;

@@ -10,8 +10,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const out_grad_loss
   for( int32_t img = 0; img < %(out_grad_loss_img_dim); ++img ) {
     for( int32_t y = 0; y < %(out_grad_loss_y_dim); ++y ) {
       for( int32_t x = 0; x < %(out_grad_loss_x_dim); ++x ) {
-	biases_grad_loss_v += out_grad_loss[ img*%(out_grad_loss_img_sz) + %(GLOB_ID_1D_out_chan)*%(out_grad_loss_chan_sz) 
-					     + y*%(out_grad_loss_y_sz) + x*%(out_grad_loss_x_sz) ];
+	biases_grad_loss_v += out_grad_loss[ img*%(out_grad_loss_img_stride) + %(GLOB_ID_1D_out_chan)*%(out_grad_loss_chan_stride) 
+					     + y*%(out_grad_loss_y_stride) + x*%(out_grad_loss_x_stride) ];
       }
     }
   }

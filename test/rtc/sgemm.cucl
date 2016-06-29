@@ -14,8 +14,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(a_tn) const * const a, // CUCL 
   float b_r[%(work_Nt_dim)];
 
   // block-level constant offsets into a + b, each plus the thread id (LOC_ID_1D), for shared-memory loading
-  int32_t a_off = %(GRP_ID_1D_Mg)*%(work_Mb_dim)*%(work_Mt_dim)*%(a_M_sz) + LOC_ID_1D;
-  int32_t const b_off_base = %(GRP_ID_1D_Ng)*%(work_Nb_dim)*%(work_Nt_dim)*%(b_N_sz) + LOC_ID_1D;
+  int32_t a_off = %(GRP_ID_1D_Mg)*%(work_Mb_dim)*%(work_Mt_dim)*%(a_M_stride) + LOC_ID_1D;
+  int32_t const b_off_base = %(GRP_ID_1D_Ng)*%(work_Nb_dim)*%(work_Nt_dim)*%(b_N_stride) + LOC_ID_1D;
     
   LSMASQ float * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim);
   LSMASQ float * const b_sm_off = b_sm + %(LOC_ID_1D_Nb)*%(work_Nt_dim);
@@ -23,23 +23,23 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(a_tn) const * const a, // CUCL 
   int32_t b_off = b_off_base;
   //LSMASQ %(a_tn) * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim)*%(work_Kb_dim) + %(LOC_ID_1D_Nb);
   for( int32_t k = 0; k < %(a_K_dim); k += %(work_Kb_dim) ) {
-    //b_off = b_off_base + k*%(work_Kb_dim)*%(b_K_sz); // FIXME: adding this line fixes 512x512 case on SD820 ...
+    //b_off = b_off_base + k*%(work_Kb_dim)*%(b_K_stride); // FIXME: adding this line fixes 512x512 case on SD820 ...
     BARRIER_SYNC;
     %(sm_loads);
-    a_off += %(work_Kb_dim)*%(a_K_sz);
-    b_off += %(work_Kb_dim)*%(b_K_sz);
+    a_off += %(work_Kb_dim)*%(a_K_stride);
+    b_off += %(work_Kb_dim)*%(b_K_stride);
     BARRIER_SYNC; 
     %(inner_loop_body);
   }
 
   int32_t c_off = // thread-level offset into c
-    (%(GRP_ID_1D_Mg)*%(work_Mb_dim)+%(LOC_ID_1D_Mb))*%(work_Mt_dim)*%(c_M_sz) + 
-    (%(GRP_ID_1D_Ng)*%(work_Nb_dim)+%(LOC_ID_1D_Nb))*%(work_Nt_dim)*%(c_N_sz);
+    (%(GRP_ID_1D_Mg)*%(work_Mb_dim)+%(LOC_ID_1D_Mb))*%(work_Mt_dim)*%(c_M_stride) + 
+    (%(GRP_ID_1D_Ng)*%(work_Nb_dim)+%(LOC_ID_1D_Nb))*%(work_Nt_dim)*%(c_N_stride);
 
   for( int32_t Mt = 0; Mt < %(work_Mt_dim); ++Mt ) {
     %(outs_to_b_r);
     %(stores);
-    c_off += %(c_M_sz);
+    c_off += %(c_M_stride);
   }
 
 }

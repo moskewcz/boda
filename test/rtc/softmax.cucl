@@ -7,16 +7,16 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL I
   float pel_sum = {0.0f};
   float pel_max = {0.0f};
   // iteratate over chans for all operations
-  int32_t const base_ix = %(GLOB_ID_1D_img)*%(prob_img_sz) + %(GLOB_ID_1D_y)*%(prob_y_sz) + %(GLOB_ID_1D_x)*%(prob_x_sz);
-  for( int32_t off = 0, chan_ix = 0; chan_ix < %(prob_chan_dim); ++chan_ix, off += %(prob_chan_sz) ) { 
+  int32_t const base_ix = %(GLOB_ID_1D_img)*%(prob_img_stride) + %(GLOB_ID_1D_y)*%(prob_y_stride) + %(GLOB_ID_1D_x)*%(prob_x_stride);
+  for( int32_t off = 0, chan_ix = 0; chan_ix < %(prob_chan_dim); ++chan_ix, off += %(prob_chan_stride) ) { 
     pel_max = max(pel_max, in[base_ix + off] ); 
   }
-  for( int32_t off = 0, chan_ix = 0; chan_ix < %(prob_chan_dim); ++chan_ix, off += %(prob_chan_sz) ) { 
+  for( int32_t off = 0, chan_ix = 0; chan_ix < %(prob_chan_dim); ++chan_ix, off += %(prob_chan_stride) ) { 
     float const v = exp( in[base_ix + off] - pel_max );
     prob[base_ix + off] = v; 
     pel_sum += v;
   }
-  for( int32_t off = 0, chan_ix = 0; chan_ix < %(prob_chan_dim); ++chan_ix, off += %(prob_chan_sz) ) { 
+  for( int32_t off = 0, chan_ix = 0; chan_ix < %(prob_chan_dim); ++chan_ix, off += %(prob_chan_stride) ) { 
     prob[base_ix + off] /= pel_sum;
   }
 }

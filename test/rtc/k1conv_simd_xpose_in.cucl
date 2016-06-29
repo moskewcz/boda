@@ -7,10 +7,10 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CU
   int32_t const pel_ix = %(GLOB_ID_1D_pel);
   float v = 0.0f;
   if( %(pel_ix_img) < %(in_ref_img_dim) ) {
-    v = in_ref[ %(pel_ix_img)*%(in_ref_img_sz) +
-                %(GLOB_ID_1D_chan)*%(in_ref_chan_sz) +
-                %(pel_ix_y)*%(in_ref_y_sz) +
-                %(pel_ix_x)*%(in_ref_x_sz) ];
+    v = in_ref[ %(pel_ix_img)*%(in_ref_img_stride) +
+                %(GLOB_ID_1D_chan)*%(in_ref_chan_stride) +
+                %(pel_ix_y)*%(in_ref_y_stride) +
+                %(pel_ix_x)*%(in_ref_x_stride) ];
   }
   in[GLOB_ID_1D] = v;
 }

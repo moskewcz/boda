@@ -14,22 +14,22 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // CUCL IX out_ref_pel out_ref use_dims=img:y:x 
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk
   // CUCL IX LOC_ID_1D work use_dims=pels_tile:out_chan_tile
-  // note: <each thread handles> work use_dims=pels:out_chan; with pels_sz==out_chan_sz==t_tile_sz (currently); loops over in.chan==filts.in_chan
+  // note: <each thread handles> work use_dims=pels:out_chan; with pels_stride==out_chan_stride==t_tile_sz (currently); loops over in.chan==filts.in_chan
   // note: for k1conv we have filts_y_dim==filts_x_dim==1
-  // refactoring note: blk_filt_ix_sz --> %(filts_x_sz) == (number of output chans handled by this block) (also == %(filts_y_sz) and %(filts_in_chan_sz))
+  // refactoring note: blk_filt_ix_sz --> %(filts_x_stride) == (number of output chans handled by this block) (also == %(filts_y_stride) and %(filts_in_chan_stride))
   // refactoring note: in_chan_tile --> %(in_blk_iter_chan_dim) 
-  // note: all_smem_sz is max(filts+in,out) == max((%(filts_in_chan_sz)*%(in_blk_iter_chan_dim))+%(in_blk_iter_sz),%(out_smem_sz))
+  // note: all_smem_sz is max(filts+in,out) == max((%(filts_in_chan_stride)*%(in_blk_iter_chan_dim))+%(in_blk_iter_stride),%(out_smem_sz))
   LOCSHAR_MEM float all_smem[%(all_smem_sz)]; 
   LSMASQ float * const filts_smem = all_smem;
-  LSMASQ float * const in_smem = filts_smem + %(filts_in_chan_sz)*%(in_blk_iter_chan_dim); // aka "+ filts_smem_sz"
+  LSMASQ float * const in_smem = filts_smem + %(filts_in_chan_stride)*%(in_blk_iter_chan_dim); // aka "+ filts_smem_sz"
 
   float out_tile[%(work_pels_dim)*%(work_out_chan_dim)] = {0}; // tile of output for this thread to compute, stored in registers
   // reg. buffers for one strip each from in and filts, for the same filts_ix_out_chan_elem
   float filts_strip[%(work_out_chan_dim)]; // across output chans (stride is blk_filt_ix_sz )
   float in_strip[%(work_pels_dim)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
 
-  int32_t const blk_filt_ix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_out_chan_blk_sz); // index of first out chan
-  int32_t blk_in_ix_base = %(GRP_ID_1D_pels_blk)*%(in_blk_sz) + LOC_ID_1D;// index of first input pel to load for this thread
+  int32_t const blk_filt_ix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_out_chan_blk_stride); // index of first out chan
+  int32_t blk_in_ix_base = %(GRP_ID_1D_pels_blk)*%(in_blk_stride) + LOC_ID_1D;// index of first input pel to load for this thread
 
   LSMASQ float * const filts_smem_off = filts_smem + %(LOC_ID_1D_out_chan_tile);
   LSMASQ float * const in_smem_off = in_smem + %(LOC_ID_1D_pels_tile)*%(work_pels_dim);
@@ -41,8 +41,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
     %(filts_smem_loads);
     %(smem_loads);
     BARRIER_SYNC;
-    filts_off += %(filts_in_chan_sz)*%(in_blk_iter_chan_dim);
-    blk_in_ix_base += %(in_blk_iter_sz);
+    filts_off += %(filts_in_chan_stride)*%(in_blk_iter_chan_dim);
+    blk_in_ix_base += %(in_blk_iter_stride);
     %(inner_loop_body);
   }
   // load per-block biases into smem

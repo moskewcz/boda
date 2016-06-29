@@ -12,6 +12,6 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const out, // CUCL 
   int32_t const pel_ix = (%(GLOB_ID_1D_img)*%(out_pels_y_dim)+%(GLOB_ID_1D_y))*%(out_pels_x_dim)+%(GLOB_ID_1D_x);
   // here, we could assert that %(pel_ix_img) == %(GLOB_ID_1D_img) and so on for the dims of pel_ix
   float v = 0.0f;
-  v = out[ %(GLOB_ID_1D_chan)*%(out_chan_sz) + pel_ix*%(out_pel_sz) ];
+  v = out[ %(GLOB_ID_1D_chan)*%(out_chan_stride) + pel_ix*%(out_pel_stride) ];
   out_ref[GLOB_ID_1D] = v;
 }

@@ -20,22 +20,22 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   float%(vw) filts_strip[%(work_out_chan_dim)/%(vw)]; // across output chans (stride is blk_filt_ix_sz )
   float%(vw) in_strip[%(work_pels_dim)/%(vw)]; // across pels (approx square block in x/y space, favoring x if sqrt() not integer)
 
-  int const filts_off_thr = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw)*%(filts_out_chan_sz);
-  int const in_off_thr = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(in_pel_sz);
+  int const filts_off_thr = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw)*%(filts_out_chan_stride);
+  int const in_off_thr = ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(in_pel_stride);
 
   int32_t filts_off = filts_off_thr;
   int32_t in_off = in_off_thr;
   // iteratate over filter elements
   for( int32_t ic = 0; ic < %(in_chan_dim); ic += %(Kb) ) {
     %(inner_loop_body);
-    filts_off += %(Kb)*%(filts_in_chan_sz)/%(vw);
-    in_off += %(Kb)*%(in_chan_sz)/%(vw);
+    filts_off += %(Kb)*%(filts_in_chan_stride)/%(vw);
+    in_off += %(Kb)*%(in_chan_stride)/%(vw);
   }
 
   int32_t const out_chan = ( %(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim) + %(LOC_ID_1D_out_chan_tile) )*%(work_out_chan_dim)/%(vw);
   int32_t out_off = 
-    ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(out_pel_sz) +
-    out_chan*%(out_chan_sz);
+    ( %(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile) )*%(work_pels_dim)/%(vw)*%(out_pel_stride) +
+    out_chan*%(out_chan_stride);
   
   for( int32_t ty = 0; ty < %(work_out_chan_dim)/%(vw); ++ty ) { 
     filts_strip[ty] = ((GASQ float%(vw) const *)biases)[out_chan+ty]; }
@@ -43,7 +43,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   for( int32_t ty = 0; ty < %(work_out_chan_dim); ++ty ) {
     %(outs_to_in_strip);
     %(stores);
-    out_off += %(out_chan_sz)/%(vw);
+    out_off += %(out_chan_stride)/%(vw);
   }
 }
 

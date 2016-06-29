@@ -10,7 +10,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // write a single output pixel per thread
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }
   float in_grad_loss_v = 0.0f;
-  // we want ceil of (%(GLOB_ID_1D_x) + %(in_pad_x_dim) - %(filts_x_sz) + 1)/%(stride_x_dim); so use ceil->floor transform:
+  // we want ceil of (%(GLOB_ID_1D_x) + %(in_pad_x_dim) - %(filts_x_stride) + 1)/%(stride_x_dim); so use ceil->floor transform:
   int32_t out_xb = max( (int32_t)0, (int32_t)%(GLOB_ID_1D_x) + %(in_pad_x_dim) - %(filts_x_dim) + %(stride_x_dim) ) / %(stride_x_dim); // clamp to numerator zero and take floor
   int32_t out_xe = min( (((((int32_t)%(GLOB_ID_1D_x) + %(in_pad_x_dim))/ %(stride_x_dim)))+1), (int32_t)%(out_grad_loss_x_dim) ); // take floor, then add 1 to convert open bound, then clamp to dim
   // dup'd for y
@@ -26,9 +26,9 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
 	// so we need not check for them here. we've also clamped the upper bounds to the dims. finally, in the event the
 	// LBs are >= the UB, we will not iterate. so, no bounds checks are needed here.
 	int32_t const out_ix = 
-	  %(GLOB_ID_1D_img)*%(out_grad_loss_img_sz) + out_chan*%(out_grad_loss_chan_sz) + out_y*%(out_grad_loss_y_sz) + out_x*%(out_grad_loss_x_sz);
+	  %(GLOB_ID_1D_img)*%(out_grad_loss_img_stride) + out_chan*%(out_grad_loss_chan_stride) + out_y*%(out_grad_loss_y_stride) + out_x*%(out_grad_loss_x_stride);
 	in_grad_loss_v += out_grad_loss[out_ix] * 
-	  filts[ out_chan*%(filts_out_chan_sz) + %(GLOB_ID_1D_chan)*%(filts_in_chan_sz) + filts_y*%(filts_y_sz) + filts_x*%(filts_x_sz) ];
+	  filts[ out_chan*%(filts_out_chan_stride) + %(GLOB_ID_1D_chan)*%(filts_in_chan_stride) + filts_y*%(filts_y_stride) + filts_x*%(filts_x_stride) ];
 	filts_y -= %(stride_y_dim);
       }
       filts_x -= %(stride_x_dim);

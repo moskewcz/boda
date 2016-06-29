@@ -11,25 +11,25 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN
   float%(vw) a_r[%(work_Mt_dim)/%(vw)]; 
   float%(vw) b_r[%(work_Nt_dim)/%(vw)];
 
-  int const a_off_thr = ( %(GRP_ID_1D_Mg)*%(work_Mb_dim) + %(LOC_ID_1D_Mb) )*%(work_Mt_dim)/%(vw)*%(a_M_sz);
-  int const b_off_thr = ( %(GRP_ID_1D_Ng)*%(work_Nb_dim) + %(LOC_ID_1D_Nb) )*%(work_Nt_dim)/%(vw)*%(b_N_sz);
+  int const a_off_thr = ( %(GRP_ID_1D_Mg)*%(work_Mb_dim) + %(LOC_ID_1D_Mb) )*%(work_Mt_dim)/%(vw)*%(a_M_stride);
+  int const b_off_thr = ( %(GRP_ID_1D_Ng)*%(work_Nb_dim) + %(LOC_ID_1D_Nb) )*%(work_Nt_dim)/%(vw)*%(b_N_stride);
 
   int32_t a_off = a_off_thr;
   int32_t b_off = b_off_thr;
   for( int32_t k = 0; k < %(a_K_dim); k += %(work_Kb_dim) ) {
     %(inner_loop_body);
-    a_off += %(work_Kb_dim)*%(a_K_sz)/%(vw);
-    b_off += %(work_Kb_dim)*%(b_K_sz)/%(vw);
+    a_off += %(work_Kb_dim)*%(a_K_stride)/%(vw);
+    b_off += %(work_Kb_dim)*%(b_K_stride)/%(vw);
   }
 
   int32_t c_off = // thread-level offset into c
-    (%(GRP_ID_1D_Mg)*%(work_Mb_dim)+%(LOC_ID_1D_Mb))*%(work_Mt_dim)*%(c_M_sz)/%(vw) + 
-    (%(GRP_ID_1D_Ng)*%(work_Nb_dim)+%(LOC_ID_1D_Nb))*%(work_Nt_dim)*%(c_N_sz)/%(vw);
+    (%(GRP_ID_1D_Mg)*%(work_Mb_dim)+%(LOC_ID_1D_Mb))*%(work_Mt_dim)*%(c_M_stride)/%(vw) + 
+    (%(GRP_ID_1D_Ng)*%(work_Nb_dim)+%(LOC_ID_1D_Nb))*%(work_Nt_dim)*%(c_N_stride)/%(vw);
 
   for( int32_t Mt = 0; Mt < %(work_Mt_dim); ++Mt ) {
     %(outs_to_b_r);
     %(stores);
-    c_off += %(c_M_sz)/%(vw);
+    c_off += %(c_M_stride)/%(vw);
   }
 
 }

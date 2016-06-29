@@ -12,7 +12,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN
   float a_r[%(work_Mt_dim)]; 
   float b_r[%(work_Nt_dim)];
 
-  int32_t a_off = %(GRP_ID_1D_Mg)*%(work_Mb_dim)*%(work_Mt_dim)*%(a_M_sz) + %(LOC_ID_1D_Kb); 
+  int32_t a_off = %(GRP_ID_1D_Mg)*%(work_Mb_dim)*%(work_Mt_dim)*%(a_M_stride) + %(LOC_ID_1D_Kb); 
 
   LSMASQ float * const a_sm_off = a_sm + %(LOC_ID_1D_Mb)*%(work_Mt_dim)*%(work_Kb_dim) + %(LOC_ID_1D_Kb);
   for( int32_t k = 0; k < %(a_K_dim); k += %(work_Kb_dim) ) {
