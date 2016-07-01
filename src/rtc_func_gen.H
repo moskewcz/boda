@@ -100,6 +100,7 @@ namespace boda
     p_string template_str; // read from file
     vect_arg_decl_t arg_decls; // parsed out of template_str
     vect_ix_decl_t ix_decls; // parsed out of template_str
+    vect_string all_tvs; // list of all referenced template variables
     void init( string const & template_fn_ ) {
       template_fn = template_fn_;
       string const full_template_fn = (path(py_boda_test_dir()) / "rtc" / (template_fn+".cucl")).string();
@@ -107,69 +108,81 @@ namespace boda
       vect_string lines = split( *template_str, '\n' );
       template_str->clear();
       for( vect_string::const_iterator i = lines.begin(); i != lines.end(); ++i ) {
-	// find magic CUCL comment (if any) and process it
-	template_str->append( *i );
-	template_str->append( "\n" );
-	string const mmc = get_part_after( *i, "//" );
-	vect_string mmc_parts = split_ws( strip_ws( mmc ) );
-	if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
-	  if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL. saw: " + *i ); }
-	  string cd = mmc_parts[1];
-	  bool const multi = maybe_strip_suffix( cd, "_MULTI" );
-	  if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { 
-	    if( cd == "IX" ) {
-	      if( multi ) { rt_err( "invalid use of _MULTI suffix on CUCL IX decl" ); }
-	      if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name: " + *i ); }
-	      string const ix_name = mmc_parts[2];
-	      string const arg_name = mmc_parts[3];
-	      ix_decls.push_back( ix_decl_t{ ix_name, arg_name } );
-	      for( uint32_t i = 4; i != mmc_parts.size(); ++i ) {	
-		vect_string const opt_parts = split( mmc_parts[i], '=' );
-		if( opt_parts.size() != 2 ) { rt_err( "invalid CUCL IX decl option '"+mmc_parts[i]+"', should have exactly 2 '=' seperated parts" ); }
-		else if( opt_parts[0] == "use_dims" ) { ix_decls.back().use_dims = split( opt_parts[1], ':' ); }
-		else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: use_dims" ); }
-	      }
-	    } else {
-	      if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec: " + *i ); }
-              arg_decl_t cad;
-              cad.io_type = cd;
-              if( cd == "REF" ) {
-                cucl_ref_decl_parse( cad, *i );
-              } else {
-                cucl_arg_decl_parse( cad, *i );
-                if( cad.tn.empty() ) { rt_err( "invalid CUCL io var decl; no var type found:" + str(*i) ); }
-                if( cad.loi.v != 1 ) { rt_err( "invalid CUCL io var decl; should be exactly one level-of-indirection/*:" + str(*i) ); }
-                // special case: if type is CUCL type of this var, then there is no restriction on the type that can be
-                // passed for this var. note that the only supported types are basic types and this case; there's no
-                // ability to use the type of other vars or some other string template or the like to restrict/set the
-                // type.
-                if( cad.tn == ("%("+cad.vn+"_tn)") ) { cad.tn = ""; } 
-              }
-	      for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
-                cad.ok_dims.push_back( dims_from_nda_spec( cad.tn, mmc_parts[i] ) );
-              }
-              if( multi ) {
-		cad.multi_base_vn = cad.vn;
-		bool const did_strip = maybe_strip_suffix( cad.multi_base_vn, "_N" );
-		if( !did_strip ) { rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); }
-	      }
-	      arg_decls.push_back( cad );
-	    }
-	  } else if( cd == "ARGINFO" ) {
+        try { init_proc_line( *i ); }
+        catch( rt_exception & rte ) {
+          rte.err_msg = strprintf( "Error parsing CUCL template from file %s on line %s:\n--> %s\n%s", 
+                                   str(full_template_fn).c_str(), str((i-lines.begin())+1).c_str(), 
+                                   (*i).c_str(),
+                                   rte.err_msg.c_str() );
+          throw;
+        }
+      }
+    }
+    
+    void init_proc_line( string const & line ) {
+      // find any template variable references and record them
+      str_format_find_all_refs( all_tvs, line );
+      // find magic CUCL comment (if any) and process it
+      template_str->append( line );
+      template_str->append( "\n" );
+      string const mmc = get_part_after( line, "//" );
+      vect_string mmc_parts = split_ws( strip_ws( mmc ) );
+      if( (mmc_parts.size() > 0) && (mmc_parts[0] == "CUCL" ) ) {
+        if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL." ); }
+        string cd = mmc_parts[1];
+        bool const multi = maybe_strip_suffix( cd, "_MULTI" );
+        if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { 
+          if( cd == "IX" ) {
+            if( multi ) { rt_err( "invalid use of _MULTI suffix on CUCL IX decl" ); }
+            if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name." ); }
+            string const ix_name = mmc_parts[2];
+            string const arg_name = mmc_parts[3];
+            ix_decls.push_back( ix_decl_t{ ix_name, arg_name } );
+            for( uint32_t i = 4; i != mmc_parts.size(); ++i ) {	
+              vect_string const opt_parts = split( mmc_parts[i], '=' );
+              if( opt_parts.size() != 2 ) { rt_err( "invalid CUCL IX decl option '"+mmc_parts[i]+"', should have exactly 2 '=' seperated parts" ); }
+              else if( opt_parts[0] == "use_dims" ) { ix_decls.back().use_dims = split( opt_parts[1], ':' ); }
+              else { rt_err( "invalid CUCL IX decl option '"+opt_parts[0]+"'. known opts: use_dims" ); }
+            }
+          } else {
+            if( mmc_parts.size() < 3 ) { rt_err( "invalid CUCL IN/INOUT/OUT annotation; missing dims spec." ); }
             arg_decl_t cad;
-            cucl_arg_decl_parse( cad, *i );
-            if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found:" + str(*i) ); }
-            if( cad.tn != "int32_t" ) { rt_err( "invalid CUCL ARGINFO decl; only type int32_t supported:" + str(*i) ); }
-            if( cad.loi.v != 0 ) { rt_err( "invalid CUCL ARGINGO decl; should be exactly zero levels-of-indirection/*s:" + str(*i) ); }
-            
-	  } else if( cd == "INCLUDE" ) {
-	    // note -- currently, include files are inserted verbatim, and cannot contain CUCL magic-comments (including
-	    // includes) themselves
-	    if( mmc_parts.size() != 3 ) { rt_err( "invalid CUCL INCLUDE decl; must be exactly CUCL INCLUDE filename.h; saw: " + *i);}
-	    string const full_include_fn = (path(py_boda_test_dir()) / "rtc" / mmc_parts[2]).string();
-	    template_str->append( *read_whole_fn( full_include_fn ) );
-	  } else { rt_err( "invalid CUCL directive '"+cd+"'. saw:" + *i ); }
-	}
+            cad.io_type = cd;
+            if( cd == "REF" ) {
+              cucl_ref_decl_parse( cad, line );
+            } else {
+              cucl_arg_decl_parse( cad, line );
+              if( cad.tn.empty() ) { rt_err( "invalid CUCL io var decl; no var type found." ); }
+              if( cad.loi.v != 1 ) { rt_err( "invalid CUCL io var decl; should be exactly one level-of-indirection/*.");}
+              // special case: if type is CUCL type of this var, then there is no restriction on the type that can be
+              // passed for this var. note that the only supported types are basic types and this case; there's no
+              // ability to use the type of other vars or some other string template or the like to restrict/set the
+              // type.
+              if( cad.tn == ("%("+cad.vn+"_tn)") ) { cad.tn = ""; } 
+            }
+            for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
+              cad.ok_dims.push_back( dims_from_nda_spec( cad.tn, mmc_parts[i] ) );
+            }
+            if( multi ) {
+              cad.multi_base_vn = cad.vn;
+              bool const did_strip = maybe_strip_suffix( cad.multi_base_vn, "_N" );
+              if( !did_strip ) { rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); }
+            }
+            arg_decls.push_back( cad );
+          }
+        } else if( cd == "ARGINFO" ) {
+          arg_decl_t cad;
+          cucl_arg_decl_parse( cad, line );
+          if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found." ); }
+          if( cad.tn != "int32_t" ) { rt_err( "invalid CUCL ARGINFO decl; only type int32_t supported." ); }
+          if( cad.loi.v != 0 ) { rt_err( "invalid CUCL ARGINGO decl; should be exactly zero levels-of-indirection/*s:");}  
+        } else if( cd == "INCLUDE" ) {
+          // note -- currently, include files are inserted verbatim, and cannot contain CUCL magic-comments (including
+          // includes) themselves
+          if( mmc_parts.size() != 3 ) { rt_err( "invalid CUCL INCLUDE decl; must be exactly CUCL INCLUDE filename.h.");}
+          string const full_include_fn = (path(py_boda_test_dir()) / "rtc" / mmc_parts[2]).string();
+          template_str->append( *read_whole_fn( full_include_fn ) );
+        } else { rt_err( "invalid CUCL directive '"+cd+"'." ); }
       }
     }
 
