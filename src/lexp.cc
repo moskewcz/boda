@@ -556,35 +556,49 @@ namespace boda {
     return lexp;
   }
 
-  void str_format_from_nvm( string & out, string const & fmt, lexp_name_val_map_t & nvm )
-  {
-    // expand refs. note: refs do not inc the use count of the lexp they use (as this seems sensible).
-    for( string::const_iterator i = fmt.begin(); i != fmt.end(); ++i ) {
-      if( *i == '%' ) {
-	++i; if( i == fmt.end() ) { rt_err( "end of string after '%' in filename, expected '(' or '%'." ); }
-	if( *i == '%' ) { out.push_back( *i ); } // escaped '%'
-	else if( *i != '(' ) { rt_err( "'" + string(1,*i) + "' after '%' in filename, expected '(' or '%'." ); }
+  // clears ref, then searches fmt starting at position spos for a %(ref). note: spos may == fmt.size() (no input
+  // left). returns npos if all remaining input consumed and no ref found. otherwise, sets ref to the found reference
+  // and returns index of last input char consumed + 1 (i.e. spos for the next call.). throws various exceptions for
+  // malformed inputs. in all cases, if out is non-null, the non-ref parts of the consumed input are written to out. in
+  // particular, this includes unescaping "%%" into "%".
+  size_t str_format_find_next_ref( string & ref, string * const out, string const & fmt, size_t const & spos ) {
+    ref.clear();
+    assert_st( spos <= fmt.size() ); // note: could allow spos > fmt.size(), or even spos==npos, but not sensible?
+    for( size_t i = spos; i < fmt.size(); ++i ) {
+      if( fmt[i] == '%' ) {
+	++i; if( !(i < fmt.size()) ) { rt_err( "end of input after '%', expected '(' or '%'." ); }
+	if( fmt[i] == '%' ) { if( out ) { out->push_back( fmt[i] ); } } // escaped '%'
+	else if( fmt[i] != '(' ) { rt_err( "'" + string(1,fmt[i]) + "' after '%', expected '(' or '%'." ); }
 	else { // saw '(', process ref
-	  string ref;
 	  while( 1 ) {
 	    ++i;
-	    if( i == fmt.end() ) { rt_err( "end of string after '%(' in filename, expected ')' to terminate ref" ); }
-	    if( *i == ')' ) { break; }
-	    ref.push_back( *i );
+	    if( !(i < fmt.size()) ) { rt_err( "end of input after '%(', expected ')' to terminate ref" ); }
+	    if( fmt[i] != ')' ) { ref.push_back( fmt[i] ); }
+            else { ++i; return i; } // done, return next spos (i.e. index after last consumed pos) 
 	  }
-	  // expand ref recursively
-	  nesi_init_arg_t * found_scope = 0;
-	  p_lexp_t di = nvm.find( ref.c_str(), &found_scope );
-	  if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" );  }
-	  if( !di->leaf_val.exists() ) { 
-	    rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
-	  }
-	  ++di->use_cnt;
-	  string const nest_fmt = di->leaf_val.str();
-	  lexp_name_val_map_t nest_nvm( di, found_scope ); // note lexical (non-dynamic) scoping here
-	  str_format_from_nvm( out, nest_fmt, nest_nvm );
 	}
-      } else { out.push_back( *i ); } // not a '%'
+      } else { if( out ) { out->push_back( fmt[i] ); } } // not a '%'
+    }
+    return string::npos; // no ref found.
+  }
+
+  void str_format_from_nvm( string & out, string const & fmt, lexp_name_val_map_t & nvm ) {
+    string ref;
+    size_t spos = 0;
+    while( 1 ) {
+      spos = str_format_find_next_ref( ref, &out, fmt, spos );
+      if( spos != string::npos ) { // found a ref, process it; expand ref recursively.
+        nesi_init_arg_t * found_scope = 0;
+        p_lexp_t di = nvm.find( ref.c_str(), &found_scope );
+        if( !di ) { rt_err( "unable to expand ref '" + ref + "' in filename, ref not found" );  }
+        if( !di->leaf_val.exists() ) { 
+          rt_err( "invalid attempt to use name/value list as filename ref '" + ref + "' value. list was:" + str(*di) );
+        }
+        ++di->use_cnt;
+        string const nest_fmt = di->leaf_val.str();
+        lexp_name_val_map_t nest_nvm( di, found_scope ); // note lexical (non-dynamic) scoping here
+        str_format_from_nvm( out, nest_fmt, nest_nvm );
+      } else { break; }
     }
   }
 

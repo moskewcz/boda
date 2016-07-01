@@ -122,9 +122,9 @@ namespace boda
     { "fn_t3", "", ntb_fn+"%(boda_test_dir)/foo.txt)", "var 'fn': error: unable to expand ref 'boda_test_dir' in filename, ref not found"}, // note: boda_test_dir is generally valid, but should indeed be unavailable when run in this context
     { "fn_t4", "ref_not_found", ntb_fn+"%(higgy_ma_jiggy)/foo.txt)", "var 'fn': error: unable to expand ref 'higgy_ma_jiggy' in filename, ref not found"},
     { "fn_t5", "escaped_percent", ntb_fn+"20%%_cooler.txt)", 0},
-    { "fn_t6", "bad_percent", ntb_fn+"20%_cooler.txt)", "var 'fn': error: '_' after '%' in filename, expected '(' or '%'."},
-    { "fn_t7", "percent_at_end", ntb_fn+"20%)", "var 'fn': error: end of string after '%' in filename, expected '(' or '%'."},
-    { "fn_t8", "percent_op_at_end", ntb_fn+"20%\\()", "var 'fn': error: end of string after '%(' in filename, expected ')' to terminate ref"}, // yeah, good luck getting this error in the wild.
+    { "fn_t6", "bad_percent", ntb_fn+"20%_cooler.txt)", "var 'fn': error: '_' after '%', expected '(' or '%'."},
+    { "fn_t7", "percent_at_end", ntb_fn+"20%)", "var 'fn': error: end of input after '%', expected '(' or '%'."},
+    { "fn_t8", "percent_op_at_end", ntb_fn+"20%\\()", "var 'fn': error: end of input after '%(', expected ')' to terminate ref"}, // yeah, good luck getting this error in the wild.
     { "fn_t9", "", ntb_fn+"%(av)/foo.txt,av=(li_0=foo))", "var 'fn': error: invalid attempt to use name/value list as filename ref 'av' value. list was:(li_0=foo)" },
     
   };
