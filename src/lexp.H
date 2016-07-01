@@ -97,8 +97,10 @@ namespace boda {
   void test_lexp( void );
   void lexp_check_unused( lexp_t * l, vect_string & path );
 
+  size_t str_format_find_next_ref( string & ref, string * const out, string const & fmt, size_t const & spos );
   void str_format_from_nvm( string & out, string const & fmt, lexp_name_val_map_t & nvm );
   void str_format_from_nvm_str( string & out, string const & fmt, string const & nvm_str );
+  void str_format_find_all_refs( vect_string & refs, string const & fmt );
 
 }
 

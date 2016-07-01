@@ -582,6 +582,16 @@ namespace boda {
     return string::npos; // no ref found.
   }
 
+  void str_format_find_all_refs( vect_string & refs, string const & fmt ) {
+    string ref;
+    size_t spos = 0;
+    while( 1 ) {
+      spos = str_format_find_next_ref( ref, 0, fmt, spos );
+      if( spos != string::npos ) { refs.push_back( ref ); } // found a ref
+      else { break; }
+    }
+  }
+
   void str_format_from_nvm( string & out, string const & fmt, lexp_name_val_map_t & nvm ) {
     string ref;
     size_t spos = 0;
