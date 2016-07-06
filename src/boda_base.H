@@ -486,6 +486,7 @@ namespace boda
     std::string pretty_str( void ) const; // omits strides, prints names near dims if they exist
     std::string param_str( bool const & show_type ) const; // in NESI/param format, see comment at def.
 
+    void clear_dims( void ) { for( uint32_t i = 0; i != sz(); ++i ) { dims(i) = 0; } }
     void clear_strides( void ) { for( uint32_t i = 0; i != sz(); ++i ) { strides(i) = 0; } }
     bool has_any_strides( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( strides(i) ) { return 1; } } return 0; }
     bool has_any_names( void ) const { for( uint32_t i = 0; i != sz(); ++i ) { if( !names(i).empty() ) { return 1; } } return 0; }

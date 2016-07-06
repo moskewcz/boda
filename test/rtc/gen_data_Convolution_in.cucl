@@ -1,7 +1,12 @@
 // CUCL INCLUDE gen-util.h
 
+struct %(rtc_func_name)_arg_info_t {
+  %(cucl_arg_info_decls)
+};
+
 // generate data to be used as input to some other op (hence why we have an argument named 'in' of type CUCL OUT).
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const in ) // CUCL OUT img:chan:y:x
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const in, // CUCL OUT_DYN img:chan:y:x
+                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL ARGINFO
 {
   // CUCL IX GLOB_ID_1D in
   if( GLOB_ID_1D >= %(in_dims_prod) ) { return; }

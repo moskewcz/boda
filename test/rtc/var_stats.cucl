@@ -8,7 +8,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const * const min_in, // CUCL IN
 					  float * const sum_out, // CUCL OUT v
 					  float * const hist_out, // CUCL OUT v
 					  float * const cnt_out, // CUCL OUT v
-					  int32_t const min_in_v_dim, // CUCL ARGINFO
+					  int32_t const min_in_v_dim,
                                           int32_t const primary_in ) 
 {
   // note: all input v dims are == to each other and == to in_sz; output v dims are all u32_ceil_div(in_sz,%(tpb))
