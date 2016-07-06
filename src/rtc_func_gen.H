@@ -74,6 +74,8 @@ namespace boda
 
   void insert_nda_dims_sz( map_str_str & mss, string const & nda_vn, dims_t const & dims, bool const & dims_only );
   void insert_nda_ix_exprs( map_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr = string() );
+  void insert_nda_dyn_ix_exprs( map_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr = string() );
+
   dims_t dims_from_nda_spec( string const & tn, string const & nda_spec );
 
   inline void cucl_ref_decl_parse( arg_decl_t & cad, string const & line ) {
@@ -277,6 +279,31 @@ namespace boda
   // signature of the rtc_call_gen_t defines a unique block of text for the generated function, using only the
   // str_vals field, strictly for text substitution into the template. the dims_vals field remains unchanged,
   // and isn't used directly in template substition: all the info inside it is flattened into str_vals.
+
+  struct rtc_call_geom_t {
+    uint32_t tpb;
+    uint32_t blks;    
+    static uint32_t const default_tpb = 256; // FIXME: make 'reasonable default' tpb configurable/heurisitic
+    rtc_call_geom_t( void ) : tpb(0), blks(0) {}
+    void maybe_update_for_special_cucl_ixs( string const & ix_vn, dims_t const & ix_dims ) {
+      // special cases for index var names
+      if( ix_vn == "GLOB_ID_1D" ) { 
+        // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
+        // size doesn't matter, so use a reasonable default.
+        if( tpb || blks ) { rt_err( "CUCL error: GLOB_ID_1D IX encoutered after setting tpb or blks (some other way(s))");}
+        tpb = default_tpb;
+        blks = u32_ceil_div( ix_dims.dims_prod(), tpb );
+      } else if( ix_vn == "GRP_ID_1D" ) {
+        if( blks ) { rt_err( "CUCL error: GRP_ID_1D IX encoutered after setting blks (some other way)" ); }
+        blks = ix_dims.dims_prod();
+      } else if( ix_vn == "LOC_ID_1D" ) {
+        if( tpb ) { rt_err( "CUCL error: LOC_ID_1D IX encoutered after setting tpb (some other way)" ); }
+        tpb = ix_dims.dims_prod();
+      }
+    }
+    
+  };
+
   struct rtc_call_gen_t : public op_base_t {
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
     map_str_dims_t all_ix_dims;
@@ -286,8 +313,7 @@ namespace boda
     // info needed to make call
     string gen_fn;
     bool has_final_flags_arg;
-    uint32_t tpb;
-    uint32_t blks;
+    rtc_call_geom_t rtc_call_geom;
 
     void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rfc, uint32_t const & flags );
 
@@ -334,45 +360,40 @@ namespace boda
       set( "rtc_func_name", gen_fn );
       flat_arg_decls = flat_arg_decls_;
 
-      tpb = 0;
-      blks = 0;
-      uint32_t const default_tpb = 256; // FIXME: make 'reasonable default' tpb configurable/heurisitic
       for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
 	dims_t ix_dims = create_ix_dims( *i );
-	if( !ix_dims.has_sz_and_stride_and_name() ) { rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" ); }
-	ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
-	must_insert( all_ix_dims, i->ix_vn, ix_dims );
-	insert_nda_ix_exprs( str_vals, i->ix_vn, ix_dims );
-	// special cases for index var names
-	if( i->ix_vn == "GLOB_ID_1D" ) { 
-	  // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
-	  // size doesn't matter, so use a reasonable default.
-	  if( tpb || blks ) { rt_err( "CUCL error: GLOB_ID_1D IX encoutered after setting tpb or blks (some other way(s))" ); }
-	  tpb = default_tpb;
-	  blks = u32_ceil_div( ix_dims.dims_prod(), tpb );
-	} else if( i->ix_vn == "GRP_ID_1D" ) {
-	  if( blks ) { rt_err( "CUCL error: GRP_ID_1D IX encoutered after setting blks (some other way)" ); }
-	  blks = ix_dims.dims_prod();
-	} else if( i->ix_vn == "LOC_ID_1D" ) {
-	  if( tpb ) { rt_err( "CUCL error: LOC_ID_1D IX encoutered after setting tpb (some other way)" ); }
-	  tpb = ix_dims.dims_prod();
-	}
+        assert_st( ix_dims.size() && ix_dims.has_name() );
+        bool ix_is_dyn = !ix_dims.has_sz_and_stride_and_name();
+	if( ix_is_dyn ) { 
+          add_dyn_nda_dims_sz( i->ix_vn, ix_dims, 0 ); // omit ref templates for used-for-ix-only dyn dims
+          insert_nda_dyn_ix_exprs( str_vals, i->ix_vn, ix_dims );
+          //rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" );
+        } else {
+          ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
+          must_insert( all_ix_dims, i->ix_vn, ix_dims );
+          insert_nda_ix_exprs( str_vals, i->ix_vn, ix_dims );
+          rtc_call_geom.maybe_update_for_special_cucl_ixs( i->ix_vn, ix_dims );
+        }          
       }
-      if( !tpb ) { tpb = default_tpb; } // if not set, use a reasonable default
+      // note: rtc_call_geom is somewhere between unset and fully set here -- dyn cucl ix's may set it more at call
+      // time, and failing that there is still the legacy dynamic-blocks case. note, for now we still insist that tpb be
+      // set at this point, and use a default if it was non set by a non-dynamic cucl IX. we may change/relax this
+      // later.
+      if( !rtc_call_geom.tpb ) { rtc_call_geom.tpb = rtc_call_geom_t::default_tpb; } // if unset, use a reasonable default
       // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
-      
+
       if( custom_codegen ) { custom_codegen->gen_op( this, type ); }
 
       // make these always availible as template vars, since why not?
-      set( "tpb", str(tpb) ); // should always be fixed/constant/valid (i.e. gen'd kernels never have dynamic tpb)
-      set( "blks", str(blks) ); // may be 0 if # of blocks is dynamic
+      set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid
+      set( "blks", str(rtc_call_geom.blks) ); // may be 0 if # of blocks is dynamic
       set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 
       instantiate_template( *rtc_func_template->template_str );
     }
 
     string cai_tn( void ) const { return "int32_t"; } // type string for cucl arg info vars
-    void add_dyn_nda_dims_sz( string const & nda_vn, dims_t const & dims ) {
+    void add_dyn_nda_dims_sz( string const & nda_vn, dims_t const & dims, bool const add_ref_templates ) {
       // FIXME: since it is dynamic, we don't seem to know if nda_vn will be 'dims only' or not here. so for now we
       // assume all dynamic vars are not dims only; this means we'll always generate stride vars for them in the arg
       // info, but maybe that's okay?
@@ -381,13 +402,21 @@ namespace boda
       // note: type is still non-dynamic, so we still set it here, similarly to the non-dyn case
       set( nda_vn+"_tn", str(dims.tn) ); 
       for( uint32_t i = 0; i != dims.sz(); ++i ) {
-        line( "cucl_arg_info_decls", cai_tn() + " " + nda_vn+"_"+dims[i].name+"_dim" + ";" );
+        string const vn_dim = nda_vn+"_"+dims[i].name+"_dim";
+        line( "cucl_arg_info_decls", cai_tn() + " " + vn_dim + ";" );
+        if( add_ref_templates ) { set( vn_dim, "cucl_arg_info."+vn_dim ); }
         if( !dims_only ) { 
           //assert_st( dims[i].has_sz_and_stride_and_name() );
-          line( "cucl_arg_info_decls", cai_tn() + " " + nda_vn+"_"+dims[i].name+"_stride" + ";" );
+          string const vn_stride = nda_vn+"_"+dims[i].name+"_stride";
+          line( "cucl_arg_info_decls", cai_tn() + " " + vn_stride + ";" );
+          if( add_ref_templates ) { set( vn_stride, "cucl_arg_info."+vn_stride ); }
         }
       }
-      if( !dims_only ) { line( "cucl_arg_info_decls", cai_tn() + " " + nda_vn+"_dims_prod" + ";" ); }
+      if( !dims_only ) { 
+        string const vn_dims_prod = nda_vn+"_dims_prod";
+        line( "cucl_arg_info_decls", cai_tn() + " " + vn_dims_prod + ";" ); 
+        if( add_ref_templates ) { set( vn_dims_prod, "cucl_arg_info."+vn_dims_prod ); }
+      }
     }
 
     void instantiate_template( string const & template_str ) {
@@ -398,7 +427,7 @@ namespace boda
 	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
 	dims_t const & arg_dims = get_arg_dims_by_name( i->vn );
         if( arg_dims == dims_t() ) { continue; } // skip null dims
-        if( i->dyn.v ) { add_dyn_nda_dims_sz( i->vn, arg_dims ); }
+        if( i->dyn.v ) { add_dyn_nda_dims_sz( i->vn, arg_dims, 1 ); }
         else {	
           bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
           insert_nda_dims_sz( str_vals, i->vn, arg_dims, dims_only ); 

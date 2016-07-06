@@ -43,12 +43,12 @@ namespace boda
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       uint32_t const in_smem_sz = work.dsz("pels_tile")*work.dsz("pels");
       rcg->set( "in_smem_sz", str(in_smem_sz) );
-      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rcg->tpb );
+      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rcg->rtc_call_geom.tpb );
       rcg->set( "in_smem_load_iter", str(in_smem_load_iter) );    
 
       uint32_t const filts_smem_sz = work.dsz("out_ix_tile")*work.dsz("out_ix");
       rcg->set( "filts_smem_sz", str(filts_smem_sz) );
-      uint32_t const filts_smem_load_iter = u32_ceil_div( filts_smem_sz, rcg->tpb );
+      uint32_t const filts_smem_load_iter = u32_ceil_div( filts_smem_sz, rcg->rtc_call_geom.tpb );
       rcg->set( "filts_smem_load_iter", str(filts_smem_load_iter) );    
 
       for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
@@ -91,12 +91,12 @@ namespace boda
       dims_t const & work = rcg->get_arg_dims_by_name( "work_fb" );
       uint32_t const in_smem_sz = work.dsz("pels_tile")*work.dsz("pels");
       rcg->set( "in_smem_sz", str(in_smem_sz) );
-      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rcg->tpb );
+      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rcg->rtc_call_geom.tpb );
       rcg->set( "in_smem_load_iter", str(in_smem_load_iter) );    
 
       uint32_t const filts_smem_sz = work.dsz("out_ix_tile")*work.dsz("out_ix");
       rcg->set( "filts_smem_sz", str(filts_smem_sz) );
-      uint32_t const filts_smem_load_iter = u32_ceil_div( filts_smem_sz, rcg->tpb );
+      uint32_t const filts_smem_load_iter = u32_ceil_div( filts_smem_sz, rcg->rtc_call_geom.tpb );
       rcg->set( "filts_smem_load_iter", str(filts_smem_load_iter) );    
 
       for( uint32_t tx = 0; tx != work.dsz( "out_ix" ); ++tx ) {
@@ -133,18 +133,18 @@ namespace boda
     }
     
     void gen_filts_smem_loads( rtc_call_gen_t * rcg, uint32_t const filts_smem_sz ) { // note: filts_smem_sz must == tvv %(filts_smem_sz)
-      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rcg->tpb );    
+      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rcg->rtc_call_geom.tpb );    
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
 	string eif;
-	if( (i+1)*rcg->tpb > filts_smem_sz ) { 
+	if( (i+1)*rcg->rtc_call_geom.tpb > filts_smem_sz ) { 
 	  rcg->line( "filts_smem_loads", "if( "+ixe+" < %(filts_smem_sz) ) {" );eif = "}";}
 	// note: load is (always) contiguous
 	rcg->line( "filts_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%%(tpb)*%s)];%s",ixe.c_str(),str(i).c_str(),eif.c_str()) );
       }
       // number of out chans per block; note: == work_out_chan_tile_dim*work_out_chan_dim
       uint32_t const filts_x_stride = rcg->get_arg_dims_by_name("filts").dstride("x"); 
-      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( filts_x_stride, rcg->tpb );
+      uint32_t const out_chan_bias_smem_load_iter = u32_ceil_div( filts_x_stride, rcg->rtc_call_geom.tpb );
       rcg->set( "out_chan_bias_smem_load_iter", str(out_chan_bias_smem_load_iter) );
 
       rcg->line( "biases_smem_loads","int32_t ocix; int32_t const ocix_base = %(GRP_ID_1D_out_chan_blk)*%(filts_x_stride);" );
@@ -152,7 +152,7 @@ namespace boda
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
 	string eif;
 	rcg->line( "biases_smem_loads", strprintf( "ocix = ocix_base + (%s %%%% %%(work_out_chan_tile_dim))*%%(work_out_chan_dim) + ( %s / %%(work_out_chan_tile_dim) );", ixe.c_str(), ixe.c_str() ) );
-	if( (i+1)*rcg->tpb > filts_x_stride ) { 
+	if( (i+1)*rcg->rtc_call_geom.tpb > filts_x_stride ) { 
 	  rcg->line( "biases_smem_loads", "if( "+ixe+" < %(filts_x_stride) ) {" );eif = "}";}
 	// note: load is (always) contiguous
 	rcg->line( "biases_smem_loads", strprintf("if( ocix < %%(biases_out_chan_dim) ) {filts_smem[%s] = biases[ocix];}%s",ixe.c_str(),eif.c_str()) );
@@ -167,7 +167,7 @@ namespace boda
       rcg->set( "filts_smem_sz", str(filts_smem_sz) );
       gen_filts_smem_loads( rcg, filts_smem_sz );
 
-      uint32_t const pel_smem_load_iter = u32_ceil_div( (work.dsz( "pels" ) * work.dsz( "pels_tile" )), rcg->tpb );
+      uint32_t const pel_smem_load_iter = u32_ceil_div( (work.dsz( "pels" ) * work.dsz( "pels_tile" )), rcg->rtc_call_geom.tpb );
       rcg->set( "pel_smem_load_iter", str(pel_smem_load_iter) );
       rcg->set( "out_chan_tile", 
 		"(%(LOC_ID_1D_out_chan_tile)+%(GRP_ID_1D_out_chan_blk)*%(work_out_chan_tile_dim))");
@@ -231,20 +231,20 @@ namespace boda
       //dims_t const & filts = get_arg_dims_by_name( "filts" );
       uint32_t const filts_smem_sz = work.dsz("out_chan_tile")*work.dsz("out_chan")*work.dsz("fioc_tile");
       rcg->set( "filts_smem_sz", str(filts_smem_sz) );
-      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rcg->tpb );    
+      uint32_t const out_chan_smem_load_iter = u32_ceil_div( filts_smem_sz, rcg->rtc_call_geom.tpb );    
       for( uint32_t i = 0; i != out_chan_smem_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
 	string const filt_ix = "( LOC_ID_1D/%(work_fioc_tile_dim) + %(tpb)/%(work_fioc_tile_dim)* "+str(i)+")";
 	string eif;
 	// FIXME: can load garbage when ((out_chan_dim % filts_per_blk) != 0). pad output? add conditionals here? ignore?
-	if( (i+1)*rcg->tpb > filts_smem_sz ) { 
+	if( (i+1)*rcg->rtc_call_geom.tpb > filts_smem_sz ) { 
 	  rcg->line( "filts_smem_loads", "if( "+ixe+" < %(filts_smem_sz) ) {" );eif = "}";}
 	rcg->line( "filts_smem_loads", strprintf("filts_smem[%s] = filts[filts_off+(%s*%%(filts_out_chan_stride))];%s",ixe.c_str(),filt_ix.c_str(),eif.c_str()) );
       }
 
       uint32_t const in_smem_sz = work.dsz("pels_tile")*work.dsz("pels")*work.dsz("fioc_tile");
       rcg->set( "in_smem_sz", str(in_smem_sz) );
-      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rcg->tpb );    
+      uint32_t const in_smem_load_iter = u32_ceil_div( in_smem_sz, rcg->rtc_call_geom.tpb );    
       // currently, ipconv can only handle one output point per image, and assume the filt and in data-layouts are the
       // same (hence the name ipconv, for inner-product-conv).
       for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
@@ -252,7 +252,7 @@ namespace boda
 	string const img_ix = "( LOC_ID_1D/%(work_fioc_tile_dim) + %(tpb)/%(work_fioc_tile_dim)* "+str(i)+")";
 	string eif;
 	// FIXME: can load garbage when ((in_img_dim % imgs_per_blk) != 0). pad input? add conditionals here? ignore?
-	if( (i+1)*rcg->tpb > in_smem_sz ) { 
+	if( (i+1)*rcg->rtc_call_geom.tpb > in_smem_sz ) { 
 	  rcg->line( "in_smem_loads", "if( "+ixe+" < %(in_smem_sz) ) {" );eif = "}";}
 	rcg->line( "in_smem_loads", strprintf("in_smem[%s] = in[in_off+(%s*%%(in_img_stride))];%s",ixe.c_str(),img_ix.c_str(),eif.c_str()) );
       }
@@ -431,21 +431,21 @@ namespace boda
 
       string const smvn = vn + "_sm"; // note: could be customizable.
       rcg->set( smvn + "_sz", str(sm_sz) );
-      uint32_t const sm_load_iter = u32_ceil_div( sm_sz, rcg->tpb );    
+      uint32_t const sm_load_iter = u32_ceil_div( sm_sz, rcg->rtc_call_geom.tpb );    
       for( uint32_t i = 0; i != sm_load_iter; ++i ) {
-        uint64_t const iter_sm_off = rcg->tpb*i;
+        uint64_t const iter_sm_off = rcg->rtc_call_geom.tpb*i;
         uint64_t const iter_row = iter_sm_off / row_len;
         uint64_t const iter_row_off = iter_sm_off % row_len;
         uint64_t const iter_off = iter_sm_off + iter_row*row_pad;
         
 	string extra_off_str;
-        if( row_pad && (iter_row_off + rcg->tpb > row_len) ) { // more than one row-per-block, need to add dynamic offset term
+        if( row_pad && (iter_row_off + rcg->rtc_call_geom.tpb > row_len) ) { // more than one row-per-block, need to add dynamic offset term
           extra_off_str = strprintf("+(LOC_ID_1D+%s)/%s*%s", str(iter_row_off).c_str(), 
                                     str(row_len).c_str(), str(row_pad).c_str() );
         }
         
 	string eif;
-	if( (iter_sm_off + rcg->tpb) > sm_sz ) {  // block extends past end of sm, need to add guard
+	if( (iter_sm_off + rcg->rtc_call_geom.tpb) > sm_sz ) {  // block extends past end of sm, need to add guard
 	  rcg->line( code_sec, strprintf("if( (LOC_ID_1D+%s) < %s ) {", str(iter_sm_off).c_str(), str(sm_sz).c_str() ) ); eif="}";}
         string vn_vw = vn;
         assert_st( vw );
@@ -655,11 +655,11 @@ namespace boda
 
       // generate smem loads
       gen_filts_smem_loads( rcg, filts_smem_sz );
-      uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_iter"), rcg->tpb );    
+      uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_iter"), rcg->rtc_call_geom.tpb );    
       for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
 	string eif;
-	if( (i+1)*rcg->tpb > in.dstride("blk_iter") ) { rcg->line( "smem_loads", "if( "+ixe+" < %(in_blk_iter_stride)) { ");eif = "}";}
+	if( (i+1)*rcg->rtc_call_geom.tpb > in.dstride("blk_iter") ) { rcg->line( "smem_loads", "if( "+ixe+" < %(in_blk_iter_stride)) { ");eif = "}";}
 	rcg->line( "smem_loads", strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
 					     ixe.c_str(),str(i).c_str(),eif.c_str()) );
       }
@@ -747,7 +747,7 @@ namespace boda
       for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) {
 	for( uint32_t tx = 0; tx != work.dsz("out_chan"); ++tx ) {
 	  rcg->line( "dummy_stores", strprintf( "out_off[%s] = %s;", 
-						  str((ty*work.dsz("out_chan")+tx)*rcg->tpb).c_str(), 
+						  str((ty*work.dsz("out_chan")+tx)*rcg->rtc_call_geom.tpb).c_str(), 
 						add_bias_then_maybe_relu(rcg,work,tx,ty).c_str() ) );
 	}
       }
@@ -784,11 +784,11 @@ namespace boda
       rcg->set( "filts_smem_sz", str(filts_smem_sz) );
       gen_filts_smem_loads( rcg, filts_smem_sz );
       rcg->line( "filts_smem_loads", "filts_off += %(filts_smem_sz);" );
-      uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_in_chan"), rcg->tpb );  // in smem loads
+      uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_in_chan"), rcg->rtc_call_geom.tpb );  // in smem loads
       for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
 	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
 	string eif;
-	if( (i+1)*rcg->tpb > in.dstride("blk_in_chan") ) { rcg->line( "in_smem_loads", "if( "+ixe+" < %(in_blk_in_chan_stride)) { " );eif = "}";}
+	if( (i+1)*rcg->rtc_call_geom.tpb > in.dstride("blk_in_chan") ) { rcg->line( "in_smem_loads", "if( "+ixe+" < %(in_blk_in_chan_stride)) { " );eif = "}";}
 	rcg->line( "in_smem_loads", strprintf("in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s",	ixe.c_str(),str(i).c_str(),eif.c_str()));
       }
       rcg->line( "in_smem_loads", "blk_in_ix_base += %(in_blk_in_chan_stride);" );

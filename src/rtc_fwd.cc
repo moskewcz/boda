@@ -179,7 +179,7 @@ namespace boda
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;
-      uint32_t const out_sz = u32_ceil_div( in_sz, must_find(codegen.rtc_func_names_map,func)->tpb );
+      uint32_t const out_sz = u32_ceil_div( in_sz, must_find(codegen.rtc_func_names_map,func)->rtc_call_geom.tpb );
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
 	string cur_out = top_in + "_" + reds[i] + "_out_sz_" + str(out_sz);
 	rtc->create_var_with_dims( cur_out, dims_t{ {out_sz}, {"v"}, "float" } );
