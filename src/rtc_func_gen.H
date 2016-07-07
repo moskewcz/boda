@@ -104,7 +104,7 @@ namespace boda
     vect_arg_decl_t arg_decls; // parsed out of template_str
     vect_ix_decl_t ix_decls; // parsed out of template_str
     vect_string all_tvs; // list of all referenced template variables
-    zi_bool has_arg_info;
+    zi_bool has_cucl_arg_info;
     void init( string const & template_fn_ ) {
       template_fn = template_fn_;
       string const full_template_fn = (path(py_boda_test_dir()) / "rtc" / (template_fn+".cucl")).string();
@@ -178,8 +178,8 @@ namespace boda
             arg_decls.push_back( cad );
           }
         } else if( cd == "ARGINFO" ) {
-          if( has_arg_info.v ) { rt_err( "duplicate CUCL ARGINFO declartion. must have exactly 0 or 1 ARGINFO arguments."); }
-          has_arg_info.v = 1;
+          if( has_cucl_arg_info.v ) { rt_err( "duplicate CUCL ARGINFO declartion. must have exactly 0 or 1 ARGINFO arguments."); }
+          has_cucl_arg_info.v = 1;
           arg_decl_t cad;
           cucl_arg_decl_parse( cad, line );
           if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found." ); }
@@ -447,8 +447,6 @@ namespace boda
 
     void instantiate_template( string const & template_str ) {
       assert_st( rtc_prog_str.empty() ); // should only call only
-      // generate arg decl code for multi args
-      //if( has_arg_info.v ) { line( "cucl_arg_info_decls", "// begin arg info decls" ); }
       for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
 	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
 	dims_t const & arg_dims = get_arg_dims_by_name( i->vn );
@@ -462,6 +460,10 @@ namespace boda
         }
       }
 
+      if( (!rtc_func_template->has_cucl_arg_info.v) && (!dyn_vars.empty()) ) {
+        rt_err( "template declares _DYN arguments, but no CUCL ARGINFO declaration was found." );
+      }
+      
       rtc_prog_str += "// -- codegen begins for '"+type+
 	"'; template substituion table used (bulk sections ommited): --\n";
       for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {

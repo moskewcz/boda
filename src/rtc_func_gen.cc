@@ -122,20 +122,21 @@ namespace boda
       }
       rfc.in_args.push_back( an->second );
     }
-    vect_int32_t cucl_arg_info;
+    assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
+    rfc.has_cucl_arg_info = rtc_func_template->has_cucl_arg_info;
     for( vect_dyn_dim_info_t::const_iterator i = dyn_vars.begin(); i != dyn_vars.end(); ++i ) {
-      printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
+      //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
       map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->src_vn );
       if( an == rcg_func_call.arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
       dims_t const & arg_call_dims = rtc->get_var_dims( an->second );
       dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
-      printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
-      add_arg_info_for_dims( dyn_call_dims, cucl_arg_info );
+      //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
+      add_arg_info_for_dims( dyn_call_dims, rfc.cucl_arg_info );
       if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
         dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
       }
     }
-    if( !dyn_vars.empty() ) { printf( "cucl_arg_info=%s\n", str(cucl_arg_info).c_str() ); }
+    //if( !dyn_vars.empty() ) { printf( "cucl_arg_info=%s\n", str(rfc.cucl_arg_info).c_str() ); }
 
     if( !dyn_rtc_call_geom.blks ) { // handle dynamic # of blks case
       // FIXME: pretty limited / special cased here

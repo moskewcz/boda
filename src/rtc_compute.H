@@ -78,6 +78,8 @@ namespace boda
     vect_string inout_args; 
     vect_string out_args; 
     vect_uint32_t u32_args;
+    zi_bool has_cucl_arg_info;
+    vect_int32_t cucl_arg_info;
     string call_tag;
 
     zi_uint32_t tpb;

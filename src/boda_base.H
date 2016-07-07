@@ -268,6 +268,7 @@ namespace boda
   template<> struct breadwrite_raw_T<uint8_t>{ typedef int int_; };
   template< typename T > struct T_pt_t; template<> struct breadwrite_raw_T<T_pt_t<uint32_t> >{ typedef int int_; };
   template<> struct breadwrite_raw_T<uint32_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<int32_t>{ typedef int int_; };
   template<> struct breadwrite_raw_T<uint64_t>{ typedef int int_; };
   template<> struct breadwrite_raw_T<float>{ typedef int int_; };
   

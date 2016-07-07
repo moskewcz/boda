@@ -27,6 +27,8 @@ namespace boda
     bwrite( out, o.inout_args );
     bwrite( out, o.out_args );
     bwrite( out, o.u32_args );
+    bwrite( out, o.has_cucl_arg_info.v );
+    bwrite( out, o.cucl_arg_info );
     bwrite( out, o.call_tag );
     bwrite( out, o.tpb.v );
     bwrite( out, o.blks.v );
@@ -38,6 +40,8 @@ namespace boda
     bread( in, o.inout_args );
     bread( in, o.out_args );
     bread( in, o.u32_args );
+    bread( in, o.has_cucl_arg_info.v );
+    bread( in, o.cucl_arg_info );
     bread( in, o.call_tag );
     bread( in, o.tpb.v );
     bread( in, o.blks.v );

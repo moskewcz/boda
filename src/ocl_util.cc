@@ -371,6 +371,13 @@ typedef int int32_t;
 	set_kernel_arg( kern, cur_arg_ix, *i );
 	++cur_arg_ix;
       }
+      if( rfc.has_cucl_arg_info.v ) {
+        cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, 
+                                          sizeof(rfc.cucl_arg_info[0])*rfc.cucl_arg_info.size(),
+                                          &rfc.cucl_arg_info[0] );
+        cl_err_chk( err, "clSetKernelArg() [cucl_arg_info]" );
+	++cur_arg_ix;        
+      } else { assert_st( rfc.cucl_arg_info.empty() ); }
       rtc_launch_check_blks_and_tpb( rfc.rtc_func_name, rfc.blks.v, rfc.tpb.v );
       rfc.call_id = alloc_call_id();
       size_t const glob_work_sz = rfc.tpb.v*rfc.blks.v;

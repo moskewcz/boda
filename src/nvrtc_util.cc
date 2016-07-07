@@ -324,6 +324,9 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       add_args( rfc.inout_args, cu_func_args, func_args );
       add_args( rfc.out_args, cu_func_args, func_args );
       for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
+      if( rfc.has_cucl_arg_info.v ) { cu_func_args.push_back( &rfc.cucl_arg_info[0] ); }
+      else { assert_st( rfc.cucl_arg_info.empty() ); }
+
       rfc.call_id = alloc_call_id();
       record_event( get_call_ev(rfc.call_id).b_ev );
       nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );
