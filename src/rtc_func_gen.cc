@@ -131,6 +131,9 @@ namespace boda
       dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
       printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
       add_arg_info_for_dims( dyn_call_dims, cucl_arg_info );
+      if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
+        dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
+      }
     }
     if( !dyn_vars.empty() ) { printf( "cucl_arg_info=%s\n", str(cucl_arg_info).c_str() ); }
 

@@ -371,6 +371,7 @@ namespace boda
         assert_st( ix_dims.size() && ix_dims.has_name() );
         bool ix_is_dyn = !ix_dims.has_sz_and_stride_and_name();
 	if( ix_is_dyn ) { 
+          assert_st( i->ix_vn != i->arg_vn ); // FIXME: too strong? but used later to see if this dyn is an ix ...
           dyn_vars.push_back( dyn_dim_info_t{ i->ix_vn, i->arg_vn, i->use_dims } ); 
           add_dyn_nda_dims_sz( i->ix_vn, ix_dims, 0 ); // omit ref templates for used-for-ix-only dyn dims
           insert_nda_dyn_ix_exprs( str_vals, i->ix_vn, ix_dims );
@@ -384,15 +385,20 @@ namespace boda
       }
       // note: rtc_call_geom is somewhere between unset and fully set here -- dyn cucl ix's may set it more at call
       // time, and failing that there is still the legacy dynamic-blocks case. note, for now we still insist that tpb be
-      // set at this point, and use a default if it was non set by a non-dynamic cucl IX. we may change/relax this
-      // later.
-      if( !rtc_call_geom.tpb ) { rtc_call_geom.tpb = rtc_call_geom_t::default_tpb; } // if unset, use a reasonable default
+      // set at this point if there are no dyn IXs, and use a default if it was non set by a non-dynamic cucl IX. we may
+      // change/relax this later.
+      if( dyn_vars.empty() ) {
+        if( !rtc_call_geom.tpb ) { rtc_call_geom.tpb = rtc_call_geom_t::default_tpb; } // if unset, use a default value
+      }
       // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
 
       if( custom_codegen ) { custom_codegen->gen_op( this, type ); }
 
-      // make these always availible as template vars, since why not?
-      set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid
+      // make these always availible as template vars, since why not?  FIXME: should set these to fields inside
+      // cucl_arg_info if they are dynamic. however, codegen that uses tpb directly would still be broken in that case
+      // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the
+      // template string ( which might point to a dynamic value ) instead.
+      set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid if there are no dyn vars
       set( "blks", str(rtc_call_geom.blks) ); // may be 0 if # of blocks is dynamic
       set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 
