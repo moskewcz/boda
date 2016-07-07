@@ -301,8 +301,14 @@ namespace boda
         tpb = ix_dims.dims_prod();
       }
     }
-    
   };
+
+  struct dyn_dim_info_t { 
+    string nda_vn; // name inside of arg info struct
+    string src_vn; // name of arg that dims are drawn from (without alteration for non-ix dims)
+    vect_string use_dims; // use_dims spec for ix (if any, empty to use all dims)
+  };
+  typedef vector< dyn_dim_info_t > vect_dyn_dim_info_t; 
 
   struct rtc_call_gen_t : public op_base_t {
     vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
@@ -314,8 +320,9 @@ namespace boda
     string gen_fn;
     bool has_final_flags_arg;
     rtc_call_geom_t rtc_call_geom;
-
-    void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rfc, uint32_t const & flags );
+    p_rtc_template_t rtc_func_template; // post-init, currently used only for dynamic ix_decl processing at call time
+    vect_dyn_dim_info_t dyn_vars;
+    void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rfc, uint32_t const & flags);
 
     void line( string const & sn, string const & line ) { 
       string & cg = cgs[sn];
@@ -334,37 +341,37 @@ namespace boda
 
     // since a CUCL IX may use only a subset of the dims of the arg_dims that it references, we need to create the
     // sub-dims here.
-    dims_t create_ix_dims( ix_decl_t const & ix_decl ) {
-      dims_t const & ix_arg_dims = get_arg_dims_by_name( ix_decl.arg_vn, "IX" );
+    dims_t apply_use_dims( dims_t const & ix_arg_dims, vect_string const & use_dims ) {
       dims_t ix_dims;
-      if( ix_decl.use_dims.empty() ) { ix_dims = ix_arg_dims; } 
+      if( use_dims.empty() ) { ix_dims = ix_arg_dims; } 
       else {
         ix_dims.tn = ix_arg_dims.tn;
-        for( vect_string::const_iterator j = ix_decl.use_dims.begin(); j != ix_decl.use_dims.end(); ++j ) {
+        for( vect_string::const_iterator j = use_dims.begin(); j != use_dims.end(); ++j ) {
           dim_t const * use_dim = ix_arg_dims.get_dim_by_name( *j );
           if( !use_dim ) { rt_err( "specified use_dim '"+*j+"' not found in target arg's dims" ); }
           ix_dims.push_back( *use_dim );
         }
+        ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
       }
-      //ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
-      //must_insert( all_ix_dims, ix_decl.ix_vn, ix_dims );
       return ix_dims;
     }
 
     rtc_call_gen_t( op_base_t const & rfs_ ) : op_base_t( rfs_ ) { }
 
-    void init( p_rtc_template_t const & rtc_func_template, vect_arg_decl_t const & flat_arg_decls_, 
+    void init( p_rtc_template_t const & rtc_func_template_, vect_arg_decl_t const & flat_arg_decls_, 
 	       custom_codegen_t * const custom_codegen, string const & gen_fn_ ){
       gen_fn = gen_fn_;
       has_final_flags_arg = 0;
       set( "rtc_func_name", gen_fn );
       flat_arg_decls = flat_arg_decls_;
+      rtc_func_template = rtc_func_template_;
 
       for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
-	dims_t ix_dims = create_ix_dims( *i );
+	dims_t ix_dims = apply_use_dims( get_arg_dims_by_name( i->arg_vn, "IX" ), i->use_dims );
         assert_st( ix_dims.size() && ix_dims.has_name() );
         bool ix_is_dyn = !ix_dims.has_sz_and_stride_and_name();
 	if( ix_is_dyn ) { 
+          dyn_vars.push_back( dyn_dim_info_t{ i->ix_vn, i->arg_vn, i->use_dims } ); 
           add_dyn_nda_dims_sz( i->ix_vn, ix_dims, 0 ); // omit ref templates for used-for-ix-only dyn dims
           insert_nda_dyn_ix_exprs( str_vals, i->ix_vn, ix_dims );
           //rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" );
@@ -414,9 +421,22 @@ namespace boda
       }
       if( !dims_only ) { 
         string const vn_dims_prod = nda_vn+"_dims_prod";
-        line( "cucl_arg_info_decls", cai_tn() + " " + vn_dims_prod + ";" ); 
+        line( "cucl_arg_info_decls", cai_tn() + " " + vn_dims_prod + ";" );
         if( add_ref_templates ) { set( vn_dims_prod, "cucl_arg_info."+vn_dims_prod ); }
       }
+    }
+
+    void add_arg_info_for_dims( dims_t const & dims, vect_int32_t & cucl_arg_info ) {
+      // FIXME: since it is dynamic, we don't seem to know if nda_vn will be 'dims only' or not here. so for now we
+      // assume all dynamic vars are not dims only; this means we'll always generate stride vars for them in the arg
+      // info, but maybe that's okay?
+      bool const dims_only = 0;
+      assert_st( dims.valid() );
+      for( uint32_t i = 0; i != dims.sz(); ++i ) {
+        cucl_arg_info.push_back( dims[i].sz );
+        if( !dims_only ) { cucl_arg_info.push_back( dims[i].stride ); }
+      }
+      if( !dims_only ) { cucl_arg_info.push_back( dims.dims_prod() ); }
     }
 
     void instantiate_template( string const & template_str ) {
@@ -427,8 +447,10 @@ namespace boda
 	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
 	dims_t const & arg_dims = get_arg_dims_by_name( i->vn );
         if( arg_dims == dims_t() ) { continue; } // skip null dims
-        if( i->dyn.v ) { add_dyn_nda_dims_sz( i->vn, arg_dims, 1 ); }
-        else {	
+        if( i->dyn.v ) { 
+          dyn_vars.push_back( dyn_dim_info_t{ i->vn, i->vn, vect_string{} } ); 
+          add_dyn_nda_dims_sz( i->vn, arg_dims, 1 ); 
+        } else {	
           bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
           insert_nda_dims_sz( str_vals, i->vn, arg_dims, dims_only ); 
         }
