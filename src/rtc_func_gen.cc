@@ -111,16 +111,14 @@ namespace boda
       if( an == rcg_func_call.arg_map.end() ) {
 	rt_err( "specified "+i->io_type+" arg '"+i->vn+"' not found in arg_map at call time." ); 
       }
-      // FIXME/note: we can't/don't check call dims for variable-sized dims_vals. this seems less than ideal.
-      // one exampl of such usage is in var_stats.
-      if( 1 || func_dims.has_sz_and_stride_and_name() ) { 
-	dims_t const & call_dims = rtc->get_var_dims( an->second );
-        //if( call_dims != func_dims ) {
-        if( !call_dims.matches_template( func_dims ) ) {
-	  printf( "error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
-                  rfc.call_tag.c_str(), i->vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() );
-	}	  
-      }
+      dims_t const & call_dims = rtc->get_var_dims( an->second );
+      // check that the passed vars are the expected sizes. for non-dyn vars, the sizes must be fully specificed (no
+      // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the
+      // cucl_arg_info code assumes this (but here we'll check the dim names too).
+      if( !call_dims.matches_template( func_dims ) ) { 
+        printf( "error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
+                rfc.call_tag.c_str(), i->vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() );
+      }	  
       rfc.in_args.push_back( an->second );
     }
     assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
@@ -141,6 +139,7 @@ namespace boda
       printf( "%s( in{%s} inout{%s} out{%s} -- u32{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
 	      str(rfc.in_args).c_str(), str(rfc.inout_args).c_str(), str(rfc.out_args).c_str(), str(rfc.u32_args).c_str(),
 	      str(dyn_rtc_call_geom.tpb).c_str(), str(dyn_rtc_call_geom.blks).c_str() );
+      //if( !rfc.cucl_arg_info.empty() ) { printf( "  rfc.cucl_arg_info=%s\n", str(rfc.cucl_arg_info).c_str() ); }
     }
     rfc.tpb.v = dyn_rtc_call_geom.tpb;
     rfc.blks.v = dyn_rtc_call_geom.blks;

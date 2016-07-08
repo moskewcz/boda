@@ -166,10 +166,12 @@ namespace boda
     uint32_t in_sz = rtc->get_var_dims( top_in ).dims_prod(); // treat input as flat
     uint32_t primary_in = 1;
     assert_st( in_sz );
+    string const top_in_reshape = top_in + "_flat_reshape";
+    rtc->create_var_with_dims_as_reshaped_view_of_var( top_in_reshape, dims_t{ {in_sz}, {"v"}, "float" }, top_in );
     // the var_stats template doesn't specify tpb, so we assume this will be used. we should check this for any gen'd func.
     dims_t arg_dims( {0}, {"v"}, "float" ); // all vars are single-dim with wild/any size
     vect_string cur_ins;
-    for( uint32_t i = 0; i != reds.size(); ++i ) { cur_ins.push_back( top_in ); } // initial inputs are all top_in 
+    for( uint32_t i = 0; i != reds.size(); ++i ) { cur_ins.push_back( top_in_reshape ); } // initial inputs are all top_in 
     while( in_sz > 1 ) {
       uint32_t const out_sz = u32_ceil_div( in_sz, rtc_call_geom_t::default_tpb ); 
       map_str_dims_t dims_vals;
@@ -193,7 +195,7 @@ namespace boda
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_in", cur_ins[i] ); }
       assert_st( cur_outs.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_out", cur_outs[i] ); }
-      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map, {in_sz, primary_in} } );
+      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map, {primary_in} } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;

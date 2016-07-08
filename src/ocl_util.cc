@@ -171,6 +171,9 @@ namespace boda
     dims_t dims;
     // p_void ev; // when ready
     cl_var_info_t( cl_mem_t const & buf_, dims_t const & dims_ ) : buf(buf_), dims(dims_) {} // , ev( new Event ) {}
+    cl_var_info_t( cl_var_info_t const & src_vi, dims_t const & dims_ ) : buf(src_vi.buf), dims(dims_) {
+      assert_st( dims.bytes_sz() == src_vi.dims.bytes_sz() );
+    } 
   };
   typedef map< string, cl_var_info_t > map_str_cl_var_info_t;
   typedef shared_ptr< map_str_cl_var_info_t > p_map_str_cl_var_info_t;
@@ -316,6 +319,12 @@ typedef int int32_t;
       must_insert( *vis, vn, cl_var_info_t{buf,dims} ); 
       set_var_to_zero( vn );
     }
+    void create_var_with_dims_as_reshaped_view_of_var( string const & vn, dims_t const & dims, string const & src_vn ) {
+      cl_var_info_t const & src_vi = must_find( *vis, src_vn );
+      rtc_reshape_check( dims, src_vi.dims );
+      must_insert( *vis, vn, cl_var_info_t( src_vi, dims ) );
+    }
+
     void release_var( string const & vn ) { must_erase( *vis, vn ); }
     dims_t get_var_dims( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { 

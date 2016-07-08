@@ -11,7 +11,6 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const * const min_in, // CUCL IN
 					  float * const sum_out, // CUCL OUT_DYN v
 					  float * const hist_out, // CUCL OUT_DYN v
 					  float * const cnt_out, // CUCL OUT_DYN v
-					  int32_t const min_in_v_dim,
                                           int32_t const primary_in,
                                           struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL ARGINFO
 {
@@ -33,7 +32,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const * const min_in, // CUCL IN
   float sum_v = 0;
   float hist_v = 0;
   float cnt_v = 0;
-  if( ix < min_in_v_dim ) {
+  if( ix < %(min_in_v_dim) ) {
     min_v = min_in[ix];
     max_v = max_in[ix];
     sum_v = sum_in[ix];

@@ -393,6 +393,13 @@ namespace boda
       bwrite( *worker, string("create_var_with_dims") ); bwrite( *worker, vn ); bwrite( *worker, dims ); 
       worker->flush();
     }
+    void create_var_with_dims_as_reshaped_view_of_var( string const & vn, dims_t const & dims, string const & src_vn ) {
+      must_insert( *vis, vn, ipc_var_info_t{dims} ); 
+      bwrite( *worker, string("create_var_with_dims_as_reshaped_view_of_var") ); 
+      bwrite( *worker, vn ); bwrite( *worker, dims ); bwrite( *worker, src_vn ); 
+      worker->flush();
+    }
+
     void release_var( string const & vn ) {
       must_erase( *vis, vn ); 
       bwrite( *worker, string("release_var") ); bwrite( *worker, vn );
@@ -578,6 +585,14 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	  bread( *parent, dims );
 	  must_insert( *vis, vn, ipc_var_info_t{dims} );
 	  rtc->create_var_with_dims( vn, dims );
+	}
+	else if( cmd == "create_var_with_dims_as_reshaped_view_of_var" ) {
+	  string vn; dims_t dims; string src_vn;
+	  bread( *parent, vn ); 
+	  bread( *parent, dims );
+	  bread( *parent, src_vn );
+	  must_insert( *vis, vn, ipc_var_info_t{dims} );
+	  rtc->create_var_with_dims_as_reshaped_view_of_var( vn, dims, src_vn );
 	}
 	else if( cmd == "release_var" ) {
 	  string vn;

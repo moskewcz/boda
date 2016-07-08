@@ -13,6 +13,20 @@ namespace boda
     }
   }
 
+  void rtc_reshape_check( dims_t const & dims, dims_t const & src_dims ) {
+    // check that reshape is valid; for now, check that types and dims_prod() match. a weaker (but maybe
+    // valid/okay/useful) check would be just that bytes_sz() is the same (and in fact this is checked in the
+    // var_info_t ctor).
+    if( dims.tn != src_dims.tn ) { 
+      rt_err( strprintf( "invalid reshape; types don't match: dims.tn=%s src_vi.tn=%s\n", 
+                         str(dims.tn).c_str(), str(src_dims.tn).c_str() ) );
+    }
+    if( dims.dims_prod() != src_dims.dims_prod() ) { 
+      rt_err( strprintf( "invalid reshape; types match but sizes don't: dims.dims_prod()=%s src_dims.dims_prod()=%s\n", 
+                         str(dims.dims_prod()).c_str(), str(src_dims.dims_prod()).c_str() ) );
+    }
+  }
+
   void rtc_compute_t::init_var_from_vect_float( string const & vn, vect_float const & v ) { 
     p_nda_t nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(v.size())}, "float" }, (void*)&v[0] );
     create_var_with_dims( vn, nda->dims ); 

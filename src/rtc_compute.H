@@ -25,6 +25,7 @@ namespace boda
     virtual void init( void ) = 0;
 
     virtual void create_var_with_dims( string const & vn, dims_t const & dims ) = 0;
+    virtual void create_var_with_dims_as_reshaped_view_of_var( string const & vn, dims_t const & dims, string const & src_vn ) = 0; // note: will point to (and share as a peer) the data of existing var named by src_vn
     virtual void release_var( string const & vn ) = 0;
     virtual dims_t get_var_dims( string const & vn ) = 0;
     virtual void set_var_to_zero( string const & vn ) = 0;
@@ -91,7 +92,7 @@ namespace boda
 
   // FIXME: things shared by backends, but not used (should not be used?) by clients. move to shared-by-backends header?
   void rtc_launch_check_blks_and_tpb( std::string const & rtc_func_name, uint64_t const blks, uint64_t const tpb );
-
+  void rtc_reshape_check( dims_t const & dims, dims_t const & src_dims );
 }
 
 #endif /* _RTC_COMPUTE_H_ */

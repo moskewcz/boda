@@ -149,6 +149,9 @@ namespace boda
     dims_t dims;
     //p_void ev; // when ready
     var_info_t( dims_t const & dims_ ) : cup( make_shared<cup_t>( dims_.bytes_sz() ) ), dims(dims_) {} // , ev( make_p_CUevent() ) { }
+    var_info_t( var_info_t const & src_vi, dims_t const & dims_ ) : cup( src_vi.cup ), dims(dims_) {
+      assert_st( dims.bytes_sz() == src_vi.dims.bytes_sz() );
+    } 
   };
 
   typedef map< string, var_info_t > map_str_var_info_t;
@@ -285,6 +288,12 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       cu_err_chk( cuMemcpyDtoH( nda->rp_elems(), vi.cup->p, vi.cup->sz ), "cuMemcpyDtoH" );
     }
     void create_var_with_dims( string const & vn, dims_t const & dims ) { must_insert( *vis, vn, var_info_t( dims ) ); }
+    void create_var_with_dims_as_reshaped_view_of_var( string const & vn, dims_t const & dims, string const & src_vn ) {
+      var_info_t const & src_vi = must_find( *vis, src_vn );
+      rtc_reshape_check( dims, src_vi.dims );
+      must_insert( *vis, vn, var_info_t( src_vi, dims ) );
+    }
+
     void release_var( string const & vn ) { must_erase( *vis, vn ); }
     dims_t get_var_dims( string const & vn ) { return must_find( *vis, vn ).dims; }
     void set_var_to_zero( string const & vn ) { must_find( *vis, vn ).cup->set_to_zero(); }
