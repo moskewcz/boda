@@ -383,7 +383,8 @@ namespace boda
     {"half",{"half",2,1,1}},  
     {"float",{"float",4,1,1}}, 
     {"double",{"double",8,1,1}}, 
-    {"uint32_t",{"uint32_t",4,0,0}} 
+    {"uint32_t",{"uint32_t",4,0,0}},
+    {"uint8_t",{"uint8_t",1,0,0}} 
   };
 
   // row-major dimensions holder; consists of a vector of dim_t's and a type string.
@@ -650,6 +651,7 @@ namespace boda
     void check_tn( void ) const {
       if( std::is_same<T,float>::value ) { assert_st( dims.tn == "float" ); }
       else if( std::is_same<T,double>::value ) { assert_st( dims.tn == "double" ); }
+      else if( std::is_same<T,uint8_t>::value ) { assert_st( dims.tn == "uint8_t" ); }
       else { assert_st(0); } // unknown type
     }
     T const * elems_ptr( void ) const { return reinterpret_cast<T const *>(d.get()); }
@@ -758,6 +760,8 @@ namespace boda
   typedef shared_ptr< map_str_p_nda_float_t > p_map_str_p_nda_float_t;
   typedef map< string, p_vect_p_nda_float_t > map_str_p_vect_p_nda_float_t;
   typedef shared_ptr< map_str_p_vect_p_nda_float_t > p_map_str_p_vect_p_nda_float_t;
+
+  typedef nda_T< uint8_t > nda_uint8_t;
 
   // class to store info from sum_squared_diffs(o1,o2); str()-able for printing
   struct ssds_diff_t {
