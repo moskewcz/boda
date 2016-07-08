@@ -166,20 +166,22 @@ namespace boda
     uint32_t in_sz = rtc->get_var_dims( top_in ).dims_prod(); // treat input as flat
     uint32_t primary_in = 1;
     assert_st( in_sz );
+    // the var_stats template doesn't specify tpb, so we assume this will be used. we should check this for any gen'd func.
     dims_t arg_dims( {0}, {"v"}, "float" ); // all vars are single-dim with wild/any size
-    map_str_dims_t dims_vals; // note:constant after initial setup
     vect_string cur_ins;
-    for( uint32_t i = 0; i != reds.size(); ++i ) {  // input dims (const); initial inputs
-      must_insert( dims_vals, reds[i] + "_in", arg_dims ); 
-      must_insert( dims_vals, reds[i] + "_out", arg_dims ); 
-      cur_ins.push_back( top_in ); 
-    } 
+    for( uint32_t i = 0; i != reds.size(); ++i ) { cur_ins.push_back( top_in ); } // initial inputs are all top_in 
     while( in_sz > 1 ) {
-      string const func = gen_func( op_base_t{ "var_stats", dims_vals, {} } );
+      uint32_t const out_sz = u32_ceil_div( in_sz, rtc_call_geom_t::default_tpb ); 
+      map_str_dims_t dims_vals;
+      for( uint32_t i = 0; i != reds.size(); ++i ) {  // input dims (const); initial inputs
+        must_insert( dims_vals, reds[i] + "_in", dims_t( {in_sz}, {"v"}, "float" ) );
+        must_insert( dims_vals, reds[i] + "_out", dims_t( {out_sz}, {"v"}, "float" ) ); 
+      } 
+      string const func = gen_func( op_base_t{ "var_stats", dims_vals, { {"tpb",str(rtc_call_geom_t::default_tpb)} } } );
+      assert_st( must_find(codegen.rtc_func_names_map,func)->rtc_call_geom.tpb == rtc_call_geom_t::default_tpb );
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;
-      uint32_t const out_sz = u32_ceil_div( in_sz, must_find(codegen.rtc_func_names_map,func)->rtc_call_geom.tpb );
       for( uint32_t i = 0; i != reds.size(); ++i ) { 
 	string cur_out = top_in + "_" + reds[i] + "_out_sz_" + str(out_sz);
 	rtc->create_var_with_dims( cur_out, dims_t{ {out_sz}, {"v"}, "float" } );

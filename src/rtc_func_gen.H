@@ -289,9 +289,9 @@ namespace boda
       // special cases for index var names
       if( ix_vn == "GLOB_ID_1D" ) { 
         // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
-        // size doesn't matter, so use a reasonable default.
-        if( tpb || blks ) { rt_err( "CUCL error: GLOB_ID_1D IX encoutered after setting tpb or blks (some other way(s))");}
-        tpb = default_tpb;
+        // size doesn't matter, so use a reasonable default if it's not already set.
+        if( !tpb ) { tpb = default_tpb; }
+        if( blks ) { rt_err( "CUCL error: GLOB_ID_1D IX encoutered after setting blks (some other way)");}
         blks = u32_ceil_div( ix_dims.dims_prod(), tpb );
       } else if( ix_vn == "GRP_ID_1D" ) {
         if( blks ) { rt_err( "CUCL error: GRP_ID_1D IX encoutered after setting blks (some other way)" ); }
@@ -360,12 +360,15 @@ namespace boda
 
     void init( p_rtc_template_t const & rtc_func_template_, vect_arg_decl_t const & flat_arg_decls_, 
 	       custom_codegen_t * const custom_codegen, string const & gen_fn_ ){
+      assert_st( gen_fn.empty() ); // double init guard
       gen_fn = gen_fn_;
+      assert_st( !gen_fn.empty() ); // so above guard is sound (and a sensible assert anyway)
       has_final_flags_arg = 0;
       set( "rtc_func_name", gen_fn );
       flat_arg_decls = flat_arg_decls_;
       rtc_func_template = rtc_func_template_;
-
+      // if we have a str_val with the magic name 'tpb', use it to set the call geom:
+      if( has( str_vals, "tpb" ) ) { rtc_call_geom.tpb = get_u32( "tpb" ); }
       for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
 	dims_t ix_dims = apply_use_dims( get_arg_dims_by_name( i->arg_vn, "IX" ), i->use_dims );
         assert_st( ix_dims.size() && ix_dims.has_name() );
@@ -387,9 +390,11 @@ namespace boda
       // time, and failing that there is still the legacy dynamic-blocks case. note, for now we still insist that tpb be
       // set at this point if there are no dyn IXs, and use a default if it was non set by a non-dynamic cucl IX. we may
       // change/relax this later.
+#if 0
       if( dyn_vars.empty() ) {
         if( !rtc_call_geom.tpb ) { rtc_call_geom.tpb = rtc_call_geom_t::default_tpb; } // if unset, use a default value
       }
+#endif
       // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
 
       if( custom_codegen ) { custom_codegen->gen_op( this, type ); }
@@ -398,7 +403,7 @@ namespace boda
       // cucl_arg_info if they are dynamic. however, codegen that uses tpb directly would still be broken in that case
       // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the
       // template string ( which might point to a dynamic value ) instead.
-      set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid if there are no dyn vars
+      if( !has( str_vals, "tpb" ) ) { set( "tpb", str(rtc_call_geom.tpb) ); } // currently, should always be fixed/constant/valid if there are no dyn vars
       set( "blks", str(rtc_call_geom.blks) ); // may be 0 if # of blocks is dynamic
       set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 

@@ -1,19 +1,24 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const * const min_in, // CUCL IN v
-					  float const * const max_in, // CUCL IN v
-					  float const * const sum_in, // CUCL IN v
-					  float const * const hist_in, // CUCL IN v
-					  float const * const cnt_in, // CUCL IN v
-					  float * const min_out, // CUCL OUT v
-					  float * const max_out, // CUCL OUT v
-					  float * const sum_out, // CUCL OUT v
-					  float * const hist_out, // CUCL OUT v
-					  float * const cnt_out, // CUCL OUT v
+struct %(rtc_func_name)_arg_info_t {
+  %(cucl_arg_info_decls)
+};
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const * const min_in, // CUCL IN_DYN v
+					  float const * const max_in, // CUCL IN_DYN v
+					  float const * const sum_in, // CUCL IN_DYN v
+					  float const * const hist_in, // CUCL IN_DYN v
+					  float const * const cnt_in, // CUCL IN_DYN v
+					  float * const min_out, // CUCL OUT_DYN v
+					  float * const max_out, // CUCL OUT_DYN v
+					  float * const sum_out, // CUCL OUT_DYN v
+					  float * const hist_out, // CUCL OUT_DYN v
+					  float * const cnt_out, // CUCL OUT_DYN v
 					  int32_t const min_in_v_dim,
-                                          int32_t const primary_in ) 
+                                          int32_t const primary_in,
+                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL ARGINFO
 {
+  // CUCL IX GLOB_ID_1D min_in
   // note: all input v dims are == to each other and == to in_sz; output v dims are all u32_ceil_div(in_sz,%(tpb))
   int32_t const tid = LOC_ID_1D;
-  int32_t const ix = %(tpb) * GRP_ID_1D + tid;
+  int32_t const ix = GLOB_ID_1D;
 
   LOCSHAR_MEM float min_smem[%(tpb)];
   LOCSHAR_MEM float max_smem[%(tpb)];

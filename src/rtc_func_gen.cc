@@ -113,11 +113,12 @@ namespace boda
       }
       // FIXME/note: we can't/don't check call dims for variable-sized dims_vals. this seems less than ideal.
       // one exampl of such usage is in var_stats.
-      if( func_dims.has_sz_and_stride_and_name() ) { 
+      if( 1 || func_dims.has_sz_and_stride_and_name() ) { 
 	dims_t const & call_dims = rtc->get_var_dims( an->second );
-	if( call_dims != func_dims ) {
-	  rt_err( strprintf( "error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s", 
-			     rfc.call_tag.c_str(), i->vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() ) );
+        //if( call_dims != func_dims ) {
+        if( !call_dims.matches_template( func_dims ) ) {
+	  printf( "error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
+                  rfc.call_tag.c_str(), i->vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() );
 	}	  
       }
       rfc.in_args.push_back( an->second );
@@ -135,13 +136,6 @@ namespace boda
       if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
         dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
       }
-    }
-    //if( !dyn_vars.empty() ) { printf( "cucl_arg_info=%s\n", str(rfc.cucl_arg_info).c_str() ); }
-
-    if( !dyn_rtc_call_geom.blks ) { // handle dynamic # of blks case
-      // FIXME: pretty limited / special cased here
-      // FIXME: it gets worse! now, we allow no u32_args here, and defer error checking to later in that case
-      if( rfc.u32_args.size() > 0 ) { dyn_rtc_call_geom.blks = u32_ceil_div( rfc.u32_args[0], dyn_rtc_call_geom.tpb ); }
     }
     if( show_rtc_calls ) { 
       printf( "%s( in{%s} inout{%s} out{%s} -- u32{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
