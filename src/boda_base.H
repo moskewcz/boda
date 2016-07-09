@@ -661,6 +661,7 @@ namespace boda
       bread_bytes( in, (char *)d.get(), dims.bytes_sz() );
     } 
   };
+  std::ostream & operator << ( std::ostream & out, nda_t const & o );
   template< typename STREAM > inline void bwrite( STREAM & out, nda_t const & o ) { o.bwrite_( out ); }
   template< typename STREAM > inline void bread( STREAM & in, nda_t & o ) { o.bread_( in ); }
   

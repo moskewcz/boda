@@ -166,6 +166,31 @@ namespace boda
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 
+  template< typename T > void nda_dispatch( nda_t const & nda, T const & func ) {
+    if( 0 ) { }
+    else if( nda.dims.tn == "half" ) { func.template op<half>( nda ); } // C++!
+    else if( nda.dims.tn == "float" ) { func.template op<float>( nda ); }
+    else if( nda.dims.tn == "double" ) { func.template op<double>( nda ); }
+    else if( nda.dims.tn == "uint32_t" ) { func.template op<uint32_t>( nda ); }
+    else if( nda.dims.tn == "uint8_t" ) { func.template op<uint8_t>( nda ); }
+    else { rt_err( "unhandled type in nda_dispatch; tn=" + nda.dims.tn ); }
+  }
+  struct nda_dump_t {
+    std::ostream & out;
+    nda_dump_t( std::ostream & out_ ) : out(out_) {}
+    template< typename T > void op( nda_t const & nda ) const { 
+      out << "DIMS: " << nda.dims << " " << "VALS:";
+      T const * const elems = static_cast<T const *>(nda.rp_elems());
+      for( uint32_t i = 0; i != nda.elems_sz(); ++i ) {
+        out << " " << elems[i];
+      }
+    }
+  };
+
+  std::ostream & operator << ( std::ostream & out, nda_t const & o ) { nda_dispatch( o, nda_dump_t( out ) ); return out; }
+
+
+
 
   // questionably, we use (abuse?) the fact that we can mutate the
   // deleter to support mremap()ing the memory pointed to by the
