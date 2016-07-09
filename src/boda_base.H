@@ -21,6 +21,7 @@ void boda_assert_fail( char const * expr, char const * file, unsigned int line, 
 #define assert_st(expr) ((expr) ? static_cast<void>(0) : boda_assert_fail( (std::string("\n") + #expr + \
 		     "\n "+stacktrace_str( get_backtrace(), 0 )).c_str(), __FILE__, __LINE__, __PRETTY_FUNCTION__ ) )
 
+namespace half_float { class half; }
 namespace boost {
   namespace iostreams {
     class mapped_file;
@@ -377,14 +378,25 @@ namespace boda
     bool is_float;
     bool is_signed;
   };
-  
-  typedef map< string, ndat_info_t > ndat_infos_t;
+  typedef ndat_info_t const * rp_ndat_info_t;
+  ndat_info_t const half_ndat{"half",2,1,1};
+  ndat_info_t const float_ndat{"float",4,1,1};
+  ndat_info_t const double_ndat{"double",8,1,1};
+  ndat_info_t const uint32_t_ndat{"uint32_t",4,0,0};
+  ndat_info_t const uint8_t_ndat{"uint8_t",1,0,0};
+  template< typename T > inline ndat_info_t const & get_ndat( void );
+  template<> inline ndat_info_t const & get_ndat<half_float::half>( void ) { return half_ndat; }
+  template<> inline ndat_info_t const & get_ndat<float>( void ) { return float_ndat; }
+  template<> inline ndat_info_t const & get_ndat<double>( void ) { return double_ndat; }
+  template<> inline ndat_info_t const & get_ndat<uint32_t>( void ) { return uint32_t_ndat; }
+  template<> inline ndat_info_t const & get_ndat<uint8_t>( void ) { return uint8_t_ndat; }
+  typedef map< string, rp_ndat_info_t > ndat_infos_t;
   ndat_infos_t const ndat_infos{
-    {"half",{"half",2,1,1}},  
-    {"float",{"float",4,1,1}}, 
-    {"double",{"double",8,1,1}}, 
-    {"uint32_t",{"uint32_t",4,0,0}},
-    {"uint8_t",{"uint8_t",1,0,0}} 
+    {half_ndat.tn,&half_ndat},
+    {float_ndat.tn,&float_ndat},
+    {double_ndat.tn,&double_ndat},
+    {uint32_t_ndat.tn,&uint32_t_ndat},
+    {uint8_t_ndat.tn,&uint8_t_ndat},
   };
 
   // row-major dimensions holder; consists of a vector of dim_t's and a type string.
@@ -403,7 +415,7 @@ namespace boda
       add_dims( name1_, sz1_ ); add_dims( name2_, sz2_ ); add_dims( name3_, sz3_ ); add_dims( name4_, sz4_ ); }
 
     string tn;  // empty for wildcard; otherwise "float", "uint32_t", "int8_t", etc ...
-    ndat_info_t const & tinfo( void ) const { return must_find( ndat_infos, tn ); }
+    ndat_info_t const & tinfo( void ) const { return *must_find( ndat_infos, tn ); }
     uint64_t tsz( void ) const { return tinfo().sz; }
         
 
@@ -638,11 +650,31 @@ namespace boda
       assert_st( dims.valid() );
       if( !d ) { alloc(); } // if hunk is null, allocate it
     }
+  public:
+    template< typename STREAM > void bwrite_( STREAM & out ) const {
+      bwrite(out,dims); 
+      bwrite_bytes( out, (char *)d.get(), dims.bytes_sz() );
+    }
+    template< typename STREAM > void bread_( STREAM & in ) {
+      bread(in,dims); 
+      alloc();
+      bread_bytes( in, (char *)d.get(), dims.bytes_sz() );
+    } 
   };
-
+  template< typename STREAM > inline void bwrite( STREAM & out, nda_t const & o ) { o.bwrite_( out ); }
+  template< typename STREAM > inline void bread( STREAM & in, nda_t & o ) { o.bread_( in ); }
+  
+  typedef vector< nda_t > vect_nda_t; 
   typedef shared_ptr< nda_t > p_nda_t; 
+  typedef vector< p_nda_t > vect_p_nda_t;
   typedef map< string, p_nda_t > map_str_p_nda_t;
   typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
+
+  template< typename T > inline p_nda_t make_scalar_nda( T const & v ) { 
+    p_nda_t ret = make_shared<nda_t>( dims_t{ {1}, {"v"}, get_ndat<T>().tn } );
+    *(static_cast< T * >(ret->rp_elems())) = v;
+    return ret;
+  }
 
   template< typename T > struct nda_T : public nda_t {
     nda_T( void ) { }
@@ -702,16 +734,6 @@ namespace boda
       uint32_t const ix = dims.ix3( d0i,d1i,d2i ); return elems_ptr()[ix]; }
     T const& at4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems_ptr()[ix]; }
-    // FIXME_TNDA: use dims.tsz() here instead of sizeof(T) and promote to nda_t
-    template< typename STREAM > void bwrite_( STREAM & out ) const {
-      bwrite(out,dims); 
-      bwrite_bytes( out, (char *)d.get(), elems_sz()*sizeof(T) );
-    }
-    template< typename STREAM > void bread_( STREAM & in ) {
-      bread(in,dims); 
-      alloc();
-      bread_bytes( in, (char *)d.get(), elems_sz()*sizeof(T) );
-    } 
   };
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_T<T> const & o ) { o.bwrite_( out ); }
   template< typename STREAM, typename T > inline void bread( STREAM & in, nda_T<T> & o ) { o.bread_( in ); }
