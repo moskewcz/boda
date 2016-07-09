@@ -376,8 +376,10 @@ typedef int int32_t;
       add_args( rfc.in_args, kern, cur_arg_ix );
       add_args( rfc.inout_args, kern, cur_arg_ix );
       add_args( rfc.out_args, kern, cur_arg_ix );
-      for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { 
-	set_kernel_arg( kern, cur_arg_ix, *i );
+      for( vect_p_nda_t::iterator i = rfc.nda_args.begin(); i != rfc.nda_args.end(); ++i ) { 
+        assert_st( (*i)->elems_sz() == 1 );
+        cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, (*i)->dims.bytes_sz(), (*i)->rp_elems() );
+        cl_err_chk( err, "clSetKernelArg() [nda_args]" );
 	++cur_arg_ix;
       }
       if( rfc.has_cucl_arg_info.v ) {

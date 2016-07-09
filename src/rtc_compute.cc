@@ -118,7 +118,7 @@ namespace boda
       rtc->init_var_from_vect_float( "b", b );
       rtc->init_var_from_vect_float( "c", c );
       
-      rtc_func_call_t rfc{ "my_dot", {"a","b"},{},{"c"}, {data_sz} }; 
+      rtc_func_call_t rfc{ "my_dot", {"a","b"},{},{"c"}, {make_scalar_nda(data_sz)} }; 
       rfc.tpb.v = 256;
       rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
 

@@ -78,7 +78,7 @@ namespace boda
     vect_string in_args; 
     vect_string inout_args; 
     vect_string out_args; 
-    vect_uint32_t u32_args;
+    vect_p_nda_t nda_args; // pass-by-value args; note: scalars only currently
     zi_bool has_cucl_arg_info;
     vect_int32_t cucl_arg_info;
     string call_tag;

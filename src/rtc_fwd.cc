@@ -92,8 +92,8 @@ namespace boda
       for( vect_uint32_t::const_iterator i = dropout_cixs.begin(); i != dropout_cixs.end(); ++i ) {
 	assert( (*i) < fwd_calls.size() );
 	rcg_func_call_t & rcg = fwd_calls[*i];
-	assert_st( rcg.u32_args.size() == 1 );
-	rcg.u32_args[0] = det_drop_seed_; 
+	assert_st( rcg.nda_args.size() == 1 );
+	rcg.nda_args[0] = make_scalar_nda(det_drop_seed_);
       }
     }
 
@@ -195,7 +195,7 @@ namespace boda
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_in", cur_ins[i] ); }
       assert_st( cur_outs.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_out", cur_outs[i] ); }
-      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map, {primary_in} } );
+      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map, {make_scalar_nda(primary_in)} } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -209,7 +209,8 @@ namespace boda
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
     string const func = gen_func( op_base_t{ "quantize", {{"out",rtc->get_var_dims(top_in)}}, {} } );
-    fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, {max_val,drop_mask} } );
+    fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, 
+        {make_scalar_nda(max_val),make_scalar_nda(drop_mask)} } );
   }
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
@@ -345,13 +346,13 @@ namespace boda
       double const dropout_ratio = lc_str_d( oi->str_vals["dropout_ratio"] );
       assert_st( dropout_ratio > 0.0 );
       assert_st( dropout_ratio < 1.0 );
-      fwd_calls.back().u32_args.push_back( 0 ); // see update code elsewhere. yeah, not the cleanest approach.
+      fwd_calls.back().nda_args.push_back( p_nda_t() ); // see update code elsewhere. yeah, not the cleanest approach.
       dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( oi->is( BckDropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( "dropout", oi ); // Backwards of dropout is dropout
-      fwd_calls.back().u32_args.push_back( 0 ); // see update code elsewhere. yeah, not the cleanest approach.
+      fwd_calls.back().nda_args.push_back( p_nda_t() ); // see update code elsewhere. yeah, not the cleanest approach.
       dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( oi->is( Softmax_coi ) ) {
       gen_call( "softmax", oi );

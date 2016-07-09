@@ -28,7 +28,7 @@ namespace boda
     string rtc_func_name; 
     string call_tag;
     map_str_str arg_map;
-    vect_uint32_t u32_args;
+    vect_p_nda_t nda_args;
     uint32_t call_id;
   };
   typedef vector< rcg_func_call_t > vect_rcg_func_call_t; 

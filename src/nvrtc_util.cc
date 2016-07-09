@@ -332,7 +332,10 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       add_args( rfc.in_args, cu_func_args, func_args );
       add_args( rfc.inout_args, cu_func_args, func_args );
       add_args( rfc.out_args, cu_func_args, func_args );
-      for( vect_uint32_t::iterator i = rfc.u32_args.begin(); i != rfc.u32_args.end(); ++i ) { cu_func_args.push_back( &(*i) ); }
+      for( vect_p_nda_t::iterator i = rfc.nda_args.begin(); i != rfc.nda_args.end(); ++i ) { 
+        assert_st( (*i)->elems_sz() == 1 );
+        cu_func_args.push_back( (*i)->rp_elems() );
+      }
       if( rfc.has_cucl_arg_info.v ) { cu_func_args.push_back( &rfc.cucl_arg_info[0] ); }
       else { assert_st( rfc.cucl_arg_info.empty() ); }
 

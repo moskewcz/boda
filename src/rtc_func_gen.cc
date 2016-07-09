@@ -100,7 +100,7 @@ namespace boda
     rtc_func_call_t rfc;
     rfc.rtc_func_name = rcg_func_call.rtc_func_name;
     rfc.call_tag = rcg_func_call.call_tag;
-    rfc.u32_args = rcg_func_call.u32_args;
+    rfc.nda_args = rcg_func_call.nda_args;
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
 
     for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
@@ -136,14 +136,14 @@ namespace boda
       }
     }
     if( show_rtc_calls ) { 
-      printf( "%s( in{%s} inout{%s} out{%s} -- u32{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
-	      str(rfc.in_args).c_str(), str(rfc.inout_args).c_str(), str(rfc.out_args).c_str(), str(rfc.u32_args).c_str(),
+      printf( "%s( in{%s} inout{%s} out{%s} -- ndas{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
+	      str(rfc.in_args).c_str(), str(rfc.inout_args).c_str(), str(rfc.out_args).c_str(), str(rfc.nda_args).c_str(),
 	      str(dyn_rtc_call_geom.tpb).c_str(), str(dyn_rtc_call_geom.blks).c_str() );
       //if( !rfc.cucl_arg_info.empty() ) { printf( "  rfc.cucl_arg_info=%s\n", str(rfc.cucl_arg_info).c_str() ); }
     }
     rfc.tpb.v = dyn_rtc_call_geom.tpb;
     rfc.blks.v = dyn_rtc_call_geom.blks;
-    if( has_final_flags_arg ) { rfc.u32_args.push_back( flags ); }
+    if( has_final_flags_arg ) { rfc.nda_args.push_back( make_scalar_nda<uint32_t>(flags) ); }
     rtc->run( rfc );
     rcg_func_call.call_id = rfc.call_id;
     // note: temporary rfc is gone after this
