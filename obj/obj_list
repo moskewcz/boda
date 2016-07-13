@@ -17,7 +17,7 @@ LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lb
 LDFLAGS := $(LDFLAGS) -llmdb
 
 [octave]
-CPPFLAGS := $(CPPFLAGS) -I/usr/include/octave-4.0.0 -I/usr/include/octave-4.0.0/octave
+CPPFLAGS := $(CPPFLAGS) -I/usr/include/octave-4.0.2 -I/usr/include/octave-4.0.2/octave
 LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 
 [SDL2]
