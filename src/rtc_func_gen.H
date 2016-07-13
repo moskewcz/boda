@@ -475,7 +475,7 @@ namespace boda
 	rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
       }
       for( map_str_str::iterator i = cgs.begin(); i != cgs.end(); ++i ) { // terminate and emit bulk cgs
-	i->second += "    // end "+i->first;
+	i->second += "    // end "+i->first+"\n";
 	set( i->first, i->second ); 
       } 
       lexp_name_val_map_t tf_nvm{ p_lexp_t() };

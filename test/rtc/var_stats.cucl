@@ -1,16 +1,14 @@
-struct %(rtc_func_name)_arg_info_t {
-  %(cucl_arg_info_decls)
-};
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const * const min_in, // CUCL IN_DYN v
-					  float const * const max_in, // CUCL IN_DYN v
-					  float const * const sum_in, // CUCL IN_DYN v
-					  float const * const hist_in, // CUCL IN_DYN v
-					  float const * const cnt_in, // CUCL IN_DYN v
-					  float * const min_out, // CUCL OUT_DYN v
-					  float * const max_out, // CUCL OUT_DYN v
-					  float * const sum_out, // CUCL OUT_DYN v
-					  float * const hist_out, // CUCL OUT_DYN v
-					  float * const cnt_out, // CUCL OUT_DYN v
+struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const min_in, // CUCL IN_DYN v
+					  GASQ float const * const max_in, // CUCL IN_DYN v
+					  GASQ float const * const sum_in, // CUCL IN_DYN v
+					  GASQ float const * const hist_in, // CUCL IN_DYN v
+					  GASQ float const * const cnt_in, // CUCL IN_DYN v
+					  GASQ float * const min_out, // CUCL OUT_DYN v
+					  GASQ float * const max_out, // CUCL OUT_DYN v
+					  GASQ float * const sum_out, // CUCL OUT_DYN v
+					  GASQ float * const hist_out, // CUCL OUT_DYN v
+					  GASQ float * const cnt_out, // CUCL OUT_DYN v
                                           int32_t const primary_in,
                                           struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL ARGINFO
 {
