@@ -329,9 +329,9 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       // FIXME/NOTE: for now, for interfacing with culibs, we create an extra/redundant argument map 'func_args':
       p_map_str_p_nda_t func_args = make_shared<map_str_p_nda_t>();
       vect_rp_void cu_func_args;
-      add_args( rfc.in_args, cu_func_args, func_args );
-      add_args( rfc.inout_args, cu_func_args, func_args );
-      add_args( rfc.out_args, cu_func_args, func_args );
+      for( vect_vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
+        add_args( *i, cu_func_args, func_args );
+      }
       for( vect_p_nda_t::iterator i = rfc.nda_args.begin(); i != rfc.nda_args.end(); ++i ) { 
         assert_st( (*i)->elems_sz() == 1 );
         cu_func_args.push_back( (*i)->rp_elems() );

@@ -152,6 +152,7 @@ namespace boda
   // typedef uint32_t nesi_bool // TODO
 
   typedef vector< string > vect_string;
+  typedef vector< vect_string > vect_vect_string;
   typedef shared_ptr< string > p_string;
   typedef shared_ptr< vect_string > p_vect_string;
   vect_rp_char get_vect_rp_char( vect_string const & v );

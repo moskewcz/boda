@@ -22,6 +22,9 @@ namespace boda
     uint32_t gen_src; //NESI(default=0,help="if 1, output generated src files just before compilation")
     filename_t gen_src_output_dir; //NESI(default="%(boda_output_dir)/rtc-gen-src", help="if requested, directory where generated source files will be placed")
 
+    string rtc_base_decls;
+    string const & get_rtc_base_decls( void ); // note: caches results in rtc_base_decls
+
     virtual void init( void ) = 0;
 
     virtual void create_var_with_dims( string const & vn, dims_t const & dims ) = 0;
@@ -74,10 +77,7 @@ namespace boda
 
   struct rtc_func_call_t { 
     string rtc_func_name; 
-    // note/FIXME: currently, the split between {in,inout,out}_args is unused.
-    vect_string in_args; 
-    vect_string inout_args; 
-    vect_string out_args; 
+    vect_vect_string args; 
     vect_p_nda_t nda_args; // pass-by-value args; note: scalars only currently
     zi_bool has_cucl_arg_info;
     vect_int32_t cucl_arg_info;

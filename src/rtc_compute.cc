@@ -83,7 +83,34 @@ namespace boda
     } 
   }
 
-
+  string const & rtc_compute_t::get_rtc_base_decls( void ) { // note: caches results in rtc_base_decls
+    if( rtc_base_decls.empty() ) { // first call, fill in
+      rtc_base_decls += "\n// begin rtc_base_decls\n";
+#if 0
+      // for now, this is disabled, since it's unused/doesn't-work. in OpenCL, there seems to be no way to pass dynamic
+      // numbers of points or put them in structs. so any pointer we want to pass needs to be a kernel arg by
+      // itself. double-indirection of args is similarly a no-no. so, if we ever want to pass a variable number of
+      // kernel arguments, we'll still need something like this (i.e. to pass arrays of indexes by-value, when the
+      // number of values is small by unknown). in particular, if we move to an arena allocator, we'd be able to pass a
+      // variable-number of indexes this way, as if they were seperate args, but be able to loop over them without
+      // flattening/codegen.
+      for( ndat_infos_t::const_iterator i = ndat_infos.begin(); i != ndat_infos.end(); ++i ) {
+        string const & tn = i->first;
+        // FIXME: for now, just omit double (since we don't know if it's supported here, and we don't use it anywhere
+        // yet. could add a virtual to rtc_compute and use it here to determine if double is supported)
+        if( i->second == &double_ndat ) { continue; } 
+        uint32_t const max_multi_args = 20;
+        for( uint32_t i = 0; i != max_multi_args; ++i ) {
+          string const sn = strprintf( "%s_multi_%s", tn.c_str(), str(i).c_str() );
+          rtc_base_decls += strprintf( "typedef struct %s { GASQ %s * marg[%s]; } %s;\n", 
+                                       sn.c_str(), tn.c_str(), str(i).c_str(), sn.c_str() );
+        }
+      }
+#endif
+      rtc_base_decls += "\n// end rtc_base_decls\n";
+    }
+    return rtc_base_decls;
+  }
 }
 
 // extra includes only for test mode
@@ -118,7 +145,7 @@ namespace boda
       rtc->init_var_from_vect_float( "b", b );
       rtc->init_var_from_vect_float( "c", c );
       
-      rtc_func_call_t rfc{ "my_dot", {"a","b"},{},{"c"}, {make_scalar_nda(data_sz)} }; 
+      rtc_func_call_t rfc{ "my_dot", {{"a"},{"b"},{"c"}}, {make_scalar_nda(data_sz)} }; 
       rfc.tpb.v = 256;
       rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
 

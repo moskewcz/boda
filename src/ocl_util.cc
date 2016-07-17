@@ -179,10 +179,12 @@ namespace boda
   typedef shared_ptr< map_str_cl_var_info_t > p_map_str_cl_var_info_t;
 
   string ocl_base_decls = R"rstr(
-#define CUCL_BACKEND_IX 2
 typedef unsigned uint32_t;
-__constant uint32_t const U32_MAX = 0xffffffff;
 typedef int int32_t;
+typedef unsigned char uint8_t;
+
+#define CUCL_BACKEND_IX 2
+__constant uint32_t const U32_MAX = 0xffffffff;
 //typedef long long int64_t;
 #define CUCL_GLOBAL_KERNEL kernel
 #define CUCL_DEVICE 
@@ -253,12 +255,13 @@ typedef int int32_t;
 		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
       timer_t t("ocl_compile");
       assert( init_done.v );
+      vect_rp_const_char srcs{ ocl_base_decls.c_str(), get_rtc_base_decls().c_str(), src.c_str() };
       if( gen_src ) {
 	string const ocl_src = ocl_base_decls + src;
 	ensure_is_dir( gen_src_output_dir.exp, 1 );
-	write_whole_fn( strprintf( "%s/out_%s.cl", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), ocl_src );
+        p_ofstream out = ofs_open( strprintf( "%s/out_%s.cl", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ));
+        for( vect_rp_const_char::const_iterator i = srcs.begin(); i != srcs.end(); ++i ) { (*out) << (*i); }
       }
-      vect_rp_const_char srcs{ ocl_base_decls.c_str(), src.c_str() };
       cl_int err;
       cl_program_t prog;
       prog.reset( clCreateProgramWithSource( context.v, srcs.size(), &srcs[0], 0, &err ) );
@@ -373,9 +376,9 @@ typedef int int32_t;
     void run( rtc_func_call_t & rfc ) {
       cl_kernel_t const & kern = must_find( *kerns, rfc.rtc_func_name.c_str() );
       uint32_t cur_arg_ix = 0;
-      add_args( rfc.in_args, kern, cur_arg_ix );
-      add_args( rfc.inout_args, kern, cur_arg_ix );
-      add_args( rfc.out_args, kern, cur_arg_ix );
+      for( vect_vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
+        add_args( *i, kern, cur_arg_ix );
+      }
       for( vect_p_nda_t::iterator i = rfc.nda_args.begin(); i != rfc.nda_args.end(); ++i ) { 
         assert_st( (*i)->elems_sz() == 1 );
         cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, (*i)->dims.bytes_sz(), (*i)->rp_elems() );

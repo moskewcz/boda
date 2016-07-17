@@ -76,11 +76,11 @@ namespace boda
     codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
 
     map_str_str arg_map;
-    for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
-      if( i->io_type == "REF" ) { continue; }
-      dims_t const & func_dims = rcg->get_arg_dims_by_name( i->vn );
+    for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
+      if( i.ad().io_type == "REF" ) { continue; }
+      dims_t const & func_dims = rcg->get_arg_dims_by_name( i.vn() );
       if( func_dims == dims_t() ) { continue; } // NULL case -- ignore
-      must_insert( arg_map, i->vn, i->vn );
+      must_insert( arg_map, i.vn(), i.vn() );
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
@@ -88,15 +88,15 @@ namespace boda
     }
     vect_string xpose_vars_to_release;
     if( in_gen_op_orig ) { 
-      for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
+      for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
         p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
-	if( i->io_type != "IN" ) { continue; }
-	in_gen_op->type += "_" + i->vn;
+	if( i.ad().io_type != "IN" ) { continue; }
+	in_gen_op->type += "_" + i.vn();
 	in_gen_op->dims_vals.clear();
-        dims_t const & in_dims = must_find( anno_op->dims_vals, i->vn );
-        dims_t const & ref_in_dims = get( anno_op->dims_vals, i->vn + "_ref", in_dims );
-	must_insert( in_gen_op->dims_vals, i->vn, ref_in_dims );
-        string gen_vn = i->vn;
+        dims_t const & in_dims = must_find( anno_op->dims_vals, i.vn() );
+        dims_t const & ref_in_dims = get( anno_op->dims_vals, i.vn() + "_ref", in_dims );
+	must_insert( in_gen_op->dims_vals, i.vn(), ref_in_dims );
+        string gen_vn = i.vn();
         if( in_dims != ref_in_dims ) { 
           gen_vn += "_ref"; 
           codegen.rtc->create_var_with_dims( gen_vn, ref_in_dims ); 
@@ -104,48 +104,48 @@ namespace boda
         }
 	string const in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
         codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
-	rcg_func_call_t rfc_in_gen{ in_gen_func_name, "tag", map_str_str{{i->vn,gen_vn}} };
+	rcg_func_call_t rfc_in_gen{ in_gen_func_name, "tag", map_str_str{{i.vn(),gen_vn}} };
 	codegen.run_rfc( show_rtc_calls, rfc_in_gen, 0 );
         // check if xpose needed:
-        if( gen_vn != i->vn ) {
+        if( gen_vn != i.vn() ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
-          string xpose_op = anno_op->type+"_xpose_"+i->vn;
+          string xpose_op = anno_op->type+"_xpose_"+i.vn();
           // FIXME: sigh.
-          if( ( i->vn == "filts" ) && is_k1_or_t_or_reg_conv(get( anno_op->str_vals, "cts", "" ))) { xpose_op = "xpose_filts"; }
+          if( ( i.vn() == "filts" ) && is_k1_or_t_or_reg_conv(get( anno_op->str_vals, "cts", "" ))) { xpose_op = "xpose_filts"; }
           string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                       op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
           codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
-          rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i->vn,i->vn}} };
+          rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
           codegen.run_rfc( show_rtc_calls, rfc_in_gen_xpose, 0 );
         }
-	//if( outs ) { must_insert( *outs, i->vn, p_nda_float_t() ); } // include inputs in 'outputs'
+	//if( outs ) { must_insert( *outs, i.vn(), p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
     rcg_func_call_t rfc{ rcg->gen_fn, "tag", arg_map };
     for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_rfc( show_rtc_calls, rfc, 0 ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
-    for( vect_arg_decl_t::const_iterator i = rcg->flat_arg_decls.begin(); i != rcg->flat_arg_decls.end(); ++i ) {
-      if( !endswith( i->io_type, "OUT" ) ) { continue; }
-      dims_t const & out_dims = must_find( anno_op->dims_vals, i->vn );
-      dims_t const & ref_out_dims = get( anno_op->dims_vals, i->vn + "_ref", out_dims );
-      string gen_vn = i->vn;
+    for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
+      if( !endswith( i.ad().io_type, "OUT" ) ) { continue; }
+      dims_t const & out_dims = must_find( anno_op->dims_vals, i.vn() );
+      dims_t const & ref_out_dims = get( anno_op->dims_vals, i.vn() + "_ref", out_dims );
+      string gen_vn = i.vn();
       if( out_dims != ref_out_dims ) { 
         gen_vn += "_ref"; 
         codegen.rtc->create_var_with_dims( gen_vn, ref_out_dims ); 
         xpose_vars_to_release.push_back( gen_vn );
       }
       // check if xpose needed:
-      if( gen_vn != i->vn ) {
+      if( gen_vn != i.vn() ) {
         // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
-        string xpose_op = anno_op->type+"_xpose_"+i->vn;
+        string xpose_op = anno_op->type+"_xpose_"+i.vn();
         string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                     op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
         codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
-        rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i->vn,i->vn}} };
+        rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
         codegen.run_rfc( show_rtc_calls, rfc_in_gen_xpose, 0 );
       }
-      if( outs ) { must_insert( *outs, i->vn, codegen.rtc->create_nda_from_var( gen_vn ) ); } 
+      if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
     }
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       codegen.rtc->release_var( j->second );

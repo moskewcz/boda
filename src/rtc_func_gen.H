@@ -47,14 +47,39 @@ namespace boda
 
   string gen_unused_fn( op_base_t const & op, rtc_func_names_map_t & fns );
 
+
   struct arg_decl_t {
     string vn;
+    zi_bool multi;
     string tn;
     zi_uint32_t loi;
     string io_type;
     zi_bool dyn;
     vect_dims_t ok_dims;
-    string multi_base_vn;
+    void set_vn_tn( string const & vn_, string const & tn_ ) {
+      vn = vn_;
+      tn = get_part_before( tn_, "_multi" );
+      multi.v = (tn != tn_); // if we found _multi, we stripped it off, so tn is shorter than tn_
+    }
+    void ref_parse( string const & line ) {
+      vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " */" ) ) );
+      if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL REF decl; no var name present:" + line ); }
+      set_vn_tn( arg_decl.back(), string() ); // no tn (type name) for ref decls
+    }
+    void arg_parse( string const & line ) {
+      vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " ,);{" ) ) );
+      if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL io var decl; no var name found:" + line ); }
+      for( vect_string::const_reverse_iterator i = arg_decl.rbegin()+1; i != arg_decl.rend(); ++i ) {
+        if( (*i) == "*" ) { ++loi.v; continue; }
+        if( (*i) == "const" ) { continue; } // FIXME: for now, ignore const?
+        set_vn_tn( arg_decl.back(), *i ); break;
+      }
+    }
+    uint32_t get_multi_sz( op_base_t const & op ) const { return multi.v ? op.get_u32( vn+"_num" ) : 1; }
+    string get_multi_vn( uint32_t const mix ) const { 
+      if( multi.v ) { return vn + "_" + str(mix); }
+      assert_st( mix == 0 ); return vn;
+    }
   };
   inline std::ostream & operator << ( std::ostream & out, arg_decl_t const & o ) {
     for( vect_dims_t::const_iterator i = o.ok_dims.begin(); i != o.ok_dims.end(); ++i ) {
@@ -63,7 +88,26 @@ namespace boda
     }
     return out;
   }
-  typedef vector< arg_decl_t > vect_arg_decl_t; 
+  struct vect_arg_decl_t : public vector< arg_decl_t > {
+    struct multi_iter {
+      iterator i;
+      iterator e;
+      op_base_t const * op;
+      uint32_t msz_;
+      uint32_t mix;
+      string vn_;
+      bool at_end( void ) const { return i == e; }
+      uint32_t msz( void ) { if( !msz_ ) { msz_ = i->get_multi_sz( *op ); } return msz_; }
+      void operator ++( void ) { 
+        assert_st( mix < msz() ); 
+        if( mix < (msz()-1) ) { ++mix; vn_.clear(); return; }
+        msz_ = 0; mix = 0; vn_.clear(); ++i;
+      }
+      string & vn( void ) { if( vn_.empty() ) { vn_ = i->get_multi_vn( mix ); assert_st( !vn_.empty() ); } return vn_; }
+      arg_decl_t & ad( void ) { return *i; } 
+    };
+    multi_iter multi_begin( op_base_t const * const op ) { return multi_iter{begin(),end(),op,0,0}; }
+  };
   
   struct ix_decl_t {
     string ix_vn;
@@ -78,21 +122,6 @@ namespace boda
 
   dims_t dims_from_nda_spec( string const & tn, string const & nda_spec );
 
-  inline void cucl_ref_decl_parse( arg_decl_t & cad, string const & line ) {
-    vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " */" ) ) );
-    if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL REF decl; no var name present:" + line ); }
-    cad.vn = arg_decl.back();
-  }
-  inline void cucl_arg_decl_parse( arg_decl_t & cad, string const & line ) {
-    vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " ,);{" ) ) );
-    if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL io var decl; no var name found:" + line ); }
-    cad.vn = arg_decl.back();
-    for( vect_string::const_reverse_iterator i = arg_decl.rbegin()+1; i != arg_decl.rend(); ++i ) {
-      if( (*i) == "*" ) { ++cad.loi.v; continue; }
-      if( (*i) == "const" ) { continue; } // FIXME: for now, ignore const?
-      cad.tn = *i; break;
-    }
-  }
 
   // this parses and stores a cucl function template for later instantiation. in particular, we process all CUCL
   // declarations and store the results into arg_decls and ix_decls. after init, the contents of this object are
@@ -135,11 +164,9 @@ namespace boda
         if( mmc_parts.size() < 2 ) { rt_err( "invalid CUCL magic comment. missing directive after CUCL." ); }
         string cd = mmc_parts[1];
         bool const dyn = maybe_strip_suffix( cd, "_DYN" );
-        bool const multi = maybe_strip_suffix( cd, "_MULTI" );
         if( (cd == "IN") || (cd == "INOUT") || (cd == "OUT") || (cd == "REF") || (cd == "IX") ) { 
           if( cd == "IX" ) {
             if( dyn ) { rt_err( "invalid use of _DYN suffix on CUCL IX decl" ); }
-            if( multi ) { rt_err( "invalid use of _MULTI suffix on CUCL IX decl" ); }
             if( mmc_parts.size() < 4 ) { rt_err( "invalid CUCL IX decl; missing ix_name and/or arg_name." ); }
             string const ix_name = mmc_parts[2];
             string const arg_name = mmc_parts[3];
@@ -156,9 +183,9 @@ namespace boda
             cad.io_type = cd;
             cad.dyn.v = dyn;
             if( cd == "REF" ) {
-              cucl_ref_decl_parse( cad, line );
+              cad.ref_parse( line );
             } else {
-              cucl_arg_decl_parse( cad, line );
+              cad.arg_parse( line );
               if( cad.tn.empty() ) { rt_err( "invalid CUCL io var decl; no var type found." ); }
               if( cad.loi.v != 1 ) { rt_err( "invalid CUCL io var decl; should be exactly one level-of-indirection/*.");}
               // special case: if type is CUCL type of this var, then there is no restriction on the type that can be
@@ -170,18 +197,14 @@ namespace boda
             for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
               cad.ok_dims.push_back( dims_from_nda_spec( cad.tn, mmc_parts[i] ) );
             }
-            if( multi ) {
-              cad.multi_base_vn = cad.vn;
-              bool const did_strip = maybe_strip_suffix( cad.multi_base_vn, "_N" );
-              if( !did_strip ) { rt_err("MULTI arg names must end with _N (to be _0, _1, ..."); }
-            }
             arg_decls.push_back( cad );
           }
         } else if( cd == "ARGINFO" ) {
           if( has_cucl_arg_info.v ) { rt_err( "duplicate CUCL ARGINFO declartion. must have exactly 0 or 1 ARGINFO arguments."); }
           has_cucl_arg_info.v = 1;
           arg_decl_t cad;
-          cucl_arg_decl_parse( cad, line );
+          cad.arg_parse( line );
+          if( cad.multi.v ) { rt_err( "invalid CUCL ARGINFO decl; should not be multi." ); }
           if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found." ); }
           if( cad.tn != "%(rtc_func_name)_arg_info_t" ) { rt_err( "invalid CUCL ARGINFO decl; must use '%(rtc_func_name)_arg_info_t' as type name." ); }
           if( cad.vn != "cucl_arg_info" ) { rt_err( "invalid CUCL ARGINFO decl; must use 'cucl_arg_info' as var name." ); }
@@ -197,77 +220,67 @@ namespace boda
       }
     }
 
-    // this takes an input func signature and checks it against this template. it produces two things: (1) a set of
-    // arg_decls with any multis flattened out (based on the args in the input signature). (2) a reduced function
+    // this takes an input func signature and checks it against this template. it produces a reduced function
     // signature with only the arg dims needed/used by this template. this reduced signature is suitable for uniqueing
     // the semantics of this template wrt the input signature -- that is, input signatures that differ only in dims that
     // are not used by the template won't have differing semantics.
-    p_op_base_t check_args( op_base_t const & rfs_in, vect_arg_decl_t & flat_arg_decls ) {
+    p_op_base_t check_args( op_base_t const & rfs_in ) {
       p_op_base_t rfs_out( new op_base_t( rfs_in ) );
       rfs_out->dims_vals.clear(); // for now: keep all of rfs_in expect dims_vals (which we reduce to only the used elements)
-      assert_st( flat_arg_decls.empty() );
       string arg_check_error;
 
-      // process/flatten-out multi args
-      for( vect_arg_decl_t::const_iterator i = arg_decls.begin(); i != arg_decls.end(); ++i ) {
-	if( i->multi_base_vn.empty() ) { flat_arg_decls.push_back( *i ); }
-	else {
-	  uint32_t const multi_sz = rfs_in.get_u32( i->multi_base_vn + "_num" );
-	  for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
-	    string const multi_arg_name = i->multi_base_vn + "_" + str(mix);
-	    // note: multi-derived args are (still) marked multi=1 in flat_arg_decls. this is used to later
-	    // code-generate the decl section for these args.
-	    flat_arg_decls.push_back( *i ); 
-	    flat_arg_decls.back().vn = multi_arg_name;
-	  }
-	}
-      }
-      
-      for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
-	uint32_t const ix = i - flat_arg_decls.begin();
-	map_str_dims_t::const_iterator adi = rfs_in.dims_vals.find( i->vn );
-	if( adi == rfs_in.dims_vals.end() ) {
-	  arg_check_error +=  strprintf( "referenced %s arg '%s' not present in dims_vals; ", 
-					 i->io_type.c_str(), i->vn.c_str() );
-	  continue;
-	}
-	dims_t const & arg_dims = adi->second;
-	if( !arg_dims.has_name() ) { arg_check_error += "call arg "+str(ix)+ " must have names for all dims; "; }
-	bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
-	if( !dims_only && arg_dims.has_padding() ) { 
-	  arg_check_error += "call args "+str(ix)+ " must not have padding; "; } // FIXME: maybe too strong
-
-	bool matches_decl = 0;
-	for( uint32_t j = 0; j != i->ok_dims.size(); ++j ) {
-	  if( arg_dims == dims_t() ) { matches_decl = 1; break; } // NULL case
-	  if( arg_dims.matches_template( i->ok_dims[j] ) ) { matches_decl = 1; break; }
-	}
-	if( !matches_decl ) { arg_check_error += "call arg "+str(ix)+" incompatible with decl arg "
-	    "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
-        if( i->dyn.v ) {  // if dynamic, zero out sizes/stride, since gen'd func will work for all sizes/strides
+      // error check existence of num field for multi args
+      for( vect_arg_decl_t::multi_iter i = arg_decls.multi_begin( &rfs_in ); !i.at_end(); ++i ) {
+	if( i.ad().multi.v ) {
+          string const multi_num = i.ad().vn+"_num";
+	  if( !has(rfs_in.str_vals,multi_num) ) {
+            arg_check_error += strprintf( "mult arg '%s' missing num var '%s' in str_vals; ", 
+                                          i.ad().vn.c_str(), multi_num.c_str() );
+            i.msz_ = 1; // note: yikes! a bit hacky, we need to skip the entire multi, so fake-set msz=1 and continue.
+            continue;
+          }
+        }
+        map_str_dims_t::const_iterator adi = rfs_in.dims_vals.find( i.vn() );
+        if( adi == rfs_in.dims_vals.end() ) {
+          arg_check_error +=  strprintf( "referenced %s arg '%s' not present in dims_vals; ", 
+                                         i.ad().io_type.c_str(), i.vn().c_str() );
+          continue;
+        }
+        dims_t const & arg_dims = adi->second;
+        if( !arg_dims.has_name() ) { arg_check_error += "call arg '"+i.vn()+"' must have names for all dims; "; }
+        bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
+        if( !dims_only && arg_dims.has_padding() ) { 
+          arg_check_error += "call arg '"+i.vn()+"' must not have padding; "; } // FIXME: maybe too strong
+        bool matches_decl = 0;
+        for( uint32_t j = 0; j != i.ad().ok_dims.size(); ++j ) {
+          if( arg_dims == dims_t() ) { matches_decl = 1; break; } // NULL case
+          if( arg_dims.matches_template( i.ad().ok_dims[j] ) ) { matches_decl = 1; break; }
+        }
+        if( !matches_decl ) { arg_check_error += "call arg '"+str(i.vn())+"' incompatible with decl arg "
+            "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
+        if( i.ad().dyn.v ) {  // if dynamic, zero out sizes/stride, since gen'd func will work for all sizes/strides
           dims_t arg_dims_no_sizes_or_strides = arg_dims;
           arg_dims_no_sizes_or_strides.clear_strides();
           arg_dims_no_sizes_or_strides.clear_dims();
-          must_insert( rfs_out->dims_vals, i->vn, arg_dims_no_sizes_or_strides ); 
+          must_insert( rfs_out->dims_vals, i.vn(), arg_dims_no_sizes_or_strides ); 
         } else {
-          must_insert( rfs_out->dims_vals, i->vn, arg_dims ); // keep exactly used dims_vals in signature
+          must_insert( rfs_out->dims_vals, i.vn(), arg_dims ); // keep exactly used dims_vals in signature
         }
       }
       if( !arg_check_error.empty() ) {
 	string arg_err = "RTC template function instantiation argument error: " + template_fn + ": " + arg_check_error + "\n";
-	for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
-	  arg_err += strprintf( "ARG[%s]:\n", str(i - flat_arg_decls.begin()).c_str() );
-	  arg_err += strprintf( "  DECL: %s\n", str(*i).c_str() );
-	  map_str_dims_t::const_iterator adi = rfs_in.dims_vals.find( i->vn );
-	  if( adi != rfs_in.dims_vals.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
-	  else { arg_err += "  CALL: not found in ref dims.\n"; }
+	for( vect_arg_decl_t::multi_iter i = arg_decls.multi_begin( &rfs_in ); !i.at_end(); ++i ) {
+          arg_err += strprintf( "ARG[%s]:\n", i.vn().c_str() );
+          arg_err += strprintf( "  DECL: %s\n", str(i.ad()).c_str() );
+          map_str_dims_t::const_iterator adi = rfs_in.dims_vals.find( i.vn() );
+          if( adi != rfs_in.dims_vals.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
+          else { arg_err += "  CALL: not found in ref dims.\n"; }
 	}
 	arg_err += "full rfs: " + str(rfs_in) + "\n";
 	rt_err( arg_err );
       }
       return rfs_out;
     }
-   
   };
 
   typedef shared_ptr< rtc_template_t > p_rtc_template_t; 
@@ -311,7 +324,6 @@ namespace boda
   typedef vector< dyn_dim_info_t > vect_dyn_dim_info_t; 
 
   struct rtc_call_gen_t : public op_base_t {
-    vect_arg_decl_t flat_arg_decls; // copy of rtc_func_template->arg_decls, but with multis flattened out
     map_str_dims_t all_ix_dims;
     map_str_str cgs; // code-gen sections
     string rtc_prog_str; // final full program string
@@ -358,14 +370,13 @@ namespace boda
 
     rtc_call_gen_t( op_base_t const & rfs_ ) : op_base_t( rfs_ ) { }
 
-    void init( p_rtc_template_t const & rtc_func_template_, vect_arg_decl_t const & flat_arg_decls_, 
-	       custom_codegen_t * const custom_codegen, string const & gen_fn_ ){
+    void init( p_rtc_template_t const & rtc_func_template_,
+               custom_codegen_t * const custom_codegen, string const & gen_fn_ ){
       assert_st( gen_fn.empty() ); // double init guard
       gen_fn = gen_fn_;
       assert_st( !gen_fn.empty() ); // so above guard is sound (and a sensible assert anyway)
       has_final_flags_arg = 0;
       set( "rtc_func_name", gen_fn );
-      flat_arg_decls = flat_arg_decls_;
       rtc_func_template = rtc_func_template_;
       // if we have a str_val with the magic name 'tpb', use it to set the call geom:
       if( has( str_vals, "tpb" ) ) { rtc_call_geom.tpb = get_u32( "tpb" ); }
@@ -452,16 +463,16 @@ namespace boda
 
     void instantiate_template( string const & template_str ) {
       assert_st( rtc_prog_str.empty() ); // should only call only
-      for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
-	if( !i->multi_base_vn.empty() ) { line( i->multi_base_vn + "_decl", "GASQ float const * const " + i->vn + "," ); }
-	dims_t const & arg_dims = get_arg_dims_by_name( i->vn );
+      for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( this ); !i.at_end(); ++i ) {
+        if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
+        dims_t const & arg_dims = get_arg_dims_by_name( i.vn() );
         if( arg_dims == dims_t() ) { continue; } // skip null dims
-        if( i->dyn.v ) { 
-          dyn_vars.push_back( dyn_dim_info_t{ i->vn, i->vn, vect_string{} } ); 
-          add_dyn_nda_dims_sz( i->vn, arg_dims, 1 ); 
+        if( i.ad().dyn.v ) { 
+          dyn_vars.push_back( dyn_dim_info_t{ i.vn(), i.vn(), vect_string{} } ); 
+          add_dyn_nda_dims_sz( i.vn(), arg_dims, 1 ); 
         } else {	
           bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
-          insert_nda_dims_sz( str_vals, i->vn, arg_dims, dims_only ); 
+          insert_nda_dims_sz( str_vals, i.vn(), arg_dims, dims_only ); 
         }
       }
 

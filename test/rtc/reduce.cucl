@@ -1,6 +1,6 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( 
 #if 0
-  GASQ float const * const ins_N, // CUCL IN_MULTI img:chan:y:x
+  GASQ float_multi const * const ins, // CUCL IN img:chan:y:x
 #endif
   %(ins_decl)
   GASQ float * const out ) // CUCL OUT img:chan:y:x

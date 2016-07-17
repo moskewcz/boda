@@ -26,8 +26,10 @@ namespace boda
     }
 
     void gen_op_reduce( rtc_call_gen_t * rcg ) {
-      for( uint32_t i = 0; i != rcg->flat_arg_decls.size() - 1; ++i ) { 
-	rcg->line( "ins_ops", "v += ins_"+str(i)+"[GLOB_ID_1D];" ); 
+      // FIXME: iterator over non-flat args and/or select ins arg directly, then do inner iter?
+      for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg ); !i.at_end(); ++i ) {
+        if( !startswith(i.vn(),"ins_") ) { continue; }
+	rcg->line( "ins_ops", "v += "+i.vn()+"[GLOB_ID_1D];" ); 
       }
     }
     string maybe_add_relu( rtc_call_gen_t * rcg, string const & ve ) { 

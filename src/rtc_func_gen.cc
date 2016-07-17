@@ -103,24 +103,31 @@ namespace boda
     rfc.nda_args = rcg_func_call.nda_args;
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
 
-    for( vect_arg_decl_t::const_iterator i = flat_arg_decls.begin(); i != flat_arg_decls.end(); ++i ) {
-      if( i->io_type == "REF" ) { continue; }
-      dims_t const & func_dims = get_arg_dims_by_name( i->vn );
-      if( func_dims == dims_t() ) { rfc.in_args.push_back("<NULL>"); continue; } // NULL case -- pass though to rtc
-      map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->vn );
-      if( an == rcg_func_call.arg_map.end() ) {
-	rt_err( "specified "+i->io_type+" arg '"+i->vn+"' not found in arg_map at call time." ); 
+    for( vect_arg_decl_t::const_iterator i = rtc_func_template->arg_decls.begin(); i != rtc_func_template->arg_decls.end(); ++i ) {
+      if( i->io_type == "REF" ) { continue; } // note: could move up scope, but hoping to factor out iter
+      rfc.args.push_back( vect_string{} );
+      vect_string & args = rfc.args.back();
+      uint32_t const multi_sz = i->get_multi_sz( *this );
+      for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
+        string const vn = i->get_multi_vn(mix);
+        dims_t const & func_dims = get_arg_dims_by_name( vn );
+        if( func_dims == dims_t() ) { args.push_back("<NULL>"); continue; } // NULL, pass though to rtc
+        map_str_str::const_iterator an = rcg_func_call.arg_map.find( vn );
+        if( an == rcg_func_call.arg_map.end() ) {
+          rt_err( "specified "+i->io_type+" arg '"+vn+"' not found in arg_map at call time." ); 
+        }
+        dims_t const & call_dims = rtc->get_var_dims( an->second );
+        // check that the passed vars are the expected sizes. for non-dyn vars, the sizes must be fully specificed (no
+        // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the
+        // cucl_arg_info code assumes this (but here we'll check the dim names too).
+        if( !call_dims.matches_template( func_dims ) ) { 
+          printf( "error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
+                  rfc.call_tag.c_str(), vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() );
+        }	  
+        args.push_back( an->second );
       }
-      dims_t const & call_dims = rtc->get_var_dims( an->second );
-      // check that the passed vars are the expected sizes. for non-dyn vars, the sizes must be fully specificed (no
-      // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the
-      // cucl_arg_info code assumes this (but here we'll check the dim names too).
-      if( !call_dims.matches_template( func_dims ) ) { 
-        printf( "error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
-                rfc.call_tag.c_str(), i->vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() );
-      }	  
-      rfc.in_args.push_back( an->second );
     }
+
     assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
     rfc.has_cucl_arg_info = rtc_func_template->has_cucl_arg_info;
     for( vect_dyn_dim_info_t::const_iterator i = dyn_vars.begin(); i != dyn_vars.end(); ++i ) {
@@ -136,8 +143,8 @@ namespace boda
       }
     }
     if( show_rtc_calls ) { 
-      printf( "%s( in{%s} inout{%s} out{%s} -- ndas{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
-	      str(rfc.in_args).c_str(), str(rfc.inout_args).c_str(), str(rfc.out_args).c_str(), str(rfc.nda_args).c_str(),
+      printf( "%s( args{%s} -- ndas{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
+	      str(rfc.args).c_str(), str(rfc.nda_args).c_str(),
 	      str(dyn_rtc_call_geom.tpb).c_str(), str(dyn_rtc_call_geom.blks).c_str() );
       //if( !rfc.cucl_arg_info.empty() ) { printf( "  rfc.cucl_arg_info=%s\n", str(rfc.cucl_arg_info).c_str() ); }
     }
@@ -158,17 +165,14 @@ namespace boda
     p_rtc_template_t & rtc_template = rtc_templates[rfs_full.type];
     if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.type ); }
 
-    // note: flat_arg_decls is unused if we already created the needed rcg_call_gen_t, but is inconvienient not create
-    // here as part of createing the reduced func sig.
-    vect_arg_decl_t flat_arg_decls; 
-    p_op_base_t rfs_reduced = rtc_template->check_args( rfs_full, flat_arg_decls );
+    p_op_base_t rfs_reduced = rtc_template->check_args( rfs_full );
 
     p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
     if( !rcg ) { // need to instatiate function and pick unused name
       rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
       string gen_fn = gen_unused_fn( *rfs_reduced, rtc_func_names_map );
       must_insert( rtc_func_names_map, gen_fn, rcg );
-      rcg->init( rtc_template, flat_arg_decls, cc, gen_fn );
+      rcg->init( rtc_template, cc, gen_fn );
       rtc_prog_str += rcg->rtc_prog_str;
       rtc_prog_str_infos.push_back( {gen_fn,static_cast<op_base_t const &>(*rcg)} );
     }    
