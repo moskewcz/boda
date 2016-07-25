@@ -50,7 +50,7 @@ moskewcz@maaya:~/git_work/boda_android/lib$ /scratch/android-stc/bin/aarch64-lin
 
 ##### using build-system improvements, now you can make and push boda in one combo-line, which can be used from an empty 'obj2' extra build directory inside existing WC of boda (so a single WC can build locally in obj and for android in obj2 ########
 
-moskewcz@maaya:~/git_work/boda/obj2$ make -f ../obj/makefile -j12 TARGET=boda OBJ_LIST_FN=../obj/obj_list.android && /scratch/android-stc/bin/aarch64-linux-android-strip boda && adb push boda /data/local/boda/lib
+moskewcz@maaya:~/git_work/boda/obj2$ make -f ../obj/makefile -j12 TARGET=boda OBJ_LIST_FN=../obj/obj_list.android && /scratch/android-stc/bin/aarch64-linux-android-strip boda && adb push boda /data/local/bin
 
 #run boda (from boda lib dir on maaya) # note: may need to adb push libgnustl_shared.so from NDK to boda lib dir before running.
 adb root
@@ -59,7 +59,7 @@ adb push ~moskewcz/sma/android-ndk-r10e/sources/cxx-stl/gnu-libstdc++/4.9/libs/a
 # also may need to push boda_cfg.xml and/or set up dir (TODO automate/document/script better):
 adb push ~moskewcz/git_work/boda/lib/boda_cfg.xml /data/local/boda/lib
 
-moskewcz@maaya:~/git_work/boda_android/lib$ adb shell "cd /data/local/boda/run/tr1; LD_LIBRARY_PATH=../../lib ../../lib/boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl' && cat rtc_test.txt"
+moskewcz@maaya:~/git_work/boda_android/lib$ adb shell "cd /data/local/tmp; LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl' && cat rtc_test.txt"
 All is Well.
 
 # test rtc-ipc compute-over-tcp
