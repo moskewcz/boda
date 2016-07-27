@@ -209,7 +209,6 @@ namespace boda
 	//printf( "skip lp.name()=%s\n", str(lp.name()).c_str() ); 
 	continue; 
       } 
-      if( lp.type() == Dropout_coi.type ) { if( !add_bck_ops ) { continue; } } // drop dropout layers if not adding bck ops
       p_conv_op_t conv_op( new conv_op_t );
       conv_op->tag = lp.name();
       conv_op->type = lp.type();
@@ -235,6 +234,12 @@ namespace boda
 	//rt_err( "TODO: handle dropout" );
 	caffe::DropoutParameter const & p = lp.dropout_param();	
 	conv_op->str_vals["dropout_ratio"] = str(p.dropout_ratio());
+        if( !add_bck_ops ) { // if not adding bck ops, treat dropout as no-op
+          if( conv_op->tops != conv_op->bots ) {
+            rt_err( "UNHANDLED: non in-place dropout layer, can't ignore even for forward prop only" );
+          }
+          conv_op.reset();
+        }
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	
