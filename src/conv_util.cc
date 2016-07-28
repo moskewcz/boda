@@ -16,6 +16,7 @@ namespace boda
   // them into conv_op_info_t. now they are just all strings ...
 
   // avg_pool: help="0 for max pooling, 1 for average pooling (others unsupported for compute)"
+  conv_op_info_t const clone_coi{ "clone", {"in"}, {"out"}, {}, {} };
   conv_op_info_t const sgemm_coi{ "sgemm", {"a","b"}, {"c"}, {}, {} };
   map_str_dims_t const DefaultKernPadStride{ 
     {"stride", dims_t{ {1,1},{"y","x"}, "none" } }, 
@@ -24,6 +25,7 @@ namespace boda
   map_str_str const Pooling_str_vals{{"avg_pool","0"},{"emit_out_in_yx","0"}};
   conv_op_info_t const Pooling_coi{ "Pooling", {"in"}, {"out"}, Pooling_str_vals, DefaultKernPadStride };
   conv_op_info_t const Convolution_coi{ "Convolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}}, DefaultKernPadStride };
+  conv_op_info_t const Deconvolution_coi{ "Deconvolution", { "in", "filts", "biases" }, { "out" }, {{"out_chans","0"}}, DefaultKernPadStride };
   conv_op_info_t const ReLU_coi{ "ReLU", {"in"}, {"out"} };
   conv_op_info_t const Scale_coi{ "Scale", {"in"}, {"out"} };
   conv_op_info_t const BatchNorm_coi{ "BatchNorm", {"in"}, {"out"} };
@@ -49,8 +51,8 @@ namespace boda
   conv_op_info_t const BckConv_coi{ "BckConv", { "in", "filts", "biases", "out_grad_loss" },
     { "in_grad_loss", "filts_grad_loss", "biases_grad_loss" }, {}, DefaultKernPadStride };
 
-  vect_rp_conv_op_info_t conv_op_infos{ &sgemm_coi,
-      &Pooling_coi, &Convolution_coi, 
+  vect_rp_conv_op_info_t conv_op_infos{ &clone_coi, &sgemm_coi,
+      &Pooling_coi, &Convolution_coi, &Deconvolution_coi,
       &ReLU_coi, &Scale_coi, &BatchNorm_coi,
       &Dropout_coi, &LRN_coi, 
       &Accuracy_coi, &Softmax_coi, &SoftmaxWithLoss_coi, &Data_coi, &Concat_coi, &Reduce_coi, &Eltwise_coi,
@@ -127,9 +129,9 @@ namespace boda
     for( map_str_dims_t::const_iterator i = coi->dims_vals.begin(); i != coi->dims_vals.end(); ++i ) {
       if( !has( dims_vals, i->first ) ) { dims_vals[i->first] = i->second; }
     }
-    // kern_sz is manditory for Convolution, and has no default -- we have no magic/automatic for that, so we just check
+    // kern_sz is manditory for Convolution/Deconvolution, and has no default -- we have no magic/automatic for that, so we just check
     // it manually here ...
-    if( (is( Convolution_coi )||is( BckConv_coi )) && !has( dims_vals, "kern_sz" ) ) { 
+    if( (is( Convolution_coi )||is( Deconvolution_coi )||is( BckConv_coi )) && !has( dims_vals, "kern_sz" ) ) { 
       rt_err( strprintf( "Missing parameter 'kern_sz' for operation of type '%s'.", str(coi->type).c_str() ) );
     }
 
@@ -138,6 +140,7 @@ namespace boda
       if( i->first == "kern_sz" ) {
 	// kern_sz is manditory for convolution, but has no default, and is optional for pooling and has no
 	// default. again, we have no magic for either case, so we just manually check here.
+	if( is( Deconvolution_coi ) ) { continue; } // okay to be present for these types
 	if( is( Convolution_coi ) || is( Pooling_coi ) ) { continue; } // okay to be present for these types
 	if( is( BckConv_coi ) || is( Spreading_coi ) ) { continue; } // okay to be present for these types
       }
@@ -148,18 +151,42 @@ namespace boda
     }
 
   }
-  
+
+  u32_pt_t conv_in_sz_to_out_sz( u32_pt_t const & pad_in_sz, u32_pt_t const & stride, u32_pt_t const & kern_sz ) 
+  {
+    if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
+    return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1);
+  }
+
+  u32_pt_t conv_out_sz_to_in_sz( u32_pt_t const & out_sz, 
+                                 u32_pt_t const & in_pad_if_used, u32_pt_t const & stride, u32_pt_t const & kern_sz )
+  {
+    assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
+    u32_pt_t const no_pad_in_sz =  kern_sz + (out_sz-u32_pt_t(1,1))*stride;
+    // if the following assert does not hold, the result would be
+    // negative, indicating *no input* yields a larger out_sz than
+    // requested (due to padding). this might be valid, but it's
+    // unclear what to return (zero?), so for now we refuse to try.
+    assert_st( no_pad_in_sz.both_dims_ge( in_pad_if_used+in_pad_if_used ) ); 
+    return no_pad_in_sz - (in_pad_if_used+in_pad_if_used);
+  }
+
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
     if( !has( dims_vals, "kern_sz" ) ) { // handle non-conv cases
       assert( !is(Convolution_coi) ); 
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
     }
-    u32_pt_t const pad_in_sz = in_sz+(ignore_padding?u32_pt_t():(in_pad()+in_pad()));
-    if( !pad_in_sz.both_dims_ge(kern_sz()) ) { return u32_pt_t(); } // padded input too small to create any output
-    if( is(Convolution_coi) ) { return (pad_in_sz-kern_sz())/stride() + u32_pt_t(1,1); }
-    else if( is(Pooling_coi) ) { return ceil_div( pad_in_sz-kern_sz(),stride() ) + u32_pt_t(1,1); }
-    else { rt_err("unknown layer type"); }
+    u32_pt_t const in_pad_if_used = (ignore_padding?u32_pt_t():in_pad());
+    u32_pt_t const pad_in_sz = in_sz + in_pad_if_used+in_pad_if_used;
+    if( is(Convolution_coi) ) { return conv_in_sz_to_out_sz( pad_in_sz, stride(), kern_sz() ); }
+    else if( is(Pooling_coi) ) { 
+      // the caffe pooling convention is that (unlike for convolution) any partial window will generate an aditional
+      // output pixel.
+      if( !pad_in_sz.both_dims_ge(kern_sz()) ) { return u32_pt_t(1,1); }
+      return ceil_div( pad_in_sz-kern_sz(),stride() ) + u32_pt_t(1,1); 
+    }
+    else { rt_err("in_sz_to_out_sz: unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
     if( !has( dims_vals, "kern_sz" ) ) { // handle non-conv cases
@@ -171,15 +198,14 @@ namespace boda
         return out_sz;
       }
     } 
-    assert( out_sz.both_dims_non_zero() ); // this seems like it would be hard/confusing to handle
-    u32_pt_t const no_pad_in_sz =  kern_sz() + (out_sz-u32_pt_t(1,1))*stride();
-    if( ignore_padding ) { return no_pad_in_sz; }
-    // if the following assert does not hold, the result would be
-    // negative, indicating *no input* yields a larger out_sz than
-    // requested (due to padding). this might be valid, but it's
-    // unclear what to return (zero?), so for now we refuse to try.
-    assert_st( no_pad_in_sz.both_dims_ge( in_pad()+in_pad() ) ); 
-    return no_pad_in_sz - (in_pad()+in_pad());
+    u32_pt_t const in_pad_if_used = (ignore_padding?u32_pt_t():in_pad());
+    if( is(Convolution_coi) || is(Pooling_coi) ) { 
+      // FIXME/NOTE: we return the 'nomimal'/exact input size for the given output size here, but this is not in general
+      // the unique input size that would generate this output size: Convolution can drop intput pixels, and Pooling can
+      // infer padding pixels; see the differing in_to_out conventions for pooling and conv above.
+      return conv_out_sz_to_in_sz( out_sz, in_pad_if_used, stride(), kern_sz() );
+    } 
+    else { rt_err("out_sz_to_in_sz: unknown layer type: " + type); }    
   }
 
   dims_t conv_pipe_t::get_data_img_dims( void ) const {
@@ -432,7 +458,7 @@ namespace boda
       assert_st( cop->has_one_top() );
       p_conv_node_t const & j_node = must_get_node(cop->bots[0]);
       uint32_t out_chans = 0;
-      if( cop->is( Convolution_coi ) ) { 
+      if( cop->is( Convolution_coi ) || cop->is( Deconvolution_coi ) ) { 
 	u32_pt_t kern_sz = cop->kern_sz();
 	if( kern_sz.is_zeros() ) { kern_sz = get_xy_dims( j_node->dims ); } // 'global' input special case
         string const & filts_bias_tn = j_node->dims.tn; // assume same type as input for filts/bias

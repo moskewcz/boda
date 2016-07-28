@@ -216,7 +216,7 @@ namespace boda
       RF_TO_VEC( conv_op->tops, lp.top );
 
       if( 0 ) {
-      } else if( lp.type() == Convolution_coi.type ) {
+      } else if( (lp.type() == Convolution_coi.type) || (lp.type() == Deconvolution_coi.type) ) {
 	assert_st( lp.has_convolution_param() );
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
 	fill_in_conv_op_from_param( conv_op, cp );
@@ -232,13 +232,13 @@ namespace boda
       } else if( lp.type() == BatchNorm_coi.type ) { // FIXME: actually read params
       } else if( lp.type() == Dropout_coi.type ) {
 	//rt_err( "TODO: handle dropout" );
-	caffe::DropoutParameter const & p = lp.dropout_param();	
-	conv_op->str_vals["dropout_ratio"] = str(p.dropout_ratio());
         if( !add_bck_ops ) { // if not adding bck ops, treat dropout as no-op
-          if( conv_op->tops != conv_op->bots ) {
-            rt_err( "UNHANDLED: non in-place dropout layer, can't ignore even for forward prop only" );
-          }
-          conv_op.reset();
+          if( conv_op->tops != conv_op->bots ) { // not in place, so replace with clone operation (FIXME: use reshape?)
+            conv_op->type = clone_coi.type;
+          } else { conv_op.reset(); } // in-place, so just drop to make into no-op
+        } else { // if adding bck ops, keep as dropout
+          caffe::DropoutParameter const & p = lp.dropout_param();	
+          conv_op->str_vals["dropout_ratio"] = str(p.dropout_ratio());
         }
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
