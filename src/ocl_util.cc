@@ -251,13 +251,15 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     }
 
     zi_uint32_t compile_call_ix;
-    void compile( string const & src, bool const show_compile_log, bool const enable_lineinfo,
+    void compile( bool const show_compile_log, bool const enable_lineinfo,
 		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
       timer_t t("ocl_compile");
       assert( init_done.v );
-      vect_rp_const_char srcs{ ocl_base_decls.c_str(), get_rtc_base_decls().c_str(), src.c_str() };
+      vect_rp_const_char srcs{ ocl_base_decls.c_str(), get_rtc_base_decls().c_str() };
+      for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
+        srcs.push_back( i->func_src.c_str() );
+      }      
       if( gen_src ) {
-	string const ocl_src = ocl_base_decls + src;
 	ensure_is_dir( gen_src_output_dir.exp, 1 );
         p_ofstream out = ofs_open( strprintf( "%s/out_%s.cl", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ));
         for( vect_rp_const_char::const_iterator i = srcs.begin(); i != srcs.end(); ++i ) { (*out) << (*i); }

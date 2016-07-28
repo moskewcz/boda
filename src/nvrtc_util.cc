@@ -205,7 +205,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     }
 
     zi_uint32_t compile_call_ix;
-    void compile( string const & cucl_src, bool const show_compile_log, bool const enable_lineinfo,
+    void compile( bool const show_compile_log, bool const enable_lineinfo,
 		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
 #if 0
       // for now, this is disabled, since:
@@ -218,13 +218,16 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       }
       if( all_funcs_culibs ) { return; } // skip unneeded compilation if all funcs to compile are culibs stubs
 #endif
-      string const src = cu_base_decls + cucl_src;
+      string cucl_src = cu_base_decls;
+      for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
+        cucl_src += i->func_src;
+      }
       assert( init_done.v );
       if( gen_src ) { ensure_is_dir( gen_src_output_dir.exp, 1 ); }
       if( gen_src ) {
-	write_whole_fn( strprintf( "%s/out_%s.cu", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), src );
+	write_whole_fn( strprintf( "%s/out_%s.cu", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), cucl_src );
       }
-      string const prog_ptx = nvrtc_compile( src, show_compile_log, enable_lineinfo );
+      string const prog_ptx = nvrtc_compile( cucl_src, show_compile_log, enable_lineinfo );
       if( gen_src ) {      
 	write_whole_fn( strprintf( "%s/out_%s.ptx", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), prog_ptx );
       }

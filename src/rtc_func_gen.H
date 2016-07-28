@@ -511,8 +511,7 @@ namespace boda
     rtc_func_names_map_t rtc_func_names_map;
     rtc_func_sigs_map_t rtc_func_sigs_map;
 
-    vect_rtc_func_info_t rtc_prog_str_infos;
-    string rtc_prog_str;
+    vect_rtc_func_info_t rtc_prog_infos;
 
     string gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
     void run_rfc( bool const & show_rtc_calls, rcg_func_call_t & rfc, uint32_t const & flags ) {    
