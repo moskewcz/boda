@@ -69,7 +69,8 @@ class Net( object ):
                     pp_flops(flops)  ) )
 
 
-class Convolution( object ): 
+class Convolution( object ):
+    is_deconv = 0
     def __init__( self, name, bot_names, top_names, str_vals, dims_vals ): 
         # note: ignores in_pad and stride, but they sort-of aren't
         # needed since the output size is calculated using them. we
@@ -104,7 +105,11 @@ class Convolution( object ):
         assert bot.chan == filts.chan # filt.chan is (or should be) input chans
         assert top.chan == filts.num # filt.num is (or should be) output chans
         # note: top.{x,y} should be = ( bot.{x,y} + pad ) / stride   (ceild/floord correctly)
-        forward_flops = out_pels * filts.x * filts.y * filts.chan * 2
+        if self.is_deconv == 0:
+            forward_flops = out_pels * filts.x * filts.y * filts.chan * 2
+        else:
+            forward_flops = in_pels * filts.x * filts.y * filts.chan * 2
+
         grad_inner_dim = out_pels / filts.num # aka number of input patches
         assert grad_inner_dim == top.num*top.x*top.y
 
@@ -121,6 +126,8 @@ class Convolution( object ):
                 print " --- ", pp_secs( plt ), pp_fps( forward_flops / float(plt) ),
             print ""
 
+class Deconvolution( Convolution ): 
+    is_deconv = 1
 
 # create filts/biases NDAs on the fly and treat IP as conv
 class InnerProduct( object ): 
@@ -186,6 +193,8 @@ class BckConv( object ):
             print ""
 
 # stubs to ignore for now
+class clone( object ): 
+    def __init__( self, **kwargs ): self.opts = kwargs
 class Pooling( object ): 
     def __init__( self, **kwargs ): self.opts = kwargs
 class LRN( object ): 

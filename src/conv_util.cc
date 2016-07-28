@@ -152,8 +152,10 @@ namespace boda
 
   }
 
-  u32_pt_t conv_in_sz_to_out_sz( u32_pt_t const & pad_in_sz, u32_pt_t const & stride, u32_pt_t const & kern_sz ) 
+  u32_pt_t conv_in_sz_to_out_sz( u32_pt_t const & in_sz, 
+                                 u32_pt_t const & in_pad_if_used, u32_pt_t const & stride, u32_pt_t const & kern_sz ) 
   {
+    u32_pt_t const pad_in_sz = in_sz + in_pad_if_used+in_pad_if_used;
     if( !pad_in_sz.both_dims_ge(kern_sz) ) { return u32_pt_t(); } // padded input too small to create any output
     return (pad_in_sz-kern_sz)/stride + u32_pt_t(1,1);
   }
@@ -178,11 +180,13 @@ namespace boda
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
     }
     u32_pt_t const in_pad_if_used = (ignore_padding?u32_pt_t():in_pad());
-    u32_pt_t const pad_in_sz = in_sz + in_pad_if_used+in_pad_if_used;
-    if( is(Convolution_coi) ) { return conv_in_sz_to_out_sz( pad_in_sz, stride(), kern_sz() ); }
+
+    if( is(Convolution_coi) ) { return conv_in_sz_to_out_sz( in_sz, in_pad_if_used, stride(), kern_sz() ); }
+    else if( is(Deconvolution_coi) ) { return conv_out_sz_to_in_sz( in_sz, in_pad_if_used, stride(), kern_sz() ); }
     else if( is(Pooling_coi) ) { 
       // the caffe pooling convention is that (unlike for convolution) any partial window will generate an aditional
       // output pixel.
+      u32_pt_t const pad_in_sz = in_sz + in_pad_if_used+in_pad_if_used;
       if( !pad_in_sz.both_dims_ge(kern_sz()) ) { return u32_pt_t(1,1); }
       return ceil_div( pad_in_sz-kern_sz(),stride() ) + u32_pt_t(1,1); 
     }
@@ -205,6 +209,7 @@ namespace boda
       // infer padding pixels; see the differing in_to_out conventions for pooling and conv above.
       return conv_out_sz_to_in_sz( out_sz, in_pad_if_used, stride(), kern_sz() );
     } 
+    else if( is(Deconvolution_coi) ) { return conv_in_sz_to_out_sz( out_sz,in_pad_if_used, stride(), kern_sz() ); }
     else { rt_err("out_sz_to_in_sz: unknown layer type: " + type); }    
   }
 
