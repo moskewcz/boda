@@ -206,6 +206,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 
     zi_uint32_t compile_call_ix;
     void compile( vect_rtc_func_info_t const & func_infos, rtc_compile_opts_t const & opts ) {
+      if( func_infos.empty() ) { return; } // no work to do? don't compile just the base decls to no effect (slow).
 #if 0
       // for now, this is disabled, since:
       // 1) it doesn't really help (much) yet (we still need to compile other function in all flows

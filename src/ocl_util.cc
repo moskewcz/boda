@@ -254,6 +254,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     void compile( vect_rtc_func_info_t const & func_infos, rtc_compile_opts_t const & opts ) {
       timer_t t("ocl_compile");
       assert( init_done.v );
+      if( func_infos.empty() ) { return; } // no work to do? don't compile just the base decls to no effect (slow).
       vect_rp_const_char srcs{ ocl_base_decls.c_str(), get_rtc_base_decls().c_str() };
       for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
         srcs.push_back( i->func_src.c_str() );

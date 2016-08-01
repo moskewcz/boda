@@ -180,6 +180,9 @@ namespace boda
 
   // compile pending (generated but not compiled) functions 
   void rtc_codegen_t::compile( void ) {
+    // nothing pending? do nothing. note that running code below is correct, but calls down to rtc->compile() with no
+    // functions, which is probably not the best idea.
+    if( compile_pend.empty() ) { return; } 
     vect_rtc_func_info_t rtc_prog_infos;
     for( vect_p_rtc_call_gen_t::const_iterator i = compile_pend.begin(); i != compile_pend.end(); ++i ) {
       rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,static_cast<op_base_t const &>(*(*i))} );
