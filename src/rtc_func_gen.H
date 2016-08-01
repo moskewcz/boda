@@ -21,8 +21,8 @@ namespace boda
   struct op_base_t;
   struct rtc_call_gen_t;  
   typedef shared_ptr< rtc_call_gen_t > p_rtc_call_gen_t; 
+  typedef vector< p_rtc_call_gen_t > vect_p_rtc_call_gen_t; 
   typedef map< op_base_t, p_rtc_call_gen_t > rtc_func_sigs_map_t;
-  //typedef map< string, p_rtc_call_gen_t > rtc_func_names_map_t;
 
   struct rcg_func_call_t {
     p_rtc_call_gen_t func;
@@ -507,10 +507,7 @@ namespace boda
     void init( p_rtc_compute_t const & rtc_ ) { rtc = rtc_; }
     rtc_template_map_t rtc_templates;
 
-    //rtc_func_names_map_t rtc_func_names_map;
     rtc_func_sigs_map_t rtc_func_sigs_map;
-
-    vect_rtc_func_info_t rtc_prog_infos;
 
     p_rtc_call_gen_t gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
 
@@ -523,6 +520,7 @@ namespace boda
 
   protected:
     set_string used_names;
+    vect_p_rtc_call_gen_t compile_pend;
 
   };
 

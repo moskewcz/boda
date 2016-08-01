@@ -175,22 +175,26 @@ namespace boda
       string gen_fn = gen_unused_fn( *rfs_reduced, used_names, rtc );
       rcg->init( rtc_template, cc, gen_fn );
       used_names.insert( gen_fn );
-      rtc_prog_infos.push_back( {gen_fn,rcg->rtc_prog_str,static_cast<op_base_t const &>(*rcg)} );
+      compile_pend.push_back( rcg );
     }    
     return rcg;
   }
 
   // compile pending (generated but not compiled) functions 
   void rtc_codegen_t::compile( bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs ) {
+    vect_rtc_func_info_t rtc_prog_infos;
+    for( vect_p_rtc_call_gen_t::const_iterator i = compile_pend.begin(); i != compile_pend.end(); ++i ) {
+      rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,static_cast<op_base_t const &>(*(*i))} );
+    }
     rtc->compile( show_compile_log, enable_lineinfo, rtc_prog_infos, show_func_attrs );
-    rtc_prog_infos.clear();
+    compile_pend.clear();
   }
 
   // clear all functions, including pending ones, and (FIXME/TODO) clear all function from the interal rtc
   void rtc_codegen_t::clear( void ) {
     used_names.clear();
     rtc_func_sigs_map.clear();
-    rtc_prog_infos.clear();
+    compile_pend.clear();
     rtc->release_all_funcs();
   }
 
