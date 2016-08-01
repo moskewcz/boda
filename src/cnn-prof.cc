@@ -155,7 +155,6 @@ namespace boda
     map_str_op_tune_t per_op_tune; //NESI(default="()",help="tuning parameters / options")
 
     p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
-    uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
 
     // comparison testing related options:
@@ -221,7 +220,7 @@ namespace boda
     }
   }
 
-  double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen, bool const & show_rtc_calls,
+  double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
 			   p_op_base_t const & in_gen_op, map_str_p_nda_t * const outs, uint32_t const & run_iter );
 
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
@@ -265,7 +264,7 @@ namespace boda
 
       double rfc_dur_secs = NAN;
       string err;
-      try { rfc_dur_secs = profile_rcg_call( anno_op, codegen, show_rtc_calls, gen_data, vs1.get(), run_iter ) / 1000.0; }
+      try { rfc_dur_secs = profile_rcg_call( anno_op, codegen, gen_data, vs1.get(), run_iter ) / 1000.0; }
       catch( rt_exception const & rte ) {
         if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
           err = "CL_OUT_OF_HOST_MEMORY"; 
@@ -276,7 +275,7 @@ namespace boda
       double rfc_dur_secs_comp = NAN;
       // (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
       if( err.empty() && rtc_comp ) {
-        rfc_dur_secs_comp = profile_rcg_call( anno_op_comp, codegen_comp, show_rtc_calls, gen_data, vs2.get(), 1 ) / 1000.0;
+        rfc_dur_secs_comp = profile_rcg_call( anno_op_comp, codegen_comp, gen_data, vs2.get(), 1 ) / 1000.0;
         vect_string const vns1 = get_keys( *vs1 );
         vect_string const vns2 = get_keys( *vs2 );
         if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 

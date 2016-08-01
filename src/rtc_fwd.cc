@@ -46,7 +46,6 @@ namespace boda
     uint32_t enable_double_run; //NESI(default=0,help="if 1, run ops an extra time before the timed run (doubles run time, might improve timing quality/repeatability).")
     string per_call_fn; //NESI(default="",help="if non-empty, write per-call profiling (timing via events) to given file.")
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
-    uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
 
     op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
 
@@ -497,7 +496,7 @@ namespace boda
     rtc->finish_and_sync();
   }
 
-  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { rfc.func->run_rfc( rtc, show_rtc_calls, rfc, flags );  }
+  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { codegen.run_func( rfc, flags );  }
 
   void conv_pipe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     if( enable_double_run ) {

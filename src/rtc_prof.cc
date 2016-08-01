@@ -19,7 +19,6 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     rtc_compile_opts_t compile_opts; // NESI(default="()",help="runtime compilation options")
-    uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
     uint32_t eat_megs; //NESI(default=0,help="if non-zero, allocate unused var of size eat_mega Mfloats via rtc")
     filename_t rtc_func_sigs_fn; //NESI(default="%(boda_test_dir)/rtc_func_sigs_tiny.txt",help="file to hold all generated func signatures")
     p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
@@ -46,7 +45,7 @@ namespace boda
     return codegen.gen_func( ccc.get(), rfs ); 
   }
 
-  double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen, bool const & show_rtc_calls,
+  double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
 			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
                            uint32_t const & run_iter ) 
   {
@@ -97,7 +96,7 @@ namespace boda
 	p_rtc_call_gen_t in_gen_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
         codegen.compile();
 	rcg_func_call_t rfc_in_gen{ in_gen_func, "tag", map_str_str{{i.vn(),gen_vn}} };
-	rfc_in_gen.func->run_rfc( codegen.rtc, show_rtc_calls, rfc_in_gen, 0 );
+	codegen.run_func( rfc_in_gen, 0 );
         // check if xpose needed:
         if( gen_vn != i.vn() ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
@@ -108,13 +107,13 @@ namespace boda
                                                       op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
           codegen.compile();
           rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
-          rfc_in_gen_xpose.func->run_rfc( codegen.rtc, show_rtc_calls, rfc_in_gen_xpose, 0 );
+          codegen.run_func( rfc_in_gen_xpose, 0 );
         }
 	//if( outs ) { must_insert( *outs, i.vn(), p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
     rcg_func_call_t rfc{ rcg, "tag", arg_map };
-    for( uint32_t i = 0; i != run_iter; ++i ) { rfc.func->run_rfc( codegen.rtc, show_rtc_calls, rfc, 0 ); }
+    for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_func( rfc, 0 ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
@@ -135,7 +134,7 @@ namespace boda
                                                     op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
         codegen.compile();
         rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
-	rfc_in_gen_xpose.func->run_rfc( codegen.rtc, show_rtc_calls, rfc_in_gen_xpose, 0 );
+	codegen.run_func( rfc_in_gen_xpose, 0 );
       }
       if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
     }
@@ -166,7 +165,7 @@ namespace boda
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
-      double const rfc_dur = profile_rcg_call( v, codegen, show_rtc_calls, 0, 0, 1 );
+      double const rfc_dur = profile_rcg_call( v, codegen, 0, 0, 1 );
       (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s\n", str(rfc_dur/1000.0).c_str() );
     }
     if( enable_prof ) { rtc->profile_stop(); }

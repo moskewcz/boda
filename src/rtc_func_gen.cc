@@ -188,6 +188,10 @@ namespace boda
     compile_pend.clear();
   }
 
+  void rtc_codegen_t::run_func( rcg_func_call_t & call, uint32_t const & flags ) {
+    call.func->run_rfc( rtc, rtc_compile_opts.show_rtc_calls, call, flags ); // hmm, a bit bizarre/contorted.
+  }
+
   // clear all functions, including pending ones, and (FIXME/TODO) clear all function from the interal rtc
   void rtc_codegen_t::clear( void ) {
     used_names.clear();

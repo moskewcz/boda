@@ -13,7 +13,12 @@ namespace boda
     uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
     uint32_t enable_lineinfo; //NESI(default=0,help="if 1, enable lineinfo for runtime compilation")
     uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
-    rtc_compile_opts_t( void ) : show_compile_log(0), enable_lineinfo(0), show_func_attrs(0) { }
+
+    // not used at compile time, and could vary per-call. but we seem to always have it at compile time, and we never
+    // change it, so it's okay to put here for now.
+    uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print every rtc call (at call time)")
+
+    rtc_compile_opts_t( void ) : show_compile_log(0), enable_lineinfo(0), show_func_attrs(0), show_rtc_calls(0) { }
   };
 
   struct rtc_func_info_t {

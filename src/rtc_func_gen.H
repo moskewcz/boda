@@ -507,9 +507,8 @@ namespace boda
       rtc_compile_opts = rtc_compile_opts_;
     }
 
-    rtc_func_sigs_map_t rtc_func_sigs_map;
-
     p_rtc_call_gen_t gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
+    void run_func( rcg_func_call_t & call, uint32_t const & flags );
 
     void compile( void ); // compile all pending functions together (perhaps into single module at rtc_compute_t level)
 
@@ -519,6 +518,8 @@ namespace boda
     void clear( void ); // cleanup any not-externally-referenced functions by freeing them at the rtc_compute_t level
 
   protected:
+    rtc_func_sigs_map_t rtc_func_sigs_map;
+
     rtc_compile_opts_t rtc_compile_opts;
     rtc_template_map_t rtc_templates;
     set_string used_names;
