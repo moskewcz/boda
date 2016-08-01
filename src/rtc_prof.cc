@@ -64,7 +64,6 @@ namespace boda
       //(*out) << strprintf( "skipping %s; u32 arg handling todo\n", str(rcg->type).c_str() );
       //return 0.0; 
     }
-    codegen.compile();
 
     map_str_str arg_map;
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
@@ -94,7 +93,6 @@ namespace boda
           xpose_vars_to_release.push_back( gen_vn );
         }
 	p_rtc_call_gen_t in_gen_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
-        codegen.compile();
 	rcg_func_call_t rfc_in_gen{ in_gen_func, "tag", map_str_str{{i.vn(),gen_vn}} };
 	codegen.run_func( rfc_in_gen, 0 );
         // check if xpose needed:
@@ -105,7 +103,6 @@ namespace boda
           if( ( i.vn() == "filts" ) && is_k1_or_t_or_reg_conv(get( anno_op->str_vals, "cts", "" ))) { xpose_op = "xpose_filts"; }
           p_rtc_call_gen_t xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                       op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
-          codegen.compile();
           rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
           codegen.run_func( rfc_in_gen_xpose, 0 );
         }
@@ -132,7 +129,6 @@ namespace boda
         string xpose_op = anno_op->type+"_xpose_"+i.vn();
         p_rtc_call_gen_t xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                     op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
-        codegen.compile();
         rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
 	codegen.run_func( rfc_in_gen_xpose, 0 );
       }

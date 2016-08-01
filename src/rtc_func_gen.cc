@@ -189,6 +189,7 @@ namespace boda
   }
 
   void rtc_codegen_t::run_func( rcg_func_call_t & call, uint32_t const & flags ) {
+    compile(); // compile any pending funcs
     call.func->run_rfc( rtc, rtc_compile_opts.show_rtc_calls, call, flags ); // hmm, a bit bizarre/contorted.
   }
 

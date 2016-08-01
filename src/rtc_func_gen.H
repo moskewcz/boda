@@ -510,7 +510,6 @@ namespace boda
     p_rtc_call_gen_t gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
     void run_func( rcg_func_call_t & call, uint32_t const & flags );
 
-    void compile( void ); // compile all pending functions together (perhaps into single module at rtc_compute_t level)
 
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
@@ -518,6 +517,12 @@ namespace boda
     void clear( void ); // cleanup any not-externally-referenced functions by freeing them at the rtc_compute_t level
 
   protected:
+    // note: compile() need not be protected (last i checked), but on the other hand we don't seem to ever need to
+    // manually call it. if, for example, one wanted to control having groups of functions in the same modules (or more
+    // to the point, *not* in the same module), it might be neccessary to call compile() manually after generating some
+    // set of functions.
+    void compile( void ); // compile all pending functions together (perhaps into single module at rtc_compute_t level)
+
     rtc_func_sigs_map_t rtc_func_sigs_map;
 
     rtc_compile_opts_t rtc_compile_opts;
