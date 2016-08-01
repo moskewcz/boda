@@ -72,7 +72,7 @@ namespace boda
   }
 
 
-  string gen_unused_fn( op_base_t const & op, set_string const & used_names, p_rtc_compute_t const & rtc ) {
+  string gen_unused_fn( op_base_t const & op, set_string const & used_names ) {
     string maybe_fn_base = op.type;
     set_string unique_dims;
     for( map_str_dims_t::const_iterator ra = op.dims_vals.begin(); ra != op.dims_vals.end(); ++ra ) {
@@ -91,9 +91,7 @@ namespace boda
 
     string maybe_fn = maybe_fn_base;
     uint32_t uix = 0;
-    while( has( used_names, maybe_fn ) || rtc->has_func_by_name( maybe_fn ) ) { 
-      ++uix; maybe_fn = maybe_fn_base + "__namegenconflict_" + str(uix); 
-    }
+    while( has( used_names, maybe_fn ) ) { ++uix; maybe_fn = maybe_fn_base + "__namegenconflict_" + str(uix); }
     return maybe_fn;
   }
 
@@ -172,7 +170,7 @@ namespace boda
     p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
     if( !rcg ) { // need to instatiate function and pick unused name
       rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
-      string gen_fn = gen_unused_fn( *rfs_reduced, used_names, rtc );
+      string gen_fn = gen_unused_fn( *rfs_reduced, used_names );
       rcg->init( rtc_template, cc, gen_fn );
       used_names.insert( gen_fn );
       compile_pend.push_back( rcg );

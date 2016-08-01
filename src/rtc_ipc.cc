@@ -422,16 +422,10 @@ namespace boda
     } 
     virtual float get_var_compute_dur( string const & vn ) { assert_st(0); } // not-yet-used-iface at higher level
     virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { assert_st(0); } // not-yet-used-iface at higher level
-    bool has_func_by_name( string const & func_name ) {
-      bwrite( *worker, string("has_func_by_name") ); bwrite( *worker, func_name ); worker->flush(); 
-      uint32_t ret;
-      bread( *worker, ret );
-      return ret;
-    }
+    void release_func( string const & func_name ) {
+      bwrite( *worker, string("release_func") ); bwrite( *worker, func_name ); worker->flush(); }
     void run( rtc_func_call_t & rfc ) { 
-      bwrite( *worker, string("run") ); bwrite( *worker, rfc ); worker->flush(); bread( *worker, rfc.call_id );
-    } 
-
+      bwrite( *worker, string("run") ); bwrite( *worker, rfc ); worker->flush(); bread( *worker, rfc.call_id ); } 
     void finish_and_sync( void ) { bwrite( *worker, string("finish_and_sync") ); worker->flush(); }
     void release_per_call_id_data( void ) { bwrite( *worker, string("release_per_call_id_data") ); worker->flush(); }
     void release_all_funcs( void ) { bwrite( *worker, string("release_all_funcs") ); worker->flush(); }
@@ -621,11 +615,7 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	  float const ret = rtc->get_dur( b, e ); 
 	  bwrite( *parent, ret ); parent->flush(); 
 	}
-	else if( cmd == "has_func_by_name" ) { 
-          string func_name; bread( *parent, func_name ); 
-          uint32_t const ret = rtc->has_func_by_name( func_name ); 
-          bwrite( *parent, ret ); parent->flush(); 
-        }
+	else if( cmd == "release_func" ) { string func_name; bread( *parent, func_name ); rtc->release_func( func_name ); }
 	else if( cmd == "run" ) { rtc_func_call_t rfc; bread( *parent, rfc ); rtc->run( rfc ); bwrite( *parent, rfc.call_id ); parent->flush(); }
 	else if( cmd == "finish_and_sync" ) { rtc->finish_and_sync(); }
 	else if( cmd == "profile_start" ) { rtc->profile_start(); }

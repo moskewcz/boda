@@ -45,8 +45,6 @@ namespace boda
   struct cnn_custom_codegen_t; typedef shared_ptr< cnn_custom_codegen_t > p_cnn_custom_codegen_t;
   p_custom_codegen_t make_cnn_custom_codegen_t( void );
 
-  string gen_unused_fn( op_base_t const & op, set_string const & used_names, p_rtc_compute_t const & rtc );
-
   struct arg_decl_t {
     string vn;
     zi_bool multi;
@@ -518,7 +516,7 @@ namespace boda
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
 
-    void clear( void );
+    void clear( void ); // cleanup any not-externally-referenced functions by freeing them at the rtc_compute_t level
 
   protected:
     rtc_compile_opts_t rtc_compile_opts;

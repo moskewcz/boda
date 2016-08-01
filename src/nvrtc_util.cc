@@ -325,7 +325,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       for( vect_string::const_iterator i = vars.begin(); i != vars.end(); ++i ) { must_find( *vis, *i ).ev = rfc.e_ev; }
     }
 #endif
-    bool has_func_by_name( string const & func_name ) { return has( *cu_funcs, func_name ); }
+    void release_func( string const & func_name ) { must_erase( *cu_funcs, func_name ); }
 
     void run( rtc_func_call_t & rfc ) {
       timer_t t("cu_launch_and_sync");
