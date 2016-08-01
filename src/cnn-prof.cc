@@ -230,8 +230,8 @@ namespace boda
     p_ostream oit_out = op_info_tab_fn ? ofs_open( *op_info_tab_fn ) : 0;
     p_ostream oet_out = op_eff_tab_fn ? ofs_open( *op_eff_tab_fn ) : 0;
 
-    rtc->init(); codegen.init( rtc, compile_opts );
-    if( rtc_comp ) { rtc_comp->init(); codegen_comp.init( rtc_comp, compile_opts ); }
+    rtc->init(); codegen.init( rtc, make_cnn_custom_codegen_t(), compile_opts );
+    if( rtc_comp ) { rtc_comp->init(); codegen_comp.init( rtc_comp, make_cnn_custom_codegen_t(), compile_opts ); }
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); if(rtc_comp) { rtc_comp->init(); } }
     p_map_str_p_nda_t vs1;

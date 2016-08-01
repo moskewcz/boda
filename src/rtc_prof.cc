@@ -35,23 +35,17 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia );
 
-    p_rtc_call_gen_t gen_func( op_base_t const & rfs );
     double run_call( string const & func_name, p_rtc_call_gen_t const & rcg );
     void run_calls( void );
   };
  
-  p_rtc_call_gen_t rtc_prof_t::gen_func( op_base_t const & rfs ) { 
-    p_custom_codegen_t ccc = make_cnn_custom_codegen_t();
-    return codegen.gen_func( ccc.get(), rfs ); 
-  }
-
   double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
 			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
                            uint32_t const & run_iter ) 
   {
     timer_t t("profile_rcg_call");
 
-    p_rtc_call_gen_t rcg = codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
+    p_rtc_call_gen_t rcg = codegen.gen_func( *anno_op );
 #if 0
     if( (!rcg->blks) && (!op_tune.use_culibs) ) { 
       assert_st(0);
@@ -92,7 +86,7 @@ namespace boda
           codegen.rtc->create_var_with_dims( gen_vn, ref_in_dims ); 
           xpose_vars_to_release.push_back( gen_vn );
         }
-	p_rtc_call_gen_t in_gen_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
+	p_rtc_call_gen_t in_gen_func = codegen.gen_func( *in_gen_op );
 	rcg_func_call_t rfc_in_gen{ in_gen_func, "tag", map_str_str{{i.vn(),gen_vn}} };
 	codegen.run_func( rfc_in_gen, 0 );
         // check if xpose needed:
@@ -101,8 +95,7 @@ namespace boda
           string xpose_op = anno_op->type+"_xpose_"+i.vn();
           // FIXME: sigh.
           if( ( i.vn() == "filts" ) && is_k1_or_t_or_reg_conv(get( anno_op->str_vals, "cts", "" ))) { xpose_op = "xpose_filts"; }
-          p_rtc_call_gen_t xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
-                                                      op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
+          p_rtc_call_gen_t xpose_func = codegen.gen_func( op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
           rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
           codegen.run_func( rfc_in_gen_xpose, 0 );
         }
@@ -127,8 +120,7 @@ namespace boda
       if( gen_vn != i.vn() ) {
         // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
         string xpose_op = anno_op->type+"_xpose_"+i.vn();
-        p_rtc_call_gen_t xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
-                                                    op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
+        p_rtc_call_gen_t xpose_func = codegen.gen_func( op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
         rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
 	codegen.run_func( rfc_in_gen_xpose, 0 );
       }
@@ -153,7 +145,7 @@ namespace boda
 
   void rtc_prof_t::main( nesi_init_arg_t * nia ) {
     out = ofs_open( per_call_fn );
-    rtc->init(); codegen.init( rtc, compile_opts );
+    rtc->init(); codegen.init( rtc, make_cnn_custom_codegen_t(), compile_opts );
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); }
     if( eat_megs ) { rtc->create_var_with_dims( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, "float" } ); }

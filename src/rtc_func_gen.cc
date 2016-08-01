@@ -160,7 +160,7 @@ namespace boda
 
   using boost::filesystem::is_regular_file;
 
-  p_rtc_call_gen_t rtc_codegen_t::gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full ) {
+  p_rtc_call_gen_t rtc_codegen_t::gen_func( op_base_t const & rfs_full ) {
     // first, get template
     p_rtc_template_t & rtc_template = rtc_templates[rfs_full.type];
     if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.type ); }
@@ -171,7 +171,7 @@ namespace boda
     if( !rcg ) { // need to instatiate function and pick unused name
       rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
       string gen_fn = gen_unused_fn( *rfs_reduced, used_names );
-      rcg->init( rtc_template, cc, gen_fn );
+      rcg->init( rtc_template, cc.get(), gen_fn );
       used_names.insert( gen_fn );
       compile_pend.push_back( rcg );
     }    
@@ -208,7 +208,7 @@ namespace boda
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
-      gen_func( make_cnn_custom_codegen_t().get(), *v );
+      gen_func( *v );
       uint32_t const ix = i - in_lines->begin();
       if( !(ix % 100000)) { printf( "ix=%s\n", str(ix).c_str() ); }
     }
