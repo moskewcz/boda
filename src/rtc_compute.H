@@ -7,6 +7,15 @@
 
 namespace boda 
 {
+  struct rtc_compile_opts_t : virtual public nesi // NESI(help="runtime compilation options") 
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
+    uint32_t enable_lineinfo; //NESI(default=0,help="if 1, enable lineinfo for runtime compilation")
+    uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
+    rtc_compile_opts_t( void ) : show_compile_log(0), enable_lineinfo(0), show_func_attrs(0) { }
+  };
+
   struct rtc_func_info_t {
     string func_name;
     string func_src;
@@ -35,8 +44,7 @@ namespace boda
     virtual void set_var_to_zero( string const & vn ) = 0;
     
     // note: must specify all functions that will ever be called from this source block at compile time.
-    virtual void compile( bool const show_compile_log, bool const enable_lineinfo,
-			  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) = 0;
+    virtual void compile( vect_rtc_func_info_t const & func_infos, rtc_compile_opts_t const & opts ) = 0;
     virtual bool has_func_by_name( std::string const & func_name ) = 0;
 
     // note: run() overwrites / fills in the call_id field. it is valid after run() returns until realease_per_call_id_data() is called.

@@ -251,8 +251,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     }
 
     zi_uint32_t compile_call_ix;
-    void compile( bool const show_compile_log, bool const enable_lineinfo,
-		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
+    void compile( vect_rtc_func_info_t const & func_infos, rtc_compile_opts_t const & opts ) {
       timer_t t("ocl_compile");
       assert( init_done.v );
       vect_rp_const_char srcs{ ocl_base_decls.c_str(), get_rtc_base_decls().c_str() };
@@ -289,7 +288,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
 	write_whole_fn( strprintf( "%s/out_%s.clb", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), ocl_bin );
       }
       for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
-	check_runnable( prog, i->func_name, show_func_attrs );
+	check_runnable( prog, i->func_name, opts.show_func_attrs );
       }
       ++compile_call_ix.v;
     }

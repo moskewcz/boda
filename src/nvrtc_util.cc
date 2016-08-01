@@ -205,8 +205,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     }
 
     zi_uint32_t compile_call_ix;
-    void compile( bool const show_compile_log, bool const enable_lineinfo,
-		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
+    void compile( vect_rtc_func_info_t const & func_infos, rtc_compile_opts_t const & opts ) {
 #if 0
       // for now, this is disabled, since:
       // 1) it doesn't really help (much) yet (we still need to compile other function in all flows
@@ -227,7 +226,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       if( gen_src ) {
 	write_whole_fn( strprintf( "%s/out_%s.cu", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), cucl_src );
       }
-      string const prog_ptx = nvrtc_compile( cucl_src, show_compile_log, enable_lineinfo );
+      string const prog_ptx = nvrtc_compile( cucl_src, opts.show_compile_log, opts.enable_lineinfo );
       if( gen_src ) {      
 	write_whole_fn( strprintf( "%s/out_%s.ptx", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), prog_ptx );
       }
@@ -235,7 +234,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       cu_err_chk( cuModuleLoadDataEx( &new_cu_mod, prog_ptx.c_str(), 0, 0, 0 ), "cuModuleLoadDataEx" );
       p_CUmodule cu_mod = make_p_CUmodule( new_cu_mod );
       for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
-	check_runnable( cu_mod, *i, show_func_attrs );
+	check_runnable( cu_mod, *i, opts.show_func_attrs );
       }
       ++compile_call_ix.v;
     }

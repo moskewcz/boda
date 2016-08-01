@@ -504,14 +504,16 @@ namespace boda
   
   struct rtc_codegen_t {
     p_rtc_compute_t rtc;
-    void init( p_rtc_compute_t const & rtc_ ) { rtc = rtc_; }
-    rtc_template_map_t rtc_templates;
+    void init( p_rtc_compute_t const & rtc_, rtc_compile_opts_t const & rtc_compile_opts_ ) { 
+      rtc = rtc_; 
+      rtc_compile_opts = rtc_compile_opts_;
+    }
 
     rtc_func_sigs_map_t rtc_func_sigs_map;
 
     p_rtc_call_gen_t gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
 
-    void compile( bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs );
+    void compile( void ); // compile all pending functions together (perhaps into single module at rtc_compute_t level)
 
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
@@ -519,6 +521,8 @@ namespace boda
     void clear( void );
 
   protected:
+    rtc_compile_opts_t rtc_compile_opts;
+    rtc_template_map_t rtc_templates;
     set_string used_names;
     vect_p_rtc_call_gen_t compile_pend;
 

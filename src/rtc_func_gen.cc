@@ -181,12 +181,12 @@ namespace boda
   }
 
   // compile pending (generated but not compiled) functions 
-  void rtc_codegen_t::compile( bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs ) {
+  void rtc_codegen_t::compile( void ) {
     vect_rtc_func_info_t rtc_prog_infos;
     for( vect_p_rtc_call_gen_t::const_iterator i = compile_pend.begin(); i != compile_pend.end(); ++i ) {
       rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,static_cast<op_base_t const &>(*(*i))} );
     }
-    rtc->compile( show_compile_log, enable_lineinfo, rtc_prog_infos, show_func_attrs );
+    rtc->compile( rtc_prog_infos, rtc_compile_opts );
     compile_pend.clear();
   }
 

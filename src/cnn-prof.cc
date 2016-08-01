@@ -139,6 +139,7 @@ namespace boda
 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    rtc_compile_opts_t compile_opts; // NESI(default="()",help="runtime compilation options")
     filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/cnn_func_sigs_tiny.txt",help="file to read cnn ops from")
     p_filename_t out_fn; //NESI(help="output file (output goes to stdout if not specified)")
     p_filename_t op_info_tab_fn; //NESI(help="file to write op info latex rows to")
@@ -230,8 +231,8 @@ namespace boda
     p_ostream oit_out = op_info_tab_fn ? ofs_open( *op_info_tab_fn ) : 0;
     p_ostream oet_out = op_eff_tab_fn ? ofs_open( *op_eff_tab_fn ) : 0;
 
-    rtc->init(); codegen.init( rtc );
-    if( rtc_comp ) { rtc_comp->init(); codegen_comp.init( rtc_comp ); }
+    rtc->init(); codegen.init( rtc, compile_opts );
+    if( rtc_comp ) { rtc_comp->init(); codegen_comp.init( rtc_comp, compile_opts ); }
     bool const enable_prof = 0;
     if( enable_prof ) { rtc->profile_start(); if(rtc_comp) { rtc_comp->init(); } }
     p_map_str_p_nda_t vs1;

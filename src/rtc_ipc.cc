@@ -21,6 +21,17 @@
 
 namespace boda 
 {
+  template< typename STREAM > inline void bwrite( STREAM & out, rtc_compile_opts_t const & o ) { 
+    bwrite( out, o.show_compile_log );
+    bwrite( out, o.enable_lineinfo );
+    bwrite( out, o.show_func_attrs );
+  }
+  template< typename STREAM > inline void bread( STREAM & in, rtc_compile_opts_t & o ) { 
+    bread( in, o.show_compile_log );
+    bread( in, o.enable_lineinfo );
+    bread( in, o.show_func_attrs );
+  }
+
   template< typename STREAM > inline void bwrite( STREAM & out, rtc_func_call_t const & o ) { 
     bwrite( out, o.rtc_func_name );
     bwrite( out, o.args );
@@ -352,11 +363,9 @@ namespace boda
 	worker->flush();
       }
     }
-    void compile( bool const show_compile_log, bool const enable_lineinfo,
-		  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) {
+    void compile( vect_rtc_func_info_t const & func_infos, rtc_compile_opts_t const & opts ) {
       bwrite( *worker, string("compile") ); 
-      bwrite( *worker, show_compile_log ); bwrite( *worker, enable_lineinfo ); 
-      bwrite( *worker, func_infos ); bwrite( *worker, show_func_attrs ); 
+      bwrite( *worker, func_infos ); bwrite( *worker, opts ); 
       worker->flush();
 
       uint32_t ret = 0;
@@ -549,13 +558,12 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	else if( cmd == "init" ) { rtc->init(); }
 	else if( cmd == "quit" ) { break; }
 	else if( cmd == "compile" ) {
-	  bool show_compile_log; bool enable_lineinfo; vect_rtc_func_info_t func_infos; bool show_func_attrs;
-	  bread( *parent, show_compile_log ); bread( *parent, enable_lineinfo );
-	  bread( *parent, func_infos ); bread( *parent, show_func_attrs );
+	  vect_rtc_func_info_t func_infos; rtc_compile_opts_t opts;
+	  bread( *parent, func_infos ); bread( *parent, opts );
           uint32_t ret = 0;
           string err_str;
           try {
-            rtc->compile( show_compile_log, enable_lineinfo, func_infos, show_func_attrs );
+            rtc->compile( func_infos, opts );
           } catch( rt_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
           bwrite( *parent, ret ); // 0 --> no error
           if( ret ) { bwrite( *parent, err_str ); }

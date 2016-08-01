@@ -40,16 +40,13 @@ namespace boda
 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-
-    uint32_t enable_lineinfo; //NESI(default=0,help="if 1, enable lineinfo for ptx compilation")
+    rtc_compile_opts_t compile_opts; // NESI(default="()",help="runtime compilation options")
     uint32_t enable_stats; //NESI(default=0,help="if 1, dump stats")
     uint32_t enable_prof; //NESI(default=1,help="if 1, enable profiling")
     uint32_t enable_double_run; //NESI(default=0,help="if 1, run ops an extra time before the timed run (doubles run time, might improve timing quality/repeatability).")
     string per_call_fn; //NESI(default="",help="if non-empty, write per-call profiling (timing via events) to given file.")
     vect_p_quantize_ops_t quantize; //NESI(help="per-layer quantize options")
-    uint32_t show_compile_log; //NESI(default=0,help="if 1, print compilation log")
     uint32_t show_rtc_calls; //NESI(default=0,help="if 1, print rtc calls")
-    uint32_t show_func_attrs; //NESI(default=0,help="if 1, print func attrs after load")
 
     op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
 
@@ -488,12 +485,12 @@ namespace boda
       }
     }
 
-    rtc->init(); codegen.init( rtc );
+    rtc->init(); codegen.init( rtc, compile_opts );
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
     //codegen.write_rtc_func_sigs( rtc_func_sigs_fn );
     if( write_op_sigs ) { write_sigs( all_op_sigs, op_sigs_fn ); }
-    codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
+    codegen.compile();
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
     for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( *i ); }
     for( vect_rcg_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); } // init-time-only calls
