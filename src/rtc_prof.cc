@@ -39,12 +39,12 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia );
 
-    string gen_func( op_base_t const & rfs );
+    p_rtc_call_gen_t gen_func( op_base_t const & rfs );
     double run_call( string const & func_name, p_rtc_call_gen_t const & rcg );
     void run_calls( void );
   };
  
-  string rtc_prof_t::gen_func( op_base_t const & rfs ) { 
+  p_rtc_call_gen_t rtc_prof_t::gen_func( op_base_t const & rfs ) { 
     p_custom_codegen_t ccc = make_cnn_custom_codegen_t();
     return codegen.gen_func( ccc.get(), rfs ); 
   }
@@ -59,8 +59,7 @@ namespace boda
     bool const enable_lineinfo = 0;
     bool const show_func_attrs = 0;
 
-    string const func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
-    p_rtc_call_gen_t const &rcg = must_find( codegen.rtc_func_names_map, func_name );
+    p_rtc_call_gen_t rcg = codegen.gen_func( make_cnn_custom_codegen_t().get(), *anno_op );
 #if 0
     if( (!rcg->blks) && (!op_tune.use_culibs) ) { 
       assert_st(0);
@@ -102,27 +101,27 @@ namespace boda
           codegen.rtc->create_var_with_dims( gen_vn, ref_in_dims ); 
           xpose_vars_to_release.push_back( gen_vn );
         }
-	string const in_gen_func_name = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
+	p_rtc_call_gen_t in_gen_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), *in_gen_op );
         codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
-	rcg_func_call_t rfc_in_gen{ in_gen_func_name, "tag", map_str_str{{i.vn(),gen_vn}} };
-	codegen.run_rfc( show_rtc_calls, rfc_in_gen, 0 );
+	rcg_func_call_t rfc_in_gen{ in_gen_func, "tag", map_str_str{{i.vn(),gen_vn}} };
+	rfc_in_gen.func->run_rfc( codegen.rtc, show_rtc_calls, rfc_in_gen, 0 );
         // check if xpose needed:
         if( gen_vn != i.vn() ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
           string xpose_op = anno_op->type+"_xpose_"+i.vn();
           // FIXME: sigh.
           if( ( i.vn() == "filts" ) && is_k1_or_t_or_reg_conv(get( anno_op->str_vals, "cts", "" ))) { xpose_op = "xpose_filts"; }
-          string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
+          p_rtc_call_gen_t xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                       op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
           codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
           rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
-          codegen.run_rfc( show_rtc_calls, rfc_in_gen_xpose, 0 );
+          rfc_in_gen_xpose.func->run_rfc( codegen.rtc, show_rtc_calls, rfc_in_gen_xpose, 0 );
         }
 	//if( outs ) { must_insert( *outs, i.vn(), p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
-    rcg_func_call_t rfc{ rcg->gen_fn, "tag", arg_map };
-    for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_rfc( show_rtc_calls, rfc, 0 ); }
+    rcg_func_call_t rfc{ rcg, "tag", arg_map };
+    for( uint32_t i = 0; i != run_iter; ++i ) { rfc.func->run_rfc( codegen.rtc, show_rtc_calls, rfc, 0 ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
@@ -139,11 +138,11 @@ namespace boda
       if( gen_vn != i.vn() ) {
         // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
         string xpose_op = anno_op->type+"_xpose_"+i.vn();
-        string const xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
+        p_rtc_call_gen_t xpose_func = codegen.gen_func( make_cnn_custom_codegen_t().get(), 
                                                     op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
         codegen.compile( show_compile_log, enable_lineinfo, show_func_attrs );
         rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
-        codegen.run_rfc( show_rtc_calls, rfc_in_gen_xpose, 0 );
+	rfc_in_gen_xpose.func->run_rfc( codegen.rtc, show_rtc_calls, rfc_in_gen_xpose, 0 );
       }
       if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
     }

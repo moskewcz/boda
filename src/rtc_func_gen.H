@@ -22,10 +22,10 @@ namespace boda
   struct rtc_call_gen_t;  
   typedef shared_ptr< rtc_call_gen_t > p_rtc_call_gen_t; 
   typedef map< op_base_t, p_rtc_call_gen_t > rtc_func_sigs_map_t;
-  typedef map< string, p_rtc_call_gen_t > rtc_func_names_map_t;
+  //typedef map< string, p_rtc_call_gen_t > rtc_func_names_map_t;
 
   struct rcg_func_call_t {
-    string rtc_func_name; 
+    p_rtc_call_gen_t func;
     string call_tag;
     map_str_str arg_map;
     vect_p_nda_t nda_args;
@@ -45,8 +45,7 @@ namespace boda
   struct cnn_custom_codegen_t; typedef shared_ptr< cnn_custom_codegen_t > p_cnn_custom_codegen_t;
   p_custom_codegen_t make_cnn_custom_codegen_t( void );
 
-  string gen_unused_fn( op_base_t const & op, rtc_func_names_map_t & fns );
-
+  string gen_unused_fn( op_base_t const & op, set_string const & used_names, p_rtc_compute_t const & rtc );
 
   struct arg_decl_t {
     string vn;
@@ -508,15 +507,12 @@ namespace boda
     void init( p_rtc_compute_t const & rtc_ ) { rtc = rtc_; }
     rtc_template_map_t rtc_templates;
 
-    rtc_func_names_map_t rtc_func_names_map;
+    //rtc_func_names_map_t rtc_func_names_map;
     rtc_func_sigs_map_t rtc_func_sigs_map;
 
     vect_rtc_func_info_t rtc_prog_infos;
 
-    string gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
-    void run_rfc( bool const & show_rtc_calls, rcg_func_call_t & rfc, uint32_t const & flags ) {    
-      must_find( rtc_func_names_map, rfc.rtc_func_name )->run_rfc( rtc, show_rtc_calls, rfc, flags );
-    }
+    p_rtc_call_gen_t gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full );
 
     void compile( bool const show_compile_log, bool const enable_lineinfo, bool const show_func_attrs );
 
@@ -524,6 +520,9 @@ namespace boda
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
 
     void clear( void );
+
+  protected:
+    set_string used_names;
 
   };
 

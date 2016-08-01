@@ -37,6 +37,8 @@ namespace boda
     // note: must specify all functions that will ever be called from this source block at compile time.
     virtual void compile( bool const show_compile_log, bool const enable_lineinfo,
 			  vect_rtc_func_info_t const & func_infos, bool const show_func_attrs ) = 0;
+    virtual bool has_func_by_name( std::string const & func_name ) = 0;
+
     // note: run() overwrites / fills in the call_id field. it is valid after run() returns until realease_per_call_id_data() is called.
     virtual void run( rtc_func_call_t & rfc ) = 0; 
     virtual void finish_and_sync( void ) = 0;

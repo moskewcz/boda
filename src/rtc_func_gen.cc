@@ -72,7 +72,7 @@ namespace boda
   }
 
 
-  string gen_unused_fn( op_base_t const & op, rtc_func_names_map_t & fns ) {
+  string gen_unused_fn( op_base_t const & op, set_string const & used_names, p_rtc_compute_t const & rtc ) {
     string maybe_fn_base = op.type;
     set_string unique_dims;
     for( map_str_dims_t::const_iterator ra = op.dims_vals.begin(); ra != op.dims_vals.end(); ++ra ) {
@@ -91,14 +91,16 @@ namespace boda
 
     string maybe_fn = maybe_fn_base;
     uint32_t uix = 0;
-    while( has( fns, maybe_fn ) ) { ++uix; maybe_fn = maybe_fn_base + "__namegenconflict_" + str(uix); }
+    while( has( used_names, maybe_fn ) || rtc->has_func_by_name( maybe_fn ) ) { 
+      ++uix; maybe_fn = maybe_fn_base + "__namegenconflict_" + str(uix); 
+    }
     return maybe_fn;
   }
 
   void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, 
 				rcg_func_call_t & rcg_func_call, uint32_t const & flags ) {
     rtc_func_call_t rfc;
-    rfc.rtc_func_name = rcg_func_call.rtc_func_name;
+    rfc.rtc_func_name = rcg_func_call.func->gen_fn;
     rfc.call_tag = rcg_func_call.call_tag;
     rfc.nda_args = rcg_func_call.nda_args;
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
@@ -160,7 +162,7 @@ namespace boda
 
   using boost::filesystem::is_regular_file;
 
-  string rtc_codegen_t::gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full ) {
+  p_rtc_call_gen_t rtc_codegen_t::gen_func( custom_codegen_t * const cc, op_base_t const & rfs_full ) {
     // first, get template
     p_rtc_template_t & rtc_template = rtc_templates[rfs_full.type];
     if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.type ); }
@@ -170,12 +172,12 @@ namespace boda
     p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
     if( !rcg ) { // need to instatiate function and pick unused name
       rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
-      string gen_fn = gen_unused_fn( *rfs_reduced, rtc_func_names_map );
-      must_insert( rtc_func_names_map, gen_fn, rcg );
+      string gen_fn = gen_unused_fn( *rfs_reduced, used_names, rtc );
       rcg->init( rtc_template, cc, gen_fn );
+      used_names.insert( gen_fn );
       rtc_prog_infos.push_back( {gen_fn,rcg->rtc_prog_str,static_cast<op_base_t const &>(*rcg)} );
     }    
-    return rcg->gen_fn;
+    return rcg;
   }
 
   // compile pending (generated but not compiled) functions 
@@ -186,7 +188,7 @@ namespace boda
 
   // clear all functions, including pending ones, and (FIXME/TODO) clear all function from the interal rtc
   void rtc_codegen_t::clear( void ) {
-    rtc_func_names_map.clear();
+    used_names.clear();
     rtc_func_sigs_map.clear();
     rtc_prog_infos.clear();
     rtc->release_all_funcs();

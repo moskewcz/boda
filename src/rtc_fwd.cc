@@ -105,10 +105,10 @@ namespace boda
 
     rtc_codegen_t codegen;
 
-    string gen_func( op_base_t const & rfs );
+    p_rtc_call_gen_t gen_func( op_base_t const & rfs );
     void gen_call( string const & fn, p_op_info_t const & oi );
     string gen_apply_func_to_var( string const & in_an, string const & in_var, 
-				  string const & ret_an, dims_t const & ret_dims, string const & func );
+				  string const & ret_an, dims_t const & ret_dims, p_rtc_call_gen_t const & func );
     void gen_node_var( string const & name, string const & node_name );
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
@@ -178,8 +178,8 @@ namespace boda
         must_insert( dims_vals, reds[i] + "_in", dims_t( {in_sz}, {"v"}, "float" ) );
         must_insert( dims_vals, reds[i] + "_out", dims_t( {out_sz}, {"v"}, "float" ) ); 
       } 
-      string const func = gen_func( op_base_t{ "var_stats", dims_vals, { {"tpb",str(rtc_call_geom_t::default_tpb)} } } );
-      assert_st( must_find(codegen.rtc_func_names_map,func)->rtc_call_geom.tpb == rtc_call_geom_t::default_tpb );
+      p_rtc_call_gen_t func = gen_func( op_base_t{ "var_stats", dims_vals, { {"tpb",str(rtc_call_geom_t::default_tpb)}}});
+      assert_st( func->rtc_call_geom.tpb == rtc_call_geom_t::default_tpb );
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;
@@ -207,7 +207,7 @@ namespace boda
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-    string const func = gen_func( op_base_t{ "quantize", {{"out",rtc->get_var_dims(top_in)}}, {} } );
+    p_rtc_call_gen_t func = gen_func( op_base_t{ "quantize", {{"out",rtc->get_var_dims(top_in)}}, {} } );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, 
         {make_scalar_nda(max_val),make_scalar_nda(drop_mask)} } );
   }
@@ -216,9 +216,10 @@ namespace boda
   // unary operator (with two args: {in,out}), so that only one unique ret_var need only be generated per unique
   // in_var/func<ret_dims> pair. ret_var is named in_var+"__"+func
   string conv_pipe_fwd_t::gen_apply_func_to_var( string const & in_an, string const & in_var, 
-						 string const & ret_an, dims_t const & ret_dims, string const & func )
+						 string const & ret_an, dims_t const & ret_dims, 
+                                                 p_rtc_call_gen_t const & func )
   {
-    string const ret_var = in_var + "__" + func;
+    string const ret_var = in_var + "__" + func->gen_fn;
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
       fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_str{{in_an,in_var},{ret_an,ret_var}}} );
@@ -299,7 +300,7 @@ namespace boda
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const filts_id = oi->arg_map["filts"];
       if( oi->get_dims("filts") != rtc->get_var_dims( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
-	string const filts_xp_fn = gen_func( op_base_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
+	p_rtc_call_gen_t filts_xp_fn = gen_func( op_base_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_dims("filts"), 
 						       filts_xp_fn ) );
       }
@@ -307,12 +308,12 @@ namespace boda
       // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims( in_id ); see comment in init()
       if( oi->cts() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
-	string const xp_fn = gen_func( op_base_t{ "tconv_xpose_in", oi->dims_vals, oi->str_vals } );
+	p_rtc_call_gen_t xp_fn = gen_func( op_base_t{ "tconv_xpose_in", oi->dims_vals, oi->str_vals } );
 	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
       } else if( oi->cts() == k1conv_str ) {
 	if( oi->get_dims("in") != rtc->get_var_dims( in_id ) ) {
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
-	  string const xp_fn = gen_func( op_base_t{ "k1conv_xpose_in", oi->dims_vals, oi->str_vals } );
+	  p_rtc_call_gen_t xp_fn = gen_func( op_base_t{ "k1conv_xpose_in", oi->dims_vals, oi->str_vals } );
 	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
 	} 	
       } 
@@ -393,7 +394,7 @@ namespace boda
     } else { rt_err( "gen_op: unhandled op of type: " + oi->type ); }
   }
 
-  string conv_pipe_fwd_t::gen_func( op_base_t const & rfs ) { 
+  p_rtc_call_gen_t conv_pipe_fwd_t::gen_func( op_base_t const & rfs ) { 
     p_custom_codegen_t ccc = make_cnn_custom_codegen_t();
     return codegen.gen_func( ccc.get(), rfs ); 
   }
@@ -402,8 +403,8 @@ namespace boda
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
     op_base_t rfs( fn, oi->dims_vals, oi->str_vals );
-    string const & gen_fn = gen_func( rfs );
-    fwd_calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
+    p_rtc_call_gen_t func = gen_func( rfs );
+    fwd_calls.push_back( rcg_func_call_t{ func, oi->tag, oi->arg_map } );
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
@@ -499,7 +500,7 @@ namespace boda
     rtc->finish_and_sync();
   }
 
-  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { codegen.run_rfc( show_rtc_calls, rfc, flags );  }
+  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { rfc.func->run_rfc( rtc, show_rtc_calls, rfc, flags );  }
 
   void conv_pipe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     if( enable_double_run ) {
@@ -536,7 +537,8 @@ namespace boda
 	if( rfc.call_tag.empty() ) { continue; }
 	float const rfc_dur = rtc->get_dur( rfc.call_id, rfc.call_id );
 	(*out) << strprintf( "per_layer_time['%s']=per_layer_time.get('%s',0.0) + %s # %s \n", 
-			     str(rfc.call_tag).c_str(), str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), rfc.rtc_func_name.c_str() );
+			     str(rfc.call_tag).c_str(), str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), 
+                             rfc.func->gen_fn.c_str() );
       }
       cp->dump_ops( *out );
     }

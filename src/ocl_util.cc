@@ -375,6 +375,8 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       }
     }
 
+    bool has_func_by_name( string const & func_name ) { return has( *kerns, func_name ); }
+
     void run( rtc_func_call_t & rfc ) {
       cl_kernel_t const & kern = must_find( *kerns, rfc.rtc_func_name.c_str() );
       uint32_t cur_arg_ix = 0;
