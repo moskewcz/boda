@@ -1,5 +1,7 @@
 // CUCL INCLUDE gen-util.h
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(b_tn) * const b ) // CUCL OUT K:N
+struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(b_tn) * const b, // CUCL OUT_DYN K:N
+                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL ARGINFO
 {
   // CUCL IX GLOB_ID_1D b
   if( GLOB_ID_1D >= %(b_dims_prod) ) { return; }
