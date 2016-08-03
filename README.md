@@ -19,6 +19,13 @@ So, please file issues/PRs if that's the case.
 
 See the [INSTALL.md](INSTALL.md) file.
 
+#### June 2016 paper
+[Boda-RTC](https://arxiv.org/abs/1606.00094) (to appear WiMob 2016 NYC)
+
+#### June 2016 poster
+[Boda Poster Preview Slides](https://docs.google.com/presentation/d/1FFg-JZo2gUtnoqFl6HWWt0h6gMMFCD7ORFpXxPo5gl0/edit?usp=sharing)
+[Boda Poster](https://drive.google.com/file/d/0B2T3gdjZVy_RVmU3MWJIZTRtalk/view?usp=sharing)
+
 #### January 2016 poster
 [Boda Poster Preview Slides](https://docs.google.com/presentation/d/170rZ7dDnMdc6VgTjfnZsWJcAuBr0x2m6RZxqkz08EfY/edit?usp=sharing)
 [Boda Poster](https://drive.google.com/open?id=0B2T3gdjZVy_RVXRYNW9zbnA1eHM)
