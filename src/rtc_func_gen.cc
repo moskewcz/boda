@@ -186,6 +186,7 @@ namespace boda
     vect_rtc_func_info_t rtc_prog_infos;
     for( vect_p_rtc_call_gen_t::const_iterator i = compile_pend.begin(); i != compile_pend.end(); ++i ) {
       rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,static_cast<op_base_t const &>(*(*i))} );
+      (*i)->is_compiled.v = 1; // well, or at least we're going to *try* to compile this func anyway ...
     }
     rtc->compile( rtc_prog_infos, rtc_compile_opts );
     compile_pend.clear();
@@ -196,12 +197,20 @@ namespace boda
     call.func->run_rfc( rtc, rtc_compile_opts.show_rtc_calls, call, flags ); // hmm, a bit bizarre/contorted.
   }
 
-  // clear all functions, including pending ones, and (FIXME/TODO) clear all function from the interal rtc
+  // clear functions that aren't externally referenced
   void rtc_codegen_t::clear( void ) {
-    used_names.clear();
-    rtc_func_sigs_map.clear();
-    compile_pend.clear();
-    rtc->release_all_funcs();
+    // note: this process is a bit tricky. need to be careful about order of operations and maintaining state in all cases
+    compile_pend.clear(); // will be recreated on the fly, but need to clear refs temp. for unique ref check to be correct
+    for( rtc_func_sigs_map_t::const_iterator i = rtc_func_sigs_map.begin(); i != rtc_func_sigs_map.end(); /*no inc*/ ) {
+      if( i->second.unique() ) { // not externally referenced? then remove func.
+        if( i->second->is_compiled.v ) { rtc->release_func( i->second->gen_fn ); } // only release from rtc if compiled
+        must_erase( used_names, i->second->gen_fn ); // name no longer in use
+        i = rtc_func_sigs_map.erase(i); // remove from map
+      } else { // ... else, keep func.
+        if( !i->second->is_compiled.v ) { compile_pend.push_back( i->second ); } // if pending compiling, re-track
+        ++i; // keep func in map
+      }
+    }
   }
 
   void rtc_codegen_t::read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {

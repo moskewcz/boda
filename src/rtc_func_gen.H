@@ -324,7 +324,7 @@ namespace boda
     map_str_dims_t all_ix_dims;
     map_str_str cgs; // code-gen sections
     string rtc_prog_str; // final full program string
-    
+    zi_bool is_compiled; // flag used by rtc_codegen_t to track which functions have been generated
     // info needed to make call
     string gen_fn;
     bool has_final_flags_arg;
@@ -513,7 +513,6 @@ namespace boda
     p_rtc_call_gen_t gen_func( op_base_t const & rfs_full );
     void run_func( rcg_func_call_t & call, uint32_t const & flags );
 
-
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
 
@@ -526,10 +525,14 @@ namespace boda
     // set of functions.
     void compile( void ); // compile all pending functions together (perhaps into single module at rtc_compute_t level)
 
+    // bound at init() along with rtc, never changed.
     p_custom_codegen_t cc;
     rtc_compile_opts_t rtc_compile_opts;
 
+    // cached templates from files. never cleared (templates assumed to be const).
     rtc_template_map_t rtc_templates;
+
+    // generated-function related data; functions may be released on clear()
     set_string used_names;
     rtc_func_sigs_map_t rtc_func_sigs_map;
     vect_p_rtc_call_gen_t compile_pend;
