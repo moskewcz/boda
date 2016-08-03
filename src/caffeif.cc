@@ -373,8 +373,8 @@ namespace boda
       assert( sbd.sz() == 4 );
       assert( sbd.dims(1) == out_labels->size() );
 
-      dims_t img_e( scale_batch->dims.sz() );
-      dims_t img_b( img_e.sz() );
+      dims_t img_b = sbd;
+      dims_t img_e = img_b;
       img_b.dims(0) = i->bix;
       img_e.dims(0) = i->bix + 1;
       img_b.dims(1) = 0;
