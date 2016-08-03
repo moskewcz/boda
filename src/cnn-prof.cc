@@ -268,7 +268,10 @@ namespace boda
       catch( rt_exception const & rte ) {
         if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
           err = "CL_OUT_OF_HOST_MEMORY"; 
-          codegen.clear();
+          // FIXME: we should probably handle this at the rtc_codegen_t level better. in fact, there's a good chance the
+          // handling is currently broken ... so for now, we'll give up here. note we used to call:
+          // codegen.clear(); 
+          assert_st( "TODO: re-handle compile/run failures better in codegen/prof" );
         }
         else { throw; }
       }

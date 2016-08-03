@@ -102,7 +102,8 @@ namespace boda
 	//if( outs ) { must_insert( *outs, i.vn(), p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
-    rcg_func_call_t rfc{ rcg, "tag", arg_map };
+
+    rcg_func_call_t rfc{ rcg, "tag", arg_map }; 
     for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_func( rfc, 0 ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
@@ -132,12 +133,13 @@ namespace boda
     for( vect_string::const_iterator i = xpose_vars_to_release.begin(); i != xpose_vars_to_release.end(); ++i ) {
       codegen.rtc->release_var( *i );
     }
-    codegen.clear();
     // get call duration
     //if( rfc.call_tag.empty() ) { release; return; } // FIXME: possible here? 
     codegen.rtc->finish_and_sync();
     double const rfc_dur = codegen.rtc->get_dur( rfc.call_id, rfc.call_id );
     codegen.rtc->release_per_call_id_data();
+    rcg.reset(); // optional. allows just-used function (which is no longer needed) to be released now if func-gc happens.
+    codegen.gc_clear();
     return rfc_dur;
   }
 

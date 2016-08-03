@@ -517,7 +517,7 @@ namespace boda
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
 
     void clear( void ); // cleanup any not-externally-referenced functions by freeing them at the rtc_compute_t level
-
+    void gc_clear( void ); // (only) if there are 'many' functions currently, call clear()
   protected:
     // note: compile() need not be protected (last i checked), but on the other hand we don't seem to ever need to
     // manually call it. if, for example, one wanted to control having groups of functions in the same modules (or more
