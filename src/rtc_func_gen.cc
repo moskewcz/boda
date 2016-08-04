@@ -188,6 +188,7 @@ namespace boda
       rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,static_cast<op_base_t const &>(*(*i))} );
       (*i)->is_compiled.v = 1; // well, or at least we're going to *try* to compile this func anyway ...
     }
+    //printf( "rtc_prog_infos=%s\n", str(rtc_prog_infos).c_str() );
     rtc->compile( rtc_prog_infos, rtc_compile_opts );
     compile_pend.clear();
   }
