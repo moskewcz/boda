@@ -5,6 +5,12 @@
 
 namespace boda 
 {
+
+  std::ostream & operator << ( std::ostream & out, rtc_func_info_t const & o ) {
+    out << strprintf( "o.func_name=%s o.func_src.size()=%s\n", str(o.func_name).c_str(), str(o.func_src.size()).c_str() );
+    return out;
+  }
+
   void rtc_launch_check_blks_and_tpb( std::string const & rtc_func_name, uint64_t const blks, uint64_t const tpb ) {
     if( !( (blks > 0) && (tpb > 0) ) ) {
       rt_err( strprintf( "boda/rtc: can't launch kernel; blks or tpb is zero: rtc_func_name=%s blks=%s tpb=%s;"

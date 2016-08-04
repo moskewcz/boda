@@ -27,6 +27,7 @@ namespace boda
     op_base_t op;
   };
   typedef vector< rtc_func_info_t > vect_rtc_func_info_t; 
+  std::ostream & operator << ( std::ostream & out, rtc_func_info_t const & o );
 
   struct rtc_func_call_t;
 
