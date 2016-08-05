@@ -15,7 +15,7 @@ namespace boda
   dims_t const & op_base_t::get_dims( string const & an ) const { return must_find( dims_vals, an ); }
   string const & op_base_t::get_str( string const & an ) const { return must_find( str_vals, an ); }
   uint32_t op_base_t::get_u32( string const & an ) const { return lc_str_u32( must_find( str_vals, an ) ); }
-  uint32_t op_base_t::get_double( string const & an ) const { return lc_str_d( must_find( str_vals, an ) ); }
+  double op_base_t::get_double( string const & an ) const { return lc_str_d( must_find( str_vals, an ) ); }
   
 #include"gen/op_base.H.nesi_gen.cc"
 }
