@@ -95,6 +95,166 @@ namespace boda
     return maybe_fn;
   }
 
+  void rtc_call_gen_t::line( string const & sn, string const & line ) { 
+    string & cg = cgs[sn];
+    if(cg.empty()) { cg += "// begin "+sn+"\n"; } // adding first line in (new) section, add header
+    cg += "   " + line + "\n"; 
+  }
+  void rtc_call_gen_t::set( string const &var, string const &val ) { must_insert( str_vals, var, val ); }
+  dims_t const & rtc_call_gen_t::get_arg_dims_by_name( string const & arg_vn, string const & err_tag ) {
+    map_str_dims_t::const_iterator i = dims_vals.find( arg_vn );
+    if( i == dims_vals.end() ) { 
+      rt_err( strprintf( "referenced %s arg '%s' not present in dims_vals", err_tag.c_str(), arg_vn.c_str() ) );
+    }
+    return i->second;
+  }
+
+  // since a CUCL IX may use only a subset of the dims of the arg_dims that it references, we need to create the
+  // sub-dims here.
+  dims_t rtc_call_gen_t::apply_use_dims( dims_t const & ix_arg_dims, vect_string const & use_dims ) {
+    dims_t ix_dims;
+    if( use_dims.empty() ) { ix_dims = ix_arg_dims; } 
+    else {
+      ix_dims.tn = ix_arg_dims.tn;
+      for( vect_string::const_iterator j = use_dims.begin(); j != use_dims.end(); ++j ) {
+        dim_t const * use_dim = ix_arg_dims.get_dim_by_name( *j );
+        if( !use_dim ) { rt_err( "specified use_dim '"+*j+"' not found in target arg's dims" ); }
+        ix_dims.push_back( *use_dim );
+      }
+      ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
+    }
+    return ix_dims;
+  }
+
+  void rtc_call_gen_t::init( p_rtc_template_t const & rtc_func_template_, custom_codegen_t * const cc, string const & gen_fn_ ){
+    assert_st( gen_fn.empty() ); // double init guard
+    gen_fn = gen_fn_;
+    assert_st( !gen_fn.empty() ); // so above guard is sound (and a sensible assert anyway)
+    has_final_flags_arg = 0;
+    set( "rtc_func_name", gen_fn );
+    rtc_func_template = rtc_func_template_;
+    // if we have a str_val with the magic name 'tpb', use it to set the call geom:
+    if( has( str_vals, "tpb" ) ) { rtc_call_geom.tpb = get_u32( "tpb" ); }
+    for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
+      dims_t ix_dims = apply_use_dims( get_arg_dims_by_name( i->arg_vn, "IX" ), i->use_dims );
+      assert_st( ix_dims.size() && ix_dims.has_name() );
+      bool ix_is_dyn = !ix_dims.has_sz_and_stride_and_name();
+      if( ix_is_dyn ) { 
+        assert_st( i->ix_vn != i->arg_vn ); // FIXME: too strong? but used later to see if this dyn is an ix ...
+        dyn_vars.push_back( dyn_dim_info_t{ i->ix_vn, i->arg_vn, i->use_dims } ); 
+        add_dyn_nda_dims_sz( i->ix_vn, ix_dims, 0 ); // omit ref templates for used-for-ix-only dyn dims
+        insert_nda_dyn_ix_exprs( str_vals, i->ix_vn, ix_dims );
+        //rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" );
+      } else {
+        ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
+        must_insert( all_ix_dims, i->ix_vn, ix_dims );
+        insert_nda_ix_exprs( str_vals, i->ix_vn, ix_dims );
+        rtc_call_geom.maybe_update_for_special_cucl_ixs( i->ix_vn, ix_dims );
+      }          
+    }
+    // note: rtc_call_geom is somewhere between unset and fully set here -- dyn cucl ix's may set it more at call
+    // time, and failing that there is still the legacy dynamic-blocks case. note, for now we still insist that tpb be
+    // set at this point if there are no dyn IXs, and use a default if it was non set by a non-dynamic cucl IX. we may
+    // change/relax this later.
+#if 0
+    if( dyn_vars.empty() ) {
+      if( !rtc_call_geom.tpb ) { rtc_call_geom.tpb = rtc_call_geom_t::default_tpb; } // if unset, use a default value
+    }
+#endif
+    // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
+
+    if( cc ) { cc->gen_op( this, type ); } // call custom_codegen_t hook
+
+    // make these always availible as template vars, since why not?  FIXME: should set these to fields inside
+    // cucl_arg_info if they are dynamic. however, codegen that uses tpb directly would still be broken in that case
+    // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the
+    // template string ( which might point to a dynamic value ) instead.
+    if( !has( str_vals, "tpb" ) ) { set( "tpb", str(rtc_call_geom.tpb) ); } // currently, should always be fixed/constant/valid if there are no dyn vars
+    set( "blks", str(rtc_call_geom.blks) ); // may be 0 if # of blocks is dynamic
+    set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
+
+    instantiate_template( *rtc_func_template->template_str );
+  }
+
+  void rtc_call_gen_t::add_dyn_nda_dims_sz( string const & nda_vn, dims_t const & dims, bool const add_ref_templates ) {
+    // FIXME: since it is dynamic, we don't seem to know if nda_vn will be 'dims only' or not here. so for now we
+    // assume all dynamic vars are not dims only; this means we'll always generate stride vars for them in the arg
+    // info, but maybe that's okay?
+    bool const dims_only = 0;
+    assert_st( dims.valid() );
+    // note: type is still non-dynamic, so we still set it here, similarly to the non-dyn case
+    set( nda_vn+"_tn", str(dims.tn) ); 
+    for( uint32_t i = 0; i != dims.sz(); ++i ) {
+      string const vn_dim = nda_vn+"_"+dims[i].name+"_dim";
+      line( "cucl_arg_info_decls", cai_tn() + " " + vn_dim + ";" );
+      if( add_ref_templates ) { set( vn_dim, "cucl_arg_info."+vn_dim ); }
+      if( !dims_only ) { 
+        //assert_st( dims[i].has_sz_and_stride_and_name() );
+        string const vn_stride = nda_vn+"_"+dims[i].name+"_stride";
+        line( "cucl_arg_info_decls", cai_tn() + " " + vn_stride + ";" );
+        if( add_ref_templates ) { set( vn_stride, "cucl_arg_info."+vn_stride ); }
+      }
+    }
+    if( !dims_only ) { 
+      string const vn_dims_prod = nda_vn+"_dims_prod";
+      line( "cucl_arg_info_decls", cai_tn() + " " + vn_dims_prod + ";" );
+      if( add_ref_templates ) { set( vn_dims_prod, "cucl_arg_info."+vn_dims_prod ); }
+    }
+  }
+
+  void rtc_call_gen_t::add_arg_info_for_dims( dims_t const & dims, vect_int32_t & cucl_arg_info ) {
+    // FIXME: since it is dynamic, we don't seem to know if nda_vn will be 'dims only' or not here. so for now we
+    // assume all dynamic vars are not dims only; this means we'll always generate stride vars for them in the arg
+    // info, but maybe that's okay?
+    bool const dims_only = 0;
+    assert_st( dims.valid() );
+    for( uint32_t i = 0; i != dims.sz(); ++i ) {
+      cucl_arg_info.push_back( dims[i].sz );
+      if( !dims_only ) { cucl_arg_info.push_back( dims[i].stride ); }
+    }
+    if( !dims_only ) { cucl_arg_info.push_back( dims.dims_prod() ); }
+  }
+
+  void rtc_call_gen_t::instantiate_template( string const & template_str ) {
+    assert_st( rtc_prog_str.empty() ); // should only call only
+    for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( this ); !i.at_end(); ++i ) {
+      if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
+      dims_t const & arg_dims = get_arg_dims_by_name( i.vn() );
+      if( arg_dims == dims_t() ) { continue; } // skip null dims
+      if( i.ad().dyn.v ) { 
+        dyn_vars.push_back( dyn_dim_info_t{ i.vn(), i.vn(), vect_string{} } ); 
+        add_dyn_nda_dims_sz( i.vn(), arg_dims, 1 ); 
+      } else {	
+        bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
+        insert_nda_dims_sz( str_vals, i.vn(), arg_dims, dims_only ); 
+      }
+    }
+
+    if( (!rtc_func_template->has_cucl_arg_info.v) && (!dyn_vars.empty()) ) {
+      rt_err( "template declares _DYN arguments, but no CUCL ARGINFO declaration was found." );
+    }
+      
+    rtc_prog_str += "// -- codegen begins for '"+type+
+      "'; template substituion table used (bulk sections ommited): --\n";
+    for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {
+      rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
+    }
+    for( map_str_str::iterator i = cgs.begin(); i != cgs.end(); ++i ) { // terminate and emit bulk cgs
+      i->second += "    // end "+i->first+"\n";
+      set( i->first, i->second ); 
+    } 
+    lexp_name_val_map_t tf_nvm{ p_lexp_t() };
+    tf_nvm.insert_leafs_from( str_vals );
+    string rtc_func_str;
+    try {
+      str_format_from_nvm( rtc_func_str, template_str, tf_nvm );
+    } catch( rt_exception const & rte ) {
+      printf( "rfs=%s\n", str((*this)).c_str() );
+      rt_err( strprintf( "instantiation failed; see above; type=%s; error was: %s\n", type.c_str(), rte.err_msg.c_str() ) );
+    }
+    rtc_prog_str += rtc_func_str;      
+  }
+
   void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, 
 				rcg_func_call_t & rcg_func_call, uint32_t const & flags ) {
     rtc_func_call_t rfc;
