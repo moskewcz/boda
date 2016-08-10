@@ -1,5 +1,6 @@
 nohup.out
 TAGS
+nets/dsp1
 run/tr*
 lib/boda
 lib/boda_cfg.xml
