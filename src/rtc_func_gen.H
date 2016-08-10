@@ -53,30 +53,11 @@ namespace boda
     string io_type;
     zi_bool dyn;
     vect_dims_t ok_dims;
-    void set_vn_tn( string const & vn_, string const & tn_ ) {
-      vn = vn_;
-      tn = get_part_before( tn_, "_multi" );
-      multi.v = (tn != tn_); // if we found _multi, we stripped it off, so tn is shorter than tn_
-    }
-    void ref_parse( string const & line ) {
-      vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " */" ) ) );
-      if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL REF decl; no var name present:" + line ); }
-      set_vn_tn( arg_decl.back(), string() ); // no tn (type name) for ref decls
-    }
-    void arg_parse( string const & line ) {
-      vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " ,);{" ) ) );
-      if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL io var decl; no var name found:" + line ); }
-      for( vect_string::const_reverse_iterator i = arg_decl.rbegin()+1; i != arg_decl.rend(); ++i ) {
-        if( (*i) == "*" ) { ++loi.v; continue; }
-        if( (*i) == "const" ) { continue; } // FIXME: for now, ignore const?
-        set_vn_tn( arg_decl.back(), *i ); break;
-      }
-    }
-    uint32_t get_multi_sz( op_base_t const & op ) const { return multi.v ? op.get_u32( vn+"_num" ) : 1; }
-    string get_multi_vn( uint32_t const mix ) const { 
-      if( multi.v ) { return vn + "_" + str(mix); }
-      assert_st( mix == 0 ); return vn;
-    }
+    void set_vn_tn( string const & vn_, string const & tn_ );
+    void ref_parse( string const & line );
+    void arg_parse( string const & line );
+    uint32_t get_multi_sz( op_base_t const & op ) const;
+    string get_multi_vn( uint32_t const mix ) const;
   };
   inline std::ostream & operator << ( std::ostream & out, arg_decl_t const & o ) {
     for( vect_dims_t::const_iterator i = o.ok_dims.begin(); i != o.ok_dims.end(); ++i ) {
