@@ -401,8 +401,6 @@ namespace boda
     rcg_func_call_t rcg{ func, oi->tag, oi->arg_map };
     if( oi->is( Convolution_coi ) && ( (oi->cts() == tconv_str) || (oi->cts() == k1conv_str) ) ) { rcg.nda_args["flags"] = make_scalar_nda(flags); } // FIXME: not the place for this.
     fwd_calls.push_back( rcg );
-
-
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
@@ -497,7 +495,7 @@ namespace boda
     rtc->finish_and_sync();
   }
 
-  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { codegen.run_func( rfc, flags );  }
+  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { codegen.run_func( rfc );  }
 
   void conv_pipe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     if( enable_double_run ) {

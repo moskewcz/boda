@@ -443,8 +443,7 @@ namespace boda
     rtc_prog_str += rtc_func_str;      
   }
 
-  void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, 
-				rcg_func_call_t & rcg_func_call, uint32_t const & flags ) {
+  void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rcg_func_call){
     rtc_func_call_t rfc;
     rfc.rtc_func_name = rcg_func_call.func->gen_fn;
     rfc.call_tag = rcg_func_call.call_tag;
@@ -555,9 +554,9 @@ namespace boda
     compile_pend.clear();
   }
 
-  void rtc_codegen_t::run_func( rcg_func_call_t & call, uint32_t const & flags ) {
+  void rtc_codegen_t::run_func( rcg_func_call_t & call ) {
     compile(); // compile any pending funcs
-    call.func->run_rfc( rtc, rtc_compile_opts.show_rtc_calls, call, flags ); // hmm, a bit bizarre/contorted.
+    call.func->run_rfc( rtc, rtc_compile_opts.show_rtc_calls, call ); // hmm, a bit bizarre/contorted.
   }
 
   // clear functions that aren't externally referenced

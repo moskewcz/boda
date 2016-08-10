@@ -88,7 +88,7 @@ namespace boda
         }
 	p_rtc_call_gen_t in_gen_func = codegen.gen_func( *in_gen_op );
 	rcg_func_call_t rfc_in_gen{ in_gen_func, "tag", map_str_str{{i.vn(),gen_vn}} };
-	codegen.run_func( rfc_in_gen, 0 );
+	codegen.run_func( rfc_in_gen );
         // check if xpose needed:
         if( gen_vn != i.vn() ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
@@ -97,14 +97,14 @@ namespace boda
           if( ( i.vn() == "filts" ) && is_k1_or_t_or_reg_conv(get( anno_op->str_vals, "cts", "" ))) { xpose_op = "xpose_filts"; }
           p_rtc_call_gen_t xpose_func = codegen.gen_func( op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
           rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
-          codegen.run_func( rfc_in_gen_xpose, 0 );
+          codegen.run_func( rfc_in_gen_xpose );
         }
 	//if( outs ) { must_insert( *outs, i.vn(), p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
 
     rcg_func_call_t rfc{ rcg, "tag", arg_map }; 
-    for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_func( rfc, 0 ); }
+    for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_func( rfc ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
@@ -123,7 +123,7 @@ namespace boda
         string xpose_op = anno_op->type+"_xpose_"+i.vn();
         p_rtc_call_gen_t xpose_func = codegen.gen_func( op_base_t{ xpose_op, anno_op->dims_vals, anno_op->str_vals } );
         rcg_func_call_t rfc_in_gen_xpose{ xpose_func, "tag", map_str_str{{gen_vn,gen_vn},{i.vn(),i.vn()}} };
-	codegen.run_func( rfc_in_gen_xpose, 0 );
+	codegen.run_func( rfc_in_gen_xpose );
       }
       if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
     }
