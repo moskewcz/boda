@@ -87,8 +87,8 @@ namespace boda
       for( vect_uint32_t::const_iterator i = dropout_cixs.begin(); i != dropout_cixs.end(); ++i ) {
 	assert( (*i) < fwd_calls.size() );
 	rcg_func_call_t & rcg = fwd_calls[*i];
-	assert_st( rcg.nda_args.size() == 1 );
-	rcg.nda_args[0] = make_scalar_nda(det_drop_seed_);
+	assert_st( has( rcg.nda_args, "det_drop_seed" ) );
+	rcg.nda_args["det_drop_seed"] = make_scalar_nda(det_drop_seed_);
       }
     }
 
@@ -169,6 +169,7 @@ namespace boda
     while( in_sz > 1 ) {
       uint32_t const out_sz = u32_ceil_div( in_sz, rtc_call_geom_t::default_tpb ); 
       map_str_dims_t dims_vals;
+      must_insert( dims_vals, "primary_in", dims_t( {1}, {"v"}, "uint32_t" ) ); // scalar flag; 0/1 indicates first-level
       for( uint32_t i = 0; i != reds.size(); ++i ) {  // input dims (const); initial inputs
         must_insert( dims_vals, reds[i] + "_in", dims_t( {in_sz}, {"v"}, "float" ) );
         must_insert( dims_vals, reds[i] + "_out", dims_t( {out_sz}, {"v"}, "float" ) ); 
@@ -189,7 +190,8 @@ namespace boda
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_in", cur_ins[i] ); }
       assert_st( cur_outs.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_out", cur_outs[i] ); }
-      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map, {make_scalar_nda(primary_in)} } );
+      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map, 
+            map_str_p_nda_t{{"primary_in",make_scalar_nda(primary_in)}} } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -202,9 +204,10 @@ namespace boda
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-    p_rtc_call_gen_t func = codegen.gen_func( op_base_t{ "quantize", {{"out",rtc->get_var_dims(top_in)}}, {} } );
+    p_rtc_call_gen_t func = codegen.gen_func( op_base_t{ "quantize", 
+        {{"out",rtc->get_var_dims(top_in)},{"max_val",dims_t({1},{"v"},"uint32_t")},{"drop_mask",dims_t({1},{"v"},"uint32_t")}}, {} } );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, 
-        {make_scalar_nda(max_val),make_scalar_nda(drop_mask)} } );
+        map_str_p_nda_t{{"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} } );
   }
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
@@ -341,13 +344,14 @@ namespace boda
       double const dropout_ratio = lc_str_d( oi->str_vals["dropout_ratio"] );
       assert_st( dropout_ratio > 0.0 );
       assert_st( dropout_ratio < 1.0 );
-      fwd_calls.back().nda_args.push_back( p_nda_t() ); // see update code elsewhere. yeah, not the cleanest approach.
+      // for below dep_drop_seed handling: see update code elsewhere. yeah, not the cleanest approach.
+      fwd_calls.back().nda_args.insert( make_pair( "det_drop_seed", p_nda_t() ) ); 
       dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( oi->is( BckDropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( "dropout", oi ); // Backwards of dropout is dropout
-      fwd_calls.back().nda_args.push_back( p_nda_t() ); // see update code elsewhere. yeah, not the cleanest approach.
+      fwd_calls.back().nda_args.insert( make_pair( "det_drop_seed", p_nda_t() ) ); 
       dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( oi->is( Softmax_coi ) ) {
       gen_call( "softmax", oi );

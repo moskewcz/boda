@@ -9,7 +9,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const min_in, // CU
 					  GASQ float * const sum_out, // CUCL OUT_DYN v
 					  GASQ float * const hist_out, // CUCL OUT_DYN v
 					  GASQ float * const cnt_out, // CUCL OUT_DYN v
-                                          int32_t const primary_in,
+                                          uint32_t const primary_in, // CUCL IN v
                                           struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL ARGINFO
 {
   // CUCL IX GLOB_ID_1D min_in

@@ -25,6 +25,8 @@ namespace boda
     bool const is_conv = op->is( Convolution_coi );
     bool const is_pool = op->is( Pooling_coi );
     dims_t in_dims;
+    if( op->is( Dropout_coi ) || op->is( BckDropout_coi ) ) { op->dims_vals["det_drop_seed"] = dims_t({1},{"v"},"uint32_t"); }
+
     if( is_conv || is_pool || op->is( Spreading_coi ) || op->is( BckConv_coi ) ) {
       assert_st( !ni_dims.empty() );
       in_dims = ni_dims;

@@ -14,6 +14,7 @@ namespace boda
     vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " */" ) ) );
     if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL REF decl; no var name present:" + line ); }
     set_vn_tn( arg_decl.back(), string() ); // no tn (type name) for ref decls
+    loi.v = 1; // treat REF args as loi=1 (i.e. like passing a null pointer just to get the dims)
   }
   void arg_decl_t::arg_parse( string const & line ) {
     vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " ,);{" ) ) );
@@ -85,7 +86,9 @@ namespace boda
           } else {
             cad.arg_parse( line );
             if( cad.tn.empty() ) { rt_err( "invalid CUCL io var decl; no var type found." ); }
-            if( cad.loi.v != 1 ) { rt_err( "invalid CUCL io var decl; should be exactly one level-of-indirection/*.");}
+            if( !(cad.loi.v <= 1) ) { rt_err( "invalid CUCL io var decl; should be exactly zero or one level-of-indirection/*.");}
+            if( (cad.loi.v == 0) && (cad.dyn.v) ) { rt_err( "invalid CUCL io var decl; by-value arguments must not be DYN");}
+
             // special case: if type is CUCL type of this var, then there is no restriction on the type that can be
             // passed for this var. note that the only supported types are basic types and this case; there's no
             // ability to use the type of other vars or some other string template or the like to restrict/set the
@@ -156,6 +159,13 @@ namespace boda
       }
       if( !matches_decl ) { arg_check_error += "call arg '"+str(i.vn())+"' incompatible with decl arg "
           "(dim count mismatch or dim (non-zero and thus req'd) name/size/stride mismatch; "; }
+      if( i.ad().loi.v == 0 ) {
+        // only scalars are supported for the no-indirection case
+        if( arg_dims.dims_prod() != 1 ) { arg_check_error += "call arg '"+str(i.vn())+"' incompatible with decl arg (by-value arguments must be scalar (dims_prod()==1), but call arg had dims_prod()=="+str(arg_dims.dims_prod())+" );  "; }
+        assert_st( !i.ad().dyn.v ); 
+      } else {
+        assert_st( i.ad().loi.v == 1 ); // 'regular' flat nda reference (pointer to block of memory)
+      }
       if( i.ad().dyn.v ) {  // if dynamic, zero out sizes/stride, since gen'd func will work for all sizes/strides
         dims_t arg_dims_no_sizes_or_strides = arg_dims;
         arg_dims_no_sizes_or_strides.clear_strides();
@@ -439,7 +449,7 @@ namespace boda
     rtc_func_call_t rfc;
     rfc.rtc_func_name = rcg_func_call.func->gen_fn;
     rfc.call_tag = rcg_func_call.call_tag;
-    rfc.nda_args = rcg_func_call.nda_args;
+    //rfc.nda_args = rcg_func_call.nda_args; // FIXME: need to merge args and nda_args (not have fixed args,nda_args order)
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
 
     for( vect_arg_decl_t::const_iterator i = rtc_func_template->arg_decls.begin(); i != rtc_func_template->arg_decls.end(); ++i ) {
@@ -451,19 +461,33 @@ namespace boda
         string const vn = i->get_multi_vn(mix);
         dims_t const & func_dims = get_arg_dims_by_name( vn );
         if( func_dims == dims_t() ) { args.push_back("<NULL>"); continue; } // NULL, pass though to rtc
-        map_str_str::const_iterator an = rcg_func_call.arg_map.find( vn );
-        if( an == rcg_func_call.arg_map.end() ) {
-          rt_err( "specified "+i->io_type+" arg '"+vn+"' not found in arg_map at call time." ); 
+        dims_t call_dims;
+        string call_vn; // for error message
+        if( i->loi.v == 0 ) { // by-value handling: scalars only, assume in nda_args
+          map_str_p_nda_t::const_iterator an = rcg_func_call.nda_args.find( vn );
+          if( an == rcg_func_call.nda_args.end() ) {
+            rt_err( "specified "+i->io_type+" scalar by-value arg '"+vn+"' not found in nda_args at call time." ); 
+          }
+          call_dims = an->second->dims;     
+          call_vn = "<by-value-scalar>";
+          rfc.nda_args.push_back( an->second ); // FIXME: should be guarded by below error check
+        } else { 
+          assert_st( i->loi.v == 1 );
+          map_str_str::const_iterator an = rcg_func_call.arg_map.find( vn );
+          if( an == rcg_func_call.arg_map.end() ) {
+            rt_err( "specified "+i->io_type+" arg '"+vn+"' not found in arg_map at call time." ); 
+          }
+          call_dims = rtc->get_var_dims( an->second );
+          call_vn = an->second;
+          args.push_back( an->second ); // FIXME: should be guarded by below error check
         }
-        dims_t const & call_dims = rtc->get_var_dims( an->second );
         // check that the passed vars are the expected sizes. for non-dyn vars, the sizes must be fully specificed (no
         // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the
         // cucl_arg_info code assumes this (but here we'll check the dim names too).
-        if( !call_dims.matches_template( func_dims ) ) { 
-          printf( "error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
-                  rfc.call_tag.c_str(), vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), an->second.c_str() );
+        if( !call_dims.matches_template( func_dims ) ) { rt_err( 
+            strprintf ("error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
+                       rfc.call_tag.c_str(), vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), call_vn.c_str()));
         }	  
-        args.push_back( an->second );
       }
     }
 
