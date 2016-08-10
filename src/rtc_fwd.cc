@@ -398,7 +398,11 @@ namespace boda
     // this is the best idea. note: we assume that all arg dims are already availible
     op_base_t rfs( fn, oi->dims_vals, oi->str_vals );
     p_rtc_call_gen_t func = codegen.gen_func( rfs );
-    fwd_calls.push_back( rcg_func_call_t{ func, oi->tag, oi->arg_map } );
+    rcg_func_call_t rcg{ func, oi->tag, oi->arg_map };
+    if( oi->is( Convolution_coi ) && ( (oi->cts() == tconv_str) || (oi->cts() == k1conv_str) ) ) { rcg.nda_args["flags"] = make_scalar_nda(flags); } // FIXME: not the place for this.
+    fwd_calls.push_back( rcg );
+
+
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in

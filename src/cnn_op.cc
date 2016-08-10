@@ -144,6 +144,9 @@ namespace boda
 	dims_t work;
         work.tn = "none";
 	uint32_t const lines_sz = no_dims.dsz("img") * no_sz.d[1];
+        if( (op->cts() == tconv_str) || (op->cts() == k1conv_str) ) { 
+          op->dims_vals["flags"] = dims_t({1},{"v"},"uint32_t"); // exactly these two variants have this debugging input
+        }
 	if( op->cts() == tconv_str ) {
 	  assert( gbt.thr_per_blk.d[0] >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
 	  work.add_dims( "blk_bline", u32_ceil_div( lines_sz, gbt.thr_per_blk.d[0] ), 

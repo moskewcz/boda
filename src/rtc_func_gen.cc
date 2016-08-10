@@ -319,7 +319,6 @@ namespace boda
     assert_st( gen_fn.empty() ); // double init guard
     gen_fn = gen_fn_;
     assert_st( !gen_fn.empty() ); // so above guard is sound (and a sensible assert anyway)
-    has_final_flags_arg = 0;
     set( "rtc_func_name", gen_fn );
     rtc_func_template = rtc_func_template_;
     // if we have a str_val with the magic name 'tpb', use it to set the call geom:
@@ -510,10 +509,9 @@ namespace boda
 	      str(rfc.args).c_str(), str(rfc.nda_args).c_str(),
 	      str(dyn_rtc_call_geom.tpb).c_str(), str(dyn_rtc_call_geom.blks).c_str() );
       //if( !rfc.cucl_arg_info.empty() ) { printf( "  rfc.cucl_arg_info=%s\n", str(rfc.cucl_arg_info).c_str() ); }
-    }
+    } 
     rfc.tpb.v = dyn_rtc_call_geom.tpb;
     rfc.blks.v = dyn_rtc_call_geom.blks;
-    if( has_final_flags_arg ) { rfc.nda_args.push_back( make_scalar_nda<uint32_t>(flags) ); }
     rtc->run( rfc );
     rcg_func_call.call_id = rfc.call_id;
     // note: temporary rfc is gone after this

@@ -526,7 +526,6 @@ namespace boda
     }
 
     void gen_op_k1conv_simd( rtc_call_gen_t * rcg ) {
-      //rcg->has_final_flags_arg = 1;
       uint32_t const vw = rcg->get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("pels") % vw) == 0 );
@@ -577,7 +576,6 @@ namespace boda
     }
 
     void gen_op_conv_simd( rtc_call_gen_t * rcg ) {
-      //rcg->has_final_flags_arg = 1;
       uint32_t const vw = rcg->get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       dims_t const & in_pels = rcg->get_arg_dims_by_name( "in_pels" );
@@ -774,7 +772,6 @@ namespace boda
 	  }
 	}
       }
-      rcg->has_final_flags_arg = 1;
     }
 
     void gen_op_tconv( rtc_call_gen_t * rcg ) {
@@ -837,7 +834,6 @@ namespace boda
 						   str(tx).c_str(), str(tx).c_str(), str(ty).c_str(), ve.c_str() ) );
 	}
       }
-      rcg->has_final_flags_arg = 1;
     }
   };
 

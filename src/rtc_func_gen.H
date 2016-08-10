@@ -164,7 +164,6 @@ namespace boda
     zi_bool is_compiled; // flag used by rtc_codegen_t to track which functions have been generated
     // info needed to make call
     string gen_fn;
-    bool has_final_flags_arg;
     rtc_call_geom_t rtc_call_geom;
     p_rtc_template_t rtc_func_template; // post-init, currently used only for dynamic ix_decl processing at call time
     vect_dyn_dim_info_t dyn_vars;
