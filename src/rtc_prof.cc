@@ -62,6 +62,7 @@ namespace boda
     map_str_str arg_map;
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
       if( i.ad().io_type == "REF" ) { continue; }
+      if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
       dims_t const & func_dims = rcg->get_arg_dims_by_name( i.vn() );
       if( func_dims == dims_t() ) { continue; } // NULL case -- ignore
       must_insert( arg_map, i.vn(), i.vn() );
@@ -75,6 +76,7 @@ namespace boda
       for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg.get() ); !i.at_end(); ++i ) {
         p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
 	if( i.ad().io_type != "IN" ) { continue; }
+        if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
 	in_gen_op->type += "_" + i.vn();
 	in_gen_op->dims_vals.clear();
         dims_t const & in_dims = must_find( anno_op->dims_vals, i.vn() );

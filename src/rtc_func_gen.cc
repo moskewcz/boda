@@ -94,23 +94,23 @@ namespace boda
             // ability to use the type of other vars or some other string template or the like to restrict/set the
             // type.
             if( cad.tn == ("%("+cad.vn+"_tn)") ) { cad.tn = ""; } 
+
+            // another special case: if the var is named "cucl_arg_info", it's where we stuff the arg info
+            if( cad.vn == "cucl_arg_info" ) {
+              if( has_cucl_arg_info.v ) { rt_err( "duplicate CUCL ARGINFO declartion. must have exactly 0 or 1 ARGINFO arguments."); }
+              has_cucl_arg_info.v = 1;
+              if( cad.multi.v ) { rt_err( "invalid CUCL ARGINFO decl; should not be multi." ); }
+              if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found." ); }
+              if( cad.tn != "%(rtc_func_name)_arg_info_t" ) { rt_err( "invalid CUCL ARGINFO decl; must use '%(rtc_func_name)_arg_info_t' as type name." ); }
+              //if( cad.vn != "cucl_arg_info" ) { rt_err( "invalid CUCL ARGINFO decl; must use 'cucl_arg_info' as var name." ); }
+              if( cad.loi.v != 0 ) { rt_err( "invalid CUCL ARGINGO decl; should be exactly zero levels-of-indirection/*s:");}  
+            }
           }
           for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
             cad.ok_dims.push_back( dims_from_nda_spec( cad.tn, mmc_parts[i] ) );
           }
           arg_decls.push_back( cad );
         }
-      } else if( cd == "ARGINFO" ) {
-        if( has_cucl_arg_info.v ) { rt_err( "duplicate CUCL ARGINFO declartion. must have exactly 0 or 1 ARGINFO arguments."); }
-        has_cucl_arg_info.v = 1;
-        arg_decl_t cad;
-        cad.arg_parse( line );
-        if( cad.multi.v ) { rt_err( "invalid CUCL ARGINFO decl; should not be multi." ); }
-        if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found." ); }
-        if( cad.tn != "%(rtc_func_name)_arg_info_t" ) { rt_err( "invalid CUCL ARGINFO decl; must use '%(rtc_func_name)_arg_info_t' as type name." ); }
-        if( cad.vn != "cucl_arg_info" ) { rt_err( "invalid CUCL ARGINFO decl; must use 'cucl_arg_info' as var name." ); }
-        if( cad.loi.v != 0 ) { rt_err( "invalid CUCL ARGINGO decl; should be exactly zero levels-of-indirection/*s:");}  
-          
       } else if( cd == "INCLUDE" ) {
         // note -- currently, include files are inserted verbatim, and cannot contain CUCL magic-comments (including
         // includes) themselves
@@ -132,6 +132,7 @@ namespace boda
 
     // error check existence of num field for multi args
     for( vect_arg_decl_t::multi_iter i = arg_decls.multi_begin( &rfs_in ); !i.at_end(); ++i ) {
+      if( i.vn() == "cucl_arg_info" ) { assert_st( has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) {
         string const multi_num = i.ad().vn+"_num";
         if( !has(rfs_in.str_vals,multi_num) ) {
@@ -406,6 +407,7 @@ namespace boda
   void rtc_call_gen_t::instantiate_template( string const & template_str ) {
     assert_st( rtc_prog_str.empty() ); // should only call only
     for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( this ); !i.at_end(); ++i ) {
+      if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
       dims_t const & arg_dims = get_arg_dims_by_name( i.vn() );
       if( arg_dims == dims_t() ) { continue; } // skip null dims
@@ -450,8 +452,33 @@ namespace boda
     //rfc.nda_args = rcg_func_call.nda_args; // FIXME: need to merge args and nda_args (not have fixed args,nda_args order)
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
 
+    p_nda_t cucl_arg_info_nda;
+    assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
+    if( rtc_func_template->has_cucl_arg_info.v ) {
+      vect_int32_t cucl_arg_info;
+      for( vect_dyn_dim_info_t::const_iterator i = dyn_vars.begin(); i != dyn_vars.end(); ++i ) {
+        //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
+        map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->src_vn );
+        if( an == rcg_func_call.arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
+        dims_t const & arg_call_dims = rtc->get_var_dims( an->second );
+        dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
+        //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
+        add_arg_info_for_dims( dyn_call_dims, cucl_arg_info );
+        if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
+          dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
+        }
+      }
+      cucl_arg_info_nda = make_vector_nda( cucl_arg_info ); // convert cucl_arg_info to nda
+    }
+
     for( vect_arg_decl_t::const_iterator i = rtc_func_template->arg_decls.begin(); i != rtc_func_template->arg_decls.end(); ++i ) {
       if( i->io_type == "REF" ) { continue; } // note: could move up scope, but hoping to factor out iter
+      if( i->vn == "cucl_arg_info" ) { // FIXME: not-too-nice special case for cucl_arg_info argument 
+        assert_st( rtc_func_template->has_cucl_arg_info.v );
+        rfc.args.push_back(rtc_arg_t{"",cucl_arg_info_nda});
+        cucl_arg_info_nda.reset(); // mark as used
+        continue;
+      }
       uint32_t const multi_sz = i->get_multi_sz( *this );
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
@@ -486,24 +513,8 @@ namespace boda
         }	  
       }
     }
+    assert_st( !bool(cucl_arg_info_nda) ); // if created, should have been used.
 
-    assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
-    if( rtc_func_template->has_cucl_arg_info.v ) {
-      vect_int32_t cucl_arg_info;
-      for( vect_dyn_dim_info_t::const_iterator i = dyn_vars.begin(); i != dyn_vars.end(); ++i ) {
-        //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
-        map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->src_vn );
-        if( an == rcg_func_call.arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
-        dims_t const & arg_call_dims = rtc->get_var_dims( an->second );
-        dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
-        //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
-        add_arg_info_for_dims( dyn_call_dims, cucl_arg_info );
-        if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
-          dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
-        }
-      }      
-      rfc.args.push_back(rtc_arg_t{"",make_vector_nda( cucl_arg_info )}); // convert cucl_arg_info to nda; add as final arg
-    }
     if( show_rtc_calls ) { 
       printf( "%s( args{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
 	      str(rfc.args).c_str(),

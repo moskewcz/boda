@@ -1,7 +1,7 @@
 // CUCL INCLUDE gen-util.h
 struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(a_tn) * const a, // CUCL OUT_DYN K:M
-                                            struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL ARGINFO
+                                            struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL IN v
 {
   // CUCL IX GLOB_ID_1D a
   int32_t mode = %(mode);

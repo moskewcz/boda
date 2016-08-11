@@ -2,7 +2,7 @@ struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN_DYN K:M
 					  GASQ float const * const b, // CUCL IN_DYN K:N
 					  GASQ float * const c,  // CUCL OUT_DYN M:N
-                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL ARGINFO
+                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL IN v
 {
   // wrapper for cublas sgemm; see nvrtc_util.cc for special case that detects this kernel (by name) and invoked cublas
   // instread of running this kernel. note that this kernel is still processed/compiled by boda, and without the special
