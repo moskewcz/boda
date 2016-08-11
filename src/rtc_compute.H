@@ -92,12 +92,19 @@ namespace boda
   };
   struct rtc_compute_t; typedef shared_ptr< rtc_compute_t > p_rtc_compute_t; 
 
+  // an rtc argument is either: (1) the name of a var (stored in n, v is null) or (2) a value (stored in v, n is
+  // empty). for var arguments, a pointer to the on-device memory for that var is passed. for values, the entire value
+  // is passed as a single by-value argument (i.e. as raw data).
+  struct rtc_arg_t {
+    string n;
+    p_nda_t v;
+  };
+  std::ostream & operator << ( std::ostream & out, rtc_arg_t const & o );
+  typedef vector< rtc_arg_t > vect_rtc_arg_t; 
+
   struct rtc_func_call_t { 
     string rtc_func_name; 
-    vect_vect_string args; 
-    vect_p_nda_t nda_args; // pass-by-value args; note: scalars only currently
-    zi_bool has_cucl_arg_info;
-    vect_int32_t cucl_arg_info;
+    vect_rtc_arg_t args;
     string call_tag;
 
     zi_uint32_t tpb;

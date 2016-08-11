@@ -452,13 +452,11 @@ namespace boda
 
     for( vect_arg_decl_t::const_iterator i = rtc_func_template->arg_decls.begin(); i != rtc_func_template->arg_decls.end(); ++i ) {
       if( i->io_type == "REF" ) { continue; } // note: could move up scope, but hoping to factor out iter
-      rfc.args.push_back( vect_string{} );
-      vect_string & args = rfc.args.back();
       uint32_t const multi_sz = i->get_multi_sz( *this );
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
         dims_t const & func_dims = get_arg_dims_by_name( vn );
-        if( func_dims == dims_t() ) { args.push_back("<NULL>"); continue; } // NULL, pass though to rtc
+        if( func_dims == dims_t() ) { rfc.args.push_back(rtc_arg_t{"<NULL>"}); continue; } // NULL, pass though to rtc
         dims_t call_dims;
         string call_vn; // for error message
         if( i->loi.v == 0 ) { // by-value handling: scalars only, assume in nda_args
@@ -468,7 +466,7 @@ namespace boda
           }
           call_dims = an->second->dims;     
           call_vn = "<by-value-scalar>";
-          rfc.nda_args.push_back( an->second ); // FIXME: should be guarded by below error check
+          rfc.args.push_back( rtc_arg_t{"",an->second} ); // FIXME: should be guarded by below error check
         } else { 
           assert_st( i->loi.v == 1 );
           map_str_str::const_iterator an = rcg_func_call.arg_map.find( vn );
@@ -477,7 +475,7 @@ namespace boda
           }
           call_dims = rtc->get_var_dims( an->second );
           call_vn = an->second;
-          args.push_back( an->second ); // FIXME: should be guarded by below error check
+          rfc.args.push_back( rtc_arg_t{an->second} ); // FIXME: should be guarded by below error check
         }
         // check that the passed vars are the expected sizes. for non-dyn vars, the sizes must be fully specificed (no
         // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the
@@ -490,22 +488,25 @@ namespace boda
     }
 
     assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
-    rfc.has_cucl_arg_info = rtc_func_template->has_cucl_arg_info;
-    for( vect_dyn_dim_info_t::const_iterator i = dyn_vars.begin(); i != dyn_vars.end(); ++i ) {
-      //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
-      map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->src_vn );
-      if( an == rcg_func_call.arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
-      dims_t const & arg_call_dims = rtc->get_var_dims( an->second );
-      dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
-      //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
-      add_arg_info_for_dims( dyn_call_dims, rfc.cucl_arg_info );
-      if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
-        dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
-      }
+    if( rtc_func_template->has_cucl_arg_info.v ) {
+      vect_int32_t cucl_arg_info;
+      for( vect_dyn_dim_info_t::const_iterator i = dyn_vars.begin(); i != dyn_vars.end(); ++i ) {
+        //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
+        map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->src_vn );
+        if( an == rcg_func_call.arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
+        dims_t const & arg_call_dims = rtc->get_var_dims( an->second );
+        dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
+        //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
+        add_arg_info_for_dims( dyn_call_dims, cucl_arg_info );
+        if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
+          dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
+        }
+      }      
+      rfc.args.push_back(rtc_arg_t{"",make_vector_nda( cucl_arg_info )}); // convert cucl_arg_info to nda; add as final arg
     }
     if( show_rtc_calls ) { 
-      printf( "%s( args{%s} -- ndas{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
-	      str(rfc.args).c_str(), str(rfc.nda_args).c_str(),
+      printf( "%s( args{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
+	      str(rfc.args).c_str(),
 	      str(dyn_rtc_call_geom.tpb).c_str(), str(dyn_rtc_call_geom.blks).c_str() );
       //if( !rfc.cucl_arg_info.empty() ) { printf( "  rfc.cucl_arg_info=%s\n", str(rfc.cucl_arg_info).c_str() ); }
     } 

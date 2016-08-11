@@ -303,22 +303,26 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     
     nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_nv_func_info_t ) { }
 
-    void add_args( vect_string const & args, vect_rp_void & cu_func_args, p_map_str_p_nda_t const & func_args ) {
-      for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
-        // FIXME: we really want the func arg names from the layer above this here, but we'll make do for now: 
-        string const an = "arg_" + str( func_args->size() ); 
-	if( *i == "<NULL>" ) { 
-	  cu_func_args.push_back( &null_cup );
+    void add_arg( rtc_arg_t const & arg, vect_rp_void & cu_func_args, p_map_str_p_nda_t const & func_args ) {
+      // FIXME: we really want the func arg names from the layer above this here, but we'll make do for now: 
+      string const an = "arg_" + str( func_args->size() ); 
+      if( !arg.n.empty() ) { 
+        assert_st( !arg.v );
+        if( arg.n == "<NULL>" ) { 
+          cu_func_args.push_back( &null_cup );
           must_insert( *func_args, an, make_shared<nda_t>() );
-	} else {
-	  var_info_t const & vi = must_find( *vis, *i );
-	  cu_func_args.push_back( &vi.cup->p );
+        } else {
+          var_info_t const & vi = must_find( *vis, arg.n );
+          cu_func_args.push_back( &vi.cup->p );
           // note that we assume here both host and device pointers are 64 bits (or at least the same size ... or maybe
           // just that the host size is >= the device size). curious about conversion between CUdeviceptr and (void *)?
           // take a look here:
           // http://www.cudahandbook.com/2013/08/why-does-cuda-cudeviceptr-use-unsigned-int-instead-of-void/
           must_insert( *func_args, an, make_shared<nda_t>(vi.dims,(void *)(uintptr_t)vi.cup->p) );
-	}
+        }
+      } else { 
+        assert_st( arg.v );
+        cu_func_args.push_back( arg.v->rp_elems() );
       }
     }
 #if 0
@@ -334,16 +338,9 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       // FIXME/NOTE: for now, for interfacing with culibs, we create an extra/redundant argument map 'func_args':
       p_map_str_p_nda_t func_args = make_shared<map_str_p_nda_t>();
       vect_rp_void cu_func_args;
-      for( vect_vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
-        add_args( *i, cu_func_args, func_args );
+      for( vect_rtc_arg_t::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
+        add_arg( *i, cu_func_args, func_args );
       }
-      for( vect_p_nda_t::iterator i = rfc.nda_args.begin(); i != rfc.nda_args.end(); ++i ) { 
-        assert_st( (*i)->elems_sz() == 1 );
-        cu_func_args.push_back( (*i)->rp_elems() );
-      }
-      if( rfc.has_cucl_arg_info.v ) { cu_func_args.push_back( &rfc.cucl_arg_info[0] ); }
-      else { assert_st( rfc.cucl_arg_info.empty() ); }
-
       rfc.call_id = alloc_call_id();
       record_event( get_call_ev(rfc.call_id).b_ev );
       nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );

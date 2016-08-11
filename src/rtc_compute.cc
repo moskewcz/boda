@@ -11,6 +11,11 @@ namespace boda
     return out;
   }
 
+  std::ostream & operator << ( std::ostream & out, rtc_arg_t const & o ) {
+    out << strprintf( "o.n=%s o.v=%s\n", str(o.n).c_str(), str(o.v).c_str() );
+    return out;
+  }
+
   void rtc_launch_check_blks_and_tpb( std::string const & rtc_func_name, uint64_t const blks, uint64_t const tpb ) {
     if( !( (blks > 0) && (tpb > 0) ) ) {
       rt_err( strprintf( "boda/rtc: can't launch kernel; blks or tpb is zero: rtc_func_name=%s blks=%s tpb=%s;"
@@ -151,7 +156,7 @@ namespace boda
       rtc->init_var_from_vect_float( "b", b );
       rtc->init_var_from_vect_float( "c", c );
       
-      rtc_func_call_t rfc{ "my_dot", {{"a"},{"b"},{"c"}}, {make_scalar_nda(data_sz)} }; 
+      rtc_func_call_t rfc{ "my_dot", {{"a"},{"b"},{"c"},{"",make_scalar_nda(data_sz)} } }; 
       rfc.tpb.v = 256;
       rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
 

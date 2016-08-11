@@ -365,14 +365,19 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     virtual float get_var_compute_dur( string const & vn ) { return 0; }
     virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { return 0; }
 
-    void add_args( vect_string const & args, cl_kernel_t const & kern, uint32_t & cur_arg_ix ) {
-      for( vect_string::const_iterator i = args.begin(); i != args.end(); ++i ) {
-	cl_mem * buf = 0;
-	if( *i == "<NULL>" ) { buf = &null_buf.v; }
-	else { buf = &must_find( *vis, *i ).buf.v; }
-	set_kernel_arg( kern, cur_arg_ix, *buf );
-	++cur_arg_ix;
+    void add_arg( rtc_arg_t const & arg, cl_kernel_t const & kern, uint32_t & cur_arg_ix ) {
+      if( !arg.n.empty() ) { 
+        assert_st( !arg.v );
+        cl_mem * buf = 0;
+        if( arg.n == "<NULL>" ) { buf = &null_buf.v; }
+        else { buf = &must_find( *vis, arg.n ).buf.v; }
+        set_kernel_arg( kern, cur_arg_ix, *buf );
+      } else {
+        assert_st( arg.v );
+        cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, arg.v->dims.bytes_sz(), arg.v->rp_elems() );
+        cl_err_chk( err, "clSetKernelArg() [by-value]" );
       }
+      ++cur_arg_ix;
     }
 
     void release_func( string const & func_name ) { must_erase( *kerns, func_name ); }
@@ -380,22 +385,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     void run( rtc_func_call_t & rfc ) {
       cl_kernel_t const & kern = must_find( *kerns, rfc.rtc_func_name.c_str() );
       uint32_t cur_arg_ix = 0;
-      for( vect_vect_string::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
-        add_args( *i, kern, cur_arg_ix );
-      }
-      for( vect_p_nda_t::iterator i = rfc.nda_args.begin(); i != rfc.nda_args.end(); ++i ) { 
-        assert_st( (*i)->elems_sz() == 1 );
-        cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, (*i)->dims.bytes_sz(), (*i)->rp_elems() );
-        cl_err_chk( err, "clSetKernelArg() [nda_args]" );
-	++cur_arg_ix;
-      }
-      if( rfc.has_cucl_arg_info.v ) {
-        cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, 
-                                          sizeof(rfc.cucl_arg_info[0])*rfc.cucl_arg_info.size(),
-                                          &rfc.cucl_arg_info[0] );
-        cl_err_chk( err, "clSetKernelArg() [cucl_arg_info]" );
-	++cur_arg_ix;        
-      } else { assert_st( rfc.cucl_arg_info.empty() ); }
+      for( vect_rtc_arg_t::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) { add_arg(*i,kern,cur_arg_ix );}
       rtc_launch_check_blks_and_tpb( rfc.rtc_func_name, rfc.blks.v, rfc.tpb.v );
       rfc.call_id = alloc_call_id();
       size_t const glob_work_sz = rfc.tpb.v*rfc.blks.v;
