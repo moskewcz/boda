@@ -292,10 +292,17 @@ namespace boda
   }
 
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, shared_ptr< T > const & o ) { 
-    bwrite( out, *o ); }
+    uint8_t non_null = bool(o);
+    bwrite( out, non_null );
+    if( non_null ) { bwrite( out, *o ); }
+  }
   template< typename STREAM, typename T > inline void bread( STREAM & in, shared_ptr< T > & o ) { 
-    o.reset( new T );
-    bread( in, *o );
+    uint8_t non_null = 0;
+    bread( in, non_null );
+    if( non_null ) {
+      o.reset( new T );
+      bread( in, *o );
+    } else { o.reset(); }
   }
 
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, vector< T > const & o ) { 
@@ -383,6 +390,7 @@ namespace boda
   ndat_info_t const half_ndat{"half",2,1,1};
   ndat_info_t const float_ndat{"float",4,1,1};
   ndat_info_t const double_ndat{"double",8,1,1};
+  ndat_info_t const int32_t_ndat{"int32_t",4,0,1};
   ndat_info_t const uint32_t_ndat{"uint32_t",4,0,0};
   ndat_info_t const uint8_t_ndat{"uint8_t",1,0,0};
   template< typename T > inline ndat_info_t const & get_ndat( void );
@@ -390,12 +398,14 @@ namespace boda
   template<> inline ndat_info_t const & get_ndat<float>( void ) { return float_ndat; }
   template<> inline ndat_info_t const & get_ndat<double>( void ) { return double_ndat; }
   template<> inline ndat_info_t const & get_ndat<uint32_t>( void ) { return uint32_t_ndat; }
+  template<> inline ndat_info_t const & get_ndat<int32_t>( void ) { return int32_t_ndat; }
   template<> inline ndat_info_t const & get_ndat<uint8_t>( void ) { return uint8_t_ndat; }
   typedef map< string, rp_ndat_info_t > ndat_infos_t;
   ndat_infos_t const ndat_infos{
     {half_ndat.tn,&half_ndat},
     {float_ndat.tn,&float_ndat},
     {double_ndat.tn,&double_ndat},
+    {int32_t_ndat.tn,&int32_t_ndat},
     {uint32_t_ndat.tn,&uint32_t_ndat},
     {uint8_t_ndat.tn,&uint8_t_ndat},
   };
@@ -672,6 +682,12 @@ namespace boda
   typedef map< string, p_nda_t > map_str_p_nda_t;
   typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
 
+
+  template< typename T > inline p_nda_t make_vector_nda( vector< T > const & vv ) { 
+    p_nda_t ret = make_shared<nda_t>( dims_t{ {(uint32_t)vv.size()}, {"v"}, get_ndat<T>().tn } );
+    std::copy( vv.begin(), vv.end(), static_cast< T * >(ret->rp_elems()) );
+    return ret;
+  }
   template< typename T > inline p_nda_t make_scalar_nda( T const & v ) { 
     p_nda_t ret = make_shared<nda_t>( dims_t{ {1}, {"v"}, get_ndat<T>().tn } );
     *(static_cast< T * >(ret->rp_elems())) = v;
