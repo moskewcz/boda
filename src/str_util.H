@@ -55,6 +55,8 @@ namespace boda
 
   vect_string split( std::string const & s, char const sep );
   vect_string split_ws( std::string const & s );
+  vect_string split_space_tab_colon( std::string const & s );
+
   string strip_ws( std::string const & s );
 
   inline void strip_prefixes( std::string & s, std::string const & prefix ) {

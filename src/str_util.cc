@@ -91,6 +91,12 @@ namespace boda
     return parts;
   }
 
+  vect_string split_space_tab_colon( std::string const & s ) {
+    vect_string parts;
+    boost::algorithm::split( parts, s, boost::algorithm::is_any_of("\t :"), boost::algorithm::token_compress_on );
+    return parts;
+  }
+
   string strip_ws( std::string const & s ) { return boost::algorithm::trim_copy( s ); }
 
 
