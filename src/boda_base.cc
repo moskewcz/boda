@@ -139,9 +139,9 @@ namespace boda
     avg2 = sum2 / sz;
   }
 
+  // FIXME: port to nda_dispatch (if possible/senstible); this code predates nda_dispatch existing
   template ssds_diff_t::ssds_diff_t( p_nda_float_t const & o1, p_nda_float_t const & o2 );
   template ssds_diff_t::ssds_diff_t( p_nda_double_t const & o1, p_nda_double_t const & o2 );
-  using half_float::half;
 #define PER_TYPE_COMP( TN_TYPE )                                        \
       TN_TYPE * const o1_elems = static_cast<TN_TYPE *>(o1->rp_elems()); \
       TN_TYPE * const o2_elems = static_cast<TN_TYPE *>(o2->rp_elems()); \
@@ -153,9 +153,9 @@ namespace boda
     assert_st( sz == o2->elems_sz() );
     assert_st( o1->dims.tn == o2->dims.tn );
     if( 0 ) { }
-    else if( o1->dims.tn == "half" ) { PER_TYPE_COMP( half ); }
-    else if( o1->dims.tn == "float" ) { PER_TYPE_COMP( float ); }
-    else if( o1->dims.tn == "double" ) { PER_TYPE_COMP( double ); }
+    else if( o1->dims.tn == half_ndat.tn ) { PER_TYPE_COMP( half ); }
+    else if( o1->dims.tn == float_ndat.tn ) { PER_TYPE_COMP( float ); }
+    else if( o1->dims.tn == double_ndat.tn ) { PER_TYPE_COMP( double ); }
     else { rt_err( "unhandled type in ssds_diff_t: " + o1->dims.tn ); }
     aad = sqrt(ssds / sz);
     ad = sds / sz;
@@ -166,24 +166,23 @@ namespace boda
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 
-  template< typename T > void nda_dispatch( nda_t const & nda, T const & func ) {
-    if( 0 ) { }
-    else if( nda.dims.tn == "half" ) { func.template op<half>( nda ); } // C++!
-    else if( nda.dims.tn == "float" ) { func.template op<float>( nda ); }
-    else if( nda.dims.tn == "double" ) { func.template op<double>( nda ); }
-    else if( nda.dims.tn == "uint32_t" ) { func.template op<uint32_t>( nda ); }
-    else if( nda.dims.tn == "uint8_t" ) { func.template op<uint8_t>( nda ); }
-    else { rt_err( "unhandled type in nda_dispatch; tn=" + nda.dims.tn ); }
-  }
   struct nda_dump_t {
     std::ostream & out;
     nda_dump_t( std::ostream & out_ ) : out(out_) {}
     template< typename T > void op( nda_t const & nda ) const { 
-      out << "DIMS: " << nda.dims << " " << "VALS:";
+      out << "(";
+      // FIXME: put these 'default dims/tn for nda_t param str' conditions somewhere better?
+      bool const show_dims = (nda.dims.size() != 1) || (nda.dims[0].name != "v");
+      bool const show_tn = (!show_dims) || (nda.dims.get_tn() != "float");
+      if( show_tn ) { out << "tn=" << nda.dims.get_tn() << ","; }
+      if( show_dims ) { out << "dims=" << nda.dims.param_str(0) << ","; } // note: always omit tn here
+      out << "v=";
       T const * const elems = static_cast<T const *>(nda.rp_elems());
       for( uint32_t i = 0; i != nda.elems_sz(); ++i ) {
-        out << " " << elems[i];
+        if( i ) { out << ":"; }
+        out << elems[i];
       }
+      out << ")";
     }
   };
 

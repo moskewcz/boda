@@ -72,6 +72,7 @@ namespace boda
   using std::vector;
   using std::map;
   using std::set;
+  using half_float::half;
 
   typedef vector< void * > vect_rp_void;
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
@@ -380,6 +381,7 @@ namespace boda
   // (fast/compact-ish and big enough)? sigh. i'm still not on the size_t bandwagon, and i'm worried about dealing with
   // upcasts for size computations where 32 bits isn't enough, and surely 64 bits is enough forever (and fast/native
   // enough), so uint64_t it is.
+  // FIXME: remove some of the string comparisons in favor of ndat pointer comparisons? tempting, but probably not needed.
   struct ndat_info_t {
     string tn;
     uint64_t sz;
@@ -445,6 +447,7 @@ namespace boda
       return 1;
     }
     bool has_tn( void ) const { return tn.size(); }
+    string get_tn( void ) const { return tn; } // maybe replace with tinfo().tn later, if/when we replace tn -> tinfo
     bool has_sz_and_stride_and_name( void ) const { 
       for( uint32_t i = 0; i != sz(); ++i ) { if( !at(i).has_sz_and_stride_and_name() ) { return 0; } }
       return 1;
@@ -670,11 +673,26 @@ namespace boda
       bread(in,dims); 
       alloc();
       bread_bytes( in, (char *)d.get(), dims.bytes_sz() );
-    } 
+    }
+    // similarly to bread/bwrite, the nesi init code needs to take a default constructed nda, fill in the dims, and alloc.
+    void nesi_init_private_alloc( void ) { alloc(); } // wrapper to make it clear this should not be called willy-nilly
   };
   std::ostream & operator << ( std::ostream & out, nda_t const & o );
   template< typename STREAM > inline void bwrite( STREAM & out, nda_t const & o ) { o.bwrite_( out ); }
   template< typename STREAM > inline void bread( STREAM & in, nda_t & o ) { o.bread_( in ); }
+
+  template< typename NDA_T, typename T > // below magic return type is void and makes NDA_T be const or non-const nda_t
+  typename std::enable_if< std::is_same<nda_t, typename std::remove_const<NDA_T>::type >::value >::type // C++! yeah! sigh.
+  nda_dispatch( NDA_T & nda, T const & func ) {
+    if( 0 ) { }
+    else if( nda.dims.tn == half_ndat.tn ) { func.template op<half>( nda ); } // C++!
+    else if( nda.dims.tn == float_ndat.tn ) { func.template op<float>( nda ); }
+    else if( nda.dims.tn == double_ndat.tn ) { func.template op<double>( nda ); }
+    else if( nda.dims.tn == int32_t_ndat.tn ) { func.template op<int32_t>( nda ); }
+    else if( nda.dims.tn == uint32_t_ndat.tn ) { func.template op<uint32_t>( nda ); }
+    else if( nda.dims.tn == uint8_t_ndat.tn) { func.template op<uint8_t>( nda ); }
+    else { rt_err( "unhandled type in nda_dispatch; tn=" + nda.dims.tn ); }
+  }
   
   typedef vector< nda_t > vect_nda_t; 
   typedef shared_ptr< nda_t > p_nda_t; 

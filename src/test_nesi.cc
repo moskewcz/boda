@@ -75,8 +75,13 @@ namespace boda
     vect_string vstr; //NESI()
     filename_t fn; //NESI(default="yo.mom")
     vect_p_cmd_test_t vct; //NESI()
+    p_nda_t nda; //NESI()
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/test_vst.txt",help="output: print out nda, if specified.")
+
     virtual void main( nesi_init_arg_t * nia ) {
-      //printf("vst::main()\n");
+      p_ofstream out = ofs_open( out_fn.exp );
+      (*out) << strprintf("vst::main()\n");
+      if( nda ) { (*out) << strprintf( "nda=%s\n", str(nda).c_str() ); }
     }
   };
 
@@ -107,7 +112,8 @@ namespace boda
   };
 
   string const ntb( "(mode=vst,boda_output_dir=." ); // note unmatched open paren ...
-  string const ntb_fn = ntb + ",dpf=3.4,fn=";
+  string const ntb_b = ntb + ",dpf=3.4,";
+  string const ntb_fn = ntb_b + "fn=";
   nesi_test_t nesi_tests[] = {
     { "bad_mode", "", "(mode=foozledefoo)", "error: type id str of 'foozledefoo' did not match any derived class of has_main_t\n"},
     { "vect_init_t1", "", ntb+",dpf=3.4,vdpf=(li_0=23.4))", 0},
@@ -115,6 +121,17 @@ namespace boda
     { "no_req_val_t3", "", ntb+")", "error: missing required value for var 'dpf'"},
     { "bad_list_as_val_t1", "", ntb+",dpf=(li_0=3.4,li_1=34.0))", "var 'dpf': error: invalid attempt to use name/value list as double (double precision floating point number) value. list was:(li_0=3.4,li_1=34.0)"},
     { "bad_val_t1", "", ntb+",dpf=2jj2)", "var 'dpf': error: can't convert '2jj2' to double (double precision floating point number)."},
+    // nda_t error cases (there are a bunch ...)
+    { "bad_nda_1", "", ntb_b+"nda=2jj2)", "var 'nda': error: invalid attempt to use string as name/value list for nda_t (N-D Array) init. string was:2jj2"},
+    { "bad_nda_2", "", ntb_b+"nda=())", "var 'nda': error: nda_t has neither 'tn' nor 'dims' field, can't determine type; set at least one."},
+    { "bad_nda_3", "", ntb_b+"nda=(jimmy=no-fun))", "var 'nda': error: nda_t has no field named jimmy. valid fields are 'tn' (string; type name), 'dims' (dims_t), and 'v' (string; space-or-colon-seperated list of values" },
+    { "bad_nda_4", "", ntb_b+"nda=(dims=()))", "var 'nda': error: nda_t 'dims' field specified empty dims." },
+    { "bad_nda_5", "", ntb_b+"nda=(dims=jimbo))", "var 'nda': nda_t dims: error: invalid attempt to use string as name/value list for dims_t (N-D Array Dimentions) init. string was:jimbo" },
+    { "bad_nda_6", "", ntb_b+"nda=(tn=foo))", "var 'nda': error: nda_t has no 'v' field; currently, only non-empty nda_t's may be specified." },
+    { "bad_nda_7", "", ntb_b+"nda=(tn=foo,v=baz))", "var 'nda': error: missing key:foo" }, // not ideal! means 'bad type'
+    { "bad_nda_8", "", ntb_b+"nda=(tn=float,v=1.2:3.4:5.6))", 0 },
+    { "bad_nda_9", "", ntb_b+"nda=(dims=(v=4),v=1.2:3.4:5.6))", "var 'nda': error: nda_t 'v' field has 3 elements/parts, but user-specified 'dims' say there should be 4." },
+
     // for the moment we're allowing this case:
     //{ "bad_val_t2", "", ntb+",dpf=23.1,vstr=(li_0=sdf,li_1=(li_0=biz)))", "var 'vstr': list elem 1: error: invalid attempt to use name/value list as string value. list was:(li_0=biz)"},
     { "fn_t1", "", ntb_fn+"foo.txt)", 0},

@@ -18,6 +18,7 @@ using std::string;
 #include"xml_util.H"
 #include"geom_prim.H"
 #include"cnn_op.H"
+#include"ext/half.hpp"
 
 namespace boda 
 {
@@ -636,7 +637,7 @@ namespace boda
   void nesi_init_checked( void * ret, tinfo_t const * const & tinfo,
                           p_lexp_t const & lexp, nesi_init_arg_t * const & nia, string const & err_prefix ) {
     lexp_name_val_map_t nvm( lexp, nia );
-    try { tinfo->init( &nvm, tinfo, &ret ); }
+    try { tinfo->init( &nvm, tinfo, ret ); }
     catch( rt_exception & rte ) { rte.err_msg = err_prefix + rte.err_msg; throw; }
   }
 
@@ -667,6 +668,21 @@ namespace boda
   nesi_dump_t * dims_t_nesi_dump = &with_op_left_shift_nesi_dump< dims_t >;
   void *dims_t_init_arg = (void *)"dims_t (N-D Array Dimentions)";
 
+  // FIXME: broken for uint8_t, as per the usual (bad?) reasons. need a wrapper to treat uint8_t as numeric ...
+  struct nda_elems_init_t {
+    vect_string const & parts;
+    nda_elems_init_t( vect_string const & parts_ ) : parts(parts_) {}
+    template< typename T > void op( nda_t & nda ) const { 
+      assert_st( parts.size() == nda.elems_sz() );
+      T * const elems = static_cast<T *>(nda.rp_elems());
+      for( uint32_t i = 0; i != nda.elems_sz(); ++i ) {
+        try { elems[i] = boost::lexical_cast< T >( parts[i] ); }
+        catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", 
+                                                                 parts[i].c_str(), nda.dims.get_tn().c_str() ) ); }
+      }
+    }
+  };
+
   // nda_t's are dims_t's with values. however, it's not clear if we can or should make nda_t a 'real' NESI type. so,
   // like dims_t, we manually parse nda_t's with the following code. we treat nda_t's as having three fields: tn, dims,
   // and v. dims is parsed as a dims_t using the above function. tn is like the '__tn__' pseudo-dim used by the dims_t
@@ -679,6 +695,7 @@ namespace boda
   extern tinfo_t tinfo_dims_t;
   void nesi_nda_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
     nda_t * v = (nda_t *)o;
+    assert_st( v->dims.empty() ); // should be freshly constructed
     if( !nia->l ) { return; } // no_value_init --> empty vector
     lexp_t * l = nia->l.get();
     if( l->leaf_val.exists() ) {
@@ -700,6 +717,7 @@ namespace boda
       lexp_name_val_map_t nvm( dims, nia );
       try { nesi_dims_t_init( &nvm, &tinfo_dims_t, &v->dims ); }
       catch( rt_exception & rte ) { rte.err_msg = "nda_t dims: " + rte.err_msg; throw; }
+      if( v->dims.empty() ) { rt_err( "nda_t 'dims' field specified empty dims." ); }
     } // set v->dims
     if( tn ) { nesi_init_checked( &tn_str, &tinfo_string, tn, nia, "nda_t tn: " ); } // note: lexp->str can't fail ...
     else { assert_st( dims ); tn_str = v->dims.tn; }
@@ -709,8 +727,17 @@ namespace boda
     string v_str;
     nesi_init_checked( &v_str, &tinfo_string, vv, nia, "nda_t v: " );
     vect_string parts = split_space_tab_colon( v_str );
-
-
+    // init dims if needed; otherwise override dims.tn if tn was specificed (note: could set unconditionally to tn_str)
+    if( !dims ) { v->dims = dims_t( vect_uint32_t{uint32_t(parts.size())}, vect_string{"v"}, tn_str ); }
+    else if( tn ) { v->dims.tn = tn_str; }  // note: if !tn, tn_str came from v->dims in the first place
+    // check length agreement
+    if( v->dims.dims_prod() != parts.size() ) {
+      assert_st( dims ); // disagreement not possible otherwise
+      rt_err( strprintf( "nda_t 'v' field has %s elements/parts, but user-specified 'dims' say there should be %s.",
+                         str(parts.size()).c_str(), str(v->dims.dims_prod()).c_str() ) );
+    }
+    v->nesi_init_private_alloc(); // just calls alloc(), but has a scary/descriptive name
+    nda_dispatch( *v, nda_elems_init_t( parts ) ); // actually fill in values
   }
   make_p_t * nda_t_make_p = &has_def_ctor_make_p< nda_t >;
   vect_push_back_t * nda_t_vect_push_back = &has_def_ctor_vect_push_back_t< nda_t >;

@@ -7,6 +7,8 @@
       <vu64 li_0="0" li_1="2" li_2="0"/> 
     </command>
   </li>
+  <li test_name="vst_2" cli_str="boda vst --dpf=4.3 --nda=(tn=float,v=5.4) "/>
+  <li test_name="vst_3" cli_str="boda vst --dpf=4.3 --nda=(tn=uint32_t,dims=(v=3),v=5:12:19) "/>
   <li test_name="load_pil_1"> <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.txt" /> </li>
   <li test_name="load_pil_2" err="error: invalid type string in image list file '%(boda_test_dir)/pascal/bicycle_10.inv_1.txt': saw '', expected '1', '-1', or '0'." >
     <command mode="load_pil" pil_fn="%(boda_test_dir)/pascal/bicycle_10.inv_1.txt"/>
