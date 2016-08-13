@@ -495,9 +495,7 @@ namespace boda
     T * v = (T *)o;
     char const * tstr = 0;
     string s = nesi_leaf_val_init_helper(tstr,nia,tinfo)->leaf_val.str();  
-    vect_string parts;
-    for( string::iterator i = s.begin(); i != s.end(); ++i ) { if( *i == ':' ) { *i = ' '; } }
-    boost::algorithm::split( parts, s, boost::algorithm::is_space(), boost::algorithm::token_compress_on );
+    vect_string parts = split_space_tab_colon( s );
     try { v->read_from_line_parts( parts, 0 ); }
     catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to %s.", s.c_str(), tstr ) ); }
   }
@@ -633,8 +631,16 @@ namespace boda
   nesi_dump_t * u32_box_t_nesi_dump = &with_op_left_shift_nesi_dump< u32_box_t >;
   void *u32_box_t_init_arg = (void *)"u32_box_t (pair of u32_pt_t, i.e. an unsigned box)";
 
-  // dims_t
   extern tinfo_t tinfo_uint32_t;
+  extern tinfo_t tinfo_string;
+  void nesi_init_checked( void * ret, tinfo_t const * const & tinfo,
+                          p_lexp_t const & lexp, nesi_init_arg_t * const & nia, string const & err_prefix ) {
+    lexp_name_val_map_t nvm( lexp, nia );
+    try { tinfo->init( &nvm, tinfo, &ret ); }
+    catch( rt_exception & rte ) { rte.err_msg = err_prefix + rte.err_msg; throw; }
+  }
+
+  // dims_t
   void nesi_dims_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
     dims_t * v = (dims_t *)o;
     if( !nia->l ) { return; } // no_value_init --> empty vector
@@ -646,17 +652,12 @@ namespace boda
     ++l->use_cnt;
     string tn = "float"; // FIXME_TNDA: user-input dims_t's have a hard-coded default type of float for now ...
     for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) {
-      uint32_t dim_v = 0;
-      lexp_name_val_map_t nvm( i->v, nia );
-      if( i->n.str() == "__tn__" ) { nesi_string_init( &nvm, 0, &tn ); continue; } // handle __tn__ pseudo-dim special case
-      try { 
-	nesi_uint32_t_init( &nvm, &tinfo_uint32_t, &dim_v ); 
+      if( i->n.str() == "__tn__" ) { nesi_init_checked( &tn, &tinfo_string, i->v, nia, "dims_t __tn__: " ); }
+      else {
+        uint32_t dim_v = 0;
+        nesi_init_checked( &dim_v, &tinfo_uint32_t, i->v, nia, "dims_t dim " + i->n.str() + ": " );
+        v->add_dims( i->n.str(), dim_v );
       }
-      catch( rt_exception & rte ) {
-	rte.err_msg = "dims_t dim " + i->n.str() + ": " + rte.err_msg;
-	throw;
-      }
-      v->add_dims( i->n.str(), dim_v );
     }
     v->tn = tn;
     if( !v->empty() ) { v->calc_strides(); } // if not null/empty, calc strides. FIXME: strides not really handled here, obv.
@@ -665,6 +666,56 @@ namespace boda
   vect_push_back_t * dims_t_vect_push_back = &has_def_ctor_vect_push_back_t< dims_t >;
   nesi_dump_t * dims_t_nesi_dump = &with_op_left_shift_nesi_dump< dims_t >;
   void *dims_t_init_arg = (void *)"dims_t (N-D Array Dimentions)";
+
+  // nda_t's are dims_t's with values. however, it's not clear if we can or should make nda_t a 'real' NESI type. so,
+  // like dims_t, we manually parse nda_t's with the following code. we treat nda_t's as having three fields: tn, dims,
+  // and v. dims is parsed as a dims_t using the above function. tn is like the '__tn__' pseudo-dim used by the dims_t
+  // parsing code, and will override the tn of any parsed dims_t (FIXME: we should check that __tn__ was not used inside
+  // the dims_t in that case). v is a space-or-colon seperated list of values. wrinkles. for now, we require the v
+  // field, but if we wish to allow specifciation of dims-only nda_t's, we could make it optional. if the v field is
+  // specified, the dims field is optional. if the dims field is ommited, the tn field is required; otherwise it is
+  // optional. when ommited, the dims will be set to a dims_t with a single dim named 'v' of length == to the number of
+  // elems given in the 'v' field.
+  extern tinfo_t tinfo_dims_t;
+  void nesi_nda_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
+    nda_t * v = (nda_t *)o;
+    if( !nia->l ) { return; } // no_value_init --> empty vector
+    lexp_t * l = nia->l.get();
+    if( l->leaf_val.exists() ) {
+      char const * const tstr = (char const *)tinfo->init_arg;
+      rt_err( "invalid attempt to use string as name/value list for "+string(tstr)+" init. string was:" + str(*l) );
+    }
+    ++l->use_cnt;
+    p_lexp_t tn,dims,vv;
+    for( vect_lexp_nv_t::iterator i = l->kids.begin(); i != l->kids.end(); ++i ) { // gather fields, error check for extras
+      if( 0 ) {}
+      else if( i->n.str() == "tn" ) { tn = i->v; }
+      else if( i->n.str() == "dims" ) { dims = i->v; }
+      else if( i->n.str() == "v" ) { vv = i->v; }
+      else { rt_err( "nda_t has no field named "+i->n.str()+". valid fields are 'tn' (string; type name), 'dims' (dims_t), and 'v' (string; space-or-colon-seperated list of values" ); }
+    }
+    if( (!dims) && (!tn) ) { rt_err( "nda_t has neither 'tn' nor 'dims' field, can't determine type; set at least one." );}
+    string tn_str;
+    if( dims ) {
+      lexp_name_val_map_t nvm( dims, nia );
+      try { nesi_dims_t_init( &nvm, &tinfo_dims_t, &v->dims ); }
+      catch( rt_exception & rte ) { rte.err_msg = "nda_t dims: " + rte.err_msg; throw; }
+    } // set v->dims
+    if( tn ) { nesi_init_checked( &tn_str, &tinfo_string, tn, nia, "nda_t tn: " ); } // note: lexp->str can't fail ...
+    else { assert_st( dims ); tn_str = v->dims.tn; }
+    assert_st( !tn_str.empty() ); // FIXME: user could set null tn; better error check here?
+    // pase values
+    if( !vv ) { rt_err( "nda_t has no 'v' field; currently, only non-empty nda_t's may be specified." ); }
+    string v_str;
+    nesi_init_checked( &v_str, &tinfo_string, vv, nia, "nda_t v: " );
+    vect_string parts = split_space_tab_colon( v_str );
+
+
+  }
+  make_p_t * nda_t_make_p = &has_def_ctor_make_p< nda_t >;
+  vect_push_back_t * nda_t_vect_push_back = &has_def_ctor_vect_push_back_t< nda_t >;
+  nesi_dump_t * nda_t_nesi_dump = &with_op_left_shift_nesi_dump< nda_t >;
+  void *nda_t_init_arg = (void *)"nda_t (N-D Array)";
 
   // FIXME: we've used templates here to reduce code duplication for the various map_str_T type. however, we still don't
   // have 'full' NESI support for generic map_str_T NESI types, and this causes a few issues -- not the least of which
