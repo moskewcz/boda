@@ -780,6 +780,14 @@ namespace boda
     }
   }
 
+  // map_str_p_nda_t
+  init_t * nesi_map_str_p_nda_t_init = &nesi_map_str_T_init< p_nda_t >;
+  make_p_t * map_str_p_nda_t_make_p = &has_def_ctor_make_p< map_str_p_nda_t >;
+  vect_push_back_t * map_str_p_nda_t_vect_push_back = &has_def_ctor_vect_push_back_t< map_str_p_nda_t >;
+  nesi_dump_t * map_str_p_nda_t_nesi_dump = &with_op_left_shift_nesi_dump< map_str_p_nda_t >;
+  extern tinfo_t tinfo_p_nda_t;
+  void *map_str_p_nda_t_init_arg = (void *)&tinfo_p_nda_t;
+
   // map_str_op_tune_t
   init_t * nesi_map_str_op_tune_t_init = &nesi_map_str_T_init< op_tune_t >;
   make_p_t * map_str_op_tune_t_make_p = &has_def_ctor_make_p< map_str_op_tune_t >;
