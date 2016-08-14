@@ -82,8 +82,9 @@ namespace boda
     u32_pt_t kern_sz( void ) const { return get_xy_dims_strict( must_find( dims_vals, "kern_sz" ) ); }
     u32_pt_t stride( void ) const { return get_xy_dims_strict( must_find( dims_vals, "stride" ) ); }
     // FIXME: these fields are only used codegen, so maybe they don't belong here?
-    string cts( void ) const { return must_find( str_vals, "cts" ); } // cts --> conv-type-str
-    void set_cts( string const & cts_ ) { must_insert( str_vals, "cts", cts_ ); }
+    string func_name( void ) const { return must_find( str_vals, "func_name" ); } // cts --> conv-type-str
+    void set_func_name( string const & func_name_ ) { must_insert( str_vals, "func_name", func_name_ ); }
+    void clear_func_name( void ) { must_erase( str_vals, "func_name" ); }
   };
 
   // conv_opt_t: adds information to an operation about where how it relates to other operations (i.e what it's inputs

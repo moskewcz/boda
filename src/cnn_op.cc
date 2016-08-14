@@ -43,23 +43,23 @@ namespace boda
 	op->dims_vals["kern_sz"] = dims_t{ {kern_sz_.d[1],kern_sz_.d[0]}, {"y","x"}, "none" }; // FIXME: not ideal ...
       } 
       if( is_conv && enable_ipconv && op->in_pad().is_zeros() && (get_xy_dims(no_dims) == u32_pt_t{1,1}) ) {
-	op->set_cts( ipconv_str ); // single output per-chan-per-image: inner-product case
+	op->set_func_name( ipconv_str ); // single output per-chan-per-image: inner-product case
       } else if( is_conv && enable_k1conv && (kern_sz_ == u32_pt_t{1,1}) && (op->stride() == u32_pt_t{1,1}) 
 		 && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no_dims.dsz("chan") >= 64) ) 
       { 
-	if( !op->in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); op->set_cts( conv_str ); }
+	if( !op->in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); op->set_func_name( conv_str ); }
 	else { 
-          if( op_tune->use_local_mem == 2 ) { op->set_cts( k1conv_simd_str ); }
-          else { op->set_cts( k1conv_str ); }
+          if( op_tune->use_local_mem == 2 ) { op->set_func_name( k1conv_simd_str ); }
+          else { op->set_func_name( k1conv_str ); }
         }
       }
       else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(op_tune->tconv_max_ksz)
 								   && (kern_sz_.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
-        op->set_cts( tconv_str );
+        op->set_func_name( tconv_str );
       }
       else { 
-          if( op_tune->use_local_mem == 2 ) { op->set_cts( conv_simd_str ); }
-          else { op->set_cts( conv_str ); }
+          if( op_tune->use_local_mem == 2 ) { op->set_func_name( conv_simd_str ); }
+          else { op->set_func_name( conv_str ); }
       }
       // NOTE/FIXME: this whole per_op_tune thing is hacky and experimental ... but we do need to do something. i guess
       // we're creeping toward what we need for supporting autotuning in the long run, but we need to figure out the
@@ -67,7 +67,7 @@ namespace boda
       // 'base' op_tune to select a variant (which uses some subset of the tuning params, mostly enable related ones),
       // and then if there's a per-variant op_tune we use it for some remaining params (mostly blocking related
       // ones). so maybe we need to split op_tune_t? or not?
-      if( per_op_tune ) { op_tune = &get(*per_op_tune,op->cts(),op_tune_); };
+      if( per_op_tune ) { op_tune = &get(*per_op_tune,op->func_name(),op_tune_); };
 
       u32_pt_t const & t_tile_sz = op_tune->MNt;
       uint32_t const max_tpb = op_tune->MNb.dims_prod(); // FIXME: pass as M/N parts, not product.
@@ -144,10 +144,10 @@ namespace boda
 	dims_t work;
         work.tn = "none";
 	uint32_t const lines_sz = no_dims.dsz("img") * no_sz.d[1];
-        if( (op->cts() == tconv_str) || (op->cts() == k1conv_str) ) { 
+        if( (op->func_name() == tconv_str) || (op->func_name() == k1conv_str) ) { 
           op->dims_vals["flags"] = dims_t({1},{"v"},"uint32_t"); // exactly these two variants have this debugging input
         }
-	if( op->cts() == tconv_str ) {
+	if( op->func_name() == tconv_str ) {
 	  assert( gbt.thr_per_blk.d[0] >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
 	  work.add_dims( "blk_bline", u32_ceil_div( lines_sz, gbt.thr_per_blk.d[0] ), 
 			 "blk_bx", u32_ceil_div( no_sz.d[0], gbt.mn_per_thr.d[0] ) );
@@ -188,12 +188,12 @@ namespace boda
 	work.add_dims( "out_chan_blk", gbt.num_blk.d[1] );
 
 	// dims of per-group work (defines # threads per local group)
-	if( op->cts() == tconv_str ) { work.add_dims( "blk_y", gbt.thr_per_blk.d[0] ); }
+	if( op->func_name() == tconv_str ) { work.add_dims( "blk_y", gbt.thr_per_blk.d[0] ); }
 	else { work.add_dims( "pels_tile", gbt.thr_per_blk.d[0] ); }
 	work.add_dims(   "out_chan_tile", gbt.thr_per_blk.d[1] );
 
 	work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_chan", gbt.mn_per_thr.d[1] ); // dims of per-thread work
-	if( op->cts() == ipconv_str ) { 
+	if( op->func_name() == ipconv_str ) { 
 	  uint32_t fioc_tile = 4;
 	  while( (fioc_tile < 32) && (fioc_tile*2*gbt.thr_per_blk.dims_prod()) <= 512 ) { fioc_tile *= 2; }
 	  assert_st( (ni_dims.dsz("chan") % fioc_tile) == 0 );
@@ -201,14 +201,14 @@ namespace boda
 	} // unrolling/tiling of inner loop
 	work.calc_strides();
 
-	if( op->cts() == k1conv_str ) { 
+	if( op->func_name() == k1conv_str ) { 
 	  uint32_t const in_blk_iter_chan_dim = op_tune->Kb;
 	  // the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	  // vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
 	  in_dims = dims_t( vect_uint32_t{
 	      work.dsz("pels_blk"), u32_ceil_div(ni_dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, in_dims.tn ); 
-	} else if( op->cts() == k1conv_simd_str ) { 
+	} else if( op->func_name() == k1conv_simd_str ) { 
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
           // simd, no-local-mem version of k1conv.  we xpose to pels:chans format for the file, input, and output. we
           // pad the pels and out_chans to exactly match the blocking.
@@ -226,7 +226,7 @@ namespace boda
             vect_string{"in_chan","y","x","out_chan"}, op->dims_vals["filts"].tn ); 
 	  op->dims_vals["out"] = dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, 
                                          vect_string{"chan","pel"}, op->dims_vals["out"].tn ); 
-	} else if( op->cts() == conv_simd_str ) {
+	} else if( op->func_name() == conv_simd_str ) {
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
           // FIXME: pad in_chan to multiple of Kb?
           assert_st( op_tune->Kb == 1 ); // FIXME: for now, no inner loop unroll ...
@@ -286,7 +286,7 @@ namespace boda
 	// we do this, we may change the binding for "in" (e.g. to point to an xformed version of the original
 	// variable).
 	op->dims_vals["in"] = in_dims; 
-        if( is_k1_or_t_or_reg_conv( op->cts() ) ) {
+        if( is_k1_or_t_or_reg_conv( op->func_name() ) ) {
             op->dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), 
                   kern_sz_.d[1], kern_sz_.d[0],
                   work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x",
@@ -295,6 +295,23 @@ namespace boda
 	// dims_t( vect_uint32_t{out_chans}, vect_string{"out_chan"}, 1 );
       } // end if(is_conv)
     }
+    // if not set yet: set func name if a single value works, otherwise leave unset. FIXME: put these values into coi?
+    if( 0 ) { }
+    else if( op->is( Concat_coi ) ) { op->set_func_name( "copy" ); }
+    else if( op->is( Split_coi ) ) { op->set_func_name( "split_copy" ); }
+    else if( op->is( Reduce_coi ) ) { op->set_func_name( "reduce" ); }
+    else if( op->is( Pooling_coi ) ) { op->set_func_name( "pool" ); }
+    // else if( op->is( Convolution_coi ) ) { } // selected above already
+    else if( op->is( ReLU_coi ) ) { op->set_func_name( "relu" ); }
+    else if( op->is( LRN_coi ) ) { op->set_func_name( "lrn" ); }
+    else if( op->is( BckLRN_coi ) ) { op->set_func_name( "bck_lrn" ); }
+    else if( op->is( Dropout_coi ) ) { op->set_func_name( "dropout" ); }
+    else if( op->is( BckDropout_coi ) ) { op->set_func_name( "dropout" ); }
+    else if( op->is( Softmax_coi ) ) { op->set_func_name( "softmax" ); }
+    // else if( op->is( SoftmaxWithLoss_coi ) ) { } // no single value
+    else if( op->is( Spreading_coi ) ) { op->set_func_name( "spreading" ); }
+    else if( op->is( ZeroIfNonPos_coi ) ) { op->set_func_name( op->type ); } // wow! one with a consistent name! sigh.
+    // else if( op->is( BckConv_coi ) ) { } // no single value
   }
   
 #include"gen/cnn_op.H.nesi_gen.cc"

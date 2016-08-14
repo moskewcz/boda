@@ -14,12 +14,6 @@ namespace boda
     map_str_str str_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
     map_str_p_nda_t nda_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/nda list." )
     op_base_t( void ) {}
-    // commonly used pattern: clone, but override type. FIXME: remove? the main issue is the non-one-to-one-ness of ops
-    // names with template names. note that in addition to one op having multiple variants, sometimes one op invokes
-    // multiple templates, so it's not just a naming or name mapping issue.
-    op_base_t( string const & type_, op_base_t const & o ) :  
-      type(type_), dims_vals(o.dims_vals), str_vals(o.str_vals), nda_vals(o.nda_vals) { }
-    
     // used only for stats/quantize ... remove?
     op_base_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
       type(type_), dims_vals(dims_vals_), str_vals(str_vals_) { }

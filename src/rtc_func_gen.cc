@@ -290,10 +290,10 @@ namespace boda
     if(cg.empty()) { cg += "// begin "+sn+"\n"; } // adding first line in (new) section, add header
     cg += "   " + line + "\n"; 
   }
-  void rtc_call_gen_t::set( string const &var, string const &val ) { must_insert( str_vals, var, val ); }
+  void rtc_call_gen_t::set( string const &var, string const &val ) { must_insert( tsvs, var, val ); }
   dims_t const & rtc_call_gen_t::get_arg_dims_by_name( string const & arg_vn, string const & err_tag ) {
-    map_str_dims_t::const_iterator i = dims_vals.find( arg_vn );
-    if( i == dims_vals.end() ) { 
+    map_str_dims_t::const_iterator i = op.dims_vals.find( arg_vn );
+    if( i == op.dims_vals.end() ) { 
       rt_err( strprintf( "referenced %s arg '%s' not present in dims_vals", err_tag.c_str(), arg_vn.c_str() ) );
     }
     return i->second;
@@ -316,14 +316,15 @@ namespace boda
     return ix_dims;
   }
 
-  void rtc_call_gen_t::init( p_rtc_template_t const & rtc_func_template_, custom_codegen_t * const cc, string const & gen_fn_ ){
+  void rtc_call_gen_t::init( op_base_t const & op_, p_rtc_template_t const & rtc_func_template_, custom_codegen_t * const cc, string const & gen_fn_ ) {
+    op = op_;
     assert_st( gen_fn.empty() ); // double init guard
     gen_fn = gen_fn_;
     assert_st( !gen_fn.empty() ); // so above guard is sound (and a sensible assert anyway)
     set( "rtc_func_name", gen_fn );
     rtc_func_template = rtc_func_template_;
     // if we have a str_val with the magic name 'tpb', use it to set the call geom:
-    if( has( str_vals, "tpb" ) ) { rtc_call_geom.tpb = get_u32( "tpb" ); }
+    if( has( op.str_vals, "tpb" ) ) { rtc_call_geom.tpb = op.get_u32( "tpb" ); }
     for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
       dims_t ix_dims = apply_use_dims( get_arg_dims_by_name( i->arg_vn, "IX" ), i->use_dims );
       assert_st( ix_dims.size() && ix_dims.has_name() );
@@ -332,12 +333,12 @@ namespace boda
         assert_st( i->ix_vn != i->arg_vn ); // FIXME: too strong? but used later to see if this dyn is an ix ...
         dyn_vars.push_back( dyn_dim_info_t{ i->ix_vn, i->arg_vn, i->use_dims } ); 
         add_dyn_nda_dims_sz( i->ix_vn, ix_dims, 0 ); // omit ref templates for used-for-ix-only dyn dims
-        insert_nda_dyn_ix_exprs( str_vals, i->ix_vn, ix_dims );
+        insert_nda_dyn_ix_exprs( tsvs, i->ix_vn, ix_dims );
         //rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" );
       } else {
         ix_dims.calc_strides(); // note: stride are garbage prior to this call (which is okay)
         must_insert( all_ix_dims, i->ix_vn, ix_dims );
-        insert_nda_ix_exprs( str_vals, i->ix_vn, ix_dims );
+        insert_nda_ix_exprs( tsvs, i->ix_vn, ix_dims );
         rtc_call_geom.maybe_update_for_special_cucl_ixs( i->ix_vn, ix_dims );
       }          
     }
@@ -352,13 +353,14 @@ namespace boda
 #endif
     // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
 
-    if( cc ) { cc->gen_op( this, type ); } // call custom_codegen_t hook
+    assert_st( rtc_func_template->template_fn == must_find( op.str_vals, "func_name" ) ); // better be right template
+    if( cc ) { cc->gen_op( this, rtc_func_template->template_fn ); } // call custom_codegen_t hook.
 
     // make these always availible as template vars, since why not?  FIXME: should set these to fields inside
     // cucl_arg_info if they are dynamic. however, codegen that uses tpb directly would still be broken in that case
     // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the
     // template string ( which might point to a dynamic value ) instead.
-    if( !has( str_vals, "tpb" ) ) { set( "tpb", str(rtc_call_geom.tpb) ); } // currently, should always be fixed/constant/valid if there are no dyn vars
+    set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid if there are no dyn vars
     set( "blks", str(rtc_call_geom.blks) ); // may be 0 if # of blocks is dynamic
     set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 
@@ -406,7 +408,7 @@ namespace boda
 
   void rtc_call_gen_t::instantiate_template( string const & template_str ) {
     assert_st( rtc_prog_str.empty() ); // should only call only
-    for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( this ); !i.at_end(); ++i ) {
+    for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( &op ); !i.at_end(); ++i ) {
       if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
       dims_t const & arg_dims = get_arg_dims_by_name( i.vn() );
@@ -416,7 +418,7 @@ namespace boda
         add_dyn_nda_dims_sz( i.vn(), arg_dims, 1 ); 
       } else {	
         bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
-        insert_nda_dims_sz( str_vals, i.vn(), arg_dims, dims_only ); 
+        insert_nda_dims_sz( tsvs, i.vn(), arg_dims, dims_only ); 
       }
     }
 
@@ -424,9 +426,9 @@ namespace boda
       rt_err( "template declares _DYN arguments, but no CUCL ARGINFO declaration was found." );
     }
       
-    rtc_prog_str += "// -- codegen begins for '"+type+
+    rtc_prog_str += "// -- codegen begins for '"+rtc_func_template->template_fn+
       "'; template substituion table used (bulk sections ommited): --\n";
-    for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {
+    for( map_str_str::const_iterator i = tsvs.begin(); i != tsvs.end(); ++i ) {
       rtc_prog_str += strprintf( "/* %s = %s */\n", str(i->first).c_str(), str(i->second).c_str() );
     }
     for( map_str_str::iterator i = cgs.begin(); i != cgs.end(); ++i ) { // terminate and emit bulk cgs
@@ -434,13 +436,14 @@ namespace boda
       set( i->first, i->second ); 
     } 
     lexp_name_val_map_t tf_nvm{ p_lexp_t() };
-    tf_nvm.insert_leafs_from( str_vals );
+    tf_nvm.insert_leafs_from( tsvs );
     string rtc_func_str;
     try {
       str_format_from_nvm( rtc_func_str, template_str, tf_nvm );
     } catch( rt_exception const & rte ) {
-      printf( "rfs=%s\n", str((*this)).c_str() );
-      rt_err( strprintf( "instantiation failed; see above; type=%s; error was: %s\n", type.c_str(), rte.err_msg.c_str() ) );
+      printf( "rfs=%s\n", str(op).c_str() );
+      rt_err( strprintf( "instantiation failed; see above; type=%s; error was: %s\n", 
+                         rtc_func_template->template_fn.c_str(), rte.err_msg.c_str() ) );
     }
     rtc_prog_str += rtc_func_str;      
   }
@@ -449,9 +452,8 @@ namespace boda
     rtc_func_call_t rfc;
     rfc.rtc_func_name = rcg_func_call.func->gen_fn;
     rfc.call_tag = rcg_func_call.call_tag;
-    //rfc.nda_args = rcg_func_call.nda_args; // FIXME: need to merge args and nda_args (not have fixed args,nda_args order)
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
-
+    printf( "op=%s arg_map=%s\n", str(op).c_str(), str(rcg_func_call.arg_map).c_str() );
     p_nda_t cucl_arg_info_nda;
     assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
     if( rtc_func_template->has_cucl_arg_info.v ) {
@@ -479,7 +481,7 @@ namespace boda
         cucl_arg_info_nda.reset(); // mark as used
         continue;
       }
-      uint32_t const multi_sz = i->get_multi_sz( *this );
+      uint32_t const multi_sz = i->get_multi_sz( op );
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
         dims_t const & func_dims = get_arg_dims_by_name( vn );
@@ -535,20 +537,32 @@ namespace boda
 
   p_rtc_call_gen_t rtc_codegen_t::gen_func( op_base_t const & rfs_full ) {
     // first, get template
-    p_rtc_template_t & rtc_template = rtc_templates[rfs_full.type];
-    if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( rfs_full.type ); }
+    string const & func_name = must_find( rfs_full.str_vals, "func_name" );
+    p_rtc_template_t & rtc_template = rtc_templates[func_name];
+    if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( func_name ); }
 
     p_op_base_t rfs_reduced = rtc_template->check_args( rfs_full );
 
     p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
     if( !rcg ) { // need to instatiate function and pick unused name
-      rcg.reset( new rtc_call_gen_t( *rfs_reduced ) );
+      rcg.reset( new rtc_call_gen_t );
       string gen_fn = gen_unused_fn( *rfs_reduced, used_names );
-      rcg->init( rtc_template, cc.get(), gen_fn );
+      rcg->init( *rfs_reduced, rtc_template, cc.get(), gen_fn );
       used_names.insert( gen_fn );
       compile_pend.push_back( rcg );
     }    
     return rcg;
+  }
+
+  // currently used for calling xpose functions. not the pretiest thing, but better factored out here then dupe'd.
+  p_rtc_call_gen_t rtc_codegen_t::gen_func_override_func_name( string const & func_name, op_base_t & op ) {
+    // sigh. used only in conv case, where we know func_name is already set ...
+    string const orig_func_name = must_find(op.str_vals,"func_name"); 
+    must_insert( op.str_vals, "func_name", func_name );
+    p_rtc_call_gen_t func = gen_func( op );
+    must_erase( op.str_vals, "func_name" );
+    must_insert( op.str_vals, "func_name", orig_func_name );
+    return func;
   }
 
   // compile pending (generated but not compiled) functions 
@@ -558,7 +572,7 @@ namespace boda
     if( compile_pend.empty() ) { return; } 
     vect_rtc_func_info_t rtc_prog_infos;
     for( vect_p_rtc_call_gen_t::const_iterator i = compile_pend.begin(); i != compile_pend.end(); ++i ) {
-      rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,static_cast<op_base_t const &>(*(*i))} );
+      rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,(*i)->op} );
       (*i)->is_compiled.v = 1; // well, or at least we're going to *try* to compile this func anyway ...
     }
     //printf( "rtc_prog_infos=%s\n", str(rtc_prog_infos).c_str() );

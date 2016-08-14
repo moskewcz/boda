@@ -100,10 +100,11 @@ namespace boda
     void gen_op_quantize( string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
     rtc_codegen_t codegen;
-
+    void gen_call( p_op_info_t const & oi );
     void gen_call( string const & fn, p_op_info_t const & oi );
-    string gen_apply_func_to_var( string const & in_an, string const & in_var, 
-				  string const & ret_an, dims_t const & ret_dims, p_rtc_call_gen_t const & func );
+    string gen_apply_func_to_var( string const & in_an, string const & in_var,
+                                  string const & ret_an, dims_t const & ret_dims, 
+                                  string const & func_name, p_op_info_t const & oi );
     void gen_node_var( string const & name, string const & node_name );
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
@@ -174,7 +175,8 @@ namespace boda
         must_insert( dims_vals, reds[i] + "_in", dims_t( {in_sz}, {"v"}, "float" ) );
         must_insert( dims_vals, reds[i] + "_out", dims_t( {out_sz}, {"v"}, "float" ) ); 
       } 
-      p_rtc_call_gen_t func = codegen.gen_func( op_base_t{ "var_stats", dims_vals, { {"tpb",str(rtc_call_geom_t::default_tpb)}}});
+      p_rtc_call_gen_t func = codegen.gen_func( op_base_t{ "var_stats", dims_vals, 
+          { {"tpb",str(rtc_call_geom_t::default_tpb)},{"func_name","var_stats"}}});
       assert_st( func->rtc_call_geom.tpb == rtc_call_geom_t::default_tpb );
       vect_string cur_outs;
       //vect_string args = cur_ins;
@@ -204,8 +206,9 @@ namespace boda
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-    p_rtc_call_gen_t func = codegen.gen_func( op_base_t{ "quantize", 
-        {{"out",rtc->get_var_dims(top_in)},{"max_val",dims_t({1},{"v"},"uint32_t")},{"drop_mask",dims_t({1},{"v"},"uint32_t")}}, {} } );
+    op_base_t quantize_op{ "quantize", {{"out",rtc->get_var_dims(top_in)},
+        {"max_val",dims_t({1},{"v"},"uint32_t")},{"drop_mask",dims_t({1},{"v"},"uint32_t")}}, {{"func_name","quantize"}} };
+    p_rtc_call_gen_t func = codegen.gen_func( quantize_op );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, 
         map_str_p_nda_t{{"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} } );
   }
@@ -215,8 +218,9 @@ namespace boda
   // in_var/func<ret_dims> pair. ret_var is named in_var+"__"+func
   string conv_pipe_fwd_t::gen_apply_func_to_var( string const & in_an, string const & in_var, 
 						 string const & ret_an, dims_t const & ret_dims, 
-                                                 p_rtc_call_gen_t const & func )
+                                                 string const & func_name, p_op_info_t const & oi )
   {
+    p_rtc_call_gen_t func = codegen.gen_func_override_func_name( func_name, *oi );
     string const ret_var = in_var + "__" + func->gen_fn;
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
@@ -259,7 +263,7 @@ namespace boda
 	// note: oi->str_vals["ocix"] is set for each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?
         must_insert( oi->str_vals, "ocix", str(chans_out_done) );
 	set_rtc_arg( oi, rtc, "in", oi->get_arg( oi->coi->bot_an(bi) ) );
-	gen_call( "copy", oi );
+	gen_call( oi );
 	chans_out_done += dims_in.dsz("chan");
 	oi->erase_arg( "in" );
 	must_erase( oi->str_vals, "ocix" );
@@ -274,14 +278,12 @@ namespace boda
 	// note: oi->str_vals["icix"] is set for each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?)
         must_insert( oi->str_vals, "icix", str(chans_in_done) );
 	set_rtc_arg( oi, rtc, "out", oi->get_arg( oi->coi->top_an(ti) ) );
-	gen_call( "split_copy", oi );
+	gen_call( oi );
 	chans_in_done += dims_out.dsz("chan");
 	oi->erase_arg( "out" );
 	must_erase( oi->str_vals, "icix" );
       }
       assert_st( chans_in_done == oi->get_dims("in").dsz("chan") );
-    } else if( oi->is( Reduce_coi ) ) {
-      gen_call( "reduce", oi );
     } else if( oi->is( Pooling_coi ) ) {
       if( oi->get_u32("emit_out_in_yx") == 1 ) {
 	string const out_in_yx = oi->get_arg("out") + "_in_yx"; 
@@ -291,37 +293,36 @@ namespace boda
 	assert_st( oi->get_u32("emit_out_in_yx") == 0 );
 	oi->set_null_arg( "out_in_yx" );
       }
-      gen_call( "pool", oi );
+      gen_call( oi );
     } else if( oi->is( Convolution_coi ) ) {
       op_param_names.push_back( oi->get_arg("filts") );
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const filts_id = oi->arg_map["filts"];
       if( oi->get_dims("filts") != rtc->get_var_dims( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
-	p_rtc_call_gen_t filts_xp_fn = codegen.gen_func( op_base_t{ "xpose_filts", *oi } );
 	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_dims("filts"), 
-						       filts_xp_fn ) );
+						       "xpose_filts", oi ) );
       }
       string const in_id = oi->arg_map["in"];
       // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims( in_id ); see comment in init()
-      if( oi->cts() == tconv_str ) {
+      if( oi->func_name() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
-	p_rtc_call_gen_t xp_fn = codegen.gen_func( op_base_t{ "tconv_xpose_in", *oi } );
-	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
-      } else if( oi->cts() == k1conv_str ) {
+	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"),
+                                                    "tconv_xpose_in", oi ) );
+      } else if( oi->func_name() == k1conv_str ) {
 	if( oi->get_dims("in") != rtc->get_var_dims( in_id ) ) {
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
-	  p_rtc_call_gen_t xp_fn = codegen.gen_func( op_base_t{ "k1conv_xpose_in", *oi } );
-	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
+	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), 
+                                                      "k1conv_xpose_in", oi ) );
 	} 	
       } 
       // FIXME: perhaps all ops should create outputs. but for now, only conv can have non-reference output dims ...
       rtc->create_var_with_dims( oi->get_arg("out"), oi->get_dims("out") ); 
-      gen_call( oi->cts(), oi );
+      gen_call( oi );
     } else if( oi->is( ReLU_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
-      gen_call( "relu", oi );
+      gen_call( oi );
     } else if( oi->is( LRN_coi ) ) {
       assert_st( oi->get_dims("in") == oi->get_dims("out") ); // FIXME: better place/way for this check?
       if( oi->get_u32("emit_out_scale_base") == 1 ) {
@@ -332,14 +333,14 @@ namespace boda
 	assert_st( oi->get_u32("emit_out_scale_base") == 0 );
 	oi->set_null_arg( "out_scale_base" );
       }
-      gen_call( "lrn", oi );
+      gen_call( oi );
     } else if( oi->is( BckLRN_coi ) ) {
       set_rtc_arg( oi, rtc, "out_scale_base", oi->get_arg("out") + "_scale_base" ); // generated by matching LRN op
-      gen_call( "bck_lrn", oi );
+      gen_call( oi );
     } else if( oi->is( Dropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
-      gen_call( "dropout", oi );
+      gen_call( oi );
       // FIXME: move this check (and others like it) to conv_util.cc or similar?
       double const dropout_ratio = lc_str_d( oi->str_vals["dropout_ratio"] );
       assert_st( dropout_ratio > 0.0 );
@@ -350,11 +351,9 @@ namespace boda
     } else if( oi->is( BckDropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
-      gen_call( "dropout", oi ); // Backwards of dropout is dropout
+      gen_call( oi ); // Backwards of dropout is dropout
       fwd_calls.back().nda_args.insert( make_pair( "det_drop_seed", p_nda_t() ) ); 
       dropout_cixs.push_back( fwd_calls.size() - 1 );
-    } else if( oi->is( Softmax_coi ) ) {
-      gen_call( "softmax", oi );
     } else if( oi->is( SoftmaxWithLoss_coi ) ) {
       string const prob_node_name = oi->tag + "_prob";
       gen_node_var( prob_node_name, oi->get_arg("in") );
@@ -367,15 +366,13 @@ namespace boda
       gen_call( "sum_loss_over_imgs", oi );
     } else if( oi->is( Spreading_coi ) ) {
       set_rtc_arg( oi, rtc, "out_in_yx", oi->get_arg("out") + "_in_yx" ); // generated by matching Pooling op
-      gen_call( "spreading", oi );
-    } else if( oi->is( ZeroIfNonPos_coi ) ) {
-      gen_call( oi->type, oi );
+      gen_call( oi );
     } else if( oi->is( BckConv_coi ) ) { 
       // { in, filts, biases, out_grad_loss } --> { in_grad_loss, filts_grad_loss, biases_grad_loss }
       string ogl_vn = oi->get_arg("out_grad_loss");
       string ogl_fn = "BckConv_in_grad_loss";
       string fgl_fn = "BckConv_filts_grad_loss";
-      assert_st( oi->cts() == conv_str );
+      assert_st( oi->func_name() == conv_str );
       if( enable_bconv ) {
 #if 0
 	dims_t const & ogl_dims = rtc->get_var_dims( ogl_vn );
@@ -390,17 +387,27 @@ namespace boda
       gen_call( ogl_fn, oi );
       gen_call( "BckConv_biases_grad_loss", oi );
       gen_call( fgl_fn, oi );
+    } else if( oi->is( ZeroIfNonPos_coi ) || oi->is( Softmax_coi ) || oi->is( Reduce_coi ) ) { 
+      gen_call( oi ); // 'generic' cases (yes, there's only a few currently, but ya gotta dream, right?)
     } else { rt_err( "gen_op: unhandled op of type: " + oi->type ); }
   }
 
-  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
-    // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
-    // this is the best idea. note: we assume that all arg dims are already availible
-    op_base_t rfs( fn, *oi );
-    p_rtc_call_gen_t func = codegen.gen_func( rfs );
+  // generate call for given oi, using oi->func_name() to choose template/function
+  void conv_pipe_fwd_t::gen_call( p_op_info_t const & oi ) { 
+    assert_st( has( oi->str_vals, "func_name" ) );
+    p_rtc_call_gen_t func = codegen.gen_func( *oi );
     rcg_func_call_t rcg{ func, oi->tag, oi->arg_map };
-    if( oi->is( Convolution_coi ) && ( (oi->cts() == tconv_str) || (oi->cts() == k1conv_str) ) ) { rcg.nda_args["flags"] = make_scalar_nda(flags); } // FIXME: not the place for this.
+    if( oi->is( Convolution_coi ) && ( (oi->func_name() == tconv_str) || (oi->func_name() == k1conv_str) ) ) { rcg.nda_args["flags"] = make_scalar_nda(flags); } // FIXME: not the place for this.
     fwd_calls.push_back( rcg );
+  }
+
+  // used in cases where no single func_name()/template/function applies to operation. we override func_name(), generate
+  // a call, and clear it back out. we could also equivalently create a copy of oi, fill in func_name, and discard it.
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
+    assert_st( !has( oi->str_vals, "func_name" ) );
+    oi->set_func_name( fn ); 
+    gen_call( oi ); 
+    oi->clear_func_name();
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
@@ -471,10 +478,10 @@ namespace boda
 	if( conv_has_relu ) { must_insert( must_find( *op_infos, no->in_place_ops[0]->tag )->str_vals, "fused", "1" ); } 
 	must_insert( oi->str_vals, "conv_has_relu", str(conv_has_relu) );
 
-	if( oi->cts() == k1conv_str ) { 
+	if( oi->func_name() == k1conv_str ) { 
 	  if( ( no->in_place_ops.size() == conv_has_relu ) && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
 	    p_op_info_t const & noi = must_find( *op_infos, no->bot_for[0] ); // next operation
-	    if( enable_write_xpose && ( has(noi->str_vals,"cts") && (noi->cts() == k1conv_str) ) ) { 
+	    if( enable_write_xpose && noi->is( Convolution_coi ) && (noi->func_name() == k1conv_str) ) { 
 	      // modify output argument dims to match user's input dims. codegen will notice this and write out correctly.
 	      oi->reset_arg_dims( "out", noi->get_dims( "in" ) );
 	    }

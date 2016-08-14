@@ -27,13 +27,13 @@ namespace boda
 
     void gen_op_reduce( rtc_call_gen_t * rcg ) {
       // FIXME: iterator over non-flat args and/or select ins arg directly, then do inner iter?
-      for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( rcg ); !i.at_end(); ++i ) {
+      for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
         if( !startswith(i.vn(),"ins_") ) { continue; }
 	rcg->line( "ins_ops", "v += "+i.vn()+"[GLOB_ID_1D];" ); 
       }
     }
     string maybe_add_relu( rtc_call_gen_t * rcg, string const & ve ) { 
-      return rcg->get_u32("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve; 
+      return rcg->op.get_u32("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve; 
     }
 
     string add_bias_then_maybe_relu( rtc_call_gen_t * rcg, dims_t const & work, uint32_t const & tx, uint32_t const ty ) { 
@@ -177,7 +177,7 @@ namespace boda
 		"(%(LOC_ID_1D_pels_tile)+%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim))");
       rcg->set( "out_chan_ix","(%(out_chan_tile)*%(work_out_chan_dim))" );
       for( uint32_t i = 0; i != work.dsz( "pels" ); ++i ) {
-	insert_nda_ix_exprs( rcg->str_vals, "pel_ix_" + str(i), must_find(rcg->all_ix_dims,"out_pel_ix"),
+	insert_nda_ix_exprs( rcg->tsvs, "pel_ix_" + str(i), must_find(rcg->all_ix_dims,"out_pel_ix"),
 			     strprintf( "(%%(pel_tile)*%%(work_pels_dim)+%s)", str(i).c_str() ) );
       }
       string const get_in = strprintf( 
@@ -284,7 +284,7 @@ namespace boda
 
       for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
 	string ve = strprintf( "(filts_strip[%s] + biases[ocix+%s])", str(tx).c_str(), str(tx).c_str() );
-	ve = rcg->get_u32("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
+	ve = rcg->op.get_u32("conv_has_relu") ? ( "max(0.0f,"+ve+")" ) : ve;
 	for( uint32_t wb = work.dsz("fioc_tile") / 2; wb; wb /= 2 ) {
 	  rcg->line( "stores", strprintf( "filts_strip[%s] += __shfl_down( filts_strip[%s], %s, %s );", 
 					    str(tx).c_str(), str(tx).c_str(), str(wb).c_str(), 
@@ -305,7 +305,7 @@ namespace boda
     }
 
     void gen_op_sgemm_simd_local( rtc_call_gen_t * rcg ) {
-      uint32_t const vw = rcg->get_u32( "vw" );
+      uint32_t const vw = rcg->op.get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("Mt") % vw) == 0 );
       assert( (work.dsz("Nt") % vw) == 0 );
@@ -355,7 +355,7 @@ namespace boda
     }
 
     void gen_op_sgemm_simd( rtc_call_gen_t * rcg ) {
-      uint32_t const vw = rcg->get_u32( "vw" );
+      uint32_t const vw = rcg->op.get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("Mt") % vw) == 0 );
       assert( (work.dsz("Nt") % vw) == 0 );
@@ -526,7 +526,7 @@ namespace boda
     }
 
     void gen_op_k1conv_simd( rtc_call_gen_t * rcg ) {
-      uint32_t const vw = rcg->get_u32( "vw" );
+      uint32_t const vw = rcg->op.get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       assert( (work.dsz("pels") % vw) == 0 );
       assert( (work.dsz("out_chan") % vw) == 0 );
@@ -535,7 +535,7 @@ namespace boda
       assert_st( ( in_chan_stride % vw ) == 0 ); in_chan_stride /= vw;
       assert_st( ( filts_in_chan_stride % vw ) == 0 ); filts_in_chan_stride /= vw;
 
-      uint32_t const Kb_dim = rcg->get_u32( "Kb" );
+      uint32_t const Kb_dim = rcg->op.get_u32( "Kb" );
       for( uint32_t Kb = 0; Kb != Kb_dim; ++Kb ) {
 	for( uint32_t tx = 0; tx != work.dsz("pels")/vw; ++tx ) { 
           rcg->line( "inner_loop_body", strprintf( "in_strip[%s] = ((GASQ float%s const *)in)[in_off+%s];", 
@@ -576,7 +576,7 @@ namespace boda
     }
 
     void gen_op_conv_simd( rtc_call_gen_t * rcg ) {
-      uint32_t const vw = rcg->get_u32( "vw" );
+      uint32_t const vw = rcg->op.get_u32( "vw" );
       dims_t const & work = rcg->get_arg_dims_by_name( "work" );
       dims_t const & in_pels = rcg->get_arg_dims_by_name( "in_pels" );
       assert( (work.dsz("pels") % vw) == 0 );
@@ -592,7 +592,7 @@ namespace boda
       uint32_t const row_extra_off = (stride.dsz("y")-1)*in_pels.dstride("y");
       assert_st( stride.dsz("y") == stride.dsz("x") ); // FIXME/NOTE: see uniform stride FIXMEs in kernel and cnn_op.cc
 
-      uint32_t const Kb_dim = rcg->get_u32( "Kb" );
+      uint32_t const Kb_dim = rcg->op.get_u32( "Kb" );
       for( uint32_t Kb = 0; Kb != Kb_dim; ++Kb ) {
 	for( uint32_t tx = 0; tx != work.dsz("pels"); ++tx ) { 
           assert_st( Kb == 0 ); // see FIXME in cnn_op.cc; stride in in is wrong here (needs to be per X/Y/chan,
@@ -723,7 +723,7 @@ namespace boda
 	rcg->line( "stores", "  int32_t tpix[%(work_pels_dim)];" );
 	rcg->line( "stores", "  int32_t tcix[%(work_out_chan_dim)];" );
 	for( uint32_t ty = 0; ty != work.dsz("pels"); ++ty ) { 
-	  insert_nda_ix_exprs( rcg->str_vals, "out_pel_" + str(ty), must_find(rcg->all_ix_dims,"out_ref_pel"),
+	  insert_nda_ix_exprs( rcg->tsvs, "out_pel_" + str(ty), must_find(rcg->all_ix_dims,"out_ref_pel"),
 			       "( (%(GRP_ID_1D_pels_blk)*%(work_pels_tile_dim) + %(LOC_ID_1D_pels_tile))*%(work_pels_dim) + "+str(ty)+" )" );
 	  rcg->line( "stores", strprintf( "  tpix[%s] = %%(out_pel_%s_img)*%%(out_img_stride) + "
 					    " %%(out_pel_%s_x)*%%(out_x_stride) + %%(out_pel_%s_y)*%%(out_y_stride) " // FIXME_WXP:restore: y:x adj-dim opt?

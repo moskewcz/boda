@@ -157,21 +157,22 @@ namespace boda
   };
   typedef vector< dyn_dim_info_t > vect_dyn_dim_info_t; 
 
-  struct rtc_call_gen_t : public op_base_t {
-    map_str_dims_t all_ix_dims;
-    map_str_str cgs; // code-gen sections
-    string rtc_prog_str; // final full program string
+  struct rtc_call_gen_t {
+    op_base_t op;
+    p_rtc_template_t rtc_func_template; // post-init, currently used only for dynamic ix_decl processing at call time
+    map_str_str tsvs; // template-string-values (set with set() function)
+    map_str_str cgs; // similar to tsvs, bulk code-gen sections (set with line() function); merged into tsvs at instantiate
+    map_str_dims_t all_ix_dims; // post-processed dims for all CUCL IX's; used (only) in custom codegen
+    string rtc_prog_str; // final full program string (result of instantiation)
     zi_bool is_compiled; // flag used by rtc_codegen_t to track which functions have been generated
     // info needed to make call
-    string gen_fn;
+    string gen_fn; // unique function name at rtc level. although we try to make it readable, name has no used semantics.
     rtc_call_geom_t rtc_call_geom;
-    p_rtc_template_t rtc_func_template; // post-init, currently used only for dynamic ix_decl processing at call time
     vect_dyn_dim_info_t dyn_vars;
     void line( string const & sn, string const & line );
-    void set( string const &var, string const &val );
+    void set( string const & var, string const & val );
     dims_t apply_use_dims( dims_t const & ix_arg_dims, vect_string const & use_dims );
-    rtc_call_gen_t( op_base_t const & rfs_ ) : op_base_t( rfs_ ) { } // FIXME: move op_base_t setting to init()?
-    void init( p_rtc_template_t const & rtc_func_template_, custom_codegen_t * const cc, string const & gen_fn_ );
+    void init( op_base_t const & op_, p_rtc_template_t const & rtc_func_template_, custom_codegen_t * const cc, string const & gen_fn_ );
     dims_t const & get_arg_dims_by_name( string const & arg_vn, string const & err_tag = "TEMPLATE" );
     string cai_tn( void ) const { return "int32_t"; } // type string for cucl arg info vars
     void add_dyn_nda_dims_sz( string const & nda_vn, dims_t const & dims, bool const add_ref_templates );
@@ -191,6 +192,8 @@ namespace boda
     }
 
     p_rtc_call_gen_t gen_func( op_base_t const & rfs_full );
+    p_rtc_call_gen_t gen_func_override_func_name( string const & func_name, op_base_t & op );
+
     void run_func( rcg_func_call_t & call );
 
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );

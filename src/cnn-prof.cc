@@ -169,20 +169,16 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia );
   };
 
+  // FIXME: merge with add_cnn_codegen_annotations() wholesale? split into sub-funcs based on types with a dispatcher?
   void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune, 
                                 map_str_op_tune_t const *per_op_tune ) {
     if( anno_op->is( Convolution_coi ) ) {
-      if( op_tune.use_culibs ) { 
-        anno_op->type = "cudnn_conv";
-        must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
-      } else { 
-        add_cnn_codegen_annotations( anno_op.get(), op_tune, per_op_tune ); 
-        anno_op->type = must_find( anno_op->str_vals, "cts" );
-        must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
-      }
+      if( op_tune.use_culibs ) { anno_op->set_func_name("cudnn_conv"); } // FIXME: fold into add_cnn_codegen_annotations()?
+      else { add_cnn_codegen_annotations( anno_op.get(), op_tune, per_op_tune ); }
+      must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
     } else if( anno_op->is( sgemm_coi ) ) {
       if( op_tune.use_culibs ) {
-        anno_op->type = "cublas_sgemm";
+        anno_op->set_func_name("cublas_sgemm");
       } else {
         uint64_t const K = anno_op->get_dims("a").dsz("K"); // note == b.dsz("K")
         dims_t const & c = anno_op->get_dims("c");
@@ -209,12 +205,12 @@ namespace boda
         must_insert( anno_op->str_vals, "use_local_mem", str(op_tune.use_local_mem) );
         must_insert( anno_op->str_vals, "prof_variant", str(op_tune.prof_variant) );
         must_insert( anno_op->str_vals, "vw", str(op_tune.vw) );
-        if( op_tune.prof_variant ) { 
-          anno_op->type = "sgemm_prof";
-        } else {
-          if( op_tune.use_local_mem == 0 ) { anno_op->type = "sgemm_no_local"; }
-          if( op_tune.use_local_mem == 2 ) { anno_op->type = "sgemm_simd"; }
-          if( op_tune.use_local_mem == 3 ) { anno_op->type = "sgemm_simd_local"; }
+        if( op_tune.prof_variant ) { anno_op->set_func_name("sgemm_prof"); } 
+        else {
+          if( op_tune.use_local_mem == 0 ) { anno_op->set_func_name("sgemm_no_local"); }
+          if( op_tune.use_local_mem == 2 ) { anno_op->set_func_name("sgemm_simd"); }
+          if( op_tune.use_local_mem == 3 ) { anno_op->set_func_name("sgemm_simd_local"); }
+          else{ anno_op->set_func_name("sgemm"); }
         }
       }	  
     }
@@ -257,10 +253,7 @@ namespace boda
       add_codegen_annotations( anno_op, op_tune, &per_op_tune );        
       if( rtc_comp ) { add_codegen_annotations( anno_op_comp, op_tune_comp, 0 ); }
 
-      // for now, make generation only dependent on orig op type; this is convenient currently, but won't work well
-      // if/when dealing with operations that require alternate data formats. maybe in those cases we'll need to deal
-      // with auto-generating the need conversion functions anyway ...
-      if( gen_data ) { gen_data->type = "gen_data_" + op->type; } 
+      if( gen_data ) { assert_st( gen_data->type == "gen_data" ); } // FIXME: remove assert after fixing existing usages
 
       double rfc_dur_secs = NAN;
       string err;
