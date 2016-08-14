@@ -298,7 +298,7 @@ namespace boda
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
       string const filts_id = oi->arg_map["filts"];
       if( oi->get_dims("filts") != rtc->get_var_dims( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
-	p_rtc_call_gen_t filts_xp_fn = codegen.gen_func( op_base_t{ "xpose_filts", oi->dims_vals, oi->str_vals } );
+	p_rtc_call_gen_t filts_xp_fn = codegen.gen_func( op_base_t{ "xpose_filts", *oi } );
 	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_dims("filts"), 
 						       filts_xp_fn ) );
       }
@@ -306,12 +306,12 @@ namespace boda
       // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims( in_id ); see comment in init()
       if( oi->cts() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
-	p_rtc_call_gen_t xp_fn = codegen.gen_func( op_base_t{ "tconv_xpose_in", oi->dims_vals, oi->str_vals } );
+	p_rtc_call_gen_t xp_fn = codegen.gen_func( op_base_t{ "tconv_xpose_in", *oi } );
 	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
       } else if( oi->cts() == k1conv_str ) {
 	if( oi->get_dims("in") != rtc->get_var_dims( in_id ) ) {
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
-	  p_rtc_call_gen_t xp_fn = codegen.gen_func( op_base_t{ "k1conv_xpose_in", oi->dims_vals, oi->str_vals } );
+	  p_rtc_call_gen_t xp_fn = codegen.gen_func( op_base_t{ "k1conv_xpose_in", *oi } );
 	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), xp_fn ) );
 	} 	
       } 
@@ -396,7 +396,7 @@ namespace boda
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
     // note: we generally assume all strides are 0 (uncalculated), and assume no (non-explicit) padding. it's unclear if
     // this is the best idea. note: we assume that all arg dims are already availible
-    op_base_t rfs( fn, oi->dims_vals, oi->str_vals );
+    op_base_t rfs( fn, *oi );
     p_rtc_call_gen_t func = codegen.gen_func( rfs );
     rcg_func_call_t rcg{ func, oi->tag, oi->arg_map };
     if( oi->is( Convolution_coi ) && ( (oi->cts() == tconv_str) || (oi->cts() == k1conv_str) ) ) { rcg.nda_args["flags"] = make_scalar_nda(flags); } // FIXME: not the place for this.
