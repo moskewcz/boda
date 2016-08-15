@@ -372,7 +372,11 @@ namespace boda
       string ogl_vn = oi->get_arg("out_grad_loss");
       string ogl_fn = "BckConv_in_grad_loss";
       string fgl_fn = "BckConv_filts_grad_loss";
-      assert_st( oi->func_name() == conv_str );
+      // FIXME the following assert used to hold, but only due to mis-setting func_name() (in those days, cts) in too
+      // many cases (pool, BckConv, others). still, this assert is sort-of right, since there are no BckConv variants
+      // yet, but also wrong since, like the conv case we use the 'gen_call()' override-with-no-func-name-set flow
+      // below. so ... commented out for now:
+      // assert_st( oi->func_name() == conv_str );
       if( enable_bconv ) {
 #if 0
 	dims_t const & ogl_dims = rtc->get_var_dims( ogl_vn );
