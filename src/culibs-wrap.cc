@@ -95,11 +95,11 @@ namespace boda
       cudnn_err_chk( cudnnDestroy(cdh), "cudnnDestroy" ); 
     }
     void call( rtc_func_info_t const & fi, p_map_str_p_nda_t const & args ) { 
-      string const & fn = fi.func_name;
+      string const & func_name = must_find( fi.op.str_vals, "func_name" );
       if( 0 ) {}
-      else if( startswith( fn, "cublas_sgemm" ) ) { sgemm( args ); }
-      else if( startswith( fn, "cudnn_conv" ) ) { conv( fi.op, args ); }
-      else { rt_err( "unknown/unhandled culibs_wrap function: " + fn ); }
+      else if( func_name == "cublas_sgemm" ) { sgemm( args ); }
+      else if( func_name == "cudnn_conv" ) { conv( fi.op, args ); }
+      else { rt_err( "unknown/unhandled culibs_wrap function: " + func_name ); }
     }
 
     void conv( op_base_t const & op, p_map_str_p_nda_t const & args ) {

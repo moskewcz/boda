@@ -344,8 +344,10 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       rfc.call_id = alloc_call_id();
       record_event( get_call_ev(rfc.call_id).b_ev );
       nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );
-      if( startswith( fn, "cublas_" ) || startswith( fn, "cudnn_" )) { culibs_wrap_call( cw, nfi.info, func_args ); } 
-      else {
+      string const & func_name = must_find( nfi.info.op.str_vals, "func_name" );
+      if( startswith( func_name, "cublas_" ) || startswith( func_name, "cudnn_" )) { 
+        culibs_wrap_call( cw, nfi.info, func_args ); 
+      } else {
         rtc_launch_check_blks_and_tpb( fn, rfc.blks.v, rfc.tpb.v );
         cu_err_chk( cuLaunchKernel( nfi.func,
 				    rfc.blks.v, 1, 1, // grid x,y,z dims

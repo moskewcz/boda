@@ -42,24 +42,26 @@ namespace boda
 	else { assert_st(0); }
 	op->dims_vals["kern_sz"] = dims_t{ {kern_sz_.d[1],kern_sz_.d[0]}, {"y","x"}, "none" }; // FIXME: not ideal ...
       } 
-      if( is_conv && enable_ipconv && op->in_pad().is_zeros() && (get_xy_dims(no_dims) == u32_pt_t{1,1}) ) {
-	op->set_func_name( ipconv_str ); // single output per-chan-per-image: inner-product case
-      } else if( is_conv && enable_k1conv && (kern_sz_ == u32_pt_t{1,1}) && (op->stride() == u32_pt_t{1,1}) 
-		 && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no_dims.dsz("chan") >= 64) ) 
-      { 
-	if( !op->in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); op->set_func_name( conv_str ); }
-	else { 
-          if( op_tune->use_local_mem == 2 ) { op->set_func_name( k1conv_simd_str ); }
-          else { op->set_func_name( k1conv_str ); }
+      if( is_conv ) { // set func_name (aka variant) for conv case (others are set at bottom)
+        if( enable_ipconv && op->in_pad().is_zeros() && (get_xy_dims(no_dims) == u32_pt_t{1,1}) ) {
+          op->set_func_name( ipconv_str ); // single output per-chan-per-image: inner-product case
+        } else if( enable_k1conv && (kern_sz_ == u32_pt_t{1,1}) && (op->stride() == u32_pt_t{1,1}) 
+                   && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no_dims.dsz("chan") >= 64) ) 
+        { 
+          if( !op->in_pad().is_zeros() ) { printf( "warning: can't use k1conv due only to non-zero padding on layer with kernel size 1\n" ); op->set_func_name( conv_str ); }
+          else { 
+            if( op_tune->use_local_mem == 2 ) { op->set_func_name( k1conv_simd_str ); }
+            else { op->set_func_name( k1conv_str ); }
+          }
         }
-      }
-      else if( is_conv && enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(op_tune->tconv_max_ksz)
-								   && (kern_sz_.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
-        op->set_func_name( tconv_str );
-      }
-      else { 
+        else if( enable_tconv && (force_enable_tconv || ( kern_sz_.both_dims_le(op_tune->tconv_max_ksz)
+                                                          && (kern_sz_.both_dims_ge(u32_pt_t{1,1}) && (no_sz.d[0] >= 6))))) {
+          op->set_func_name( tconv_str );
+        }
+        else { 
           if( op_tune->use_local_mem == 2 ) { op->set_func_name( conv_simd_str ); }
           else { op->set_func_name( conv_str ); }
+        }
       }
       // NOTE/FIXME: this whole per_op_tune thing is hacky and experimental ... but we do need to do something. i guess
       // we're creeping toward what we need for supporting autotuning in the long run, but we need to figure out the

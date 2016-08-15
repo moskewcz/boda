@@ -127,7 +127,11 @@ namespace boda
   // are not used by the template won't have differing semantics.
   p_op_base_t rtc_template_t::check_args( op_base_t const & rfs_in ) {
     p_op_base_t rfs_out( new op_base_t( rfs_in ) );
-    rfs_out->dims_vals.clear(); // for now: keep all of rfs_in expect dims_vals (which we reduce to only the used elements)
+
+    // for now: keep all of rfs_in expect dims_vals (which we reduce to only the used elements). type is semi-unused,
+    // but maybe important to unique?
+    rfs_out->dims_vals.clear();     
+
     string arg_check_error;
 
     // error check existence of num field for multi args
@@ -261,7 +265,7 @@ namespace boda
 
 
   string gen_unused_fn( op_base_t const & op, set_string const & used_names ) {
-    string maybe_fn_base = op.type;
+    string maybe_fn_base = must_find( op.str_vals, "func_name" );
     set_string unique_dims;
     for( map_str_dims_t::const_iterator ra = op.dims_vals.begin(); ra != op.dims_vals.end(); ++ra ) {
       dims_t const & dims = ra->second;
@@ -274,6 +278,7 @@ namespace boda
     // not the best/most-robust idea, but for now we can avoid most namegenconflicts by (questionally) stuffing the
     // str_vals into the function name as well. it'll be fine, right? this could be removed if problematic.
     for( map_str_str::const_iterator ra = op.str_vals.begin(); ra != op.str_vals.end(); ++ra ) {
+      if( ra->first == "func_name" ) { continue; } // must exists, and already used as maybe_fn_base
       maybe_fn_base += "__"+ra->first+"_"+as_pyid_fixme(ra->second);
     }
 
@@ -323,6 +328,11 @@ namespace boda
     assert_st( !gen_fn.empty() ); // so above guard is sound (and a sensible assert anyway)
     set( "rtc_func_name", gen_fn );
     rtc_func_template = rtc_func_template_;
+    assert_st( rtc_func_template->template_fn == must_find( op.str_vals, "func_name" ) ); // better be right template
+    // FIXME: for now, we'll dump all of str_vals in tsvs, since that's old/compatible behavior.
+    //printf( "op.type=%s gen_fn=%s op.str_vals=%s\n", str(op.type).c_str(), gen_fn.c_str(), str(op.str_vals).c_str() );
+    for( map_str_str::const_iterator i = op.str_vals.begin(); i != op.str_vals.end(); ++i ) { set( i->first, i->second ); }
+
     // if we have a str_val with the magic name 'tpb', use it to set the call geom:
     if( has( op.str_vals, "tpb" ) ) { rtc_call_geom.tpb = op.get_u32( "tpb" ); }
     for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
@@ -353,14 +363,15 @@ namespace boda
 #endif
     // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
 
-    assert_st( rtc_func_template->template_fn == must_find( op.str_vals, "func_name" ) ); // better be right template
     if( cc ) { cc->gen_op( this, rtc_func_template->template_fn ); } // call custom_codegen_t hook.
 
     // make these always availible as template vars, since why not?  FIXME: should set these to fields inside
     // cucl_arg_info if they are dynamic. however, codegen that uses tpb directly would still be broken in that case
     // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the
     // template string ( which might point to a dynamic value ) instead.
-    set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid if there are no dyn vars
+    if( !has( tsvs, "tpb" ) ) { // FIXME: remove conditional after not blindly stuffing all str_vals in tsvs
+      set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid if there are no dyn vars
+    }
     set( "blks", str(rtc_call_geom.blks) ); // may be 0 if # of blocks is dynamic
     set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 
@@ -453,7 +464,7 @@ namespace boda
     rfc.rtc_func_name = rcg_func_call.func->gen_fn;
     rfc.call_tag = rcg_func_call.call_tag;
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
-    printf( "op=%s arg_map=%s\n", str(op).c_str(), str(rcg_func_call.arg_map).c_str() );
+    //printf( "op=%s arg_map=%s\n", str(op).c_str(), str(rcg_func_call.arg_map).c_str() );
     p_nda_t cucl_arg_info_nda;
     assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
     if( rtc_func_template->has_cucl_arg_info.v ) {
@@ -558,6 +569,7 @@ namespace boda
   p_rtc_call_gen_t rtc_codegen_t::gen_func_override_func_name( string const & func_name, op_base_t & op ) {
     // sigh. used only in conv case, where we know func_name is already set ...
     string const orig_func_name = must_find(op.str_vals,"func_name"); 
+    must_erase( op.str_vals, "func_name" );
     must_insert( op.str_vals, "func_name", func_name );
     p_rtc_call_gen_t func = gen_func( op );
     must_erase( op.str_vals, "func_name" );

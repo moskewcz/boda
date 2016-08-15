@@ -207,10 +207,14 @@ namespace boda
         must_insert( anno_op->str_vals, "vw", str(op_tune.vw) );
         if( op_tune.prof_variant ) { anno_op->set_func_name("sgemm_prof"); } 
         else {
-          if( op_tune.use_local_mem == 0 ) { anno_op->set_func_name("sgemm_no_local"); }
-          if( op_tune.use_local_mem == 2 ) { anno_op->set_func_name("sgemm_simd"); }
-          if( op_tune.use_local_mem == 3 ) { anno_op->set_func_name("sgemm_simd_local"); }
-          else{ anno_op->set_func_name("sgemm"); }
+          if( 0 ) { }
+          else if( op_tune.use_local_mem == 0 ) { anno_op->set_func_name("sgemm_no_local"); }
+          else if( op_tune.use_local_mem == 1 ) { anno_op->set_func_name("sgemm"); }
+          else if( op_tune.use_local_mem == 2 ) { anno_op->set_func_name("sgemm_simd"); }
+          else if( op_tune.use_local_mem == 3 ) { anno_op->set_func_name("sgemm_simd_local"); }
+          else { rt_err( strprintf( "unknonw value for op_tune.use_local_mem of %s\n", 
+                                    str(op_tune.use_local_mem).c_str() ) ); }
+          
         }
       }	  
     }

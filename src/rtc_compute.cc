@@ -144,7 +144,14 @@ namespace boda
       p_ofstream out = ofs_open( out_fn.exp );
       rtc->init();
       p_string prog_str = read_whole_fn( prog_fn );
-      rtc->compile( vect_rtc_func_info_t{rtc_func_info_t{"my_dot",*prog_str,op_base_t()}}, rtc_compile_opts_t() );
+      // normally, one would go though the rtc_codegen_t interface, not use the rtc_compute_t interface directly. but,
+      // for this minimal test, we do use the rtc layer directly. however, we're stubbing-out and/or hard-coding quite a
+      // few bits here. one interesting thing is that the op_base_t is *almost* unused at the rtc level, but the
+      // "func_name" value is tested by the nvrtc backend to determine if it should call out to an external library (and
+      // if so, the func_name tells it what library and function to call). so we must set it here, since it's
+      // unconditionally looked-up. that's the current state anyway, but it subject to change/improvement ...
+      rtc->compile( vect_rtc_func_info_t{rtc_func_info_t{"my_dot",*prog_str,
+              op_base_t{"my_dot",{},{{"func_name","my_dot"}}}}}, rtc_compile_opts_t() );
 
       vect_float a( data_sz, 0.0f );
       rand_fill_vect( a, 2.5f, 7.5f, gen );
