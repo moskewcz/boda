@@ -316,7 +316,6 @@ namespace boda
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
       add_cnn_codegen_annotations( op.get(), op_tune, 0 );
-      op->type = must_find( op->str_vals, "cts" );
       must_insert( op->str_vals, "conv_has_relu", str(1) );
       (*out) << str( *op ) << "\n";
     }
