@@ -188,6 +188,27 @@ namespace boda
 
   std::ostream & operator << ( std::ostream & out, nda_t const & o ) { nda_dispatch( o, nda_dump_t( out ) ); return out; }
 
+  struct nda_lt_elems_t {
+    nda_t const & t;
+    bool & ret;
+    nda_lt_elems_t( nda_t const & t_, bool & ret_ ) : t(t_), ret(ret_) {}
+    template< typename T > void op( nda_t const & o ) const { 
+      assert_st( t.elems_sz() == o.elems_sz() );
+      T const * const te = static_cast<T const *>(t.rp_elems());
+      T const * const oe = static_cast<T const *>(o.rp_elems());
+      for( uint32_t i = 0; i != t.elems_sz(); ++i ) { if( te[i] < oe[i] ) { ret=1; return; } }
+    }
+  };
+  // note: more like shortlex then lexigographic order, since an nda with lesser dims (i.e. shorter) is less.
+  bool nda_t::operator <( nda_t const & o ) const {
+    // compare dims, then null-ness (null is less than non-null), then elements
+    if( dims != o.dims ) { return dims < o.dims; }
+    if( bool(d) != bool(o.d) ) { return bool(d) < bool(o.d); }
+    if( !bool(d) ) { assert_st( !bool(o.d)); return 0; } // in fact, *this and o are equal here
+    bool ret = 0;
+    nda_dispatch( o, nda_lt_elems_t( *this, ret ) );
+    return ret;
+  }
 
 
 

@@ -26,6 +26,7 @@ namespace boda
     map_str_dims_t dims_vals;
     zi_bool has_var_bots;
     zi_bool has_var_tops;
+    map_str_p_nda_t nda_vals;
     string bot_an( uint32_t const & ix ) const;
     string top_an( uint32_t const & ix ) const;
   };

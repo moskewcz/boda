@@ -17,13 +17,15 @@ namespace boda
     // used only for stats/quantize ... remove?
     op_base_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
       type(type_), dims_vals(dims_vals_), str_vals(str_vals_) { }
-
+    
     bool operator < ( op_base_t const & o ) const;
     // convenience access functions
     dims_t const & get_dims( string const & an ) const;
     string const & get_str( string const & an ) const;
     uint32_t get_u32( string const & an ) const;
     double get_double( string const & an ) const;
+    bool operator ==( op_base_t const & o ) const = delete;
+    bool operator !=( op_base_t const & o ) const = delete;
   };
   typedef shared_ptr< op_base_t > p_op_base_t; 
   typedef set< op_base_t > set_op_base_t;

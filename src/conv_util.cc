@@ -31,8 +31,14 @@ namespace boda
   conv_op_info_t const BatchNorm_coi{ "BatchNorm", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
   conv_op_info_t const BckDropout_coi{ "BckDropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
+#if 1 // original
   map_str_str const LRN_str_vals{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"},{"emit_out_scale_base","0"}};
-  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_str_vals };
+  map_str_p_nda_t const LRN_nda_vals;
+#else // experimenting with nda_vals
+  map_str_str const LRN_str_vals{{"emit_out_scale_base","0"}};
+  map_str_p_nda_t const LRN_nda_vals{{"local_size",make_scalar_nda(uint32_t(5))},{"alpha",make_scalar_nda(float(1.0))},{"beta",make_scalar_nda(float(0.75))},{"k",make_scalar_nda(float(1.0))}};
+#endif
+  conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_str_vals, {}, zi_bool(0), zi_bool(0), LRN_nda_vals };
   conv_op_info_t const BckLRN_coi{ "BckLRN", {"in","out","out_grad_loss"}, {"in_grad_loss"}, LRN_str_vals };
   conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
   conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"prob"} };
@@ -119,13 +125,13 @@ namespace boda
     // check that there are no extra/unknown str_vals
     for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {
       if( !has( coi->str_vals, i->first ) ) { 
-	rt_err( strprintf( "Unknown/invalid/extra parameter '%s' for operation of type '%s'.",
+	rt_err( strprintf( "Unknown/invalid/extra str parameter '%s' for operation of type '%s'.",
 			   i->first.c_str(), str(coi->type).c_str() ) );
       }
     }
 
     // FIXME: dup'd with str_vals handling ... duplication is worse here than in some other places ...
-    // check all str_vals are set, set any missing ones to defaults
+    // check all dims_vals are set, set any missing ones to defaults
     for( map_str_dims_t::const_iterator i = coi->dims_vals.begin(); i != coi->dims_vals.end(); ++i ) {
       if( !has( dims_vals, i->first ) ) { dims_vals[i->first] = i->second; }
     }
@@ -145,10 +151,30 @@ namespace boda
 	if( is( BckConv_coi ) || is( Spreading_coi ) ) { continue; } // okay to be present for these types
       }
       if( !has( coi->dims_vals, i->first ) ) { 
-	rt_err( strprintf( "Unknown/invalid/extra parameter '%s' for operation of type '%s'.",
+	rt_err( strprintf( "Unknown/invalid/extra dims parameter '%s' for operation of type '%s'.",
 			   i->first.c_str(), str(coi->type).c_str() ) );
       }
     }
+
+    // FIXME: okay, extra dup'd with above str_vals / dims_vals handling. in the long run, the idea is that (maybe)
+    // nda's subsume dims_t's, since we can represent a dims_t as an nda with a null data pointer. also, we might want
+    // to *add* somethign like an arg map somwehre around here, and then maybe we want every argument to be either a
+    // variable-name (which indirectly gets us an nda), or an nda, where the data might be null in either
+    // case. basically, we're heading toward more flexible/dynamic handling of arguments, and reducing the differences
+    // between 'instantiate/compile' and 'call' time (on the thoery they don't help and do hurt).
+
+    // check all nda_vals are set, set any missing ones to defaults
+    for( map_str_p_nda_t::const_iterator i = coi->nda_vals.begin(); i != coi->nda_vals.end(); ++i ) {
+      if( !has( nda_vals, i->first ) ) { nda_vals[i->first] = i->second; }
+    }
+    // check that there are no extra/unknown nda_vals
+    for( map_str_p_nda_t::const_iterator i = nda_vals.begin(); i != nda_vals.end(); ++i ) {
+      if( !has( coi->nda_vals, i->first ) ) { 
+	rt_err( strprintf( "Unknown/invalid/extra nda parameter '%s' for operation of type '%s'.",
+			   i->first.c_str(), str(coi->type).c_str() ) );
+      }
+    }
+
 
   }
 

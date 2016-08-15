@@ -359,6 +359,7 @@ namespace boda
     explicit dim_t( uint32_t const & sz_ ) : sz(sz_), stride(0) { }
     dim_t( string const & name_, uint32_t const & sz_ ) : sz(sz_), stride(0), name(name_) { }
     bool operator == ( dim_t const & o ) const { return (sz==o.sz) && (stride==o.stride) && (name==o.name); }
+    bool operator != ( dim_t const & o ) const { return !(*this==o); }
     bool operator < ( dim_t const & o ) const { 
       if( sz != o.sz ) { return sz < o.sz; }
       if( stride != o.stride ) { return stride < o.stride; }
@@ -437,6 +438,7 @@ namespace boda
 
     // note: == and < compare: dims *and* strides *and* names
     bool operator == ( dims_t const & o ) const { return (tn==o.tn)&&(((vect_dim_t const &)(*this)) == ((vect_dim_t const &)(o)));}
+    bool operator != ( dims_t const & o ) const { return !(*this==o); }
     bool operator < ( dims_t const & o ) const { 
       return (tn==o.tn)?(((vect_dim_t const &)(*this)) < ((vect_dim_t const &)(o))):(tn<o.tn); }
     // like ==, but treats zero/empty sz/stride/names as wild in the passed template/'o' dims_t (NOT in the *this dims_t)
@@ -653,6 +655,9 @@ namespace boda
   public:
     uint64_t const elems_sz( void ) const { return dims.strides_sz; }
     dims_t dims;
+    bool operator ==( nda_t const & o ) const = delete; // not hard to impl if needed
+    bool operator !=( nda_t const & o ) const = delete;
+    bool operator <( nda_t const & o ) const;
   protected:
     void alloc( void ) {
       assert_st( !d );
@@ -667,6 +672,7 @@ namespace boda
   public:
     template< typename STREAM > void bwrite_( STREAM & out ) const {
       bwrite(out,dims); 
+      assert_st( bool(d) ); // FIXME: allow null here (when it fails)
       bwrite_bytes( out, (char *)d.get(), dims.bytes_sz() );
     }
     template< typename STREAM > void bread_( STREAM & in ) {

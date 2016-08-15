@@ -85,6 +85,17 @@ namespace boda
     }
   };
 
+  struct comp_ndas_t : public virtual nesi, public has_main_t // NESI(help="compare two nda's", bases=["has_main_t"], type_id="comp-ndas", hide=1 )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    nda_t a; //NESI(req=1)
+    nda_t b; //NESI(req=1)
+    virtual void main( nesi_init_arg_t * nia ) {
+      printf( "a<b=%s\n", str(a<b).c_str() );
+      printf( "b<a=%s\n", str(b<a).c_str() );
+    }
+  };
+
   struct sub_vst_t : public virtual nesi, public various_stuff_t // NESI(help="sub type of vst", bases=["various_stuff_t"], type_id="sub_vst")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -249,6 +260,7 @@ namespace boda
     T &operator[]( size_t const & i ) { return b[i]; }
     range( T * const & b_, T * const & e_ ) : b(b_), e(e_) { }
     bool operator == ( range const & o ) const { if( size()!=o.size() ) { return 0; } return std::equal( b, e, o.b ); }
+    bool operator != ( range const & o ) const = delete;
   };
   typedef range< uint8_t > range_uint8_t;
   typedef range< char const > range_char;
