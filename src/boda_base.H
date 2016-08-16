@@ -554,9 +554,11 @@ namespace boda
         assert_st( !tn.empty() ); // FIXME: good place for this?
       }
       // FIXME: do something different in is_template case here?
-      strides(sz()-1) = 1;
-      for( uint32_t d = 1; d < sz(); ++d ) { strides(sz()-d-1) = strides(sz()-d)*dims(sz()-d); }
-      strides_sz = uint64_t(strides(0))*dims(0); // i.e. tot_elems, strides(-1), size of all data, used to bounds check
+      strides_sz = 1;
+      for( uint32_t d = 0; d < sz(); ++d ) { 
+        strides(sz()- d - 1) = strides_sz; strides_sz *= dims(sz() - d - 1);
+      }
+      // note: strides_sz is now tot_elems, strides(-1), size of all data, used to bounds check (same as dims_prod())
       strides_valid.v = 1;
     }
     bool valid( void ) const {
@@ -625,7 +627,7 @@ namespace boda
     }
   };
 
-  // valid, but has 0 elements, and "none" type. not commonly used. FIXME: remove, replace with ... no-data ndas maybe?
+  // valid: scalar with "none" type. not commonly used. FIXME: remove, replace with ... no-data ndas maybe?
   inline dims_t make_null_dims_t( void ) { return dims_t({},"none"); } 
 
   inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { out << o.param_str(1); return out; }
