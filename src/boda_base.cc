@@ -178,27 +178,28 @@ namespace boda
     nda_dump_t( std::ostream & out_ ) : out(out_) {}
     template< typename T > void op( nda_t const & nda ) const { 
       T const * const elems = static_cast<T const *>(nda.rp_elems());
-      out << "(";
-      // FIXME: put these 'default dims/tn for nda_t param str' conditions somewhere better?
-      bool const show_dims = (nda.dims.size() != 1) || (nda.dims[0].name != "v") || (!elems);
-      bool const show_tn = (!show_dims) || (nda.dims.get_tn() != "float");
-      if( show_tn ) { out << "tn=" << nda.dims.get_tn(); }
-      if( show_dims ) { 
-        if( show_tn ) { out << ","; } 
-        out << "dims=" << nda.dims.param_str(0); // note: always omit showing tn (as __tn__ pseudo-dim) here
-      }
-      if( elems ) {
-        out << ",v="; // note: will always emit at least one of tn and dims, so we always add a ',' here.
-        for( uint32_t i = 0; i != nda.elems_sz(); ++i ) {
-          if( i ) { out << ":"; }
-          out << elems[i];
-        }
-      }
-      out << ")";
+      assert_st( elems );
+      for( uint32_t i = 0; i != nda.elems_sz(); ++i ) { if( i ) { out << ":"; } out << elems[i]; }
     }
   };
 
-  std::ostream & operator << ( std::ostream & out, nda_t const & o ) { nda_dispatch( o, nda_dump_t( out ) ); return out; }
+  std::ostream & operator << ( std::ostream & out, nda_t const & o ) { 
+    out << "(";
+    // FIXME: put these 'default dims/tn for nda_t param str' conditions somewhere better?
+    bool const show_dims = (o.dims.size() != 1) || (o.dims[0].name != "v") || (!o.rp_elems());
+    bool const show_tn = (!show_dims) || (o.dims.get_tn() != "float");
+    if( show_tn ) { out << "tn=" << o.dims.get_tn(); }
+    if( show_dims ) { 
+      if( show_tn ) { out << ","; } 
+      out << "dims=" << o.dims.param_str(0); // note: always omit showing tn (as __tn__ pseudo-dim) here
+    }
+    if( o.rp_elems() ) {
+      out << ",v="; // note: will always emit at least one of tn and dims, so we always add a ',' here.
+      nda_dispatch( o, nda_dump_t( out ) );
+    }
+    out << ")";
+    return out; 
+  }
 
   struct nda_lt_elems_t {
     nda_t const & t;

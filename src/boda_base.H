@@ -390,6 +390,8 @@ namespace boda
     bool is_signed;
   };
   typedef ndat_info_t const * rp_ndat_info_t;
+  // dims-only ndas that can never actually point to any specific type of data. FIXME: rename "none" to "void"?
+  ndat_info_t const none_ndat{"none",0,0,0}; 
   ndat_info_t const half_ndat{"half",2,1,1};
   ndat_info_t const float_ndat{"float",4,1,1};
   ndat_info_t const double_ndat{"double",8,1,1};
@@ -397,6 +399,7 @@ namespace boda
   ndat_info_t const uint32_t_ndat{"uint32_t",4,0,0};
   ndat_info_t const uint8_t_ndat{"uint8_t",1,0,0};
   template< typename T > inline ndat_info_t const & get_ndat( void );
+  template<> inline ndat_info_t const & get_ndat<void>( void ) { return none_ndat; }
   template<> inline ndat_info_t const & get_ndat<half_float::half>( void ) { return half_ndat; }
   template<> inline ndat_info_t const & get_ndat<float>( void ) { return float_ndat; }
   template<> inline ndat_info_t const & get_ndat<double>( void ) { return double_ndat; }
@@ -405,6 +408,7 @@ namespace boda
   template<> inline ndat_info_t const & get_ndat<uint8_t>( void ) { return uint8_t_ndat; }
   typedef map< string, rp_ndat_info_t > ndat_infos_t;
   ndat_infos_t const ndat_infos{
+    {none_ndat.tn,&none_ndat},
     {half_ndat.tn,&half_ndat},
     {float_ndat.tn,&float_ndat},
     {double_ndat.tn,&double_ndat},
@@ -621,6 +625,9 @@ namespace boda
     }
   };
 
+  // valid, but has 0 elements, and "none" type. not commonly used. FIXME: remove, replace with ... no-data ndas maybe?
+  inline dims_t make_null_dims_t( void ) { return dims_t({},"none"); } 
+
   inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { out << o.param_str(1); return out; }
 
   template< typename STREAM > inline void bwrite( STREAM & out, dim_t const & o ) { 
@@ -645,9 +652,13 @@ namespace boda
 
   struct nda_t {
     nda_t( void ) { }
-    nda_t( dims_t const & dims_ ) { set_dims( dims_ ); }
+    nda_t( dims_t const & dims_ ) { nda_set_dims( dims_ ); alloc(); }
     // below ctor is for no-ownership-transfer references to 'remote' NDAs where the data is behine an opaque void *
-    nda_t( dims_t const & dims_, void * const & elems_ ) { d.reset( (uint8_t *)elems_, null_deleter<uint8_t>() ); set_dims( dims_ ); }
+    nda_t( dims_t const & dims_, void * const & elems_ ) { 
+      d.reset( (uint8_t *)elems_, null_deleter<uint8_t>() ); 
+      nda_set_dims( dims_ ); 
+      // note: no alloc, even if d was explicitlt set to null (which is the dims-only/no-data case)
+    }
     void const * rp_elems( void ) const { return (void const *)d.get(); }
     void * rp_elems( void ) { return (void *)d.get(); }
   protected:
@@ -664,21 +675,27 @@ namespace boda
       assert_st( dims.strides_sz );
       d = ma_p_T<uint8_t>(elems_sz()*dims.tsz(),32UL);
     }
-    void set_dims( dims_t const & dims_ ) { 
+    void nda_set_dims( dims_t const & dims_ ) { 
       dims = dims_;
       assert_st( dims.valid() );
-      if( !d ) { alloc(); } // if hunk is null, allocate it
     }
   public:
     template< typename STREAM > void bwrite_( STREAM & out ) const {
       bwrite(out,dims); 
-      assert_st( bool(d) ); // FIXME: allow null here (when it fails)
-      bwrite_bytes( out, (char *)d.get(), dims.bytes_sz() );
+      uint8_t non_null = bool(d);
+      bwrite( out, non_null );
+      if( non_null ) { bwrite_bytes( out, (char *)d.get(), dims.bytes_sz() ); }
     }
     template< typename STREAM > void bread_( STREAM & in ) {
       bread(in,dims); 
-      alloc();
-      bread_bytes( in, (char *)d.get(), dims.bytes_sz() );
+      uint8_t non_null = 0;
+      bread( in, non_null );
+      if( non_null ) {
+        alloc();
+        bread_bytes( in, (char *)d.get(), dims.bytes_sz() );
+      } else {
+        assert_st( !d );
+      }
     }
     // similarly to bread/bwrite, the nesi init code needs to take a default constructed nda, fill in the dims, and alloc.
     void nesi_init_private_alloc( void ) { alloc(); } // wrapper to make it clear this should not be called willy-nilly
@@ -691,13 +708,16 @@ namespace boda
   typename std::enable_if< std::is_same<nda_t, typename std::remove_const<NDA_T>::type >::value >::type // C++! yeah! sigh.
   nda_dispatch( NDA_T & nda, T const & func ) {
     if( 0 ) { }
+    // note: in particular, we *don't* handle the void/none type here, so trying to nda_dispatch on them will fail. but,
+    // since such ndas can never have elements, we shouldn't ever try to do that, since nda_dispatch is (ony) used to
+    // operate/iterate on the elements of an nda.
     else if( nda.dims.tn == half_ndat.tn ) { func.template op<half>( nda ); } // C++!
     else if( nda.dims.tn == float_ndat.tn ) { func.template op<float>( nda ); }
     else if( nda.dims.tn == double_ndat.tn ) { func.template op<double>( nda ); }
     else if( nda.dims.tn == int32_t_ndat.tn ) { func.template op<int32_t>( nda ); }
     else if( nda.dims.tn == uint32_t_ndat.tn ) { func.template op<uint32_t>( nda ); }
     else if( nda.dims.tn == uint8_t_ndat.tn) { func.template op<uint8_t>( nda ); }
-    else { rt_err( "unhandled type in nda_dispatch; tn=" + nda.dims.tn ); }
+    else { rt_err( "unhandled type in nda_dispatch; tn=" + nda.dims.tn ); } 
   }
   
   typedef vector< nda_t > vect_nda_t; 
@@ -717,6 +737,7 @@ namespace boda
     *(static_cast< T * >(ret->rp_elems())) = v;
     return ret;
   }
+  inline p_nda_t make_dims_nda( dims_t const & dims ) { return make_shared<nda_t>( dims, (void *)0 ); }
 
   template< typename T > struct nda_T : public nda_t {
     nda_T( void ) { }

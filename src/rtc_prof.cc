@@ -61,7 +61,7 @@ namespace boda
       if( i.ad().io_type == "REF" ) { continue; }
       if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
       dims_t const & func_dims = rcg->get_arg_dims_by_name( i.vn() );
-      if( func_dims == dims_t() ) { continue; } // NULL case -- ignore
+      if( func_dims == make_null_dims_t() ) { continue; } // NULL case -- ignore
       must_insert( arg_map, i.vn(), i.vn() );
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
@@ -76,7 +76,7 @@ namespace boda
         if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
 	must_insert(in_gen_op->str_vals,"func_name",
                     in_gen_op->type+"_"+anno_op->type+"_"+i.vn() ); // note: variant choice based on op type, not func_name
-	in_gen_op->dims_vals.clear();
+	in_gen_op->nda_vals.clear();
         dims_t const & in_dims = anno_op->get_dims( i.vn() );
         string const ref_in_dims_name = i.vn()+"_ref";
         dims_t const & ref_in_dims = anno_op->has_dims(ref_in_dims_name)?anno_op->get_dims(ref_in_dims_name):in_dims;

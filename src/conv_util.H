@@ -79,9 +79,9 @@ namespace boda
     conv_op_base_t( void ) : coi(0) { }
 
     // convienince accessor functions for commonly-used cnn operation fields
-    u32_pt_t in_pad( void ) const { return get_xy_dims_strict( must_find( dims_vals, "in_pad" ) ); }
-    u32_pt_t kern_sz( void ) const { return get_xy_dims_strict( must_find( dims_vals, "kern_sz" ) ); }
-    u32_pt_t stride( void ) const { return get_xy_dims_strict( must_find( dims_vals, "stride" ) ); }
+    u32_pt_t in_pad( void ) const { return get_xy_dims_strict( get_dims( "in_pad" ) ); }
+    u32_pt_t kern_sz( void ) const { return get_xy_dims_strict( get_dims( "kern_sz" ) ); }
+    u32_pt_t stride( void ) const { return get_xy_dims_strict( get_dims( "stride" ) ); }
     // FIXME: these fields are only used codegen, so maybe they don't belong here?
     string func_name( void ) const { return must_find( str_vals, "func_name" ); } // cts --> conv-type-str
     void set_func_name( string const & func_name_ ) { must_insert( str_vals, "func_name", func_name_ ); }
@@ -123,13 +123,13 @@ namespace boda
     void set_arg_dims_and_map_from_pipe( conv_pipe_t const * const cp ); // add arg_name->dims mappings to dims_vals
     string get_arg( string const & an ) { return must_find( arg_map, an ); }
     void set_arg( dims_t const & dims, string const & an, string const & vn ) {
-      must_insert( dims_vals, an, dims );
+      set_dims( an, dims );
       must_insert( arg_map, an, vn );
     }
     void reset_arg( string const & an, string const & vn ) { must_replace( arg_map, an, vn ); }
-    void reset_arg_dims( string const & an, dims_t const & dims ) { must_replace( dims_vals, an, dims ); }
-    void set_null_arg( string const & an ) { must_insert( dims_vals, an, dims_t() ); }
-    void erase_arg( string const & an ) { must_erase( dims_vals, an ); must_erase( arg_map, an ); }
+    void reset_arg_dims( string const & an, dims_t const & dims ) { reset_dims( an, dims ); }
+    void set_null_arg( string const & an ) { set_dims( an, make_null_dims_t() ); }
+    void erase_arg( string const & an ) { erase_dims( an ); must_erase( arg_map, an ); }
   };
 
   typedef vector< conv_op_t > vect_conv_op_t; 

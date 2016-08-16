@@ -60,12 +60,10 @@ namespace boda
 
   template< typename STREAM > inline void bwrite( STREAM & out, op_base_t const & o ) { 
     bwrite( out, o.type );
-    bwrite( out, o.dims_vals );
     bwrite( out, o.str_vals );
   }
   template< typename STREAM > inline void bread( STREAM & in, op_base_t & o ) { 
     bread( in, o.type );
-    bread( in, o.dims_vals );
     bread( in, o.str_vals );
   }
 

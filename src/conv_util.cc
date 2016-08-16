@@ -89,14 +89,14 @@ namespace boda
     for( uint32_t i = 0; i != bots.size(); ++i ) {
       dims_t const & d = cp->must_get_node( bots[i] )->dims;
       assert_st( !d.empty() ); // should have been already checked by calc_dims()
-      must_insert( dims_vals, coi->bot_an(i), d );
+      set_dims( coi->bot_an(i), d );
       must_insert( arg_map, coi->bot_an(i), bots[i] );
     }
     if( coi->has_var_bots.v ) { must_insert( str_vals, coi->bots[0] + "_num", str(bots.size()) ); }
     for( uint32_t i = 0; i != tops.size(); ++i ) { 
       dims_t const & d = cp->must_get_node( tops[i] )->dims;
       assert_st( !d.empty() ); // should have been already checked by calc_dims()
-      must_insert( dims_vals, coi->top_an(i), d ); 
+      set_dims( coi->top_an(i), d ); 
       must_insert( arg_map, coi->top_an(i), tops[i] );
     }
     if( coi->has_var_tops.v ) { must_insert( str_vals, coi->tops[0] + "_num", str(tops.size()) ); }
@@ -133,16 +133,21 @@ namespace boda
     // FIXME: dup'd with str_vals handling ... duplication is worse here than in some other places ...
     // check all dims_vals are set, set any missing ones to defaults
     for( map_str_dims_t::const_iterator i = coi->dims_vals.begin(); i != coi->dims_vals.end(); ++i ) {
-      if( !has( dims_vals, i->first ) ) { dims_vals[i->first] = i->second; }
+      if( !has_dims( i->first ) ) { set_dims( i->first, i->second ); }
     }
+    // check all nda_vals are set, set any missing ones to defaults
+    for( map_str_p_nda_t::const_iterator i = coi->nda_vals.begin(); i != coi->nda_vals.end(); ++i ) {
+      if( !has( nda_vals, i->first ) ) { nda_vals[i->first] = i->second; }
+    }
+
     // kern_sz is manditory for Convolution/Deconvolution, and has no default -- we have no magic/automatic for that, so we just check
     // it manually here ...
-    if( (is( Convolution_coi )||is( Deconvolution_coi )||is( BckConv_coi )) && !has( dims_vals, "kern_sz" ) ) { 
-      rt_err( strprintf( "Missing parameter 'kern_sz' for operation of type '%s'.", str(coi->type).c_str() ) );
+    if( (is( Convolution_coi )||is( Deconvolution_coi )||is( BckConv_coi )) && !has_dims("kern_sz" ) ) { 
+      rt_err( strprintf( "Missing dims parameter 'kern_sz' for operation of type '%s'.", str(coi->type).c_str() ) );
     }
 
     // check that there are no extra/unknown dims_vals
-    for( map_str_dims_t::const_iterator i = dims_vals.begin(); i != dims_vals.end(); ++i ) {
+    for( map_str_p_nda_t::const_iterator i = nda_vals.begin(); i != nda_vals.end(); ++i ) {
       if( i->first == "kern_sz" ) {
 	// kern_sz is manditory for convolution, but has no default, and is optional for pooling and has no
 	// default. again, we have no magic for either case, so we just manually check here.
@@ -150,31 +155,11 @@ namespace boda
 	if( is( Convolution_coi ) || is( Pooling_coi ) ) { continue; } // okay to be present for these types
 	if( is( BckConv_coi ) || is( Spreading_coi ) ) { continue; } // okay to be present for these types
       }
-      if( !has( coi->dims_vals, i->first ) ) { 
-	rt_err( strprintf( "Unknown/invalid/extra dims parameter '%s' for operation of type '%s'.",
+      if( !has( coi->dims_vals, i->first ) && !has( coi->nda_vals, i->first )) { 
+	rt_err( strprintf( "Unknown/invalid/extra nda/dims parameter '%s' for operation of type '%s'.",
 			   i->first.c_str(), str(coi->type).c_str() ) );
       }
     }
-
-    // FIXME: okay, extra dup'd with above str_vals / dims_vals handling. in the long run, the idea is that (maybe)
-    // nda's subsume dims_t's, since we can represent a dims_t as an nda with a null data pointer. also, we might want
-    // to *add* somethign like an arg map somwehre around here, and then maybe we want every argument to be either a
-    // variable-name (which indirectly gets us an nda), or an nda, where the data might be null in either
-    // case. basically, we're heading toward more flexible/dynamic handling of arguments, and reducing the differences
-    // between 'instantiate/compile' and 'call' time (on the thoery they don't help and do hurt).
-
-    // check all nda_vals are set, set any missing ones to defaults
-    for( map_str_p_nda_t::const_iterator i = coi->nda_vals.begin(); i != coi->nda_vals.end(); ++i ) {
-      if( !has( nda_vals, i->first ) ) { nda_vals[i->first] = i->second; }
-    }
-    // check that there are no extra/unknown nda_vals
-    for( map_str_p_nda_t::const_iterator i = nda_vals.begin(); i != nda_vals.end(); ++i ) {
-      if( !has( coi->nda_vals, i->first ) ) { 
-	rt_err( strprintf( "Unknown/invalid/extra nda parameter '%s' for operation of type '%s'.",
-			   i->first.c_str(), str(coi->type).c_str() ) );
-      }
-    }
-
 
   }
 
@@ -200,7 +185,7 @@ namespace boda
   }
 
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
-    if( !has( dims_vals, "kern_sz" ) ) { // handle non-conv cases
+    if( !has_dims( "kern_sz" ) ) { // handle non-conv cases
       assert( !is(Convolution_coi) ); 
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
@@ -219,7 +204,7 @@ namespace boda
     else { rt_err("in_sz_to_out_sz: unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
-    if( !has( dims_vals, "kern_sz" ) ) { // handle non-conv cases
+    if( !has_dims( "kern_sz" ) ) { // handle non-conv cases
       assert( !is(Convolution_coi) );
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { // inner product and global pooling special cases
 	if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
@@ -666,12 +651,12 @@ namespace boda
   void print_op_decl( std::ostream & out, conv_pipe_t const * const pipe, p_conv_op_t const & cop ) {
     char const * const tag_id = cop->tag.c_str();
     string str_vals;
-    str_vals += ",str_vals={";
-    for( map_str_dims_t::const_iterator i = cop->dims_vals.begin(); i != cop->dims_vals.end(); ++i ) {
-      str_vals += strprintf( "\"%s\":\"%s\",", i->first.c_str(), i->second.param_str(1).c_str() );
+    str_vals += ",nda_vals={";
+    for( map_str_p_nda_t::const_iterator i = cop->nda_vals.begin(); i != cop->nda_vals.end(); ++i ) {
+      str_vals += strprintf( "\"%s\":\"%s\",", i->first.c_str(), str(i->second).c_str() );
     }
     str_vals += "}";
-    str_vals += ",dims_vals={";
+    str_vals += ",str_vals={";
     for( map_str_str::const_iterator i = cop->str_vals.begin(); i != cop->str_vals.end(); ++i ) {
       str_vals += strprintf( "\"%s\":\"%s\",", i->first.c_str(), i->second.c_str() );
     }

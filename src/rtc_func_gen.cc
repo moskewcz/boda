@@ -130,7 +130,7 @@ namespace boda
 
     // for now: keep all of rfs_in expect dims_vals (which we reduce to only the used elements). type is semi-unused,
     // but maybe important to unique?
-    rfs_out->dims_vals.clear();     
+    rfs_out->nda_vals.clear();     
 
     string arg_check_error;
 
@@ -158,7 +158,7 @@ namespace boda
         arg_check_error += "call arg '"+i.vn()+"' must not have padding; "; } // FIXME: maybe too strong
       bool matches_decl = 0;
       for( uint32_t j = 0; j != i.ad().ok_dims.size(); ++j ) {
-        if( arg_dims == dims_t() ) { matches_decl = 1; break; } // NULL case
+        if( arg_dims == make_null_dims_t() ) { matches_decl = 1; break; } // NULL case
         if( arg_dims.matches_template( i.ad().ok_dims[j] ) ) { matches_decl = 1; break; }
       }
       if( !matches_decl ) { arg_check_error += "call arg '"+str(i.vn())+"' incompatible with decl arg "
@@ -265,8 +265,8 @@ namespace boda
   string gen_unused_fn( op_base_t const & op, set_string const & used_names ) {
     string maybe_fn_base = must_find( op.str_vals, "func_name" );
     set_string unique_dims;
-    for( map_str_dims_t::const_iterator ra = op.dims_vals.begin(); ra != op.dims_vals.end(); ++ra ) {
-      dims_t const & dims = ra->second;
+    for( map_str_p_nda_t::const_iterator ra = op.nda_vals.begin(); ra != op.nda_vals.end(); ++ra ) {
+      dims_t const & dims = ra->second->dims;
       for( uint32_t i = 0; i != dims.sz(); ++i ) {
 	string const & dn = dims.names(i);
 	bool const did_ins = unique_dims.insert( dn ).second;
@@ -420,7 +420,7 @@ namespace boda
       if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
       dims_t const & arg_dims = get_arg_dims_by_name( i.vn() );
-      if( arg_dims == dims_t() ) { continue; } // skip null dims
+      if( arg_dims == make_null_dims_t() ) { continue; } // skip null dims
       if( i.ad().dyn.v ) { 
         dyn_vars.push_back( dyn_dim_info_t{ i.vn(), i.vn(), vect_string{} } ); 
         add_dyn_nda_dims_sz( i.vn(), arg_dims, 1 ); 
@@ -493,7 +493,7 @@ namespace boda
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
         dims_t const & func_dims = get_arg_dims_by_name( vn );
-        if( func_dims == dims_t() ) { rfc.args.push_back(rtc_arg_t{"<NULL>"}); continue; } // NULL, pass though to rtc
+        if( func_dims == make_null_dims_t() ) { rfc.args.push_back(rtc_arg_t{"<NULL>"}); continue; } // NULL, pass though to rtc
         dims_t call_dims;
         string call_vn; // for error message
         if( i->loi.v == 0 ) { // by-value handling: scalars only, assume in nda_args
