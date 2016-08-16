@@ -1,3 +1,8 @@
+-- keep working toward no-dims-dims_t()-is-scalar, and removing the
+   existing usages of a single 'v' dims with size 1 for scalars
+   (assuming that works). in particular, update nda parse and
+   to-param-str code to appropriatly.
+
 -- add k1conv write_xposed 'is-acutally-doing-something' test case
 -- add flops.py minimal automated test
 
