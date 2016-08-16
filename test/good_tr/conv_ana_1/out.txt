@@ -1,20 +1,20 @@
 == BEGIN CONV PIPE ==
 support_sz=1 1 support_stride=1 1 eff_tot_pad=0 0
-    ----  conv=(type=Convolution,dims_vals=(biases=(__tn__=float,out_chan=0),filts=(__tn__=float,out_chan=0,in_chan=3,y=11,x=11),in=(__tn__=float,img=1,chan=3,y=227,x=227),in_pad=(__tn__=none,y=0,x=0),kern_sz=(__tn__=float,y=11,x=11),out=(__tn__=float,img=1,chan=3,y=55,x=55),stride=(__tn__=float,y=4,x=4)),str_vals=(out_chans=0),tag=conv1) 
+    ----  conv=(type=Convolution,str_vals=(out_chans=0),nda_vals=(biases=(dims=(out_chan=0)),filts=(dims=(out_chan=0,in_chan=3,y=11,x=11)),in=(dims=(img=1,chan=3,y=227,x=227)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=11,x=11)),out=(dims=(img=1,chan=3,y=55,x=55)),stride=(tn=none,dims=(y=4,x=4))),tag=conv1) 
 support_sz=11 11 support_stride=4 4 eff_tot_pad=0 0
-    ----  conv=(type=Pooling,dims_vals=(in=(__tn__=float,img=1,chan=3,y=55,x=55),in_pad=(__tn__=none,y=0,x=0),kern_sz=(__tn__=float,y=3,x=3),out=(__tn__=float,img=1,chan=3,y=27,x=27),stride=(__tn__=float,y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool1) 
+    ----  conv=(type=Pooling,str_vals=(avg_pool=0,emit_out_in_yx=0),nda_vals=(in=(dims=(img=1,chan=3,y=55,x=55)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=3,y=27,x=27)),stride=(tn=none,dims=(y=2,x=2))),tag=pool1) 
 support_sz=19 19 support_stride=8 8 eff_tot_pad=0 0
-    ----  conv=(type=Convolution,dims_vals=(biases=(__tn__=float,out_chan=0),filts=(__tn__=float,out_chan=0,in_chan=3,y=5,x=5),in=(__tn__=float,img=1,chan=3,y=27,x=27),in_pad=(__tn__=float,y=2,x=2),kern_sz=(__tn__=float,y=5,x=5),out=(__tn__=float,img=1,chan=3,y=27,x=27),stride=(__tn__=none,y=1,x=1)),str_vals=(out_chans=0),tag=conv2) 
+    ----  conv=(type=Convolution,str_vals=(out_chans=0),nda_vals=(biases=(dims=(out_chan=0)),filts=(dims=(out_chan=0,in_chan=3,y=5,x=5)),in=(dims=(img=1,chan=3,y=27,x=27)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=1,chan=3,y=27,x=27)),stride=(tn=none,dims=(y=1,x=1))),tag=conv2) 
 support_sz=51 51 support_stride=8 8 eff_tot_pad=16 16
-    ----  conv=(type=Pooling,dims_vals=(in=(__tn__=float,img=1,chan=3,y=27,x=27),in_pad=(__tn__=none,y=0,x=0),kern_sz=(__tn__=float,y=3,x=3),out=(__tn__=float,img=1,chan=3,y=13,x=13),stride=(__tn__=float,y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool2) 
+    ----  conv=(type=Pooling,str_vals=(avg_pool=0,emit_out_in_yx=0),nda_vals=(in=(dims=(img=1,chan=3,y=27,x=27)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=3,y=13,x=13)),stride=(tn=none,dims=(y=2,x=2))),tag=pool2) 
 support_sz=67 67 support_stride=16 16 eff_tot_pad=16 16
-    ----  conv=(type=Convolution,dims_vals=(biases=(__tn__=float,out_chan=0),filts=(__tn__=float,out_chan=0,in_chan=3,y=3,x=3),in=(__tn__=float,img=1,chan=3,y=13,x=13),in_pad=(__tn__=float,y=1,x=1),kern_sz=(__tn__=float,y=3,x=3),out=(__tn__=float,img=1,chan=3,y=13,x=13),stride=(__tn__=none,y=1,x=1)),str_vals=(out_chans=0),tag=conv3) 
+    ----  conv=(type=Convolution,str_vals=(out_chans=0),nda_vals=(biases=(dims=(out_chan=0)),filts=(dims=(out_chan=0,in_chan=3,y=3,x=3)),in=(dims=(img=1,chan=3,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=3,y=13,x=13)),stride=(tn=none,dims=(y=1,x=1))),tag=conv3) 
 support_sz=99 99 support_stride=16 16 eff_tot_pad=32 32
-    ----  conv=(type=Convolution,dims_vals=(biases=(__tn__=float,out_chan=0),filts=(__tn__=float,out_chan=0,in_chan=3,y=3,x=3),in=(__tn__=float,img=1,chan=3,y=13,x=13),in_pad=(__tn__=float,y=1,x=1),kern_sz=(__tn__=float,y=3,x=3),out=(__tn__=float,img=1,chan=3,y=13,x=13),stride=(__tn__=none,y=1,x=1)),str_vals=(out_chans=0),tag=conv4) 
+    ----  conv=(type=Convolution,str_vals=(out_chans=0),nda_vals=(biases=(dims=(out_chan=0)),filts=(dims=(out_chan=0,in_chan=3,y=3,x=3)),in=(dims=(img=1,chan=3,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=3,y=13,x=13)),stride=(tn=none,dims=(y=1,x=1))),tag=conv4) 
 support_sz=131 131 support_stride=16 16 eff_tot_pad=48 48
-    ----  conv=(type=Convolution,dims_vals=(biases=(__tn__=float,out_chan=0),filts=(__tn__=float,out_chan=0,in_chan=3,y=3,x=3),in=(__tn__=float,img=1,chan=3,y=13,x=13),in_pad=(__tn__=float,y=1,x=1),kern_sz=(__tn__=float,y=3,x=3),out=(__tn__=float,img=1,chan=3,y=13,x=13),stride=(__tn__=none,y=1,x=1)),str_vals=(out_chans=0),tag=conv5) 
+    ----  conv=(type=Convolution,str_vals=(out_chans=0),nda_vals=(biases=(dims=(out_chan=0)),filts=(dims=(out_chan=0,in_chan=3,y=3,x=3)),in=(dims=(img=1,chan=3,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=3,y=13,x=13)),stride=(tn=none,dims=(y=1,x=1))),tag=conv5) 
 support_sz=163 163 support_stride=16 16 eff_tot_pad=64 64
-    ----  conv=(type=Pooling,dims_vals=(in=(__tn__=float,img=1,chan=3,y=13,x=13),in_pad=(__tn__=none,y=0,x=0),kern_sz=(__tn__=float,y=3,x=3),out=(__tn__=float,img=1,chan=3,y=6,x=6),stride=(__tn__=float,y=2,x=2)),str_vals=(avg_pool=0,emit_out_in_yx=0),tag=pool5) 
+    ----  conv=(type=Pooling,str_vals=(avg_pool=0,emit_out_in_yx=0),nda_vals=(in=(dims=(img=1,chan=3,y=13,x=13)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=3,y=6,x=6)),stride=(tn=none,dims=(y=2,x=2))),tag=pool5) 
 support_sz=195 195 support_stride=32 32 eff_tot_pad=64 64
 == END CONV PIPE ==
 >> calculating network sizes forward given an in_sz of 227

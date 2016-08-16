@@ -74,14 +74,31 @@
   <li test_name="blf_pack_3"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="100"/></li>
   <li test_name="blf_pack_4"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="500"/></li>
   <li test_name="conv_ana_1"> <command mode="conv_ana" out_sz="6" in_sz="227" ignore_padding_for_support="1"  ><convs>
-    <li tag="conv1" type="Convolution"><dims_vals><kern_sz y="11" x="11"/><stride y="4" x="4"/></dims_vals></li>
-    <li tag="pool1" type="Pooling"><dims_vals><kern_sz y="3" x="3"/><stride y="2" x="2"/></dims_vals></li>
-    <li tag="conv2" type="Convolution"><dims_vals><kern_sz y="5" x="5"/><in_pad y="2" x="2"/></dims_vals></li>
-    <li tag="pool2" type="Pooling"><dims_vals><kern_sz y="3" x="3"/><stride y="2" x="2"/></dims_vals></li>
-    <li tag="conv3" type="Convolution"><dims_vals><kern_sz y="3" x="3"/><in_pad y="1" x="1"/></dims_vals></li>
-    <li tag="conv4" type="Convolution"><dims_vals><kern_sz y="3" x="3"/><in_pad y="1" x="1"/></dims_vals></li>
-    <li tag="conv5" type="Convolution"><dims_vals><kern_sz y="3" x="3"/><in_pad y="1" x="1"/></dims_vals></li>
-    <li tag="pool5" type="Pooling"> <dims_vals><kern_sz y="3" x="3"/><stride y="2" x="2"/></dims_vals></li>
+    <li tag="conv1" type="Convolution"><nda_vals>
+      <kern_sz tn="none"><dims y="11" x="11"/></kern_sz><stride tn="none"><dims y="4" x="4"/></stride>
+    </nda_vals></li>
+    <li tag="pool1" type="Pooling"><nda_vals>
+      <kern_sz tn="none"><dims y="3" x="3"/></kern_sz> <stride tn="none"><dims y="2" x="2"/></stride>
+    </nda_vals></li>
+    <li tag="conv2" type="Convolution"><nda_vals>
+      <kern_sz tn="none"><dims y="5" x="5"/></kern_sz> <in_pad tn="none"><dims y="2" x="2"/></in_pad>
+    </nda_vals></li>
+    <li tag="pool2" type="Pooling"><nda_vals>
+      <kern_sz tn="none"><dims y="3" x="3"/></kern_sz> <stride tn="none"><dims y="2" x="2"/></stride>
+    </nda_vals></li>
+    <li tag="conv3" type="Convolution"><nda_vals>
+      <kern_sz tn="none"><dims y="3" x="3"/></kern_sz> <in_pad tn="none"><dims y="1" x="1"/></in_pad>
+    </nda_vals></li>
+    <li tag="conv4" type="Convolution"><nda_vals>
+      <kern_sz tn="none"><dims y="3" x="3"/></kern_sz> <in_pad tn="none"><dims y="1" x="1"/></in_pad>
+    </nda_vals></li>
+    <li tag="conv5" type="Convolution"><nda_vals>
+      <kern_sz tn="none"><dims y="3" x="3"/></kern_sz> <in_pad tn="none"><dims y="1" x="1"/></in_pad>
+    </nda_vals></li>
+    <li tag="pool5" type="Pooling"> <nda_vals>
+      <kern_sz tn="none"><dims y="3" x="3"/></kern_sz> <stride tn="none"><dims y="2" x="2"/></stride>
+    </nda_vals></li>
+
   </convs></command></li>
   <li test_name="conv_ana_xml"> <command mode="conv_ana" out_sz="6" in_sz="227" ignore_padding_for_support="1" XML_INC_convs="conv_pyra_pipe.xml:convs"/></li>
   <li test_name="conv_ana_xml_2" cli_str="boda conv_ana --out-sz=12 --in-sz=227 --ignore-padding-for-support=1 --XML_INC_convs=../../test/conv_pyra_pipe.xml:convs"/>
