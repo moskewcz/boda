@@ -91,6 +91,8 @@ namespace boda
     nda_t a; //NESI(req=1)
     nda_t b; //NESI(req=1)
     virtual void main( nesi_init_arg_t * nia ) {
+      printf( "a=%s\n", str(a).c_str() );
+      printf( "b=%s\n", str(b).c_str() );
       printf( "a<b=%s\n", str(a<b).c_str() );
       printf( "b<a=%s\n", str(b<a).c_str() );
     }
@@ -138,10 +140,11 @@ namespace boda
     { "bad_nda_3", "", ntb_b+"nda=(jimmy=no-fun))", "var 'nda': error: nda_t has no field named jimmy. valid fields are 'tn' (string; type name), 'dims' (dims_t), and 'v' (string; space-or-colon-seperated list of values" },
     { "bad_nda_4", "", ntb_b+"nda=(dims=()))", "var 'nda': error: nda_t 'dims' field specified empty dims." },
     { "bad_nda_5", "", ntb_b+"nda=(dims=jimbo))", "var 'nda': nda_t dims: error: invalid attempt to use string as name/value list for dims_t (N-D Array Dimentions) init. string was:jimbo" },
-    { "bad_nda_6", "", ntb_b+"nda=(tn=foo))", "var 'nda': error: nda_t has no 'v' field; currently, only non-empty nda_t's may be specified." },
+    { "bad_nda_6", "", ntb_b+"nda=(tn=uint32_t,dims=(v=2)))", 0 }, // empty ndas allowed now; error was: "var 'nda': error: nda_t has no 'v' field; currently, only non-empty nda_t's may be specified." },
     { "bad_nda_7", "", ntb_b+"nda=(tn=foo,v=baz))", "var 'nda': error: missing key:foo" }, // not ideal! means 'bad type'
     { "bad_nda_8", "", ntb_b+"nda=(tn=float,v=1.2:3.4:5.6))", 0 },
     { "bad_nda_9", "", ntb_b+"nda=(dims=(v=4),v=1.2:3.4:5.6))", "var 'nda': error: nda_t 'v' field has 3 elements/parts, but user-specified 'dims' say there should be 4." },
+    { "bad_nda_10", "", ntb_b+"nda=(tn=uint32_t))", "var 'nda': error: nda_t has neither 'v' nor 'dims' field, can't determine size; set at least one." }, 
 
     // for the moment we're allowing this case:
     //{ "bad_val_t2", "", ntb+",dpf=23.1,vstr=(li_0=sdf,li_1=(li_0=biz)))", "var 'vstr': list elem 1: error: invalid attempt to use name/value list as string value. list was:(li_0=biz)"},

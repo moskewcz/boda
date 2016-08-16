@@ -723,21 +723,29 @@ namespace boda
     else { assert_st( dims ); tn_str = v->dims.tn; }
     assert_st( !tn_str.empty() ); // FIXME: user could set null tn; better error check here?
     // pase values
-    if( !vv ) { rt_err( "nda_t has no 'v' field; currently, only non-empty nda_t's may be specified." ); }
-    string v_str;
-    nesi_init_checked( &v_str, &tinfo_string, vv, nia, "nda_t v: " );
-    vect_string parts = split_space_tab_colon( v_str );
-    // init dims if needed; otherwise override dims.tn if tn was specificed (note: could set unconditionally to tn_str)
-    if( !dims ) { v->dims = dims_t( vect_uint32_t{uint32_t(parts.size())}, vect_string{"v"}, tn_str ); }
-    else if( tn ) { v->dims.tn = tn_str; }  // note: if !tn, tn_str came from v->dims in the first place
-    // check length agreement
-    if( v->dims.dims_prod() != parts.size() ) {
-      assert_st( dims ); // disagreement not possible otherwise
-      rt_err( strprintf( "nda_t 'v' field has %s elements/parts, but user-specified 'dims' say there should be %s.",
-                         str(parts.size()).c_str(), str(v->dims.dims_prod()).c_str() ) );
+    //if( !vv ) { rt_err( "nda_t has no 'v' field; currently, only non-empty nda_t's may be specified." ); }
+    if( vv ) {
+      string v_str;
+      nesi_init_checked( &v_str, &tinfo_string, vv, nia, "nda_t v: " );
+      vect_string parts = split_space_tab_colon( v_str );
+      // init dims if needed; otherwise override dims.tn if tn was specificed (note: could set unconditionally to tn_str)
+      if( !dims ) { v->dims = dims_t( vect_uint32_t{uint32_t(parts.size())}, vect_string{"v"}, tn_str ); }
+      else if( tn ) { v->dims.tn = tn_str; }  // note: if !tn, tn_str came from v->dims in the first place
+      // check length agreement
+      if( v->dims.dims_prod() != parts.size() ) {
+        assert_st( dims ); // disagreement not possible otherwise
+        rt_err( strprintf( "nda_t 'v' field has %s elements/parts, but user-specified 'dims' say there should be %s.",
+                           str(parts.size()).c_str(), str(v->dims.dims_prod()).c_str() ) );
+      }
+      v->nesi_init_private_alloc(); // just calls alloc(), but has a scary/descriptive name
+      nda_dispatch( *v, nda_elems_init_t( parts ) ); // actually fill in values
+    } else {
+      // note: data pointer left null
+      
+      // instead of an error here, we could maybe default the dims to scalar (i.e. one 'v' dim of sz 1). but do we ever really want that case?
+      if( !dims ) { rt_err( "nda_t has neither 'v' nor 'dims' field, can't determine size; set at least one." );}
+      else if( tn ) { v->dims.tn = tn_str; }  // note: if !tn, tn_str came from v->dims in the first place
     }
-    v->nesi_init_private_alloc(); // just calls alloc(), but has a scary/descriptive name
-    nda_dispatch( *v, nda_elems_init_t( parts ) ); // actually fill in values
   }
   make_p_t * nda_t_make_p = &has_def_ctor_make_p< nda_t >;
   vect_push_back_t * nda_t_vect_push_back = &has_def_ctor_vect_push_back_t< nda_t >;

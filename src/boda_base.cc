@@ -166,21 +166,33 @@ namespace boda
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 
+  // note: for some nda's, there are multiple param string that encode the same nda. in particular, redundant
+  // specification of dims when it can be inferred, or tn when it is float and dims are specified, will yield such
+  // cases. since we don't store information in the nda_t about which of the possible string forms it might have come
+  // from (if it came from a string), we can't quite guarentee that round-triping an nda from param-str to nda to
+  // param-str will give the same result on the first pass. but we always emit the 'cannonical' string form here (with
+  // minimal information). luckily, there don't appear to be any cases where there's a non-obvious choice about what the
+  // canonical form should be.
   struct nda_dump_t {
     std::ostream & out;
     nda_dump_t( std::ostream & out_ ) : out(out_) {}
     template< typename T > void op( nda_t const & nda ) const { 
+      T const * const elems = static_cast<T const *>(nda.rp_elems());
       out << "(";
       // FIXME: put these 'default dims/tn for nda_t param str' conditions somewhere better?
-      bool const show_dims = (nda.dims.size() != 1) || (nda.dims[0].name != "v");
+      bool const show_dims = (nda.dims.size() != 1) || (nda.dims[0].name != "v") || (!elems);
       bool const show_tn = (!show_dims) || (nda.dims.get_tn() != "float");
-      if( show_tn ) { out << "tn=" << nda.dims.get_tn() << ","; }
-      if( show_dims ) { out << "dims=" << nda.dims.param_str(0) << ","; } // note: always omit tn here
-      out << "v=";
-      T const * const elems = static_cast<T const *>(nda.rp_elems());
-      for( uint32_t i = 0; i != nda.elems_sz(); ++i ) {
-        if( i ) { out << ":"; }
-        out << elems[i];
+      if( show_tn ) { out << "tn=" << nda.dims.get_tn(); }
+      if( show_dims ) { 
+        if( show_tn ) { out << ","; } 
+        out << "dims=" << nda.dims.param_str(0); // note: always omit showing tn (as __tn__ pseudo-dim) here
+      }
+      if( elems ) {
+        out << ",v="; // note: will always emit at least one of tn and dims, so we always add a ',' here.
+        for( uint32_t i = 0; i != nda.elems_sz(); ++i ) {
+          if( i ) { out << ":"; }
+          out << elems[i];
+        }
       }
       out << ")";
     }
