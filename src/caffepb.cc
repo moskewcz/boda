@@ -49,7 +49,7 @@ namespace boda
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     cp.clear_pad_w(); cp.clear_pad_h(); cp.clear_pad();
-    if( has( conv_op->dims_vals, "in_pad" ) ) { 
+    if( conv_op->has_dims("in_pad") ) { 
       // FIXME: could attempt to handle ND case here
       u32_pt_t const pad = conv_op->in_pad();
       if( pad.dims_are_same() ) { cp.add_pad( pad.d[0] ); }
@@ -62,7 +62,7 @@ namespace boda
     if( kern_sz.dims_are_same() ) { cp.add_kernel_size( kern_sz.d[0] ); }
     else { cp.set_kernel_w( kern_sz.d[0] ); cp.set_kernel_h( kern_sz.d[1] ); }
 
-    if( has( conv_op->dims_vals, "stride" ) ) { 
+    if( conv_op->has_dims("stride") ) { 
       // FIXME: could attempt to handle ND case here
       cp.clear_stride_w(); cp.clear_stride_h(); cp.clear_stride();
       if( conv_op->stride().dims_are_same() ) { cp.add_stride( conv_op->stride().d[0] ); }
@@ -87,50 +87,50 @@ namespace boda
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
       // for the 0-dims case, we use the implicit default of 0 (from comments in caffe.proto) AND our default of 2 spatial axes
       if( cp.pad_size() == 0 ) { } // leave un-set; will be set by coi default
-      else if( cp.pad_size() == 1 ) { conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(0), cp.pad(0) }, {"y","x"}, "none" }; }
-      else if( cp.pad_size() == 2 ) { conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(0), cp.pad(1) }, {"y","x"}, "none" }; }
+      else if( cp.pad_size() == 1 ) { conv_op->set_dims("in_pad",dims_t{ { cp.pad(0), cp.pad(0) }, {"y","x"}, "none" }); }
+      else if( cp.pad_size() == 2 ) { conv_op->set_dims("in_pad",dims_t{ { cp.pad(0), cp.pad(1) }, {"y","x"}, "none" }); }
       else { multi_dim_err( cp.pad_size(), "in_pad" ); } // FIXME: we could handle this now as a first step for N-D support
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.pad_size()) );
-      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, "none" }; 
+      conv_op->set_dims("in_pad",dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, "none" }); 
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
       // for the 0-dims case, we use the implicit default of 1 (from comments in caffe.proto) AND our default of 2 spatial axes
       if( cp.stride_size() == 0 ) { } // leave un-set; will be set by coi default
-      else if( cp.stride_size() == 1 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(0) }, {"y","x"}, "none" }; }
-      else if( cp.stride_size() == 2 ) { conv_op->dims_vals["stride"] = dims_t{ { cp.stride(0), cp.stride(1) }, {"y","x"}, "none" }; }
+      else if( cp.stride_size() == 1 ) { conv_op->set_dims("stride",dims_t{ { cp.stride(0), cp.stride(0) }, {"y","x"}, "none" }); }
+      else if( cp.stride_size() == 2 ) { conv_op->set_dims("stride",dims_t{ { cp.stride(0), cp.stride(1) }, {"y","x"}, "none" }); }
       else { multi_dim_err( cp.stride_size(), "stride" ); } // FIXME: we could handle this now as a first step for N-D support
     } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.stride_size()) );
-      conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, "none" }; 
+      conv_op->set_dims("stride",dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, "none" }); 
     }
     if( !(cp.has_kernel_w() || cp.has_kernel_h()) ){ 
       // for the 0-dims case, we use the implicit default of 1 (from comments in caffe.proto) AND our default of 2 spatial axes
       if( cp.kernel_size_size() == 0 ) { } // leave un-set; will be set by coi default
-      else if( cp.kernel_size_size() == 1 ) { conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(0), cp.kernel_size(0) }, {"y","x"}, "none" }; }
-      else if( cp.kernel_size_size() == 2 ) { conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(0), cp.kernel_size(1) }, {"y","x"}, "none" }; }
+      else if( cp.kernel_size_size() == 1 ) { conv_op->set_dims("kern_sz",dims_t{ { cp.kernel_size(0), cp.kernel_size(0) }, {"y","x"}, "none" }); }
+      else if( cp.kernel_size_size() == 2 ) { conv_op->set_dims("kern_sz",dims_t{ { cp.kernel_size(0), cp.kernel_size(1) }, {"y","x"}, "none" }); }
       else { multi_dim_err( cp.kernel_size_size(), "kernel_size" ); }
     } else { assert_st( cp.has_kernel_w() && cp.has_kernel_h() && (!cp.kernel_size_size()) );
-      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, "none" }; 
+      conv_op->set_dims("kern_sz",dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, "none" }); 
     }
   }
   void fill_in_conv_op_from_param( p_conv_op_t const & conv_op, caffe::PoolingParameter const & cp ) {
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     if( !(cp.has_pad_w() || cp.has_pad_h()) ){
-      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad(), cp.pad() }, {"y","x"}, "none" };
+      conv_op->set_dims("in_pad",dims_t{ { cp.pad(), cp.pad() }, {"y","x"}, "none" });
     } else { assert_st( cp.has_pad_w() && cp.has_pad_h() && (!cp.has_pad()) );
-      conv_op->dims_vals["in_pad"] = dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, "none" };
+      conv_op->set_dims("in_pad",dims_t{ { cp.pad_h(), cp.pad_w() }, {"y","x"}, "none" });
     }
     if( !(cp.has_stride_w() || cp.has_stride_h()) ){ 
-      conv_op->dims_vals["stride"] = dims_t{ { cp.stride(), cp.stride() }, {"y","x"}, "none" };
+      conv_op->set_dims("stride",dims_t{ { cp.stride(), cp.stride() }, {"y","x"}, "none" });
     } else { assert_st( cp.has_stride_w() && cp.has_stride_h() && (!cp.has_stride()) );
-      conv_op->dims_vals["stride"] = dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, "none" };
+      conv_op->set_dims("stride",dims_t{ { cp.stride_h(), cp.stride_w() }, {"y","x"}, "none" });
     }
     if( cp.has_kernel_size() ) {
       assert_st( (!cp.has_kernel_w()) && (!cp.has_kernel_h()) ); 
-      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_size(), cp.kernel_size() }, {"y","x"}, "none" };
+      conv_op->set_dims("kern_sz",dims_t{ { cp.kernel_size(), cp.kernel_size() }, {"y","x"}, "none" });
     } else if( cp.has_kernel_w() || cp.has_kernel_h() ) { 
       assert_st( cp.has_kernel_w() && cp.has_kernel_h() );
-      conv_op->dims_vals["kern_sz"] = dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, "none" };
+      conv_op->set_dims("kern_sz",dims_t{ { cp.kernel_h(), cp.kernel_w() }, {"y","x"}, "none" });
     } else { } // has neither kernel_size nor kernel_{w,h} // leave un-set; will be set by coi default
   }
 
@@ -222,7 +222,7 @@ namespace boda
 	fill_in_conv_op_from_param( conv_op, cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
 	conv_op->str_vals["out_chans"] = str(cp.num_output());
-	assert_st( has( conv_op->dims_vals, "kern_sz" ) ); // FIXME: convolutions *must* specify kernel size, i think? check in caffe
+	assert_st( conv_op->has_dims( "kern_sz" ) ); // FIXME: convolutions *must* specify kernel size, i think? check in caffe
 	// add (make explicit) filts and biases as inputs 
 	conv_op->bots.push_back( lp.name() + "_filts" );
 	conv_op->bots.push_back( lp.name() + "_biases" );
@@ -272,7 +272,7 @@ namespace boda
 	else if( pp.pool() == caffe::PoolingParameter_PoolMethod_MAX ) { avg_pool = 0; }
 	else { printf( "warning: unhanded pooling method pp.pool()=%s\n", str(pp.pool()).c_str() ); }
 	conv_op->str_vals["avg_pool"] = str(avg_pool);
-	assert_st( has( conv_op->dims_vals, "kern_sz" ) != pp.global_pooling() ); // global pooling iff no kernel size specified
+	assert_st( conv_op->has_dims("kern_sz") != pp.global_pooling() ); // global pooling iff no kernel size specified
       } else if( lp.type() == InnerProduct_coi.type ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
@@ -858,8 +858,9 @@ namespace boda
       caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
       p_conv_op_t conv_op( new conv_op_t );
       fill_in_conv_op_from_param( conv_op, *cp );
-      set_xy_dims( conv_op->dims_vals["kern_sz"], targ_sz );
-
+      dims_t new_kern_sz = conv_op->get_dims("kern_sz");
+      set_xy_dims( new_kern_sz, targ_sz );
+      conv_op->reset_dims("kern_sz",new_kern_sz);
       set_param_from_conv_op( *cp, conv_op );
       assert_st( lp->has_name() );
       lp->set_name( lp->name() + "-resized" );

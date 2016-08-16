@@ -386,11 +386,11 @@ namespace boda
 	assert_st( in_sz_1x1.both_dims_non_zero() );
 	csi_out.support_sz = csi_in.support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*csi_in.support_stride;
       }
-      if( has( cop->dims_vals, "stride" ) ) {
+      if( cop->has_dims( "stride" ) ) {
 	  assert_st( cop->stride().both_dims_non_zero() );
 	  csi_out.support_stride = csi_in.support_stride*cop->stride();
       } else { csi_out.support_stride = csi_in.support_stride; } // no stride --> support stride unchanged
-      if( has( cop->dims_vals, "in_pad" ) ) {
+      if( cop->has_dims( "in_pad" ) ) {
 	csi_out.eff_tot_pad = csi_in.eff_tot_pad + ( cop->in_pad() * csi_in.support_stride );
       } else { csi_out.eff_tot_pad = csi_in.eff_tot_pad; } // no in_pad --> eff_tot_pad unchanged
     }

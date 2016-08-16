@@ -66,7 +66,7 @@ namespace boda
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_str::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      codegen.rtc->create_var_with_dims( j->second, must_find( anno_op->dims_vals, j->first ) );
+      codegen.rtc->create_var_with_dims( j->second, anno_op->get_dims( j->first ) );
     }
     vect_string xpose_vars_to_release;
     if( in_gen_op_orig ) { 
@@ -77,9 +77,10 @@ namespace boda
 	must_insert(in_gen_op->str_vals,"func_name",
                     in_gen_op->type+"_"+anno_op->type+"_"+i.vn() ); // note: variant choice based on op type, not func_name
 	in_gen_op->dims_vals.clear();
-        dims_t const & in_dims = must_find( anno_op->dims_vals, i.vn() );
-        dims_t const & ref_in_dims = get( anno_op->dims_vals, i.vn() + "_ref", in_dims );
-	must_insert( in_gen_op->dims_vals, i.vn(), ref_in_dims );
+        dims_t const & in_dims = anno_op->get_dims( i.vn() );
+        string const ref_in_dims_name = i.vn()+"_ref";
+        dims_t const & ref_in_dims = anno_op->has_dims(ref_in_dims_name)?anno_op->get_dims(ref_in_dims_name):in_dims;
+	in_gen_op->set_dims( i.vn(), ref_in_dims );
         string gen_vn = i.vn();
         if( in_dims != ref_in_dims ) { 
           gen_vn += "_ref"; 
@@ -107,8 +108,9 @@ namespace boda
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
       if( !endswith( i.ad().io_type, "OUT" ) ) { continue; }
-      dims_t const & out_dims = must_find( anno_op->dims_vals, i.vn() );
-      dims_t const & ref_out_dims = get( anno_op->dims_vals, i.vn() + "_ref", out_dims );
+      dims_t const & out_dims = anno_op->get_dims( i.vn() );
+      string const ref_out_dims_name = i.vn()+"_ref";
+      dims_t const & ref_out_dims = anno_op->has_dims(ref_out_dims_name)?anno_op->get_dims(ref_out_dims_name):out_dims;
       string gen_vn = i.vn();
       if( out_dims != ref_out_dims ) { 
         gen_vn += "_ref"; 

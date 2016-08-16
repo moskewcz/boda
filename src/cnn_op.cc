@@ -25,22 +25,22 @@ namespace boda
     bool const is_conv = op->is( Convolution_coi );
     bool const is_pool = op->is( Pooling_coi );
     dims_t in_dims;
-    if( op->is( Dropout_coi ) || op->is( BckDropout_coi ) ) { op->dims_vals["det_drop_seed"] = dims_t({1},{"v"},"uint32_t"); }
+    if( op->is( Dropout_coi ) || op->is( BckDropout_coi ) ) { op->set_dims("det_drop_seed",dims_t({1},{"v"},"uint32_t")); }
 
     if( is_conv || is_pool || op->is( Spreading_coi ) || op->is( BckConv_coi ) ) {
       assert_st( !ni_dims.empty() );
       in_dims = ni_dims;
-      op->dims_vals["in_ref"] = in_dims; // tconv needs the standard input dims for reference
+      op->set_dims("in_ref",in_dims); // tconv needs the standard input dims for reference
       // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-      op->dims_vals["filts_ref"] = op->dims_vals["filts"];
+      op->set_dims("filts_ref",op->get_dims("filts"));
 
       u32_pt_t kern_sz_;
-      if( has( op->dims_vals, "kern_sz" ) ) { kern_sz_ = op->kern_sz(); }
+      if( op->has_dims("kern_sz") ) { kern_sz_ = op->kern_sz(); }
       else {
 	if( is_pool ) { kern_sz_ = get_xy_dims( ni_dims ); }
 	else if( op->is( Spreading_coi ) ) { kern_sz_ = get_xy_dims( no_dims ); }
 	else { assert_st(0); }
-	op->dims_vals["kern_sz"] = dims_t{ {kern_sz_.d[1],kern_sz_.d[0]}, {"y","x"}, "none" }; // FIXME: not ideal ...
+	op->set_dims("kern_sz", dims_t{ {kern_sz_.d[1],kern_sz_.d[0]}, {"y","x"}, "none" } ); // FIXME: not ideal ...
       } 
       if( is_conv ) { // set func_name (aka variant) for conv case (others are set at bottom)
         if( enable_ipconv && op->in_pad().is_zeros() && (get_xy_dims(no_dims) == u32_pt_t{1,1}) ) {
@@ -96,19 +96,19 @@ namespace boda
 	bck_pels_sz += i32_pt_t(1,1); // include starting pixel
 	assert_st( bck_pels_sz.both_dims_gt( i32_pt_t() ) );
 
-	op->dims_vals["bck_in_pad"] = dims_t( vect_uint32_t{ uint32_t(bck_in_pad.d[1]), uint32_t(bck_in_pad.d[0]) }, 
-                                              vect_string{"y","x"}, "none" );
-	op->dims_vals["bck_pad_in_off"] = dims_t( vect_uint32_t{ bck_pad_in_off.d[1], bck_pad_in_off.d[0] }, vect_string{"y","x"}, "none" );
+	op->set_dims("bck_in_pad",dims_t( vect_uint32_t{ uint32_t(bck_in_pad.d[1]), uint32_t(bck_in_pad.d[0]) }, 
+                                          vect_string{"y","x"}, "none" ));
+	op->set_dims("bck_pad_in_off",dims_t( vect_uint32_t{ bck_pad_in_off.d[1], bck_pad_in_off.d[0] }, vect_string{"y","x"}, "none" ));
 
 	dims_t const & ogld = op->get_dims("out_grad_loss");
 	dims_t const & fgld = op->get_dims("filts_grad_loss");
 
 	gbt_tile_t gbt;
-	op->dims_vals["oix"] = dims_t(  vect_uint32_t{ no_dims.dsz("chan"), op->stride().d[1], op->stride().d[0] }, 
-                                        vect_string{ "in_chan", "sy", "sx" }, "none" );
-	op->dims_vals["pix"] = dims_t(  vect_uint32_t{ no_dims.dsz("img"), 
-	      uint32_t(bck_pels_sz.d[1]), uint32_t(bck_pels_sz.d[0]) }, vect_string{ "img", "y", "x" }, "none" );
-	gbt.init( t_tile_sz, max_tpb, u32_pt_t( op->dims_vals["pix"].dims_prod(), op->dims_vals["oix"].dims_prod()));
+	op->set_dims("oix",dims_t(  vect_uint32_t{ no_dims.dsz("chan"), op->stride().d[1], op->stride().d[0] }, 
+                                    vect_string{ "in_chan", "sy", "sx" }, "none" ));
+	op->set_dims("pix",dims_t(  vect_uint32_t{ no_dims.dsz("img"), 
+                uint32_t(bck_pels_sz.d[1]), uint32_t(bck_pels_sz.d[0]) }, vect_string{ "img", "y", "x" }, "none" ));
+	gbt.init( t_tile_sz, max_tpb, u32_pt_t( op->get_dims("pix").dims_prod(), op->get_dims("oix").dims_prod()));
 	dims_t work;
         work.tn = "none";
 	work.add_dims( "pels_blk", gbt.num_blk.d[0] );
@@ -117,9 +117,9 @@ namespace boda
 	work.add_dims( "out_ix_tile", gbt.thr_per_blk.d[1] );
 	work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_ix", gbt.mn_per_thr.d[1] );
 	work.calc_strides();
-	op->dims_vals["work"] = work;
-	op->dims_vals["fioc"] = dims_t( vect_uint32_t{ ogld.dsz("chan"), u32_ceil_div(kern_sz_.d[1],op->stride().d[1]), 
-	      u32_ceil_div(kern_sz_.d[0],op->stride().d[0]) }, vect_string{"out_chan","ky","kx"}, "none" );
+	op->set_dims("work",work);
+	op->set_dims("fioc",dims_t( vect_uint32_t{ ogld.dsz("chan"), u32_ceil_div(kern_sz_.d[1],op->stride().d[1]), 
+                u32_ceil_div(kern_sz_.d[0],op->stride().d[0]) }, vect_string{"out_chan","ky","kx"}, "none" ));
 	  
 	gbt_tile_t gbt_fb;
 	gbt_fb.init( t_tile_sz, max_tpb, u32_pt_t( fgld.dsz("in_chan")*fgld.dsz("y")*fgld.dsz("x"), fgld.dsz("out_chan") ) );
@@ -131,9 +131,9 @@ namespace boda
 	work_fb.add_dims( "out_ix_tile", gbt_fb.thr_per_blk.d[1] );
 	work_fb.add_dims( "pels", gbt_fb.mn_per_thr.d[0], "out_ix", gbt_fb.mn_per_thr.d[1] );
 	work_fb.calc_strides();
-	op->dims_vals["work_fb"] = work_fb;
-	op->dims_vals["fioc_fb"] = dims_t( vect_uint32_t{ ogld.dsz("img"), ogld.dsz("y"), ogld.dsz("x") },
-                                           vect_string{"img","y","x"}, "none" );
+	op->set_dims("work_fb",work_fb);
+	op->set_dims("fioc_fb",dims_t( vect_uint32_t{ ogld.dsz("img"), ogld.dsz("y"), ogld.dsz("x") },
+                                       vect_string{"img","y","x"}, "none" ));
 
       }
       if( is_conv ) {
@@ -147,7 +147,7 @@ namespace boda
         work.tn = "none";
 	uint32_t const lines_sz = no_dims.dsz("img") * no_sz.d[1];
         if( (op->func_name() == tconv_str) || (op->func_name() == k1conv_str) ) { 
-          op->dims_vals["flags"] = dims_t({1},{"v"},"uint32_t"); // exactly these two variants have this debugging input
+          op->set_dims("flags",dims_t({1},{"v"},"uint32_t")); // exactly these two variants have this debugging input
         }
 	if( op->func_name() == tconv_str ) {
 	  assert( gbt.thr_per_blk.d[0] >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
@@ -217,17 +217,17 @@ namespace boda
           uint32_t const pels_sz_pad = work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels");
           assert_st( pels_sz_pad >= pels_sz );
           uint32_t const out_chan_pad = work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan");
-          assert_st( out_chan_pad >= op->dims_vals["filts"].dsz("out_chan") );
+          assert_st( out_chan_pad >= op->get_dims("filts").dsz("out_chan") );
           // FIXME: pad in_chan to multiple of Kb?
 	  must_insert( op->str_vals, "Kb", str(op_tune->Kb) );
           uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
           in_dims = dims_t( vect_uint32_t{ in_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, in_dims.tn ); 
           // note: for now, we don't pad and/or xpose out, so the store code must handle that.
-	  op->dims_vals["filts"] = dims_t( 
+	  op->set_dims("filts",dims_t( 
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
-            vect_string{"in_chan","y","x","out_chan"}, op->dims_vals["filts"].tn ); 
-	  op->dims_vals["out"] = dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, 
-                                         vect_string{"chan","pel"}, op->dims_vals["out"].tn ); 
+            vect_string{"in_chan","y","x","out_chan"}, op->get_dims("filts").tn )); 
+	  op->set_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, 
+                                     vect_string{"chan","pel"}, op->get_dims("out").tn )); 
 	} else if( op->func_name() == conv_simd_str ) {
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
           // FIXME: pad in_chan to multiple of Kb?
@@ -244,55 +244,57 @@ namespace boda
           in_xy = ceil_align( in_xy, op->stride() ); // align to stride
           u32_pt_t out_xy = in_xy / op->stride(); // will divide exactly by construction
           // these are (for reference) the nested dims for the pel dim of in/out
-	  op->dims_vals["in_pels"] = dims_t( vect_uint32_t{ in_dims.dsz("img"), in_xy.d[1], in_xy.d[0] },
-                                             vect_string{"img","y","x"}, "none" ); 
-	  op->dims_vals["out_pels"] = dims_t( vect_uint32_t{ in_dims.dsz("img"), out_xy.d[1], out_xy.d[0] },
-                                              vect_string{"img","y","x"}, "none" ); // min output pels we must calculate
+	  op->set_dims("in_pels",dims_t( vect_uint32_t{ in_dims.dsz("img"), in_xy.d[1], in_xy.d[0] },
+                                         vect_string{"img","y","x"}, "none" )); 
+	  op->set_dims("out_pels",dims_t( vect_uint32_t{ in_dims.dsz("img"), out_xy.d[1], out_xy.d[0] },
+                                          vect_string{"img","y","x"}, "none" )); // min output pels we must calculate
           work = dims_t(); // need to recalculate work. FIXME: need to refactor to make this cleaner across cases
           work.tn = "none";
           gbt_tile_t gbt;
-          gbt.init( t_tile_sz, max_tpb, u32_pt_t( op->dims_vals["out_pels"].dims_prod(), no_dims.dsz("chan") ) );
+          gbt.init( t_tile_sz, max_tpb, u32_pt_t( op->get_dims("out_pels").dims_prod(), no_dims.dsz("chan") ) );
 	  work.add_dims( "pels_blk", gbt.num_blk.d[0], "out_chan_blk", gbt.num_blk.d[1] );
           work.add_dims( "pels_tile", gbt.thr_per_blk.d[0], "out_chan_tile", gbt.thr_per_blk.d[1] );
           work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_chan", gbt.mn_per_thr.d[1] ); // dims of per-thread work
           work.calc_strides();
 
           uint32_t const pels_sz_pad = work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels"); // final pels we will calc
-          assert_st( pels_sz_pad >= op->dims_vals["out_pels"].dims_prod() );
+          assert_st( pels_sz_pad >= op->get_dims("out_pels").dims_prod() );
           uint32_t const out_chan_pad = work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan");
-          assert_st( out_chan_pad >= op->dims_vals["filts"].dsz("out_chan") );
+          assert_st( out_chan_pad >= op->get_dims("filts").dsz("out_chan") );
 
           // in needs final x/y padding + extra pels padding depending on the filter size. for correctness, we would
           // only need in_pad padding in X/Y, since no valid output should use more than that. however, to avoid invalid
           // memory access, we need (kern_sz_ - stride) pels of padding, since that's how far the last output pixel will
           // hang off the last image. so we max over those two quantities (either could be higher).
           u32_pt_t const fin_pad_xy = max( kern_sz_ - op->stride(), op->in_pad() );
-          uint32_t filt_dep_extra_in_pad = (fin_pad_xy.d[1])*op->dims_vals["in_pels"].dstride("y") +
-            (fin_pad_xy.d[0])*op->dims_vals["in_pels"].dstride("x"); 
-          uint32_t final_in_pels_pad = u32_ceil_align( op->dims_vals["in_pels"].dims_prod()+filt_dep_extra_in_pad,op_tune->vw);
+          uint32_t filt_dep_extra_in_pad = (fin_pad_xy.d[1])*op->get_dims("in_pels").dstride("y") +
+            (fin_pad_xy.d[0])*op->get_dims("in_pels").dstride("x"); 
+          uint32_t final_in_pels_pad = u32_ceil_align( op->get_dims("in_pels").dims_prod()+filt_dep_extra_in_pad,op_tune->vw);
           in_dims = dims_t( vect_uint32_t{ in_chan_pad, final_in_pels_pad }, vect_string{"chan","pel"}, in_dims.tn ); 
           // note: for now, we don't pad and/or xpose out, so the store code must handle that.
-	  op->dims_vals["filts"] = dims_t( 
+	  op->set_dims("filts",dims_t( 
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
-            vect_string{"in_chan","y","x","out_chan"}, op->dims_vals["filts"].tn ); 
-	  op->dims_vals["out"] = dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, op->dims_vals["out"].tn ); 
+            vect_string{"in_chan","y","x","out_chan"}, op->get_dims("filts").tn )); 
+	  op->set_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 
+                                     op->get_dims("out").tn )); 
         }
-	op->dims_vals["work"] = work;
+	op->set_dims("work",work);
 	// k1conv and in_tile_xpose need the standard output dims for reference. curently this == the dims of "out",
 	// but a later pass might change the desired output format by changing the "out" dims. however, the "out_ref"
 	// dims will remain unchanged at this value.
-	op->dims_vals["out_ref"] = no_dims; 
+	op->set_dims("out_ref",no_dims); 
 	// set final desired format for input. note: (1) original 'standard' format is stored as "in_ref" earlier (2)
 	// the dims of "in" may now differ from the dims of the global/rtc variable in the arg_map that "in" is bound
 	// to. our convention is that we expect or detect this in codegen and emit the need xform at that point. when
 	// we do this, we may change the binding for "in" (e.g. to point to an xformed version of the original
 	// variable).
-	op->dims_vals["in"] = in_dims; 
+        op->set_dims("in",in_dims); 
         if( is_k1_or_t_or_reg_conv( op->func_name() ) ) {
-            op->dims_vals["filts"] = dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), 
+          op->set_dims("filts",dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), 
                   kern_sz_.d[1], kern_sz_.d[0],
                   work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x",
-                                                                       "out_chan_reg","out_chan_tile"}, op->dims_vals["filts"].tn );
+                                                                       "out_chan_reg","out_chan_tile"}, 
+              op->get_dims("filts").tn ));
           }
 	// dims_t( vect_uint32_t{out_chans}, vect_string{"out_chan"}, 1 );
       } // end if(is_conv)

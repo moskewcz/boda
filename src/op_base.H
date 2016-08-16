@@ -20,6 +20,9 @@ namespace boda
     
     bool operator < ( op_base_t const & o ) const;
     // convenience access functions
+    bool has_dims( string const & an ) const;
+    void set_dims( string const & an, dims_t const & dims ); // must not be set
+    void reset_dims( string const & an, dims_t const & dims ); // must already be set (not commonly used)
     dims_t const & get_dims( string const & an ) const;
     string const & get_str( string const & an ) const;
     uint32_t get_u32( string const & an ) const;

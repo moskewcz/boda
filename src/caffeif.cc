@@ -189,22 +189,25 @@ namespace boda
       caffe::ConvolutionParameter * cp = lp->mutable_convolution_param();
       p_conv_op_t conv_op( new conv_op_t );
       fill_in_conv_op_from_param( conv_op, *cp );
-      dims_t & kern_sz = must_find( conv_op->dims_vals, "kern_sz" );
+      dims_t kern_sz = conv_op->get_dims( "kern_sz" );
       for( uint32_t i = 0; i != kern_sz.size(); ++i ) { kern_sz[i].sz = u32_ceil_div( kern_sz[i].sz, 2 ); } 
       kern_sz.calc_strides();
+      conv_op->reset_dims( "kern_sz", kern_sz );
       // FIXME: we probably need to deal with padding better here?
-      if( has( conv_op->dims_vals, "in_pad" ) ) { // scale in_pad if present
-	dims_t & in_pad = must_find( conv_op->dims_vals, "in_pad" );
+      if( conv_op->has_dims( "in_pad" ) ) { // scale in_pad if present
+	dims_t in_pad = conv_op->get_dims( "in_pad" );
 	for( uint32_t i = 0; i != in_pad.size(); ++i ) { in_pad[i].sz = u32_ceil_div( in_pad[i].sz, 2 ); } 
 	in_pad.calc_strides();
+        conv_op->reset_dims( "in_pad", in_pad );
       }
-      if( has( conv_op->dims_vals, "stride" ) ) { // scale stride if present
-	dims_t & stride = must_find( conv_op->dims_vals, "stride" );
+      if( conv_op->has_dims( "stride" ) ) { // scale stride if present
+	dims_t stride = conv_op->get_dims( "stride" );
 	for( uint32_t i = 0; i != stride.size(); ++i ) {
 	  if( stride[i].sz&1 ) { rt_err( "first conv layer has odd stride in some dim;don't know how to create upsampled network" ); }
 	  stride[i].sz /= 2;
 	}
 	stride.calc_strides();
+        conv_op->reset_dims( "stride", stride );
       }
 	
       set_param_from_conv_op( *cp, conv_op );

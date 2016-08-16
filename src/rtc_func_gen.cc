@@ -146,13 +146,12 @@ namespace boda
           continue;
         }
       }
-      map_str_dims_t::const_iterator adi = rfs_in.dims_vals.find( i.vn() );
-      if( adi == rfs_in.dims_vals.end() ) {
+      if( !rfs_in.has_dims(i.vn()) ) {
         arg_check_error +=  strprintf( "referenced %s arg '%s' not present in dims_vals; ", 
                                        i.ad().io_type.c_str(), i.vn().c_str() );
         continue;
       }
-      dims_t const & arg_dims = adi->second;
+      dims_t const & arg_dims = rfs_in.get_dims(i.vn());
       if( !arg_dims.has_name() ) { arg_check_error += "call arg '"+i.vn()+"' must have names for all dims; "; }
       bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
       if( !dims_only && arg_dims.has_padding() ) { 
@@ -175,9 +174,9 @@ namespace boda
         dims_t arg_dims_no_sizes_or_strides = arg_dims;
         arg_dims_no_sizes_or_strides.clear_strides();
         arg_dims_no_sizes_or_strides.clear_dims();
-        must_insert( rfs_out->dims_vals, i.vn(), arg_dims_no_sizes_or_strides ); 
+        rfs_out->set_dims( i.vn(), arg_dims_no_sizes_or_strides ); 
       } else {
-        must_insert( rfs_out->dims_vals, i.vn(), arg_dims ); // keep exactly used dims_vals in signature
+        rfs_out->set_dims( i.vn(), arg_dims ); // keep exactly used dims_vals in signature
       }
     }
     if( !arg_check_error.empty() ) {
@@ -185,8 +184,7 @@ namespace boda
       for( vect_arg_decl_t::multi_iter i = arg_decls.multi_begin( &rfs_in ); !i.at_end(); ++i ) {
         arg_err += strprintf( "ARG[%s]:\n", i.vn().c_str() );
         arg_err += strprintf( "  DECL: %s\n", str(i.ad()).c_str() );
-        map_str_dims_t::const_iterator adi = rfs_in.dims_vals.find( i.vn() );
-        if( adi != rfs_in.dims_vals.end() ) { arg_err += strprintf( "  CALL: %s\n", str(adi->second).c_str() ); }
+        if( rfs_in.has_dims( i.vn() ) ) { arg_err += strprintf( "  CALL: %s\n", str(rfs_in.get_dims(i.vn())).c_str() ); }
         else { arg_err += "  CALL: not found in ref dims.\n"; }
       }
       arg_err += "full rfs: " + str(rfs_in) + "\n";
@@ -297,11 +295,10 @@ namespace boda
   }
   void rtc_call_gen_t::set( string const &var, string const &val ) { must_insert( tsvs, var, val ); }
   dims_t const & rtc_call_gen_t::get_arg_dims_by_name( string const & arg_vn, string const & err_tag ) {
-    map_str_dims_t::const_iterator i = op.dims_vals.find( arg_vn );
-    if( i == op.dims_vals.end() ) { 
+    if( !op.has_dims( arg_vn ) ) { 
       rt_err( strprintf( "referenced %s arg '%s' not present in dims_vals", err_tag.c_str(), arg_vn.c_str() ) );
     }
-    return i->second;
+    return op.get_dims( arg_vn );
   }
 
   // since a CUCL IX may use only a subset of the dims of the arg_dims that it references, we need to create the

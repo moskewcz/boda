@@ -201,7 +201,7 @@ namespace boda
 
         dims_t work{ {(uint32_t)Mg,(uint32_t)Ng,op_tune.MNb.d[0],op_tune.MNb.d[1],op_tune.Kb,
               op_tune.MNt.d[0],op_tune.MNt.d[1]}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, "none" };
-        must_insert( anno_op->dims_vals, "work", work );
+        anno_op->set_dims( "work", work );
         must_insert( anno_op->str_vals, "use_local_mem", str(op_tune.use_local_mem) );
         must_insert( anno_op->str_vals, "prof_variant", str(op_tune.prof_variant) );
         must_insert( anno_op->str_vals, "vw", str(op_tune.vw) );
