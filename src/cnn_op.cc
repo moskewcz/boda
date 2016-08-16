@@ -3,6 +3,7 @@
 #include"cnn_op.H"
 #include"str_util.H"
 #include"gbt_tile.H"
+#include"nesi.H"
 
 namespace boda 
 {
