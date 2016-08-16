@@ -31,9 +31,6 @@ namespace boda
       assert_st( !ni_dims.empty() );
       in_dims = ni_dims;
       op->set_dims("in_ref",in_dims); // tconv needs the standard input dims for reference
-      // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
-      op->set_dims("filts_ref",op->get_dims("filts"));
-
       u32_pt_t kern_sz_;
       if( op->has_dims("kern_sz") ) { kern_sz_ = op->kern_sz(); }
       else {
@@ -137,6 +134,9 @@ namespace boda
 
       }
       if( is_conv ) {
+        // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
+        op->set_dims("filts_ref",op->get_dims("filts"));
+
 	// calc_blocking_conv()
 	uint32_t const out_ix_sz = no_dims.dims_prod();
 	uint32_t const pels_sz = out_ix_sz / no_dims.dsz("chan");
@@ -223,11 +223,11 @@ namespace boda
           uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
           in_dims = dims_t( vect_uint32_t{ in_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, in_dims.tn ); 
           // note: for now, we don't pad and/or xpose out, so the store code must handle that.
-	  op->set_dims("filts",dims_t( 
+	  op->reset_dims("filts",dims_t( 
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
             vect_string{"in_chan","y","x","out_chan"}, op->get_dims("filts").tn )); 
-	  op->set_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, 
-                                     vect_string{"chan","pel"}, op->get_dims("out").tn )); 
+	  op->reset_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, 
+                                       vect_string{"chan","pel"}, op->get_dims("out").tn )); 
 	} else if( op->func_name() == conv_simd_str ) {
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
           // FIXME: pad in_chan to multiple of Kb?
@@ -272,10 +272,10 @@ namespace boda
           uint32_t final_in_pels_pad = u32_ceil_align( op->get_dims("in_pels").dims_prod()+filt_dep_extra_in_pad,op_tune->vw);
           in_dims = dims_t( vect_uint32_t{ in_chan_pad, final_in_pels_pad }, vect_string{"chan","pel"}, in_dims.tn ); 
           // note: for now, we don't pad and/or xpose out, so the store code must handle that.
-	  op->set_dims("filts",dims_t( 
+	  op->reset_dims("filts",dims_t( 
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
             vect_string{"in_chan","y","x","out_chan"}, op->get_dims("filts").tn )); 
-	  op->set_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 
+	  op->reset_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, 
                                      op->get_dims("out").tn )); 
         }
 	op->set_dims("work",work);
@@ -288,9 +288,9 @@ namespace boda
 	// to. our convention is that we expect or detect this in codegen and emit the need xform at that point. when
 	// we do this, we may change the binding for "in" (e.g. to point to an xformed version of the original
 	// variable).
-        op->set_dims("in",in_dims); 
+        op->reset_dims("in",in_dims); 
         if( is_k1_or_t_or_reg_conv( op->func_name() ) ) {
-          op->set_dims("filts",dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), 
+          op->reset_dims("filts",dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), 
                   kern_sz_.d[1], kern_sz_.d[0],
                   work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x",
                                                                        "out_chan_reg","out_chan_tile"}, 

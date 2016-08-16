@@ -24,6 +24,12 @@ namespace boda
                                          lt_pair_key_p_value<map_str_p_nda_t::value_type>() );
   }
   
+  bool op_base_t::has_dims( string const & an ) const { return has( dims_vals, an ); }
+  void op_base_t::set_dims( string const & an, dims_t const & dims ) { must_insert( dims_vals, an, dims ); }
+  void op_base_t::reset_dims( string const & an, dims_t const & dims ) {
+    must_erase( dims_vals, an ); must_insert( dims_vals, an, dims );
+  }
+
   dims_t const & op_base_t::get_dims( string const & an ) const { return must_find( dims_vals, an ); }
   string const & op_base_t::get_str( string const & an ) const { return must_find( str_vals, an ); }
   uint32_t op_base_t::get_u32( string const & an ) const { return lc_str_u32( must_find( str_vals, an ) ); }
