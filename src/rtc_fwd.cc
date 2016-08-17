@@ -170,7 +170,7 @@ namespace boda
     while( in_sz > 1 ) {
       uint32_t const out_sz = u32_ceil_div( in_sz, rtc_call_geom_t::default_tpb ); 
       map_str_dims_t dims_vals;
-      must_insert( dims_vals, "primary_in", dims_t( {1}, {"v"}, "uint32_t" ) ); // scalar flag; 0/1 indicates first-level
+      must_insert( dims_vals, "primary_in", make_scalar_dims_t("uint32_t") ); // scalar flag; 0/1 indicates first-level
       for( uint32_t i = 0; i != reds.size(); ++i ) {  // input dims (const); initial inputs
         must_insert( dims_vals, reds[i] + "_in", dims_t( {in_sz}, {"v"}, "float" ) );
         must_insert( dims_vals, reds[i] + "_out", dims_t( {out_sz}, {"v"}, "float" ) ); 
@@ -207,7 +207,7 @@ namespace boda
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
     op_base_t quantize_op{ "quantize", {{"out",rtc->get_var_dims(top_in)},
-        {"max_val",dims_t({1},{"v"},"uint32_t")},{"drop_mask",dims_t({1},{"v"},"uint32_t")}}, {{"func_name","quantize"}} };
+        {"max_val",make_scalar_dims_t("uint32_t")},{"drop_mask",make_scalar_dims_t("uint32_t")}}, {{"func_name","quantize"}} };
     p_rtc_call_gen_t func = codegen.gen_func( quantize_op );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, 
         map_str_p_nda_t{{"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} } );

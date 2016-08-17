@@ -250,12 +250,22 @@ namespace boda
   }
 
   dims_t dims_from_nda_spec( string const & tn, string const & nda_spec ) {
-    vect_string const dim_names = split( nda_spec, ':' );
     dims_t arg_dims;
-    // for now, assume template: (1) can handle any size for all nda dims (to relax, could allow spec of size,
-    // then use that instead of 0/wild for sz below) (2) all dims are static (to relax: unclear what
-    // syntax/encoding would be)
-    for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { arg_dims.add_dims( *i, 0 ); }
+    if( nda_spec == ":" ) {
+      // special case: the string ":" is interpreted as meaning 0 dims (a scalar). otherwise, it would turn into two
+      // dims with empty-string as thier name. note that while the empty string is a legal dim name (i.e. no-name, which
+      // is a wildcard in the template case), that is currently not supported here (althought perhaps it could be
+      // somehow).
+    } else {
+      vect_string const dim_names = split( nda_spec, ':' );
+      // for now, assume template: (1) can handle any size for all nda dims (to relax, could allow spec of size,
+      // then use that instead of 0/wild for sz below) (2) all dims are static (to relax: unclear what
+      // syntax/encoding would be)
+      for( vect_string::const_iterator i = dim_names.begin(); i != dim_names.end(); ++i ) { 
+        if( i->empty() ) { rt_err( "invalid (currently forbidden/unused) empty dim name in nda_spec '" + nda_spec +"'" ); }
+        arg_dims.add_dims( *i, 0 ); 
+      }
+    }
     arg_dims.tn = tn; // note: may be empty string for wild type
     arg_dims.calc_strides(1);
     return arg_dims;

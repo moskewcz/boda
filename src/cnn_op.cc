@@ -26,7 +26,7 @@ namespace boda
     bool const is_conv = op->is( Convolution_coi );
     bool const is_pool = op->is( Pooling_coi );
     dims_t in_dims;
-    if( op->is( Dropout_coi ) || op->is( BckDropout_coi ) ) { op->set_dims("det_drop_seed",dims_t({1},{"v"},"uint32_t")); }
+    if( op->is( Dropout_coi ) || op->is( BckDropout_coi )){ op->set_dims("det_drop_seed",make_scalar_dims_t("uint32_t")); }
 
     if( is_conv || is_pool || op->is( Spreading_coi ) || op->is( BckConv_coi ) ) {
       assert_st( !ni_dims.empty() );
@@ -148,7 +148,7 @@ namespace boda
         work.tn = "none";
 	uint32_t const lines_sz = no_dims.dsz("img") * no_sz.d[1];
         if( (op->func_name() == tconv_str) || (op->func_name() == k1conv_str) ) { 
-          op->set_dims("flags",dims_t({1},{"v"},"uint32_t")); // exactly these two variants have this debugging input
+          op->set_dims("flags",make_scalar_dims_t("uint32_t")); // exactly these two variants have this debugging input
         }
 	if( op->func_name() == tconv_str ) {
 	  assert( gbt.thr_per_blk.d[0] >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)

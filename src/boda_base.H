@@ -627,8 +627,10 @@ namespace boda
     }
   };
 
-  // valid: scalar with "none" type. not commonly used. FIXME: remove, replace with ... no-data ndas maybe?
-  inline dims_t make_null_dims_t( void ) { return dims_t({},"none"); } 
+
+  inline dims_t make_scalar_dims_t( string const & tn ) { return dims_t{ {}, tn }; }
+  // valid: scalar with "none" type. not commonly used. FIXME: remove, replace with ... no-data nda with null dims maybe?
+  inline dims_t make_null_dims_t( void ) { return make_scalar_dims_t("none"); } 
 
   inline std::ostream & operator << ( std::ostream & out, dims_t const & o ) { out << o.param_str(1); return out; }
 
@@ -729,16 +731,18 @@ namespace boda
   typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
 
 
+  template< typename T > inline p_nda_t make_scalar_nda( T const & v ) { 
+    p_nda_t ret = make_shared<nda_t>( make_scalar_dims_t( get_ndat<T>().tn ) );
+    assert_st( ret->elems_sz() == 1);
+    *(static_cast< T * >(ret->rp_elems())) = v;
+    return ret;
+  }
   template< typename T > inline p_nda_t make_vector_nda( vector< T > const & vv ) { 
     p_nda_t ret = make_shared<nda_t>( dims_t{ {(uint32_t)vv.size()}, {"v"}, get_ndat<T>().tn } );
     std::copy( vv.begin(), vv.end(), static_cast< T * >(ret->rp_elems()) );
     return ret;
   }
-  template< typename T > inline p_nda_t make_scalar_nda( T const & v ) { 
-    p_nda_t ret = make_shared<nda_t>( dims_t{ {1}, {"v"}, get_ndat<T>().tn } );
-    *(static_cast< T * >(ret->rp_elems())) = v;
-    return ret;
-  }
+  // make a no-data nda with the given dims
   inline p_nda_t make_dims_nda( dims_t const & dims ) { return make_shared<nda_t>( dims, (void *)0 ); }
 
   template< typename T > struct nda_T : public nda_t {
