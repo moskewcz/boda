@@ -10,6 +10,7 @@
 #include<sys/stat.h>
 #include<fcntl.h>
 #include<cmath>
+#include<float.h>
 #include"ext/half.hpp"
 
 void boda_assert_fail( char const * expr, char const * file, unsigned int line, char const * func ) throw() {
@@ -210,7 +211,8 @@ namespace boda
       for( uint32_t i = 0; i != nda.elems_sz(); ++i ) { if( i ) { out << ":"; } elem_c_const_str(elems[i]); }
     }
     template< typename T > void elem_c_const_str( T const & v ) const { out << v; }
-    void elem_c_const_str( float const & v ) const { out << v << "F"; }
+    // i promise this is right! actually i have no idea; it looks complex enough to be right though, right?
+    void elem_c_const_str( float const & v ) const { out << strprintf( "%#.9gf", v ); } 
   };
 
 

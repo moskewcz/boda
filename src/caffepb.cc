@@ -243,10 +243,10 @@ namespace boda
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	
-	conv_op->str_vals["alpha"] = str(p.alpha());
-	conv_op->str_vals["beta"] = str(p.beta());
-	conv_op->str_vals["local_size"] = str(p.local_size());
-	conv_op->str_vals["k"] = str(p.k());
+	conv_op->nda_vals["alpha"] = make_scalar_nda(float(p.alpha()));
+	conv_op->nda_vals["beta"] = make_scalar_nda(float(p.beta()));
+	conv_op->nda_vals["k"] = make_scalar_nda(float(p.k()));
+        conv_op->nda_vals["local_size"] = make_scalar_nda(uint32_t(p.local_size()));
       } else if( lp.type() == Softmax_coi.type ) {
 	// this may be inconvieniently strong; it's probably okay to ignore this here
 	//rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );

@@ -512,18 +512,31 @@ namespace boda
       uint32_t const multi_sz = i->get_multi_sz( op );
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
-        dims_t const & func_dims = get_arg_dims_by_name( vn );
+        p_nda_t const & func_nda = op.get(vn); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
+        dims_t const & func_dims = func_nda->dims;
         if( func_dims == make_null_dims_t() ) { rfc.args.push_back(rtc_arg_t{"<NULL>"}); continue; } // NULL, pass though to rtc
         dims_t call_dims;
         string call_vn; // for error message
-        if( i->loi.v == 0 ) { // by-value handling: scalars only, assume in nda_args
-          map_str_p_nda_t::const_iterator an = rcg_func_call.nda_args.find( vn );
-          if( an == rcg_func_call.nda_args.end() ) {
-            rt_err( "specified "+i->io_type+" scalar by-value arg '"+vn+"' not found in nda_args at call time." ); 
+        if( i->loi.v == 0 ) { // by-value handling: 
+          if( func_nda->rp_elems() ) { 
+            // if in our op, we hard-coded the string constant into the source already, but pass it in dynamically anyway.
+            call_dims = func_dims; // note: no mismatch possible
+            call_vn = "<internal-error-on-gen-time-constant-arg>";
+            rfc.args.push_back( rtc_arg_t{"",func_nda} );
+          } else { 
+            // otherwise, assume the value we want/need is in in nda_args
+            map_str_p_nda_t::const_iterator an = rcg_func_call.nda_args.find( vn );
+            if( an == rcg_func_call.nda_args.end() ) {
+              rt_err( "specified "+i->io_type+" scalar by-value arg '"+vn+"' not found in nda_args at call time." ); 
+            }
+            call_dims = an->second->dims;
+            call_vn = "<by-value-scalar>";
+            // either way, pass it to the kernel -- 
+            rfc.args.push_back( rtc_arg_t{"",an->second} ); // FIXME: should be guarded by below error check
           }
-          call_dims = an->second->dims;     
-          call_vn = "<by-value-scalar>";
-          rfc.args.push_back( rtc_arg_t{"",an->second} ); // FIXME: should be guarded by below error check
+          // FIXME: it's perhaps confusing that the value is always passed dynamically as an arg, even if it's was
+          // availible as a constant at gen-time, but it's unclear what else to do here (we need to pass some arg)
+          // ... it's probably okay?
         } else { 
           assert_st( i->loi.v == 1 );
           map_str_str::const_iterator an = rcg_func_call.arg_map.find( vn );

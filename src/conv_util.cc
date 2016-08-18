@@ -31,7 +31,7 @@ namespace boda
   conv_op_info_t const BatchNorm_coi{ "BatchNorm", {"in"}, {"out"} };
   conv_op_info_t const Dropout_coi{ "Dropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
   conv_op_info_t const BckDropout_coi{ "BckDropout", {"in"}, {"out"}, {{"dropout_ratio","0.5"}} };
-#if 1 // original
+#if 0 // original
   map_str_str const LRN_str_vals{{"local_size","5"},{"alpha","1.0"},{"beta","0.75"},{"k","1.0"},{"emit_out_scale_base","0"}};
   map_str_p_nda_t const LRN_nda_vals;
 #else // experimenting with nda_vals
@@ -39,7 +39,7 @@ namespace boda
   map_str_p_nda_t const LRN_nda_vals{{"local_size",make_scalar_nda(uint32_t(5))},{"alpha",make_scalar_nda(float(1.0))},{"beta",make_scalar_nda(float(0.75))},{"k",make_scalar_nda(float(1.0))}};
 #endif
   conv_op_info_t const LRN_coi{ "LRN", {"in"}, {"out"}, LRN_str_vals, {}, zi_bool(0), zi_bool(0), LRN_nda_vals };
-  conv_op_info_t const BckLRN_coi{ "BckLRN", {"in","out","out_grad_loss"}, {"in_grad_loss"}, LRN_str_vals };
+  conv_op_info_t const BckLRN_coi{ "BckLRN", {"in","out","out_grad_loss"}, {"in_grad_loss"}, LRN_str_vals, {}, zi_bool(0), zi_bool(0), LRN_nda_vals };
   conv_op_info_t const Accuracy_coi{ "Accuracy", {"in"}, {"out"} };
   conv_op_info_t const Softmax_coi{ "Softmax", {"in"}, {"prob"} };
   conv_op_info_t const SoftmaxWithLoss_coi{ "SoftmaxWithLoss", { "in", "label" },{ "in_grad_loss", "loss" } };
