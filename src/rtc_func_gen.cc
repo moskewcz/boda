@@ -151,7 +151,8 @@ namespace boda
                                        i.ad().io_type.c_str(), i.vn().c_str() );
         continue;
       }
-      dims_t const & arg_dims = rfs_in.get_dims(i.vn());
+      p_nda_t const & arg_nda = rfs_in.get(i.vn());
+      dims_t const & arg_dims = arg_nda->dims;
       if( !arg_dims.has_name() ) { arg_check_error += "call arg '"+i.vn()+"' must have names for all dims; "; }
       bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
       if( !dims_only && arg_dims.has_padding() ) { 
@@ -174,9 +175,10 @@ namespace boda
         dims_t arg_dims_no_sizes_or_strides = arg_dims;
         arg_dims_no_sizes_or_strides.clear_strides();
         arg_dims_no_sizes_or_strides.clear_dims();
-        rfs_out->set_dims( i.vn(), arg_dims_no_sizes_or_strides ); 
+        rfs_out->set_dims( i.vn(), arg_dims_no_sizes_or_strides );
+        // FIXME: keep original nda somewhere
       } else {
-        rfs_out->set_dims( i.vn(), arg_dims ); // keep exactly used dims_vals in signature
+        rfs_out->set( i.vn(), arg_nda ); // keep exactly used nda in signature (including value if present)
       }
     }
     if( !arg_check_error.empty() ) {
@@ -429,14 +431,22 @@ namespace boda
     for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( &op ); !i.at_end(); ++i ) {
       if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
-      dims_t const & arg_dims = get_arg_dims_by_name( i.vn() );
+      p_nda_t const & arg_nda = op.get(i.vn()); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
+      dims_t const & arg_dims = arg_nda->dims;
       if( arg_dims == make_null_dims_t() ) { continue; } // skip null dims
-      if( i.ad().dyn.v ) { 
+      if( i.ad().dyn.v ) {
+        assert_st( i.ad().loi.v == 1 );
         dyn_vars.push_back( dyn_dim_info_t{ i.vn(), i.vn(), vect_string{} } ); 
         add_dyn_nda_dims_sz( i.vn(), arg_dims, 1 ); 
       } else {	
         bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
         insert_nda_dims_sz( tsvs, i.vn(), arg_dims, dims_only ); 
+        if( i.ad().loi.v == 0 ) { // for scalars, set a template varaible that references the scalar (same name as the arg)
+          assert_st( arg_dims.dims_prod() == 1 ); // earlier restriction/error-check should guarentee this
+          // if we have a constant value now, template can be string constant. otherwise, reference (per-call-dynamic) arg
+          set( i.vn(), arg_nda->rp_elems() ? get_scalar_c_const_str(*arg_nda) : i.vn() );
+          // printf( "i.vn()=%s tsvs[i.vn()]=%s\n", str(i.vn()).c_str(), str(tsvs[i.vn()]).c_str() );
+        } 
       }
     }
 

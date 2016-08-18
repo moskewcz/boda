@@ -744,6 +744,7 @@ namespace boda
   }
   // make a no-data nda with the given dims
   inline p_nda_t make_dims_nda( dims_t const & dims ) { return make_shared<nda_t>( dims, (void *)0 ); }
+  string get_scalar_c_const_str( nda_t const & nda );
 
   template< typename T > struct nda_T : public nda_t {
     nda_T( void ) { }

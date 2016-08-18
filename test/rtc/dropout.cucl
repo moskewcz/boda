@@ -8,7 +8,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const inout, // CUCL OUT 
   uint32_t const u32_thresh = (uint32_t)(U32_MAX * %(dropout_ratio));
   float v = 0.0f;
 
-  uint32_t h = (uint32_t)(GLOB_ID_1D) + det_drop_seed;
+  uint32_t h = (uint32_t)(GLOB_ID_1D) + %(det_drop_seed);
   h ^= h >> 16;
   h *= 0x85ebca6b;
   h ^= h >> 13;

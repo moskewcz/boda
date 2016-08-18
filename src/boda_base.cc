@@ -201,6 +201,26 @@ namespace boda
     return out; 
   }
 
+  struct nda_c_const_str_t {
+    std::ostream & out;
+    nda_c_const_str_t( std::ostream & out_ ) : out(out_) {}
+    template< typename T > void op( nda_t const & nda ) const { 
+      T const * const elems = static_cast<T const *>(nda.rp_elems());
+      assert_st( elems );
+      for( uint32_t i = 0; i != nda.elems_sz(); ++i ) { if( i ) { out << ":"; } elem_c_const_str(elems[i]); }
+    }
+    template< typename T > void elem_c_const_str( T const & v ) const { out << v; }
+    void elem_c_const_str( float const & v ) const { out << v << "F"; }
+  };
+
+
+  string get_scalar_c_const_str( nda_t const & nda ) {
+    assert_st( nda.elems_sz() == 1 );
+    std::stringstream s;
+    nda_dispatch( nda, nda_c_const_str_t(s) );
+    return s.str();
+  }
+
   struct nda_lt_elems_t {
     nda_t const & t;
     bool & ret;
