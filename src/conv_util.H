@@ -29,6 +29,7 @@ namespace boda
     map_str_p_nda_t nda_vals;
     string bot_an( uint32_t const & ix ) const;
     string top_an( uint32_t const & ix ) const;
+    void op_reset_type( op_base_t & op ) const { op.erase_type(); op.set_type( type ); }
   };
   extern conv_op_info_t const clone_coi;
   extern conv_op_info_t const sgemm_coi;
@@ -83,9 +84,6 @@ namespace boda
     u32_pt_t kern_sz( void ) const { return get_xy_dims_strict( get_dims( "kern_sz" ) ); }
     u32_pt_t stride( void ) const { return get_xy_dims_strict( get_dims( "stride" ) ); }
     // FIXME: these fields are only used codegen, so maybe they don't belong here?
-    string func_name( void ) const { return must_find( str_vals, "func_name" ); } // cts --> conv-type-str
-    void set_func_name( string const & func_name_ ) { must_insert( str_vals, "func_name", func_name_ ); }
-    void clear_func_name( void ) { must_erase( str_vals, "func_name" ); }
   };
 
   // conv_opt_t: adds information to an operation about where how it relates to other operations (i.e what it's inputs

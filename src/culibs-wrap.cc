@@ -95,7 +95,7 @@ namespace boda
       cudnn_err_chk( cudnnDestroy(cdh), "cudnnDestroy" ); 
     }
     void call( rtc_func_info_t const & fi, p_map_str_p_nda_t const & args ) { 
-      string const & func_name = must_find( fi.op.str_vals, "func_name" );
+      string const & func_name = fi.op.get_func_name();
       if( 0 ) {}
       else if( func_name == "cublas_sgemm" ) { sgemm( args ); }
       else if( func_name == "cudnn_conv" ) { conv( fi.op, args ); }

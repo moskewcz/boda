@@ -79,10 +79,11 @@ namespace boda
   bool conv_op_base_t::is( conv_op_info_t const & coi_ ) const { assert_st( coi ); return coi == &coi_; }
   void conv_op_base_t::set_and_check_coi( void ) { 
     assert_st( !coi );
+    if( !has_type() ) { rt_err( "Operation has no type field; can't determine type." ); }
     for( vect_rp_conv_op_info_t::const_iterator i = conv_op_infos.begin(); i != conv_op_infos.end(); ++i ) {
-      if( type == (*i)->type ) { coi = *i; }
+      if( get_type() == (*i)->type ) { coi = *i; }
     }
-    if( !coi ) { rt_err( strprintf( "Unknown operation of type '%s'.", str(type).c_str() ) ); }
+    if( !coi ) { rt_err( strprintf( "Unknown operation of type '%s'.", str(get_type()).c_str() ) ); }
   }
 
   void conv_op_t::set_arg_dims_and_map_from_pipe( conv_pipe_t const * const cp ) { 
@@ -124,6 +125,7 @@ namespace boda
     }
     // check that there are no extra/unknown str_vals
     for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {
+      if( i->first == "type" ) { continue; } // skip, implicitly member of all coi's str_vals (FIXME?)
       if( !boda::has( coi->str_vals, i->first ) ) { 
 	rt_err( strprintf( "Unknown/invalid/extra str parameter '%s' for operation of type '%s'.",
 			   i->first.c_str(), str(coi->type).c_str() ) );
@@ -221,7 +223,7 @@ namespace boda
       return conv_out_sz_to_in_sz( out_sz, in_pad_if_used, stride(), kern_sz() );
     } 
     else if( is(Deconvolution_coi) ) { return conv_in_sz_to_out_sz( out_sz,in_pad_if_used, stride(), kern_sz() ); }
-    else { rt_err("out_sz_to_in_sz: unknown layer type: " + type); }    
+    else { rt_err("out_sz_to_in_sz: unknown layer type: " + get_type()); }    
   }
 
   dims_t conv_pipe_t::get_data_img_dims( void ) const {
@@ -358,7 +360,7 @@ namespace boda
       assert_st( cop->has_one_top() );
       if( !cop->is( Convolution_coi ) ) { 
 	if( cop->bots.size() != 1 ) { 
-	  printstr( "warning: calc_support_forward_op(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+ ". Will propogate support info from first input only.\n" ); 
+	  printstr( "warning: calc_support_forward_op(): unhandled multi-input operation: "+cop->tag+" of type " + cop->get_type()+ ". Will propogate support info from first input only.\n" ); 
 	}
       }
       p_conv_node_t const & j_node = must_get_node(cop->bots[0]);
@@ -485,7 +487,7 @@ namespace boda
 	dims_t bias_dims( vect_uint32_t{ out_chans }, vect_string{ "out_chan" }, filts_bias_tn );
 	must_get_node( cop->bots[2] )->dims = bias_dims;
       } else {
-	if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->type+" " ); }
+	if( cop->bots.size() != 1 ) { rt_err( "calc_dims(): unhandled multi-input operation: "+cop->tag+" of type " + cop->get_type()+" " ); }
 	// FIXME?: for the most part, we don't handle InnerProduct, but for cnet_fc_to_conv (i.e. the tool to convert
 	// InnerProduct to Convolution) we need this at least handled.
 	if( cop->is( InnerProduct_coi ) ) { out_chans = cop->get_u32("out_chans"); }
@@ -662,7 +664,7 @@ namespace boda
     }
     str_vals += "}";
     out << strprintf( "net.add_op( %s(name=\"%s\",bot_names=%s,top_names=%s%s) )\n", 
-		      cop->type.c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(), str_vals.c_str() );
+		      cop->get_type().c_str(), tag_id, as_py_str_list(cop->bots).c_str(), as_py_str_list(cop->tops).c_str(), str_vals.c_str() );
   }
   void conv_pipe_t::dump_ops_rec( std::ostream & out, string const & node_name ) {
     p_conv_node_t node = must_get_node( node_name );
@@ -759,7 +761,7 @@ namespace boda
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
-      bcop->type = Spreading_coi.type;
+      Spreading_coi.op_reset_type( *bcop );
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
       bcop->bots.push_back( bcop->bots[0] + "_grad_loss" );
@@ -769,7 +771,7 @@ namespace boda
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
-      bcop->type = ZeroIfNonPos_coi.type;
+      ZeroIfNonPos_coi.op_reset_type( *bcop );
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
       bcop->bots.push_back( bcop->tops[0] ); // take original input as input
@@ -779,7 +781,7 @@ namespace boda
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
-      bcop->type = BckDropout_coi.type;
+      BckDropout_coi.op_reset_type( *bcop );
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
       bcop->bots[0] += "_grad_loss";
@@ -788,8 +790,8 @@ namespace boda
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
-      bcop->str_vals.clear(); // don't need/want out_chans (arguably should be removed from Convolution after setup too?)
-      bcop->type = BckConv_coi.type;
+      BckConv_coi.op_reset_type( *bcop );
+      must_erase( bcop->str_vals, "out_chans" ); // don't need/want out_chans (arguably should be removed from Convolution after setup too?)
       bcop->bots.push_back( bcop->tops[0] + "_grad_loss" ); // take _grad_loss of fwd conv output as input as well
       bcop->tops.clear(); for( uint32_t i = 0; i != 3; ++i ) { 
 	bcop->tops.push_back( get_grad_loss_onn( cop, bcop->bots[i] ) ); // outputs grads
@@ -799,7 +801,7 @@ namespace boda
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
-      bcop->type = Split_coi.type;
+      Split_coi.op_reset_type( *bcop );
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
       bcop->bots[0] += "_grad_loss";
@@ -809,14 +811,14 @@ namespace boda
       bcop.reset( new conv_op_t );
       *bcop = *cop;
       bcop->coi = 0;
-      bcop->type = BckLRN_coi.type;
+      BckLRN_coi.op_reset_type( *bcop );
       bcop->tag += "_bck";
       swap( bcop->tops, bcop->bots );
       bcop->bots.insert( bcop->bots.begin(), bcop->tops[0] ); // take original input as input
       bcop->bots.push_back( bcop->bots.back() + "_grad_loss" ); // take _grad_loss of original output as input
       bcop->tops[0] = get_grad_loss_onn( cop, bcop->tops[0] ); // produce _grad_loss of original input
     } else {
-      rt_err( strprintf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->type).c_str() ) );
+      rt_err( strprintf( "FIXME: add_bck_ops: unhandled cop->type=%s\n", str(cop->get_type()).c_str() ) );
     }
     if( bcop ) { bck_ops.push_back( bcop ); }
   }
@@ -841,7 +843,7 @@ namespace boda
       // node, we will need to reduce them into a single _grad_loss node. if not, we'll later delete this op.
       //printf( "node->name=%s node->bot_for=%s\n", str(node->name).c_str(), str(node->bot_for).c_
       p_conv_op_t bcop( new conv_op_t );
-      bcop->type = Reduce_coi.type;
+      bcop->set_type( Reduce_coi.type );
       string const nn_gl = node_name + "_grad_loss";
       bcop->tag  = "reduce_" + nn_gl;
       bcop->tops.push_back( nn_gl );
@@ -865,7 +867,7 @@ namespace boda
     for( set_string::const_iterator i = bots.begin(); i != bots.end(); ++i ) { add_bck_ops_rec( bck_ops, *i ); }
     while( !bck_ops.empty() ) { 
       p_conv_op_t bcop = bck_ops.back();
-      if( bcop->type == Reduce_coi.type ) { 
+      if( bcop->get_type() == Reduce_coi.type ) { 
 	assert_st( bcop->tops.size() && bcop->bots.size() );
 	if( !has( *nodes, bcop->tops[0] ) && has( *nodes, bcop->bots[0] ) ) {
 	  // if node that this reduce op would write does not exist, but it's first input does, assume we need/want this
@@ -981,7 +983,7 @@ namespace boda
 	p_conv_op_t cop( new conv_op_t( *i ) );
 	assert_st( cop->tops.empty() && cop->bots.empty() );
 	cop->bots.push_back( cur_node_name );
-	if( cop->type == Convolution_coi.type ) { 
+	if( cop->get_type() == Convolution_coi.type ) { 
 	  cop->bots.push_back( cop->tag + "_filts" );  
 	  conv_pipe->get_or_make_node( cop->bots.back(), 0, 0 )->csi.init_as_source();
 	  cop->bots.push_back( cop->tag + "_biases" );

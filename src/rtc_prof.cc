@@ -53,7 +53,7 @@ namespace boda
                            uint32_t const & run_iter ) 
   {
     timer_t t("profile_rcg_call");
-    string const anno_op_func_name = must_find(anno_op->str_vals,"func_name");
+    string const anno_op_func_name = anno_op->get_func_name();
     p_rtc_call_gen_t rcg = codegen.gen_func( *anno_op );
 
     map_str_str arg_map;
@@ -74,8 +74,8 @@ namespace boda
         p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
 	if( i.ad().io_type != "IN" ) { continue; }
         if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
-	must_insert(in_gen_op->str_vals,"func_name",
-                    in_gen_op->type+"_"+anno_op->type+"_"+i.vn() ); // note: variant choice based on op type, not func_name
+        // note: gen_data variant choice based on gen type and op type (*not* op func_name)
+	in_gen_op->set_func_name( in_gen_op->get_type()+"_"+anno_op->get_type()+"_"+i.vn() ); 
 	in_gen_op->nda_vals.clear();
         dims_t const & in_dims = anno_op->get_dims( i.vn() );
         string const ref_in_dims_name = i.vn()+"_ref";
@@ -95,7 +95,7 @@ namespace boda
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
           string xpose_op = anno_op_func_name+"_xpose_"+i.vn();
           // FIXME: sigh.
-          if( ( i.vn() == "filts" ) && is_k1_or_t_or_reg_conv(must_find(anno_op->str_vals,"func_name"))) { xpose_op = "xpose_filts"; }
+          if( ( i.vn() == "filts" ) && is_k1_or_t_or_reg_conv(anno_op->get_func_name())) { xpose_op = "xpose_filts"; }
           run_xpose( anno_op, codegen, xpose_op, gen_vn, i.vn() );
         }
 	//if( outs ) { must_insert( *outs, i.vn(), p_nda_float_t() ); } // include inputs in 'outputs'

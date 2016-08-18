@@ -128,7 +128,7 @@ namespace boda
 	assert_st( dout.dsz("N") == N );
 	forward_flops = M * N * K * 2;
 	forward_bytes = (a.dims_prod() + b.dims_prod() + dout.dims_prod()) * 4;
-      } else { rt_err( "cnn-op-info: unhandled op: " + op->type ); }
+      } else { rt_err( "cnn-op-info: unhandled op: " + op->get_type() ); }
       
     }
   };
@@ -257,7 +257,7 @@ namespace boda
       add_codegen_annotations( anno_op, op_tune, &per_op_tune );        
       if( rtc_comp ) { add_codegen_annotations( anno_op_comp, op_tune_comp, 0 ); }
 
-      if( gen_data ) { assert_st( gen_data->type == "gen_data" ); } // FIXME: remove assert after fixing existing usages
+      if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
 
       double rfc_dur_secs = NAN;
       string err;
@@ -282,7 +282,7 @@ namespace boda
                                                 str(vns1).c_str(), str(vns2).c_str() ) ); }
         comp_vars( out.get(), num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
       }
-      if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->type, rfc_dur_secs, peak_flops, rfc_dur_secs_comp ); }
+      if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->get_type(), rfc_dur_secs, peak_flops, rfc_dur_secs_comp ); }
 
     }
 

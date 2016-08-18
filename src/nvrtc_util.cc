@@ -344,7 +344,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       rfc.call_id = alloc_call_id();
       record_event( get_call_ev(rfc.call_id).b_ev );
       nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );
-      string const & func_name = must_find( nfi.info.op.str_vals, "func_name" );
+      string const & func_name = nfi.info.op.get_func_name();
       if( startswith( func_name, "cublas_" ) || startswith( func_name, "cudnn_" )) { 
         culibs_wrap_call( cw, nfi.info, func_args ); 
       } else {

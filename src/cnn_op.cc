@@ -67,7 +67,7 @@ namespace boda
       // 'base' op_tune to select a variant (which uses some subset of the tuning params, mostly enable related ones),
       // and then if there's a per-variant op_tune we use it for some remaining params (mostly blocking related
       // ones). so maybe we need to split op_tune_t? or not?
-      if( per_op_tune ) { op_tune = &get(*per_op_tune,op->func_name(),op_tune_); };
+      if( per_op_tune ) { op_tune = &get(*per_op_tune,op->get_func_name(),op_tune_); };
 
       u32_pt_t const & t_tile_sz = op_tune->MNt;
       uint32_t const max_tpb = op_tune->MNb.dims_prod(); // FIXME: pass as M/N parts, not product.
@@ -147,10 +147,10 @@ namespace boda
 	dims_t work;
         work.tn = "none";
 	uint32_t const lines_sz = no_dims.dsz("img") * no_sz.d[1];
-        if( (op->func_name() == tconv_str) || (op->func_name() == k1conv_str) ) { 
+        if( (op->get_func_name() == tconv_str) || (op->get_func_name() == k1conv_str) ) { 
           op->set_dims("flags",make_scalar_dims_t("uint32_t")); // exactly these two variants have this debugging input
         }
-	if( op->func_name() == tconv_str ) {
+	if( op->get_func_name() == tconv_str ) {
 	  assert( gbt.thr_per_blk.d[0] >= 2 ); // if 1, would imply tconv_blk_max_imgs = 1 (but not sensible?)
 	  work.add_dims( "blk_bline", u32_ceil_div( lines_sz, gbt.thr_per_blk.d[0] ), 
 			 "blk_bx", u32_ceil_div( no_sz.d[0], gbt.mn_per_thr.d[0] ) );
@@ -191,12 +191,12 @@ namespace boda
 	work.add_dims( "out_chan_blk", gbt.num_blk.d[1] );
 
 	// dims of per-group work (defines # threads per local group)
-	if( op->func_name() == tconv_str ) { work.add_dims( "blk_y", gbt.thr_per_blk.d[0] ); }
+	if( op->get_func_name() == tconv_str ) { work.add_dims( "blk_y", gbt.thr_per_blk.d[0] ); }
 	else { work.add_dims( "pels_tile", gbt.thr_per_blk.d[0] ); }
 	work.add_dims(   "out_chan_tile", gbt.thr_per_blk.d[1] );
 
 	work.add_dims( "pels", gbt.mn_per_thr.d[0], "out_chan", gbt.mn_per_thr.d[1] ); // dims of per-thread work
-	if( op->func_name() == ipconv_str ) { 
+	if( op->get_func_name() == ipconv_str ) { 
 	  uint32_t fioc_tile = 4;
 	  while( (fioc_tile < 32) && (fioc_tile*2*gbt.thr_per_blk.dims_prod()) <= 512 ) { fioc_tile *= 2; }
 	  assert_st( (ni_dims.dsz("chan") % fioc_tile) == 0 );
@@ -204,14 +204,14 @@ namespace boda
 	} // unrolling/tiling of inner loop
 	work.calc_strides();
 
-	if( op->func_name() == k1conv_str ) { 
+	if( op->get_func_name() == k1conv_str ) { 
 	  uint32_t const in_blk_iter_chan_dim = op_tune->Kb;
 	  // the k1conv/xpose_in format is for use when stride=1, kernel_sz=1, and in_pad=0. we treat all input pixels as one 1D
 	  // vector across img:y:x, and divide them into blocks. we also block in the chan dim for unrolling.
 	  in_dims = dims_t( vect_uint32_t{
 	      work.dsz("pels_blk"), u32_ceil_div(ni_dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, in_dims.tn ); 
-	} else if( op->func_name() == k1conv_simd_str ) { 
+	} else if( op->get_func_name() == k1conv_simd_str ) { 
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
           // simd, no-local-mem version of k1conv.  we xpose to pels:chans format for the file, input, and output. we
           // pad the pels and out_chans to exactly match the blocking.
@@ -229,7 +229,7 @@ namespace boda
             vect_string{"in_chan","y","x","out_chan"}, op->get_dims("filts").tn )); 
 	  op->reset_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, 
                                        vect_string{"chan","pel"}, op->get_dims("out").tn )); 
-	} else if( op->func_name() == conv_simd_str ) {
+	} else if( op->get_func_name() == conv_simd_str ) {
           must_insert( op->str_vals, "vw", str(op_tune->vw) );
           // FIXME: pad in_chan to multiple of Kb?
           assert_st( op_tune->Kb == 1 ); // FIXME: for now, no inner loop unroll ...
@@ -290,7 +290,7 @@ namespace boda
 	// we do this, we may change the binding for "in" (e.g. to point to an xformed version of the original
 	// variable).
         op->reset_dims("in",in_dims); 
-        if( is_k1_or_t_or_reg_conv( op->func_name() ) ) {
+        if( is_k1_or_t_or_reg_conv( op->get_func_name() ) ) {
           op->reset_dims("filts",dims_t( vect_uint32_t{ work.dsz("out_chan_blk"),ni_dims.dsz("chan"), 
                   kern_sz_.d[1], kern_sz_.d[0],
                   work.dsz("out_chan"),work.dsz("out_chan_tile")}, vect_string{"out_chan_blk","in_chan","y","x",
@@ -315,7 +315,7 @@ namespace boda
     else if( op->is( Softmax_coi ) ) { op->set_func_name( "softmax" ); }
     // else if( op->is( SoftmaxWithLoss_coi ) ) { } // no single value
     else if( op->is( Spreading_coi ) ) { op->set_func_name( "spreading" ); }
-    else if( op->is( ZeroIfNonPos_coi ) ) { op->set_func_name( op->type ); } // wow! one with a consistent name! sigh.
+    else if( op->is( ZeroIfNonPos_coi ) ) { op->set_func_name( op->get_type() ); } // wow! one with a consistent name! sigh.
     // else if( op->is( BckConv_coi ) ) { } // no single value
   }
   

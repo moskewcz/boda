@@ -211,7 +211,7 @@ namespace boda
       } 
       p_conv_op_t conv_op( new conv_op_t );
       conv_op->tag = lp.name();
-      conv_op->type = lp.type();
+      conv_op->set_type( lp.type() );
       RF_TO_VEC( conv_op->bots, lp.bottom );
       RF_TO_VEC( conv_op->tops, lp.top );
 
@@ -234,7 +234,7 @@ namespace boda
 	//rt_err( "TODO: handle dropout" );
         if( !add_bck_ops ) { // if not adding bck ops, treat dropout as no-op
           if( conv_op->tops != conv_op->bots ) { // not in place, so replace with clone operation (FIXME: use reshape?)
-            conv_op->type = clone_coi.type;
+            conv_op->erase_type(); conv_op->set_type( clone_coi.type );
           } else { conv_op.reset(); } // in-place, so just drop to make into no-op
         } else { // if adding bck ops, keep as dropout
           caffe::DropoutParameter const & p = lp.dropout_param();	
@@ -502,7 +502,7 @@ namespace boda
       blobs.push_back( p_nda_float_t( new nda_float_t( pipe->must_get_node( cop->bots[1] )->dims ) ) ); // filts
       blobs.push_back( p_nda_float_t( new nda_float_t( pipe->must_get_node( cop->bots[2] )->dims ) ) ); // biases
     } else {
-      rt_err( "don't know how to alloc blobs for layer of type" + cop->type );
+      rt_err( "don't know how to alloc blobs for layer of type" + cop->get_type() );
     }
   }
 

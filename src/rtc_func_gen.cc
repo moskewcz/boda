@@ -275,7 +275,7 @@ namespace boda
 
 
   string gen_unused_fn( op_base_t const & op, set_string const & used_names ) {
-    string maybe_fn_base = must_find( op.str_vals, "func_name" );
+    string maybe_fn_base = op.get_func_name();
     set_string unique_dims;
     for( map_str_p_nda_t::const_iterator ra = op.nda_vals.begin(); ra != op.nda_vals.end(); ++ra ) {
       dims_t const & dims = ra->second->dims;
@@ -337,7 +337,7 @@ namespace boda
     assert_st( !gen_fn.empty() ); // so above guard is sound (and a sensible assert anyway)
     set( "rtc_func_name", gen_fn );
     rtc_func_template = rtc_func_template_;
-    assert_st( rtc_func_template->template_fn == must_find( op.str_vals, "func_name" ) ); // better be right template
+    assert_st( rtc_func_template->template_fn == op.get_func_name() ); // better be right template
     // FIXME: for now, we'll dump all of str_vals in tsvs, since that's old/compatible behavior.
     //printf( "op.type=%s gen_fn=%s op.str_vals=%s\n", str(op.type).c_str(), gen_fn.c_str(), str(op.str_vals).c_str() );
     for( map_str_str::const_iterator i = op.str_vals.begin(); i != op.str_vals.end(); ++i ) { set( i->first, i->second ); }
@@ -578,7 +578,7 @@ namespace boda
 
   p_rtc_call_gen_t rtc_codegen_t::gen_func( op_base_t const & rfs_full ) {
     // first, get template
-    string const & func_name = must_find( rfs_full.str_vals, "func_name" );
+    string const & func_name = rfs_full.get_func_name();
     p_rtc_template_t & rtc_template = rtc_templates[func_name];
     if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( func_name ); }
 
@@ -598,12 +598,12 @@ namespace boda
   // currently used for calling xpose functions. not the pretiest thing, but better factored out here then dupe'd.
   p_rtc_call_gen_t rtc_codegen_t::gen_func_override_func_name( string const & func_name, op_base_t & op ) {
     // sigh. used only in conv case, where we know func_name is already set ...
-    string const orig_func_name = must_find(op.str_vals,"func_name"); 
-    must_erase( op.str_vals, "func_name" );
-    must_insert( op.str_vals, "func_name", func_name );
+    string const orig_func_name = op.get_func_name(); 
+    op.erase_func_name();
+    op.set_func_name( func_name );
     p_rtc_call_gen_t func = gen_func( op );
-    must_erase( op.str_vals, "func_name" );
-    must_insert( op.str_vals, "func_name", orig_func_name );
+    op.erase_func_name();
+    op.set_func_name( orig_func_name );
     return func;
   }
 

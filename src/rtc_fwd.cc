@@ -305,11 +305,11 @@ namespace boda
       }
       string const in_id = oi->arg_map["in"];
       // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims( in_id ); see comment in init()
-      if( oi->func_name() == tconv_str ) {
+      if( oi->get_func_name() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
 	oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"),
                                                     "tconv_xpose_in", oi ) );
-      } else if( oi->func_name() == k1conv_str ) {
+      } else if( oi->get_func_name() == k1conv_str ) {
 	if( oi->get_dims("in") != rtc->get_var_dims( in_id ) ) {
 	  // if dims not exactly right, assume they are 'normal' dims and convert. FIXME(?): fails if vars are in unexpected formats.
 	  oi->reset_arg( "in", gen_apply_func_to_var( "in_ref", oi->get_arg("in"), "in", oi->get_dims("in"), 
@@ -376,7 +376,7 @@ namespace boda
       // many cases (pool, BckConv, others). still, this assert is sort-of right, since there are no BckConv variants
       // yet, but also wrong since, like the conv case we use the 'gen_call()' override-with-no-func-name-set flow
       // below. so ... commented out for now:
-      // assert_st( oi->func_name() == conv_str );
+      // assert_st( oi->get_func_name() == conv_str );
       if( enable_bconv ) {
 #if 0
 	dims_t const & ogl_dims = rtc->get_var_dims( ogl_vn );
@@ -393,25 +393,25 @@ namespace boda
       gen_call( fgl_fn, oi );
     } else if( oi->is( ZeroIfNonPos_coi ) || oi->is( Softmax_coi ) || oi->is( Reduce_coi ) ) { 
       gen_call( oi ); // 'generic' cases (yes, there's only a few currently, but ya gotta dream, right?)
-    } else { rt_err( "gen_op: unhandled op of type: " + oi->type ); }
+    } else { rt_err( "gen_op: unhandled op of type: " + oi->get_type() ); }
   }
 
-  // generate call for given oi, using oi->func_name() to choose template/function
+  // generate call for given oi, using oi->get_func_name() to choose template/function
   void conv_pipe_fwd_t::gen_call( p_op_info_t const & oi ) { 
-    assert_st( has( oi->str_vals, "func_name" ) );
+    assert_st( oi->has_func_name() );
     p_rtc_call_gen_t func = codegen.gen_func( *oi );
     rcg_func_call_t rcg{ func, oi->tag, oi->arg_map };
-    if( oi->is( Convolution_coi ) && ( (oi->func_name() == tconv_str) || (oi->func_name() == k1conv_str) ) ) { rcg.nda_args["flags"] = make_scalar_nda(flags); } // FIXME: not the place for this.
+    if( oi->is( Convolution_coi ) && ( (oi->get_func_name() == tconv_str) || (oi->get_func_name() == k1conv_str) ) ) { rcg.nda_args["flags"] = make_scalar_nda(flags); } // FIXME: not the place for this.
     fwd_calls.push_back( rcg );
   }
 
   // used in cases where no single func_name()/template/function applies to operation. we override func_name(), generate
   // a call, and clear it back out. we could also equivalently create a copy of oi, fill in func_name, and discard it.
   void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
-    assert_st( !has( oi->str_vals, "func_name" ) );
+    assert_st( !oi->has_func_name() );
     oi->set_func_name( fn ); 
     gen_call( oi ); 
-    oi->clear_func_name();
+    oi->erase_func_name();
   }
 
   // gen_node_var() creates a var directly corresponding to a pipe node.  usually, but not always, name == node_node; in
@@ -482,10 +482,10 @@ namespace boda
 	if( conv_has_relu ) { must_insert( must_find( *op_infos, no->in_place_ops[0]->tag )->str_vals, "fused", "1" ); } 
 	must_insert( oi->str_vals, "conv_has_relu", str(conv_has_relu) );
 
-	if( oi->func_name() == k1conv_str ) { 
+	if( oi->get_func_name() == k1conv_str ) { 
 	  if( ( no->in_place_ops.size() == conv_has_relu ) && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
 	    p_op_info_t const & noi = must_find( *op_infos, no->bot_for[0] ); // next operation
-	    if( enable_write_xpose && noi->is( Convolution_coi ) && (noi->func_name() == k1conv_str) ) { 
+	    if( enable_write_xpose && noi->is( Convolution_coi ) && (noi->get_func_name() == k1conv_str) ) { 
 	      // modify output argument dims to match user's input dims. codegen will notice this and write out correctly.
 	      oi->reset_arg_dims( "out", noi->get_dims( "in" ) );
 	    }

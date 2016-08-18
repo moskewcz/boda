@@ -7,8 +7,9 @@
 namespace boda 
 {
   op_base_t::op_base_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
-    type(type_), str_vals( str_vals_ ) 
+    str_vals( str_vals_ ) 
   {
+    set_type( type_ );
     for( map_str_dims_t::const_iterator i = dims_vals_.begin(); i != dims_vals_.end(); ++i ) {
       set_dims( i->first, i->second );
     }
@@ -22,7 +23,6 @@ namespace boda
   };
 
   bool op_base_t::operator < ( op_base_t const & o ) const { 
-    if( type != o.type ) { return type < o.type; }
     if( str_vals != o.str_vals ) { return str_vals < o.str_vals; }
     // note: we don't need equals on nda_vals here (or for op_base_t), but if we did, we'd need to use custom comparison
     // there too (or we'd be comparing p_nda_t's, not the underlying nda's. maybe we should wrap the map type and
@@ -36,6 +36,17 @@ namespace boda
   void op_base_t::set_dims( string const & an, dims_t const & dims ) { set( an, make_dims_nda(dims) ); }
   void op_base_t::erase( string const & an ) { must_erase( nda_vals, an ); }
   void op_base_t::reset_dims( string const & an, dims_t const & dims ) { erase( an ); set_dims( an, dims ); }
+
+  bool op_base_t::has_func_name( void ) const { return boda::has( str_vals, "func_name" ); }
+  string const & op_base_t::get_func_name( void ) const { return must_find( str_vals, "func_name" ); }
+  void op_base_t::set_func_name( string const & func_name_ ) { must_insert( str_vals, "func_name", func_name_ ); }
+  void op_base_t::erase_func_name( void ) { must_erase( str_vals, "func_name" ); }
+
+  bool op_base_t::has_type( void ) const { return boda::has( str_vals, "type" ); }
+  string const & op_base_t::get_type( void ) const { return must_find( str_vals, "type" ); }
+  void op_base_t::set_type( string const & type_ ) { must_insert( str_vals, "type", type_ ); }
+  void op_base_t::erase_type( void ) { must_erase( str_vals, "type" ); }
+
   
   p_nda_t const & op_base_t::get( string const & an ) const { return must_find( nda_vals, an ); }
   dims_t const & op_base_t::get_dims( string const & an ) const { return get(an)->dims; }

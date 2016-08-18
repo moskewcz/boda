@@ -9,7 +9,6 @@ namespace boda
   struct op_base_t : virtual public nesi // NESI(help="op base descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string type; //NESI(help="op type; determines overall semantics and locates named operation metadata",req=1)
     map_str_str str_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
     map_str_p_nda_t nda_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/nda list." )
     op_base_t( void ) {}
@@ -29,6 +28,17 @@ namespace boda
     uint32_t get_u32( string const & an ) const;
     bool operator ==( op_base_t const & o ) const = delete;
     bool operator !=( op_base_t const & o ) const = delete;
+
+    // a few commonly-used str_vals get accessors for cleanliness/convenience. FIXME: should these be here?
+    bool has_type( void ) const;
+    string const & get_type( void ) const;
+    void set_type( string const & type_ );
+    void erase_type( void );
+
+    bool has_func_name( void ) const;
+    string const & get_func_name( void ) const;
+    void set_func_name( string const & func_name_ );
+    void erase_func_name( void );
   };
   typedef shared_ptr< op_base_t > p_op_base_t; 
   typedef set< op_base_t > set_op_base_t;
