@@ -25,7 +25,6 @@ namespace boda
     dims_t const & get_dims( string const & an ) const;
     string const & get_str( string const & an ) const;
     uint32_t get_u32( string const & an ) const;
-    double get_double( string const & an ) const;
     bool operator ==( op_base_t const & o ) const = delete;
     bool operator !=( op_base_t const & o ) const = delete;
   };
