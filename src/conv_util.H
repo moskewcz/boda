@@ -129,7 +129,7 @@ namespace boda
     void reset_arg( string const & an, string const & vn ) { must_replace( arg_map, an, vn ); }
     void reset_arg_dims( string const & an, dims_t const & dims ) { reset_dims( an, dims ); }
     void set_null_arg( string const & an ) { set_dims( an, make_null_dims_t() ); }
-    void erase_arg( string const & an ) { erase_dims( an ); must_erase( arg_map, an ); }
+    void erase_arg( string const & an ) { erase( an ); must_erase( arg_map, an ); }
   };
 
   typedef vector< conv_op_t > vect_conv_op_t; 

@@ -31,13 +31,14 @@ namespace boda
                                          lt_pair_key_p_value<map_str_p_nda_t::value_type>() );
   }
   
-  bool op_base_t::has_dims( string const & an ) const { return has( nda_vals, an ); }
-  void op_base_t::set_dims( string const & an, dims_t const & dims ) { 
-    must_insert( nda_vals, an, make_dims_nda(dims) ); }
-  void op_base_t::erase_dims( string const & an ) { must_erase( nda_vals, an ); }
-  void op_base_t::reset_dims( string const & an, dims_t const & dims ) {
-    erase_dims( an ); must_insert( nda_vals, an, make_dims_nda( dims ) ); }
-  dims_t const & op_base_t::get_dims( string const & an ) const { return must_find( nda_vals, an )->dims; }
+  bool op_base_t::has( string const & an ) const { return boda::has( nda_vals, an ); }
+  void op_base_t::set( string const & an, p_nda_t const & nda ) { must_insert( nda_vals, an, nda); }
+  void op_base_t::set_dims( string const & an, dims_t const & dims ) { set( an, make_dims_nda(dims) ); }
+  void op_base_t::erase( string const & an ) { must_erase( nda_vals, an ); }
+  void op_base_t::reset_dims( string const & an, dims_t const & dims ) { erase( an ); set_dims( an, dims ); }
+  
+  p_nda_t const & op_base_t::get( string const & an ) const { return must_find( nda_vals, an ); }
+  dims_t const & op_base_t::get_dims( string const & an ) const { return get(an)->dims; }
   string const & op_base_t::get_str( string const & an ) const { return must_find( str_vals, an ); }
   uint32_t op_base_t::get_u32( string const & an ) const { return lc_str_u32( must_find( str_vals, an ) ); }
   

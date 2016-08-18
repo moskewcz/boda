@@ -18,11 +18,13 @@ namespace boda
     
     bool operator < ( op_base_t const & o ) const;
     // convenience access functions
-    bool has_dims( string const & an ) const;
+    bool has( string const & an ) const;
     void set_dims( string const & an, dims_t const & dims ); // must not be set
-    void erase_dims( string const & an ); // must already be set (not commonly used)
+    void set( string const & an, p_nda_t const & nda ); // must not be set
+    void erase( string const & an ); // must already be set (not commonly used)
     void reset_dims( string const & an, dims_t const & dims ); // must already be set (not commonly used)
     dims_t const & get_dims( string const & an ) const;
+    p_nda_t const & get( string const & an ) const;
     string const & get_str( string const & an ) const;
     uint32_t get_u32( string const & an ) const;
     bool operator ==( op_base_t const & o ) const = delete;

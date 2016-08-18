@@ -33,7 +33,7 @@ namespace boda
       in_dims = ni_dims;
       op->set_dims("in_ref",in_dims); // tconv needs the standard input dims for reference
       u32_pt_t kern_sz_;
-      if( op->has_dims("kern_sz") ) { kern_sz_ = op->kern_sz(); }
+      if( op->has("kern_sz") ) { kern_sz_ = op->kern_sz(); }
       else {
 	if( is_pool ) { kern_sz_ = get_xy_dims( ni_dims ); }
 	else if( op->is( Spreading_coi ) ) { kern_sz_ = get_xy_dims( no_dims ); }

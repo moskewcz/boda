@@ -49,7 +49,7 @@ namespace boda
     // TODO/NOTE: non-square (_w/_h) handling is untested
     // SIGH: three cases are not quite consistent enough to be worth folding/sharing things more?
     cp.clear_pad_w(); cp.clear_pad_h(); cp.clear_pad();
-    if( conv_op->has_dims("in_pad") ) { 
+    if( conv_op->has("in_pad") ) { 
       // FIXME: could attempt to handle ND case here
       u32_pt_t const pad = conv_op->in_pad();
       if( pad.dims_are_same() ) { cp.add_pad( pad.d[0] ); }
@@ -62,7 +62,7 @@ namespace boda
     if( kern_sz.dims_are_same() ) { cp.add_kernel_size( kern_sz.d[0] ); }
     else { cp.set_kernel_w( kern_sz.d[0] ); cp.set_kernel_h( kern_sz.d[1] ); }
 
-    if( conv_op->has_dims("stride") ) { 
+    if( conv_op->has("stride") ) { 
       // FIXME: could attempt to handle ND case here
       cp.clear_stride_w(); cp.clear_stride_h(); cp.clear_stride();
       if( conv_op->stride().dims_are_same() ) { cp.add_stride( conv_op->stride().d[0] ); }
@@ -222,7 +222,7 @@ namespace boda
 	fill_in_conv_op_from_param( conv_op, cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
 	conv_op->str_vals["out_chans"] = str(cp.num_output());
-	assert_st( conv_op->has_dims( "kern_sz" ) ); // FIXME: convolutions *must* specify kernel size, i think? check in caffe
+	assert_st( conv_op->has( "kern_sz" ) ); // FIXME: convolutions *must* specify kernel size, i think? check in caffe
 	// add (make explicit) filts and biases as inputs 
 	conv_op->bots.push_back( lp.name() + "_filts" );
 	conv_op->bots.push_back( lp.name() + "_biases" );
@@ -272,7 +272,7 @@ namespace boda
 	else if( pp.pool() == caffe::PoolingParameter_PoolMethod_MAX ) { avg_pool = 0; }
 	else { printf( "warning: unhanded pooling method pp.pool()=%s\n", str(pp.pool()).c_str() ); }
 	conv_op->str_vals["avg_pool"] = str(avg_pool);
-	assert_st( conv_op->has_dims("kern_sz") != pp.global_pooling() ); // global pooling iff no kernel size specified
+	assert_st( conv_op->has("kern_sz") != pp.global_pooling() ); // global pooling iff no kernel size specified
       } else if( lp.type() == InnerProduct_coi.type ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();

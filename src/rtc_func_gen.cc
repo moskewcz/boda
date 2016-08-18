@@ -146,7 +146,7 @@ namespace boda
           continue;
         }
       }
-      if( !rfs_in.has_dims(i.vn()) ) {
+      if( !rfs_in.has(i.vn()) ) {
         arg_check_error +=  strprintf( "referenced %s arg '%s' not present in dims_vals; ", 
                                        i.ad().io_type.c_str(), i.vn().c_str() );
         continue;
@@ -184,7 +184,7 @@ namespace boda
       for( vect_arg_decl_t::multi_iter i = arg_decls.multi_begin( &rfs_in ); !i.at_end(); ++i ) {
         arg_err += strprintf( "ARG[%s]:\n", i.vn().c_str() );
         arg_err += strprintf( "  DECL: %s\n", str(i.ad()).c_str() );
-        if( rfs_in.has_dims( i.vn() ) ) { arg_err += strprintf( "  CALL: %s\n", str(rfs_in.get_dims(i.vn())).c_str() ); }
+        if( rfs_in.has( i.vn() ) ) { arg_err += strprintf( "  CALL: %s\n", str(rfs_in.get_dims(i.vn())).c_str() ); }
         else { arg_err += "  CALL: not found in ref dims.\n"; }
       }
       arg_err += "full rfs: " + str(rfs_in) + "\n";
@@ -305,7 +305,7 @@ namespace boda
   }
   void rtc_call_gen_t::set( string const &var, string const &val ) { must_insert( tsvs, var, val ); }
   dims_t const & rtc_call_gen_t::get_arg_dims_by_name( string const & arg_vn, string const & err_tag ) {
-    if( !op.has_dims( arg_vn ) ) { 
+    if( !op.has( arg_vn ) ) { 
       rt_err( strprintf( "referenced %s arg '%s' not present in dims_vals", err_tag.c_str(), arg_vn.c_str() ) );
     }
     return op.get_dims( arg_vn );

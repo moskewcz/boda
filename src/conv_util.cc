@@ -120,11 +120,11 @@ namespace boda
     }
     // check all str_vals are set, set any missing ones to defaults
     for( map_str_str::const_iterator i = coi->str_vals.begin(); i != coi->str_vals.end(); ++i ) {
-      if( !has( str_vals, i->first ) ) { str_vals[i->first] = i->second; }
+      if( !boda::has( str_vals, i->first ) ) { str_vals[i->first] = i->second; }
     }
     // check that there are no extra/unknown str_vals
     for( map_str_str::const_iterator i = str_vals.begin(); i != str_vals.end(); ++i ) {
-      if( !has( coi->str_vals, i->first ) ) { 
+      if( !boda::has( coi->str_vals, i->first ) ) { 
 	rt_err( strprintf( "Unknown/invalid/extra str parameter '%s' for operation of type '%s'.",
 			   i->first.c_str(), str(coi->type).c_str() ) );
       }
@@ -133,16 +133,16 @@ namespace boda
     // FIXME: dup'd with str_vals handling ... duplication is worse here than in some other places ...
     // check all dims_vals are set, set any missing ones to defaults
     for( map_str_dims_t::const_iterator i = coi->dims_vals.begin(); i != coi->dims_vals.end(); ++i ) {
-      if( !has_dims( i->first ) ) { set_dims( i->first, i->second ); }
+      if( !has( i->first ) ) { set_dims( i->first, i->second ); }
     }
     // check all nda_vals are set, set any missing ones to defaults
     for( map_str_p_nda_t::const_iterator i = coi->nda_vals.begin(); i != coi->nda_vals.end(); ++i ) {
-      if( !has( nda_vals, i->first ) ) { nda_vals[i->first] = i->second; }
+      if( !has( i->first ) ) { set( i->first, i->second ); }
     }
 
     // kern_sz is manditory for Convolution/Deconvolution, and has no default -- we have no magic/automatic for that, so we just check
     // it manually here ...
-    if( (is( Convolution_coi )||is( Deconvolution_coi )||is( BckConv_coi )) && !has_dims("kern_sz" ) ) { 
+    if( (is( Convolution_coi )||is( Deconvolution_coi )||is( BckConv_coi )) && !has("kern_sz" ) ) { 
       rt_err( strprintf( "Missing dims parameter 'kern_sz' for operation of type '%s'.", str(coi->type).c_str() ) );
     }
 
@@ -155,7 +155,7 @@ namespace boda
 	if( is( Convolution_coi ) || is( Pooling_coi ) ) { continue; } // okay to be present for these types
 	if( is( BckConv_coi ) || is( Spreading_coi ) ) { continue; } // okay to be present for these types
       }
-      if( !has( coi->dims_vals, i->first ) && !has( coi->nda_vals, i->first )) { 
+      if( !boda::has( coi->dims_vals, i->first ) && !boda::has( coi->nda_vals, i->first )) { 
 	rt_err( strprintf( "Unknown/invalid/extra nda/dims parameter '%s' for operation of type '%s'.",
 			   i->first.c_str(), str(coi->type).c_str() ) );
       }
@@ -185,7 +185,7 @@ namespace boda
   }
 
   u32_pt_t conv_op_t::in_sz_to_out_sz( u32_pt_t const & in_sz, bool const ignore_padding ) const { 
-    if( !has_dims( "kern_sz" ) ) { // handle non-conv cases
+    if( !has( "kern_sz" ) ) { // handle non-conv cases
       assert( !is(Convolution_coi) ); 
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { return u32_pt_t{1,1}; } // global pooling / inner product special cases
       return in_sz; // otherwise, assume no effect on spatial dims (e.g. relu, lrn)
@@ -204,7 +204,7 @@ namespace boda
     else { rt_err("in_sz_to_out_sz: unknown layer type"); }
   }
   u32_pt_t conv_op_t::out_sz_to_in_sz( u32_pt_t const & out_sz, bool const ignore_padding ) const { 
-    if( !has_dims( "kern_sz" ) ) { // handle non-conv cases
+    if( !has( "kern_sz" ) ) { // handle non-conv cases
       assert( !is(Convolution_coi) );
       if( is(Pooling_coi) || is(InnerProduct_coi) ) { // inner product and global pooling special cases
 	if( out_sz != u32_pt_t{1,1} ) { rt_err( "global pooling layer can't produce an out_sz other than {1,1}" ); }
@@ -371,11 +371,11 @@ namespace boda
 	assert_st( in_sz_1x1.both_dims_non_zero() );
 	csi_out.support_sz = csi_in.support_sz + ( in_sz_1x1 - u32_pt_t(1,1) )*csi_in.support_stride;
       }
-      if( cop->has_dims( "stride" ) ) {
+      if( cop->has( "stride" ) ) {
 	  assert_st( cop->stride().both_dims_non_zero() );
 	  csi_out.support_stride = csi_in.support_stride*cop->stride();
       } else { csi_out.support_stride = csi_in.support_stride; } // no stride --> support stride unchanged
-      if( cop->has_dims( "in_pad" ) ) {
+      if( cop->has( "in_pad" ) ) {
 	csi_out.eff_tot_pad = csi_in.eff_tot_pad + ( cop->in_pad() * csi_in.support_stride );
       } else { csi_out.eff_tot_pad = csi_in.eff_tot_pad; } // no in_pad --> eff_tot_pad unchanged
     }

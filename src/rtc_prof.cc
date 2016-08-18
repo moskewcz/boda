@@ -79,7 +79,7 @@ namespace boda
 	in_gen_op->nda_vals.clear();
         dims_t const & in_dims = anno_op->get_dims( i.vn() );
         string const ref_in_dims_name = i.vn()+"_ref";
-        dims_t const & ref_in_dims = anno_op->has_dims(ref_in_dims_name)?anno_op->get_dims(ref_in_dims_name):in_dims;
+        dims_t const & ref_in_dims = anno_op->has(ref_in_dims_name)?anno_op->get_dims(ref_in_dims_name):in_dims;
 	in_gen_op->set_dims( i.vn(), ref_in_dims );
         string gen_vn = i.vn();
         if( in_dims != ref_in_dims ) { 
@@ -110,7 +110,7 @@ namespace boda
       if( !endswith( i.ad().io_type, "OUT" ) ) { continue; }
       dims_t const & out_dims = anno_op->get_dims( i.vn() );
       string const ref_out_dims_name = i.vn()+"_ref";
-      dims_t const & ref_out_dims = anno_op->has_dims(ref_out_dims_name)?anno_op->get_dims(ref_out_dims_name):out_dims;
+      dims_t const & ref_out_dims = anno_op->has(ref_out_dims_name)?anno_op->get_dims(ref_out_dims_name):out_dims;
       string gen_vn = i.vn();
       if( out_dims != ref_out_dims ) { 
         gen_vn += "_ref"; 

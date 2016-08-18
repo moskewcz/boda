@@ -194,13 +194,13 @@ namespace boda
       kern_sz.calc_strides();
       conv_op->reset_dims( "kern_sz", kern_sz );
       // FIXME: we probably need to deal with padding better here?
-      if( conv_op->has_dims( "in_pad" ) ) { // scale in_pad if present
+      if( conv_op->has( "in_pad" ) ) { // scale in_pad if present
 	dims_t in_pad = conv_op->get_dims( "in_pad" );
 	for( uint32_t i = 0; i != in_pad.size(); ++i ) { in_pad[i].sz = u32_ceil_div( in_pad[i].sz, 2 ); } 
 	in_pad.calc_strides();
         conv_op->reset_dims( "in_pad", in_pad );
       }
-      if( conv_op->has_dims( "stride" ) ) { // scale stride if present
+      if( conv_op->has( "stride" ) ) { // scale stride if present
 	dims_t stride = conv_op->get_dims( "stride" );
 	for( uint32_t i = 0; i != stride.size(); ++i ) {
 	  if( stride[i].sz&1 ) { rt_err( "first conv layer has odd stride in some dim;don't know how to create upsampled network" ); }
