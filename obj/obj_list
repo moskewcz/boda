@@ -100,7 +100,6 @@ rtc_fwd.o
 rtc_compute.o
 ocl_util.o opencl
 caffe_fwd.o caffe_pb caffe
-slow_cpu_fwd.o
 has_conv_fwd.o
 nvrtc_util.o nvrtc
 lmdb_caffe_disp.o caffe_pb lmdb SDL2
