@@ -115,7 +115,6 @@ namespace boda
   struct rtc_func_call_t { 
     string rtc_func_name; 
     vect_rtc_arg_t args;
-    string call_tag;
 
     zi_uint32_t tpb;
     zi_uint32_t blks;

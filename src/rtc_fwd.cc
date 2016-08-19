@@ -15,6 +15,13 @@
 
 namespace boda 
 {
+  struct rtc_fwd_func_call_t : public rcg_func_call_t {
+    string call_tag;
+    rtc_fwd_func_call_t( rcg_func_call_t const &rcg_, string const & call_tag_ ) : 
+      rcg_func_call_t(rcg_), call_tag(call_tag_) {}
+  };
+  typedef vector< rtc_fwd_func_call_t > vect_rtc_fwd_func_call_t; 
+
   struct quantize_ops_t : virtual public nesi // NESI(help="per-layer quantization options") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -70,9 +77,8 @@ namespace boda
 
     p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
 
-    vect_rcg_func_call_t init_calls;
-    vect_rcg_func_call_t fwd_calls;
-    
+    vect_rtc_fwd_func_call_t fwd_calls;
+    void add_fwd_call( rcg_func_call_t const & rcg, string const & call_tag ) { fwd_calls.emplace_back( rcg, call_tag ); }
 
     virtual void init( p_conv_pipe_t const & cp_ );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
@@ -189,7 +195,7 @@ namespace boda
       assert_st( cur_outs.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_out", cur_outs[i] ); }
       must_insert( arg_map, "primary_in", make_scalar_nda(primary_in) );
-      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map } );
+      add_fwd_call( rcg_func_call_t{ func, arg_map }, "var_stats__" + top_in );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -208,8 +214,8 @@ namespace boda
     quantize_op.set_dims("max_val",make_scalar_dims_t("uint32_t"));
     quantize_op.set_dims("drop_mask",make_scalar_dims_t("uint32_t"));
     p_rtc_call_gen_t func = codegen.gen_func( quantize_op );
-    fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_rtc_arg_t{{"out",top_in},
-          {"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} } );
+    add_fwd_call( rcg_func_call_t{ func, map_str_rtc_arg_t{{"out",top_in},
+          {"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} }, "quantize__"+top_in );
   }
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
@@ -223,7 +229,7 @@ namespace boda
     string const ret_var = in_var + "__" + func->gen_fn;
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
-      fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_rtc_arg_t{{in_an,in_var},{ret_an,ret_var}}} );
+      add_fwd_call( rcg_func_call_t{ func, map_str_rtc_arg_t{{in_an,in_var},{ret_an,ret_var}}}, in_var + "__inxp" );
       rtc->create_var_with_dims( ret_var, ret_dims );
     }
     return ret_var;
@@ -399,10 +405,10 @@ namespace boda
   void conv_pipe_fwd_t::gen_call( p_conv_op_t const & oi ) { 
     assert_st( oi->has_func_name() );
     p_rtc_call_gen_t func = codegen.gen_func( *oi );
-    rcg_func_call_t rcg{ func, oi->tag, oi->arg_map };
+    rcg_func_call_t rcg{ func, oi->arg_map };
     if( oi->is( Convolution_coi ) && ( (oi->get_func_name() == tconv_str) || (oi->get_func_name() == k1conv_str) ) ) { 
       must_insert( rcg.arg_map, "flags", make_scalar_nda(flags) ); } // FIXME: not the place for this.
-    fwd_calls.push_back( rcg );
+    add_fwd_call( rcg, oi->tag );
   }
 
   // used in cases where no single func_name()/template/function applies to operation. we override func_name(), generate
@@ -502,7 +508,6 @@ namespace boda
     if( write_op_sigs ) { write_sigs( all_op_sigs, op_sigs_fn ); }
     rtc->copy_ndas_to_vars( op_param_names, *cp->op_params ); // copy op_params in (FIXME/note: implicit  on names)
     for( set_string::const_iterator i = force_zero_names.begin(); i != force_zero_names.end(); ++i ) { rtc->set_var_to_zero( *i ); }
-    for( vect_rcg_func_call_t::iterator i = init_calls.begin(); i != init_calls.end(); ++i ) { run_rfc( *i ); } // init-time-only calls
     rtc->finish_and_sync();
   }
 
@@ -511,7 +516,7 @@ namespace boda
   void conv_pipe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     if( enable_double_run ) {
       // optional: run fwd rfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
-      for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
+      for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
     }
     rtc->finish_and_sync();
     if( enable_prof ) { rtc->profile_start(); }
@@ -524,7 +529,7 @@ namespace boda
     //printf("run_fwd() exec\n");
     {
       timer_t t("conv_pipe_fwd_t::run_fwd");
-      for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
+      for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
       rtc->finish_and_sync();
     }
     //printf("run_fwd() copy out\n");
@@ -538,12 +543,12 @@ namespace boda
     if( !per_call_fn.empty() ) {
       p_ofstream out = ofs_open( per_call_fn );
       (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );
-      for( vect_rcg_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
+      for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
 	rcg_func_call_t & rfc = *i;
-	if( rfc.call_tag.empty() ) { continue; }
+	if( i->call_tag.empty() ) { continue; }
 	float const rfc_dur = rtc->get_dur( rfc.call_id, rfc.call_id );
 	(*out) << strprintf( "per_layer_time['%s']=per_layer_time.get('%s',0.0) + %s # %s \n", 
-			     str(rfc.call_tag).c_str(), str(rfc.call_tag).c_str(), str(rfc_dur/1000.0).c_str(), 
+			     str(i->call_tag).c_str(), str(i->call_tag).c_str(), str(rfc_dur/1000.0).c_str(), 
                              rfc.func->gen_fn.c_str() );
       }
       cp->dump_ops( *out );

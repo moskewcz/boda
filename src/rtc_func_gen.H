@@ -26,7 +26,6 @@ namespace boda
 
   struct rcg_func_call_t {
     p_rtc_call_gen_t func;
-    string call_tag;
     map_str_rtc_arg_t arg_map;
     uint32_t call_id;
   };

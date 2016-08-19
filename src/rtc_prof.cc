@@ -44,7 +44,7 @@ namespace boda
   void run_xpose( p_op_base_t const & anno_op, rtc_codegen_t & codegen, string const & xpose_func_name, 
                   string const &out_an_and_vn, string const &in_an_and_vn )  {
     p_rtc_call_gen_t xpose_func = codegen.gen_func_override_func_name( xpose_func_name, *anno_op );
-    rcg_func_call_t rcg{ xpose_func, "tag", map_str_rtc_arg_t{{out_an_and_vn,out_an_and_vn},{in_an_and_vn,in_an_and_vn}} };
+    rcg_func_call_t rcg{ xpose_func, map_str_rtc_arg_t{{out_an_and_vn,out_an_and_vn},{in_an_and_vn,in_an_and_vn}} };
     codegen.run_func( rcg );
   }
   
@@ -89,7 +89,7 @@ namespace boda
           xpose_vars_to_release.push_back( gen_vn );
         }
 	p_rtc_call_gen_t in_gen_func = codegen.gen_func( *in_gen_op );
-	rcg_func_call_t rfc_in_gen{ in_gen_func, "tag", map_str_rtc_arg_t{{i.vn(),gen_vn}} };
+	rcg_func_call_t rfc_in_gen{ in_gen_func, map_str_rtc_arg_t{{i.vn(),gen_vn}} };
 	codegen.run_func( rfc_in_gen );
         // check if xpose needed:
         if( gen_vn != i.vn() ) {
@@ -103,7 +103,7 @@ namespace boda
       }
     }
 
-    rcg_func_call_t rfc{ rcg, "tag", arg_map }; 
+    rcg_func_call_t rfc{ rcg, arg_map }; 
     for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_func( rfc ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above

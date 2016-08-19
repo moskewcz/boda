@@ -507,7 +507,6 @@ namespace boda
   void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rcg_func_call){
     rtc_func_call_t rfc;
     rfc.rtc_func_name = rcg_func_call.func->gen_fn;
-    rfc.call_tag = rcg_func_call.call_tag;
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
     //printf( "op=%s arg_map=%s\n", str(op).c_str(), str(rcg_func_call.arg_map).c_str() );
     p_nda_t cucl_arg_info_nda;
@@ -581,8 +580,8 @@ namespace boda
         // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the
         // cucl_arg_info code assumes this (but here we'll check the dim names too).
         if( !call_dims.matches_template( func_dims ) ) { rt_err( 
-            strprintf ("error: dims mismatch at call time. call_tag=%s arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
-                       rfc.call_tag.c_str(), vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), call_vn.c_str()));
+            strprintf ("error: dims mismatch at call time. arg=%s: func_dims=%s call_dims=%s call_vn=%s\n", 
+                       vn.c_str(), str(func_dims).c_str(), str(call_dims).c_str(), call_vn.c_str()));
         }	  
       }
     }
