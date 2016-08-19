@@ -4,6 +4,7 @@
 #include"conv_common.H"
 #include"op_base.H"
 #include"str_util.H"
+#include"rtc_compute.H"
 
 namespace caffe { class NetParameter; class NetState; }
 
@@ -116,9 +117,9 @@ namespace boda
     void set_and_check_coi_and_args( void ); // verify input/output argument count and other sanity checks
 
     // arg-map and related arg/dims handling -- generally for use after conv_pipe setup complete (i.e. in rtc)
-    map_str_str arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
+    map_str_rtc_arg_t arg_map; // map from func arg names to call-site arg names (in this case, just in global/rtc scope)
     void set_arg_dims_and_map_from_pipe( conv_pipe_t const * const cp ); // add arg_name->dims mappings to dims_vals
-    string get_arg( string const & an ) { return must_find( arg_map, an ); }
+    string get_arg( string const & an ) { rtc_arg_t const & arg = must_find( arg_map, an ); return arg.get_var(); }
     void set_arg( dims_t const & dims, string const & an, string const & vn ) {
       set_dims( an, dims );
       must_insert( arg_map, an, vn );

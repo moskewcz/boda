@@ -26,11 +26,6 @@ namespace boda
   typedef shared_ptr< quantize_ops_t > p_quantize_ops_t; 
   typedef vector< p_quantize_ops_t > vect_p_quantize_ops_t;
 
-  typedef conv_op_t op_info_t;
-  typedef shared_ptr< op_info_t > p_op_info_t; 
-  typedef map< string, p_op_info_t > map_str_p_op_info_t;
-  typedef shared_ptr< map_str_p_op_info_t > p_map_str_p_op_info_t; 
-
   typedef shared_ptr< dims_t > p_dims_t; 
 
   typedef set< op_base_t > set_op_base_t;
@@ -63,7 +58,7 @@ namespace boda
     p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
 
     p_conv_pipe_t cp;
-    p_map_str_p_op_info_t op_infos;
+    p_map_str_p_conv_op_t op_infos;
 
     vect_string op_param_names;
     set_string filts_names;
@@ -87,8 +82,8 @@ namespace boda
       for( vect_uint32_t::const_iterator i = dropout_cixs.begin(); i != dropout_cixs.end(); ++i ) {
 	assert( (*i) < fwd_calls.size() );
 	rcg_func_call_t & rcg = fwd_calls[*i];
-	assert_st( has( rcg.nda_args, "det_drop_seed" ) );
-	rcg.nda_args["det_drop_seed"] = make_scalar_nda(det_drop_seed_);
+	assert_st( has( rcg.arg_map, "det_drop_seed" ) );
+	rcg.arg_map["det_drop_seed"] = make_scalar_nda(det_drop_seed_);
       }
     }
 
@@ -100,11 +95,11 @@ namespace boda
     void gen_op_quantize( string const & top_in, uint32_t const & max_val, uint32_t const & keep_bits );
 
     rtc_codegen_t codegen;
-    void gen_call( p_op_info_t const & oi );
-    void gen_call( string const & fn, p_op_info_t const & oi );
+    void gen_call( p_conv_op_t const & oi );
+    void gen_call( string const & fn, p_conv_op_t const & oi );
     string gen_apply_func_to_var( string const & in_an, string const & in_var,
                                   string const & ret_an, dims_t const & ret_dims, 
-                                  string const & func_name, p_op_info_t const & oi );
+                                  string const & func_name, p_conv_op_t const & oi );
     void gen_node_var( string const & name, string const & node_name );
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
@@ -188,13 +183,13 @@ namespace boda
 	cur_outs.push_back( cur_out );
 	//args.push_back( cur_out );
       }
-      map_str_str arg_map;
+      map_str_rtc_arg_t arg_map;
       assert_st( cur_ins.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_in", cur_ins[i] ); }
       assert_st( cur_outs.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_out", cur_outs[i] ); }
-      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map, 
-            map_str_p_nda_t{{"primary_in",make_scalar_nda(primary_in)}} } );
+      must_insert( arg_map, "primary_in", make_scalar_nda(primary_in) );
+      fwd_calls.push_back( rcg_func_call_t{ func, "var_stats", arg_map } );
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -213,8 +208,8 @@ namespace boda
     quantize_op.set_dims("max_val",make_scalar_dims_t("uint32_t"));
     quantize_op.set_dims("drop_mask",make_scalar_dims_t("uint32_t"));
     p_rtc_call_gen_t func = codegen.gen_func( quantize_op );
-    fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, 
-        map_str_p_nda_t{{"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} } );
+    fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_rtc_arg_t{{"out",top_in},
+          {"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} } );
   }
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
@@ -222,13 +217,13 @@ namespace boda
   // in_var/func<ret_dims> pair. ret_var is named in_var+"__"+func
   string conv_pipe_fwd_t::gen_apply_func_to_var( string const & in_an, string const & in_var, 
 						 string const & ret_an, dims_t const & ret_dims, 
-                                                 string const & func_name, p_op_info_t const & oi )
+                                                 string const & func_name, p_conv_op_t const & oi )
   {
     p_rtc_call_gen_t func = codegen.gen_func_override_func_name( func_name, *oi );
     string const ret_var = in_var + "__" + func->gen_fn;
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
-      fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_str{{in_an,in_var},{ret_an,ret_var}}} );
+      fwd_calls.push_back( rcg_func_call_t{ func, in_var + "__inxp", map_str_rtc_arg_t{{in_an,in_var},{ret_an,ret_var}}} );
       rtc->create_var_with_dims( ret_var, ret_dims );
     }
     return ret_var;
@@ -250,13 +245,13 @@ namespace boda
     for( set_op_base_t::const_iterator i = all_op_sigs.begin(); i != all_op_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
   }
 
-  void set_rtc_arg( p_op_info_t const & oi, p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
+  void set_rtc_arg( p_conv_op_t const & oi, p_rtc_compute_t const & rtc, string const & an, string const & vn ) {
     oi->set_arg( rtc->get_var_dims(vn), an, vn );
   }
   
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     if( write_op_sigs ) { all_op_sigs.insert( *cop ); } // unique ops if requested
-    p_op_info_t const & oi = must_find( *op_infos, cop->tag );
+    p_conv_op_t const & oi = must_find( *op_infos, cop->tag );
     if( oi->has( "fused" ) ) { return; } // operation was fused into another, so do nothing here for it
     if( oi->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
@@ -302,12 +297,12 @@ namespace boda
       op_param_names.push_back( oi->get_arg("filts") );
       op_param_names.push_back( oi->get_arg("biases") );
       if( force_zero_bias ) { force_zero_names.insert( oi->get_arg("biases") ); }
-      string const filts_id = oi->arg_map["filts"];
+      string const filts_id = oi->get_arg("filts");
       if( oi->get_dims("filts") != rtc->get_var_dims( filts_id ) ) { // ipconv uses untransformed filts, otherwise:
 	oi->reset_arg( "filts", gen_apply_func_to_var( "filts_ref", oi->get_arg("filts"), "filts", oi->get_dims("filts"), 
 						       "xpose_filts", oi ) );
       }
-      string const in_id = oi->arg_map["in"];
+      string const in_id = oi->get_arg("in");
       // note: as this point: oi->get_dims("in") may not == rtc->get_var_dims( in_id ); see comment in init()
       if( oi->get_func_name() == tconv_str ) {
 	// assume input needs the below xform and apply it. FIXME(?): fails if vars are in unexpected formats.
@@ -350,13 +345,13 @@ namespace boda
       assert_st( dropout_ratio > 0.0 );
       assert_st( dropout_ratio < 1.0 );
       // for below dep_drop_seed handling: see update code elsewhere. yeah, not the cleanest approach.
-      fwd_calls.back().nda_args.insert( make_pair( "det_drop_seed", p_nda_t() ) ); 
+      must_insert( fwd_calls.back().arg_map, "det_drop_seed", rtc_arg_t() );
       dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( oi->is( BckDropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( oi ); // Backwards of dropout is dropout
-      fwd_calls.back().nda_args.insert( make_pair( "det_drop_seed", p_nda_t() ) ); 
+      must_insert( fwd_calls.back().arg_map, "det_drop_seed", rtc_arg_t() );
       dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( oi->is( SoftmaxWithLoss_coi ) ) {
       string const prob_node_name = oi->tag + "_prob";
@@ -401,17 +396,18 @@ namespace boda
   }
 
   // generate call for given oi, using oi->get_func_name() to choose template/function
-  void conv_pipe_fwd_t::gen_call( p_op_info_t const & oi ) { 
+  void conv_pipe_fwd_t::gen_call( p_conv_op_t const & oi ) { 
     assert_st( oi->has_func_name() );
     p_rtc_call_gen_t func = codegen.gen_func( *oi );
     rcg_func_call_t rcg{ func, oi->tag, oi->arg_map };
-    if( oi->is( Convolution_coi ) && ( (oi->get_func_name() == tconv_str) || (oi->get_func_name() == k1conv_str) ) ) { rcg.nda_args["flags"] = make_scalar_nda(flags); } // FIXME: not the place for this.
+    if( oi->is( Convolution_coi ) && ( (oi->get_func_name() == tconv_str) || (oi->get_func_name() == k1conv_str) ) ) { 
+      must_insert( rcg.arg_map, "flags", make_scalar_nda(flags) ); } // FIXME: not the place for this.
     fwd_calls.push_back( rcg );
   }
 
   // used in cases where no single func_name()/template/function applies to operation. we override func_name(), generate
   // a call, and clear it back out. we could also equivalently create a copy of oi, fill in func_name, and discard it.
-  void conv_pipe_fwd_t::gen_call( string const & fn, p_op_info_t const & oi ) { 
+  void conv_pipe_fwd_t::gen_call( string const & fn, p_conv_op_t const & oi ) { 
     assert_st( !oi->has_func_name() );
     oi->set_func_name( fn ); 
     gen_call( oi ); 
@@ -464,21 +460,21 @@ namespace boda
     cp = cp_;
     assert_st( cp );
 
-    op_infos.reset( new map_str_p_op_info_t ); // maybe we should have our own copy of cp, but instead we only copy convs
+    op_infos.reset( new map_str_p_conv_op_t ); // maybe we should have our own copy of cp, but instead we only copy convs
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
-      must_insert( *op_infos, i->first, make_shared< op_info_t >( *i->second ) );
+      must_insert( *op_infos, i->first, make_shared< conv_op_t >( *i->second ) );
     }
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
-      p_op_info_t const & oi = must_find( *op_infos, i->first );
+      p_conv_op_t const & oi = must_find( *op_infos, i->first );
       add_cnn_codegen_annotations( oi.get(), op_tune, 0 );
     }
 
     // these parts might go in init, but they need to know about the overall graph of operations. so we'll call these a
-    // set of post-init() but pre-codegen() graph operations on the set of op_info_t's. both the whole graphs and all
+    // set of post-init() but pre-codegen() graph operations on the set of conv_op_t's. both the whole graphs and all
     // individual operations should be valid for codegen and correct both before and after this pass (i.e. it is stricty
     // an optimzation pass).
     for( map_str_p_conv_op_t::iterator i = cp->convs->begin(); i != cp->convs->end(); ++i ) { 
-      p_op_info_t const & oi = must_find( *op_infos, i->first );
+      p_conv_op_t const & oi = must_find( *op_infos, i->first );
       if( oi->is( Convolution_coi ) ) {
 	p_conv_node_t no = cp->must_get_node( oi->get_arg("out") ); // aka oi->coi->top_an(0) ...
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
@@ -488,7 +484,7 @@ namespace boda
 
 	if( oi->get_func_name() == k1conv_str ) { 
 	  if( ( no->in_place_ops.size() == conv_has_relu ) && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation
-	    p_op_info_t const & noi = must_find( *op_infos, no->bot_for[0] ); // next operation
+	    p_conv_op_t const & noi = must_find( *op_infos, no->bot_for[0] ); // next operation
 	    if( enable_write_xpose && noi->is( Convolution_coi ) && (noi->get_func_name() == k1conv_str) ) { 
 	      // modify output argument dims to match user's input dims. codegen will notice this and write out correctly.
 	      oi->reset_arg_dims( "out", noi->get_dims( "in" ) );

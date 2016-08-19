@@ -501,6 +501,8 @@ namespace boda
     }
     rtc_prog_str += rtc_func_str;      
   }
+  
+  
 
   void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rcg_func_call){
     rtc_func_call_t rfc;
@@ -514,9 +516,9 @@ namespace boda
       vect_int32_t cucl_arg_info;
       for( vect_dyn_dim_info_t::const_iterator i = dyn_vars.begin(); i != dyn_vars.end(); ++i ) {
         //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
-        map_str_str::const_iterator an = rcg_func_call.arg_map.find( i->src_vn );
+        map_str_rtc_arg_t::const_iterator an = rcg_func_call.arg_map.find( i->src_vn );
         if( an == rcg_func_call.arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
-        dims_t const & arg_call_dims = rtc->get_var_dims( an->second );
+        dims_t const & arg_call_dims = an->second.get_dims( *rtc );
         dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
         //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
         add_arg_info_for_dims( dyn_call_dims, cucl_arg_info );
@@ -531,7 +533,7 @@ namespace boda
       if( i->io_type == "REF" ) { continue; } // note: could move up scope, but hoping to factor out iter
       if( i->vn == "cucl_arg_info" ) { // FIXME: not-too-nice special case for cucl_arg_info argument 
         assert_st( rtc_func_template->has_cucl_arg_info.v );
-        rfc.args.push_back(rtc_arg_t{"",cucl_arg_info_nda});
+        rfc.args.push_back(rtc_arg_t{cucl_arg_info_nda});
         cucl_arg_info_nda.reset(); // mark as used
         continue;
       }
@@ -548,30 +550,32 @@ namespace boda
             // if in our op, we hard-coded the string constant into the source already, but pass it in dynamically anyway.
             call_dims = func_dims; // note: no mismatch possible
             call_vn = "<internal-error-on-gen-time-constant-arg>";
-            rfc.args.push_back( rtc_arg_t{"",func_nda} );
+            rfc.args.push_back( rtc_arg_t{func_nda} );
           } else { 
             // otherwise, assume the value we want/need is in in nda_args
-            map_str_p_nda_t::const_iterator an = rcg_func_call.nda_args.find( vn );
-            if( an == rcg_func_call.nda_args.end() ) {
-              rt_err( "specified "+i->io_type+" scalar by-value arg '"+vn+"' not found in nda_args at call time." ); 
+            map_str_rtc_arg_t::const_iterator an = rcg_func_call.arg_map.find( vn );
+            if( an == rcg_func_call.arg_map.end() ) {
+              rt_err( "specified "+i->io_type+" scalar by-value arg '"+vn+"' not found in arg_map at call time." ); 
             }
-            call_dims = an->second->dims;
+            call_dims = an->second.get_dims( *rtc );
             call_vn = "<by-value-scalar>";
+            if( !an->second.is_nda() ) { rt_err( "UNSUPPORTED: attempted to pass scalar var by-value for arg "+vn ); }
             // either way, pass it to the kernel -- 
-            rfc.args.push_back( rtc_arg_t{"",an->second} ); // FIXME: should be guarded by below error check
+            rfc.args.push_back( an->second ); // FIXME: should be guarded by below error check
           }
           // FIXME: it's perhaps confusing that the value is always passed dynamically as an arg, even if it's was
           // availible as a constant at gen-time, but it's unclear what else to do here (we need to pass some arg)
           // ... it's probably okay?
         } else { 
           assert_st( i->loi.v == 1 );
-          map_str_str::const_iterator an = rcg_func_call.arg_map.find( vn );
+          map_str_rtc_arg_t::const_iterator an = rcg_func_call.arg_map.find( vn );
           if( an == rcg_func_call.arg_map.end() ) {
             rt_err( "specified "+i->io_type+" arg '"+vn+"' not found in arg_map at call time." ); 
           }
-          call_dims = rtc->get_var_dims( an->second );
-          call_vn = an->second;
-          rfc.args.push_back( rtc_arg_t{an->second} ); // FIXME: should be guarded by below error check
+          call_dims = an->second.get_dims( *rtc );
+          if( !an->second.is_var() ) { rt_err( "UNSUPPORTED: attempted to pass scalar val by-ref for arg "+vn ); }
+          call_vn = an->second.n;
+          rfc.args.push_back( an->second ); // FIXME: should be guarded by below error check
         }
         // check that the passed vars are the expected sizes. for non-dyn vars, the sizes must be fully specificed (no
         // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the

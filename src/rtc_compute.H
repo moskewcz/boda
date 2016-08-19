@@ -96,11 +96,21 @@ namespace boda
   // empty). for var arguments, a pointer to the on-device memory for that var is passed. for values, the entire value
   // is passed as a single by-value argument (i.e. as raw data).
   struct rtc_arg_t {
+    rtc_arg_t( void ) {}
+    rtc_arg_t( string const & n_ ) : n(n_) {}
+    rtc_arg_t( p_nda_t const & v_ ) : v(v_) {}
     string n;
     p_nda_t v;
+    bool is_valid( void ) const { return bool(v) != (!n.empty()); }
+    bool is_var( void ) const { assert_st( is_valid() ); return !n.empty(); }
+    bool is_nda( void )const { assert_st( is_valid() ); return bool(v); }
+    string const & get_var( void ) const { assert_st( is_var() ); return n; }
+    p_nda_t const & get_nda( void ) const { assert_st( is_nda() ); return v; }
+    dims_t get_dims( rtc_compute_t & rtc ) const { return is_nda() ? v->dims : rtc.get_var_dims( n ); }
   };
   std::ostream & operator << ( std::ostream & out, rtc_arg_t const & o );
   typedef vector< rtc_arg_t > vect_rtc_arg_t; 
+  typedef map< string, rtc_arg_t > map_str_rtc_arg_t; 
 
   struct rtc_func_call_t { 
     string rtc_func_name; 
