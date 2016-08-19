@@ -46,14 +46,12 @@ namespace boda
     bwrite( out, o.args );
     bwrite( out, o.tpb.v );
     bwrite( out, o.blks.v );
-    bwrite( out, o.call_id );
   }
   template< typename STREAM > inline void bread( STREAM & in, rtc_func_call_t & o ) { 
     bread( in, o.rtc_func_name );
     bread( in, o.args );
     bread( in, o.tpb.v );
     bread( in, o.blks.v );
-    bread( in, o.call_id );
   }
 
   template< typename STREAM > inline void bwrite( STREAM & out, op_base_t const & o ) { 
@@ -423,8 +421,9 @@ namespace boda
     virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { assert_st(0); } // not-yet-used-iface at higher level
     void release_func( string const & func_name ) {
       bwrite( *worker, string("release_func") ); bwrite( *worker, func_name ); worker->flush(); }
-    void run( rtc_func_call_t & rfc ) { 
-      bwrite( *worker, string("run") ); bwrite( *worker, rfc ); worker->flush(); bread( *worker, rfc.call_id ); } 
+    uint32_t run( rtc_func_call_t const & rfc ) { 
+      bwrite( *worker, string("run") ); bwrite( *worker, rfc ); worker->flush(); 
+      uint32_t call_id; bread( *worker, call_id ); return call_id; } 
     void finish_and_sync( void ) { bwrite( *worker, string("finish_and_sync") ); worker->flush(); }
     void release_per_call_id_data( void ) { bwrite( *worker, string("release_per_call_id_data") ); worker->flush(); }
     void release_all_funcs( void ) { bwrite( *worker, string("release_all_funcs") ); worker->flush(); }
@@ -615,7 +614,8 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	  bwrite( *parent, ret ); parent->flush(); 
 	}
 	else if( cmd == "release_func" ) { string func_name; bread( *parent, func_name ); rtc->release_func( func_name ); }
-	else if( cmd == "run" ) { rtc_func_call_t rfc; bread( *parent, rfc ); rtc->run( rfc ); bwrite( *parent, rfc.call_id ); parent->flush(); }
+	else if( cmd == "run" ) { rtc_func_call_t rfc; bread( *parent, rfc ); 
+          uint32_t const call_id = rtc->run( rfc ); bwrite( *parent, call_id ); parent->flush(); }
 	else if( cmd == "finish_and_sync" ) { rtc->finish_and_sync(); }
 	else if( cmd == "profile_start" ) { rtc->profile_start(); }
 	else if( cmd == "profile_stop" ) { rtc->profile_stop(); }

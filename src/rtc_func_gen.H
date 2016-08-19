@@ -27,7 +27,6 @@ namespace boda
   struct rcg_func_call_t {
     p_rtc_call_gen_t func;
     map_str_rtc_arg_t arg_map;
-    uint32_t call_id;
   };
   typedef vector< rcg_func_call_t > vect_rcg_func_call_t; 
   typedef shared_ptr< rcg_func_call_t > p_rcg_func_call_t; 
@@ -161,7 +160,7 @@ namespace boda
     void add_dyn_nda_dims_sz( string const & nda_vn, dims_t const & dims, bool const add_ref_templates );
     void add_arg_info_for_dims( dims_t const & dims, vect_int32_t & cucl_arg_info );
     void instantiate_template( string const & template_str );
-    void run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rfc );
+    uint32_t run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t const & rfc );
   };
   
   struct rtc_codegen_t {
@@ -177,7 +176,7 @@ namespace boda
     p_rtc_call_gen_t gen_func( op_base_t const & rfs_full );
     p_rtc_call_gen_t gen_func_override_func_name( string const & func_name, op_base_t & op );
 
-    void run_func( rcg_func_call_t & call );
+    uint32_t run_func( rcg_func_call_t const & call );
 
     void read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );
     void write_rtc_func_sigs( filename_t const & rtc_func_sigs_fn );

@@ -103,8 +103,9 @@ namespace boda
       }
     }
 
-    rcg_func_call_t rfc{ rcg, arg_map }; 
-    for( uint32_t i = 0; i != run_iter; ++i ) { codegen.run_func( rfc ); }
+    rcg_func_call_t const rfc{ rcg, arg_map }; 
+    uint32_t call_id = uint32_t_const_max;
+    for( uint32_t i = 0; i != run_iter; ++i ) { call_id = codegen.run_func( rfc ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
@@ -131,7 +132,7 @@ namespace boda
     // get call duration
     //if( rfc.call_tag.empty() ) { release; return; } // FIXME: possible here? 
     codegen.rtc->finish_and_sync();
-    double const rfc_dur = codegen.rtc->get_dur( rfc.call_id, rfc.call_id );
+    double const rfc_dur = codegen.rtc->get_dur( call_id, call_id );
     codegen.rtc->release_per_call_id_data();
     rcg.reset(); // optional. allows just-used function (which is no longer needed) to be released now if func-gc happens.
     codegen.gc_clear();

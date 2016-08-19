@@ -54,7 +54,7 @@ namespace boda
     virtual void release_func( std::string const & func_name ) = 0;
 
     // note: run() overwrites / fills in the call_id field. it is valid after run() returns until realease_per_call_id_data() is called.
-    virtual void run( rtc_func_call_t & rfc ) = 0; 
+    virtual uint32_t run( rtc_func_call_t const & rfc ) = 0; 
     virtual void finish_and_sync( void ) = 0;
     virtual void release_per_call_id_data( void ) = 0; // invalidates all call_ids inside rtc_func_call_t's
     virtual void release_all_funcs( void ) = 0; 
@@ -118,8 +118,6 @@ namespace boda
 
     zi_uint32_t tpb;
     zi_uint32_t blks;
-
-    uint32_t call_id;
   };
   typedef vector< rtc_func_call_t > vect_rtc_func_call_t; 
 

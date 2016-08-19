@@ -504,7 +504,7 @@ namespace boda
   
   
 
-  void rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t & rcg_func_call){
+  uint32_t rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t const & rcg_func_call){
     rtc_func_call_t rfc;
     rfc.rtc_func_name = rcg_func_call.func->gen_fn;
     rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
@@ -595,8 +595,8 @@ namespace boda
     } 
     rfc.tpb.v = dyn_rtc_call_geom.tpb;
     rfc.blks.v = dyn_rtc_call_geom.blks;
-    rtc->run( rfc );
-    rcg_func_call.call_id = rfc.call_id;
+    uint32_t const call_id = rtc->run( rfc );
+    return call_id;
     // note: temporary rfc is gone after this
   }
 
@@ -651,9 +651,9 @@ namespace boda
     compile_pend.clear();
   }
 
-  void rtc_codegen_t::run_func( rcg_func_call_t & call ) {
+  uint32_t rtc_codegen_t::run_func( rcg_func_call_t const & call ) {
     compile(); // compile any pending funcs
-    call.func->run_rfc( rtc, rtc_compile_opts.show_rtc_calls, call ); // hmm, a bit bizarre/contorted.
+    return call.func->run_rfc( rtc, rtc_compile_opts.show_rtc_calls, call ); // hmm, a bit bizarre/contorted.
   }
 
   // clear functions that aren't externally referenced

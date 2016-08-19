@@ -382,12 +382,12 @@ __constant uint32_t const U32_MAX = 0xffffffff;
 
     void release_func( string const & func_name ) { must_erase( *kerns, func_name ); }
 
-    void run( rtc_func_call_t & rfc ) {
+    uint32_t run( rtc_func_call_t const & rfc ) {
       cl_kernel_t const & kern = must_find( *kerns, rfc.rtc_func_name.c_str() );
       uint32_t cur_arg_ix = 0;
       for( vect_rtc_arg_t::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) { add_arg(*i,kern,cur_arg_ix );}
       rtc_launch_check_blks_and_tpb( rfc.rtc_func_name, rfc.blks.v, rfc.tpb.v );
-      rfc.call_id = alloc_call_id();
+      uint32_t const call_id = alloc_call_id();
       size_t const glob_work_sz = rfc.tpb.v*rfc.blks.v;
       size_t const loc_work_sz = rfc.tpb.v;
       size_t const kwgs = get_info<size_t>(KernelWorkGroup_t(kern.v,use_devices[0],CL_KERNEL_WORK_GROUP_SIZE));
@@ -399,7 +399,8 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       cl_event ev = 0;
       cl_int const err = clEnqueueNDRangeKernel( cq.v, kern.v, 1, 0, &glob_work_sz, &loc_work_sz, 0, 0, &ev);
       cl_err_chk( err, "clEnqueueNDRangeKernel()" );
-      get_call_ev(rfc.call_id).reset(ev);
+      get_call_ev(call_id).reset(ev);
+      return call_id;
     }
 
     void finish_and_sync( void ) { cl_err_chk( clFinish( cq.v ), "clFinish()" ); }

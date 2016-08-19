@@ -332,7 +332,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 #endif
     void release_func( string const & func_name ) { must_erase( *cu_funcs, func_name ); }
 
-    void run( rtc_func_call_t & rfc ) {
+    uint32_t run( rtc_func_call_t const & rfc ) {
       timer_t t("cu_launch_and_sync");
       string const & fn = rfc.rtc_func_name;
       // FIXME/NOTE: for now, for interfacing with culibs, we create an extra/redundant argument map 'func_args':
@@ -341,8 +341,8 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       for( vect_rtc_arg_t::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
         add_arg( *i, cu_func_args, func_args );
       }
-      rfc.call_id = alloc_call_id();
-      record_event( get_call_ev(rfc.call_id).b_ev );
+      uint32_t const call_id = alloc_call_id();
+      record_event( get_call_ev(call_id).b_ev );
       nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );
       string const & func_name = nfi.info.op.get_func_name();
       if( startswith( func_name, "cublas_" ) || startswith( func_name, "cudnn_" )) { 
@@ -356,9 +356,10 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 				    &cu_func_args[0], // cu_func's args
 				    0 ), "cuLaunchKernel" ); // unused 'extra' arg-passing arg
       }
-      record_event( get_call_ev(rfc.call_id).e_ev );
+      record_event( get_call_ev(call_id).e_ev );
       //record_var_events( rfc.inout_args, rfc );
       //record_var_events( rfc.out_args, rfc );
+      return call_id;
     }
 
     void finish_and_sync( void ) { cu_err_chk( cuCtxSynchronize(), "cuCtxSynchronize" ); }

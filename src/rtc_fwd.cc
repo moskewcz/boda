@@ -17,8 +17,9 @@ namespace boda
 {
   struct rtc_fwd_func_call_t : public rcg_func_call_t {
     string call_tag;
+    uint32_t call_id;
     rtc_fwd_func_call_t( rcg_func_call_t const &rcg_, string const & call_tag_ ) : 
-      rcg_func_call_t(rcg_), call_tag(call_tag_) {}
+      rcg_func_call_t(rcg_), call_tag(call_tag_), call_id( uint32_t_const_max ) {}
   };
   typedef vector< rtc_fwd_func_call_t > vect_rtc_fwd_func_call_t; 
 
@@ -109,8 +110,6 @@ namespace boda
     void gen_node_var( string const & name, string const & node_name );
     void gen_op( p_conv_op_t const & cop );
     void gen_ops_rec( string const & node_name );
-
-    void run_rfc( rcg_func_call_t & rfc );
   };
 
   // FIXME: i'm not too happy about the duplication between here and the kernel version
@@ -511,12 +510,12 @@ namespace boda
     rtc->finish_and_sync();
   }
 
-  void conv_pipe_fwd_t::run_rfc( rcg_func_call_t & rfc ) { codegen.run_func( rfc );  }
-
   void conv_pipe_fwd_t::run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns ) {
     if( enable_double_run ) {
       // optional: run fwd rfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
-      for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
+      for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { 
+        codegen.run_func( *i ); 
+      }
     }
     rtc->finish_and_sync();
     if( enable_prof ) { rtc->profile_start(); }
@@ -529,7 +528,9 @@ namespace boda
     //printf("run_fwd() exec\n");
     {
       timer_t t("conv_pipe_fwd_t::run_fwd");
-      for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { run_rfc( *i ); }
+      for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { 
+        i->call_id = codegen.run_func( *i ); 
+      }
       rtc->finish_and_sync();
     }
     //printf("run_fwd() copy out\n");
@@ -546,7 +547,7 @@ namespace boda
       for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
 	rcg_func_call_t & rfc = *i;
 	if( i->call_tag.empty() ) { continue; }
-	float const rfc_dur = rtc->get_dur( rfc.call_id, rfc.call_id );
+	float const rfc_dur = rtc->get_dur( i->call_id, i->call_id );
 	(*out) << strprintf( "per_layer_time['%s']=per_layer_time.get('%s',0.0) + %s # %s \n", 
 			     str(i->call_tag).c_str(), str(i->call_tag).c_str(), str(rfc_dur/1000.0).c_str(), 
                              rfc.func->gen_fn.c_str() );
