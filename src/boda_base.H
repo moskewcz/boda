@@ -730,6 +730,15 @@ namespace boda
   typedef map< string, p_nda_t > map_str_p_nda_t;
   typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
 
+  template< typename T > inline T scalar_nda_extract( nda_t const & nda ) {
+    string const & want_tn = get_ndat<T>().tn;
+    if( want_tn != nda.dims.tn ) { rt_err( "can't extract scalar of type '"+want_tn+"' from nda of type '" + nda.dims.tn + "'." ); }
+    if( nda.elems_sz() != 1 ) { rt_err( "can't extract scalar from nda with "+str(nda.elems_sz())+" elems." ); }
+    if( !nda.rp_elems() ) { rt_err( "can't extract scalar from null/no-data nda" ); }
+    return *(static_cast< T const * >(nda.rp_elems()));
+  }
+  template< typename T > inline T SNE( nda_t const & nda ) { return scalar_nda_extract<T>( nda ); } // short name
+
 
   template< typename T > inline p_nda_t make_scalar_nda( T const & v ) { 
     p_nda_t ret = make_shared<nda_t>( make_scalar_dims_t( get_ndat<T>().tn ) );

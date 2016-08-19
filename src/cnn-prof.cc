@@ -175,7 +175,7 @@ namespace boda
     if( anno_op->is( Convolution_coi ) ) {
       if( op_tune.use_culibs ) { anno_op->set_func_name("cudnn_conv"); } // FIXME: fold into add_cnn_codegen_annotations()?
       else { add_cnn_codegen_annotations( anno_op.get(), op_tune, per_op_tune ); }
-      must_insert( anno_op->str_vals, "conv_has_relu", str(1) );
+      anno_op->set_u32( "conv_has_relu", 1 );
     } else if( anno_op->is( sgemm_coi ) ) {
       if( op_tune.use_culibs ) {
         anno_op->set_func_name("cublas_sgemm");
@@ -202,9 +202,9 @@ namespace boda
         dims_t work{ {(uint32_t)Mg,(uint32_t)Ng,op_tune.MNb.d[0],op_tune.MNb.d[1],op_tune.Kb,
               op_tune.MNt.d[0],op_tune.MNt.d[1]}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, "none" };
         anno_op->set_dims( "work", work );
-        must_insert( anno_op->str_vals, "use_local_mem", str(op_tune.use_local_mem) );
-        must_insert( anno_op->str_vals, "prof_variant", str(op_tune.prof_variant) );
-        must_insert( anno_op->str_vals, "vw", str(op_tune.vw) );
+        anno_op->set_u32( "use_local_mem", op_tune.use_local_mem );
+        anno_op->set_u32( "prof_variant", op_tune.prof_variant );
+        anno_op->set_u32( "vw", op_tune.vw );
         if( op_tune.prof_variant ) { anno_op->set_func_name("sgemm_prof"); } 
         else {
           if( 0 ) { }
@@ -316,7 +316,7 @@ namespace boda
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
       add_cnn_codegen_annotations( op.get(), op_tune, 0 );
-      must_insert( op->str_vals, "conv_has_relu", str(1) );
+      op->set_u32( "conv_has_relu", 1 );
       (*out) << str( *op ) << "\n";
     }
   }

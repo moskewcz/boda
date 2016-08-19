@@ -187,7 +187,7 @@ namespace boda
   std::ostream & operator << ( std::ostream & out, nda_t const & o ) { 
     out << "(";
     // FIXME: put these 'default dims/tn for nda_t param str' conditions somewhere better?
-    bool const show_dims = (o.dims.size() != 1) || (o.dims[0].name != "v") || (!o.rp_elems());
+    bool const show_dims = !( o.dims.empty() ); // omit (default) dims for scalars. note: always show dims for vectors.
     bool const show_tn = (!show_dims) || (o.dims.get_tn() != "float");
     if( show_tn ) { out << "tn=" << o.dims.get_tn(); }
     if( show_dims ) { 

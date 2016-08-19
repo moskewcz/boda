@@ -168,16 +168,17 @@ namespace boda
     vect_string cur_ins;
     for( uint32_t i = 0; i != reds.size(); ++i ) { cur_ins.push_back( top_in_reshape ); } // initial inputs are all top_in 
     while( in_sz > 1 ) {
-      uint32_t const out_sz = u32_ceil_div( in_sz, rtc_call_geom_t::default_tpb ); 
-      map_str_dims_t dims_vals;
-      must_insert( dims_vals, "primary_in", make_scalar_dims_t("uint32_t") ); // scalar flag; 0/1 indicates first-level
+      uint32_t const out_sz = u32_ceil_div( in_sz, rtc_call_geom_t::get_default_tpb() ); 
+      op_base_t var_stats;
+      var_stats.set_func_name( "var_stats" );
+      var_stats.set_dims( "primary_in", make_scalar_dims_t("uint32_t") ); // bool; 0/1 indicates first-level
       for( uint32_t i = 0; i != reds.size(); ++i ) {  // input dims (const); initial inputs
-        must_insert( dims_vals, reds[i] + "_in", dims_t( {in_sz}, {"v"}, "float" ) );
-        must_insert( dims_vals, reds[i] + "_out", dims_t( {out_sz}, {"v"}, "float" ) ); 
+        var_stats.set_dims( reds[i] + "_in",  dims_t( {in_sz}, {"v"}, "float" ) );
+        var_stats.set_dims( reds[i] + "_out", dims_t( {out_sz}, {"v"}, "float" ) ); 
       } 
-      p_rtc_call_gen_t func = codegen.gen_func( op_base_t{ "var_stats", dims_vals, 
-          { {"tpb",str(rtc_call_geom_t::default_tpb)},{"func_name","var_stats"}}});
-      assert_st( func->rtc_call_geom.tpb == rtc_call_geom_t::default_tpb );
+      var_stats.set_u32( "tpb", rtc_call_geom_t::get_default_tpb() );
+      p_rtc_call_gen_t func = codegen.gen_func( var_stats );
+      assert_st( func->rtc_call_geom.tpb == rtc_call_geom_t::get_default_tpb() );
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;
@@ -206,8 +207,11 @@ namespace boda
     uint32_t drop_bits = 0;
     while( max_val > (1U<<(keep_bits+drop_bits)) ) { ++drop_bits; }
     uint32_t drop_mask = ((1<<drop_bits)-1);
-    op_base_t quantize_op{ "quantize", {{"out",rtc->get_var_dims(top_in)},
-        {"max_val",make_scalar_dims_t("uint32_t")},{"drop_mask",make_scalar_dims_t("uint32_t")}}, {{"func_name","quantize"}} };
+    op_base_t quantize_op;
+    quantize_op.set_func_name("quantize");
+    quantize_op.set_dims("out",rtc->get_var_dims(top_in));
+    quantize_op.set_dims("max_val",make_scalar_dims_t("uint32_t"));
+    quantize_op.set_dims("drop_mask",make_scalar_dims_t("uint32_t"));
     p_rtc_call_gen_t func = codegen.gen_func( quantize_op );
     fwd_calls.push_back( rcg_func_call_t{ func, "quantize", map_str_str{{"out",top_in}}, 
         map_str_p_nda_t{{"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} } );
@@ -253,7 +257,7 @@ namespace boda
   void conv_pipe_fwd_t::gen_op( p_conv_op_t const & cop ) {
     if( write_op_sigs ) { all_op_sigs.insert( *cop ); } // unique ops if requested
     p_op_info_t const & oi = must_find( *op_infos, cop->tag );
-    if( has( oi->str_vals, "fused" ) ) { return; } // operation was fused into another, so do nothing here for it
+    if( oi->has( "fused" ) ) { return; } // operation was fused into another, so do nothing here for it
     if( oi->is( Concat_coi ) ) {      
       uint32_t chans_out_done = 0;
       for( uint32_t bi = 0; bi != oi->get_u32("ins_num"); ++bi ) {
@@ -261,12 +265,12 @@ namespace boda
 	assert_st( get_xy_dims( dims_in ) == get_xy_dims( oi->get_dims("out") ) );
 	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->get_dims("out").dsz("chan") );
 	// note: oi->str_vals["ocix"] is set for each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?
-        must_insert( oi->str_vals, "ocix", str(chans_out_done) );
+        oi->set_u32( "ocix", chans_out_done );
 	set_rtc_arg( oi, rtc, "in", oi->get_arg( oi->coi->bot_an(bi) ) );
 	gen_call( oi );
 	chans_out_done += dims_in.dsz("chan");
 	oi->erase_arg( "in" );
-	must_erase( oi->str_vals, "ocix" );
+	oi->erase( "ocix" );
       }
       assert_st( chans_out_done == oi->get_dims("out").dsz("chan") );
     } else if( oi->is( Split_coi ) ) { // FIXME: pretty dup'd with Concat above ... generalize/merge/share?
@@ -276,12 +280,12 @@ namespace boda
 	assert_st( get_xy_dims( dims_out ) == get_xy_dims( oi->get_dims("in") ) );
 	assert_st( chans_in_done+dims_out.dsz("chan") <= oi->get_dims("in").dsz("chan") );
 	// note: oi->str_vals["icix"] is set for each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?)
-        must_insert( oi->str_vals, "icix", str(chans_in_done) );
+        oi->set_u32( "icix", chans_in_done );
 	set_rtc_arg( oi, rtc, "out", oi->get_arg( oi->coi->top_an(ti) ) );
 	gen_call( oi );
 	chans_in_done += dims_out.dsz("chan");
 	oi->erase_arg( "out" );
-	must_erase( oi->str_vals, "icix" );
+	oi->erase( "icix" );
       }
       assert_st( chans_in_done == oi->get_dims("in").dsz("chan") );
     } else if( oi->is( Pooling_coi ) ) {
@@ -342,7 +346,7 @@ namespace boda
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( oi );
       // FIXME: move this check (and others like it) to conv_util.cc or similar?
-      double const dropout_ratio = lc_str_d( oi->str_vals["dropout_ratio"] );
+      float const dropout_ratio = SNE<float>( *oi->get("dropout_ratio") );
       assert_st( dropout_ratio > 0.0 );
       assert_st( dropout_ratio < 1.0 );
       // for below dep_drop_seed handling: see update code elsewhere. yeah, not the cleanest approach.
@@ -479,8 +483,8 @@ namespace boda
 	p_conv_node_t no = cp->must_get_node( oi->get_arg("out") ); // aka oi->coi->top_an(0) ...
 	bool const conv_has_relu = (no->in_place_ops.size() > 0) && (no->in_place_ops[0]->is(ReLU_coi));
 	// mark relu as fused-away; mark conv as having fused-on relu // NOTE/FIXME(?): relu may be not-init()-yet here ...
-	if( conv_has_relu ) { must_insert( must_find( *op_infos, no->in_place_ops[0]->tag )->str_vals, "fused", "1" ); } 
-	must_insert( oi->str_vals, "conv_has_relu", str(conv_has_relu) );
+	if( conv_has_relu ) { must_find( *op_infos, no->in_place_ops[0]->tag )->set_u32( "fused", 1 ); } 
+	oi->set_u32( "conv_has_relu", conv_has_relu );
 
 	if( oi->get_func_name() == k1conv_str ) { 
 	  if( ( no->in_place_ops.size() == conv_has_relu ) && ( no->bot_for.size() == 1) ) { // if output feeds single non-in-place operation

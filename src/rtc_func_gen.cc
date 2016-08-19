@@ -4,6 +4,22 @@
 
 namespace boda 
 {
+  void rtc_call_geom_t::maybe_update_for_special_cucl_ixs( string const & ix_vn, dims_t const & ix_dims ) {
+    // special cases for index var names
+    if( ix_vn == "GLOB_ID_1D" ) { 
+      // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
+      // size doesn't matter, so use a reasonable default if it's not already set.
+      if( !tpb ) { tpb = get_default_tpb(); }
+      if( blks ) { rt_err( "CUCL error: GLOB_ID_1D IX encoutered after setting blks (some other way)");}
+      blks = u32_ceil_div( ix_dims.dims_prod(), tpb );
+    } else if( ix_vn == "GRP_ID_1D" ) {
+      if( blks ) { rt_err( "CUCL error: GRP_ID_1D IX encoutered after setting blks (some other way)" ); }
+      blks = ix_dims.dims_prod();
+    } else if( ix_vn == "LOC_ID_1D" ) {
+      if( tpb ) { rt_err( "CUCL error: LOC_ID_1D IX encoutered after setting tpb (some other way)" ); }
+      tpb = ix_dims.dims_prod();
+    }
+  }
   // ******** arg_decl_t **********
   void arg_decl_t::set_vn_tn( string const & vn_, string const & tn_ ) {
     vn = vn_;
@@ -132,6 +148,15 @@ namespace boda
     // but maybe important to unique?
     rfs_out->nda_vals.clear();     
 
+    // FIXME: for now, we use a hacky list of 'always keep' val names. maybe these should be in the templates, but there
+    // are a couple issues. many/all of these should really be part of the operation (and they are), and really it
+    // should be an error if they're *not* used. so we don't want to be listing them in every variant, or if we do, it
+    // should only be to check all the proper per-operation-per-varient ones are used. maybe, everything must be used by
+    // default? with some way to explicitly ignore some vals that are somehow optional for a given variant?
+    vect_string const always_keep_vals{"tpb","conv_has_relu"};
+    for( vect_string::const_iterator i = always_keep_vals.begin(); i != always_keep_vals.end(); ++i ) {
+      if( rfs_in.has( (*i) ) ) { rfs_out->set( (*i), rfs_in.get( (*i) ) ); }
+    }
     string arg_check_error;
 
     // error check existence of num field for multi args
@@ -139,7 +164,7 @@ namespace boda
       if( i.vn() == "cucl_arg_info" ) { assert_st( has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) {
         string const multi_num = i.ad().vn+"_num";
-        if( !has(rfs_in.str_vals,multi_num) ) {
+        if( !rfs_in.has(multi_num) ) {
           arg_check_error += strprintf( "mult arg '%s' missing num var '%s' in str_vals; ", 
                                         i.ad().vn.c_str(), multi_num.c_str() );
           i.msz_ = 1; // note: yikes! a bit hacky, we need to skip the entire multi, so fake-set msz=1 and continue.
@@ -279,16 +304,22 @@ namespace boda
     set_string unique_dims;
     for( map_str_p_nda_t::const_iterator ra = op.nda_vals.begin(); ra != op.nda_vals.end(); ++ra ) {
       dims_t const & dims = ra->second->dims;
-      for( uint32_t i = 0; i != dims.sz(); ++i ) {
-	string const & dn = dims.names(i);
-	bool const did_ins = unique_dims.insert( dn ).second;
-	if( did_ins ) { maybe_fn_base += "__"+dn+"_"+str(dims.dims(i)); }
+      if( !dims.sz() ) { // for scalars, put the name of the scalar and it's value (if it has one)
+        maybe_fn_base += "__"+ra->first; 
+        if( ra->second->rp_elems() ) { maybe_fn_base += "_"+as_pyid_fixme(get_scalar_c_const_str(*ra->second)); }
+      } else {
+        for( uint32_t i = 0; i != dims.sz(); ++i ) {
+          string const & dn = dims.names(i);
+          bool const did_ins = unique_dims.insert( dn ).second;
+          if( did_ins ) { maybe_fn_base += "__"+dn+"_"+str(dims.dims(i)); }
+        }
       }
     }
     // not the best/most-robust idea, but for now we can avoid most namegenconflicts by (questionally) stuffing the
     // str_vals into the function name as well. it'll be fine, right? this could be removed if problematic.
     for( map_str_str::const_iterator ra = op.str_vals.begin(); ra != op.str_vals.end(); ++ra ) {
       if( ra->first == "func_name" ) { continue; } // must exists, and already used as maybe_fn_base
+      if( ra->first == "type" ) { continue; } // usually, the func_name implies the type, so we omit it here
       maybe_fn_base += "__"+ra->first+"_"+as_pyid_fixme(ra->second);
     }
 
@@ -338,12 +369,9 @@ namespace boda
     set( "rtc_func_name", gen_fn );
     rtc_func_template = rtc_func_template_;
     assert_st( rtc_func_template->template_fn == op.get_func_name() ); // better be right template
-    // FIXME: for now, we'll dump all of str_vals in tsvs, since that's old/compatible behavior.
-    //printf( "op.type=%s gen_fn=%s op.str_vals=%s\n", str(op.type).c_str(), gen_fn.c_str(), str(op.str_vals).c_str() );
-    for( map_str_str::const_iterator i = op.str_vals.begin(); i != op.str_vals.end(); ++i ) { set( i->first, i->second ); }
-
+    //printf( "op.func_name=%s gen_fn=%s op.str_vals=%s\n", str(op.get_func_name()).c_str(), gen_fn.c_str(), str(op.str_vals).c_str() );
     // if we have a str_val with the magic name 'tpb', use it to set the call geom:
-    if( has( op.str_vals, "tpb" ) ) { rtc_call_geom.tpb = op.get_u32( "tpb" ); }
+    if( op.has( "tpb" ) ) { rtc_call_geom.tpb = op.get_u32( "tpb" ); }
     for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
       dims_t ix_dims = apply_use_dims( get_arg_dims_by_name( i->arg_vn, "IX" ), i->use_dims );
       assert_st( ix_dims.size() && ix_dims.has_name() );
@@ -367,7 +395,7 @@ namespace boda
     // change/relax this later.
 #if 0
     if( dyn_vars.empty() ) {
-      if( !rtc_call_geom.tpb ) { rtc_call_geom.tpb = rtc_call_geom_t::default_tpb; } // if unset, use a default value
+      if( !rtc_call_geom.tpb ) { rtc_call_geom.tpb = rtc_call_geom_t::get_default_tpb(); } // if unset, use a default value
     }
 #endif
     // assert_st( rf->blks ); // too strong. if not set, dynamic # blks case
@@ -378,9 +406,7 @@ namespace boda
     // cucl_arg_info if they are dynamic. however, codegen that uses tpb directly would still be broken in that case
     // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the
     // template string ( which might point to a dynamic value ) instead.
-    if( !has( tsvs, "tpb" ) ) { // FIXME: remove conditional after not blindly stuffing all str_vals in tsvs
-      set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid if there are no dyn vars
-    }
+    set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid if there are no dyn vars
     set( "blks", str(rtc_call_geom.blks) ); // may be 0 if # of blocks is dynamic
     set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 

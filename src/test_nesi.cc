@@ -142,7 +142,8 @@ namespace boda
     { "bad_nda_5", "", ntb_b+"nda=(dims=jimbo))", "var 'nda': nda_t dims: error: invalid attempt to use string as name/value list for dims_t (N-D Array Dimentions) init. string was:jimbo" },
     { "bad_nda_6", "", ntb_b+"nda=(tn=uint32_t,dims=(v=2)))", 0 }, // empty ndas allowed now; error was: "var 'nda': error: nda_t has no 'v' field; currently, only non-empty nda_t's may be specified." },
     { "bad_nda_7", "", ntb_b+"nda=(tn=foo,v=baz))", "var 'nda': error: missing key:foo" }, // not ideal! means 'bad type'
-    { "bad_nda_8", "", ntb_b+"nda=(tn=float,v=1.2:3.4:5.6))", 0 },
+    { "bad_nda_8", "", ntb_b+"nda=(tn=float,v=1.2:3.4:5.6))", "var 'nda': error: nda_t 'v' field has 3 elements/parts, but 'dims' was omitted; dims may onlybe omitted for scalars (1 element)." },
+    { "bad_nda_8_ok", "", ntb_b+"nda=(dims=(v=3),v=1.2:3.4:5.6))", 0 },
     { "bad_nda_9", "", ntb_b+"nda=(dims=(v=4),v=1.2:3.4:5.6))", "var 'nda': error: nda_t 'v' field has 3 elements/parts, but user-specified 'dims' say there should be 4." },
     { "bad_nda_10", "", ntb_b+"nda=(tn=uint32_t))", "var 'nda': error: nda_t has neither 'v' nor 'dims' field, can't determine size; set at least one." }, 
 
@@ -167,7 +168,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
     void test_print( void ) {
-      printf( "tix=%s nesi_tests[tix].desc=%s\n", str(tix).c_str(), str(nesi_tests[tix].desc).c_str() );
+      printf( "tix=%s name=%s desc=%s\n", str(tix).c_str(), str(nesi_tests[tix].name).c_str(), str(nesi_tests[tix].desc).c_str() );
     }
 
     void nesi_test_run( void )

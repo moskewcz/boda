@@ -74,9 +74,9 @@ namespace boda
         p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
 	if( i.ad().io_type != "IN" ) { continue; }
         if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
+        if( i.ad().loi.v == 0 ) { continue; } // FIXME: not-too-nice special case for scalars ... better be const.
         // note: gen_data variant choice based on gen type and op type (*not* op func_name)
 	in_gen_op->set_func_name( in_gen_op->get_type()+"_"+anno_op->get_type()+"_"+i.vn() ); 
-	in_gen_op->nda_vals.clear();
         dims_t const & in_dims = anno_op->get_dims( i.vn() );
         string const ref_in_dims_name = i.vn()+"_ref";
         dims_t const & ref_in_dims = anno_op->has(ref_in_dims_name)?anno_op->get_dims(ref_in_dims_name):in_dims;

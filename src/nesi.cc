@@ -728,8 +728,17 @@ namespace boda
       string v_str;
       nesi_init_checked( &v_str, &tinfo_string, vv, nia, "nda_t v: " );
       vect_string parts = split_space_tab_colon( v_str );
+      assert_st( parts.size() ); // might be just one empty part, but split can't yield no parts
       // init dims if needed; otherwise override dims.tn if tn was specificed (note: could set unconditionally to tn_str)
-      if( !dims ) { v->dims = dims_t( vect_uint32_t{uint32_t(parts.size())}, vect_string{"v"}, tn_str ); }
+      if( !dims ) {
+        if( parts.size() == 1 ) {v->dims = dims_t( vect_uint32_t{}, tn_str ); } // assume 1 value should be a scalar
+        else { 
+          // error/disallowed for now: (1) to match to-str()  (2) because not needed/used, and (3) for sanity (?)
+          //v->dims = dims_t( vect_uint32_t{uint32_t(parts.size())}, vect_string{"v"}, tn_str ); } // otherwise, vector
+          rt_err( strprintf( "nda_t 'v' field has %s elements/parts, but 'dims' was omitted; dims may only"
+                             "be omitted for scalars (1 element).",str(parts.size()).c_str() ) );
+        }
+      }
       else if( tn ) { v->dims.tn = tn_str; }  // note: if !tn, tn_str came from v->dims in the first place
       // check length agreement
       if( v->dims.dims_prod() != parts.size() ) {

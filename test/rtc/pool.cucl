@@ -1,4 +1,6 @@
-CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
+CUCL_GLOBAL_KERNEL void %(rtc_func_name)( uint32_t const avg_pool, // CUCL IN :
+                                          uint32_t const emit_out_in_yx, // CUCL IN :
+                                          GASQ float const * const in, // CUCL IN img:chan:y:x
 					  GASQ float * const out, // CUCL OUT img:chan:y:x
 					  GASQ float * const out_in_yx ) // CUCL OUT img:chan:y:x
 // note: out_in_yx will be NULL+unused if emit_out_in_yx is 0; otherwise it will be non-null and used.

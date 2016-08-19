@@ -150,8 +150,9 @@ namespace boda
       // "func_name" value is tested by the nvrtc backend to determine if it should call out to an external library (and
       // if so, the func_name tells it what library and function to call). so we must set it here, since it's
       // unconditionally looked-up. that's the current state anyway, but it subject to change/improvement ...
-      rtc->compile( vect_rtc_func_info_t{rtc_func_info_t{"my_dot",*prog_str,
-              op_base_t{"my_dot",{},{{"func_name","my_dot"}}}}}, rtc_compile_opts_t() );
+      op_base_t dot;
+      dot.set_func_name("my_dot");
+      rtc->compile( vect_rtc_func_info_t{rtc_func_info_t{dot.get_func_name(),*prog_str,dot}}, rtc_compile_opts_t() );
 
       vect_float a( data_sz, 0.0f );
       rand_fill_vect( a, 2.5f, 7.5f, gen );

@@ -28,7 +28,7 @@ namespace boda
     void gen_op_reduce( rtc_call_gen_t * rcg ) {
       // FIXME: iterator over non-flat args and/or select ins arg directly, then do inner iter?
       for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
-        if( !startswith(i.vn(),"ins_") ) { continue; }
+        if( i.ad().vn != "ins" ) { continue; }
 	rcg->line( "ins_ops", "v += "+i.vn()+"[GLOB_ID_1D];" ); 
       }
     }

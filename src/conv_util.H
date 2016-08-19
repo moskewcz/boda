@@ -20,13 +20,12 @@ namespace boda
 
   struct conv_op_info_t {
     std::string type;
+    // map_str_str str_vals; // note: a full/general str_vals isn't needed/used here, just a type field. FIXME? 
     vect_string bots; 
     vect_string tops;
-    map_str_str str_vals;
-    map_str_dims_t dims_vals;
+    map_str_p_nda_t nda_vals;
     zi_bool has_var_bots;
     zi_bool has_var_tops;
-    map_str_p_nda_t nda_vals;
     string bot_an( uint32_t const & ix ) const;
     string top_an( uint32_t const & ix ) const;
     void op_reset_type( op_base_t & op ) const { op.erase_type(); op.set_type( type ); }

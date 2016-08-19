@@ -212,7 +212,7 @@ namespace boda
 	      work.dsz("pels_blk"), u32_ceil_div(ni_dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, in_dims.tn ); 
 	} else if( op->get_func_name() == k1conv_simd_str ) { 
-          must_insert( op->str_vals, "vw", str(op_tune->vw) );
+          op->set_u32( "vw", op_tune->vw );
           // simd, no-local-mem version of k1conv.  we xpose to pels:chans format for the file, input, and output. we
           // pad the pels and out_chans to exactly match the blocking.
           uint32_t const pels_sz_pad = work.dsz("pels_blk")*work.dsz("pels_tile")*work.dsz("pels");
@@ -220,7 +220,7 @@ namespace boda
           uint32_t const out_chan_pad = work.dsz("out_chan_blk")*work.dsz("out_chan_tile")*work.dsz("out_chan");
           assert_st( out_chan_pad >= op->get_dims("filts").dsz("out_chan") );
           // FIXME: pad in_chan to multiple of Kb?
-	  must_insert( op->str_vals, "Kb", str(op_tune->Kb) );
+          op->set_u32( "Kb", op_tune->Kb );
           uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
           in_dims = dims_t( vect_uint32_t{ in_chan_pad, pels_sz_pad }, vect_string{"chan","pel"}, in_dims.tn ); 
           // note: for now, we don't pad and/or xpose out, so the store code must handle that.
@@ -230,10 +230,10 @@ namespace boda
 	  op->reset_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, 
                                        vect_string{"chan","pel"}, op->get_dims("out").tn )); 
 	} else if( op->get_func_name() == conv_simd_str ) {
-          must_insert( op->str_vals, "vw", str(op_tune->vw) );
+          op->set_u32( "vw", op_tune->vw );
           // FIXME: pad in_chan to multiple of Kb?
           assert_st( op_tune->Kb == 1 ); // FIXME: for now, no inner loop unroll ...
-	  must_insert( op->str_vals, "Kb", str(op_tune->Kb) );
+          op->set_u32( "Kb", op_tune->Kb );
           uint32_t in_chan_pad = ni_dims.dsz("chan"); // not padded yet but may be layer; note: == filts in_chan dim
           // calculate padded x/y dims
           u32_pt_t in_xy = get_xy_dims( in_dims );

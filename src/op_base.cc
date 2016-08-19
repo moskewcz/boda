@@ -6,15 +6,6 @@
 
 namespace boda 
 {
-  op_base_t::op_base_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ ) :
-    str_vals( str_vals_ ) 
-  {
-    set_type( type_ );
-    for( map_str_dims_t::const_iterator i = dims_vals_.begin(); i != dims_vals_.end(); ++i ) {
-      set_dims( i->first, i->second );
-    }
-  }
-
   template< typename T > struct lt_pair_key_p_value { 
     bool operator()( T const & a, T const & b ) const { 
       if( a.first != b.first ) { return a.first < b.first; }
@@ -51,7 +42,8 @@ namespace boda
   p_nda_t const & op_base_t::get( string const & an ) const { return must_find( nda_vals, an ); }
   dims_t const & op_base_t::get_dims( string const & an ) const { return get(an)->dims; }
   string const & op_base_t::get_str( string const & an ) const { return must_find( str_vals, an ); }
-  uint32_t op_base_t::get_u32( string const & an ) const { return lc_str_u32( must_find( str_vals, an ) ); }
-  
+  uint32_t op_base_t::get_u32( string const & an ) const { return SNE<uint32_t>(*get( an )); }
+  void op_base_t::set_u32( string const & an, uint32_t const & v ) { set( an, make_scalar_nda( v ) ); }
+
 #include"gen/op_base.H.nesi_gen.cc"
 }

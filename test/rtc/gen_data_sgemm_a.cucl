@@ -1,19 +1,21 @@
 // CUCL INCLUDE gen-util.h
 struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ %(a_tn) * const a, // CUCL OUT_DYN K:M
-                                            struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL IN v
+                                          uint32_t const mode, // CUCL IN :
+                                          float const vi, // CUCL IN :
+                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL IN v
 {
+  uint32_t fin_mode = %(mode);
   // CUCL IX GLOB_ID_1D a
-  int32_t mode = %(mode);
-  if( mode >= 100 ) { mode = mode / 100; }
+  if( fin_mode >= 100 ) { fin_mode = fin_mode / 100; }
   if( GLOB_ID_1D >= %(a_dims_prod) ) { return; }
   float val = %(vi); 
-  if( mode == 2 ) { val += %(GLOB_ID_1D_M); }
-  if( mode == 3 ) { val += %(GLOB_ID_1D_K); }
-  else if( mode == 4 ) { 
+  if( fin_mode == 2 ) { val += %(GLOB_ID_1D_M); }
+  if( fin_mode == 3 ) { val += %(GLOB_ID_1D_K); }
+  else if( fin_mode == 4 ) { 
     if( (%(GLOB_ID_1D_M)==%(a_M_dim)/2) && (%(GLOB_ID_1D_K)==%(a_K_dim)/2) ) { val += 1.0f; }
-  } else if( mode == 5 ) {
+  } else if( fin_mode == 5 ) {
     val += det_hash_rand( GLOB_ID_1D + 12738732 );
-  } else if( mode == 6 ) { val += %(GLOB_ID_1D_M)*1000 + %(GLOB_ID_1D_K); }
+  } else if( fin_mode == 6 ) { val += %(GLOB_ID_1D_M)*1000 + %(GLOB_ID_1D_K); }
   store_float_to_rp_%(a_tn)( val, GLOB_ID_1D, a );
 }

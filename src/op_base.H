@@ -12,8 +12,6 @@ namespace boda
     map_str_str str_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/string-value list." )
     map_str_p_nda_t nda_vals; // NESI(default="()",help="per-operation-type specific parameters as a key/nda list." )
     op_base_t( void ) {}
-    // used only for stats/quantize ... remove?
-    op_base_t( string const & type_, map_str_dims_t const & dims_vals_, map_str_str const & str_vals_ );
     
     bool operator < ( op_base_t const & o ) const;
     // convenience access functions
@@ -26,6 +24,7 @@ namespace boda
     p_nda_t const & get( string const & an ) const;
     string const & get_str( string const & an ) const;
     uint32_t get_u32( string const & an ) const;
+    void set_u32( string const & an, uint32_t const & v );
     bool operator ==( op_base_t const & o ) const = delete;
     bool operator !=( op_base_t const & o ) const = delete;
 

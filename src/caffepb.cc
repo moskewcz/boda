@@ -221,7 +221,7 @@ namespace boda
 	caffe::ConvolutionParameter const & cp = lp.convolution_param();
 	fill_in_conv_op_from_param( conv_op, cp );
 	assert_st( cp.num_output() >= 0 ); // should zero be allowed?
-	conv_op->str_vals["out_chans"] = str(cp.num_output());
+	conv_op->set_u32( "out_chans", cp.num_output() );
 	assert_st( conv_op->has( "kern_sz" ) ); // FIXME: convolutions *must* specify kernel size, i think? check in caffe
 	// add (make explicit) filts and biases as inputs 
 	conv_op->bots.push_back( lp.name() + "_filts" );
@@ -238,15 +238,15 @@ namespace boda
           } else { conv_op.reset(); } // in-place, so just drop to make into no-op
         } else { // if adding bck ops, keep as dropout
           caffe::DropoutParameter const & p = lp.dropout_param();	
-          conv_op->str_vals["dropout_ratio"] = str(p.dropout_ratio());
+          conv_op->set( "dropout_ratio", make_scalar_nda(float(p.dropout_ratio())));
         }
       } else if( lp.type() == LRN_coi.type ) {
 	//assert_st( lp.has_lrn_param() );
 	caffe::LRNParameter const & p = lp.lrn_param();	
-	conv_op->nda_vals["alpha"] = make_scalar_nda(float(p.alpha()));
-	conv_op->nda_vals["beta"] = make_scalar_nda(float(p.beta()));
-	conv_op->nda_vals["k"] = make_scalar_nda(float(p.k()));
-        conv_op->nda_vals["local_size"] = make_scalar_nda(uint32_t(p.local_size()));
+	conv_op->set( "alpha", make_scalar_nda(float(p.alpha())));
+        conv_op->set( "beta", make_scalar_nda(float(p.beta())));
+        conv_op->set( "k", make_scalar_nda(float(p.k())));
+        conv_op->set( "local_size", make_scalar_nda(uint32_t(p.local_size())));
       } else if( lp.type() == Softmax_coi.type ) {
 	// this may be inconvieniently strong; it's probably okay to ignore this here
 	//rt_err( "Saw unexpected Softmax layer in caffpb caffe->boda net conversion. should have been stripped out?" );
@@ -271,12 +271,12 @@ namespace boda
 	if( pp.pool() == caffe::PoolingParameter_PoolMethod_AVE ) { avg_pool = 1; } 
 	else if( pp.pool() == caffe::PoolingParameter_PoolMethod_MAX ) { avg_pool = 0; }
 	else { printf( "warning: unhanded pooling method pp.pool()=%s\n", str(pp.pool()).c_str() ); }
-	conv_op->str_vals["avg_pool"] = str(avg_pool);
+	conv_op->set_u32( "avg_pool", avg_pool );
 	assert_st( conv_op->has("kern_sz") != pp.global_pooling() ); // global pooling iff no kernel size specified
       } else if( lp.type() == InnerProduct_coi.type ) {
 	assert_st( lp.has_inner_product_param() );
 	caffe::InnerProductParameter const & ipp = lp.inner_product_param();
-	conv_op->str_vals["out_chans"] = str(ipp.num_output());
+	conv_op->set_u32( "out_chans", ipp.num_output() );
       } else if( lp.type() == Data_coi.type ) {
 	// note/FIXME: if there are multiple data layers, any values in in_dims will apply to all of them
 	assert_st( lp.has_data_param() );

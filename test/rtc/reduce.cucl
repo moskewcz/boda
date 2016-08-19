@@ -1,4 +1,5 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( 
+  uint32_t const ins_num, // CUCL IN :
 #if 0
   GASQ float_multi const * const ins, // CUCL IN img:chan:y:x
 #endif

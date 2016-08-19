@@ -15,6 +15,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const alpha, // CUCL IN :
                                           uint32_t const local_size, // CUCL IN :
                                           GASQ float const * const in, // CUCL IN img:chan:y:x
 					  GASQ float * const out, // CUCL OUT img:chan:y:x
+                                          uint32_t const emit_out_scale_base, // CUCL IN :
 					  GASQ float * const out_scale_base ) // CUCL OUT img:chan:y:x
 // note: out_scale_base will be NULL+unused if emit_out_scale_base is 0; otherwise it will be non-null and used.
 {

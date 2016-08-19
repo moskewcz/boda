@@ -130,24 +130,9 @@ namespace boda
   struct rtc_call_geom_t {
     uint32_t tpb;
     uint32_t blks;    
-    static uint32_t const default_tpb = 256; // FIXME: make 'reasonable default' tpb configurable/heurisitic
+    static uint32_t const get_default_tpb( void ) { return 256; } // FIXME: make 'reasonable default' tpb configurable/heurisitic
     rtc_call_geom_t( void ) : tpb(0), blks(0) {}
-    void maybe_update_for_special_cucl_ixs( string const & ix_vn, dims_t const & ix_dims ) {
-      // special cases for index var names
-      if( ix_vn == "GLOB_ID_1D" ) { 
-        // if GLOB_ID_1D is an index for some arg, assume we want 1 thread per element of that arg, and assume block
-        // size doesn't matter, so use a reasonable default if it's not already set.
-        if( !tpb ) { tpb = default_tpb; }
-        if( blks ) { rt_err( "CUCL error: GLOB_ID_1D IX encoutered after setting blks (some other way)");}
-        blks = u32_ceil_div( ix_dims.dims_prod(), tpb );
-      } else if( ix_vn == "GRP_ID_1D" ) {
-        if( blks ) { rt_err( "CUCL error: GRP_ID_1D IX encoutered after setting blks (some other way)" ); }
-        blks = ix_dims.dims_prod();
-      } else if( ix_vn == "LOC_ID_1D" ) {
-        if( tpb ) { rt_err( "CUCL error: LOC_ID_1D IX encoutered after setting tpb (some other way)" ); }
-        tpb = ix_dims.dims_prod();
-      }
-    }
+    void maybe_update_for_special_cucl_ixs( string const & ix_vn, dims_t const & ix_dims );
   };
 
   struct dyn_dim_info_t { 
