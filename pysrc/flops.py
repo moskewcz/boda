@@ -71,7 +71,7 @@ class Net( object ):
 
 class Convolution( object ):
     is_deconv = 0
-    def __init__( self, name, bot_names, top_names, str_vals, dims_vals ): 
+    def __init__( self, name, bot_names, top_names, str_vals, nda_vals ): 
         # note: ignores in_pad and stride, but they sort-of aren't
         # needed since the output size is calculated using them. we
         # could use them as a check here, but that would require
@@ -131,7 +131,7 @@ class Deconvolution( Convolution ):
 
 # create filts/biases NDAs on the fly and treat IP as conv
 class InnerProduct( object ): 
-    def __init__( self, name, bot_names, top_names, str_vals, dims_vals ): 
+    def __init__( self, name, bot_names, top_names, str_vals, nda_vals ): 
         global net
         assert len(bot_names) == 1
         assert len(top_names) == 1
@@ -141,10 +141,10 @@ class InnerProduct( object ):
         biases_name = name + "_IP2CONV_biases"
         net.ndas[filts_name] = NDA(filts_name,top.chan,bot.chan,bot.y,bot.x)
         net.ndas[biases_name] = NDA(biases_name,top.chan)
-        ip_as_conv = Convolution( name, bot_names + [filts_name, biases_name], top_names, str_vals, dims_vals )
+        ip_as_conv = Convolution( name, bot_names + [filts_name, biases_name], top_names, str_vals, nda_vals )
 
 class BckConv( object ): 
-    def __init__( self, name, bot_names, top_names, str_vals, dims_vals ):
+    def __init__( self, name, bot_names, top_names, str_vals, nda_vals ):
         global net
         assert len(bot_names) == 4
         assert len(top_names) == 3
