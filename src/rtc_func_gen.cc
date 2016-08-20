@@ -553,7 +553,7 @@ namespace boda
             call_vn = "<internal-error-on-gen-time-constant-arg>";
             rfc.args.push_back( rtc_arg_t{func_nda} );
           } else { 
-            // otherwise, assume the value we want/need is in in nda_args
+            // otherwise, assume the value we want/need is in args
             map_str_rtc_arg_t::const_iterator an = arg_map.find( vn );
             if( an == arg_map.end() ) {
               rt_err( "specified "+i->io_type+" scalar by-value arg '"+vn+"' not found in arg_map at call time." ); 
