@@ -62,7 +62,8 @@ namespace boda
       if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
       dims_t const & func_dims = rcg->get_arg_dims_by_name( i.vn() );
       if( func_dims == make_null_dims_t() ) { continue; } // NULL case -- ignore
-      must_insert( arg_map, i.vn(), i.vn() );
+      // FIXME: overwrite dims. yeah, this doesn't feel too right ... hmm. see comments in gen_func()
+      arg_map[ i.vn() ] = i.vn();
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_rtc_arg_t::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {

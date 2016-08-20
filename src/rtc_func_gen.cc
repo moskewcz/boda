@@ -199,7 +199,8 @@ namespace boda
         arg_dims_no_sizes_or_strides.clear_strides();
         arg_dims_no_sizes_or_strides.clear_dims();
         ret.reduced->set_dims( i.vn(), arg_dims_no_sizes_or_strides );
-        // FIXME: keep original nda somewhere
+        // put original nda in to_pass so function will have access to concrete dims (important for DYN REF dims)
+        ret.to_pass->set( i.vn(), arg_nda );
       } else {
         ret.reduced->set( i.vn(), arg_nda ); // keep exactly used nda in signature (including value if present)
       }
@@ -629,8 +630,13 @@ namespace boda
     } 
     map_str_rtc_arg_t fin_arg_map = arg_map;
     for( map_str_p_nda_t::const_iterator i = ca_ret.to_pass->nda_vals.begin(); i != ca_ret.to_pass->nda_vals.end(); ++i ) {
-      must_insert( fin_arg_map, i->first, i->second ); // merge to_pass into arg_map
+      if( !has( fin_arg_map, i->first ) ) { // any existing arg_map entry overrides something kept from the op
+        must_insert( fin_arg_map, i->first, i->second ); // merge to_pass into arg_map
+      }
+      // note that if callers with to add to arg_map later, they must bear in mind it may-or-may-not contain any of the
+      // pre-existing info from gen-time.
     }
+    //printf( "ca_ret.reduced=%s fin_arg_map=%s\n", str(ca_ret.reduced).c_str(), str(fin_arg_map).c_str() );
     return make_shared<rcg_func_call_t>(rcg,fin_arg_map);
   }
 
