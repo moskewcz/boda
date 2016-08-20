@@ -224,17 +224,17 @@ namespace boda
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
   // unary operator (with two args: {in,out}), so that only one unique ret_var need only be generated per unique
-  // in_var/func pair. ret_var is named in_var+"__"+func_name. note that ret_dims must be unique per in_var/func pair,
-  // since it is not uniqued/inspected.
+  // in_var/func<ret_dims> pair. ret_var is named in_var+"__"+func_name+ret_dims_as_string.
   string conv_pipe_fwd_t::gen_apply_func_to_var( string const & in_an, string const & in_var, 
 						 string const & ret_an, dims_t const & ret_dims, 
                                                  string const & func_name, p_conv_op_t const & oi )
   {
-    // FIXME: cache ret_dims and check that it agrees on in_var/func cache hits.
-    string const ret_var = in_var + "__" + func_name;
+    p_rcg_func_call_t rfc = codegen.gen_func_override_func_name( func_name, *oi, map_str_rtc_arg_t() );
+    string const ret_var = in_var + "__" + rfc->rcg->gen_fn;
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
-      p_rcg_func_call_t rfc = codegen.gen_func_override_func_name( func_name, *oi, map_str_rtc_arg_t{{in_an,in_var},{ret_an,ret_var}} );
+      must_insert( rfc->arg_map, in_an,  in_var  );
+      must_insert( rfc->arg_map, ret_an, ret_var );
       add_fwd_call( rfc, in_var + "__inxp" );
       rtc->create_var_with_dims( ret_var, ret_dims );
     }
@@ -271,7 +271,6 @@ namespace boda
 	dims_t const & dims_in = oi->get_dims( oi->coi->bot_an(bi) );
 	assert_st( get_xy_dims( dims_in ) == get_xy_dims( oi->get_dims("out") ) );
 	assert_st( chans_out_done+dims_in.dsz("chan") <= oi->get_dims("out").dsz("chan") );
-	// note: oi->str_vals["ocix"] is set for each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?
         oi->set_u32( "ocix", chans_out_done );
 	set_rtc_arg( oi, rtc, "in", oi->get_arg( oi->coi->bot_an(bi) ) );
 	gen_call( oi );
@@ -286,7 +285,6 @@ namespace boda
 	dims_t const & dims_out = oi->get_dims( oi->coi->top_an(ti) );
 	assert_st( get_xy_dims( dims_out ) == get_xy_dims( oi->get_dims("in") ) );
 	assert_st( chans_in_done+dims_out.dsz("chan") <= oi->get_dims("in").dsz("chan") );
-	// note: oi->str_vals["icix"] is set for each iter; also, oi->oi->tag+"__copy" is reused for all calls (FIXME either/both?)
         oi->set_u32( "icix", chans_in_done );
 	set_rtc_arg( oi, rtc, "out", oi->get_arg( oi->coi->top_an(ti) ) );
 	gen_call( oi );
