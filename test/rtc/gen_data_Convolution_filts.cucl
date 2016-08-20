@@ -1,8 +1,9 @@
 // CUCL INCLUDE gen-util.h
-
+struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( uint32_t const mode, // CUCL IN :
                                           float const vi, // CUCL IN :
-                                          GASQ float * const filts ) // CUCL OUT out_chan:in_chan:y:x
+                                          GASQ float * const filts, // CUCL OUT_DYN out_chan:in_chan:y:x
+                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL IN v
 {
   // CUCL IX GLOB_ID_1D filts
   if( GLOB_ID_1D >= %(filts_dims_prod) ) { return; }
