@@ -149,7 +149,7 @@ namespace boda
       cu_out_dims.resize( out.dims.size() );
       cudnn_err_chk( cudnnGetConvolutionNdForwardOutputDim( cu_conv.v, cu_in.v, cu_filts.v, cu_out_dims.size(),
                                                             &cu_out_dims[0] ), "cudnnGetConvolutionNdForwardOutputDim" );
-      printf( "out.dims=%s cu_out_dims=%s\n", str(out.dims).c_str(), str(cu_out_dims).c_str() );
+      //printf( "out.dims=%s cu_out_dims=%s\n", str(out.dims).c_str(), str(cu_out_dims).c_str() );
 
       // allow scratch of 4 times in+out+filts bytes
       uint64_t max_scratch = (in.dims.dims_prod()+out.dims.dims_prod()+filts.dims.dims_prod())*4*4;
@@ -162,7 +162,7 @@ namespace boda
       cudnn_err_chk( cudnnGetConvolutionForwardWorkspaceSize( cdh, cu_in.v, cu_filts.v, cu_conv.v, cu_out.v, cu_conv_algo, 
                                                               &need_scratch ), "cudnnGetConvolutionForwardWorkspaceSize" );
       
-      printf( "cu_conv_algo=%s need_scratch=%s\n", str(cu_conv_algo).c_str(), str(need_scratch).c_str() );
+      //printf( "cu_conv_algo=%s need_scratch=%s\n", str(cu_conv_algo).c_str(), str(need_scratch).c_str() );
       // FIXME: need to make scratch persistent here? need access to rtc?
       if( need_scratch ) {
         if( (!cu_work) || ( cu_work->sz < need_scratch ) ) { cu_work = make_shared<cup_uint8_t>( need_scratch ); }

@@ -165,5 +165,6 @@
 <li test_name="test_cnn_op_info_3" cli_str="boda cnn_op_info --rtc='(be=ocl)' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=600)))' --rtc-comp='(be=nvrtc)'  --max-err=10 --op-tune='(MNt=4:4,MNb=16:16,Kb=4,use_local_mem=2,vw=4)' --cnn-func-sigs-fn='%(boda_test_dir)/sgemm-ops-debug.txt' --out-fn='%(boda_output_dir)/cnn_op_info.txt'" />
 <li test_name="test_cnn_op_info_4" cli_str="boda cnn_op_info --rtc='(be=ocl)' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --rtc-comp='(be=nvrtc)'  --max-err=10 --op-tune='(MNt=4:4,MNb=16:16,Kb=4,use_local_mem=3,vw=4)' --cnn-func-sigs-fn='%(boda_test_dir)/sgemm-ops-debug.txt' --out-fn='%(boda_output_dir)/cnn_op_info.txt'" />
 
+<li test_name="test_cnn_op_info_conv_cudnn_1" cli_str="boda cnn_op_info --rtc='(be=ocl)' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --rtc-comp='(be=nvrtc)' --cnn-func-sigs-fn='%(boda_test_dir)/conv-ops-debug.txt' --out-fn='%(boda_output_dir)/cnn_op_info.txt'"/>
 
 </root>
