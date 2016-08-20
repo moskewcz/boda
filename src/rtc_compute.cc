@@ -12,7 +12,9 @@ namespace boda
   }
 
   std::ostream & operator << ( std::ostream & out, rtc_arg_t const & o ) {
-    out << strprintf( "o.n=%s o.v=%s\n", str(o.n).c_str(), str(o.v).c_str() );
+    assert_st( o.is_valid() );
+    if( o.is_nda() ) { out << strprintf( "nda:o.v=%s", str(o.v).c_str() ); }
+    if( o.is_var() ) { out << strprintf( "var:o.n=%s", str(o.n).c_str() ); }
     return out;
   }
 
