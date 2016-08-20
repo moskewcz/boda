@@ -153,7 +153,7 @@ namespace boda
     // should be an error if they're *not* used. so we don't want to be listing them in every variant, or if we do, it
     // should only be to check all the proper per-operation-per-varient ones are used. maybe, everything must be used by
     // default? with some way to explicitly ignore some vals that are somehow optional for a given variant?
-    vect_string const always_keep_vals{"tpb","conv_has_relu"};
+    vect_string const always_keep_vals{"conv_has_relu"};
     for( vect_string::const_iterator i = always_keep_vals.begin(); i != always_keep_vals.end(); ++i ) {
       if( rfs_in.has( (*i) ) ) { rfs_out->set( (*i), rfs_in.get( (*i) ) ); }
     }
@@ -371,7 +371,7 @@ namespace boda
     assert_st( rtc_func_template->template_fn == op.get_func_name() ); // better be right template
     //printf( "op.func_name=%s gen_fn=%s op.str_vals=%s\n", str(op.get_func_name()).c_str(), gen_fn.c_str(), str(op.str_vals).c_str() );
     // if we have a str_val with the magic name 'tpb', use it to set the call geom:
-    if( op.has( "tpb" ) ) { rtc_call_geom.tpb = op.get_u32( "tpb" ); }
+    if( op.has( "tpb" ) ) { rtc_call_geom.tpb = op.get_u32( "tpb" ); } // note: the tpb scalar must have a value for now
     for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
       dims_t ix_dims = apply_use_dims( get_arg_dims_by_name( i->arg_vn, "IX" ), i->use_dims );
       assert_st( ix_dims.size() && ix_dims.has_name() );
@@ -402,11 +402,35 @@ namespace boda
 
     if( cc ) { cc->gen_op( this, rtc_func_template->template_fn ); } // call custom_codegen_t hook.
 
+    for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( &op ); !i.at_end(); ++i ) {
+      if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
+      if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
+      p_nda_t const & arg_nda = op.get(i.vn()); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
+      dims_t const & arg_dims = arg_nda->dims;
+      if( arg_dims == make_null_dims_t() ) { continue; } // skip null dims
+      if( i.ad().dyn.v ) {
+        assert_st( i.ad().loi.v == 1 );
+        dyn_vars.push_back( dyn_dim_info_t{ i.vn(), i.vn(), vect_string{} } ); 
+        add_dyn_nda_dims_sz( i.vn(), arg_dims, 1 ); 
+      } else {	
+        bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
+        insert_nda_dims_sz( tsvs, i.vn(), arg_dims, dims_only ); 
+        if( i.ad().loi.v == 0 ) { // for scalars, set a template varaible that references the scalar (same name as the arg)
+          assert_st( arg_dims.dims_prod() == 1 ); // earlier restriction/error-check should guarentee this
+          // if we have a constant value now, template can be string constant. otherwise, reference (per-call-dynamic) arg
+          set( i.vn(), arg_nda->rp_elems() ? get_scalar_c_const_str(*arg_nda) : i.vn() );
+          // printf( "i.vn()=%s tsvs[i.vn()]=%s\n", str(i.vn()).c_str(), str(tsvs[i.vn()]).c_str() );
+        } 
+      }
+    }
+
     // make these always availible as template vars, since why not?  FIXME: should set these to fields inside
     // cucl_arg_info if they are dynamic. however, codegen that uses tpb directly would still be broken in that case
-    // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the
-    // template string ( which might point to a dynamic value ) instead.
-    set( "tpb", str(rtc_call_geom.tpb) ); // currently, should always be fixed/constant/valid if there are no dyn vars
+    // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the template
+    // string ( which might point to a dynamic value ) instead. NOTE: currently, tpb should always be
+    // fixed/constant/valid if there are no dyn vars. set is guarded since a template may declair tpb as a scalar arg
+    // (e.g. var_stats).
+    if( !has(tsvs,"tpb") ) { set( "tpb", str(rtc_call_geom.tpb) ); } 
     set( "blks", str(rtc_call_geom.blks) ); // may be 0 if # of blocks is dynamic
     set( "warp_sz", str("UNKNOWN") ); // yeah, not the best, but probably not exactly wrong. don't use it for real
 
@@ -454,27 +478,6 @@ namespace boda
 
   void rtc_call_gen_t::instantiate_template( string const & template_str ) {
     assert_st( rtc_prog_str.empty() ); // should only call only
-    for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( &op ); !i.at_end(); ++i ) {
-      if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
-      if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
-      p_nda_t const & arg_nda = op.get(i.vn()); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
-      dims_t const & arg_dims = arg_nda->dims;
-      if( arg_dims == make_null_dims_t() ) { continue; } // skip null dims
-      if( i.ad().dyn.v ) {
-        assert_st( i.ad().loi.v == 1 );
-        dyn_vars.push_back( dyn_dim_info_t{ i.vn(), i.vn(), vect_string{} } ); 
-        add_dyn_nda_dims_sz( i.vn(), arg_dims, 1 ); 
-      } else {	
-        bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
-        insert_nda_dims_sz( tsvs, i.vn(), arg_dims, dims_only ); 
-        if( i.ad().loi.v == 0 ) { // for scalars, set a template varaible that references the scalar (same name as the arg)
-          assert_st( arg_dims.dims_prod() == 1 ); // earlier restriction/error-check should guarentee this
-          // if we have a constant value now, template can be string constant. otherwise, reference (per-call-dynamic) arg
-          set( i.vn(), arg_nda->rp_elems() ? get_scalar_c_const_str(*arg_nda) : i.vn() );
-          // printf( "i.vn()=%s tsvs[i.vn()]=%s\n", str(i.vn()).c_str(), str(tsvs[i.vn()]).c_str() );
-        } 
-      }
-    }
 
     if( (!rtc_func_template->has_cucl_arg_info.v) && (!dyn_vars.empty()) ) {
       rt_err( "template declares _DYN arguments, but no CUCL ARGINFO declaration was found." );
