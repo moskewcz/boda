@@ -99,7 +99,11 @@ namespace boda
 
   dims_t dims_from_nda_spec( string const & tn, string const & nda_spec );
 
-
+  struct check_args_ret_t {
+    p_op_base_t reduced; // defines the semantics of compiled op (note: func may be more general then needed/requested)
+    p_op_base_t to_pass; // additional data to pass to compiled op to get semantics of desired operation (e.g. dyn dims)
+    check_args_ret_t( void ) : reduced( make_shared<op_base_t>() ), to_pass( make_shared<op_base_t>() ) { }
+  };
   // this parses and stores a cucl function template for later instantiation. in particular, we process all CUCL
   // declarations and store the results into arg_decls and ix_decls. after init, the contents of this object are
   // constant, and all contents are purly derived from the contents of the template file. this object exists both to
@@ -113,7 +117,7 @@ namespace boda
     zi_bool has_cucl_arg_info;
     void init( string const & template_fn_ );
     void init_proc_line( string const & line );
-    p_op_base_t check_args( op_base_t const & rfs_in );
+    check_args_ret_t check_args( op_base_t const & rfs_in );
   };
 
   typedef shared_ptr< rtc_template_t > p_rtc_template_t; 

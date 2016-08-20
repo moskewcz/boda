@@ -141,12 +141,10 @@ namespace boda
   // signature with only the arg dims needed/used by this template. this reduced signature is suitable for uniqueing
   // the semantics of this template wrt the input signature -- that is, input signatures that differ only in dims that
   // are not used by the template won't have differing semantics.
-  p_op_base_t rtc_template_t::check_args( op_base_t const & rfs_in ) {
-    p_op_base_t rfs_out( new op_base_t( rfs_in ) );
-
-    // for now: keep all of rfs_in expect dims_vals (which we reduce to only the used elements). type is semi-unused,
-    // but maybe important to unique?
-    rfs_out->nda_vals.clear();     
+  check_args_ret_t rtc_template_t::check_args( op_base_t const & rfs_in ) {
+    check_args_ret_t ret;
+    // currently, we keep all str_vals. note the the only current ones are type and func_name.
+    ret.reduced->str_vals = rfs_in.str_vals; 
 
     // FIXME: for now, we use a hacky list of 'always keep' val names. maybe these should be in the templates, but there
     // are a couple issues. many/all of these should really be part of the operation (and they are), and really it
@@ -155,7 +153,7 @@ namespace boda
     // default? with some way to explicitly ignore some vals that are somehow optional for a given variant?
     vect_string const always_keep_vals{"conv_has_relu"};
     for( vect_string::const_iterator i = always_keep_vals.begin(); i != always_keep_vals.end(); ++i ) {
-      if( rfs_in.has( (*i) ) ) { rfs_out->set( (*i), rfs_in.get( (*i) ) ); }
+      if( rfs_in.has( (*i) ) ) { ret.reduced->set( (*i), rfs_in.get( (*i) ) ); }
     }
     string arg_check_error;
 
@@ -200,10 +198,10 @@ namespace boda
         dims_t arg_dims_no_sizes_or_strides = arg_dims;
         arg_dims_no_sizes_or_strides.clear_strides();
         arg_dims_no_sizes_or_strides.clear_dims();
-        rfs_out->set_dims( i.vn(), arg_dims_no_sizes_or_strides );
+        ret.reduced->set_dims( i.vn(), arg_dims_no_sizes_or_strides );
         // FIXME: keep original nda somewhere
       } else {
-        rfs_out->set( i.vn(), arg_nda ); // keep exactly used nda in signature (including value if present)
+        ret.reduced->set( i.vn(), arg_nda ); // keep exactly used nda in signature (including value if present)
       }
     }
     if( !arg_check_error.empty() ) {
@@ -217,7 +215,7 @@ namespace boda
       arg_err += "full rfs: " + str(rfs_in) + "\n";
       rt_err( arg_err );
     }
-    return rfs_out;
+    return ret;
   }
 
   // ****** util funcs ******
@@ -614,17 +612,26 @@ namespace boda
     p_rtc_template_t & rtc_template = rtc_templates[func_name];
     if( !rtc_template ) { rtc_template.reset( new rtc_template_t ); rtc_template->init( func_name ); }
 
-    p_op_base_t rfs_reduced = rtc_template->check_args( rfs_full );
+    check_args_ret_t const ca_ret = rtc_template->check_args( rfs_full );
+    // currently, there's nowhere to put any str_vals we're supposed to pass back to the generation function, and it's
+    // not clear exactly what that would mean or what the use case would be. but like the whole 'what to do with
+    // str_vals' issue, maybe later it'll make sense. shoving them in as 'str' args might be right? but it seems a bit
+    // nuts to overload var-ref-string with some-random-strings ...
+    if( !ca_ret.to_pass->str_vals.empty() ) { rt_err( "UNIMPLEMENTED: str_vals in ca_ret->to_pass"); }
 
-    p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*rfs_reduced];
+    p_rtc_call_gen_t & rcg = rtc_func_sigs_map[*ca_ret.reduced];
     if( !rcg ) { // need to instatiate function and pick unused name
       rcg.reset( new rtc_call_gen_t );
-      string gen_fn = gen_unused_fn( *rfs_reduced, used_names );
-      rcg->init( *rfs_reduced, rtc_template, cc.get(), gen_fn );
+      string gen_fn = gen_unused_fn( *ca_ret.reduced, used_names );
+      rcg->init( *ca_ret.reduced, rtc_template, cc.get(), gen_fn );
       used_names.insert( gen_fn );
       compile_pend.push_back( rcg );
-    }    
-    return make_shared<rcg_func_call_t>(rcg,arg_map);
+    } 
+    map_str_rtc_arg_t fin_arg_map = arg_map;
+    for( map_str_p_nda_t::const_iterator i = ca_ret.to_pass->nda_vals.begin(); i != ca_ret.to_pass->nda_vals.end(); ++i ) {
+      must_insert( fin_arg_map, i->first, i->second ); // merge to_pass into arg_map
+    }
+    return make_shared<rcg_func_call_t>(rcg,fin_arg_map);
   }
 
   // currently used for calling xpose functions. not the pretiest thing, but better factored out here then dupe'd.
