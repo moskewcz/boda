@@ -346,7 +346,7 @@ namespace boda
 
   // since a CUCL IX may use only a subset of the dims of the arg_dims that it references, we need to create the
   // sub-dims here.
-  dims_t rtc_call_gen_t::apply_use_dims( dims_t const & ix_arg_dims, vect_string const & use_dims ) {
+  dims_t apply_use_dims( dims_t const & ix_arg_dims, vect_string const & use_dims ) {
     dims_t ix_dims;
     if( use_dims.empty() ) { ix_dims = ix_arg_dims; } 
     else {
@@ -439,7 +439,7 @@ namespace boda
     }
   }
 
-  void rtc_call_gen_t::add_arg_info_for_dims( dims_t const & dims, vect_int32_t & cucl_arg_info ) {
+  void add_arg_info_for_dims( dims_t const & dims, vect_int32_t & cucl_arg_info ) {
     // FIXME: since it is dynamic, we don't seem to know if nda_vn will be 'dims only' or not here. so for now we
     // assume all dynamic vars are not dims only; this means we'll always generate stride vars for them in the arg
     // info, but maybe that's okay?
@@ -502,21 +502,19 @@ namespace boda
     rtc_prog_str += rtc_func_str;      
   }
   
-  
-
-  uint32_t rtc_call_gen_t::run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t const & rcg_func_call){
+  uint32_t rcg_func_call_t::run( p_rtc_compute_t const & rtc, bool const & show_rtc_calls ) const {
     rtc_func_call_t rfc;
-    rfc.rtc_func_name = rcg_func_call.func->gen_fn;
-    rtc_call_geom_t dyn_rtc_call_geom = rtc_call_geom;
+    rfc.rtc_func_name = rcg->gen_fn;
+    rtc_call_geom_t dyn_rtc_call_geom = rcg->rtc_call_geom;
     //printf( "op=%s arg_map=%s\n", str(op).c_str(), str(rcg_func_call.arg_map).c_str() );
     p_nda_t cucl_arg_info_nda;
-    assert_st( rtc_func_template->has_cucl_arg_info.v || dyn_vars.empty() );
-    if( rtc_func_template->has_cucl_arg_info.v ) {
+    assert_st( rcg->rtc_func_template->has_cucl_arg_info.v || rcg->dyn_vars.empty() );
+    if( rcg->rtc_func_template->has_cucl_arg_info.v ) {
       vect_int32_t cucl_arg_info;
-      for( vect_dyn_dim_info_t::const_iterator i = dyn_vars.begin(); i != dyn_vars.end(); ++i ) {
+      for( vect_dyn_dim_info_t::const_iterator i = rcg->dyn_vars.begin(); i != rcg->dyn_vars.end(); ++i ) {
         //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
-        map_str_rtc_arg_t::const_iterator an = rcg_func_call.arg_map.find( i->src_vn );
-        if( an == rcg_func_call.arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
+        map_str_rtc_arg_t::const_iterator an = arg_map.find( i->src_vn );
+        if( an == arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
         dims_t const & arg_call_dims = an->second.get_dims( *rtc );
         dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
         //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
@@ -528,18 +526,20 @@ namespace boda
       cucl_arg_info_nda = make_vector_nda( cucl_arg_info ); // convert cucl_arg_info to nda
     }
 
-    for( vect_arg_decl_t::const_iterator i = rtc_func_template->arg_decls.begin(); i != rtc_func_template->arg_decls.end(); ++i ) {
+    for( vect_arg_decl_t::const_iterator i = rcg->rtc_func_template->arg_decls.begin(); 
+         i != rcg->rtc_func_template->arg_decls.end(); ++i ) 
+    {
       if( i->io_type == "REF" ) { continue; } // note: could move up scope, but hoping to factor out iter
       if( i->vn == "cucl_arg_info" ) { // FIXME: not-too-nice special case for cucl_arg_info argument 
-        assert_st( rtc_func_template->has_cucl_arg_info.v );
+        assert_st( rcg->rtc_func_template->has_cucl_arg_info.v );
         rfc.args.push_back(rtc_arg_t{cucl_arg_info_nda});
         cucl_arg_info_nda.reset(); // mark as used
         continue;
       }
-      uint32_t const multi_sz = i->get_multi_sz( op );
+      uint32_t const multi_sz = i->get_multi_sz( rcg->op );
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
-        p_nda_t const & func_nda = op.get(vn); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
+        p_nda_t const & func_nda = rcg->op.get(vn); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
         dims_t const & func_dims = func_nda->dims;
         if( func_dims == make_null_dims_t() ) { rfc.args.push_back(rtc_arg_t{"<NULL>"}); continue; } // NULL, pass though to rtc
         dims_t call_dims;
@@ -552,8 +552,8 @@ namespace boda
             rfc.args.push_back( rtc_arg_t{func_nda} );
           } else { 
             // otherwise, assume the value we want/need is in in nda_args
-            map_str_rtc_arg_t::const_iterator an = rcg_func_call.arg_map.find( vn );
-            if( an == rcg_func_call.arg_map.end() ) {
+            map_str_rtc_arg_t::const_iterator an = arg_map.find( vn );
+            if( an == arg_map.end() ) {
               rt_err( "specified "+i->io_type+" scalar by-value arg '"+vn+"' not found in arg_map at call time." ); 
             }
             call_dims = an->second.get_dims( *rtc );
@@ -567,8 +567,8 @@ namespace boda
           // ... it's probably okay?
         } else { 
           assert_st( i->loi.v == 1 );
-          map_str_rtc_arg_t::const_iterator an = rcg_func_call.arg_map.find( vn );
-          if( an == rcg_func_call.arg_map.end() ) {
+          map_str_rtc_arg_t::const_iterator an = arg_map.find( vn );
+          if( an == arg_map.end() ) {
             rt_err( "specified "+i->io_type+" arg '"+vn+"' not found in arg_map at call time." ); 
           }
           call_dims = an->second.get_dims( *rtc );
@@ -653,7 +653,7 @@ namespace boda
 
   uint32_t rtc_codegen_t::run_func( rcg_func_call_t const & call ) {
     compile(); // compile any pending funcs
-    return call.func->run_rfc( rtc, rtc_compile_opts.show_rtc_calls, call ); // hmm, a bit bizarre/contorted.
+    return call.run( rtc, rtc_compile_opts.show_rtc_calls );
   }
 
   // clear functions that aren't externally referenced

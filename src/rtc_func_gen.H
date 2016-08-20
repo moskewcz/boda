@@ -25,8 +25,9 @@ namespace boda
   typedef map< op_base_t, p_rtc_call_gen_t > rtc_func_sigs_map_t;
 
   struct rcg_func_call_t {
-    p_rtc_call_gen_t func;
+    p_rtc_call_gen_t rcg;
     map_str_rtc_arg_t arg_map;
+    uint32_t run( p_rtc_compute_t const & rtc, bool const & show_rtc_calls ) const;
   };
   typedef vector< rcg_func_call_t > vect_rcg_func_call_t; 
   typedef shared_ptr< rcg_func_call_t > p_rcg_func_call_t; 
@@ -153,14 +154,11 @@ namespace boda
     vect_dyn_dim_info_t dyn_vars;
     void line( string const & sn, string const & line );
     void set( string const & var, string const & val );
-    dims_t apply_use_dims( dims_t const & ix_arg_dims, vect_string const & use_dims );
     void init( op_base_t const & op_, p_rtc_template_t const & rtc_func_template_, custom_codegen_t * const cc, string const & gen_fn_ );
     dims_t const & get_arg_dims_by_name( string const & arg_vn, string const & err_tag = "TEMPLATE" );
     string cai_tn( void ) const { return "int32_t"; } // type string for cucl arg info vars
     void add_dyn_nda_dims_sz( string const & nda_vn, dims_t const & dims, bool const add_ref_templates );
-    void add_arg_info_for_dims( dims_t const & dims, vect_int32_t & cucl_arg_info );
     void instantiate_template( string const & template_str );
-    uint32_t run_rfc( p_rtc_compute_t const & rtc, bool const & show_rtc_calls, rcg_func_call_t const & rfc );
   };
   
   struct rtc_codegen_t {

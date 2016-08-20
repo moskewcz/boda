@@ -550,7 +550,7 @@ namespace boda
 	float const rfc_dur = rtc->get_dur( i->call_id, i->call_id );
 	(*out) << strprintf( "per_layer_time['%s']=per_layer_time.get('%s',0.0) + %s # %s \n", 
 			     str(i->call_tag).c_str(), str(i->call_tag).c_str(), str(rfc_dur/1000.0).c_str(), 
-                             rfc.func->gen_fn.c_str() );
+                             rfc.rcg->gen_fn.c_str() );
       }
       cp->dump_ops( *out );
     }
