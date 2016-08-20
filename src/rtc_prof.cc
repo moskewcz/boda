@@ -43,9 +43,9 @@ namespace boda
   // input and output variable names and arg names happen to be the same, hence the 'an_and_vn' arguments to this func.
   void run_xpose( p_op_base_t const & anno_op, rtc_codegen_t & codegen, string const & xpose_func_name, 
                   string const &out_an_and_vn, string const &in_an_and_vn )  {
-    p_rtc_call_gen_t xpose_func = codegen.gen_func_override_func_name( xpose_func_name, *anno_op );
-    rcg_func_call_t rcg{ xpose_func, map_str_rtc_arg_t{{out_an_and_vn,out_an_and_vn},{in_an_and_vn,in_an_and_vn}} };
-    codegen.run_func( rcg );
+    p_rcg_func_call_t rfc = codegen.gen_func_override_func_name( xpose_func_name, *anno_op, 
+                           map_str_rtc_arg_t{{out_an_and_vn,out_an_and_vn},{in_an_and_vn,in_an_and_vn}});
+    codegen.run_func( *rfc );
   }
   
   double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
@@ -54,9 +54,9 @@ namespace boda
   {
     timer_t t("profile_rcg_call");
     string const anno_op_func_name = anno_op->get_func_name();
-    p_rtc_call_gen_t rcg = codegen.gen_func( *anno_op );
-
-    map_str_rtc_arg_t arg_map;
+    p_rcg_func_call_t rfc = codegen.gen_func( *anno_op, map_str_rtc_arg_t() ); // FIXME: not passing in args here. yet?
+    p_rtc_call_gen_t const & rcg = rfc->rcg;
+    map_str_rtc_arg_t & arg_map = rfc->arg_map;
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
       if( i.ad().io_type == "REF" ) { continue; }
       if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
@@ -88,9 +88,8 @@ namespace boda
           codegen.rtc->create_var_with_dims( gen_vn, ref_in_dims ); 
           xpose_vars_to_release.push_back( gen_vn );
         }
-	p_rtc_call_gen_t in_gen_func = codegen.gen_func( *in_gen_op );
-	rcg_func_call_t rfc_in_gen{ in_gen_func, map_str_rtc_arg_t{{i.vn(),gen_vn}} };
-	codegen.run_func( rfc_in_gen );
+	p_rcg_func_call_t rfc_in_gen = codegen.gen_func( *in_gen_op, map_str_rtc_arg_t{{i.vn(),gen_vn}} );
+	codegen.run_func( *rfc_in_gen );
         // check if xpose needed:
         if( gen_vn != i.vn() ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
@@ -103,9 +102,8 @@ namespace boda
       }
     }
 
-    rcg_func_call_t const rfc{ rcg, arg_map }; 
     uint32_t call_id = uint32_t_const_max;
-    for( uint32_t i = 0; i != run_iter; ++i ) { call_id = codegen.run_func( rfc ); }
+    for( uint32_t i = 0; i != run_iter; ++i ) { call_id = codegen.run_func( *rfc ); }
 
     // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
@@ -134,7 +132,7 @@ namespace boda
     codegen.rtc->finish_and_sync();
     double const rfc_dur = codegen.rtc->get_dur( call_id, call_id );
     codegen.rtc->release_per_call_id_data();
-    rcg.reset(); // optional. allows just-used function (which is no longer needed) to be released now if func-gc happens.
+    rfc.reset(); // optional. allows just-used function (which is no longer needed) to be released now if func-gc happens.
     codegen.gc_clear();
     return rfc_dur;
   }

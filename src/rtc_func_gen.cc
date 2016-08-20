@@ -605,7 +605,7 @@ namespace boda
   p_op_base_t make_p_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
   using boost::filesystem::is_regular_file;
 
-  p_rtc_call_gen_t rtc_codegen_t::gen_func( op_base_t const & rfs_full ) {
+  p_rcg_func_call_t rtc_codegen_t::gen_func( op_base_t const & rfs_full, map_str_rtc_arg_t const & arg_map ) { // note: no ref to rfs_full is kept
     // first, get template
     string const & func_name = rfs_full.get_func_name();
     p_rtc_template_t & rtc_template = rtc_templates[func_name];
@@ -621,16 +621,16 @@ namespace boda
       used_names.insert( gen_fn );
       compile_pend.push_back( rcg );
     }    
-    return rcg;
+    return make_shared<rcg_func_call_t>(rcg,arg_map);
   }
 
   // currently used for calling xpose functions. not the pretiest thing, but better factored out here then dupe'd.
-  p_rtc_call_gen_t rtc_codegen_t::gen_func_override_func_name( string const & func_name, op_base_t & op ) {
+  p_rcg_func_call_t rtc_codegen_t::gen_func_override_func_name( string const & func_name, op_base_t & op, map_str_rtc_arg_t const & arg_map ) {
     // sigh. used only in conv case, where we know func_name is already set ...
     string const orig_func_name = op.get_func_name(); 
     op.erase_func_name();
     op.set_func_name( func_name );
-    p_rtc_call_gen_t func = gen_func( op );
+    p_rcg_func_call_t func = gen_func( op, arg_map ); // note: no ref to op better be kept! (and it isn't)
     op.erase_func_name();
     op.set_func_name( orig_func_name );
     return func;
@@ -678,7 +678,7 @@ namespace boda
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
-      gen_func( *v );
+      gen_func( *v, map_str_rtc_arg_t() ); // FIXME: this seem broken now; untested/unused? remove? fix?
       uint32_t const ix = i - in_lines->begin();
       if( !(ix % 100000)) { printf( "ix=%s\n", str(ix).c_str() ); }
     }

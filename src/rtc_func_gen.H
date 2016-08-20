@@ -27,6 +27,7 @@ namespace boda
   struct rcg_func_call_t {
     p_rtc_call_gen_t rcg;
     map_str_rtc_arg_t arg_map;
+    rcg_func_call_t( p_rtc_call_gen_t const & rcg_, map_str_rtc_arg_t const & arg_map_ ) : rcg(rcg_), arg_map(arg_map_) { }
     uint32_t run( p_rtc_compute_t const & rtc, bool const & show_rtc_calls ) const;
   };
   typedef vector< rcg_func_call_t > vect_rcg_func_call_t; 
@@ -171,8 +172,8 @@ namespace boda
       rtc_compile_opts = rtc_compile_opts_;
     }
 
-    p_rtc_call_gen_t gen_func( op_base_t const & rfs_full );
-    p_rtc_call_gen_t gen_func_override_func_name( string const & func_name, op_base_t & op );
+    p_rcg_func_call_t gen_func( op_base_t const & rfs_full, map_str_rtc_arg_t const & arg_map );
+    p_rcg_func_call_t gen_func_override_func_name( string const & func_name, op_base_t & op, map_str_rtc_arg_t const & arg_map );
 
     uint32_t run_func( rcg_func_call_t const & call );
 

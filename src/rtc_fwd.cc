@@ -15,11 +15,12 @@
 
 namespace boda 
 {
-  struct rtc_fwd_func_call_t : public rcg_func_call_t {
+  struct rtc_fwd_func_call_t {
+    p_rcg_func_call_t rfc;
     string call_tag;
     uint32_t call_id;
-    rtc_fwd_func_call_t( rcg_func_call_t const &rcg_, string const & call_tag_ ) : 
-      rcg_func_call_t(rcg_), call_tag(call_tag_), call_id( uint32_t_const_max ) {}
+    rtc_fwd_func_call_t( p_rcg_func_call_t const &rfc_, string const & call_tag_ ) : 
+      rfc(rfc_), call_tag(call_tag_), call_id( uint32_t_const_max ) {}
   };
   typedef vector< rtc_fwd_func_call_t > vect_rtc_fwd_func_call_t; 
 
@@ -79,7 +80,9 @@ namespace boda
     p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
 
     vect_rtc_fwd_func_call_t fwd_calls;
-    void add_fwd_call( rcg_func_call_t const & rcg, string const & call_tag ) { fwd_calls.emplace_back( rcg, call_tag ); }
+    void add_fwd_call( p_rcg_func_call_t const & rcg, string const & call_tag ) { 
+      fwd_calls.emplace_back( rcg, call_tag ); 
+    }
 
     virtual void init( p_conv_pipe_t const & cp_ );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
@@ -88,9 +91,9 @@ namespace boda
       // sigh.
       for( vect_uint32_t::const_iterator i = dropout_cixs.begin(); i != dropout_cixs.end(); ++i ) {
 	assert( (*i) < fwd_calls.size() );
-	rcg_func_call_t & rcg = fwd_calls[*i];
-	assert_st( has( rcg.arg_map, "det_drop_seed" ) );
-	rcg.arg_map["det_drop_seed"] = make_scalar_nda(det_drop_seed_);
+	rcg_func_call_t & rfc = *(fwd_calls[*i].rfc);
+	assert_st( has( rfc.arg_map, "det_drop_seed" ) );
+	rfc.arg_map["det_drop_seed"] = make_scalar_nda(det_drop_seed_);
       }
     }
 
@@ -177,8 +180,6 @@ namespace boda
         var_stats.set_dims( reds[i] + "_out", dims_t( {out_sz}, {"v"}, "float" ) ); 
       } 
       var_stats.set_u32( "tpb", rtc_call_geom_t::get_default_tpb() );
-      p_rtc_call_gen_t func = codegen.gen_func( var_stats );
-      assert_st( func->rtc_call_geom.tpb == rtc_call_geom_t::get_default_tpb() );
       vect_string cur_outs;
       //vect_string args = cur_ins;
       vect_string out_args;
@@ -194,7 +195,11 @@ namespace boda
       assert_st( cur_outs.size() == reds.size() );
       for( uint32_t i = 0; i != reds.size(); ++i ) { must_insert( arg_map, reds[i]+"_out", cur_outs[i] ); }
       must_insert( arg_map, "primary_in", make_scalar_nda(primary_in) );
-      add_fwd_call( rcg_func_call_t{ func, arg_map }, "var_stats__" + top_in );
+
+      p_rcg_func_call_t rfc = codegen.gen_func( var_stats, arg_map );
+      assert_st( rfc->rcg->rtc_call_geom.tpb == rtc_call_geom_t::get_default_tpb() );
+      add_fwd_call( rfc, "var_stats__" + top_in );
+
       cur_ins = cur_outs;
       in_sz = out_sz;
       primary_in = 0;
@@ -212,23 +217,25 @@ namespace boda
     quantize_op.set_dims("out",rtc->get_var_dims(top_in));
     quantize_op.set_dims("max_val",make_scalar_dims_t("uint32_t"));
     quantize_op.set_dims("drop_mask",make_scalar_dims_t("uint32_t"));
-    p_rtc_call_gen_t func = codegen.gen_func( quantize_op );
-    add_fwd_call( rcg_func_call_t{ func, map_str_rtc_arg_t{{"out",top_in},
-          {"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} }, "quantize__"+top_in );
+    p_rcg_func_call_t rtc = codegen.gen_func( quantize_op, map_str_rtc_arg_t{{"out",top_in}, 
+        {"max_val",make_scalar_nda(max_val)},{"drop_mask",make_scalar_nda(drop_mask)}} );
+    add_fwd_call( rtc , "quantize__"+top_in );
   }
 
   // this assumes that in_var is valid/calculated, and returns ret_var=func(in_var). it assumes that func is a stateless
   // unary operator (with two args: {in,out}), so that only one unique ret_var need only be generated per unique
-  // in_var/func<ret_dims> pair. ret_var is named in_var+"__"+func
+  // in_var/func pair. ret_var is named in_var+"__"+func_name. note that ret_dims must be unique per in_var/func pair,
+  // since it is not uniqued/inspected.
   string conv_pipe_fwd_t::gen_apply_func_to_var( string const & in_an, string const & in_var, 
 						 string const & ret_an, dims_t const & ret_dims, 
                                                  string const & func_name, p_conv_op_t const & oi )
   {
-    p_rtc_call_gen_t func = codegen.gen_func_override_func_name( func_name, *oi );
-    string const ret_var = in_var + "__" + func->gen_fn;
+    // FIXME: cache ret_dims and check that it agrees on in_var/func cache hits.
+    string const ret_var = in_var + "__" + func_name;
     bool const did_ins = inxp_names.insert( ret_var ).second;
     if( did_ins ) { // newly-seen/used ret_var, so create and calc it here
-      add_fwd_call( rcg_func_call_t{ func, map_str_rtc_arg_t{{in_an,in_var},{ret_an,ret_var}}}, in_var + "__inxp" );
+      p_rcg_func_call_t rfc = codegen.gen_func_override_func_name( func_name, *oi, map_str_rtc_arg_t{{in_an,in_var},{ret_an,ret_var}} );
+      add_fwd_call( rfc, in_var + "__inxp" );
       rtc->create_var_with_dims( ret_var, ret_dims );
     }
     return ret_var;
@@ -350,13 +357,13 @@ namespace boda
       assert_st( dropout_ratio > 0.0 );
       assert_st( dropout_ratio < 1.0 );
       // for below dep_drop_seed handling: see update code elsewhere. yeah, not the cleanest approach.
-      must_insert( fwd_calls.back().arg_map, "det_drop_seed", rtc_arg_t() );
+      must_insert( fwd_calls.back().rfc->arg_map, "det_drop_seed", rtc_arg_t() );
       dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( oi->is( BckDropout_coi ) ) {
       assert_st( oi->get_arg("in") == oi->get_arg("out") ); // check that this is a single in-out in-place operation
       set_rtc_arg( oi, rtc, "inout", oi->get_arg("in") );
       gen_call( oi ); // Backwards of dropout is dropout
-      must_insert( fwd_calls.back().arg_map, "det_drop_seed", rtc_arg_t() );
+      must_insert( fwd_calls.back().rfc->arg_map, "det_drop_seed", rtc_arg_t() );
       dropout_cixs.push_back( fwd_calls.size() - 1 );
     } else if( oi->is( SoftmaxWithLoss_coi ) ) {
       string const prob_node_name = oi->tag + "_prob";
@@ -403,11 +410,10 @@ namespace boda
   // generate call for given oi, using oi->get_func_name() to choose template/function
   void conv_pipe_fwd_t::gen_call( p_conv_op_t const & oi ) { 
     assert_st( oi->has_func_name() );
-    p_rtc_call_gen_t func = codegen.gen_func( *oi );
-    rcg_func_call_t rcg{ func, oi->arg_map };
+    p_rcg_func_call_t rfc = codegen.gen_func( *oi, oi->arg_map );
     if( oi->is( Convolution_coi ) && ( (oi->get_func_name() == tconv_str) || (oi->get_func_name() == k1conv_str) ) ) { 
-      must_insert( rcg.arg_map, "flags", make_scalar_nda(flags) ); } // FIXME: not the place for this.
-    add_fwd_call( rcg, oi->tag );
+      must_insert( rfc->arg_map, "flags", make_scalar_nda(flags) ); } // FIXME: not the place for this.
+    add_fwd_call( rfc, oi->tag );
   }
 
   // used in cases where no single func_name()/template/function applies to operation. we override func_name(), generate
@@ -514,7 +520,7 @@ namespace boda
     if( enable_double_run ) {
       // optional: run fwd rfc's one for testing/flushing/cache setup. note: ~*doubles* total run time ...
       for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { 
-        codegen.run_func( *i ); 
+        codegen.run_func( *i->rfc ); 
       }
     }
     rtc->finish_and_sync();
@@ -529,7 +535,7 @@ namespace boda
     {
       timer_t t("conv_pipe_fwd_t::run_fwd");
       for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) { 
-        i->call_id = codegen.run_func( *i ); 
+        i->call_id = codegen.run_func( *i->rfc ); 
       }
       rtc->finish_and_sync();
     }
@@ -545,7 +551,7 @@ namespace boda
       p_ofstream out = ofs_open( per_call_fn );
       (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );
       for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
-	rcg_func_call_t & rfc = *i;
+	rcg_func_call_t & rfc = *i->rfc;
 	if( i->call_tag.empty() ) { continue; }
 	float const rfc_dur = rtc->get_dur( i->call_id, i->call_id );
 	(*out) << strprintf( "per_layer_time['%s']=per_layer_time.get('%s',0.0) + %s # %s \n", 
