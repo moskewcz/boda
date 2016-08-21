@@ -137,8 +137,8 @@ namespace boda
       set_cudnn_tensor_from_dims_t( cu_biases, biases_dims_exp );
 
       cudnn_convolution_t cu_conv;
-      dims_t const & in_pad = op.get_dims( "in_pad" );
-      dims_t const & stride = op.get_dims( "stride" );
+      dims_t in_pad = must_find(arg_map,"in_pad").get_dims(*rtc);
+      dims_t stride = must_find(arg_map,"stride").get_dims(*rtc);
       assert_st( in_pad.size() == 2 );
       assert_st( stride.size() == 2 );
       cudnn_err_chk( cudnnSetConvolution2dDescriptor(  cu_conv.v,

@@ -12,7 +12,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
   // blocks).
 
   // 'use' the stride and in_pad dims here so they will become part of the reduced/uniqued operation
-  /* stride */  // CUCL REF y:x
-  /* in_pad */  // CUCL REF y:x 
+  /* stride */  // CUCL REF_DYN y:x
+  /* in_pad */  // CUCL REF_DYN y:x 
 
 }
