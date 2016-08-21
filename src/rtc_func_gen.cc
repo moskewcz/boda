@@ -532,7 +532,6 @@ namespace boda
     for( vect_arg_decl_t::const_iterator i = rcg->rtc_func_template->arg_decls.begin(); 
          i != rcg->rtc_func_template->arg_decls.end(); ++i ) 
     {
-      if( i->io_type == "REF" ) { continue; } // note: could move up scope, but hoping to factor out iter
       if( i->vn == "cucl_arg_info" ) { // FIXME: not-too-nice special case for cucl_arg_info argument 
         assert_st( rcg->rtc_func_template->has_cucl_arg_info.v );
         must_insert( rfc.arg_map, i->vn, rtc_arg_t{cucl_arg_info_nda} );
@@ -542,6 +541,23 @@ namespace boda
       uint32_t const multi_sz = i->get_multi_sz( rcg->op );
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
+        if( i->io_type == "REF" ) {
+          if( i->dyn.v ) {
+            // for REF DYN dims, we redundantly put the dims into the arg_map for the special-case of external library
+            // integration. in these cases, while all needed information is in the cucl_arg_info structure, it may be
+            // inconvenient (impossible?) to parse. so, clients can do there own version of the cucl_arg_info construction.
+            assert_st( i->loi.v == 1 );
+            map_str_rtc_arg_t::const_iterator an = arg_map.find( vn );
+            if( an == arg_map.end() ) {
+              rt_err( "specified "+i->io_type+" DYN REF arg '"+vn+"' not found in arg_map at call time." ); 
+            }
+            dims_t const arg_call_dims = an->second.get_dims( *rtc );
+            printf( "vn=%s\n", str(vn).c_str() );
+            must_insert( rfc.arg_map, vn, rtc_arg_t{make_dims_nda(arg_call_dims)} );
+          } // else, nothing to do
+          continue; // done with REF case
+        } // else, fall-though to non-ref arg case:
+
         p_nda_t const & func_nda = rcg->op.get(vn); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
         dims_t const & func_dims = func_nda->dims;
         // if null, dims in op, pass invalid/null arg to rtc. FIXME: use scalar of type "none"? or some zero-size nda?
