@@ -321,6 +321,10 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       cl_int const err = clEnqueueReadBuffer( cq.v, vi.buf.v, 1, 0, buf_sz, nda->rp_elems(), 0, 0, 0 ); // note: blocking_read=1
       cl_err_chk( err, "clEnqueueReadBuffer()" );
     }
+    p_nda_t get_var_raw_native_pointer( string const & vn ) {
+      rt_err( "ocl_compute_t: get_var_raw_native_pointer(): not implemented");
+    }
+
     void create_var_with_dims( string const & vn, dims_t const & dims ) { 
       cl_int err;
       cl_mem_t buf;

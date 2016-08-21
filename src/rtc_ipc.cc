@@ -394,6 +394,9 @@ namespace boda
       worker->flush();
       bread_bytes( *worker, (char *)nda->rp_elems(), dims.bytes_sz() ); 
     }
+    p_nda_t get_var_raw_native_pointer( string const & vn ) {
+      rt_err( "get_var_raw_native_pointer()-over-ipc: not implemented (and not needed/sensible?)");
+    }
     void create_var_with_dims( string const & vn, dims_t const & dims ) { 
       must_insert( *vis, vn, ipc_var_info_t{dims} ); 
       bwrite( *worker, string("create_var_with_dims") ); bwrite( *worker, vn ); bwrite( *worker, dims ); 

@@ -200,7 +200,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
       cu_err_chk( cuCtxSetCurrent( cu_context ), "cuCtxSetCurrent" ); // is this always needed/okay?
       // cu_err_chk( cuCtxSetCacheConfig( CU_FUNC_CACHE_PREFER_L1 ), "cuCtxSetCacheConfig" ); // does nothing?
-      cw = culibs_wrap_init(); // creates cublas handle, cudnn handle, etc ...
+      cw = culibs_wrap_init( this ); // creates cublas handle, cudnn handle, etc ...
       init_done.v = 1;
     }
 
@@ -279,6 +279,16 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       assert_st( vi.cup->sz == nda->dims.bytes_sz() );
       cu_err_chk( cuMemcpyDtoH( nda->rp_elems(), vi.cup->p, vi.cup->sz ), "cuMemcpyDtoH" );
     }
+
+    p_nda_t get_var_raw_native_pointer( string const & vn ) {
+      var_info_t const & vi = must_find( *vis, vn );
+      // note that we assume here both host and device pointers are 64 bits (or at least the same size ... or maybe
+      // just that the host size is >= the device size). curious about conversion between CUdeviceptr and (void *)?
+      // take a look here:
+      // http://www.cudahandbook.com/2013/08/why-does-cuda-cudeviceptr-use-unsigned-int-instead-of-void/
+      return make_shared<nda_t>(vi.dims,(void *)(uintptr_t)vi.cup->p);
+    }
+
     void create_var_with_dims( string const & vn, dims_t const & dims ) { must_insert( *vis, vn, var_info_t( dims ) ); }
     void create_var_with_dims_as_reshaped_view_of_var( string const & vn, dims_t const & dims, string const & src_vn ) {
       var_info_t const & src_vi = must_find( *vis, src_vn );
@@ -292,20 +302,12 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     
     nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_nv_func_info_t ) { }
 
-    void add_arg( rtc_arg_t const & arg, vect_rp_void & cu_func_args, p_map_str_p_nda_t const & func_args ) {
-      // FIXME: we really want the func arg names from the layer above this here, but we'll make do for now: 
-      string const an = "arg_" + str( func_args->size() ); 
+    void add_arg( rtc_arg_t const & arg, vect_rp_void & cu_func_args ) {
       if( !arg.is_valid() ) { 
         cu_func_args.push_back( &null_cup );
-        must_insert( *func_args, an, make_shared<nda_t>() );
       } else if( arg.is_var() ) {
         var_info_t const & vi = must_find( *vis, arg.n );
         cu_func_args.push_back( &vi.cup->p );
-        // note that we assume here both host and device pointers are 64 bits (or at least the same size ... or maybe
-        // just that the host size is >= the device size). curious about conversion between CUdeviceptr and (void *)?
-        // take a look here:
-        // http://www.cudahandbook.com/2013/08/why-does-cuda-cudeviceptr-use-unsigned-int-instead-of-void/
-        must_insert( *func_args, an, make_shared<nda_t>(vi.dims,(void *)(uintptr_t)vi.cup->p) );
       } else if( arg.is_nda() ) { 
         assert_st( arg.v );
         assert_st( arg.v->rp_elems() );
@@ -313,7 +315,6 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       } else {
         assert_st(0);
       }
-
     }
 #if 0
     void record_var_events( vect_string const & vars, rtc_func_call_t const & rfc ) {
@@ -326,21 +327,19 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       timer_t t("cu_launch_and_sync");
       string const & fn = rfc.rtc_func_name;
       nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );
-      // FIXME/NOTE: for now, for interfacing with culibs, we create an extra/redundant argument map 'func_args':
-      p_map_str_p_nda_t func_args = make_shared<map_str_p_nda_t>();
       vect_rp_void cu_func_args;
       for( vect_string::const_iterator i = nfi.info.arg_names.begin(); i != nfi.info.arg_names.end(); ++i ) {
         map_str_rtc_arg_t::const_iterator ai = rfc.arg_map.find( *i );
         // this error is almost an internal error, since the rtc_codegen_t level should ensure it doesn't happen:
         if( ai == rfc.arg_map.end() ) { rt_err( strprintf( "nvrtc_compute_t: arg '%s' not found in arg_map for call.\n",
                                                            str((*i)).c_str() ) ); }
-        add_arg( ai->second, cu_func_args, func_args );
+        add_arg( ai->second, cu_func_args );
       }
       uint32_t const call_id = alloc_call_id();
       record_event( get_call_ev(call_id).b_ev );
       string const & func_name = nfi.info.op.get_func_name();
       if( startswith( func_name, "cublas_" ) || startswith( func_name, "cudnn_" )) { 
-        culibs_wrap_call( cw, nfi.info, func_args ); 
+        culibs_wrap_call( cw, nfi.info, rfc.arg_map ); 
       } else {
         rtc_launch_check_blks_and_tpb( fn, rfc.blks.v, rfc.tpb.v );
         cu_err_chk( cuLaunchKernel( nfi.func,

@@ -80,10 +80,11 @@ namespace boda
 
 
   struct culibs_wrap_t { 
+    rtc_compute_t * const rtc;
     cublasHandle_t cbh;
     cudnnHandle_t cdh;
     p_cup_uint8_t cu_work;
-    culibs_wrap_t( void ) { 
+    culibs_wrap_t( rtc_compute_t * const rtc_ ) : rtc( rtc_ ) {
       cublas_err_chk( cublasCreate(&cbh), "cublasCreate" ); 
       cudnn_err_chk( cudnnCreate(&cdh), "cublasCreate" ); 
       // FIXME: can we assume the default pointer mode is host? docs don't seem to say.
@@ -94,38 +95,44 @@ namespace boda
       cublas_err_chk( cublasDestroy(cbh), "cublasDestroy" ); 
       cudnn_err_chk( cudnnDestroy(cdh), "cudnnDestroy" ); 
     }
-    void call( rtc_func_info_t const & fi, p_map_str_p_nda_t const & args ) { 
+    p_nda_t get_arg( map_str_rtc_arg_t const & arg_map, string const & an ) {
+      return rtc->get_var_raw_native_pointer( must_find(arg_map,an).get_var() );
+    }
+    void call( rtc_func_info_t const & fi, map_str_rtc_arg_t const & arg_map ) {
       string const & func_name = fi.op.get_func_name();
       if( 0 ) {}
-      else if( func_name == "cublas_sgemm" ) { sgemm( args ); }
-      else if( func_name == "cudnn_conv" ) { conv( fi.op, args ); }
+      else if( func_name == "cublas_sgemm" ) { sgemm( fi, arg_map ); }
+      else if( func_name == "cudnn_conv" ) { conv( fi, arg_map ); }
       else { rt_err( "unknown/unhandled culibs_wrap function: " + func_name ); }
     }
 
-    void conv( op_base_t const & op, p_map_str_p_nda_t const & args ) {
-      nda_t const & filts = *must_find(*args,"arg_0");
-      nda_t const & biases = *must_find(*args,"arg_1");
-      nda_t const & in = *must_find(*args,"arg_2");
-      nda_t const & out = *must_find(*args,"arg_3");
+    void conv( rtc_func_info_t const & fi, map_str_rtc_arg_t const & arg_map ) {
+      printf( "fi.arg_names=%s\n", str(fi.arg_names).c_str() );
+      assert_st( (fi.arg_names == vect_string{"filts","biases","in","out","cucl_arg_info"}) ); // verify func iface
+      op_base_t const & op = fi.op;
+      p_nda_t filts = get_arg( arg_map, "filts" );
+      p_nda_t biases = get_arg( arg_map, "biases" );
+      p_nda_t in = get_arg( arg_map, "in" );
+      p_nda_t out = get_arg( arg_map, "out" );
       cudnn_filter_t cu_filts;
       cudnn_tensor_t cu_in;
       cudnn_tensor_t cu_out;
-      set_cudnn_filter_from_dims_t( cu_filts, filts.dims );
-      set_cudnn_tensor_from_dims_t( cu_in, in.dims );
-      set_cudnn_tensor_from_dims_t( cu_out, out.dims );
+      set_cudnn_filter_from_dims_t( cu_filts, filts->dims );
+      set_cudnn_tensor_from_dims_t( cu_in, in->dims );
+      set_cudnn_tensor_from_dims_t( cu_out, out->dims );
       
       // create 'expanded' biases dims, with dim names/order that match the output, but sizes 1 expect for dims present in the biases
       dims_t biases_dims_exp; 
-      biases_dims_exp.tn = biases.dims.tn;
+      biases_dims_exp.tn = biases->dims.tn;
       uint32_t biases_dims_used = 0;
-      for( uint32_t i = 0; i != out.dims.size(); ++i ) {
-        string dn = out.dims.names(i);
+      for( uint32_t i = 0; i != out->dims.size(); ++i ) {
+        string dn = out->dims.names(i);
         uint32_t dim_sz = 1;
-        dim_t const * const mbd = biases.dims.get_dim_by_name( (dn=="chan")?"out_chan":dn ); // FIXME: maybe dim of biases should be just 'chan'?
+        dim_t const * const mbd = biases->dims.get_dim_by_name( (dn=="chan")?"out_chan":dn ); // FIXME: maybe dim of biases should be just 'chan'?
         if( mbd ) { ++biases_dims_used; dim_sz = mbd->sz; }
         biases_dims_exp.add_dims( dn, dim_sz );
       }
-      assert_st( biases_dims_used == biases.dims.size() );
+      assert_st( biases_dims_used == biases->dims.size() );
       biases_dims_exp.calc_strides();
       cudnn_tensor_t cu_biases;
       set_cudnn_tensor_from_dims_t( cu_biases, biases_dims_exp );
@@ -146,13 +153,13 @@ namespace boda
                                                        ), "cudnnSetConvolution2dDescriptor" );
 
       vect_int cu_out_dims;
-      cu_out_dims.resize( out.dims.size() );
+      cu_out_dims.resize( out->dims.size() );
       cudnn_err_chk( cudnnGetConvolutionNdForwardOutputDim( cu_conv.v, cu_in.v, cu_filts.v, cu_out_dims.size(),
                                                             &cu_out_dims[0] ), "cudnnGetConvolutionNdForwardOutputDim" );
-      //printf( "out.dims=%s cu_out_dims=%s\n", str(out.dims).c_str(), str(cu_out_dims).c_str() );
+      //printf( "out->dims=%s cu_out_dims=%s\n", str(out->dims).c_str(), str(cu_out_dims).c_str() );
 
       // allow scratch of 4 times in+out+filts bytes
-      uint64_t max_scratch = (in.dims.dims_prod()+out.dims.dims_prod()+filts.dims.dims_prod())*4*4;
+      uint64_t max_scratch = (in->dims.dims_prod()+out->dims.dims_prod()+filts->dims.dims_prod())*4*4;
       cudnnConvolutionFwdAlgo_t cu_conv_algo = (cudnnConvolutionFwdAlgo_t)999;
       cudnn_err_chk( cudnnGetConvolutionForwardAlgorithm( cdh, cu_in.v, cu_filts.v, cu_conv.v, cu_out.v,
                                                           CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT,
@@ -173,25 +180,25 @@ namespace boda
       cudnn_err_chk( cudnnConvolutionForward( cdh,
                                               &alpha,
                                               cu_in.v,
-                                              in.rp_elems(),
+                                              in->rp_elems(),
                                               cu_filts.v,
-                                              filts.rp_elems(),
+                                              filts->rp_elems(),
                                               cu_conv.v,
                                               cu_conv_algo,
                                               need_scratch ? ((void *)(uintptr_t)cu_work->p) : 0,
                                               need_scratch,
                                               &beta,
                                               cu_out.v,
-                                              (void *)out.rp_elems()
+                                              (void *)out->rp_elems()
                                               ), "cudnnConvolutionForward" );
 
       cudnn_err_chk( cudnnAddTensor_v3( cdh,
                                         &alpha,
                                         cu_biases.v,
-                                        biases.rp_elems(),
+                                        biases->rp_elems(),
                                         &alpha, // aka 1
                                         cu_out.v,
-                                        (void *)out.rp_elems()), "cudnnAddTensor_v3" );
+                                        (void *)out->rp_elems()), "cudnnAddTensor_v3" );
 
       bool const conv_has_relu = op.get_u32( "conv_has_relu" );
       if( conv_has_relu ) {
@@ -199,23 +206,24 @@ namespace boda
                                                CUDNN_ACTIVATION_RELU,
                                                &alpha,
                                                cu_out.v,
-                                               out.rp_elems(),
+                                               out->rp_elems(),
                                                &beta,
                                                cu_out.v,
-                                               (void *)out.rp_elems()), "cudnnActivationForward" );
+                                               (void *)out->rp_elems()), "cudnnActivationForward" );
       }
     }
 
-    void sgemm( p_map_str_p_nda_t const & args ) { 
-      nda_t const & a = *must_find(*args,"arg_0");
-      nda_t const & b = *must_find(*args,"arg_1");
-      nda_t const & c = *must_find(*args,"arg_2");
-      uint64_t const M = a.dims.dsz("M");
-      uint64_t const K = a.dims.dsz("K");
-      assert_st( b.dims.dsz("K") == K );
-      uint64_t const N = b.dims.dsz("N");
-      assert_st( c.dims.dsz("M") == M );
-      assert_st( c.dims.dsz("N") == N );
+    void sgemm( rtc_func_info_t const & fi, map_str_rtc_arg_t const & arg_map ) {
+      assert_st( (fi.arg_names == vect_string{"a","b","c","cucl_arg_info"}) ); // verify func iface
+      p_nda_t a = get_arg( arg_map, "a" );
+      p_nda_t b = get_arg( arg_map, "b" );
+      p_nda_t c = get_arg( arg_map, "c" );
+      uint64_t const M = a->dims.dsz("M");
+      uint64_t const K = a->dims.dsz("K");
+      assert_st( b->dims.dsz("K") == K );
+      uint64_t const N = b->dims.dsz("N");
+      assert_st( c->dims.dsz("M") == M );
+      assert_st( c->dims.dsz("N") == N );
       //printf( "calling cublas: a=%s b=%s c=%s\n", str(a).c_str(), str(b).c_str(), str(c).c_str() );
       // our inputs are row-major: a:KxM (pre-transposed), b:KxN; we want an output of c:MxN (row major);
       // if interpret our inputs as column-major, they are: at:MxK, b:NxK; so for col-major sgemm, we want -->
@@ -226,15 +234,15 @@ namespace boda
       float const beta = 0.0f;
       cublas_err_chk( cublasSgemm( cbh, CUBLAS_OP_N, CUBLAS_OP_T, N, M, K, 
                                    &alpha,
-                                   (float const *)(b.rp_elems()),  K, //const float           *A, int lda,
-                                   (float const *)(a.rp_elems()),  K, //const float           *B, int ldb,
+                                   (float const *)(b->rp_elems()),  K, //const float           *A, int lda,
+                                   (float const *)(a->rp_elems()),  K, //const float           *B, int ldb,
                                    &beta,
-                                   (float *)(c.rp_elems()),  N)  //float           *C, int ldc)
+                                   (float *)(c->rp_elems()),  N)  //float           *C, int ldc)
                       ,"cublasSgemm" );
     }
   };
-  void culibs_wrap_call( p_culibs_wrap_t const & cw, rtc_func_info_t const & fi, p_map_str_p_nda_t const & args ) {
-    cw->call( fi, args );
+  void culibs_wrap_call( p_culibs_wrap_t const & cw, rtc_func_info_t const & fi, map_str_rtc_arg_t const & arg_map ) {
+    cw->call( fi, arg_map );
   }
-  p_culibs_wrap_t culibs_wrap_init( void ) { return make_shared< culibs_wrap_t >(); }
+  p_culibs_wrap_t culibs_wrap_init( rtc_compute_t * const rtc_ ) { return make_shared< culibs_wrap_t >(rtc_); }
 }

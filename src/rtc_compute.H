@@ -76,7 +76,9 @@ namespace boda
     void init_var_from_vect_float( string const & vn, vect_float const & v );
     void set_vect_float_from_var( vect_float & v, string const & vn );
     virtual void copy_var_to_nda( p_nda_t const & nda, string const & vn ) = 0;
+    virtual p_nda_t get_var_raw_native_pointer( string const & vn ) = 0; // for integration with external low-level libs
     virtual void copy_nda_to_var( string const & vn, p_nda_t const & nda ) = 0;
+
 
     p_nda_t copy_var_as_flat_nda( string const & vn );
     void copy_ndas_to_vars( vect_string const & names, map_str_p_nda_t const & ndas );
@@ -89,6 +91,7 @@ namespace boda
 
     void create_var_from_nda( p_nda_t const & nda, string const & vn );
     p_nda_t create_nda_from_var( string const & vn );
+
 
   };
   struct rtc_compute_t; typedef shared_ptr< rtc_compute_t > p_rtc_compute_t; 
