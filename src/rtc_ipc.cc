@@ -43,13 +43,13 @@ namespace boda
 
   template< typename STREAM > inline void bwrite( STREAM & out, rtc_func_call_t const & o ) { 
     bwrite( out, o.rtc_func_name );
-    bwrite( out, o.args );
+    bwrite( out, o.arg_map );
     bwrite( out, o.tpb.v );
     bwrite( out, o.blks.v );
   }
   template< typename STREAM > inline void bread( STREAM & in, rtc_func_call_t & o ) { 
     bread( in, o.rtc_func_name );
-    bread( in, o.args );
+    bread( in, o.arg_map );
     bread( in, o.tpb.v );
     bread( in, o.blks.v );
   }
@@ -66,11 +66,13 @@ namespace boda
   template< typename STREAM > inline void bwrite( STREAM & out, rtc_func_info_t const & o ) { 
     bwrite( out, o.func_name );
     bwrite( out, o.func_src );
+    bwrite( out, o.arg_names );
     bwrite( out, o.op );
   }
   template< typename STREAM > inline void bread( STREAM & in, rtc_func_info_t & o ) { 
     bread( in, o.func_name );
     bread( in, o.func_src );
+    bread( in, o.arg_names );
     bread( in, o.op );
   }
 

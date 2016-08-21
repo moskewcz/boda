@@ -207,17 +207,6 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     zi_uint32_t compile_call_ix;
     void compile( vect_rtc_func_info_t const & func_infos, rtc_compile_opts_t const & opts ) {
       if( func_infos.empty() ) { return; } // no work to do? don't compile just the base decls to no effect (slow).
-#if 0
-      // for now, this is disabled, since:
-      // 1) it doesn't really help (much) yet (we still need to compile other function in all flows
-      // 2) we now need to create the nv_func_info object in all cases to cache the func info (even if we need not compile)
-      bool all_funcs_culibs = 1;
-      for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
-        string const & fn = i->func_name;
-        if( !(startswith( "cublas_", fn ) || startswith( fn, "cudnn_" ) ) ) { all_funcs_culibs = 0; }
-      }
-      if( all_funcs_culibs ) { return; } // skip unneeded compilation if all funcs to compile are culibs stubs
-#endif
       string cucl_src = cu_base_decls;
       for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
         cucl_src += i->func_src;
@@ -306,24 +295,25 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     void add_arg( rtc_arg_t const & arg, vect_rp_void & cu_func_args, p_map_str_p_nda_t const & func_args ) {
       // FIXME: we really want the func arg names from the layer above this here, but we'll make do for now: 
       string const an = "arg_" + str( func_args->size() ); 
-      if( !arg.n.empty() ) { 
-        assert_st( !arg.v );
-        if( arg.n == "<NULL>" ) { 
-          cu_func_args.push_back( &null_cup );
-          must_insert( *func_args, an, make_shared<nda_t>() );
-        } else {
-          var_info_t const & vi = must_find( *vis, arg.n );
-          cu_func_args.push_back( &vi.cup->p );
-          // note that we assume here both host and device pointers are 64 bits (or at least the same size ... or maybe
-          // just that the host size is >= the device size). curious about conversion between CUdeviceptr and (void *)?
-          // take a look here:
-          // http://www.cudahandbook.com/2013/08/why-does-cuda-cudeviceptr-use-unsigned-int-instead-of-void/
-          must_insert( *func_args, an, make_shared<nda_t>(vi.dims,(void *)(uintptr_t)vi.cup->p) );
-        }
-      } else { 
+      if( !arg.is_valid() ) { 
+        cu_func_args.push_back( &null_cup );
+        must_insert( *func_args, an, make_shared<nda_t>() );
+      } else if( arg.is_var() ) {
+        var_info_t const & vi = must_find( *vis, arg.n );
+        cu_func_args.push_back( &vi.cup->p );
+        // note that we assume here both host and device pointers are 64 bits (or at least the same size ... or maybe
+        // just that the host size is >= the device size). curious about conversion between CUdeviceptr and (void *)?
+        // take a look here:
+        // http://www.cudahandbook.com/2013/08/why-does-cuda-cudeviceptr-use-unsigned-int-instead-of-void/
+        must_insert( *func_args, an, make_shared<nda_t>(vi.dims,(void *)(uintptr_t)vi.cup->p) );
+      } else if( arg.is_nda() ) { 
         assert_st( arg.v );
+        assert_st( arg.v->rp_elems() );
         cu_func_args.push_back( arg.v->rp_elems() );
+      } else {
+        assert_st(0);
       }
+
     }
 #if 0
     void record_var_events( vect_string const & vars, rtc_func_call_t const & rfc ) {
@@ -335,15 +325,19 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     uint32_t run( rtc_func_call_t const & rfc ) {
       timer_t t("cu_launch_and_sync");
       string const & fn = rfc.rtc_func_name;
+      nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );
       // FIXME/NOTE: for now, for interfacing with culibs, we create an extra/redundant argument map 'func_args':
       p_map_str_p_nda_t func_args = make_shared<map_str_p_nda_t>();
       vect_rp_void cu_func_args;
-      for( vect_rtc_arg_t::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) {
-        add_arg( *i, cu_func_args, func_args );
+      for( vect_string::const_iterator i = nfi.info.arg_names.begin(); i != nfi.info.arg_names.end(); ++i ) {
+        map_str_rtc_arg_t::const_iterator ai = rfc.arg_map.find( *i );
+        // this error is almost an internal error, since the rtc_codegen_t level should ensure it doesn't happen:
+        if( ai == rfc.arg_map.end() ) { rt_err( strprintf( "nvrtc_compute_t: arg '%s' not found in arg_map for call.\n",
+                                                           str((*i)).c_str() ) ); }
+        add_arg( ai->second, cu_func_args, func_args );
       }
       uint32_t const call_id = alloc_call_id();
       record_event( get_call_ev(call_id).b_ev );
-      nv_func_info_t & nfi = must_find( *cu_funcs, fn.c_str() );
       string const & func_name = nfi.info.op.get_func_name();
       if( startswith( func_name, "cublas_" ) || startswith( func_name, "cudnn_" )) { 
         culibs_wrap_call( cw, nfi.info, func_args ); 

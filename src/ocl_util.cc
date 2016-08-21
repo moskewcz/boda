@@ -163,8 +163,13 @@ namespace boda
     cl_err_chk( err, "clSetKernelArg()" );
   }
 
-  typedef map< string, cl_kernel_t > map_str_cl_kernel_t;
-  typedef shared_ptr< map_str_cl_kernel_t > p_map_str_cl_kernel_t;
+  struct ocl_func_info_t {
+    rtc_func_info_t info;
+    cl_kernel_t kern;
+  };
+ 
+  typedef map< string, ocl_func_info_t > map_str_ocl_func_info_t;
+  typedef shared_ptr< map_str_ocl_func_info_t > p_map_str_ocl_func_info_t;
 
   struct cl_var_info_t {
     cl_mem_t buf;
@@ -238,16 +243,16 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     }
 
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()
-    void check_runnable( cl_program_t const & prog, string const name, bool const show_func_attrs ) {
+    void check_runnable( cl_program_t const & prog, rtc_func_info_t const & info, bool const show_func_attrs ) {
       assert_st( prog.valid() );
       cl_int err = 0;
       cl_kernel_t kern;
-      kern.reset( clCreateKernel( prog.v, name.c_str(), &err ) );
+      kern.reset( clCreateKernel( prog.v, info.func_name.c_str(), &err ) );
       cl_err_chk( err, "clCreateKernel()" );
       if( show_func_attrs ) {
 	// FIXME: TODO
       }
-      must_insert( *kerns, name, kern );
+      must_insert( *kerns, info.func_name, ocl_func_info_t{info,kern} );
     }
 
     zi_uint32_t compile_call_ix;
@@ -289,7 +294,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
 	write_whole_fn( strprintf( "%s/out_%s.clb", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), ocl_bin );
       }
       for( vect_rtc_func_info_t::const_iterator i = func_infos.begin(); i != func_infos.end(); ++i ) {
-	check_runnable( prog, i->func_name, opts.show_func_attrs );
+	check_runnable( prog, *i, opts.show_func_attrs );
       }
       ++compile_call_ix.v;
     }
@@ -297,7 +302,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     cl_mem_t null_buf; // inited to 0; used to pass null device pointers to kernels. note, however, that the value is
                        // generally unused, so the value doesn't really matter currently. it might later of course.
     p_map_str_cl_var_info_t vis;
-    p_map_str_cl_kernel_t kerns;
+    p_map_str_ocl_func_info_t kerns;
     virtual void release_all_funcs( void ) { kerns->clear(); }
 
     void copy_nda_to_var( string const & vn, p_nda_t const & nda ) {
@@ -347,7 +352,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
 #endif
     }
     
-    ocl_compute_t( void ) : vis( new map_str_cl_var_info_t ), kerns( new map_str_cl_kernel_t ) { }
+    ocl_compute_t( void ) : vis( new map_str_cl_var_info_t ), kerns( new map_str_ocl_func_info_t ) { }
 
     vect_cl_event_t call_evs;
     cl_event_t & get_call_ev( uint32_t const & call_id ) { assert_st( call_id < call_evs.size() ); return call_evs[call_id]; }
@@ -366,16 +371,17 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { return 0; }
 
     void add_arg( rtc_arg_t const & arg, cl_kernel_t const & kern, uint32_t & cur_arg_ix ) {
-      if( !arg.n.empty() ) { 
-        assert_st( !arg.v );
-        cl_mem * buf = 0;
-        if( arg.n == "<NULL>" ) { buf = &null_buf.v; }
-        else { buf = &must_find( *vis, arg.n ).buf.v; }
-        set_kernel_arg( kern, cur_arg_ix, *buf );
-      } else {
+      if( !arg.is_valid() ) { 
+        set_kernel_arg( kern, cur_arg_ix, null_buf.v );
+      } else if( arg.is_var() ) { 
+        set_kernel_arg( kern, cur_arg_ix, must_find( *vis, arg.n ).buf.v );
+      } else if( arg.is_nda() ) {
         assert_st( arg.v );
+        assert_st( arg.v->rp_elems() );
         cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, arg.v->dims.bytes_sz(), arg.v->rp_elems() );
         cl_err_chk( err, "clSetKernelArg() [by-value]" );
+      } else {
+        assert_st(0);
       }
       ++cur_arg_ix;
     }
@@ -383,21 +389,27 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     void release_func( string const & func_name ) { must_erase( *kerns, func_name ); }
 
     uint32_t run( rtc_func_call_t const & rfc ) {
-      cl_kernel_t const & kern = must_find( *kerns, rfc.rtc_func_name.c_str() );
+      ocl_func_info_t const & ofi = must_find( *kerns, rfc.rtc_func_name.c_str() );
       uint32_t cur_arg_ix = 0;
-      for( vect_rtc_arg_t::const_iterator i = rfc.args.begin(); i != rfc.args.end(); ++i ) { add_arg(*i,kern,cur_arg_ix );}
+      for( vect_string::const_iterator i = ofi.info.arg_names.begin(); i != ofi.info.arg_names.end(); ++i ) {
+        map_str_rtc_arg_t::const_iterator ai = rfc.arg_map.find( *i );
+        // this error is almost an internal error, since the rtc_codegen_t level should ensure it doesn't happen:
+        if( ai == rfc.arg_map.end() ) { rt_err( strprintf( "ocl_compute_t: arg '%s' not found in arg_map for call.\n",
+                                                           str((*i)).c_str() ) ); }
+        add_arg( ai->second, ofi.kern, cur_arg_ix );
+      }
       rtc_launch_check_blks_and_tpb( rfc.rtc_func_name, rfc.blks.v, rfc.tpb.v );
       uint32_t const call_id = alloc_call_id();
       size_t const glob_work_sz = rfc.tpb.v*rfc.blks.v;
       size_t const loc_work_sz = rfc.tpb.v;
-      size_t const kwgs = get_info<size_t>(KernelWorkGroup_t(kern.v,use_devices[0],CL_KERNEL_WORK_GROUP_SIZE));
+      size_t const kwgs = get_info<size_t>(KernelWorkGroup_t(ofi.kern.v,use_devices[0],CL_KERNEL_WORK_GROUP_SIZE));
       // printf( "kwgs=%s\n", str(kwgs).c_str() ); // might be handy to see; might indicate occupancy limits for kernel
       if( loc_work_sz > kwgs ) {
         rt_err( strprintf( "Error: can't run kernel: loc_work_sz is %s but OpenCL says max is %s for this kernel+device.\n", 
                            str(loc_work_sz).c_str(), str(kwgs).c_str() ) );
       }
       cl_event ev = 0;
-      cl_int const err = clEnqueueNDRangeKernel( cq.v, kern.v, 1, 0, &glob_work_sz, &loc_work_sz, 0, 0, &ev);
+      cl_int const err = clEnqueueNDRangeKernel( cq.v, ofi.kern.v, 1, 0, &glob_work_sz, &loc_work_sz, 0, 0, &ev);
       cl_err_chk( err, "clEnqueueNDRangeKernel()" );
       get_call_ev(call_id).reset(ev);
       return call_id;

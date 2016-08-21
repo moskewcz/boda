@@ -154,7 +154,8 @@ namespace boda
       // unconditionally looked-up. that's the current state anyway, but it subject to change/improvement ...
       op_base_t dot;
       dot.set_func_name("my_dot");
-      rtc->compile( vect_rtc_func_info_t{rtc_func_info_t{dot.get_func_name(),*prog_str,dot}}, rtc_compile_opts_t() );
+      rtc->compile( vect_rtc_func_info_t{rtc_func_info_t{dot.get_func_name(),*prog_str,
+            {"a","b","c","n"},dot}}, rtc_compile_opts_t() );
 
       vect_float a( data_sz, 0.0f );
       rand_fill_vect( a, 2.5f, 7.5f, gen );
@@ -166,7 +167,11 @@ namespace boda
       rtc->init_var_from_vect_float( "b", b );
       rtc->init_var_from_vect_float( "c", c );
       
-      rtc_func_call_t rfc{ "my_dot", {{"a"},{"b"},{"c"},{make_scalar_nda(data_sz)} } }; 
+      rtc_func_call_t rfc{ "my_dot", map_str_rtc_arg_t({
+            {"a",rtc_arg_t{"a"}},
+            {"b",rtc_arg_t{"b"}},
+            {"c",rtc_arg_t{"c"}},
+            {"n",rtc_arg_t{make_scalar_nda(data_sz)}}}) }; 
       rfc.tpb.v = 256;
       rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
 

@@ -152,6 +152,7 @@ namespace boda
     map_str_str cgs; // similar to tsvs, bulk code-gen sections (set with line() function); merged into tsvs at instantiate
     map_str_dims_t all_ix_dims; // post-processed dims for all CUCL IX's; used (only) in custom codegen
     string rtc_prog_str; // final full program string (result of instantiation)
+    vect_string arg_names; // flat, full list of argument names for kernel function (to pass to rtc layer)
     zi_bool is_compiled; // flag used by rtc_codegen_t to track which functions have been generated
     // info needed to make call
     string gen_fn; // unique function name at rtc level. although we try to make it readable, name has no used semantics.

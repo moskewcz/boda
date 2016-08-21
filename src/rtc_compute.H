@@ -24,6 +24,7 @@ namespace boda
   struct rtc_func_info_t {
     string func_name;
     string func_src;
+    vect_string arg_names;
     op_base_t op;
   };
   typedef vector< rtc_func_info_t > vect_rtc_func_info_t; 
@@ -114,7 +115,7 @@ namespace boda
 
   struct rtc_func_call_t { 
     string rtc_func_name; 
-    vect_rtc_arg_t args;
+    map_str_rtc_arg_t arg_map;
 
     zi_uint32_t tpb;
     zi_uint32_t blks;

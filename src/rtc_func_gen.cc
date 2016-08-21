@@ -402,6 +402,7 @@ namespace boda
     if( cc ) { cc->gen_op( this, rtc_func_template->template_fn ); } // call custom_codegen_t hook.
 
     for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( &op ); !i.at_end(); ++i ) {
+      if( i.ad().io_type != "REF" ) { arg_names.push_back( i.vn() ); } // in-order-list of function arg names for rtc level
       if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
       p_nda_t const & arg_nda = op.get(i.vn()); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
@@ -534,7 +535,7 @@ namespace boda
       if( i->io_type == "REF" ) { continue; } // note: could move up scope, but hoping to factor out iter
       if( i->vn == "cucl_arg_info" ) { // FIXME: not-too-nice special case for cucl_arg_info argument 
         assert_st( rcg->rtc_func_template->has_cucl_arg_info.v );
-        rfc.args.push_back(rtc_arg_t{cucl_arg_info_nda});
+        must_insert( rfc.arg_map, i->vn, rtc_arg_t{cucl_arg_info_nda} );
         cucl_arg_info_nda.reset(); // mark as used
         continue;
       }
@@ -543,15 +544,16 @@ namespace boda
         string const vn = i->get_multi_vn(mix);
         p_nda_t const & func_nda = rcg->op.get(vn); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
         dims_t const & func_dims = func_nda->dims;
-        if( func_dims == make_null_dims_t() ) { rfc.args.push_back(rtc_arg_t{"<NULL>"}); continue; } // NULL, pass though to rtc
+        // if null, dims in op, pass invalid/null arg to rtc. FIXME: use scalar of type "none"? or some zero-size nda?
+        if( func_dims == make_null_dims_t() ) {  must_insert( rfc.arg_map, vn, rtc_arg_t{} ); continue; } 
         dims_t call_dims;
         string call_vn; // for error message
-        if( i->loi.v == 0 ) { // by-value handling: 
+        if( i->loi.v == 0 ) { // arg is some struct/type to be passed by-value 
           if( func_nda->rp_elems() ) { 
             // if in our op, we hard-coded the string constant into the source already, but pass it in dynamically anyway.
             call_dims = func_dims; // note: no mismatch possible
             call_vn = "<internal-error-on-gen-time-constant-arg>";
-            rfc.args.push_back( rtc_arg_t{func_nda} );
+            must_insert( rfc.arg_map, vn, rtc_arg_t{func_nda} );
           } else { 
             // otherwise, assume the value we want/need is in args
             map_str_rtc_arg_t::const_iterator an = arg_map.find( vn );
@@ -562,13 +564,13 @@ namespace boda
             call_vn = "<by-value-scalar>";
             if( !an->second.is_nda() ) { rt_err( "UNSUPPORTED: attempted to pass scalar var by-value for arg "+vn ); }
             // either way, pass it to the kernel -- 
-            rfc.args.push_back( an->second ); // FIXME: should be guarded by below error check
+            must_insert( rfc.arg_map, vn, rtc_arg_t{an->second} ); // FIXME: should be guarded by below error check
           }
           // FIXME: it's perhaps confusing that the value is always passed dynamically as an arg, even if it's was
           // availible as a constant at gen-time, but it's unclear what else to do here (we need to pass some arg)
           // ... it's probably okay?
         } else { 
-          assert_st( i->loi.v == 1 );
+          assert_st( i->loi.v == 1 ); // arg is a pointer/reference-to-memory-block
           map_str_rtc_arg_t::const_iterator an = arg_map.find( vn );
           if( an == arg_map.end() ) {
             rt_err( "specified "+i->io_type+" arg '"+vn+"' not found in arg_map at call time." ); 
@@ -576,7 +578,7 @@ namespace boda
           call_dims = an->second.get_dims( *rtc );
           if( !an->second.is_var() ) { rt_err( "UNSUPPORTED: attempted to pass scalar val by-ref for arg "+vn ); }
           call_vn = an->second.n;
-          rfc.args.push_back( an->second ); // FIXME: should be guarded by below error check
+          must_insert( rfc.arg_map, vn, rtc_arg_t{an->second} ); // FIXME: should be guarded by below error check
         }
         // check that the passed vars are the expected sizes. for non-dyn vars, the sizes must be fully specificed (no
         // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the
@@ -590,8 +592,8 @@ namespace boda
     assert_st( !bool(cucl_arg_info_nda) ); // if created, should have been used.
 
     if( show_rtc_calls ) { 
-      printf( "%s( args{%s} ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
-	      str(rfc.args).c_str(),
+      printf( "%s( %s ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 
+	      str(rfc.arg_map).c_str(),
 	      str(dyn_rtc_call_geom.tpb).c_str(), str(dyn_rtc_call_geom.blks).c_str() );
       //if( !rfc.cucl_arg_info.empty() ) { printf( "  rfc.cucl_arg_info=%s\n", str(rfc.cucl_arg_info).c_str() ); }
     } 
@@ -659,7 +661,7 @@ namespace boda
     if( compile_pend.empty() ) { return; } 
     vect_rtc_func_info_t rtc_prog_infos;
     for( vect_p_rtc_call_gen_t::const_iterator i = compile_pend.begin(); i != compile_pend.end(); ++i ) {
-      rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,(*i)->op} );
+      rtc_prog_infos.push_back( {(*i)->gen_fn,(*i)->rtc_prog_str,(*i)->arg_names,(*i)->op} );
       (*i)->is_compiled.v = 1; // well, or at least we're going to *try* to compile this func anyway ...
     }
     //printf( "rtc_prog_infos=%s\n", str(rtc_prog_infos).c_str() );
