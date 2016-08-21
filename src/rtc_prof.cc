@@ -67,9 +67,8 @@ namespace boda
     }
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_rtc_arg_t::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      if( j->second.is_var() ) {  codegen.rtc->create_var_with_dims( j->second.n, anno_op->get_dims( j->first ) ); }
-      else { 
-        printf( "j->first=%s j->second=%s\n", str(j->first).c_str(), str(j->second).c_str() ); 
+      if( j->second.is_var() ) { 
+        codegen.rtc->create_var_with_dims( j->second.n, anno_op->get_dims( j->first ) ); 
       }
     }
     vect_string xpose_vars_to_release;
@@ -124,8 +123,9 @@ namespace boda
       if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
     }
     for( map_str_rtc_arg_t::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      assert_st( j->second.is_var() );
-      codegen.rtc->release_var( j->second.n );
+      if( j->second.is_var() ) {
+        codegen.rtc->release_var( j->second.get_var() );
+      }
     }
     for( vect_string::const_iterator i = xpose_vars_to_release.begin(); i != xpose_vars_to_release.end(); ++i ) {
       codegen.rtc->release_var( *i );
