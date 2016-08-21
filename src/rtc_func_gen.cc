@@ -552,7 +552,6 @@ namespace boda
               rt_err( "specified "+i->io_type+" DYN REF arg '"+vn+"' not found in arg_map at call time." ); 
             }
             dims_t const arg_call_dims = an->second.get_dims( *rtc );
-            printf( "vn=%s\n", str(vn).c_str() );
             must_insert( rfc.arg_map, vn, rtc_arg_t{make_dims_nda(arg_call_dims)} );
           } // else, nothing to do
           continue; // done with REF case
