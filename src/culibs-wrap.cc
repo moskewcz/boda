@@ -45,6 +45,7 @@ namespace boda
   typedef cudnn_wrap_t< cudnnTensorDescriptor_t,cudnnCreateTensorDescriptor,cudnnDestroyTensorDescriptor > cudnn_tensor_t;
   typedef cudnn_wrap_t< cudnnFilterDescriptor_t,cudnnCreateFilterDescriptor,cudnnDestroyFilterDescriptor > cudnn_filter_t;
   typedef cudnn_wrap_t< cudnnConvolutionDescriptor_t,cudnnCreateConvolutionDescriptor,cudnnDestroyConvolutionDescriptor > cudnn_convolution_t;
+  typedef cudnn_wrap_t< cudnnActivationDescriptor_t,cudnnCreateActivationDescriptor,cudnnDestroyActivationDescriptor > cudnn_activation_t;
 
   typedef vector< int > vect_int;
 
@@ -58,7 +59,7 @@ namespace boda
   void set_cudnn_filter_from_dims_t( cudnn_filter_t & cu_v, dims_t const & dims ) { // like tensor, but no strides
     vect_int dims_;
     for( uint32_t i = 0; i != dims.size(); ++i ) { dims_.push_back( dims.dims(i) ); }
-    cudnn_err_chk( cudnnSetFilterNdDescriptor( cu_v.v, CUDNN_DATA_FLOAT, dims.size(), &dims_[0] ), 
+    cudnn_err_chk( cudnnSetFilterNdDescriptor( cu_v.v, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, dims.size(), &dims_[0] ), 
                    "cudnnSetFilterNdDescriptor");
   }
 
@@ -191,18 +192,25 @@ namespace boda
                                               (void *)out->rp_elems()
                                               ), "cudnnConvolutionForward" );
 
-      cudnn_err_chk( cudnnAddTensor_v3( cdh,
-                                        &alpha,
-                                        cu_biases.v,
-                                        biases->rp_elems(),
-                                        &alpha, // aka 1
-                                        cu_out.v,
-                                        (void *)out->rp_elems()), "cudnnAddTensor_v3" );
+      cudnn_err_chk( cudnnAddTensor( cdh,
+                                     &alpha,
+                                     cu_biases.v,
+                                     biases->rp_elems(),
+                                     &alpha, // aka 1
+                                     cu_out.v,
+                                     (void *)out->rp_elems()), "cudnnAddTensor" );
+
+      cudnn_activation_t cudnn_activation;
+      cudnn_err_chk( cudnnSetActivationDescriptor( cudnn_activation.v,
+                                                   CUDNN_ACTIVATION_RELU,
+                                                   CUDNN_PROPAGATE_NAN, // or not? i dunno?
+                                                   0.0 ), // 'threashod' [sic] unused (hey, at least there are docs now!)
+                     "cudnnSetActivationDescriptor");
 
       bool const conv_has_relu = op.get_u32( "conv_has_relu" );
       if( conv_has_relu ) {
         cudnn_err_chk( cudnnActivationForward( cdh,
-                                               CUDNN_ACTIVATION_RELU,
+                                               cudnn_activation.v,
                                                &alpha,
                                                cu_out.v,
                                                out->rp_elems(),
