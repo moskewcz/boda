@@ -120,19 +120,25 @@ namespace boda
   p_Net_float caffe_create_net( p_conv_pipe_t const & cp ) {
     timer_t t("caffe_create_net");
 
-    p_net_param_t net_param( new net_param_t ( *cp->as_net_param() ) ); // start with copy of original (unmodified by boda) input net_param
+    p_net_param_t orig_net_param = cp->as_net_param();
+    p_net_param_t net_param( new net_param_t( *orig_net_param ) ); // start with copy of original (unmodified by boda) input net_param
     *net_param->mutable_state() = *cp->net_state; // set state as set/used by boda's param->pipe conversion
-    // remove all layers that don't have matching ops in the pipe. in particular, this will remove data and accuracy layers, as well
-    // as some unhandled layers (i.e. currently dropout). in general, this isn't particulaly sensible/correct, but it does what we want for now.
-    int o = 0;
-    for( int i = 0; i < net_param->layer_size(); i++ ) {
-      caffe::LayerParameter const * const lp = &net_param->layer(i);
-      if( !has( *cp->convs, lp->name() ) ) { continue; }
-      caffe::LayerParameter * const olp = net_param->mutable_layer(o);
-      if( i != o ) { *olp = net_param->layer(i); } ++o; // keep layer
-    }
-    while( net_param->layer_size() > o ) { net_param->mutable_layer()->RemoveLast(); }
+    // remove all layers that don't have matching ops in the pipe. in particular, this will remove data and accuracy
+    // layers, as well as some unhandled layers (i.e. currently dropout). in general, this isn't particulaly
+    // sensible/correct, but it does what we want for now.  while we're at it, add a single new layer in the front to
+    // become the input layer. 
+    
+    net_param->clear_layer(); // clear copied layers so we can filtered-copy them
+    caffe::LayerParameter * const new_input_layer = net_param->add_layer(); // add new layer at start of net to become input layer
+    new_input_layer->set_name("input"); // convention from caffe net upgrade code, but name shouldn't matter
+    new_input_layer->set_type("Input");
+    caffe::InputParameter * const new_input_param = new_input_layer->mutable_input_param();    
 
+    for( int i = 0; i < orig_net_param->layer_size(); i++ ) {
+      caffe::LayerParameter const * const lp = &orig_net_param->layer(i);
+      if( !has( *cp->convs, lp->name() ) ) { continue; } // drop layer
+      *net_param->add_layer() = *lp; // keep/copy layer
+    }
     // FIXME: perhaps we should process all of cp->bots here, and detect which nodes are filts/biases, and special-case set them
     // using something similar to set_layer_blobs()?
     // add input blobs for conv_pipe inputs (which in turn were derived from original
@@ -140,11 +146,12 @@ namespace boda
     assert_st( net_param->input_dim_size() == 0 ); // should be no input blobs to start (only train_val format is supported as input)
     vect_string caffe_bots = cp->data_img_node_names;
     caffe_bots.insert( caffe_bots.end(), cp->data_label_node_names.begin(), cp->data_label_node_names.end() );
+    
     for( vect_string::const_iterator i = caffe_bots.begin(); i != caffe_bots.end(); ++i ) { 
       dims_t & dims = cp->must_get_node( *i )->dims;
       assert_st( !dims.empty() ); // all bot sizes (and further-but-unchecked-here, all nodes) should be set
-      net_param->add_input(*i);
-      dims_t_to_shape( dims, *net_param->add_input_shape() );      
+      new_input_layer->add_top(*i);
+      dims_t_to_shape( dims, *new_input_param->add_shape() );
     }
     p_Net_float net( new Net_float( *net_param ) );
     //net->CopyTrainedLayersFrom( trained_fn );
