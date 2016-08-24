@@ -1,4 +1,4 @@
-//#define LRN_MATCH_CAFFE
+#define LRN_MATCH_CAFFE
 // note: the results of LRN_MATCH_CAFFE mode differ from the 'regular' mode by 7e-4 (max abs diff) and 8e-6 (avg abs
 // diff) (on one example). it would seem safe to assume the non-caffe mode below is more stable, since the main
 // difference is in not doing -+s on squared values, but this hasn't been checked in detail.  now, cuDNN results differ
@@ -7,6 +7,11 @@
 // matters. but the errors are significant enough to make correctness testing difficult, as compounded errors make the
 // max-abs-diff creep up toward 1e-3, which is generally large enough to indicate an error and/or be hard to waive
 // (given the ranges of values).
+
+// UPDATE: 2016.08.24: we're switch to the 'match caffe' version now, since with the (float) casts, and with cudnn-v5,
+// it seems like a better match for both caffe and cudnn than the other version. the max_abs_diff values are now ~5e-4
+// vs caffe and 2e-4 vs cudnn on one example. in general, we seem to git a bit better agreement overall with this
+// ver. now.
 
 // each thread: computes outputs across chan dim, using inputs across chan dim
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const alpha, // CUCL IN :
@@ -37,7 +42,7 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( float const alpha, // CUCL IN :
     ls_sum += ls_buf[lsb_ix]*ls_buf[lsb_ix]; ls_sum -= ls_old*ls_old; 
     if( in_chan_ix >= hls ) {
       int32_t const out_chan_ix = in_chan_ix - hls;
-      float const scale_base = (%(k) + ls_sum*alpha_over_ls);
+      float const scale_base = (((float)%(k)) + ls_sum*alpha_over_ls);
       if( %(emit_out_scale_base) ) { out_scale_base[out_base_ix + out_chan_ix*%(out_chan_stride)] = scale_base; }
       float const scale = powf( scale_base, -%(beta) );
       out[out_base_ix + out_chan_ix*%(out_chan_stride)] = ls_buf[(lsb_ix+%(local_size)-hls) %% %(local_size)] * scale;
