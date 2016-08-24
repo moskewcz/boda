@@ -159,8 +159,8 @@ namespace boda
 
     // comparison testing related options:
     p_rtc_compute_t rtc_comp; //NESI(help="rtc back-end to use for correctness-testing comparison")
-     double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
-    map_str_double var_mad_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mad_toler per-layer if specified")
+    double mrd_toler; //NESI(default="2e-4",help="maximum maximum-absolute-difference over which a failure is declared")
+    map_str_double var_mrd_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mrd_toler per-layer if specified")
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
     rtc_codegen_t codegen;
@@ -280,7 +280,7 @@ namespace boda
         vect_string const vns2 = get_keys( *vs2 );
         if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
                                                 str(vns1).c_str(), str(vns2).c_str() ) ); }
-        comp_vars( out.get(), num_mad_fail, mad_toler, &var_mad_toler, 0, max_err, vns1, vs1, vs2 );
+        comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vs2 );
       }
       if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->get_type(), rfc_dur_secs, peak_flops, rfc_dur_secs_comp ); }
 

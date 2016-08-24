@@ -51,7 +51,7 @@ namespace boda
     p_run_cnet_t run_cnet; //NESI(default="(in_dims=(img=1),out_node_name=cccp8)",help="CNN model params")
     p_run_cnet_t run_cnet_dense; //NESI(default="(in_dims=(img=1),out_node_name=cccp8)",help="CNN model params")
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
-    double mad_toler; //NESI(default="1e-99",help="maximum maximum-absolute-difference over which a failure is declared")
+    double mrd_toler; //NESI(default="5e-5",help="maximum maximum-absolute-difference over which a failure is declared")
 
     p_img_t in_img;
     p_img_t in_img_dense;
@@ -136,7 +136,7 @@ namespace boda
 	//(*out) << strprintf( "sum_f=%s sum_fd=%s\n", str(sum_f).c_str(), str(sum_fd).c_str() );
 	ssds_diff_t const ssds_diff(feats_dense,feats);
 	bool is_fail = 0;
-	if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+	if( (ssds_diff.mrd >= mrd_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
 	if( is_fail ) { (*out) << strprintf( "ssds_diff_t(feats_dense,feats)=%s\n", str(ssds_diff).c_str() ); }
       }
     }
@@ -152,7 +152,7 @@ namespace boda
     uint32_t wins_per_image; //NESI(default="1",help="number of random windows per image to test")
 
     string upsamp_layer_name; //NESI(default="conv1",help="name of layer to downsample filters of into upsamp net")
-    double mad_toler; //NESI(default="1e-4",help="maximum maximum-absolute-difference over which a failure is declared")
+    double mrd_toler; //NESI(default="2e-4",help="maximum maximum-absolute-difference over which a failure is declared")
 
     p_img_t in_img;
     p_img_t in_img_upsamp;
@@ -234,7 +234,7 @@ namespace boda
 
       ssds_diff_t const ssds_diff(feats_upsamp,feats);
       bool is_fail = 0;
-      if( (ssds_diff.mad >= mad_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+      if( (ssds_diff.mrd >= mrd_toler) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
       if( is_fail ) { (*out) << strprintf( "ssds_diff_t(feats_upsamp,feats)=%s\n", str(ssds_diff).c_str() ); }
     }
   };
@@ -262,9 +262,9 @@ namespace boda
     u32_pt_t tpd_in_sz; //NESI(default="15 15",help="x,y size of test-pattern data to use")
     double tpd_const; //NESI(default="1.0",help="test-pattern data constant offset")
 
-    uint32_t diff_show_mad_only; //NESI(default="0",help="if 1, print only MAD for diffs, not full sds_diff_t. usefull for making test outputs for 'pseudo-failure' consistent (such as quantization tests where specific numerical errors are expected.")
-    double mad_toler; //NESI(default="1e-5",help="maximum maximum-absolute-difference over which a failure is declared")
-    map_str_double var_mad_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mad_toler per-layer if specified")
+    uint32_t diff_show_mrd_only; //NESI(default="0",help="if 1, print only MAD for diffs, not full sds_diff_t. usefull for making test outputs for 'pseudo-failure' consistent (such as quantization tests where specific numerical errors are expected.")
+    double mrd_toler; //NESI(default="5e-4",help="maximum maximum-absolute-difference over which a failure is declared")
+    map_str_double var_mrd_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mrd_toler per-layer if specified")
 
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
@@ -375,8 +375,8 @@ namespace boda
       bool const do_cmp = bool(cf1) && bool(cf2);
       if( do_cmp ) { 
 	comp_vars( out.get(), num_mad_fail,
-		   mad_toler, &var_mad_toler,
-		   diff_show_mad_only, max_err, 
+		   mrd_toler, &var_mrd_toler,
+		   diff_show_mrd_only, max_err, 
 		   tops, fwd1, fwd2 );
       }
     }

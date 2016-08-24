@@ -5,8 +5,8 @@
 namespace boda {
 
   void comp_vars( std::ostream * const out, uint32_t & num_mad_fail,
-		  double const mad_toler, map_str_double const * const var_mad_toler,
-		  bool const diff_show_mad_only, uint32_t const & max_err,
+		  double const mrd_toler, map_str_double const * const var_mrd_toler,
+		  bool const diff_show_mrd_only, uint32_t const & max_err,
 		  vect_string const & vns, p_map_str_p_nda_float_t const & vs1, p_map_str_p_nda_float_t const & vs2 ) 
   {
     (*out) << strprintf( "vars_to_compare: %s\n", str(vns).c_str() );
@@ -22,12 +22,12 @@ namespace boda {
       }
       bool is_fail = 0;
       ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
-      double vmt = var_mad_toler ? get( *var_mad_toler, *i, mad_toler ) : mad_toler;
-      if( (ssds_diff.mad >= vmt) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+      double vmt = var_mrd_toler ? get( *var_mrd_toler, *i, mrd_toler ) : mrd_toler;
+      if( (ssds_diff.mrd >= vmt) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
       vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
-      if( is_fail ) { // skip printing errors and details if no mad fail. set mad_toler = 0 to force print (and failure)
+      if( is_fail ) { // skip printing errors and details if no mad fail. set mrd_toler = 0 to force print (and failure)
 	string diff_str;
-	if( diff_show_mad_only ) { diff_str = "MAD=" + str(ssds_diff.mad); }
+	if( diff_show_mrd_only ) { diff_str = "MRD=" + str(ssds_diff.mrd); }
 	else { diff_str = "ssds_str(out_batch_1,out_batch_2)=" + str(ssds_diff); }
 	(*out) << strprintf( "%s: DIMS[%s] %s\n", i->c_str(), out_batch_1->dims.pretty_str().c_str(), diff_str.c_str() );
 	uint32_t num_err = 0;
@@ -48,8 +48,8 @@ namespace boda {
   }
 
   void comp_vars( std::ostream * const out, uint32_t & num_mad_fail,
-		  double const mad_toler, map_str_double const * const var_mad_toler,
-		  bool const diff_show_mad_only, uint32_t const & max_err,
+		  double const mrd_toler, map_str_double const * const var_mrd_toler,
+		  bool const diff_show_mrd_only, uint32_t const & max_err,
 		  vect_string const & vns, p_map_str_p_nda_t const & vs1, p_map_str_p_nda_t const & vs2 ) 
   {
     (*out) << strprintf( "vars_to_compare: %s\n", str(vns).c_str() );
@@ -65,12 +65,12 @@ namespace boda {
       }
       bool is_fail = 0;
       ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
-      double vmt = var_mad_toler ? get( *var_mad_toler, *i, mad_toler ) : mad_toler;
-      if( (ssds_diff.mad >= vmt) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
+      double vmt = var_mrd_toler ? get( *var_mrd_toler, *i, mrd_toler ) : mrd_toler;
+      if( (ssds_diff.mrd >= vmt) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
       vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
-      if( is_fail ) { // skip printing errors and details if no mad fail. set mad_toler = 0 to force print (and failure)
+      if( is_fail ) { // skip printing errors and details if no mad fail. set mrd_toler = 0 to force print (and failure)
 	string diff_str;
-	if( diff_show_mad_only ) { diff_str = "MAD=" + str(ssds_diff.mad); }
+	if( diff_show_mrd_only ) { diff_str = "MAD=" + str(ssds_diff.mrd); }
 	else { diff_str = "ssds_str(out_batch_1,out_batch_2)=" + str(ssds_diff); }
 	(*out) << strprintf( "%s: DIMS[%s] %s\n", i->c_str(), out_batch_1->dims.pretty_str().c_str(), diff_str.c_str() );
 	uint32_t num_err = 0;

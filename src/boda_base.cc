@@ -118,6 +118,13 @@ namespace boda
       double a2 = double(o2[i]);
       a2 = (a2<0)?-a2:a2;
       double amax = std::max(a1,a2);
+      // for values smaller than 1, clamp relative difference to be the value itself, in particular when compared
+      // against 0 or very small values. that is, 1 vs 0 can have a relatve difference of 1, but 1e-1 vs 0 can only have
+      // a rel diff of 1e-1 (not 1, as would be the case if we didn't clamp). if we set the relative error tolerance to,
+      // say, 1e-5, then cases where both values are <= 1e-5 can only have a max rel diff of 1e-5. basically, we're
+      // assuming that values with small absolute values (i.e. less than 1) are less important in terms of errors wrt
+      // each other. so, i guess this is a hybrid between a relative and an absolute tolerance.
+      amax = std::max(1.0,amax); 
       max_eq(v.mrd,ad/amax);
     }
   }
