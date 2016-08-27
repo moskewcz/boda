@@ -21,25 +21,42 @@ def emit_conv( tag, img, in_xy, kern_xy, stride, in_chan, out_chan ):
         "inx":in_xy[0], "iny":in_xy[1], 
         "outx":out_xy[0], "outy":out_xy[1], 
     }
-    print ( "(tag=%(tag)s,type=Convolution,dims_vals=(biases=(out_chan=%(out_chan)s),"
-            "filts=(out_chan=%(out_chan)s,in_chan=%(in_chan)s,y=%(ky)s,x=%(kx)s),"
-            "in=(img=%(img)s,chan=%(in_chan)s,y=%(inx)s,x=%(iny)s),"
-            "in_pad=(y=0,x=0),kern_sz=(y=%(ky)s,x=%(kx)s),"
-            "out=(img=%(img)s,chan=%(out_chan)s,y=%(outy)s,x=%(outx)s),"
-            "stride=(y=%(sy)s,x=%(sx)s)),"
-            "str_vals=(out_chans=%(out_chan)s))" % ( params ) )
+    print ( "(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=%(out_chan)s)),"
+            "filts=(dims=(out_chan=%(out_chan)s,in_chan=%(in_chan)s,y=%(ky)s,x=%(kx)s)),"
+            "in=(dims=(img=%(img)s,chan=%(in_chan)s,y=%(inx)s,x=%(iny)s)),"
+            "in_pad=(dims=(y=0,x=0)),"
+            "kern_sz=(dims=(y=%(ky)s,x=%(kx)s)),"
+            "out=(dims=(img=%(img)s,chan=%(out_chan)s,y=%(outy)s,x=%(outx)s)),"
+            "stride=(dims=(y=%(sy)s,x=%(sx)s)),"
+            "out_chans=(tn=uint32_t,v=%(out_chan)s)))" % ( params ) )
 
 def emit_conv_sweep():
     conv_ix = 0
     for batch_sz in [1, 2, 5, 10, 20]:
         for activX in [8, 9, 16, 17, 32, 33, 64, 65 ]: # activations X-dim
-            for activY in [8, 9, 16, 17, 32, 33, 64, 65 ]: # activations Y-dim
+            for activY in [activX]:#[8, 9, 16, 17, 32, 33, 64, 65 ]: # activations Y-dim
                 for filtX in [1, 2, 3, 4, 5]:
-                    for filtY in [1, 2, 3, 4, 5]:
+                    for filtY in [filtX]:#[1, 2, 3, 4, 5]:
                         for strideX in xrange(1, filtX+1):
-                            for strideY in xrange(1, filtY+1):
-                                for chans_in in [3, 4, 5, 8, 9, 16, 17, 32, 33 ]:
-                                    for chans_out in [3, 4, 5, 8, 9, 16, 17, 32, 33 ]:
+                            for strideY in [strideX]:#in xrange(1, filtY+1):
+                                for chans_in in [3, 4, 5, 8, 9, 16, 17, 32, 33, 128, 256, 512, 1024 ]:
+                                    for chans_out in [3, 4, 5, 8, 9, 16, 17, 32, 33, 128, 256, 512, 1024 ]:
+                                        tag = "op_"+str(conv_ix)
+                                        conv_ix += 1
+                                        emit_conv( tag, batch_sz, (activX, activY), (filtX, filtY), (strideX, strideY), 
+                                                   chans_in, chans_out)
+
+def emit_conv_small_sweep():
+    conv_ix = 0
+    for batch_sz in [1, 10]:
+        for activX in [8, 17 ]: # activations X-dim
+            for activY in [activX]: # activations Y-dim
+                for filtX in [1, 3]:
+                    for filtY in [filtX]:
+                        for strideX in xrange(1, filtX):
+                            for strideY in [strideX]:
+                                for chans_in in [3, 33 ]:
+                                    for chans_out in [3, 33 ]:
                                         tag = "op_"+str(conv_ix)
                                         conv_ix += 1
                                         emit_conv( tag, batch_sz, (activX, activY), (filtX, filtY), (strideX, strideY), 
@@ -55,5 +72,11 @@ def emit_sgemm_sweep():
     for MNK in [32,64,128,256,384,512,768,1024,1536,2048,3072,4096,5120,6144,7168,8192,10240,12288]:
         emit_sgemm( MNK, MNK, MNK )
 
-# emit_conv_sweep()
-emit_sgemm_sweep()
+
+import argparse
+parser = argparse.ArgumentParser(description='generate list of operations.')
+parser.add_argument('--set', metavar="SETNAMESTR", type=str, default="conv_small", help="name of set to generate" )
+args = parser.parse_args()
+
+vars()["emit_"+args.set+"_sweep"]()
+
