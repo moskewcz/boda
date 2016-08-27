@@ -1,58 +1,86 @@
 # WIP : Getting Started
 
-## Boda config file setup (can be done after build if desired)
-### note: all commands should be run from boda directory 
+## Install basic development packages
 
-First, copy and rename the sample configuration file from the root directory to the lib dir as a template for yours:
+Before doing anything, you'll need a basic development setup. For Unbuntu 14.04/16.04, a good starting set of packages might be:
 
-    cp lib/boda_cfg.xml.example lib/boda_cfg.xml
+    sudo apt-get install git emacs vim build-essential libboost-all-dev
 
-Then, edit the file. Important vars (see below): **alt_param_dir**, **pascal_data_dir**, **caffe_dir**
+## Clone Boda Repo From Github
 
-    emacs lib/boda_cfg.xml
+Next, you'll need to clone the repo, and decend into the fresh working copy:
 
-Most variables are only used by specific modes, and in theory none are strictly required. However, due to limitations of the testing framework, currently all paths used by any tested mode must be specified -- but need not be valid. So, don't remove any variables, but don't worry about setting them correctly initially. 
-
-For testing of CNN related code, you'll need binary caffe model parameter files matching (some of) the nets in the boda/nets directory. You can put the model files alongside the nets, or you can set **alt_param_dir** to an alternate location to look for the parameter files (see the comment in the config file itself).
-
-Additionally, for running demos (perhaps those commands listed in the [doc/demo_notes.txt](doc/demo_notes.txt) file) **caffe_dir** should be a path to a checkout of caffe from which to find aux data files (not related to building). For example, the **cnet_predict** mode looks (by default) for the file "%(caffe_dir)/data/ilsvrc12/synset_words.txt".
-
-Some tests may require various other inputs/data files/paths from the above config file to be set properly. Directly examination of the tests and their code may be necessary to determine the details, and some tests aren't going to be easy for anyone other than me to run without help / additional information. In particular, many tests use images (or a least a couple images) from the pascal VOC2007 dataset. So, you'll need to set **pascal_data_dir** to a copy of the VOC2007 data.
-
-Here is some basic information on other vars:
-
-bench_dir: related to hamming distance / obj. detection experiments. untested/unused? probably can ignore.
-
-datasets_dir: some modes expect %(datasets_dir)/flickrlogos, %(datasets_dir)/imagenet_classification/ilsvrc12_val_lmdb, ...
-
-flickr_data_dir: path to flickr logo data in VOC format, used by some older experiments only, untested, ignorable
-
-dpm_fast_cascade_dir: path to dpm_fast_cascade codebase, for old DPM experiments, ignorable
-
-ffld_dir: path to ffld, for old DPM experiments, ignorable
-
-## Boda environment setup: putting boda in the PATH, enabling bash completion support (optional; can be done after build if desired)
-
-The file [scripts/boda_env.bash](scripts/boda_env.bash) is designated as a place to perform environment setup for running boda. In
-particular, it puts the boda **lib** directory in the PATH (so that the **lib/boda** binary can be found in the PATH) as
-well as running a script to enable some limited, WIP support for bash completion for Boda. All of this is optional; if
-you prefer to manage PATH yourself, and/or if you don't desire bash completion support, there's no need to run this
-script. In any event it should not need to be modified, and can be run from any location, once per shell, to modify the
-PATH and enable bash completion support. To source it from the root of the boda tree:
-
-    source scripts/boda_env.bash
+    mkdir -p ~/git-work && cd ~/git-work && git clone http://github.com/moskewcz/boda && cd boda
 
 ## Build
 
-### Install needed dependencies
+### Install boda-specific dependencies
 
-(some of the) needed extra packages under ubuntu 14.04 for a minimal compile:
+Depending on how it is configured, boda may require some additional dependencies.
+Some of the less optional ones are listed below, and should be a good starting point.
+All of these packages should be availible in Unbuntu 14.04/16.04:
 
-    sudo apt-get install protobuf-compiler libprotobuf-dev liblmdb-dev libsparsehash-dev libpython-dev libboost-all-dev
+    sudo apt-get install protobuf-compiler libprotobuf-dev liblmdb-dev libsparsehash-dev libjpeg-turbo8-dev 
 
-some generally useful other packages for development:
-    sudo apt-get install git emacs
+Additionally, some additional optional dependencies are listed below.
+Most/all can be disabled, see the following section for instructions on editing obj/obj_list to enable/disable dependencies.
 
+### Python support
+
+Note that the basic python development packages should have already been pulled in by libboost-all-dev, so they are not listed here specifically as a dependency.
+However, boda's python support requires numpy support, which is listed below.
+
+    sudo apt-get install python-numpy
+
+#### SDL2 support:
+
+For boda's minimal GUI/video-output support, you'll need the SDL2 development packages.
+If you don't want those features, they can be disabled (see below section on editing obj_list).
+Otherwise, this should install the needed packages:
+
+    sudo apt-get install libsdl2-dev libsdl2-ttf-dev
+
+#### Octave support:
+
+For now, you should probably just disable the Octave integration support.
+But if you're interested, perhaps you could start with the following and see what happens during build if you try to enable octave support:
+
+    sudo apt-get install liboctave-dev
+
+#### CUDA support:
+
+For targeting nVidia GPUs via CUDA/nvrtc, you must install CUDA.
+A good starting place is [https://developer.nvidia.com/cuda-zone](https://developer.nvidia.com/cuda-zone).
+If you are not using nVidia GPUs and/or don't wish to install/use Boda's CUDA/nvrtc support, disable cuda support.
+Note that you must manually disable any cuda-dependent features as well, such as the culibs, nvrtc and caffe features.
+If you forget, the build process will complain to remind you.
+
+
+#### OpenCL support:
+
+If you're using nVidia GPUS, CUDA provides OpenCL headers and an OpenCL runtime (ICD) for nVidia hardware.
+Similarly, if you're using AMD GPUs, the APP SDK provides OpenCL headers and an OpencL runtime (ICD) for AMD hardware.
+Intel also provides an OpenCL runtime/ICD, but usage of it has not been tested.
+Additionally, Ubuntu provides packages with 'stock' versions of the OpenCL headers, and these should be usable for building boda as well.
+Ubuntu also provides an open-source ICD loader (which is the libOpenCL that one actually links against), which should have been installed as part of the base system. 
+Beyond just being able to build, the details of which flavors of OpenCL might actually work well are outside the scope of this document, but in general:
+(1) OpenCL does not provide performance portability, and often not even correctness portability. 
+(2) Targeting each specific hardware platform takes significant effort -- although a goal of boda is to easy this effort.
+(3) Boda is currently aimed more toward 'discrete-GPU-like' devices, so attempting to add support for targeting CPUs via OpenCL would not be expected to be easy.
+
+To install the Ubuntu 'stock' OpenCL headers and required-for-dev-symlink to the ubuntu/open-source OpenCL ICD loader library (which itself should already be installed): 
+
+    sudo apt-get install opencl-headers ocl-icd-opencl-dev
+
+However, note that while this will enable compilation of OpenCL support, it won't enable any OpenCL runtimes/ICDs, so things may not go well at runtime.
+For that, install an ICD from NVidia, AMD, Intel, or whomever as discussed above.
+In any event, OpenCL support may be disabled.
+
+#### Caffe support:
+
+In short, you probably want to disable caffe support.
+However, if you do want caffe support, you'll need to build caffe.
+See the longer note below for details.
 
 ### Build Configuration : editing [obj/makefile](obj/makefile) and [obj/obj_list](obj/obj_list)
 
@@ -61,8 +89,8 @@ some generally useful other packages for development:
 Generally, the makefile need not be edited, as it's mostly a skeleton used by the python-based pre-build system.
 The file obj_list is where you control what software to link with and, if needed, any system specific paths. 
 For example, to disable Caffe integration, change `[caffe]` to `[caffe disable]`. 
-For initial builds, you may wish to disable various modules, in particular: octave, SDL2, caffe.
-In general, for any non-disabled modules, modify the paths as needed. 
+For initial builds, you may wish to disable various modules as discussed above, in particular: octave, SDL2, caffe.
+In general, for any non-disabled modules, modify the paths as needed.
 The build system will combine pieces of obj_list together with the Makefile template to form a complete Makefile.
 This process is driven by regular make at the top level. 
 The makefile invokes the python build system by running [pysrc/prebuild.py](pysrc/prebuild.py)
@@ -76,14 +104,26 @@ Each dependency of boda has a **build stanza** that starts with a header that mi
     [magiwrapper gen_fn=foo.cc] # uncommon (used only for protobuf related features currently); declares a build-time generated file
     [SDL2 disable] # used to disable a dependency; its build stanza will be ignored
 
-A dependency is disabled if it is explicitly disabled with the `disable` option, or if any of its sub-dependencies is disabled.
-If a dependency is *not* disabled, then the contents of its build stanza are added to the makefile.
+The first stanza must be named `[base]`, and is special: it is always enabled.
+It contains top-level boda dependencies and compiler setup.
+
+If a dependency is not explicitly disabled, it will be enabled if it is used by any object file that is to be compiled or any other enabled dependency (i.e. recursively via sub-dependencies). 
+However, if a dependency is explicitly disabled with the `disable` option, it will never be enabled. 
+Any object files that depend on an explictly-disabled dependency will not be built.
+Currently, if a disabled dependency is needed by an enabled dependcy, an error will be raised.
+Note that it is unclear if this is a feature or limitation of the build system; the other natural behavior would be to recursively disable any parent dependencies of an explicitly-disabled dependency (and thus recursively disable any dependent object files).
+If a dependency is enabled, then the contents of its build stanza are added to the makefile.
 In particular, each stanza should add to LDFLAGS and CPPFLAGS to add any needed compiler/linker options to find needed header files and to find and link against any needed libraries.
 For libraries not expected to be in the dynamic linker search path at runtime, a stanza may optionally use mechanisms like `rpath` as an alternative to using LD_LIBRARY_PATH at runtime.
 By default, both the `caffe` and `cuda` dependencies use the rpath mechanism.
 The default obj_list has reasonable default paths and options for all dependencies, but these must be manually altered as needed to match the local build environment if they are not correct for a given setup.
 
-One special final stanza named `[objs]` (which takes no options) lists all the object files in boda along with what dependencies each has. Files with no dependencies will always be compiled/linked. Files that have dependencies will only be compiled/linked if all of their dependencies are enabled. Generally, files that are not compiled/linked will only cause boda to be missing the features/modes/functionality provided by those files, but will not prevent linking. In some case, a 'stub' version of a file/feature is provided for use when the dependency is unavailable; usually such stubs simply do nothing and/or emit an error if the needed functionality is used. For example:
+The final stanza must be named `[objs]`, and is special: it lists all the object files in boda along with what dependencies each has.
+Files with no dependencies will always be compiled/linked.
+Files that have dependencies will only be compiled/linked if all of their dependencies are enabled.
+Generally, files that are not compiled/linked will only cause boda to be missing the features/modes/functionality provided by those files, but will not prevent linking.
+In some case, a 'stub' version of a file/feature is provided for use when the dependency is unavailable; usually such stubs simply do nothing and/or emit an error if the needed functionality is used.
+For example:
 
     [objs]
     ...
@@ -126,6 +166,8 @@ So, if you're not too picky about what caffe version to use, the easiest path to
 [https://github.com/moskewcz/caffe/tree/fix-sign-comp-in-hpps](https://github.com/moskewcz/caffe/tree/fix-sign-comp-in-hpps)
 
 If you want to use your own caffe version, see boda issue #1 for the three options of how to proceed (TODO_DOCS: cleanup and inline here).
+
+Note that, currently, boda assumes caffe is compiled with CUDA support, and thus if you don't have CUDA, you can't enable caffe.
 
 ### compile
 
