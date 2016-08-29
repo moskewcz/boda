@@ -15,6 +15,7 @@ namespace boda
                                     map_str_op_tune_t const *per_op_tune )
   {
     op_tune_t const * op_tune = &op_tune_;
+
     bool const enable_ipconv = op_tune->ipconv;
     bool const enable_k1conv = op_tune->k1conv;
     bool const enable_tconv = op_tune->tconv;
@@ -41,7 +42,9 @@ namespace boda
 	op->set_dims("kern_sz", dims_t{ {kern_sz_.d[1],kern_sz_.d[0]}, {"y","x"}, "none" } ); // FIXME: not ideal ...
       } 
       if( is_conv ) { // set func_name (aka variant) for conv case (others are set at bottom)
-        if( enable_ipconv && op->in_pad().is_zeros() && (get_xy_dims(no_dims) == u32_pt_t{1,1}) ) {
+        if( op_tune->use_culibs ) { 
+          op->set_func_name("cudnn_conv");
+        } else if( enable_ipconv && op->in_pad().is_zeros() && (get_xy_dims(no_dims) == u32_pt_t{1,1}) ) {
           op->set_func_name( ipconv_str ); // single output per-chan-per-image: inner-product case
         } else if( enable_k1conv && (kern_sz_ == u32_pt_t{1,1}) && (op->stride() == u32_pt_t{1,1}) 
                    && (no_sz.d[0] >= 6) && (no_sz.d[0] <= 300 ) && (no_dims.dsz("chan") >= 64) ) 
@@ -134,7 +137,7 @@ namespace boda
                                        vect_string{"img","y","x"}, "none" ));
 
       }
-      if( is_conv ) {
+      if( is_conv && (op->get_func_name() != "cudnn_conv") ) { // skip blocking setup for cudnn_conv
         // 'standard' and desired/xformed filter dims. we don't currently xform the biases (although maybe we should).
         op->set_dims("filts_ref",op->get_dims("filts"));
 

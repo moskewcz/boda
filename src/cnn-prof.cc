@@ -173,8 +173,7 @@ namespace boda
   void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune, 
                                 map_str_op_tune_t const *per_op_tune ) {
     if( anno_op->is( Convolution_coi ) ) {
-      if( op_tune.use_culibs ) { anno_op->set_func_name("cudnn_conv"); } // FIXME: fold into add_cnn_codegen_annotations()?
-      else { add_cnn_codegen_annotations( anno_op.get(), op_tune, per_op_tune ); }
+      add_cnn_codegen_annotations( anno_op.get(), op_tune, per_op_tune );
       anno_op->set_u32( "conv_has_relu", 1 );
     } else if( anno_op->is( sgemm_coi ) ) {
       if( op_tune.use_culibs ) {
