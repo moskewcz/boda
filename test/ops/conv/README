@@ -1,0 +1,2 @@
+# to create full.txt, run from boda root:
+python pysrc/to-prof-ops-gen.py --set=conv > test/ops/conv/full.txt

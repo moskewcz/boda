@@ -1,5 +1,6 @@
 nohup.out
 TAGS
+test/ops/conv/full.txt
 nets/dsp1
 run/tr*
 lib/boda
