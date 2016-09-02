@@ -1,7 +1,7 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CUCL IN img:chan:y:x
+                                          GASQ void const * const in_pels,  // CUCL REF img:y:x
+                                          GASQ void const * const in_pad,  // CUCL REF y:x
 					  GASQ float * const in ) // CUCL OUT chan:pel
-/* in_pels */  // CUCL REF img:y:x
-/* in_pad */  // CUCL REF y:x
 {
   // CUCL IX GLOB_ID_1D in
   // CUCL IX pel_ix in_pels

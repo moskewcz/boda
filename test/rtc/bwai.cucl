@@ -1,7 +1,7 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const a, // CUCL IN M:K
 					  GASQ float const * const bt, // CUCL IN N:K
+					  GASQ void const * const work,  // CUCL REF Mg:Ng:Mb:Nb:Kb:Mt:Nt
 					  GASQ float * const c )  // CUCL OUT M:N
-/* work */  // CUCL REF Mg:Ng:Mb:Nb:Kb:Mt:Nt
 {
   // CUCL IX GRP_ID_1D work use_dims=Mg:Ng
   // CUCL IX LOC_ID_1D work use_dims=Mb:Kb

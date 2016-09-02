@@ -1,8 +1,9 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN out_chan:in_chan:y:x
 					  GASQ float const * const biases, // CUCL IN out_chan
 					  GASQ float const * const in, // CUCL IN img:chan:y:x
+                                          GASQ void const * const work, // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan:fioc_tile
 					  GASQ float * const out )  // CUCL OUT img:chan:y:x
-/* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan:fioc_tile
+
 {
   // CUCL IX out_pel_ix out use_dims=img:y:x
   // CUCL IX filts_ix_out_chan_elem filts use_dims=in_chan:y:x

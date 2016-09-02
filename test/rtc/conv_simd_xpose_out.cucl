@@ -1,6 +1,6 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const out, // CUCL IN chan:pel
+                                          GASQ void const * const out_pels,  // CUCL REF img:y:x
 					  GASQ float * const out_ref ) // CUCL OUT img:chan:y:x
-/* out_pels */  // CUCL REF img:y:x
 {
   // it is assumed that all dims of out are >= (padded) the dims of out_ref
   // CUCL IX GLOB_ID_1D out_ref
