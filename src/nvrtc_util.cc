@@ -302,19 +302,17 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
     
     nvrtc_compute_t( void ) : vis( new map_str_var_info_t ), cu_funcs( new map_str_nv_func_info_t ) { }
 
+    // FIXME: semi-dupe'd with OCL version, factor out somehow?
     void add_arg( rtc_arg_t const & arg, vect_rp_void & cu_func_args ) {
-      if( !arg.is_valid() ) { 
-        cu_func_args.push_back( &null_cup );
-      } else if( arg.is_var() ) {
+      assert_st( arg.is_valid() );
+      if( arg.is_var() ) { // pass-by-reference case
         var_info_t const & vi = must_find( *vis, arg.n );
         cu_func_args.push_back( &vi.cup->p );
-      } else if( arg.is_nda() ) { 
+      } else if( arg.is_nda() ) { // pass-by-value and null-reference cases (yes, an odd pairing ...)
         assert_st( arg.v );
-        assert_st( arg.v->rp_elems() );
-        cu_func_args.push_back( arg.v->rp_elems() );
-      } else {
-        assert_st(0);
-      }
+        if( !arg.v->rp_elems() ) { cu_func_args.push_back( &null_cup ); } // null case (REFs, optional vars)
+        else { cu_func_args.push_back( arg.v->rp_elems() ); } // pass-by-value case
+      } else { assert_st(0); }
     }
 #if 0
     void record_var_events( vect_string const & vars, rtc_func_call_t const & rfc ) {

@@ -1,15 +1,14 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN out_chan:in_chan:y:x
 					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
-					 
+                                          GASQ void const * const stride, // CUCL REF y:x
+                                          GASQ void const * const in_pad, // CUCL REF y:x
+                                          GASQ void const * const bck_in_pad, // CUCL REF y:x
+                                          GASQ void const * const bck_pad_in_off, // CUCL REF y:x
+                                          GASQ void const * const work, // CUCL REF pels_blk:out_ix_blk:pels_tile:out_ix_tile:pels:out_ix
+                                          GASQ void const * const oix, // CUCL REF in_chan:sy:sx
+                                          GASQ void const * const fioc, // CUCL REF out_chan:ky:kx
+                                          GASQ void const * const pix, // CUCL REF img:y:x
 					  GASQ float * const in_grad_loss ) // CUCL OUT img:chan:y:x
-/* stride */  // CUCL REF y:x
-/* in_pad */  // CUCL REF y:x 
-/* bck_in_pad */  // CUCL REF y:x 
-/* bck_pad_in_off */  // CUCL REF y:x 
-/* work */  // CUCL REF pels_blk:out_ix_blk:pels_tile:out_ix_tile:pels:out_ix
-/* oix */  // CUCL REF in_chan:sy:sx
-/* fioc */  // CUCL REF out_chan:ky:kx
-/* pix */ // CUCL REF img:y:x
 {
   // CUCL IX pel_ix pix
   // CUCL IX filt_elem_ix fioc

@@ -1,15 +1,15 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUCL IN out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
 					  GASQ float const * const biases, // CUCL IN out_chan
 					  GASQ float const * const in, // CUCL IN blk:blk_iter:blk_iter_chan:blk_pel
+                                          GASQ void const * const stride, // CUCL REF y:x
+                                          GASQ void const * const in_pad, // CUCL REF y:x
+                                          GASQ float const * const out_ref, // CUCL REF img:chan:y:x
+                                          GASQ void const * const work, // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
   // note: there are two possible output formats, so there are two allowed/valid dims for out:--v          OR ---v
 					  GASQ float * const out, // CUCL OUT                  img:chan:y:x     blk:blk_iter:blk_iter_chan:blk_pel
 					  uint32_t const flags ) // CUCL IN :
 // yeah, okay, we don't use stride/in_pad here. but in codegen, we
 // check that the stride is really 1, so we must declare then here.
-/* stride */  // CUCL REF y:x 
-/* in_pad */  // CUCL REF y:x 
-/* work */  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
-/* out_ref */  // CUCL REF img:chan:y:x
 {
   // CUCL IX out_ref_pel out_ref use_dims=img:y:x 
   // CUCL IX GRP_ID_1D work use_dims=pels_blk:out_chan_blk

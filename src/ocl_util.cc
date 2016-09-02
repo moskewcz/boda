@@ -374,19 +374,19 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     virtual float get_var_compute_dur( string const & vn ) { return 0; }
     virtual float get_var_ready_delta( string const & vn1, string const & vn2 ) { return 0; }
 
+    // FIXME: semi-dupe'd with nvrtc version, factor out somehow?
     void add_arg( rtc_arg_t const & arg, cl_kernel_t const & kern, uint32_t & cur_arg_ix ) {
-      if( !arg.is_valid() ) { 
-        set_kernel_arg( kern, cur_arg_ix, null_buf.v );
-      } else if( arg.is_var() ) { 
-        set_kernel_arg( kern, cur_arg_ix, must_find( *vis, arg.n ).buf.v );
-      } else if( arg.is_nda() ) {
+      assert_st( arg.is_valid() );
+      if( arg.is_var() ) { // pass-by-reference case
+        set_kernel_arg( kern, cur_arg_ix, must_find( *vis, arg.n ).buf.v ); 
+      } else if( arg.is_nda() ) { // pass-by-value and null-reference cases (yes, an odd pairing ...)
         assert_st( arg.v );
-        assert_st( arg.v->rp_elems() );
-        cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, arg.v->dims.bytes_sz(), arg.v->rp_elems() );
-        cl_err_chk( err, "clSetKernelArg() [by-value]" );
-      } else {
-        assert_st(0);
-      }
+        if( !arg.v->rp_elems() ) { set_kernel_arg( kern, cur_arg_ix, null_buf.v ); } // null case (REFs, optional vars)
+        else { // pass-by-value case
+          cl_int err; err = clSetKernelArg( kern.v, cur_arg_ix, arg.v->dims.bytes_sz(), arg.v->rp_elems() );
+          cl_err_chk( err, "clSetKernelArg() [by-value]" );
+        }
+      } else { assert_st(0); }
       ++cur_arg_ix;
     }
 

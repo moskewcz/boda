@@ -1,11 +1,10 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in, // CUCL IN img:chan:y:x
 					  GASQ float const * const out_grad_loss, // CUCL IN img:chan:y:x
-					 
+                                          GASQ void const * const stride, // CUCL REF y:x
+                                          GASQ void const * const in_pad, // CUCL REF y:x
+                                          GASQ void const * const work_fb, // CUCL REF pels_blk:out_ix_blk:pels_tile:out_ix_tile:pels:out_ix
+                                          GASQ void const * const fioc_fb, // CUCL REF img:y:x
 					  GASQ float * const filts_grad_loss ) // CUCL OUT out_chan:in_chan:y:x
-/* stride */  // CUCL REF y:x
-/* in_pad */  // CUCL REF y:x 
-/* work_fb */  // CUCL REF pels_blk:out_ix_blk:pels_tile:out_ix_tile:pels:out_ix
-/* fioc_fb */  // CUCL REF img:y:x
 {
   // CUCL IX pel_ix filts_grad_loss use_dims=in_chan:y:x
   // CUCL IX out_ix filts_grad_loss use_dims=out_chan

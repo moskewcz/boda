@@ -126,7 +126,14 @@ namespace boda
     }
     void reset_arg( string const & an, string const & vn ) { must_replace( arg_map, an, vn ); }
     void reset_arg_dims( string const & an, dims_t const & dims ) { reset_dims( an, dims ); }
-    void set_null_arg( string const & an ) { set_dims( an, make_null_dims_t() ); }
+    // FIXME: for now, null args are only distinguised by not passing a var at call-time. however, since most arguments
+    // are non-optional, this is not ideal, since we can't error check not passing a var for most args. for now, we
+    // preserve this set_null_arg_dims() function to mark the few cases where the arg is optional, pending a better
+    // solution. note: these calls used to be set_null_arg(), which didn't need any dims, and was specially handled.
+    void set_null_arg_dims( string const & an, dims_t const & dims ) { 
+      set_dims( an, dims ); 
+      must_insert( arg_map, an, make_dims_nda(dims) ); // note: the only place an is_nda() rtc_arg is put in arg_map ...
+    }
     void erase_arg( string const & an ) { erase( an ); must_erase( arg_map, an ); }
   };
 

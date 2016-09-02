@@ -108,7 +108,8 @@ namespace boda
     }
 
     void conv( rtc_func_info_t const & fi, map_str_rtc_arg_t const & arg_map ) {
-      assert_st( (fi.arg_names == vect_string{"filts","biases","in","out","cucl_arg_info"}) ); // verify func iface
+      // verify func iface
+      assert_st( (fi.arg_names == vect_string{"filts","biases","in","stride","in_pad","out","cucl_arg_info"}) ); 
       op_base_t const & op = fi.op;
       p_nda_t filts = get_arg( arg_map, "filts" );
       p_nda_t biases = get_arg( arg_map, "biases" );

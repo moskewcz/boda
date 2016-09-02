@@ -1,13 +1,13 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( uint32_t const avg_pool, // CUCL IN :
                                           uint32_t const emit_out_in_yx, // CUCL IN :
                                           GASQ float const * const in, // CUCL IN img:chan:y:x
+                                          GASQ void const * const kern_sz, // CUCL REF y:x
+                                          GASQ void const * const stride, // CUCL REF y:x
+                                          GASQ void const * const in_pad, // CUCL REF y:x
 					  GASQ float * const out, // CUCL OUT img:chan:y:x
 					  GASQ float * const out_in_yx ) // CUCL OUT img:chan:y:x
 // note: out_in_yx will be NULL+unused if emit_out_in_yx is 0; otherwise it will be non-null and used.
 // note: emit_out_in_yx will only be non-zero when avg_pool==0, as it's not sensible otherwise
-/* kern_sz */  // CUCL REF y:x
-/* in_pad */  // CUCL REF y:x
-/* stride */  // CUCL REF y:x
 {
   // CUCL IX GLOB_ID_1D out
   if( GLOB_ID_1D >= %(GLOB_ID_1D_dims_prod) ) { return; }

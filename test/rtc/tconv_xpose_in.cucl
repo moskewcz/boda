@@ -1,10 +1,10 @@
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const in_ref, // CUCL IN img:chan:y:x
+                                          GASQ void const * const kern_sz, // CUCL REF y:x
+                                          GASQ void const * const stride, // CUCL REF y:x
+                                          GASQ void const * const in_pad, // CUCL REF y:x
+                                          GASQ float const * const out_ref, // CUCL REF img:chan:y:x
+                                          GASQ void const * const work, // CUCL REF blk_bline:blk_bx:out_chan_blk:blk_y:out_chan_tile:pels:out_chan
 					  GASQ float * const in ) // CUCL OUT blk_bline:blk_bx:blk_in_chan:blk_y:blk_x
-                                                    /* out_ref */ // CUCL REF img:chan:y:x
-/* kern_sz */  // CUCL REF y:x
-/* stride */  // CUCL REF y:x
-/* in_pad */  // CUCL REF y:x 
-/* work */  // CUCL REF blk_bline:blk_bx:out_chan_blk:blk_y:out_chan_tile:pels:out_chan
 {
   // note: dim(in_ref.chan) == dim(out.blk_in_chan)
   // note: for out, blk_y and blk_x are in input space, but blk_bline and blk_bx are in output space. 

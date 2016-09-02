@@ -300,7 +300,7 @@ namespace boda
 	set_rtc_arg( oi, rtc, "out_in_yx", out_in_yx );
       } else {
 	assert_st( oi->get_u32("emit_out_in_yx") == 0 );
-	oi->set_null_arg( "out_in_yx" );
+	oi->set_null_arg_dims( "out_in_yx", oi->get_dims("out") ); // proper dims, but no var will be passed at call time
       }
       gen_call( oi );
     } else if( oi->is( Convolution_coi ) ) {
@@ -340,7 +340,7 @@ namespace boda
 	set_rtc_arg( oi, rtc, "out_scale_base", out_scale_base );
       } else {
 	assert_st( oi->get_u32("emit_out_scale_base") == 0 );
-	oi->set_null_arg( "out_scale_base" );
+	oi->set_null_arg_dims( "out_scale_base", oi->get_dims("out") );
       }
       gen_call( oi );
     } else if( oi->is( BckLRN_coi ) ) {

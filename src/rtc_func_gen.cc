@@ -26,12 +26,6 @@ namespace boda
     tn = get_part_before( tn_, "_multi" );
     multi.v = (tn != tn_); // if we found _multi, we stripped it off, so tn is shorter than tn_
   }
-  void arg_decl_t::ref_parse( string const & line ) {
-    vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " */" ) ) );
-    if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL REF decl; no var name present:" + line ); }
-    set_vn_tn( arg_decl.back(), string() ); // no tn (type name) for ref decls
-    loi.v = 1; // treat REF args as loi=1 (i.e. like passing a null pointer just to get the dims)
-  }
   void arg_decl_t::arg_parse( string const & line ) {
     vect_string const arg_decl = split_ws( strip_ws( strip_ending_chars( get_part_before( line, "//" ), " ,);{" ) ) );
     if( arg_decl.size() < 1 ) { rt_err( "invalid CUCL io var decl; no var name found:" + line ); }
@@ -97,30 +91,28 @@ namespace boda
           arg_decl_t cad;
           cad.io_type = cd;
           cad.dyn.v = dyn;
-          if( cd == "REF" ) {
-            cad.ref_parse( line );
-          } else {
-            cad.arg_parse( line );
-            if( cad.tn.empty() ) { rt_err( "invalid CUCL io var decl; no var type found." ); }
-            if( !(cad.loi.v <= 1) ) { rt_err( "invalid CUCL io var decl; should be exactly zero or one level-of-indirection/*.");}
-            if( (cad.loi.v == 0) && (cad.dyn.v) ) { rt_err( "invalid CUCL io var decl; by-value arguments must not be DYN");}
+          cad.arg_parse( line );
+          if( cad.tn.empty() ) { rt_err( "invalid CUCL io var decl; no var type found." ); }
+          if( !(cad.loi.v <= 1) ) { rt_err( "invalid CUCL io var decl; should be exactly zero or one level-of-indirection/*.");}
+          if( (cad.loi.v == 0) && (cad.dyn.v) ) { rt_err( "invalid CUCL io var decl; by-value arguments must not be DYN");}
+          if( (cad.loi.v == 0) && (cad.io_type == "REF") ) { rt_err( "invalid CUCL io var decl; REF args must not be by-value (since no value(s) will be passed)"); }
 
-            // special case: if type is CUCL type of this var, then there is no restriction on the type that can be
-            // passed for this var. note that the only supported types are basic types and this case; there's no
-            // ability to use the type of other vars or some other string template or the like to restrict/set the
-            // type.
-            if( cad.tn == ("%("+cad.vn+"_tn)") ) { cad.tn = ""; } 
+          // special case: if type is CUCL type of this var, then there is no restriction on the type that can be
+          // passed for this var. note that the only supported types are basic types and this case; there's no
+          // ability to use the type of other vars or some other string template or the like to restrict/set the
+          // type.
+          if( cad.tn == ("%("+cad.vn+"_tn)") ) { cad.tn = ""; } 
+          if( cad.tn == "void" ) { cad.tn = "none"; } // void CUCL args want nda_t's with type "none" (FIXME?)
 
-            // another special case: if the var is named "cucl_arg_info", it's where we stuff the arg info
-            if( cad.vn == "cucl_arg_info" ) {
-              if( has_cucl_arg_info.v ) { rt_err( "duplicate CUCL ARGINFO declartion. must have exactly 0 or 1 ARGINFO arguments."); }
-              has_cucl_arg_info.v = 1;
-              if( cad.multi.v ) { rt_err( "invalid CUCL ARGINFO decl; should not be multi." ); }
-              if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found." ); }
-              if( cad.tn != "%(rtc_func_name)_arg_info_t" ) { rt_err( "invalid CUCL ARGINFO decl; must use '%(rtc_func_name)_arg_info_t' as type name." ); }
-              //if( cad.vn != "cucl_arg_info" ) { rt_err( "invalid CUCL ARGINFO decl; must use 'cucl_arg_info' as var name." ); }
-              if( cad.loi.v != 0 ) { rt_err( "invalid CUCL ARGINGO decl; should be exactly zero levels-of-indirection/*s:");}  
-            }
+          // another special case: if the var is named "cucl_arg_info", it's where we stuff the arg info
+          if( cad.vn == "cucl_arg_info" ) {
+            if( has_cucl_arg_info.v ) { rt_err( "duplicate CUCL ARGINFO declartion. must have exactly 0 or 1 ARGINFO arguments."); }
+            has_cucl_arg_info.v = 1;
+            if( cad.multi.v ) { rt_err( "invalid CUCL ARGINFO decl; should not be multi." ); }
+            if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found." ); }
+            if( cad.tn != "%(rtc_func_name)_arg_info_t" ) { rt_err( "invalid CUCL ARGINFO decl; must use '%(rtc_func_name)_arg_info_t' as type name." ); }
+            //if( cad.vn != "cucl_arg_info" ) { rt_err( "invalid CUCL ARGINFO decl; must use 'cucl_arg_info' as var name." ); }
+            if( cad.loi.v != 0 ) { rt_err( "invalid CUCL ARGINGO decl; should be exactly zero levels-of-indirection/*s:");}  
           }
           for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
             cad.ok_dims.push_back( dims_from_nda_spec( cad.tn, mmc_parts[i] ) );
@@ -182,7 +174,6 @@ namespace boda
         arg_check_error += "call arg '"+i.vn()+"' must not have padding; "; } // FIXME: maybe too strong
       bool matches_decl = 0;
       for( uint32_t j = 0; j != i.ad().ok_dims.size(); ++j ) {
-        if( arg_dims == make_null_dims_t() ) { matches_decl = 1; break; } // NULL case
         if( arg_dims.matches_template( i.ad().ok_dims[j] ) ) { matches_decl = 1; break; }
       }
       if( !matches_decl ) { arg_check_error += "call arg '"+str(i.vn())+"' incompatible with decl arg "
@@ -402,12 +393,11 @@ namespace boda
     if( cc ) { cc->gen_op( this, rtc_func_template->template_fn ); } // call custom_codegen_t hook.
 
     for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( &op ); !i.at_end(); ++i ) {
-      if( i.ad().io_type != "REF" ) { arg_names.push_back( i.vn() ); } // in-order-list of function arg names for rtc level
+      arg_names.push_back( i.vn() ); // in-order-list of function arg names for rtc level
       if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
       p_nda_t const & arg_nda = op.get(i.vn()); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
       dims_t const & arg_dims = arg_nda->dims;
-      if( arg_dims == make_null_dims_t() ) { continue; } // skip null dims
       if( i.ad().dyn.v ) {
         assert_st( i.ad().loi.v == 1 );
         dyn_vars.push_back( dyn_dim_info_t{ i.vn(), i.vn(), vect_string{} } ); 
@@ -541,26 +531,8 @@ namespace boda
       uint32_t const multi_sz = i->get_multi_sz( rcg->op );
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
-        if( i->io_type == "REF" ) {
-          if( i->dyn.v ) {
-            // for REF DYN dims, we redundantly put the dims into the arg_map for the special-case of external library
-            // integration. in these cases, while all needed information is in the cucl_arg_info structure, it may be
-            // inconvenient (impossible?) to parse. so, clients can do there own version of the cucl_arg_info construction.
-            assert_st( i->loi.v == 1 );
-            map_str_rtc_arg_t::const_iterator an = arg_map.find( vn );
-            if( an == arg_map.end() ) {
-              rt_err( "specified "+i->io_type+" DYN REF arg '"+vn+"' not found in arg_map at call time." ); 
-            }
-            dims_t const arg_call_dims = an->second.get_dims( *rtc );
-            must_insert( rfc.arg_map, vn, rtc_arg_t{make_dims_nda(arg_call_dims)} );
-          } // else, nothing to do
-          continue; // done with REF case
-        } // else, fall-though to non-ref arg case:
-
         p_nda_t const & func_nda = rcg->op.get(vn); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
         dims_t const & func_dims = func_nda->dims;
-        // if null, dims in op, pass invalid/null arg to rtc. FIXME: use scalar of type "none"? or some zero-size nda?
-        if( func_dims == make_null_dims_t() ) {  must_insert( rfc.arg_map, vn, rtc_arg_t{} ); continue; } 
         dims_t call_dims;
         string call_vn; // for error message
         if( i->loi.v == 0 ) { // arg is some struct/type to be passed by-value 
@@ -586,14 +558,21 @@ namespace boda
           // ... it's probably okay?
         } else { 
           assert_st( i->loi.v == 1 ); // arg is a pointer/reference-to-memory-block
+          bool const need_value = ( i->io_type != "REF" ) || ( i->dyn.v ); // if non-REF or DYN-REF, we need an arg
           map_str_rtc_arg_t::const_iterator an = arg_map.find( vn );
-          if( an == arg_map.end() ) {
+          if( need_value && (an == arg_map.end()) ) {
             rt_err( "specified "+i->io_type+" arg '"+vn+"' not found in arg_map at call time." ); 
           }
-          call_dims = an->second.get_dims( *rtc );
-          if( !an->second.is_var() ) { rt_err( "UNSUPPORTED: attempted to pass scalar val by-ref for arg "+vn ); }
-          call_vn = an->second.n;
-          must_insert( rfc.arg_map, vn, rtc_arg_t{an->second} ); // FIXME: should be guarded by below error check
+          // for non-DYN REF args, we allow pulling the call_dims from the op (so call_dims will == func_dims for sure)
+          call_dims = (an == arg_map.end()) ? func_dims : an->second.get_dims( *rtc );
+          if( ( i->io_type != "REF" ) && (!an->second.is_var()) ) { 
+            if( !an->second.v->rp_elems() ) { } // NULL case is handled by by-value processing, allow (FIXME?)
+            else { rt_err( "UNSUPPORTED: attempted to pass scalar val by-ref for arg "+vn ); }
+          }
+          call_vn = (an == arg_map.end()) ? "<from-op>" : ( an->second.is_var() ? an->second.n : "<by-value-nda>" );
+          // FIXME: inserts into rfc.arg_map should be guarded by below error check (but don't matter if it fails later)
+          if( i->io_type != "REF" ) { must_insert( rfc.arg_map, vn, rtc_arg_t{an->second} );  } 
+          else { must_insert( rfc.arg_map, vn, rtc_arg_t{make_dims_nda(call_dims)} ); } // strip data for REF case
         }
         // check that the passed vars are the expected sizes. for non-dyn vars, the sizes must be fully specificed (no
         // wildcards) and be exactly equal. for dyn vars, in particular at least the # of dims per var better match as the
