@@ -15,12 +15,14 @@
 
 <root 
       models_dir="%(boda_dir)/nets"
+      pascal_data_dir="%(boda_dir)/bench/VOCdevkit/VOC2007"
+
       alt_param_dir="/scratch/models" 
       caffe_dir="/home/moskewcz/git_work/caffe_dev"
 
       bench_dir="/home/moskewcz/bench"
       datasets_dir="/scratch/datasets"
-      pascal_data_dir="/home/moskewcz/bench/VOCdevkit/VOC2007"
+
       flickr_data_dir="/home/moskewcz/bench/VOCdevkit/VOCLOGO"
       dpm_fast_cascade_dir="/home/moskewcz/svn_work/dpm_fast_cascade"
       ffld_dir="/home/moskewcz/research/ffld"

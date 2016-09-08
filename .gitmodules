@@ -1,3 +1,6 @@
 [submodule "pysrc/pystrace"]
 	path = pysrc/pystrace
 	url = ../pystrace
+[submodule "bench/VOCdevkit"]
+	path = bench/VOCdevkit
+	url = ../VOCdevkit
