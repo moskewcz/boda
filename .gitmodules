@@ -1,0 +1,3 @@
+[submodule "pysrc/pystrace"]
+	path = pysrc/pystrace
+	url = ../pystrace
