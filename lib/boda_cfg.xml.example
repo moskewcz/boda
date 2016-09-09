@@ -17,7 +17,7 @@
       models_dir="%(boda_dir)/nets"
       pascal_data_dir="%(boda_dir)/bench/VOCdevkit/VOC2007"
 
-      alt_param_dir="/scratch/models" 
+      alt_param_dir="%(boda_dir)/models" 
       caffe_dir="/home/moskewcz/git_work/caffe_dev"
 
       bench_dir="/home/moskewcz/bench"

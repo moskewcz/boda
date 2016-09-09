@@ -2,6 +2,7 @@ nohup.out
 TAGS
 test/ops/conv/full.txt
 nets/dsp1
+models
 run/tr*
 lib/boda
 lib/boda_cfg.xml
