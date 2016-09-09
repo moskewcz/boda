@@ -5,7 +5,7 @@ import sys
 # example usage: first, get strace log from running all tests:
 # moskewcz@maaya:~/git_work/boda/run/tr1$ strace -f -ttt -T -o st.out boda test_all
 # then, process the log to get a list of files opened (for now, we don't check if they were opened successfully or not):
-# moskewcz@maaya:~/git_work/boda/run/tr1$ cat st.out | python ../../pysrc/strace-ana.py | grep bench/VOCdevkit | sort -u > voc-files.txt
+# moskewcz@maaya:~/git_work/boda/run/tr1$ cat st.out | python ../../pysrc/strace-ana.py | sort -u > test-all-files.txt
 
 from pystrace.strace import *
 
