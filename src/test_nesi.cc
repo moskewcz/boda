@@ -39,6 +39,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string test_name; //NESI(help="name of test",req=1)
+    p_string needs; //NESI(help="comma-seperated list of boda feature names needed for this test. if not avail, will skip.")
     uint32_t slow; //NESI(default=0,help="is test slow to run (and thus disabled by default)?")
     p_string err; //NESI(help="expected error (if any)")
     p_has_main_t command; //NESI(help="input")
