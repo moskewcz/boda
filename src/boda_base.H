@@ -629,6 +629,7 @@ namespace boda
 
 
   inline dims_t make_scalar_dims_t( string const & tn ) { return dims_t{ {}, tn }; }
+  inline dims_t make_vector_dims_t( string const & tn, uint64_t const sz ) { return dims_t{ {(uint32_t)sz}, {"v"}, tn }; } // FIXME_32
   // valid: scalar with "none" type. not commonly used. FIXME: remove, replace with ... no-data nda with null dims maybe?
   inline dims_t make_null_dims_t( void ) { return make_scalar_dims_t("none"); } 
 
@@ -747,7 +748,7 @@ namespace boda
     return ret;
   }
   template< typename T > inline p_nda_t make_vector_nda( vector< T > const & vv ) { 
-    p_nda_t ret = make_shared<nda_t>( dims_t{ {(uint32_t)vv.size()}, {"v"}, get_ndat<T>().tn } );
+    p_nda_t ret = make_shared<nda_t>( make_vector_dims_t( get_ndat<T>().tn, vv.size() ) );
     std::copy( vv.begin(), vv.end(), static_cast< T * >(ret->rp_elems()) );
     return ret;
   }

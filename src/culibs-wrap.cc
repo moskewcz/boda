@@ -63,29 +63,13 @@ namespace boda
                    "cudnnSetFilterNdDescriptor");
   }
 
-  // FIXME: dup'd with nvrtc_util.H 
-  void cu_err_chk( CUresult const & ret, char const * const func_name );
-  template< typename T >  struct cup_T {
-    typedef T element_type;
-    CUdeviceptr p;
-    uint32_t sz;
-    void set_to_zero( void ) { cu_err_chk( cuMemsetD8(  p, 0, sz * sizeof(element_type) ), "cuMemsetD8" ); }
-    cup_T( uint32_t const sz_ ) : p(0), sz(sz_) { 
-      cu_err_chk( cuMemAlloc( &p,    sz * sizeof(element_type) ), "cuMemAlloc" ); 
-      set_to_zero();
-    }
-    ~cup_T( void ) { cu_err_chk( cuMemFree( p ), "cuMemFree" ); }
-  };
-  typedef cup_T< uint8_t > cup_uint8_t;
-  typedef shared_ptr< cup_uint8_t > p_cup_uint8_t; 
-
-
   struct culibs_wrap_t { 
     rtc_compute_t * const rtc;
     cublasHandle_t cbh;
     cudnnHandle_t cdh;
-    p_cup_uint8_t cu_work;
-    culibs_wrap_t( rtc_compute_t * const rtc_ ) : rtc( rtc_ ) {
+    uint64_t cu_work_sz;
+    string cu_work_vn;
+    culibs_wrap_t( rtc_compute_t * const rtc_ ) : rtc( rtc_ ), cu_work_sz(0), cu_work_vn("culibs_wrap_cudnn_scratch") {
       cublas_err_chk( cublasCreate(&cbh), "cublasCreate" ); 
       cudnn_err_chk( cudnnCreate(&cdh), "cublasCreate" ); 
       // FIXME: can we assume the default pointer mode is host? docs don't seem to say.
@@ -173,7 +157,11 @@ namespace boda
       //printf( "cu_conv_algo=%s need_scratch=%s\n", str(cu_conv_algo).c_str(), str(need_scratch).c_str() );
       // FIXME: need to make scratch persistent here? need access to rtc?
       if( need_scratch ) {
-        if( (!cu_work) || ( cu_work->sz < need_scratch ) ) { cu_work = make_shared<cup_uint8_t>( need_scratch ); }
+        if( cu_work_sz < need_scratch ) { // if scratch too small (or doens't exist)
+          if( cu_work_sz ) { rtc->release_var( cu_work_vn ); } // if scratch exists, release it
+          cu_work_sz = need_scratch;
+          rtc->create_var_with_dims( cu_work_vn, make_vector_dims_t( "uint8_t", cu_work_sz ) );
+        }
       }
 
       float const alpha = 1.0f;
@@ -186,7 +174,7 @@ namespace boda
                                               filts->rp_elems(),
                                               cu_conv.v,
                                               cu_conv_algo,
-                                              need_scratch ? ((void *)(uintptr_t)cu_work->p) : 0,
+                                              need_scratch ? rtc->get_var_raw_native_pointer(cu_work_vn)->rp_elems() : 0,
                                               need_scratch,
                                               &beta,
                                               cu_out.v,
