@@ -299,9 +299,8 @@ class nesi_gen( object ):
         for gfn,gfn_texts in per_file_gen.iteritems():
             self.update_file_if_different( gfn+'.nesi_gen.cc', "".join( gfn_texts ) )
 
-        
-            
-        self.update_file_if_different( 'build_info.cc', get_build_info_c_str() )
+        enabled_features = [dep.name for dep in self.gen_obj_list.deps_list if dep.enable]
+        self.update_file_if_different( 'build_info.cc', get_build_info_c_str( enabled_features ) )
 
         self.remove_stale_files()
         print "wrappers up to date."
