@@ -1,5 +1,6 @@
 // Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
+#include"build_info.H"
 #include"has_main.H"
 #include"pyif.H"
 #include"str_util.H"
@@ -598,6 +599,8 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) {
       num_fail = 0;
+      uint64_t num_skipped = 0;
+      set_string missing_needed_features;
       set_string seen_test_names;
       set_string failed_modes;
       seen_test_names.insert( "good" ); // reserved sub-dir to hold known good results
@@ -640,8 +643,16 @@ namespace boda
 	}
 	if( test_init_failed ) { continue; }
 	assert_st( cmd_test->command );
-	  
-
+        
+        bool missing_needed_feature = 0;
+        if( cmd_test->needs ) {
+          vect_string needs_parts = split( *cmd_test->needs, ',' );
+          for( vect_string::const_iterator i = needs_parts.begin(); i != needs_parts.end(); ++i ) {
+            if( !is_feature_enabled( i->c_str() ) ) { missing_needed_feature = 1; missing_needed_features.insert( *i ); }
+          }
+        }
+        if( missing_needed_feature ) { ++num_skipped; continue; }
+        
 	cur_test = cmd_test; // needed by test_print()
 	bool const seen_test_name = !seen_test_names.insert( cmd_test->test_name ).second;
 	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + cmd_test->test_name ); }
@@ -664,6 +675,10 @@ namespace boda
 	++tix;
       }
       if( num_fail ) { printf( "test_cmds num_fail=%s\n", str(num_fail).c_str() ); }
+      if( num_skipped ) {
+        assert_st( !missing_needed_features.empty() );
+        printf( "WARNING: skipped some tests due to missing features: num_skipped=%s missing_needed_features=%s\n", str(num_skipped).c_str(), str(missing_needed_features).c_str() );
+      }
       if( !failed_modes.empty() ) {
 	printf( "WARNING: test_cmds: some modes had test commands that failed to initialize. perhaps these modes aren't enabled?\n");
 	printf( "  FAILING MODES:" );
