@@ -12,7 +12,7 @@ Next, you'll need to clone the repo, and decend into the fresh working copy:
 
     mkdir -p ~/git-work && cd ~/git-work && git clone http://github.com/moskewcz/boda && cd boda
 
-## Build
+## Build: installing boda dependencies, boda configuration, and boda compilation
 
 ### Install boda-specific dependencies
 
@@ -169,7 +169,7 @@ If you want to use your own caffe version, see boda issue #1 for the three optio
 
 Note that, currently, boda assumes caffe is compiled with CUDA support, and thus if you don't have CUDA, you can't enable caffe.
 
-### compile
+### Compile
 
     make -C obj -j12 
 
@@ -177,6 +177,66 @@ or equivalently, if you prefer:
 
     cd obj && make -j12
 
+## Boda config file setup (can be done before build if desired)
+
+First, copy and rename the sample configuration file from the root directory to the lib dir as a template for yours:
+
+    cp lib/boda_cfg.xml.example lib/boda_cfg.xml
+
+Then, edit the file. Important vars (see below): **alt_param_dir**, **pascal_data_dir**, **caffe_dir**
+
+    emacs lib/boda_cfg.xml
+
+Most variables are only used by specific modes, and in theory none are strictly required.
+However, due to limitations of the testing framework, currently all paths used by any tested mode must be specified -- but need not be valid.
+So, don't remove any variables, but don't worry about setting them correctly initially. 
+
+For testing of CNN related code, you'll need binary caffe model parameter files matching (some of) the nets in the boda/nets directory.
+You can put the model files alongside the nets, or you can set **alt_param_dir** to an alternate location to look for the parameter files (see the comment in the config file itself).
+The default **alt_param_dir** is set to %(boda_dir)/models (i.e. inside the WC/checkout).
+However, this directory does not exist in the boda repo, due to the size of the model files (~1GB).
+Boda reads a limited subset of standard caffe nets.
+In particular, boda does not fully support FC/InnerProduct layers currently, since they are just a special case of Convolution.
+Thus, the models that boda uses are generally just FC versions of existing common, stock models, where InnerProduct layers have been converted to Convolution layers using the boda cnet_fc_to_conv mode.
+However, since the conversion process itself is undertested, undocumented, and manual, it is desierable to somehow provide 'ready to run' boda-flavor models as needed by the tests.
+Currently, an experimental utility test-models-b2-util.py is provided that can download the needed models from a web server.
+By default, the utiltiy will attempt to download the models from a b2 cloud storage bucket, but this bucket has a very limited download allowance (~1 full DL/day), so YMMV.
+
+Some tests may require various other inputs/data files/paths from the above config file to be set properly.
+Directly examination of the tests and their code may be necessary to determine the details, and some tests aren't going to be easy for anyone other than me to run without help / additional information.
+In particular, many tests use images (or a least a couple images) from the pascal VOC2007 dataset.
+So, you'll need to set **pascal_data_dir** to a copy of the VOC2007 data.
+The default **pascal_data_dir** is set to %(boda_dir)/bench/VOCdevkit/VOC2007 (i.e. inside the WC/checkout).
+The directory %(boda_dir)/bench/VOCdevkit is a gitlink/submodule pointing to a sibling repo of boda named ../VOCdevkit.
+On github, in the moskewcz account, this repo exists as a sibling of boda, and contains a suitable subset of the VOC2007 data for running the boda tests.
+Thus, doing the usual git submodule setup will give you the needed VOC2007 files for testing:
+
+    git submodule init && git submodule update
+
+Additionally, for running demos (perhaps those commands listed in the [doc/demo_notes.txt](doc/demo_notes.txt) file) **caffe_dir** should be a path to a checkout of caffe from which to find aux data files (not related to building). 
+For example, the **cnet_predict** mode looks (by default) for the file "%(caffe_dir)/data/ilsvrc12/synset_words.txt".
+
+Here is some basic information on other vars:
+
+bench_dir: related to hamming distance / obj. detection experiments. untested/unused? probably can ignore.
+
+datasets_dir: some modes expect %(datasets_dir)/flickrlogos, %(datasets_dir)/imagenet_classification/ilsvrc12_val_lmdb, ...
+
+flickr_data_dir: path to flickr logo data in VOC format, used by some older experiments only, untested, ignorable
+
+dpm_fast_cascade_dir: path to dpm_fast_cascade codebase, for old DPM experiments, ignorable
+
+ffld_dir: path to ffld, for old DPM experiments, ignorable
+
+## Boda environment setup: putting boda in the PATH, enabling bash completion support (optional; can be done before build if desired)
+
+The file [scripts/boda_env.bash](scripts/boda_env.bash) is designated as a place to perform environment setup for running boda.
+In particular, it puts the boda **lib** directory in the PATH (so that the **lib/boda** binary can be found in the PATH) as well as running a script to enable some limited, WIP support for bash completion for Boda. 
+All of this is optional; if you prefer to manage PATH yourself, and/or if you don't desire bash completion support, there's no need to run this script.
+In any event it should not need to be modified, and can be run from any location, once per shell, to modify the PATH and enable bash completion support.
+To source it from the root of the boda tree:
+
+    source scripts/boda_env.bash
 
 ## Development Notes
 
@@ -186,22 +246,14 @@ The script [scripts/gen_etags.sh](scripts/gen_etags.sh) can be sourced (or run) 
 
     ./scripts/gen_etags.sh
 
-## Running Tests
+## Testing
 
-### copying needed model files
+### Getting Needed Model Files and Datasets
 
-Assuming you have all the needed model files on some machine in /scratch/models, using where each model is /scratch/models/$net/best.caffemodel, you can use rsync to copy them to another machine. The list of models needed for testing (hopefully up to date, but otherwise a good starting place) is in boda/test/test_all_nets.txt. Here is a sample command to copy the models from the local machine to a remote machine named 'targ_machine':
+See the above section on boda config file setup for information on getting ready-to-run versions of the models and the subset of the PASCAL VOC2007 dataset used by the tests.
+But, in short, use test-models-b2-util.py to download models, and use the provided git submodule for the needed subset of teh PASCAL VOC2007 dataset.
 
-    # FIXME: UNTESTED!!! needs a /scratch dir already setup, maybe with +t / sticky-bit set like /tmp ...
-    moskewcz@maaya:~/git_work/boda$ for net in `cat test/test_all_nets.txt`; do ssh targ_machine mkdir -p /scratch/models/$net ; scp {,targ_machine:}/scratch/models/$net/best.caffemodel; done
-
-### copying needed dataset files
-
-Also, the images from the VOC-2007 dataset are used by the tests. Again, assuming they are in /scratch/datasets/VOC-2007/VOCdevkit (with the actual images and such in /scratch/datasets/VOC-2007/VOCdevkit/VOC2007/{JpegImages,ImageSets,Annotations}):
-
-    rsync -a /scratch/datasets/VOC-2007/VOCdevkit targ_machine:/scratch/datasets/VOC-2007
-
-### running the tests
+### Running Tests
 
 From the boda/run directory, make a test-running directory, and cd into it.
 From there, run the test_all mode.
