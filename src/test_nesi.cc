@@ -629,6 +629,16 @@ namespace boda
 	  rt_err( strprintf( "internal test_cmds error: %s of command and cli_str specified for test %s. specify exactly one.",
 			     str(num_spec).c_str(), cmd_test->test_name.c_str() ) );
 	} 
+
+        bool missing_needed_feature = 0;
+        if( cmd_test->needs ) {
+          vect_string needs_parts = split( *cmd_test->needs, ',' );
+          for( vect_string::const_iterator i = needs_parts.begin(); i != needs_parts.end(); ++i ) {
+            if( !is_feature_enabled( i->c_str() ) ) { missing_needed_feature = 1; missing_needed_features.insert( *i ); }
+          }
+        }
+        if( missing_needed_feature ) { ++num_skipped; continue; }
+
 	if( !cmd_test->command ) {
 	  assert_st( cmd_test->cli_str );
 	  try { 
@@ -643,16 +653,7 @@ namespace boda
 	}
 	if( test_init_failed ) { continue; }
 	assert_st( cmd_test->command );
-        
-        bool missing_needed_feature = 0;
-        if( cmd_test->needs ) {
-          vect_string needs_parts = split( *cmd_test->needs, ',' );
-          for( vect_string::const_iterator i = needs_parts.begin(); i != needs_parts.end(); ++i ) {
-            if( !is_feature_enabled( i->c_str() ) ) { missing_needed_feature = 1; missing_needed_features.insert( *i ); }
-          }
-        }
-        if( missing_needed_feature ) { ++num_skipped; continue; }
-        
+                
 	cur_test = cmd_test; // needed by test_print()
 	bool const seen_test_name = !seen_test_names.insert( cmd_test->test_name ).second;
 	if( seen_test_name ) { rt_err( "duplicate or reserved (e.g. 'good') test name:" + cmd_test->test_name ); }
