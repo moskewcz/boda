@@ -845,7 +845,22 @@ namespace boda
     for( dims_iter_t di( b, e ) ; ; ) { ret = bf(ret,vt.at(di.di));  if( !di.next() ) { break; } }    
     return ret;
   }
+
+  // yay template typedefs! what could go wrong? hoping for the best!
+  template< typename T > using p_nda_T_t = shared_ptr< nda_T< T > >;
+  template< typename T > using map_str_p_nda_T_t = map< string, p_nda_T_t<T> >;
+  template< typename T > using p_map_str_p_nda_T_t = shared_ptr< map_str_p_nda_T_t<T> >;
   
+  // since we can't direcly pass a container-of-derived as a container-of-base, we need to explicity create
+  // containers-of-base as a workaround. c++!
+  template< typename T > p_map_str_p_nda_t upcast_map_str_p_nda_T_t( p_map_str_p_nda_T_t<T> vs_T ) {
+    p_map_str_p_nda_t vs = make_shared<map_str_p_nda_t>();
+    for( typename map_str_p_nda_T_t<T>::const_iterator i = vs_T->begin(); i != vs_T->end(); ++i ) {
+      must_insert( *vs, i->first, i->second );
+    }
+    return vs;
+  }
+
   typedef nda_T< float > nda_float_t;
 
   typedef vector< nda_float_t > vect_nda_float_t; 

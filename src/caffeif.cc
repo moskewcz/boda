@@ -25,20 +25,22 @@ namespace boda
 			    str(v.feat_img_box).c_str() ); 
   }
   
-  void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img ) {
+  void subtract_mean_and_copy_img_to_batch( p_nda_t const & in_batch, uint32_t img_ix, p_img_t const & img ) {
     timer_t t("subtract_mean_and_copy_img_to_batch");
     dims_t const & ibd = in_batch->dims;
     assert_st( img_ix < ibd.dims(0) );
     assert_st( 3 == ibd.dims(1) );
     assert_st( img->sz.d[0] == ibd.dims(3) );
     assert_st( img->sz.d[1] == ibd.dims(2) );
+    p_nda_float_t in_batch_float = make_shared<nda_float_t>( in_batch ); // FIXME: checks type, but only works for float
+
 #pragma omp parallel for	  
     for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
       for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
 	uint32_t const pel = img->get_pel({x,y});
 	for( uint32_t c = 0; c < 3; ++c ) {
 	  // note: RGB -> BGR swap via the '2-c' below
-	  in_batch->at4( img_ix, 2-c, y, x ) = get_chan(c,pel) - float(uint8_t(u32_rgba_inmc >> (c*8)));
+	  in_batch_float->at4( img_ix, 2-c, y, x ) = get_chan(c,pel) - float(uint8_t(u32_rgba_inmc >> (c*8)));
 	}
       }
     }

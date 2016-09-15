@@ -10,7 +10,7 @@
 
 namespace boda 
 {
-  void subtract_mean_and_copy_img_to_batch( p_nda_float_t const & in_batch, uint32_t img_ix, p_img_t const & img );
+  void subtract_mean_and_copy_img_to_batch( p_nda_t const & in_batch, uint32_t img_ix, p_img_t const & img );
   void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region, 
 			  float const & out_max  );
   void copy_batch_to_img( p_nda_float_t const & out_batch, uint32_t img_ix, p_img_t const & img, u32_box_t region );
