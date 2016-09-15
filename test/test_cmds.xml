@@ -82,7 +82,7 @@
   <li test_name="conv_ana_xml"> <command mode="conv_ana" out_sz="6" in_sz="227" ignore_padding_for_support="1" XML_INC_convs="conv_pyra_pipe.xml:convs"/></li>
   <li test_name="conv_ana_xml_2" cli_str="boda conv_ana --out-sz=12 --in-sz=227 --ignore-padding-for-support=1 --XML_INC_convs=../../test/conv_pyra_pipe.xml:convs"/>
 
-  <li test_name="test_rtc_nvrtc" cli_str="boda rtc_test --rtc='(be=nvrtc)' --prog-fn='%(boda_test_dir)/nvrtc_test_dot.cu"/>
+  <li test_name="test_rtc_nvrtc" needs="nvrtc" cli_str="boda rtc_test --rtc='(be=nvrtc)' --prog-fn='%(boda_test_dir)/nvrtc_test_dot.cu"/>
   <li test_name="test_rtc_ocl" cli_str="boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl'"/>
   <li test_name="test_rtc_cucl_nvrtc" cli_str="boda rtc_test --rtc='(be=nvrtc)' "/>
   <li test_name="test_rtc_cucl_ocl" cli_str="boda rtc_test --rtc='(be=ocl)' "/>
