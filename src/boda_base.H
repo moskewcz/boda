@@ -899,7 +899,7 @@ namespace boda
     void clear( void ) { ssds = 0; sds = 0; mad = 0; mrd = 0; num_diff = 0; sz = 0; aad = 0; ad = 0; 
       sum1 = 0; sum2 = 0; avg1 = 0; avg2 = 0; }
     bool has_nan( void ) const;
-    template< typename T > ssds_diff_t( T const & o1, T const & o2 );
+    ssds_diff_t( p_nda_t const & o1, p_nda_t const & o2 );
     string basic_str( void ) const;
   };
   std::ostream & operator <<(std::ostream & os, ssds_diff_t const & v);

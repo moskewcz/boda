@@ -135,27 +135,13 @@ namespace boda
     return ret;
   }
 
-  template< typename T > ssds_diff_t::ssds_diff_t( T const & o1, T const & o2 ) {
-    clear();
-    sz = o1->elems_sz();
-    assert_st( sz == o2->elems_sz() );
-    sum_squared_diffs( *this, o1->elems_ptr(), o2->elems_ptr(), sz );
-    num_diff = cnt_diff_elems( o1->elems_ptr(), o2->elems_ptr(), sz );
-    aad = sqrt(ssds / sz);
-    ad = sds / sz;
-    avg1 = sum1 / sz;
-    avg2 = sum2 / sz;
-  }
-
-  // FIXME: port to nda_dispatch (if possible/senstible); this code predates nda_dispatch existing
-  template ssds_diff_t::ssds_diff_t( p_nda_float_t const & o1, p_nda_float_t const & o2 );
-  template ssds_diff_t::ssds_diff_t( p_nda_double_t const & o1, p_nda_double_t const & o2 );
 #define PER_TYPE_COMP( TN_TYPE )                                        \
       TN_TYPE * const o1_elems = static_cast<TN_TYPE *>(o1->rp_elems()); \
       TN_TYPE * const o2_elems = static_cast<TN_TYPE *>(o2->rp_elems()); \
       sum_squared_diffs( *this, o1_elems, o2_elems, sz );               \
       num_diff = cnt_diff_elems( o1_elems, o2_elems, sz );
-  template<> ssds_diff_t::ssds_diff_t( p_nda_t const & o1, p_nda_t const & o2 ) {
+
+  ssds_diff_t::ssds_diff_t( p_nda_t const & o1, p_nda_t const & o2 ) {
     clear();
     sz = o1->elems_sz();
     assert_st( sz == o2->elems_sz() );
