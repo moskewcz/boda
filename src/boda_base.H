@@ -709,20 +709,32 @@ namespace boda
   template< typename STREAM > inline void bwrite( STREAM & out, nda_t const & o ) { o.bwrite_( out ); }
   template< typename STREAM > inline void bread( STREAM & in, nda_t & o ) { o.bread_( in ); }
 
-  template< typename NDA_T, typename T > // below magic return type is void and makes NDA_T be const or non-const nda_t
-  typename std::enable_if< std::is_same<nda_t, typename std::remove_const<NDA_T>::type >::value >::type // C++! yeah! sigh.
-  nda_dispatch( NDA_T & nda, T const & func ) {
+  template< typename T > void tn_dispatch( string const & tn, T const & func ) {
     if( 0 ) { }
     // note: in particular, we *don't* handle the void/none type here, so trying to nda_dispatch on them will fail. but,
     // since such ndas can never have elements, we shouldn't ever try to do that, since nda_dispatch is (ony) used to
     // operate/iterate on the elements of an nda.
-    else if( nda.dims.tn == half_ndat.tn ) { func.template op<half>( nda ); } // C++!
-    else if( nda.dims.tn == float_ndat.tn ) { func.template op<float>( nda ); }
-    else if( nda.dims.tn == double_ndat.tn ) { func.template op<double>( nda ); }
-    else if( nda.dims.tn == int32_t_ndat.tn ) { func.template op<int32_t>( nda ); }
-    else if( nda.dims.tn == uint32_t_ndat.tn ) { func.template op<uint32_t>( nda ); }
-    else if( nda.dims.tn == uint8_t_ndat.tn) { func.template op<uint8_t>( nda ); }
-    else { rt_err( "unhandled type in nda_dispatch; tn=" + nda.dims.tn ); } 
+    else if( tn == half_ndat.tn ) { func.template operator()<half>(); } // C++!
+    else if( tn == float_ndat.tn ) { func.template operator()<float>(); }
+    else if( tn == double_ndat.tn ) { func.template operator()<double>(); }
+    else if( tn == int32_t_ndat.tn ) { func.template operator()<int32_t>(); }
+    else if( tn == uint32_t_ndat.tn ) { func.template operator()<uint32_t>(); }
+    else if( tn == uint8_t_ndat.tn) { func.template operator()<uint8_t>(); }
+    else { rt_err( "unhandled type in tn_dispatch; tn=" + tn ); } 
+  }
+
+  template< typename NDA_T, typename FUNC > struct nda_dispatch_helper_t {
+    NDA_T & nda;
+    FUNC const & func;
+    nda_dispatch_helper_t( NDA_T & nda_, FUNC const & func_ ) : nda(nda_), func(func_) {}
+    template< typename T > void operator()( void ) const { func.template op<T>( nda ); }
+  };
+
+  template< typename NDA_T, typename T > // below magic return type is void and makes NDA_T be const or non-const nda_t
+  typename std::enable_if< std::is_same<nda_t, typename std::remove_const<NDA_T>::type >::value >::type // C++! yeah! sigh.
+  nda_dispatch( NDA_T & nda, T const & func ) {
+    nda_dispatch_helper_t<NDA_T,T> ndh( nda, func );
+    tn_dispatch( nda.dims.tn, ndh );
   }
   
   typedef vector< nda_t > vect_nda_t; 
@@ -882,6 +894,9 @@ namespace boda
 
   // class to store info from sum_squared_diffs(o1,o2); str()-able for printing
   struct ssds_diff_t {
+    p_nda_t o1;
+    p_nda_t o2;
+
     double ssds; // sum of squared differences
     double sds; // sum of differences
     double mad; // maximum absolute difference
@@ -894,8 +909,8 @@ namespace boda
     double sum2;
     double avg1;
     double avg2;
-
-    ssds_diff_t( void ) { clear(); }
+    
+    //ssds_diff_t( void ) { clear(); }
     void clear( void ) { ssds = 0; sds = 0; mad = 0; mrd = 0; num_diff = 0; sz = 0; aad = 0; ad = 0; 
       sum1 = 0; sum2 = 0; avg1 = 0; avg2 = 0; }
     bool has_nan( void ) const;

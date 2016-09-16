@@ -102,61 +102,56 @@ namespace boda
     return os;
   }
 
-  // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1. mad == max absolute diff
-  template< typename RT, typename DT >
-  void sum_squared_diffs( RT & v, DT const & o1, DT const & o2, uint64_t const sz ) {
-    for( uint64_t i = 0; i < sz; ++i ) { 
-      v.sum1 += double(o1[i]);
-      v.sum2 += double(o2[i]);
-      double const d = double(o2[i])-double(o1[i]); // difference
-      v.sds += d; 
-      v.ssds += d*d; 
-      double const ad = (d<0)?-d:d; // absolute difference
-      max_eq(v.mad,ad);
-      double a1 = double(o1[i]);
-      a1 = (a1<0)?-a1:a1;
-      double a2 = double(o2[i]);
-      a2 = (a2<0)?-a2:a2;
-      double amax = std::max(a1,a2);
-      // for values smaller than 1, clamp relative difference to be the value itself, in particular when compared
-      // against 0 or very small values. that is, 1 vs 0 can have a relatve difference of 1, but 1e-1 vs 0 can only have
-      // a rel diff of 1e-1 (not 1, as would be the case if we didn't clamp). if we set the relative error tolerance to,
-      // say, 1e-5, then cases where both values are <= 1e-5 can only have a max rel diff of 1e-5. basically, we're
-      // assuming that values with small absolute values (i.e. less than 1) are less important in terms of errors wrt
-      // each other. so, i guess this is a hybrid between a relative and an absolute tolerance.
-      amax = std::max(1.0,amax); 
-      max_eq(v.mrd,ad/amax);
-    }
-  }
-
   template< typename DT > uint64_t cnt_diff_elems( DT const & o1, DT const & o2, uint64_t const sz ) {
     uint64_t ret = 0;
     for( uint64_t i = 0; i < sz; ++i ) { if( o1[i] != o2[i] ) { ++ret; } }
     return ret;
   }
 
-#define PER_TYPE_COMP( TN_TYPE )                                        \
-      TN_TYPE * const o1_elems = static_cast<TN_TYPE *>(o1->rp_elems()); \
-      TN_TYPE * const o2_elems = static_cast<TN_TYPE *>(o2->rp_elems()); \
-      sum_squared_diffs( *this, o1_elems, o2_elems, sz );               \
-      num_diff = cnt_diff_elems( o1_elems, o2_elems, sz );
+  // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1. mad == max absolute diff
+  struct sum_squared_diffs_t {
+    ssds_diff_t & v;
+    sum_squared_diffs_t( ssds_diff_t & v_ ) : v(v_) { }
+    template< typename T > void operator()( void ) const {
+      T * const o1 = static_cast<T *>(v.o1->rp_elems()); \
+      T * const o2 = static_cast<T *>(v.o2->rp_elems()); \
+      uint64_t const sz = v.o1->elems_sz();
+      for( uint64_t i = 0; i < sz; ++i ) { 
+        v.sum1 += double(o1[i]);
+        v.sum2 += double(o2[i]);
+        double const d = double(o2[i])-double(o1[i]); // difference
+        v.sds += d; 
+        v.ssds += d*d; 
+        double const ad = (d<0)?-d:d; // absolute difference
+        max_eq(v.mad,ad);
+        double a1 = double(o1[i]);
+        a1 = (a1<0)?-a1:a1;
+        double a2 = double(o2[i]);
+        a2 = (a2<0)?-a2:a2;
+        double amax = std::max(a1,a2);
+        // for values smaller than 1, clamp relative difference to be the value itself, in particular when compared
+        // against 0 or very small values. that is, 1 vs 0 can have a relatve difference of 1, but 1e-1 vs 0 can only have
+        // a rel diff of 1e-1 (not 1, as would be the case if we didn't clamp). if we set the relative error tolerance to,
+        // say, 1e-5, then cases where both values are <= 1e-5 can only have a max rel diff of 1e-5. basically, we're
+        // assuming that values with small absolute values (i.e. less than 1) are less important in terms of errors wrt
+        // each other. so, i guess this is a hybrid between a relative and an absolute tolerance.
+        amax = std::max(1.0,amax); 
+        max_eq(v.mrd,ad/amax);
+      }
+    }
+  };
 
-  ssds_diff_t::ssds_diff_t( p_nda_t const & o1, p_nda_t const & o2 ) {
+  ssds_diff_t::ssds_diff_t( p_nda_t const & o1_, p_nda_t const & o2_ ) : o1(o1_), o2(o2_) {
     clear();
     sz = o1->elems_sz();
     assert_st( sz == o2->elems_sz() );
     assert_st( o1->dims.tn == o2->dims.tn );
-    if( 0 ) { }
-    else if( o1->dims.tn == half_ndat.tn ) { PER_TYPE_COMP( half ); }
-    else if( o1->dims.tn == float_ndat.tn ) { PER_TYPE_COMP( float ); }
-    else if( o1->dims.tn == double_ndat.tn ) { PER_TYPE_COMP( double ); }
-    else { rt_err( "unhandled type in ssds_diff_t: " + o1->dims.tn ); }
+    tn_dispatch( o1->dims.tn, sum_squared_diffs_t( *this ) );
     aad = sqrt(ssds / sz);
     ad = sds / sz;
     avg1 = sum1 / sz;
     avg2 = sum2 / sz;
   }
-#undef PER_TYPE_COMP
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 
