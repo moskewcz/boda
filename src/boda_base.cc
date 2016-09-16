@@ -136,6 +136,12 @@ namespace boda
         max_eq(v.mrd,ad/amax);
       }
     }
+    virtual double get_diff_double( dims_iter_t const & di ) { return nda_at<T>( v.o2, di ) - nda_at<T>( v.o1, di ); }
+    virtual string get_diff_str( dims_iter_t const & di ) { 
+      return strprintf( "[%s]: v1=%s v2=%s \n", v.o1->dims.ix_str(di.di,1).c_str(), 
+                        str(nda_at<T>(v.o1,di)).c_str(), str(nda_at<T>(v.o2,di)).c_str() );
+    }
+
   };
 
   template< template<typename> class PT > struct make_per_type_t {

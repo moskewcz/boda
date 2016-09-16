@@ -27,17 +27,15 @@ namespace boda {
       vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
       if( is_fail ) { // skip printing errors and details if no mad fail. set mrd_toler = 0 to force print (and failure)
 	string diff_str;
-	if( diff_show_mrd_only ) { diff_str = "MAD=" + str(ssds_diff.mrd); }
+	if( diff_show_mrd_only ) { diff_str = "MRD=" + str(ssds_diff.mrd); }
 	else { diff_str = "ssds_str(out_batch_1,out_batch_2)=" + str(ssds_diff); }
 	(*out) << strprintf( "%s: DIMS[%s] %s\n", i->c_str(), out_batch_1->dims.pretty_str().c_str(), diff_str.c_str() );
 	uint32_t num_err = 0;
 	assert_st( out_batch_1->dims == out_batch_2->dims );
 	for( dims_iter_t di( out_batch_1->dims ) ; ; )  {
-	  float const v1 = 0; // out_batch_1->at(di.di);
-	  float const v2 = 0; // out_batch_2->at(di.di);
-	  if( fabs(v1 - v2) >= vmt ) {
-	    (*out) << strprintf( "[%s]: v1=%s v2=%s \n", out_batch_1->dims.ix_str(di.di,1).c_str(), 
-				 str(v1).c_str(), str(v2).c_str() );
+          double const dv = ssds_diff.pt->get_diff_double(di);
+	  if( fabs(dv) >= vmt ) { 
+            (*out) << ssds_diff.pt->get_diff_str(di); 
 	    ++num_err;
 	    if( num_err > max_err ) { break; }
 	  }

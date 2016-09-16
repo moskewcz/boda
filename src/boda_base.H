@@ -743,6 +743,13 @@ namespace boda
   typedef map< string, p_nda_t > map_str_p_nda_t;
   typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
 
+  template< typename T > T nda_at( p_nda_t const & nda, dims_iter_t const & di ) {
+    assert_st( get_ndat<T>().tn == nda->dims.tn );
+    uint64_t const ix = nda->dims.ix( di.di );
+    assert_st( ix < nda->elems_sz() );
+    return (static_cast<T *>(nda->rp_elems()))[ix];
+  }
+
   template< typename T > inline T scalar_nda_extract( nda_t const & nda ) {
     string const & want_tn = get_ndat<T>().tn;
     if( want_tn != nda.dims.tn ) { rt_err( "can't extract scalar of type '"+want_tn+"' from nda of type '" + nda.dims.tn + "'." ); }
@@ -895,6 +902,8 @@ namespace boda
   struct ssds_diff_per_type_t {
     virtual void cnt_diff_elems( void ) = 0;
     virtual void sum_squared_diffs( void ) = 0;
+    virtual double get_diff_double( dims_iter_t const & di ) = 0;
+    virtual string get_diff_str( dims_iter_t const & di ) = 0;
   };
   typedef shared_ptr< ssds_diff_per_type_t > p_ssds_diff_per_type_t; 
 
