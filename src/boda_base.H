@@ -892,10 +892,18 @@ namespace boda
 
   typedef nda_T< uint8_t > nda_uint8_t;
 
+  struct ssds_diff_per_type_t {
+    virtual void cnt_diff_elems( void ) = 0;
+    virtual void sum_squared_diffs( void ) = 0;
+  };
+  typedef shared_ptr< ssds_diff_per_type_t > p_ssds_diff_per_type_t; 
+
   // class to store info from sum_squared_diffs(o1,o2); str()-able for printing
   struct ssds_diff_t {
     p_nda_t o1;
     p_nda_t o2;
+
+    p_ssds_diff_per_type_t pt;
 
     double ssds; // sum of squared differences
     double sds; // sum of differences
@@ -918,6 +926,8 @@ namespace boda
     string basic_str( void ) const;
   };
   std::ostream & operator <<(std::ostream & os, ssds_diff_t const & v);
+
+  
 
   struct rt_exception : public std::exception
   {

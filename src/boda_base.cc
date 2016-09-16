@@ -102,21 +102,18 @@ namespace boda
     return os;
   }
 
-  template< typename DT > uint64_t cnt_diff_elems( DT const & o1, DT const & o2, uint64_t const sz ) {
-    uint64_t ret = 0;
-    for( uint64_t i = 0; i < sz; ++i ) { if( o1[i] != o2[i] ) { ++ret; } }
-    return ret;
-  }
-
   // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1. mad == max absolute diff
-  struct sum_squared_diffs_t {
+  template< typename T > struct ssds_diff_per_type_T : public ssds_diff_per_type_t {
     ssds_diff_t & v;
-    sum_squared_diffs_t( ssds_diff_t & v_ ) : v(v_) { }
-    template< typename T > void operator()( void ) const {
-      T * const o1 = static_cast<T *>(v.o1->rp_elems()); \
-      T * const o2 = static_cast<T *>(v.o2->rp_elems()); \
-      uint64_t const sz = v.o1->elems_sz();
-      for( uint64_t i = 0; i < sz; ++i ) { 
+    T * o1;
+    T * o2;
+    ssds_diff_per_type_T( ssds_diff_t & v_ ) : v(v_) {
+      o1 = static_cast<T *>(v.o1->rp_elems());
+      o2 = static_cast<T *>(v.o2->rp_elems());
+    }
+    virtual void cnt_diff_elems( void ) { for( uint64_t i = 0; i < v.sz; ++i ) { if( o1[i] != o2[i] ) { ++v.num_diff; } } }
+    virtual void sum_squared_diffs( void ) { 
+      for( uint64_t i = 0; i < v.sz; ++i ) { 
         v.sum1 += double(o1[i]);
         v.sum2 += double(o2[i]);
         double const d = double(o2[i])-double(o1[i]); // difference
@@ -141,12 +138,22 @@ namespace boda
     }
   };
 
+  template< template<typename> class PT > struct make_per_type_t {
+    ssds_diff_t & v;
+    make_per_type_t( ssds_diff_t & v_ ) : v(v_) { }
+    template< typename T > void operator()( void ) const { 
+      v.pt = std::make_shared< PT<T> >( v );
+    }
+  };
+
   ssds_diff_t::ssds_diff_t( p_nda_t const & o1_, p_nda_t const & o2_ ) : o1(o1_), o2(o2_) {
     clear();
     sz = o1->elems_sz();
     assert_st( sz == o2->elems_sz() );
     assert_st( o1->dims.tn == o2->dims.tn );
-    tn_dispatch( o1->dims.tn, sum_squared_diffs_t( *this ) );
+    tn_dispatch( o1->dims.tn, make_per_type_t<ssds_diff_per_type_T>( *this ) );
+    pt->sum_squared_diffs();
+    pt->cnt_diff_elems();
     aad = sqrt(ssds / sz);
     ad = sds / sz;
     avg1 = sum1 / sz;
