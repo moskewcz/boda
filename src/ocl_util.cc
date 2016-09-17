@@ -266,7 +266,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       }      
       if( gen_src ) {
 	ensure_is_dir( gen_src_output_dir.exp, 1 );
-        p_ofstream out = ofs_open( strprintf( "%s/out_%s.cl", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ));
+        p_ostream out = ofs_open( strprintf( "%s/out_%s.cl", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ));
         for( vect_rp_const_char::const_iterator i = srcs.begin(); i != srcs.end(); ++i ) { (*out) << (*i); }
       }
       cl_int err;

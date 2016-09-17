@@ -131,7 +131,7 @@ namespace boda
     }
     //printf( "out=%s\n", str(out).c_str() );
 #if 0
-    p_ofstream tags = ofs_open("tags.txt");
+    p_ostream tags = ofs_open("tags.txt");
     for( vect_synset_elem_t::const_iterator i = out->begin(); i != out->end(); ++i ) {
       (*tags) << ( i->tag + "\n" );
     }
@@ -254,7 +254,7 @@ namespace boda
       assert_st( scale_infos.back().bix == 0 );
       //assert_st( enable_upsamp_net == 0 ); // too strong?
     }
-    p_ofstream rps;
+    p_ostream rps;
     if( dump_rps ) { rps = ofs_open("rps.txt"); }
     for( vect_scale_info_t::iterator i = scale_infos.begin(); i != scale_infos.end(); ++i ) {
       i->psb = pred_state.size();

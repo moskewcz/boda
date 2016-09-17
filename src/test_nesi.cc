@@ -81,7 +81,7 @@ namespace boda
     filename_t out_fn; //NESI(default="%(boda_output_dir)/test_vst.txt",help="output: print out nda, if specified.")
 
     virtual void main( nesi_init_arg_t * nia ) {
-      p_ofstream out = ofs_open( out_fn.exp );
+      p_ostream out = ofs_open( out_fn.exp );
       (*out) << strprintf("vst::main()\n");
       if( nda ) { (*out) << strprintf( "nda=%s\n", str(nda).c_str() ); }
     }

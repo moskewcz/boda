@@ -30,7 +30,7 @@ namespace boda
     // rtc->create_var_with_dims_floats( name, cp->must_get_node(node_name)->dims );
     // calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
     
-    p_ofstream out;
+    p_ostream out;
     rtc_codegen_t codegen;
 
     virtual void main( nesi_init_arg_t * nia );

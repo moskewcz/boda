@@ -452,7 +452,7 @@ namespace boda
     uint32_t add_bck_ops; //NESI(default=0,help="if non-zero, add bck (aka backwards/backprop/gradients) operations.")
     
     virtual void main( nesi_init_arg_t * nia ) { 
-      p_ofstream out = ofs_open( out_fn.exp );
+      p_ostream out = ofs_open( out_fn.exp );
       p_net_param_t net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
       p_conv_pipe_t conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
       //(*out) << convs << "\n";

@@ -147,7 +147,7 @@ namespace boda
     filename_t out_fn; //NESI(default="%(boda_output_dir)/out.txt",help="output filename")
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     virtual void main( nesi_init_arg_t * nia ) { 
-      p_ofstream out = ofs_open( out_fn.exp );  
+      p_ostream out = ofs_open( out_fn.exp );  
       test_oct( *out, mat_fn.exp ); 
     }
   };

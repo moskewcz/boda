@@ -710,7 +710,7 @@ namespace boda
       all_sigs.insert( i->first );
     }
     // write set back out
-    p_ofstream out = ofs_open( rtc_func_sigs_fn );
+    p_ostream out = ofs_open( rtc_func_sigs_fn );
     for( set_op_base_t::const_iterator i = all_sigs.begin(); i != all_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
   }
 

@@ -992,7 +992,7 @@ namespace boda
 	conv_pipe->add_conv( cop );
       }
 
-      p_ofstream out = ofs_open( out_fn.exp );
+      p_ostream out = ofs_open( out_fn.exp );
       //(*out) << convs << "\n";
       conv_pipe->calc_support_info( ignore_padding_for_support );
       conv_pipe->calc_dims();

@@ -143,7 +143,7 @@ namespace boda
     boost::random::mt19937 gen;
 
     virtual void main( nesi_init_arg_t * nia ) { 
-      p_ofstream out = ofs_open( out_fn.exp );
+      p_ostream out = ofs_open( out_fn.exp );
       rtc->init();
       p_string prog_str = read_whole_fn( prog_fn );
       // normally, one would go though the rtc_codegen_t interface, not use the rtc_compute_t interface directly. but,

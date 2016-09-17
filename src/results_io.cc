@@ -169,7 +169,7 @@ namespace boda
   }
 
   void write_results_file( p_img_db_t img_db, string const & fn, p_per_class_scored_dets_t scored_dets ) {
-    p_ofstream out = ofs_open( fn );  
+    p_ostream out = ofs_open( fn );  
     for( uint32_t img_ix = 0; img_ix != scored_dets->per_img_sds.size(); ++img_ix ) {
       string const img_id = img_db->get_id_for_img_ix(img_ix);
       p_vect_base_scored_det_t const & img_sds = scored_dets->per_img_sds[img_ix];
@@ -178,7 +178,7 @@ namespace boda
 	(*out) << strprintf( "%s %s %s\n", str(img_id).c_str(), str(i->score).c_str(), i->pascal_str().c_str() );
       }
     }
-    out->close();
+    //out->close();// FIXME: can't do now that out is ostream, not ofstream, but should not be needed: dtor should do it.
   }
 
   void load_pil_t::load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only )
@@ -520,7 +520,7 @@ namespace boda
       img_db->score_results( hamming_scored_dets, prc_txt_fn.exp + "ham_", prc_png_fn.exp + "ham_", 0);
       img_db->score_results( dpm_scored_dets, prc_txt_fn.exp + "dpm_", prc_png_fn.exp + "dpm_", 0 );
 #if 1      
-      p_ofstream summ_out = ofs_open( score_diff_summary_fn.exp );  
+      p_ostream summ_out = ofs_open( score_diff_summary_fn.exp );  
       (*summ_out) << strprintf( "class_name,num_tot,ham_only,dpm_only,num_ham,num_dpm,num_both,num_either,num_neither,\n");
       for( uint32_t cix = 0; cix != classes->size(); ++cix ) {
 	string const & class_name = classes->at(cix);;

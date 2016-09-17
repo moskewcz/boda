@@ -253,7 +253,7 @@ namespace boda
       }
     }
     // write set back out
-    p_ofstream out = ofs_open( op_sigs_fn );
+    p_ostream out = ofs_open( op_sigs_fn );
     for( set_op_base_t::const_iterator i = all_op_sigs.begin(); i != all_op_sigs.end(); ++i ) { (*out) << str( *i ) << "\n"; }
   }
 
@@ -546,7 +546,7 @@ namespace boda
     float const compute_dur = fwd_calls.empty() ? 0.0f : rtc->get_dur( fwd_calls.front().call_id, fwd_calls.back().call_id );
     if( enable_prof ) { rtc->profile_stop(); }
     if( !per_call_fn.empty() ) {
-      p_ofstream out = ofs_open( per_call_fn );
+      p_ostream out = ofs_open( per_call_fn );
       (*out) << strprintf("net.args.runtime=%s\n", str(compute_dur/1000.0).c_str() );
       for( vect_rtc_fwd_func_call_t::iterator i = fwd_calls.begin(); i != fwd_calls.end(); ++i ) {
 	rcg_func_call_t & rfc = *i->rfc;

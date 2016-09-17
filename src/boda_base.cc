@@ -413,16 +413,18 @@ namespace boda
   }
   p_vect_string readlines_fn( string const & fn ) { return readlines_fn( filename_t{fn,fn} ); }
 
+  typedef shared_ptr< std::ofstream > p_ofstream;
+
   // opens a ofstream. note: this function itself will raise if the open() fails.
-  p_ofstream ofs_open( filename_t const & fn )
+  p_ostream ofs_open( filename_t const & fn )
   {
-    p_ofstream ret( new ofstream );
+    p_ofstream ret = make_shared<ofstream>();
     ret->open( fn.exp.c_str() );
     if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for writing", fn.in.c_str() ) ); }
     assert( ret->good() );
     return ret;
   }
-  p_ofstream ofs_open( std::string const & fn ) { return ofs_open( filename_t{fn,fn} ); }
+  p_ostream ofs_open( std::string const & fn ) { return ofs_open( filename_t{fn,fn} ); }
 
   p_mapped_file_source map_file_ro( filename_t const & fn ) {
     //ensure_is_regular_file( fn ); // too strong? a good idea?
@@ -444,7 +446,7 @@ namespace boda
   }
   p_string read_whole_fn( std::string const & fn ) { return read_whole_fn( filename_t{fn,fn} ); }
   void write_whole_fn( filename_t const & fn, std::string const & data ) {
-    p_ofstream out = ofs_open( fn );
+    p_ostream out = ofs_open( fn );
     (*out) << data;
   }
   void write_whole_fn( std::string const & fn, std::string const & data ) { return write_whole_fn( filename_t{fn,fn}, data ); }

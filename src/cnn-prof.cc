@@ -308,7 +308,7 @@ namespace boda
 
   void cnn_prof_t::main( nesi_init_arg_t * nia ) {
     vect_p_conv_op_t sigs;
-    p_ofstream out = ofs_open( rtc_func_sigs_fn );
+    p_ostream out = ofs_open( rtc_func_sigs_fn );
     p_vect_string in_lines = readlines_fn( cnn_func_sigs_fn );
 
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {

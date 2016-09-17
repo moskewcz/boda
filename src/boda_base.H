@@ -190,10 +190,9 @@ namespace boda
   p_ifstream ifs_open( string const & fn );
   p_ifstream ifs_open( filename_t const & fn );
   typedef shared_ptr< std::ostream > p_ostream;
-  typedef shared_ptr< std::ofstream > p_ofstream;
   bool ifs_getline( std::string const &fn, p_ifstream in, std::string & line );
-  p_ofstream ofs_open( filename_t const & fn );
-  p_ofstream ofs_open( string const & fn );
+  p_ostream ofs_open( filename_t const & fn );
+  p_ostream ofs_open( string const & fn );
   p_string read_whole_fn( filename_t const & fn );
   p_string read_whole_fn( string const & fn );
   void write_whole_fn( filename_t const & fn, std::string const & data );
