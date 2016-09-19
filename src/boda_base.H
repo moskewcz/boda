@@ -935,8 +935,15 @@ namespace boda
   };
   std::ostream & operator <<(std::ostream & os, ssds_diff_t const & v);
 
+  // create a digest of an NDA designed to be compact (like a hash) and insensitive (only) to small relative per-element
+  // changes (like LSH)
+  struct nda_digest_t; typedef shared_ptr< nda_digest_t > p_nda_digest_t;   
+  struct nda_digest_t {
+    static p_nda_digest_t make( p_nda_t const & v );
+    virtual void init( p_nda_t const & v ) = 0;
+    virtual string get_digest( void ) = 0;
+  };
   
-
   struct rt_exception : public std::exception
   {
     string err_msg;

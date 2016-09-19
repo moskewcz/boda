@@ -47,6 +47,9 @@ namespace boda
 
     vect_string tops; //NESI(help="vars to check")
 
+    uint32_t show_digests; //NESI(default="0",help="if non-zero, show nda digests for cf1" )
+
+
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
       rc->conv_pipe->dump_ios( *out );
@@ -151,6 +154,12 @@ namespace boda
 		   mrd_toler, &var_mrd_toler,
 		   diff_show_mrd_only, max_err, 
 		   tops, fwd1, fwd2 );
+      }
+      if( cf1 && show_digests ) {
+        for( vect_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) {
+          string const digest_str = nda_digest_t::make( must_find( *fwd1, *i ) )->get_digest();
+          printf( "%s digest_str=%s\n", str((*i)).c_str(), str(digest_str).c_str() );
+        }
       }
     }
   };

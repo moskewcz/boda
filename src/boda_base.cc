@@ -168,6 +168,35 @@ namespace boda
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 
+
+  template< typename T > struct nda_digest_T : public nda_digest_t {
+    p_nda_t v;
+    T * v_elems;
+    virtual void init( p_nda_t const & v_ ) {
+      v = v_;
+      v_elems = static_cast<T *>(v->rp_elems());
+    }
+    virtual string get_digest( void ) {
+      string ret;
+      ret += strprintf( "tn=%s elems_sz=%s", str(v->dims.tn).c_str(), str(v->elems_sz()).c_str() );
+      return ret;
+    }
+  };
+
+  template< typename P, template<typename> class PT > struct make_derived_t {
+    P & v;
+    make_derived_t( P & v_ ) : v(v_) { }
+    template< typename T > void operator()( void ) const { v = std::make_shared< PT<T> >(); }
+  };
+
+  p_nda_digest_t nda_digest_t::make( p_nda_t const & v ) {
+    p_nda_digest_t ret;
+    tn_dispatch( v->dims.tn, make_derived_t<p_nda_digest_t,nda_digest_T>(ret) );
+    ret->init( v );
+    return ret;
+  }
+  
+
   // note: for some nda's, there are multiple param string that encode the same nda. in particular, redundant
   // specification of dims when it can be inferred, or tn when it is float and dims are specified, will yield such
   // cases. since we don't store information in the nda_t about which of the possible string forms it might have come
