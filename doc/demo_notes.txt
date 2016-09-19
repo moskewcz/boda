@@ -12,6 +12,8 @@ boda capture_classify --model-name=alexnet_ng_conv --cnet_predict="(max_num_disp
 #  illustrates the flow/code-paths for detection
 moskewcz@maaya:~/git_work/boda/run/tr1$ boda capture_classify  --model-name=alexnet_ng_conv --cnet_predict="(max_num_disp=30,in_dims=(x=451,y=451))" --capture='(cap_res=640:480)'
 
+# typical capture_feats command (alexnet_conv, 227x227 input size):
+boda capture_feats  --model-name=alexnet_ng_conv  --run-cnet='(out_node_name=conv2)' --capture='(cap_res=320:240)'
 
 # ----v updated 2015.12.15 v----
 
@@ -25,10 +27,6 @@ boda conv_pyra --model-name=nin_imagenet_nopad --cnet_predict='(in_dims=(x=227,y
 # ----v not up to date v----
 
 # choose MODEL from this list: alexnet, alexnet_conv, nin_imagenet, nin_imagenet_nopad
-
-# typical capture_feats command (alexnet_conv, 227x227 input size):
-MODEL=alexnet_conv; boda capture_feats --run_cnet="(in_sz=227 227,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel,out_layer_name=conv2)" --capture='(cap_res=320 240)'
-
 
 # conv_pyra alexnet_conv  (8x8 at nominal size)
 MODEL=alexnet_conv; boda conv_pyra --cnet_predict="(in_sz=451 451,ptt_fn=%(models_dir)/${MODEL}/deploy.prototxt,trained_fn=%(models_dir)/${MODEL}/best.caffemodel)" --capture='(cap_res=640 480)' --out_layer_name=prob --ipp="(bin_sz=1500 1500,num_upsamp_octaves=0)" 

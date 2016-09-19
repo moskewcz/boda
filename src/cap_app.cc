@@ -291,8 +291,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
-    p_run_cnet_t run_cnet; //NESI(default="(ptt_fn=%(models_dir)/alexnet/deploy.conv_only.prototxt,
-    //trained_fn=%(models_dir)/alexnet/best.caffemodel,out_node_name=conv3)",help="cnet running options")
+    p_run_cnet_t run_cnet; //NESI(default="(out_node_name=conv3)",help="cnet running options")
     p_img_t in_img;
     p_img_t feat_img;
     p_asio_fd_t cap_afd;
