@@ -117,6 +117,7 @@ caffe.pb.o caffe_pb -caffe
 caffepb.o caffe_pb
 
 lmdbif.o lmdb
+test_compute.o caffe_pb
 test_dense.o caffe_pb
 conv_common.o
 asio_util.o
