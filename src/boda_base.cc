@@ -171,14 +171,23 @@ namespace boda
 
   template< typename T > struct nda_digest_T : public nda_digest_t {
     p_nda_t v;
-    T * v_elems;
+    uint64_t sz;
+    T * ve;
+    T min_v;
+    T max_v;
     virtual void init( p_nda_t const & v_ ) {
       v = v_;
-      v_elems = static_cast<T *>(v->rp_elems());
+      sz = v->elems_sz();
+      ve = static_cast<T *>(v->rp_elems());
     }
     virtual string get_digest( void ) {
+      // gather stats
+      min_v = std::numeric_limits<T>::max();
+      max_v = std::numeric_limits<T>::lowest();
+      for( uint64_t i = 0; i < sz; ++i ) { min_eq( min_v, ve[i] ); max_eq( max_v, ve[i] ); }
       string ret;
       ret += strprintf( "tn=%s elems_sz=%s", str(v->dims.tn).c_str(), str(v->elems_sz()).c_str() );
+      ret += strprintf( " min_v=%s max_v=%s", str(min_v).c_str(), str(max_v).c_str() );
       return ret;
     }
   };
