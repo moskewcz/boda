@@ -45,6 +45,8 @@ namespace boda
   int8_t const int8_t_const_max = boost::integer_traits< int8_t >::const_max;
   int8_t const int8_t_const_min = boost::integer_traits< int8_t >::const_min;
 
+  // note: returns 0 for v==0
+  inline uint64_t floor_log2_u64( uint64_t v ) { uint64_t ret = 0; while( v >>= 1 ) { ++ret; } return ret; }
   
   template< typename T > inline void min_eq( T & v, T const & o ) { v = std::min( v, o ); }
   template< typename T > inline void max_eq( T & v, T const & o ) { v = std::max( v, o ); }
@@ -162,12 +164,15 @@ namespace boda
 
   typedef set< string > set_string;
   typedef set< uint32_t > set_uint32_t;
+  typedef set< uint64_t > set_uint64_t;
+  typedef shared_ptr< set_uint64_t > p_set_uint64_t;
 
   typedef map< string, uint32_t > map_str_uint32_t;
   typedef map< string, zi_uint32_t > map_str_ziu32_t;
   typedef map< string, double > map_str_double;
   typedef map< string, string > map_str_str;
   typedef map< string, vect_string > map_str_vect_string;
+  typedef map< uint64_t, uint64_t > map_uint64_t_uint64_t;
   struct dims_t;
   typedef map< string, dims_t > map_str_dims_t;
 
@@ -222,6 +227,8 @@ namespace boda
   typedef vector< uint32_t > vect_uint32_t;
   typedef shared_ptr< uint32_t > p_uint32_t;  
   typedef vector< int32_t > vect_int32_t;
+  typedef vector< uint64_t > vect_uint64_t;  
+  typedef shared_ptr< vect_uint64_t > p_vect_uint64_t;
   typedef vector< float > vect_float; 
   typedef shared_ptr< float > p_float;
   typedef vector< double > vect_double; 
@@ -941,7 +948,7 @@ namespace boda
   struct nda_digest_t {
     static p_nda_digest_t make( p_nda_t const & v );
     virtual void init( p_nda_t const & v ) = 0;
-    virtual string get_digest( void ) = 0;
+    virtual string get_digest( uint64_t const & seed ) = 0;
   };
   
   struct rt_exception : public std::exception

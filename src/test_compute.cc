@@ -157,7 +157,7 @@ namespace boda
       }
       if( cf1 && show_digests ) {
         for( vect_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) {
-          string const digest_str = nda_digest_t::make( must_find( *fwd1, *i ) )->get_digest();
+          string const digest_str = nda_digest_t::make( must_find( *fwd1, *i ) )->get_digest(std::hash<string>()(*i));
           printf( "%s digest_str=%s\n", str((*i)).c_str(), str(digest_str).c_str() );
         }
       }

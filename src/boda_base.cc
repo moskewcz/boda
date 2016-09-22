@@ -12,6 +12,7 @@
 #include<cmath>
 #include<float.h>
 #include"ext/half.hpp"
+#include"rand_util.H"
 
 void boda_assert_fail( char const * expr, char const * file, unsigned int line, char const * func ) throw() {
   fprintf(stderr,"boda: %s:%u: %s: Assertion failed: %s\n",file,line,func,expr);
@@ -102,6 +103,22 @@ namespace boda
     return os;
   }
 
+  double min_sig_mag_rel_diff( double const & min_sig_mag, double const & v1, double const & v2 ) {
+    double const a1 = (v1<0)?-v1:v1;
+    double const a2 = (v2<0)?-v2:v2;
+    // for values smaller than min_sig_mag, clamp relative difference to be the value itself, in particular when
+    // compared against 0 or very small values. that is, for the min_sig_mag == 1 case, 1 vs 0 can have a relatve
+    // difference of 1, but 1e-1 vs 0 can only have a rel diff of 1e-1 (not 1, as would be the case if we didn't
+    // clamp). if we set the relative error tolerance to, say, 1e-5, then cases where both values are <= 1e-5 can
+    // only have a max rel diff of 1e-5. basically, we're assuming that values with small absolute values (i.e. less
+    // than 1) are less important in terms of errors wrt each other. so, i guess this is a hybrid between a relative
+    // and an absolute tolerance.
+    double const amax = std::max(min_sig_mag,std::max(a1,a2));
+    double const d = v2 - v1; // difference
+    double const ad = (d<0)?-d:d;
+    return ad/amax;
+  }
+
   // note: difference is o2 - o1, i.e. the delta/diff to get to o2 from o1. mad == max absolute diff
   template< typename T > struct ssds_diff_per_type_T : public ssds_diff_per_type_t {
     ssds_diff_t & v;
@@ -121,19 +138,7 @@ namespace boda
         v.ssds += d*d; 
         double const ad = (d<0)?-d:d; // absolute difference
         max_eq(v.mad,ad);
-        double a1 = double(o1[i]);
-        a1 = (a1<0)?-a1:a1;
-        double a2 = double(o2[i]);
-        a2 = (a2<0)?-a2:a2;
-        double amax = std::max(a1,a2);
-        // for values smaller than 1, clamp relative difference to be the value itself, in particular when compared
-        // against 0 or very small values. that is, 1 vs 0 can have a relatve difference of 1, but 1e-1 vs 0 can only have
-        // a rel diff of 1e-1 (not 1, as would be the case if we didn't clamp). if we set the relative error tolerance to,
-        // say, 1e-5, then cases where both values are <= 1e-5 can only have a max rel diff of 1e-5. basically, we're
-        // assuming that values with small absolute values (i.e. less than 1) are less important in terms of errors wrt
-        // each other. so, i guess this is a hybrid between a relative and an absolute tolerance.
-        amax = std::max(1.0,amax); 
-        max_eq(v.mrd,ad/amax);
+        max_eq(v.mrd,min_sig_mag_rel_diff( 1.0, o1[i], o2[i] ) );
       }
     }
     virtual double get_diff_double( dims_iter_t const & di ) { return nda_at<T>( v.o2, di ) - nda_at<T>( v.o1, di ); }
@@ -168,27 +173,100 @@ namespace boda
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 
-
-  template< typename T > struct nda_digest_T : public nda_digest_t {
-    p_nda_t v;
-    uint64_t sz;
-    T * ve;
+  template< typename T > struct nda_digest_data_T {
+    dims_t dims;
+    uint64_t seed;
+    boost::random::mt19937 gen;
     T min_v;
     T max_v;
-    virtual void init( p_nda_t const & v_ ) {
-      v = v_;
-      sz = v->elems_sz();
-      ve = static_cast<T *>(v->rp_elems());
-    }
-    virtual string get_digest( void ) {
-      // gather stats
+    vector< T > samps;
+
+    void set_from_nda( p_nda_t const & nda, uint64_t const & seed_ ) {
+      uint64_t sz = nda->elems_sz();
+      dims = nda->dims;
+      seed = seed_;
+      T const * ve = static_cast<T *>(nda->rp_elems());
       min_v = std::numeric_limits<T>::max();
       max_v = std::numeric_limits<T>::lowest();
+
       for( uint64_t i = 0; i < sz; ++i ) { min_eq( min_v, ve[i] ); max_eq( max_v, ve[i] ); }
-      string ret;
-      ret += strprintf( "tn=%s elems_sz=%s", str(v->dims.tn).c_str(), str(v->elems_sz()).c_str() );
-      ret += strprintf( " min_v=%s max_v=%s", str(min_v).c_str(), str(max_v).c_str() );
+      gen.seed( seed );
+      assert_st( samps.empty() );
+      p_set_uint64_t samp_strides = get_samp_strides();
+      for( set_uint64_t::const_iterator i = samp_strides->begin(); i != samp_strides->end(); ++i ) {
+        uint64_t const stride = *i;
+        assert_st( stride ); // zero stride would seem odd here.
+        boost::random::uniform_int_distribution<uint64_t> offset_dist( 0U, stride - 1 );
+        uint64_t const num_offsets = floor_log2_u64( *i+1 ); // note: max value is 63
+        set_uint64_t seen_offsets;
+        for( uint32_t i = 0; i != num_offsets; ++i ) {
+          uint64_t const offset = offset_dist( this->gen );
+          if( !seen_offsets.insert( offset ).second ) { continue; } // note: just skip duplicate offsets
+          T const sv = get_samp( ve, sz, stride, offset );
+          samps.push_back( sv );
+   
+        }
+      }
+    }
+    // note: doesn't use gen(), but could/might-later
+    p_set_uint64_t get_samp_strides( void ) {
+      p_set_uint64_t ret = make_shared< set_uint64_t >();
+      ret->insert( {1,2,3,5,7,11,13,17,19,23,29} );
+      for( uint32_t i = 0; i != dims.size(); ++i ) {
+        ret->insert( dims.strides(i) ); // note: should include 1 
+      }
+      ret->insert( dims.strides_sz ); // random single samples
       return ret;
+    }
+    T get_samp( T const * ve, uint64_t const & sz, uint64_t const & stride, uint64_t const & offset ) {
+      assert_st( stride );
+      assert_st( offset < stride );
+      T sv = T(0);
+      for( uint32_t i = offset; i < sz; i += stride ) { sv += ve[i]; } // calc simple strided checksum
+      return sv;
+    }
+  };
+  template< typename T > std::ostream & operator << ( std::ostream & out, nda_digest_data_T<T> const & o ) { 
+    out << strprintf( "tn=%s elems_sz=%s", str(o.dims.tn).c_str(), str(o.dims.strides_sz).c_str() );
+    out << strprintf( " min_v=%s max_v=%s", str(o.min_v).c_str(), str(o.max_v).c_str() );
+    //FIXME: to get the stides/offsets here, we need to generator-ize the sequence ...
+    //ret += strprintf( " (s=%s,o==%s)=%s", str(stride).c_str(), str(offset).c_str(), str(sv).c_str() );
+    out << " samps=" << o.samps;
+    return out;
+  }
+  uint32_t const ndd_ver1 = 0xdada0101;
+  template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_digest_data_T< T > const & o ) { 
+    bwrite( out, ndd_ver1 );
+    bwrite( out, o.dims );
+    bwrite( out, o.seed );
+    bwrite( out, o.min_v );
+    bwrite( out, o.max_v );
+    bwrite( out, o.samps );
+  }
+  template< typename STREAM, typename T > inline void bread( STREAM & in, nda_digest_data_T< T > & o ) { 
+    uint32_t magic_ver;
+    bread( in, magic_ver );
+    assert_st( magic_ver == ndd_ver1 );
+    bread( in, o.dims );
+    bread( in, o.seed );
+    bread( in, o.min_v );
+    bread( in, o.max_v );
+    bread( in, o.samps );
+  }
+
+
+  template< typename T > struct nda_digest_T : public nda_digest_t, public nda_digest_data_T<T> {
+    p_nda_t v;
+    //uint64_t sz;
+    //T * ve;
+    virtual void init( p_nda_t const & v_ ) {
+      v = v_;
+      //sz = v->elems_sz();
+      //ve = static_cast<T *>(v->rp_elems());
+    }
+    virtual string get_digest( uint64_t const & seed_ ) {
+      this->set_from_nda( v, seed_ );
+      return str(*this);
     }
   };
 
