@@ -173,43 +173,18 @@ namespace boda
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 
+  struct ndd_si_t { uint64_t stride; uint64_t offset; }; // nda_digest_data sample-info struct
+  typedef vector< ndd_si_t > vect_ndd_si_t; 
+  typedef shared_ptr< vect_ndd_si_t > p_vect_ndd_si_t; 
+
   template< typename T > struct nda_digest_data_T {
     dims_t dims;
     uint64_t seed;
-    boost::random::mt19937 gen;
     T min_v;
     T max_v;
     vector< T > samps;
 
-    void set_from_nda( p_nda_t const & nda, uint64_t const & seed_ ) {
-      uint64_t sz = nda->elems_sz();
-      dims = nda->dims;
-      seed = seed_;
-      T const * ve = static_cast<T *>(nda->rp_elems());
-      min_v = std::numeric_limits<T>::max();
-      max_v = std::numeric_limits<T>::lowest();
-
-      for( uint64_t i = 0; i < sz; ++i ) { min_eq( min_v, ve[i] ); max_eq( max_v, ve[i] ); }
-      gen.seed( seed );
-      assert_st( samps.empty() );
-      p_set_uint64_t samp_strides = get_samp_strides();
-      for( set_uint64_t::const_iterator i = samp_strides->begin(); i != samp_strides->end(); ++i ) {
-        uint64_t const stride = *i;
-        assert_st( stride ); // zero stride would seem odd here.
-        boost::random::uniform_int_distribution<uint64_t> offset_dist( 0U, stride - 1 );
-        uint64_t const num_offsets = floor_log2_u64( *i+1 ); // note: max value is 63
-        set_uint64_t seen_offsets;
-        for( uint32_t i = 0; i != num_offsets; ++i ) {
-          uint64_t const offset = offset_dist( this->gen );
-          if( !seen_offsets.insert( offset ).second ) { continue; } // note: just skip duplicate offsets
-          T const sv = get_samp( ve, sz, stride, offset );
-          samps.push_back( sv );
-   
-        }
-      }
-    }
-    // note: doesn't use gen(), but could/might-later
-    p_set_uint64_t get_samp_strides( void ) {
+    p_set_uint64_t get_samp_strides( void ) const {
       p_set_uint64_t ret = make_shared< set_uint64_t >();
       ret->insert( {1,2,3,5,7,11,13,17,19,23,29} );
       for( uint32_t i = 0; i != dims.size(); ++i ) {
@@ -218,20 +193,57 @@ namespace boda
       ret->insert( dims.strides_sz ); // random single samples
       return ret;
     }
-    T get_samp( T const * ve, uint64_t const & sz, uint64_t const & stride, uint64_t const & offset ) {
-      assert_st( stride );
-      assert_st( offset < stride );
+    p_vect_ndd_si_t get_sis( void ) const {
+      p_vect_ndd_si_t sis = make_shared< vect_ndd_si_t >();
+      boost::random::mt19937 gen( seed );
+      p_set_uint64_t samp_strides = get_samp_strides();
+      for( set_uint64_t::const_iterator i = samp_strides->begin(); i != samp_strides->end(); ++i ) {
+        uint64_t const stride = *i;
+        assert_st( stride ); // zero stride would seem odd here.
+        boost::random::uniform_int_distribution<uint64_t> offset_dist( 0U, stride - 1 );
+        uint64_t const num_offsets = floor_log2_u64( *i+1 ); // note: max value is 63
+        set_uint64_t seen_offsets;
+        for( uint32_t i = 0; i != num_offsets; ++i ) {
+          uint64_t const offset = offset_dist( gen );
+          if( !seen_offsets.insert( offset ).second ) { continue; } // note: just skip duplicate offsets
+          sis->push_back( ndd_si_t{ stride, offset } );   
+        }
+      }
+      return sis;
+    }
+
+    void set_from_nda( p_nda_t const & nda, uint64_t const & seed_ ) {
+      uint64_t sz = nda->elems_sz();
+      dims = nda->dims;
+      seed = seed_;
+      T const * ve = static_cast<T *>(nda->rp_elems());
+      min_v = std::numeric_limits<T>::max();
+      max_v = std::numeric_limits<T>::lowest();
+      for( uint64_t i = 0; i < sz; ++i ) { min_eq( min_v, ve[i] ); max_eq( max_v, ve[i] ); }
+      assert_st( samps.empty() );
+      p_vect_ndd_si_t sis = get_sis();
+      for( vect_ndd_si_t::const_iterator i = sis->begin(); i != sis->end(); ++i ) {
+        T const sv = get_samp( ve, sz, *i );
+        samps.push_back( sv );        
+      }
+    }
+    T get_samp( T const * ve, uint64_t const & sz, ndd_si_t const & si ) const { // FIXME: make static/free-func?
+      assert_st( si.stride );
+      assert_st( si.offset < si.stride );
       T sv = T(0);
-      for( uint32_t i = offset; i < sz; i += stride ) { sv += ve[i]; } // calc simple strided checksum
+      for( uint32_t i = si.offset; i < sz; i += si.stride ) { sv += ve[i]; } // calc simple strided checksum
       return sv;
     }
   };
   template< typename T > std::ostream & operator << ( std::ostream & out, nda_digest_data_T<T> const & o ) { 
     out << strprintf( "tn=%s elems_sz=%s", str(o.dims.tn).c_str(), str(o.dims.strides_sz).c_str() );
     out << strprintf( " min_v=%s max_v=%s", str(o.min_v).c_str(), str(o.max_v).c_str() );
-    //FIXME: to get the stides/offsets here, we need to generator-ize the sequence ...
-    //ret += strprintf( " (s=%s,o==%s)=%s", str(stride).c_str(), str(offset).c_str(), str(sv).c_str() );
-    out << " samps=" << o.samps;
+    p_vect_ndd_si_t sis = o.get_sis();
+    assert_st( !o.samps.empty() ); // should have samps
+    assert_st( sis->size() == o.samps.size() ); // should be right # of samps
+    for( uint32_t i = 0; i != o.samps.size(); ++i ) {
+      out << strprintf( " (s=%s,o==%s)=%s", str(sis->at(i).stride).c_str(), str(sis->at(i).offset).c_str(), str(o.samps[i]).c_str() );
+    }
     return out;
   }
   uint32_t const ndd_ver1 = 0xdada0101;
