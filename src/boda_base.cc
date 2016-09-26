@@ -222,10 +222,7 @@ namespace boda
       for( uint64_t i = 0; i < sz; ++i ) { min_eq( min_v, ve[i] ); max_eq( max_v, ve[i] ); }
       assert_st( samps.empty() );
       p_vect_ndd_si_t sis = get_sis();
-      for( vect_ndd_si_t::const_iterator i = sis->begin(); i != sis->end(); ++i ) {
-        T const sv = get_samp( ve, sz, *i );
-        samps.push_back( sv );        
-      }
+      for( vect_ndd_si_t::const_iterator i = sis->begin(); i != sis->end(); ++i ) { samps.push_back( get_samp( ve, sz, *i ) ); }
     }
     T get_samp( T const * ve, uint64_t const & sz, ndd_si_t const & si ) const { // FIXME: make static/free-func?
       assert_st( si.stride );
