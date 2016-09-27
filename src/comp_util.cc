@@ -13,7 +13,6 @@ namespace boda {
     for( vect_string::const_iterator i = vns.begin(); i != vns.end(); ++i ) {
       p_nda_t out_batch_1 = must_find( *vs1, *i );
       p_nda_t out_batch_2 = must_find( *vs2, *i );
-      // out_batch_2->cm_at1(100) = 45.0; // corrupt a value for sanity checking
       if( out_batch_1->elems_sz() != out_batch_2->elems_sz() ) {
 	// treat size mismatch as warning, but print to log for regression tracking, since it may or may not be a 'real' error ...
 	(*out) << strprintf( "%s: warning: size mismatch, can't compare: DIMS1[%s] DIMS2[%s]\n", 
@@ -24,7 +23,6 @@ namespace boda {
       ssds_diff_t const ssds_diff(out_batch_1,out_batch_2);
       double vmt = var_mrd_toler ? get( *var_mrd_toler, *i, mrd_toler ) : mrd_toler;
       if( (ssds_diff.mrd >= vmt) || ssds_diff.has_nan() ) { ++num_mad_fail; is_fail = 1; }
-      vect_uint32_t bad_ixs = { 267093, 270895, 279193 };
       if( is_fail ) { // skip printing errors and details if no mad fail. set mrd_toler = 0 to force print (and failure)
 	string diff_str;
 	if( diff_show_mrd_only ) { diff_str = "MRD=" + str(ssds_diff.mrd); }
