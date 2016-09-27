@@ -155,10 +155,17 @@ namespace boda
 		   diff_show_mrd_only, max_err, 
 		   tops, fwd1, fwd2 );
       }
-      if( cf1 && show_digests ) {
-        for( vect_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) {
-          string const digest_str = nda_digest_t::make( must_find( *fwd1, *i ) )->get_digest(std::hash<string>()(*i));
+      for( vect_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) {
+        size_t const digest_seed = std::hash<string>()(*i);
+        double vmt = get( var_mrd_toler, *i, mrd_toler );
+        if( cf1 && show_digests ) {
+          string const digest_str = nda_digest_t::make_from_nda( must_find( *fwd1, *i ), digest_seed )->get_digest();
           printf( "%s digest_str=%s\n", str((*i)).c_str(), str(digest_str).c_str() );
+        }
+        if( do_cmp && show_digests ) {
+          p_nda_digest_t digest1 = nda_digest_t::make_from_nda( must_find( *fwd1, *i ), digest_seed );
+          p_nda_digest_t digest2 = nda_digest_t::make_from_nda( must_find( *fwd2, *i ), digest_seed );
+          printstr( digest1->mrd_comp( digest2, vmt ) + "\n" );
         }
       }
     }

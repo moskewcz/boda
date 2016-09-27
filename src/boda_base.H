@@ -946,9 +946,10 @@ namespace boda
   // changes (like LSH)
   struct nda_digest_t; typedef shared_ptr< nda_digest_t > p_nda_digest_t;   
   struct nda_digest_t {
-    static p_nda_digest_t make( p_nda_t const & v );
-    virtual void init( p_nda_t const & v ) = 0;
-    virtual string get_digest( uint64_t const & seed ) = 0;
+    static p_nda_digest_t make_from_nda( p_nda_t const & v, uint64_t const & seed ); // note: make minimally needs type str ...
+    virtual void set_from_nda( p_nda_t const & v, uint64_t const & seed ) = 0;
+    virtual string mrd_comp( p_nda_digest_t const & o, double const & mrd ) = 0;
+    virtual string get_digest( void ) = 0;
   };
   
   struct rt_exception : public std::exception

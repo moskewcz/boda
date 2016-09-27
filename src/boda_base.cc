@@ -177,7 +177,7 @@ namespace boda
   typedef vector< ndd_si_t > vect_ndd_si_t; 
   typedef shared_ptr< vect_ndd_si_t > p_vect_ndd_si_t; 
 
-  template< typename T > struct nda_digest_data_T {
+  template< typename T > struct nda_digest_T : public nda_digest_t {
     dims_t dims;
     uint64_t seed;
     T min_v;
@@ -212,7 +212,7 @@ namespace boda
       return sis;
     }
 
-    void set_from_nda( p_nda_t const & nda, uint64_t const & seed_ ) {
+    virtual void set_from_nda( p_nda_t const & nda, uint64_t const & seed_ ) {
       uint64_t sz = nda->elems_sz();
       dims = nda->dims;
       seed = seed_;
@@ -231,8 +231,19 @@ namespace boda
       for( uint32_t i = si.offset; i < sz; i += si.stride ) { sv += ve[i]; } // calc simple strided checksum
       return sv;
     }
+    virtual string get_digest( void ) { return str(*this); }
+    virtual string mrd_comp( p_nda_digest_t const & o, double const & mrd );
   };
-  template< typename T > std::ostream & operator << ( std::ostream & out, nda_digest_data_T<T> const & o ) { 
+  template< typename T > string mrd_comp( nda_digest_T<T> const & v1, nda_digest_T<T> const & v2, double const & mrd ) { 
+    return "nda_digest_t::mrd_comp() tn=" + get_ndat<T>().tn;
+  }
+  template< typename T > string nda_digest_T<T>::mrd_comp( p_nda_digest_t const & o, double const & mrd ) {
+    nda_digest_T<T> * derived_o = dynamic_cast< nda_digest_T<T> * >(o.get());
+    if( !derived_o ) { return "type mismatch; can't compare nda_digest_t's"; }
+    return boda::mrd_comp<T>( *this, *derived_o, mrd ); 
+  }
+
+  template< typename T > std::ostream & operator << ( std::ostream & out, nda_digest_T<T> const & o ) { 
     out << strprintf( "tn=%s elems_sz=%s", str(o.dims.tn).c_str(), str(o.dims.strides_sz).c_str() );
     out << strprintf( " min_v=%s max_v=%s", str(o.min_v).c_str(), str(o.max_v).c_str() );
     p_vect_ndd_si_t sis = o.get_sis();
@@ -244,7 +255,7 @@ namespace boda
     return out;
   }
   uint32_t const ndd_ver1 = 0xdada0101;
-  template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_digest_data_T< T > const & o ) { 
+  template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_digest_T< T > const & o ) { 
     bwrite( out, ndd_ver1 );
     bwrite( out, o.dims );
     bwrite( out, o.seed );
@@ -252,7 +263,7 @@ namespace boda
     bwrite( out, o.max_v );
     bwrite( out, o.samps );
   }
-  template< typename STREAM, typename T > inline void bread( STREAM & in, nda_digest_data_T< T > & o ) { 
+  template< typename STREAM, typename T > inline void bread( STREAM & in, nda_digest_T< T > & o ) { 
     uint32_t magic_ver;
     bread( in, magic_ver );
     assert_st( magic_ver == ndd_ver1 );
@@ -264,31 +275,16 @@ namespace boda
   }
 
 
-  template< typename T > struct nda_digest_T : public nda_digest_t, public nda_digest_data_T<T> {
-    p_nda_t v;
-    //uint64_t sz;
-    //T * ve;
-    virtual void init( p_nda_t const & v_ ) {
-      v = v_;
-      //sz = v->elems_sz();
-      //ve = static_cast<T *>(v->rp_elems());
-    }
-    virtual string get_digest( uint64_t const & seed_ ) {
-      this->set_from_nda( v, seed_ );
-      return str(*this);
-    }
-  };
-
   template< typename P, template<typename> class PT > struct make_derived_t {
     P & v;
     make_derived_t( P & v_ ) : v(v_) { }
     template< typename T > void operator()( void ) const { v = std::make_shared< PT<T> >(); }
   };
 
-  p_nda_digest_t nda_digest_t::make( p_nda_t const & v ) {
+  p_nda_digest_t nda_digest_t::make_from_nda( p_nda_t const & v, uint64_t const & seed ) {
     p_nda_digest_t ret;
     tn_dispatch( v->dims.tn, make_derived_t<p_nda_digest_t,nda_digest_T>(ret) );
-    ret->init( v );
+    ret->set_from_nda( v, seed );
     return ret;
   }
   
