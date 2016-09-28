@@ -173,7 +173,7 @@ namespace boda
 
   bool ssds_diff_t::has_nan( void ) const { return isnan( ssds ) || isnan( sds ) || isnan( mad ); }
 
-  struct ndd_si_t { uint64_t stride; uint64_t offset; }; // nda_digest_data sample-info struct
+  struct ndd_si_t { uint64_t stride; uint64_t offset; uint64_t num_subsamps; }; // nda_digest_data sample-info struct
   typedef vector< ndd_si_t > vect_ndd_si_t; 
   typedef shared_ptr< vect_ndd_si_t > p_vect_ndd_si_t; 
 
@@ -186,7 +186,10 @@ namespace boda
 
     p_set_uint64_t get_samp_strides( void ) const {
       p_set_uint64_t ret = make_shared< set_uint64_t >();
-      ret->insert( {1,2,3,5,7,11,13,17,19,23,29} );
+      vect_uint32_t const first_few_primes{1,2,3,5,7,11,13,17,19,23,29};
+      for( vect_uint32_t::const_iterator i = first_few_primes.begin(); i != first_few_primes.end(); ++i ) {
+        if( *i <= dims.strides_sz ) { ret->insert( *i ); }
+      }
       for( uint32_t i = 0; i != dims.size(); ++i ) {
         ret->insert( dims.strides(i) ); // note: should include 1 
       }
@@ -200,13 +203,15 @@ namespace boda
       for( set_uint64_t::const_iterator i = samp_strides->begin(); i != samp_strides->end(); ++i ) {
         uint64_t const stride = *i;
         assert_st( stride ); // zero stride would seem odd here.
+        assert_st( stride <= dims.strides_sz ); // stride larger than input size seems odd too ...
         boost::random::uniform_int_distribution<uint64_t> offset_dist( 0U, stride - 1 );
         uint64_t const num_offsets = floor_log2_u64( *i+1 ); // note: max value is 63
         set_uint64_t seen_offsets;
         for( uint32_t i = 0; i != num_offsets; ++i ) {
           uint64_t const offset = offset_dist( gen );
           if( !seen_offsets.insert( offset ).second ) { continue; } // note: just skip duplicate offsets
-          sis->push_back( ndd_si_t{ stride, offset } );   
+          uint64_t const num_subsamps = ( dims.strides_sz - offset ) / stride;
+          sis->push_back( ndd_si_t{ stride, offset, num_subsamps } );   
         }
       }
       return sis;
@@ -234,12 +239,44 @@ namespace boda
     virtual string get_digest( void ) { return str(*this); }
     virtual string mrd_comp( p_nda_digest_t const & o, double const & mrd );
   };
+
+  void mrd_check( string & ret, string const & tag, double const & v1, double const & v2, double const & mrd ) {
+    double const rd = min_sig_mag_rel_diff( 1.0, v1, v2 );
+    if( rd > mrd ) {
+      ret += strprintf( " [%s]: v1=%s v2=%s\n", tag.c_str(), str(v1).c_str(), str(v2).c_str() );
+    }
+  }
   template< typename T > string mrd_comp( nda_digest_T<T> const & v1, nda_digest_T<T> const & v2, double const & mrd ) { 
-    return "nda_digest_t::mrd_comp() tn=" + get_ndat<T>().tn;
+    if( v1.dims != v2.dims ) { return strprintf( "nda_digest dims mismatch: v1.dims=%s v2.dims=%s", 
+                                                   str(v1.dims).c_str(), str(v2.dims).c_str() ); }
+    if( v1.seed != v2.seed ) { return strprintf( "nda_digest seed mismatch: v1.seed=%s v2.seed=%s", 
+                                                   str(v1.seed).c_str(), str(v2.seed).c_str() ); }
+    assert_st( v1.samps.size() == v2.samps.size() );
+    p_vect_ndd_si_t sis = v1.get_sis(); // note: same as v2.get_sis() (since same seed)
+    assert_st( sis->size() == v1.samps.size() );
+    string ret;
+    mrd_check( ret, "min_v", v1.min_v, v2.min_v, mrd );
+    mrd_check( ret, "max_v", v1.max_v, v2.max_v, mrd );
+    for( uint32_t i = 0; i != v1.samps.size(); ++i ) {
+      ndd_si_t const & si = sis->at(i);
+      string const tag = strprintf( "stride=%s,offset=%s", str(si.stride).c_str(), str(si.offset).c_str() ); // FIXME defer
+      // we need/want to adjust mrd by the number of subsamples, but it's not clear how to do that since we don't know
+      // how how errors might or might not be correlated. bummer! our general hope is that it's conservative to use the
+      // single-element mrd across all checksums, since having multiple ('randomly') strided checksums will deal with
+      // cases where errors cancel out. however this is too conservative for at least a few cases for the small strides:
+      // there are indeed some cases with large-ish (~1M) numbers of subsamples, and where the errors seem to have a
+      // bias (or we're just seeing the sqrt(N) scaling of the error, it's unclear), so the checksums end up far
+      // apart. so, we'll add a correction factor aimed at those case and hope it doesn't make us too anti-convervative
+      // overall.
+      double adj_mrd = mrd;
+      if( si.num_subsamps > 1000 ) { adj_mrd *= sqrt( si.num_subsamps / 1000.0 ); }
+      mrd_check( ret, tag, v1.samps[i], v2.samps[i], adj_mrd );
+    }
+    return ret;
   }
   template< typename T > string nda_digest_T<T>::mrd_comp( p_nda_digest_t const & o, double const & mrd ) {
     nda_digest_T<T> * derived_o = dynamic_cast< nda_digest_T<T> * >(o.get());
-    if( !derived_o ) { return "type mismatch; can't compare nda_digest_t's"; }
+    if( !derived_o ) { return strprintf( "nda_digest type mismatch: v1.tn=%s\n", get_ndat<T>().tn.c_str() ); }
     return boda::mrd_comp<T>( *this, *derived_o, mrd ); 
   }
 

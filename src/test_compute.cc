@@ -48,6 +48,7 @@ namespace boda
     vect_string tops; //NESI(help="vars to check")
 
     uint32_t show_digests; //NESI(default="0",help="if non-zero, show nda digests for cf1" )
+    uint32_t cmp_digests; //NESI(default="0",help="if non-zero, compare nda digests for cf1 and cf2" )
 
 
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
@@ -162,10 +163,11 @@ namespace boda
           string const digest_str = nda_digest_t::make_from_nda( must_find( *fwd1, *i ), digest_seed )->get_digest();
           printf( "%s digest_str=%s\n", str((*i)).c_str(), str(digest_str).c_str() );
         }
-        if( do_cmp && show_digests ) {
+        if( do_cmp && cmp_digests ) {
           p_nda_digest_t digest1 = nda_digest_t::make_from_nda( must_find( *fwd1, *i ), digest_seed );
           p_nda_digest_t digest2 = nda_digest_t::make_from_nda( must_find( *fwd2, *i ), digest_seed );
-          printstr( digest1->mrd_comp( digest2, vmt ) + "\n" );
+          string const comp_res = digest1->mrd_comp( digest2, vmt );
+          if( !comp_res.empty() ) { (*out) << (*i) + " digest mrd_comp() failure:\n" + comp_res + "\n"; } 
         }
       }
     }
