@@ -49,6 +49,7 @@ namespace boda
 
     uint32_t show_digests; //NESI(default="0",help="if non-zero, show nda digests for cf1" )
     uint32_t cmp_digests; //NESI(default="0",help="if non-zero, compare nda digests for cf1 and cf2" )
+    uint32_t write_digests; //NESI(default="0",help="if non-zero, write nda digests for cf1 and cf2" )
 
 
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
@@ -158,14 +159,21 @@ namespace boda
       }
       for( vect_string::const_iterator i = tops.begin(); i != tops.end(); ++i ) {
         size_t const digest_seed = std::hash<string>()(*i);
-        double vmt = get( var_mrd_toler, *i, mrd_toler );
-        if( cf1 && show_digests ) {
-          string const digest_str = nda_digest_t::make_from_nda( must_find( *fwd1, *i ), digest_seed )->get_digest();
-          printf( "%s digest_str=%s\n", str((*i)).c_str(), str(digest_str).c_str() );
+        p_nda_digest_t digest1;
+        p_nda_digest_t digest2;
+        if( (do_cmp && cmp_digests) || write_digests || show_digests ) {
+          if( cf1 ) { digest1 = nda_digest_t::make_from_nda( must_find( *fwd1, *i ), digest_seed ); }
+          if( cf2 ) { digest2 = nda_digest_t::make_from_nda( must_find( *fwd2, *i ), digest_seed ); }
+        }
+        if( show_digests ) {
+          if( cf1 ) { printf( "cf1 %s digest_str=%s\n", str((*i)).c_str(), digest1->get_digest().c_str() ); }
+          if( cf2 ) { printf( "cf2 %s digest_str=%s\n", str((*i)).c_str(), digest2->get_digest().c_str() ); }
+        }
+        if( write_digests ) {
+          // TODO
         }
         if( do_cmp && cmp_digests ) {
-          p_nda_digest_t digest1 = nda_digest_t::make_from_nda( must_find( *fwd1, *i ), digest_seed );
-          p_nda_digest_t digest2 = nda_digest_t::make_from_nda( must_find( *fwd2, *i ), digest_seed );
+          double vmt = get( var_mrd_toler, *i, mrd_toler );
           string const comp_res = digest1->mrd_comp( digest2, vmt );
           if( !comp_res.empty() ) { (*out) << (*i) + " digest mrd_comp() failure:\n" + comp_res + "\n"; } 
         }
