@@ -238,6 +238,7 @@ namespace boda
     }
     virtual string get_digest( void ) { return str(*this); }
     virtual string mrd_comp( p_nda_digest_t const & o, double const & mrd );
+    virtual void bwrite( std::ostream & out ) const;
   };
 
   void mrd_check( string & ret, string const & tag, double const & v1, double const & v2, double const & mrd ) {
@@ -310,13 +311,31 @@ namespace boda
     bread( in, o.max_v );
     bread( in, o.samps );
   }
-
+  template< typename STREAM, typename P, template<typename> class PT > struct bread_derived_t {
+    STREAM & in;
+    P & v;
+    bread_derived_t( STREAM & in_, P & v_ ) : in(in_), v(v_) { }
+    template< typename T > void operator()( void ) const {
+      shared_ptr< PT<T> > v_derived = std::make_shared< PT<T> >();
+      bread( in, *v_derived ); 
+      v = v_derived;
+    }
+  };
+  template< typename T > void nda_digest_T<T>::bwrite( std::ostream & out ) const { boda::bwrite( out, *this ); }
 
   template< typename P, template<typename> class PT > struct make_derived_t {
     P & v;
     make_derived_t( P & v_ ) : v(v_) { }
     template< typename T > void operator()( void ) const { v = std::make_shared< PT<T> >(); }
   };
+
+  p_nda_digest_t nda_digest_t::make_from_istream( std::istream & in ) {
+    string tn;
+    bread( in, tn );
+    p_nda_digest_t ret;
+    tn_dispatch( tn, bread_derived_t<std::istream,p_nda_digest_t,nda_digest_T>(in,ret) );    
+    return ret;
+  }
 
   p_nda_digest_t nda_digest_t::make_from_nda( p_nda_t const & v, uint64_t const & seed ) {
     p_nda_digest_t ret;

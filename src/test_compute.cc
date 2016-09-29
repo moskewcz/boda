@@ -50,7 +50,7 @@ namespace boda
     uint32_t show_digests; //NESI(default="0",help="if non-zero, show nda digests for cf1" )
     uint32_t cmp_digests; //NESI(default="0",help="if non-zero, compare nda digests for cf1 and cf2" )
     uint32_t write_digests; //NESI(default="0",help="if non-zero, write nda digests for cf1 and cf2" )
-
+    filename_t digest_fn; //NESI(default="%(boda_output_dir)/digest-%%s.boda",help="output: binary stream of digests of all ndas. %%s will be replaced with the engine backend index (i.e. '1' or '2')")
 
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
@@ -59,6 +59,10 @@ namespace boda
     }
 
     p_ostream out;
+
+    p_ostream digest_out1;
+    p_ostream digest_out2;
+
     virtual void main( nesi_init_arg_t * nia ) {
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
@@ -74,6 +78,10 @@ namespace boda
       if( cf1 ) { cf1->init( run_cnet->conv_pipe ); }
       if( cf2 ) { cf2->init( run_cnet->conv_pipe ); }
 
+      if( write_digests ) {
+        if( cf1 ) { digest_out1 = ofs_open( strprintf( digest_fn.exp.c_str(), str(uint32_t(1)).c_str() ) ); }
+        if( cf2 ) { digest_out2 = ofs_open( strprintf( digest_fn.exp.c_str(), str(uint32_t(2)).c_str() ) ); }
+      }
       //dump_pipe_and_ios( run_cnet );
       
       boost::random::mt19937 gen;
@@ -170,7 +178,8 @@ namespace boda
           if( cf2 ) { printf( "cf2 %s digest_str=%s\n", str((*i)).c_str(), digest2->get_digest().c_str() ); }
         }
         if( write_digests ) {
-          // TODO
+          if( cf1 ) { bwrite( *digest_out1, *i ); digest1->bwrite( *digest_out1 ); }
+          if( cf2 ) { bwrite( *digest_out2, *i ); digest2->bwrite( *digest_out2 ); }
         }
         if( do_cmp && cmp_digests ) {
           double vmt = get( var_mrd_toler, *i, mrd_toler );

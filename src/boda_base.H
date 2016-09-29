@@ -279,7 +279,9 @@ namespace boda
   template<> struct breadwrite_raw_T<uint32_t>{ typedef int int_; };
   template<> struct breadwrite_raw_T<int32_t>{ typedef int int_; };
   template<> struct breadwrite_raw_T<uint64_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<half>{ typedef int int_; };
   template<> struct breadwrite_raw_T<float>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<double>{ typedef int int_; };
   
   template< typename STREAM, typename T, typename breadwrite_raw_T<T>::int_ = 0 > 
   inline void bwrite( STREAM & out, T const & o ) { bwrite_bytes( out, (char *)&o, sizeof(o) ); }
@@ -406,7 +408,7 @@ namespace boda
   ndat_info_t const uint8_t_ndat{"uint8_t",1,0,0};
   template< typename T > inline ndat_info_t const & get_ndat( void );
   template<> inline ndat_info_t const & get_ndat<void>( void ) { return none_ndat; }
-  template<> inline ndat_info_t const & get_ndat<half_float::half>( void ) { return half_ndat; }
+  template<> inline ndat_info_t const & get_ndat<half>( void ) { return half_ndat; }
   template<> inline ndat_info_t const & get_ndat<float>( void ) { return float_ndat; }
   template<> inline ndat_info_t const & get_ndat<double>( void ) { return double_ndat; }
   template<> inline ndat_info_t const & get_ndat<uint32_t>( void ) { return uint32_t_ndat; }
@@ -946,10 +948,13 @@ namespace boda
   // changes (like LSH)
   struct nda_digest_t; typedef shared_ptr< nda_digest_t > p_nda_digest_t;   
   struct nda_digest_t {
+    // note: a minimal make/factor func could take only a tn string, but we don't need a minimal make/factory function currently
+    static p_nda_digest_t make_from_istream( std::istream & in );
     static p_nda_digest_t make_from_nda( p_nda_t const & v, uint64_t const & seed ); // note: make minimally needs type str ...
     virtual void set_from_nda( p_nda_t const & v, uint64_t const & seed ) = 0;
     virtual string mrd_comp( p_nda_digest_t const & o, double const & mrd ) = 0;
     virtual string get_digest( void ) = 0;
+    virtual void bwrite( std::ostream & out ) const = 0;
   };
   
   struct rt_exception : public std::exception
