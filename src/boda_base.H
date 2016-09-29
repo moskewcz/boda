@@ -299,19 +299,50 @@ namespace boda
     o.resize( sz );
     if( sz ) { bread_bytes( in, (char *)&o[0], o.size()*sizeof(string::value_type) ); }
   }
+  
+  // this bit 'o magic allows us to use enable_if<> based on the presence/absence of a typedef it's pretty easy to just
+  // use the typedef if we want to *enable* an overload, but not so much to disable one.  since we're (unwisely?) using
+  // SFINAE for enabling/disabling function overloads for dispatching the proper shared_ptr<T> bread/bwrite global
+  // functions, we need to ensure exactly one (ambiguous) overload is enabled per class. fun times!
+  template<typename T, typename FOO = void > struct has_static_bread_and_virt_bwrite_t : std::false_type {};
+  template<typename T> struct has_static_bread_and_virt_bwrite_t< T, typename check_T<typename T::has_static_bread_and_virt_bwrite>::void_ > : std::true_type {};
 
-  template< typename STREAM, typename T > inline void bwrite( STREAM & out, shared_ptr< T > const & o ) { 
+  template< typename STREAM, typename T > inline 
+  typename std::enable_if< !has_static_bread_and_virt_bwrite_t<T>::value >::type
+  bwrite( STREAM & out, shared_ptr< T > const & o ) { 
     uint8_t non_null = bool(o);
     bwrite( out, non_null );
     if( non_null ) { bwrite( out, *o ); }
   }
-  template< typename STREAM, typename T > inline void bread( STREAM & in, shared_ptr< T > & o ) { 
+  template< typename STREAM, typename T > inline 
+  typename std::enable_if< !has_static_bread_and_virt_bwrite_t<T>::value >::type
+  bread( STREAM & in, shared_ptr< T > & o ) { 
     uint8_t non_null = 0;
     bread( in, non_null );
     if( non_null ) {
       o.reset( new T );
       bread( in, *o );
     } else { o.reset(); }
+  }
+
+  // special-case pointer IO for base classes where we read/write a derived type. note: for p_nda_digest_t is currently
+  // the only such type, but if/when we add others, we should use this as a model.
+  // note: T::has_static_bread_and_virt_bwrite is either void or non-existant; just using it directly as the return type
+  // is simpler and equivalent to the below usage of enable_if<>+helper, but inconsistent with ! case
+  template< typename STREAM, typename T > inline 
+  typename std::enable_if< has_static_bread_and_virt_bwrite_t<T>::value >::type
+  bwrite( STREAM & out, shared_ptr< T > const & o ) { 
+    uint8_t non_null = bool(o);
+    bwrite( out, non_null ); 
+    if( non_null ) { o->bwrite( out ); } // note: 'out' better be an ostream ...
+  }
+  template< typename STREAM, typename T > inline 
+  typename std::enable_if< has_static_bread_and_virt_bwrite_t<T>::value >::type
+  bread( STREAM & in, shared_ptr< T > & o ) { 
+    uint8_t non_null = 0;
+    bread( in, non_null );
+    if( non_null ) { o = T::bread( in ); } // note: 'in' better be an istream ...
+    else { o.reset(); }
   }
 
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, vector< T > const & o ) { 
@@ -948,11 +979,14 @@ namespace boda
   struct nda_digest_t; typedef shared_ptr< nda_digest_t > p_nda_digest_t;   
   struct nda_digest_t {
     // note: a minimal make/factor func could take only a tn string, but we don't need a minimal make/factory function currently
-    static p_nda_digest_t make_from_istream( std::istream & in );
     static p_nda_digest_t make_from_nda( p_nda_t const & v, uint64_t const & seed ); // note: make minimally needs type str ...
     virtual void set_from_nda( p_nda_t const & v, uint64_t const & seed ) = 0;
     virtual string mrd_comp( p_nda_digest_t const & o, double const & mrd ) = 0;
     virtual string get_digest( void ) = 0;
+
+    // IO functions and magic typedef to make below special global shared_ptr derived-as-base-class bread()/bwrite() enabled for this type
+    typedef void has_static_bread_and_virt_bwrite;
+    static p_nda_digest_t bread( std::istream & in );
     virtual void bwrite( std::ostream & out ) const = 0;
   };
   

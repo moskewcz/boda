@@ -79,8 +79,10 @@ namespace boda
       if( cf2 ) { cf2->init( run_cnet->conv_pipe ); }
 
       if( write_digests ) {
-        if( cf1 ) { digest_out1 = ofs_open( strprintf( digest_fn.exp.c_str(), str(uint32_t(1)).c_str() ) ); }
-        if( cf2 ) { digest_out2 = ofs_open( strprintf( digest_fn.exp.c_str(), str(uint32_t(2)).c_str() ) ); }
+        if( cf1 ) { digest_out1 = ofs_open( strprintf( digest_fn.exp.c_str(), str(uint32_t(1)).c_str() ) ); 
+          bwrite( *digest_out1, boda_magic ); }
+        if( cf2 ) { digest_out2 = ofs_open( strprintf( digest_fn.exp.c_str(), str(uint32_t(2)).c_str() ) );
+          bwrite( *digest_out2, boda_magic ); }
       }
       //dump_pipe_and_ios( run_cnet );
       
@@ -178,8 +180,8 @@ namespace boda
           if( cf2 ) { printf( "cf2 %s digest_str=%s\n", str((*i)).c_str(), digest2->get_digest().c_str() ); }
         }
         if( write_digests ) {
-          if( cf1 ) { bwrite( *digest_out1, *i ); digest1->bwrite( *digest_out1 ); }
-          if( cf2 ) { bwrite( *digest_out2, *i ); digest2->bwrite( *digest_out2 ); }
+          if( cf1 ) { bwrite_id( *digest_out1, *i ); digest1->bwrite( *digest_out1 ); }
+          if( cf2 ) { bwrite_id( *digest_out2, *i ); digest2->bwrite( *digest_out2 ); }
         }
         if( do_cmp && cmp_digests ) {
           double vmt = get( var_mrd_toler, *i, mrd_toler );

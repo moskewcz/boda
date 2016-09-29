@@ -329,9 +329,9 @@ namespace boda
     template< typename T > void operator()( void ) const { v = std::make_shared< PT<T> >(); }
   };
 
-  p_nda_digest_t nda_digest_t::make_from_istream( std::istream & in ) {
+  p_nda_digest_t nda_digest_t::bread( std::istream & in ) {
     string tn;
-    bread( in, tn );
+    boda::bread( in, tn );
     p_nda_digest_t ret;
     tn_dispatch( tn, bread_derived_t<std::istream,p_nda_digest_t,nda_digest_T>(in,ret) );    
     return ret;

@@ -343,6 +343,12 @@ namespace boda
     }
   };
 
+  template<> struct eq_diff< p_nda_digest_t > {
+    bool & has_diff;
+    eq_diff( bool & has_diff_ ) : has_diff(has_diff_) { }
+    void operator ()( p_nda_digest_t const & o1, p_nda_digest_t const & o2 ) {
+    }
+  };
 
   bool diff_boda_streams( istream & i1, istream & i2 ) {
     uint32_t maybe_boda_magic = 0;
@@ -357,6 +363,7 @@ namespace boda
     eq_diff<string> eq_str( stream_diff );
     eq_diff<p_nda_double_t> eq_p_nda_double_t( data_diff );
     eq_diff<vect_p_nda_double_t> eq_vect_p_nda_double_t( data_diff );
+    eq_diff<p_nda_digest_t> eq_p_nda_digest_t( data_diff );
 
     string id;
     string cmd;
@@ -379,6 +386,13 @@ namespace boda
 	vect_p_nda_double_t o;
 	bread( i1, o );
 	check_eq( eq_vect_p_nda_double_t, i2, o );
+      }
+      else if( cmd == "p_nda_digest_t" ) {
+	p_nda_digest_t o;
+	bread( i1, o );
+	check_eq( eq_p_nda_digest_t, i2, o );
+      } else {
+        rt_err( strprintf( "unknown cmd '%s' in boda stream (corrupt/invalid stream?)", str(cmd).c_str() ) );
       }
     }
     if( stream_diff ) { printf("DIFF: boda stream differs. last seen: cmd=%s id=%s\n", cmd.c_str(), id.c_str() ); }

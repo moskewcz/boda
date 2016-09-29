@@ -99,7 +99,7 @@
   <li test_name="test_upsamp_1_nvrtc" cli_str="boda test_upsamp --model-name nin_imagenet_nopad --wins-per-image=3 --run-cnet='(in_dims=(img=1,y=516,x=516),enable_upsamp_net=1,out_node_name=cccp8,conv_fwd=(mode=rtc),conv_fwd_upsamp=(mode=rtc,op_tune=(tconv=1)))'"/>
 
 <!-- note: for alexnet and googlenet, while the errors on the 'output' nodes (fc8, cls{1,2,3}_fc) are 1e-5, we need to use pretty high tolerances for comparing other nodes (5e-4). this seems perhaps mostly due to disagreements in LRN -- see comments in lrn.cucl -- but probably deserves more attention. --> 
-  <li test_name="test_compute_alexnet" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf2='(mode=rtc,per_call_fn=out.py)' --max-err=1 "/>
+  <li test_name="test_compute_alexnet" cli_str="boda test_compute --model-name=alexnet_ng_conv --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf2='(mode=rtc,per_call_fn=out.py)' --max-err=1 --write-digests=0"/>
 
   <li test_name="test_compute_alexnet_mutated_for_testing_opt" cli_str="boda test_compute --model-name=alexnet_ng_conv_mutated_for_testing --wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)' --run-cnet='(in_dims=(img=20))' --cf2='(mode=rtc,per_call_fn=out.py,op_tune=(k1conv=1,tconv=1),enable_write_xpose=1)' --max-err=1 "/>
 
