@@ -788,10 +788,9 @@ namespace boda
     nda_T( dims_t const & dims_ ) : nda_t( dims_ ) { check_tn(); }
     nda_T( p_nda_t const & nda_ ) : nda_t( *nda_ ) { assert_st( dims.valid() ); check_tn(); }
     void check_tn( void ) const {
-      if( std::is_same<T,float>::value ) { assert_st( dims.tn == "float" ); }
-      else if( std::is_same<T,double>::value ) { assert_st( dims.tn == "double" ); }
-      else if( std::is_same<T,uint8_t>::value ) { assert_st( dims.tn == "uint8_t" ); }
-      else { assert_st(0); } // unknown type
+      string const & type_tn = get_ndat<T>().tn; // FIXME: can the user trigger this error? use better err msg?
+      if( dims.tn != type_tn ) { printf( "internal error: nda_T check_tn() failure: type_tn=%s dims.tn=%s\n", 
+                                         str(type_tn).c_str(), str(dims.tn).c_str() ); }
     }
     T const * elems_ptr( void ) const { return reinterpret_cast<T const *>(d.get()); }
     T * elems_ptr( void ) { return reinterpret_cast<T *>(d.get()); }
@@ -843,7 +842,7 @@ namespace boda
       uint32_t const ix = dims.ix4( d0i,d1i,d2i,d3i ); return elems_ptr()[ix]; }
   };
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_T<T> const & o ) { o.bwrite_( out ); }
-  template< typename STREAM, typename T > inline void bread( STREAM & in, nda_T<T> & o ) { o.bread_( in ); }
+  template< typename STREAM, typename T > inline void bread( STREAM & in, nda_T<T> & o ) { o.bread_( in ); o.check_tn(); }
 
   template< typename T > struct max_functor { 
     typedef T Result; 
