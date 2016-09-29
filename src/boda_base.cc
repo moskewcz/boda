@@ -205,7 +205,7 @@ namespace boda
         assert_st( stride ); // zero stride would seem odd here.
         assert_st( stride <= dims.strides_sz ); // stride larger than input size seems odd too ...
         boost::random::uniform_int_distribution<uint64_t> offset_dist( 0U, stride - 1 );
-        uint64_t const num_offsets = floor_log2_u64( *i+1 ); // note: max value is 63
+        uint64_t const num_offsets = floor_log2_u64( stride + 1 ); // note: max value is 63
         set_uint64_t seen_offsets;
         for( uint32_t i = 0; i != num_offsets; ++i ) {
           uint64_t const offset = offset_dist( gen );
