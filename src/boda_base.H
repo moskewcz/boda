@@ -978,6 +978,12 @@ namespace boda
   // changes (like LSH)
   struct nda_digest_t; typedef shared_ptr< nda_digest_t > p_nda_digest_t;   
   struct nda_digest_t {
+    // when comparing this nda_digest_t against 'itself' (the digest of the an nda generated in the same exact way),
+    // we'd normally expect both the nda and thus the digest to be identical. however, sometimes we're using a
+    // non-deterministic method of generating the nda, and this may introduce some (generall small) error. in such a
+    // case, we will/must manually set self_cmp_mrd to an apropriate value when we create it.
+    double self_cmp_mrd;
+    nda_digest_t( void ) : self_cmp_mrd(0.0) { }
     // note: a minimal make/factor func could take only a tn string, but we don't need a minimal make/factory function currently
     static p_nda_digest_t make_from_nda( p_nda_t const & v, uint64_t const & seed ); // note: make minimally needs type str ...
     virtual void set_from_nda( p_nda_t const & v, uint64_t const & seed ) = 0;

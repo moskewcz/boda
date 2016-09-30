@@ -295,6 +295,7 @@ namespace boda
   uint32_t const ndd_ver1 = 0xdada0101;
   template< typename STREAM, typename T > inline void bwrite( STREAM & out, nda_digest_T< T > const & o ) { 
     bwrite( out, ndd_ver1 );
+    bwrite( out, o.self_cmp_mrd );
     bwrite( out, o.dims );
     bwrite( out, o.seed );
     bwrite( out, o.min_v );
@@ -305,6 +306,7 @@ namespace boda
     uint32_t magic_ver;
     bread( in, magic_ver );
     assert_st( magic_ver == ndd_ver1 );
+    bread( in, o.self_cmp_mrd );
     bread( in, o.dims );
     bread( in, o.seed );
     bread( in, o.min_v );

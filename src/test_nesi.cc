@@ -348,7 +348,11 @@ namespace boda
     string last_id;
     eq_diff( bool & has_diff_ ) : has_diff(has_diff_) { }
     void operator ()( p_nda_digest_t const & o1, p_nda_digest_t const & o2 ) {
-      string const mrd_diff = o1->mrd_comp( o2, 0.0 );
+      // note: we use the self_cmp_mrd/tolerance from the under-test nda_digest, *not* from the known-good digest. this
+      // is perhaps arbitrary, but the general idea is that the known-good value might have some known tolerance, but in
+      // general one might use a single known-good value against many under-test values with different tolerenances, so
+      // that's where the tolerance must come from.
+      string const mrd_diff = o1->mrd_comp( o2, o2->self_cmp_mrd );
       if( !mrd_diff.empty() ) {
         has_diff = 1;
         printstr( "DIFF: " + last_id + " " + mrd_diff );
@@ -356,6 +360,7 @@ namespace boda
     }
   };
 
+  // note: in test usages, i1 is the known-good stream, i2 is the under-test one
   bool diff_boda_streams( istream & i1, istream & i2 ) {
     uint32_t maybe_boda_magic = 0;
     bread( i1, maybe_boda_magic );
