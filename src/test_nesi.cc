@@ -345,8 +345,14 @@ namespace boda
 
   template<> struct eq_diff< p_nda_digest_t > {
     bool & has_diff;
+    string last_id;
     eq_diff( bool & has_diff_ ) : has_diff(has_diff_) { }
     void operator ()( p_nda_digest_t const & o1, p_nda_digest_t const & o2 ) {
+      string const mrd_diff = o1->mrd_comp( o2, 0.0 );
+      if( !mrd_diff.empty() ) {
+        has_diff = 1;
+        printstr( "DIFF: " + last_id + " " + mrd_diff );
+      }
     }
   };
 
@@ -370,12 +376,14 @@ namespace boda
     while( 1 ) {
       bread( i1, cmd );
       check_eq( eq_str, i2, cmd );
+      //printf( "cmd=%s\n", str(cmd).c_str() );
       if( stream_diff ) { break; }
       if( cmd == "END_BODA" ) { break; }
       else if( cmd == "id" ) {
 	bread( i1, id );
 	check_eq( eq_str, i2, id );
 	if( stream_diff ) { break; }
+        eq_p_nda_digest_t.last_id = id; // FIXME: a hack, but expedient/practical/nice?
       }
       else if( cmd == "p_nda_double_t" ) {
 	p_nda_double_t o;

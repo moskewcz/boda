@@ -118,6 +118,10 @@ namespace boda
       if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
       else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
       out.reset();
+      if( write_digests ) {
+        if( cf1 ) { bwrite( *digest_out1, string("END_BODA") ); }
+        if( cf2 ) { bwrite( *digest_out2, string("END_BODA") ); }
+      }
     }
     void make_tpd_batch( p_nda_float_t const & in_batch ) {
       dims_t const & ibd = in_batch->dims;
@@ -180,8 +184,8 @@ namespace boda
           if( cf2 ) { printf( "cf2 %s digest_str=%s\n", str((*i)).c_str(), digest2->get_digest().c_str() ); }
         }
         if( write_digests ) {
-          if( cf1 ) { bwrite_id( *digest_out1, *i ); digest1->bwrite( *digest_out1 ); }
-          if( cf2 ) { bwrite_id( *digest_out2, *i ); digest2->bwrite( *digest_out2 ); }
+          if( cf1 ) { bwrite_id( *digest_out1, *i ); bwrite( *digest_out1, string("p_nda_digest_t") ); bwrite( *digest_out1, digest1 ); }
+          if( cf2 ) { bwrite_id( *digest_out2, *i ); bwrite( *digest_out2, string("p_nda_digest_t") ); bwrite( *digest_out2, digest2 ); }
         }
         if( do_cmp && cmp_digests ) {
           double vmt = get( var_mrd_toler, *i, mrd_toler );

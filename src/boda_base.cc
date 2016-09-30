@@ -321,7 +321,10 @@ namespace boda
       v = v_derived;
     }
   };
-  template< typename T > void nda_digest_T<T>::bwrite( std::ostream & out ) const { boda::bwrite( out, *this ); }
+  template< typename T > void nda_digest_T<T>::bwrite( std::ostream & out ) const { 
+    boda::bwrite( out, dims.tn );
+    boda::bwrite( out, *this ); 
+  }
 
   template< typename P, template<typename> class PT > struct make_derived_t {
     P & v;
