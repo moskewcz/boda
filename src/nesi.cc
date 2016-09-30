@@ -574,6 +574,7 @@ namespace boda
   bool filename_t_nesi_dump( tinfo_t const * tinfo, void * o, nesi_dump_buf_t * ndb ) {
     filename_t * v = (filename_t *)o;
     return string_nesi_dump( tinfo, &v->in, ndb ); // well, it happens the first field, but let's be clear ;)
+    // return string_nesi_dump( tinfo, &v->exp, ndb ); // note/FIXME: maybe dump expanded version instead. is this more correct?
   }
   void *filename_t_init_arg = (void *)"filename_t";
 
