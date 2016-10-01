@@ -1,0 +1,6 @@
+(*i)->sz=353 500
+vars_to_compare: conv1_biases conv1_filts conv2_biases conv2_filts conv3_biases conv3_filts conv4_biases conv4_filts conv5_biases conv5_filts data conv1 norm1 pool1 conv2 norm2 pool2 conv3 conv4 conv5 pool5 fc6-conv_biases fc6-conv_filts fc6 fc7-conv_biases fc7-conv_filts fc7 fc8-conv_biases fc8-conv_filts fc8
+vars_to_compare: conv1_biases conv1_filts conv2_biases conv2_filts conv3_biases conv3_filts conv4_biases conv4_filts conv5_biases conv5_filts data conv1 norm1 pool1 conv2 norm2 pool2 conv3 conv4 conv5 pool5 fc6-conv_biases fc6-conv_filts fc6 fc7-conv_biases fc7-conv_filts fc7 fc8-conv_biases fc8-conv_filts fc8
+vars_to_compare: conv1_biases conv1_filts conv2_biases conv2_filts conv3_biases conv3_filts conv4_biases conv4_filts conv5_biases conv5_filts data conv1 norm1 pool1 conv2 norm2 pool2 conv3 conv4 conv5 pool5 fc6-conv_biases fc6-conv_filts fc6 fc7-conv_biases fc7-conv_filts fc7 fc8-conv_biases fc8-conv_filts fc8
+vars_to_compare: conv1_biases conv1_filts conv2_biases conv2_filts conv3_biases conv3_filts conv4_biases conv4_filts conv5_biases conv5_filts data conv1 norm1 pool1 conv2 norm2 pool2 conv3 conv4 conv5 pool5 fc6-conv_biases fc6-conv_filts fc6 fc7-conv_biases fc7-conv_filts fc7 fc8-conv_biases fc8-conv_filts fc8
+***ALL IS WELL***

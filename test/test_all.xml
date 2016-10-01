@@ -3,4 +3,5 @@
   <li mode="test_lexp"/>
   <li mode="test_nesi"/>
   <li mode="test_cmds"/>
+  <li mode="test_cmds" xml_fn="gen_test_compute_tests.xml" />
 </root>
