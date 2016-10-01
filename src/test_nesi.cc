@@ -507,6 +507,8 @@ namespace boda
     }
   }
 
+  void gen_test_compute_tests( p_ostream & out ); // from test_compute.cc
+
   extern tinfo_t tinfo_p_cmd_test_t;
   struct test_cmds_t : public test_run_t, public virtual nesi, public has_main_t // NESI(help="test of modes in various configurations", bases=["has_main_t"], type_id="test_cmds" )
   {
@@ -634,6 +636,8 @@ namespace boda
       regex filt_regex( filt );
       // note: cmd tests should not fail nesi init (otherwise they should be nesi init tests).
       pugi::xml_document doc;
+      // HACK/FIXME: if this special filename is used (re-)generate the contents (in the current dir)
+      if( xml_fn.exp == "gen_test_compute_tests.xml" ) { p_ostream out = ofs_open( xml_fn.exp ); gen_test_compute_tests( out ); }
       pugi::xml_node xn = xml_file_get_root( doc, xml_fn.exp );
       tix = 0;
       for( pugi::xml_node xn_i: xn.children() ) { 

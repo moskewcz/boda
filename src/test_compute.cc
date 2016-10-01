@@ -239,7 +239,6 @@ namespace boda
     uint32_t cmp_digests; //NESI(default="0",help="if non-zero, compare nda digests for cf1 and cf2" )
     uint32_t write_digests; //NESI(default="0",help="if non-zero, write nda digests for cf1 and cf2" )
     filename_t digest_fn; //NESI(default="%(boda_output_dir)/digest-%%s.boda",help="output: binary stream of digests of all ndas. %%s will be replaced with the engine backend index (i.e. '1' or '2')")
-    double cf1_digest_self_mrd_toler; //NESI(default="0.0",help="maximum maximum-absolute-difference over which a failure is declared (cf1 digest self-cmp case only)")
 
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
@@ -266,17 +265,9 @@ namespace boda
                            str(cf.size()).c_str(), str(cfn.size()).c_str() ) );
       }
       uint32_t const num_cf = cf.size();
-      for( uint32_t i = 0; i != num_cf; ++i ) { cf[i]->init( run_cnet->conv_pipe ); }
-
-#if 0      
-      // FIXME/HACK: for now, set tolerance for caffe + bck runs (presuming usage of non-deterministic cuDNN)
-      if( (cf1->mode == "caffe") && (run_cnet->add_bck_ops == 1) ) { cf1_digest_self_mrd_toler = 5e-5; }
-
-      printf( "\n*this=%s\n", str(*this).c_str() );
-      printf( "run_cnet=%s\n", str(run_cnet).c_str() );
-      if( cf1 ) { printf( "cf1=%s\n", str(*cf1).c_str() ); }
-      if( cf2 ) { printf( "cf2=%s\n", str(*cf2).c_str() ); }
-#endif
+      for( uint32_t i = 0; i != num_cf; ++i ) { 
+        cf[i]->init( run_cnet->conv_pipe ); 
+      }
 
       if( write_digests ) {
         for( uint32_t i = 0; i != num_cf; ++i ) { 
@@ -373,6 +364,8 @@ namespace boda
         vect_p_nda_digest_t digest;
         for( uint32_t i = 0; i < num_cf; ++i ) { 
           digest.push_back( nda_digest_t::make_from_nda( must_find( *fwd[i], *tn ), digest_seed ) );
+          // FIXME/HACK: for now, set tolerance for caffe + bck runs (presuming usage of non-deterministic cuDNN)
+          if( ( cf[i]->mode == "caffe" ) && (run_cnet->add_bck_ops == 1) ) { digest[i]->self_cmp_mrd = 5e-5; }
           if( show_digests ) { printf( "%s '%s' digest_str=%s\n", str(*tn).c_str(), cfn[i].c_str(), digest[i]->get_digest().c_str() ); }
           if( write_digests ) { 
             bwrite_id( *digest_outs[i], *tn ); 
@@ -388,67 +381,74 @@ namespace boda
     }
   };
 
+  void gen_test_compute_tests( p_ostream & out ) {
+    (*out) << "<root>\n";
+    string input_cfg = "--wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)'";
+    vect_pair_str_str model_cfgs = {
+      {"alexnet","--model-name=alexnet_ng_conv --run-cnet='(in_dims=(img=20))'"},
+      // note: mutated version just moves a ReLU after a norm, so there is a non-fused relu
+      {"alexnet_mutated","--model-name=alexnet_ng_conv_mutated_for_testing --run-cnet='(in_dims=(img=20))'"}, 
+      {"nin","--model-name=nin_imagenet --run-cnet='(in_dims=(img=20,y=227,x=227))'"},
+      {"goog","--model-name=googlenet_conv --run-cnet='(in_dims=(img=20,y=227,x=227))'"},
+      // grad tests
+      {"grad_goog","--model-name=googlenet_conv --run-cnet='(in_dims=(img=5,y=227,x=227),add_bck_ops=1)'"},
+      {"grad_nin","--model-name=nin_imagenet --run-cnet='(in_dims=(img=1),add_bck_ops=1)'"},
+      {"grad_alexnet_nd_nl","--model-name=alexnet_ng_conv_nd_nl --run-cnet='(in_dims=(img=1),add_bck_ops=1)' --var-mrd-toler='(conv3=6e-4)'"},
+      {"grad_alexnet","--model-name=alexnet_ng_conv --run-cnet='(in_dims=(img=1),add_bck_ops=1)'"},
+      {"grad_firenet","--model-name=firenet8-CE-0.125-nofinalpad --run-cnet='(in_dims=(img=3))'"},
+      {"grad_bconv_strides","--model-name=bconv_strides_1 --run-cnet='(in_dims=(img=1),add_bck_ops=1)'"}
+    };
+      
+    vect_pair_str_str run_cfgs;
+    if( is_feature_enabled("caffe") ) { run_cfgs.push_back( {"caffe","mode=caffe"} ); }
+    if( is_feature_enabled("nvrtc") ) { run_cfgs.push_back( {"rtc_nvrtc","mode=rtc,rtc=(be=nvrtc)"} ); }
+    if( is_feature_enabled("opencl") ) { run_cfgs.push_back( {"rtc_ocl","mode=rtc,rtc=(be=ocl)"} ); }
 
+    string const rtc_opt = ",op_tune=(k1conv=1,tconv=1),enable_write_xpose=1"; // for rtc mode; orig. tests only for rtc+nvrtc submode
+    string const rtc_bconv = ",enable_bconv=1"; // for rtc mode, enables optimized bck ops
+      
+    // for now, we only handle one input cfg, but that would be easy to change
+    string const test_cli = "boda test_compute_multi --write-digests=1 --cmp-digests=1 " + input_cfg;
+    for( vect_pair_str_str::const_iterator i = model_cfgs.begin(); i != model_cfgs.end(); ++i ) {
+      string const tn_i = i->first;
+      string tc_i = test_cli + " " + i->second;
+      vect_pair_str_str cfs;
+      for( vect_pair_str_str::iterator j = run_cfgs.begin(); j != run_cfgs.end(); ++j ) {
+        if( !startswith( i->first, "grad_" ) ) { // for non-grad (i.e. regular fwd) tests, do reg and opt (rtc only) tests
+          cfs.push_back( *j );
+          if( startswith( j->first, "rtc_" ) ) { cfs.push_back( {j->first + "_opt", j->second + rtc_opt} ); }
+        } else { // for grad tests, do opt and opt+bconv tests for rtc, just reg for caffe
+          if( startswith( j->first, "rtc_" ) ) { 
+            cfs.push_back( {j->first + "_opt", j->second + rtc_opt } ); 
+            cfs.push_back( {j->first + "_opt_bconv", j->second + rtc_bconv } ); 
+          } else {
+            cfs.push_back( *j ); 
+          }
+        }
+      }
+      tc_i += " --cfn='(";
+      for( vect_pair_str_str::const_iterator i = cfs.begin(); i != cfs.end(); ++i ) { tc_i += ((i==cfs.begin())?"_=":",_=") + i->first; }
+      tc_i += ")'";
+      tc_i += " --cf='(";
+      for( vect_pair_str_str::const_iterator i = cfs.begin(); i != cfs.end(); ++i ) { tc_i += ((i==cfs.begin())?"_=(":",_=(") + i->second + ")"; }
+      tc_i += ")'";
+      (*out) << strprintf( "<li test_name=\"%s\" cli_str=\"%s\" />\n", str(tn_i).c_str(), str(tc_i).c_str() );
+    }
+// "--cf2=(mode=rtc,quantize=(li_0=(name=conv1,max_val=1024,keep_bits=9)),op_tune=(tconv_max_ksz=11 11))" // quantize
+// "--cf2=(mode=rtc,enable_stats=1,op_tune=(tconv_max_ksz=11 11))" // stats
+    (*out) << "</root>\n";                                
+  }
+
+  // normally, the output of this mode is generated automatically by a magic filename-based hack in
+  // test_cmds_t. however, this mode is provided as a way to generate the file without going though test_cmds_t ...
   struct gen_test_compute_tests_t : virtual public nesi, public has_main_t // NESI( help="generate list of test_compute tests",
 			// bases=["has_main_t"], type_id="gen_test_compute_tests")
   {
+    filename_t out_fn; //NESI(default="gen_test_compute_tests.xml",help="output: xml list of tests.")
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
     virtual void main( nesi_init_arg_t * nia ) {
-      string input_cfg = "--wins-per-image=1 --imgs='(pil_fn=%(boda_test_dir)/pascal/head_1/%%s.txt)'";
-      vect_pair_str_str model_cfgs = {
-        {"alexnet","--model-name=alexnet_ng_conv --run-cnet='(in_dims=(img=20))'"},
-        // note: mutated version just moves a ReLU after a norm, so there is a non-fused relu
-        {"alexnet_mutated","--model-name=alexnet_ng_conv_mutated_for_testing --run-cnet='(in_dims=(img=20))'"}, 
-        {"nin","--model-name=nin_imagenet --run-cnet='(in_dims=(img=20,y=227,x=227))'"},
-        {"goog","--model-name=googlenet_conv --run-cnet='(in_dims=(img=20,y=227,x=227))'"},
-        // grad tests
-        {"grad_goog","--model-name=googlenet_conv --run-cnet='(in_dims=(img=5,y=227,x=227),add_bck_ops=1)'"},
-        {"grad_nin","--model-name=nin_imagenet --run-cnet='(in_dims=(img=1),add_bck_ops=1)'"},
-        {"grad_alenet_nd_nl","--model-name=alexnet_ng_conv_nd_nl --run-cnet='(in_dims=(img=1),add_bck_ops=1)'"},
-        {"grad_alexnet","--model-name=alexnet_ng_conv --run-cnet='(in_dims=(img=1),add_bck_ops=1)'"},
-        {"grad_firenet","--model-name=firenet8-CE-0.125-nofinalpad --run-cnet='(in_dims=(img=3))'"},
-        {"grad_bconv_strides","--model-name=bconv_strides_1 --run-cnet='(in_dims=(img=1),add_bck_ops=1)'"}
-      };
-      
-      vect_pair_str_str run_cfgs;
-      if( is_feature_enabled("caffe") ) { run_cfgs.push_back( {"caffe","mode=caffe"} ); }
-      if( is_feature_enabled("nvrtc") ) { run_cfgs.push_back( {"rtc_nvrtc","mode=rtc,rtc=(be=nvrtc)"} ); }
-      if( is_feature_enabled("opencl") ) { run_cfgs.push_back( {"rtc_ocl","mode=rtc,rtc=(be=ocl)"} ); }
-
-      string const rtc_opt = ",op_tune=(k1conv=1,tconv=1),enable_write_xpose=1"; // for rtc mode; orig. tests only for rtc+nvrtc submode
-      string const rtc_bconv = ",enable_bconv=1"; // for rtc mode, enables optimized bck ops
-      
-      // for now, we only handle one input cfg, but that would be easy to change
-      string const test_cli = "boda test_compute_multi " + input_cfg;
-      for( vect_pair_str_str::const_iterator i = model_cfgs.begin(); i != model_cfgs.end(); ++i ) {
-        string const tn_i = i->first;
-        string tc_i = test_cli + " " + i->second;
-        vect_pair_str_str cfs;
-        for( vect_pair_str_str::iterator j = run_cfgs.begin(); j != run_cfgs.end(); ++j ) {
-          if( !startswith( i->first, "grad_" ) ) { // for non-grad (i.e. regular fwd) tests, do reg and opt (rtc only) tests
-            cfs.push_back( *j );
-            if( startswith( j->first, "rtc_" ) ) { cfs.push_back( {j->first + "_opt", j->second + rtc_opt} ); }
-          } else { // for grad tests, do opt and opt+bconv tests for rtc, just reg for caffe
-            if( startswith( j->first, "rtc_" ) ) { 
-              cfs.push_back( {j->first + "_opt", j->second + rtc_opt } ); 
-              cfs.push_back( {j->first + "_opt_bconv", j->second + rtc_bconv } ); 
-            } else {
-              cfs.push_back( *j ); 
-            }
-          }
-        }
-        tc_i += " --cfn='(";
-        for( vect_pair_str_str::const_iterator i = cfs.begin(); i != cfs.end(); ++i ) { tc_i += ((i==cfs.begin())?"_=":",_=") + i->first; }
-        tc_i += ")'";
-        tc_i += " --cf='(";
-        for( vect_pair_str_str::const_iterator i = cfs.begin(); i != cfs.end(); ++i ) { tc_i += ((i==cfs.begin())?"_=(":",_=(") + i->second + ")"; }
-        tc_i += ")'";
-        printf( "tn_i=%s\n%s\n\n", str(tn_i).c_str(), str(tc_i).c_str() );
-      }
-// "--cf2=(mode=rtc,quantize=(li_0=(name=conv1,max_val=1024,keep_bits=9)),op_tune=(tconv_max_ksz=11 11))" // quantize
-// "--cf2=(mode=rtc,enable_stats=1,op_tune=(tconv_max_ksz=11 11))" // stats
-
-                                
+      p_ostream out = ofs_open( out_fn.exp );
+      gen_test_compute_tests( out );
     }
   };
 
