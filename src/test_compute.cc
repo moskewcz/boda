@@ -55,12 +55,6 @@ namespace boda
     filename_t digest_fn; //NESI(default="%(boda_output_dir)/digest-%%s.boda",help="output: binary stream of digests of all ndas. %%s will be replaced with the engine backend index (i.e. '1' or '2')")
     double cf1_digest_self_mrd_toler; //NESI(default="0.0",help="maximum maximum-absolute-difference over which a failure is declared (cf1 digest self-cmp case only)")
 
-    void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
-      rc->conv_pipe->dump_pipe( *out );
-      rc->conv_pipe->dump_ios( *out );
-      rc->conv_pipe->dump_ops( *out );
-    }
-
     p_ostream out;
 
     p_ostream digest_out1;
@@ -97,7 +91,6 @@ namespace boda
         if( cf2 ) { digest_out2 = ofs_open( strprintf( digest_fn.exp.c_str(), str(uint32_t(2)).c_str() ) );
           bwrite( *digest_out2, boda_magic ); }
       }
-      //dump_pipe_and_ios( run_cnet );
       
       boost::random::mt19937 gen;
       num_mad_fail = 0;
@@ -210,6 +203,192 @@ namespace boda
   };
 
 
+  struct test_compute_multi_t : virtual public nesi, public has_main_t // NESI( help="comparison test 2 CNN computation methods",
+			// bases=["has_main_t"], type_id="test_compute_multi")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/test_compute.txt",help="output: text summary of differences between computations.")
+    // FIXME: currently, we always just use one single image from pascal. this is certainly not ideal ...
+    uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
+    p_load_pil_t imgs;//NESI(default="()")
+
+    p_run_cnet_t run_cnet; //NESI(help="CNN model params")
+
+    // FIXME: we should use a map_str_p_has_conv_fwd_t here, but NESI doesn't support that yet. might work with manual typedef initally?
+    vect_p_has_conv_fwd_t cf; //NESI(help="a compute backed to use")
+    vect_string cfn; //NESI(help="name of compute backed (must use same # of --cf and --cfn options")
+
+    // FIXME: not used in automated tests, but maybe useful? keep/improve/remove?
+    uint32_t tpd; //NESI(default="0",help="if non-zero, use test-pattern data. 1 == const, 2 == const + x co-ord")
+    u32_pt_t tpd_in_sz; //NESI(default="15 15",help="x,y size of test-pattern data to use")
+    double tpd_const; //NESI(default="1.0",help="test-pattern data constant offset")
+
+    uint32_t diff_show_mrd_only; //NESI(default="0",help="if 1, print only MAD for diffs, not full sds_diff_t. usefull for making test outputs for 'pseudo-failure' consistent (such as quantization tests where specific numerical errors are expected.")
+    double mrd_toler; //NESI(default="5e-4",help="maximum maximum-absolute-difference over which a failure is declared")
+    map_str_double var_mrd_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mrd_toler per-layer if specified")
+
+    uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
+
+    p_img_t in_img;
+
+    uint32_t num_mad_fail;
+
+    vect_string tops; //NESI(help="vars to check")
+
+    uint32_t show_digests; //NESI(default="0",help="if non-zero, show nda digests for cf1" )
+    uint32_t cmp_digests; //NESI(default="0",help="if non-zero, compare nda digests for cf1 and cf2" )
+    uint32_t write_digests; //NESI(default="0",help="if non-zero, write nda digests for cf1 and cf2" )
+    filename_t digest_fn; //NESI(default="%(boda_output_dir)/digest-%%s.boda",help="output: binary stream of digests of all ndas. %%s will be replaced with the engine backend index (i.e. '1' or '2')")
+    double cf1_digest_self_mrd_toler; //NESI(default="0.0",help="maximum maximum-absolute-difference over which a failure is declared (cf1 digest self-cmp case only)")
+
+    void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
+      rc->conv_pipe->dump_pipe( *out );
+      rc->conv_pipe->dump_ios( *out );
+      rc->conv_pipe->dump_ops( *out );
+    }
+
+    p_ostream out;
+    vect_p_ostream digest_outs;
+
+    virtual void main( nesi_init_arg_t * nia ) {
+      out = ofs_open( out_fn.exp );
+      //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
+      if( tpd ) { run_cnet->in_dims["y"] = tpd_in_sz.d[1]; run_cnet->in_dims["x"] = tpd_in_sz.d[0]; }
+      run_cnet->setup_cnet(); 
+
+      if( !tpd ) { 
+	imgs->load_img_db( 1 ); 
+	in_img = make_p_img_t( run_cnet->conv_pipe->get_data_img_xy_dims_3_chans_only() ); 
+	in_img->fill_with_pel( u32_rgba_inmc ); 
+      }
+      if( cf.size() != cfn.size() ) { 
+        rt_err( strprintf( "error: must have one cfn (name) per cf; had cf.size()=%s cfn.size()=%s\n", 
+                           str(cf.size()).c_str(), str(cfn.size()).c_str() ) );
+      }
+      uint32_t const num_cf = cf.size();
+      for( uint32_t i = 0; i != num_cf; ++i ) { cf[i]->init( run_cnet->conv_pipe ); }
+
+#if 0      
+      // FIXME/HACK: for now, set tolerance for caffe + bck runs (presuming usage of non-deterministic cuDNN)
+      if( (cf1->mode == "caffe") && (run_cnet->add_bck_ops == 1) ) { cf1_digest_self_mrd_toler = 5e-5; }
+
+      printf( "\n*this=%s\n", str(*this).c_str() );
+      printf( "run_cnet=%s\n", str(run_cnet).c_str() );
+      if( cf1 ) { printf( "cf1=%s\n", str(*cf1).c_str() ); }
+      if( cf2 ) { printf( "cf2=%s\n", str(*cf2).c_str() ); }
+#endif
+
+      if( write_digests ) {
+        for( uint32_t i = 0; i != num_cf; ++i ) { 
+          p_ostream digest_out = ofs_open( strprintf( digest_fn.exp.c_str(), cfn[i].c_str() ) );
+          bwrite( *digest_out, boda_magic );
+          digest_outs.push_back( digest_out );
+        }
+        assert_st( digest_outs.size() == cf.size() );
+      }
+      
+      boost::random::mt19937 gen;
+      num_mad_fail = 0;
+      uint32_t tot_wins = 0;
+      if( tpd ) {
+	make_tpd_batch( run_cnet->in_batch );
+	comp_batch();
+      } else {
+	for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
+	  (*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
+	  for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
+	    if( !(*i)->img->sz.both_dims_ge( in_img->sz ) ) { 
+	      // img too small to sample. use whole image
+	      copy_win_to_batch( (*i)->img, u32_pt_t() );
+	    } else {
+	      u32_pt_t const samp_nc_max = (*i)->img->sz - in_img->sz;
+	      u32_pt_t const samp_nc = random_pt( samp_nc_max, gen );
+	      copy_win_to_batch( (*i)->img, samp_nc );
+	    }
+	    ++tot_wins;
+	    // FIXME: make seed be tot_wins * size_of_image * images_per_batch or the like?
+            for( uint32_t i = 0; i != num_cf; ++i ) { cf[i]->set_det_drop_seed( tot_wins ); }
+	    comp_batch();
+	  }
+	}
+      }
+      // FIXME: delimit the two info logs somehow? but if they are empty, we don't want to output clutter ...
+      for( uint32_t i = 0; i != num_cf; ++i ) { (*out) << cf[i]->get_info_log(); }
+      if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
+      else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
+      out.reset();
+      if( write_digests ) { for( uint32_t i = 0; i != num_cf; ++i ) { bwrite( *digest_outs[i], string("END_BODA") ); } }
+    }
+    void make_tpd_batch( p_nda_float_t const & in_batch ) {
+      dims_t const & ibd = in_batch->dims;
+      assert_st( 3 == ibd.dims(1) );
+      for( uint32_t img_ix = 0; img_ix != ibd.dims(0); ++img_ix ) {
+	for( uint32_t y = 0; y < ibd.dims(2); ++y ) {
+	  for( uint32_t x = 0; x < ibd.dims(3); ++x ) {
+	    for( uint32_t c = 0; c < 3; ++c ) {
+	      float val = tpd_const;
+	      if( tpd == 2 ) { val += x; }
+	      if( tpd == 3 ) { val += y; }
+	      else if( tpd == 4 ) { 
+		if( (x==ibd.dims(2)/2) && (y==ibd.dims(3)/2) ) { val += 1.0f; }
+	      }
+	      // note: RGB -> BGR swap via the '2-c' below
+	      in_batch->at4( img_ix, 2-c, y, x ) = val;
+	    }
+	  }
+	}
+      }
+    }
+    void copy_win_to_batch( p_img_t const & img, u32_pt_t const & nc ) {
+      // run net on just sample area
+      img_copy_to_clip( img.get(), in_img.get(), {}, nc );
+      for( uint32_t i = 0; i != run_cnet->in_batch->dims.dims(0); ++i ) {
+	subtract_mean_and_copy_img_to_batch( run_cnet->in_batch, i, in_img );
+      }
+    }
+    void comp_batch( void ) {
+      uint32_t const num_cf = cf.size();
+      vect_p_map_str_p_nda_float_t fwd;
+      vect_vect_string to_set_vns;
+      if( tops.empty() ) {
+	string const & onn = run_cnet->conv_pipe->out_node_name;
+	if( !onn.empty() ) { tops.push_back( onn ); } 
+	else { run_cnet->conv_pipe->get_topo_order_caffe_comp_nodes( tops ); }
+      }
+      for( uint32_t i = 0; i != num_cf; ++i ) { 
+        fwd.push_back( make_shared<map_str_p_nda_float_t>() ); 
+        to_set_vns.push_back( vect_string() );
+        run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd[i], to_set_vns[i] );
+        cf[i]->run_fwd( to_set_vns[i], fwd[i], tops );
+      }
+      for( uint32_t i = 1; i < num_cf; ++i ) {  // compare cf[0] against others (i.e. cf[1:])
+	comp_vars( out.get(), num_mad_fail,
+		   mrd_toler, &var_mrd_toler,
+		   diff_show_mrd_only, max_err, 
+		   tops, fwd[0], fwd[i] );
+      }
+      for( vect_string::const_iterator tn = tops.begin(); tn != tops.end(); ++tn ) {
+        double vmt = get( var_mrd_toler, *tn, mrd_toler );
+        size_t const digest_seed = std::hash<string>()(*tn);
+        vect_p_nda_digest_t digest;
+        for( uint32_t i = 0; i < num_cf; ++i ) { 
+          digest.push_back( nda_digest_t::make_from_nda( must_find( *fwd[i], *tn ), digest_seed ) );
+          if( show_digests ) { printf( "%s '%s' digest_str=%s\n", str(*tn).c_str(), cfn[i].c_str(), digest[i]->get_digest().c_str() ); }
+          if( write_digests ) { 
+            bwrite_id( *digest_outs[i], *tn ); 
+            bwrite( *digest_outs[i], string("p_nda_digest_t") ); 
+            bwrite( *digest_outs[i], digest[i] ); 
+          }
+          if( i > 0 ) { // compare digest[0] against others (i.e. digest[1:])
+            string const comp_res = digest[0]->mrd_comp( digest[i], vmt );
+            if( !comp_res.empty() ) { (*out) << (*tn) + " digest mrd_comp() failure '"+cfn[0]+"' vs '"+cfn[i]+"':\n" + comp_res + "\n"; } 
+          }
+        }
+      }
+    }
+  };
+
+
   struct gen_test_compute_tests_t : virtual public nesi, public has_main_t // NESI( help="generate list of test_compute tests",
 			// bases=["has_main_t"], type_id="gen_test_compute_tests")
   {
@@ -240,26 +419,31 @@ namespace boda
       string const rtc_bconv = ",enable_bconv=1"; // for rtc mode, enables optimized bck ops
       
       // for now, we only handle one input cfg, but that would be easy to change
-      string const test_cli = "test_compute " + input_cfg;
+      string const test_cli = "boda test_compute_multi " + input_cfg;
       for( vect_pair_str_str::const_iterator i = model_cfgs.begin(); i != model_cfgs.end(); ++i ) {
         string const tn_i = i->first;
-        string const tc_i = test_cli + " " + i->second;
-        vect_string cfs;
+        string tc_i = test_cli + " " + i->second;
+        vect_pair_str_str cfs;
         for( vect_pair_str_str::iterator j = run_cfgs.begin(); j != run_cfgs.end(); ++j ) {
-          string const tn_j = tn_i + "_" + j->first;
           if( !startswith( i->first, "grad_" ) ) { // for non-grad (i.e. regular fwd) tests, do reg and opt (rtc only) tests
-            cfs.push_back( j->second );
-            if( startswith( j->first, "rtc_" ) ) { cfs.push_back( j->second + rtc_opt ); }
+            cfs.push_back( *j );
+            if( startswith( j->first, "rtc_" ) ) { cfs.push_back( {j->first + "_opt", j->second + rtc_opt} ); }
           } else { // for grad tests, do opt and opt+bconv tests for rtc, just reg for caffe
             if( startswith( j->first, "rtc_" ) ) { 
-              cfs.push_back( j->second + rtc_opt ); 
-              cfs.push_back( j->second + rtc_bconv ); 
+              cfs.push_back( {j->first + "_opt", j->second + rtc_opt } ); 
+              cfs.push_back( {j->first + "_opt_bconv", j->second + rtc_bconv } ); 
             } else {
-              cfs.push_back( j->second ); 
+              cfs.push_back( *j ); 
             }
           }
         }
-        printf( "tn_i=%s cfs=%s\n", str(tn_i).c_str(), str(cfs).c_str() );
+        tc_i += " --cfn='(";
+        for( vect_pair_str_str::const_iterator i = cfs.begin(); i != cfs.end(); ++i ) { tc_i += ((i==cfs.begin())?"_=":",_=") + i->first; }
+        tc_i += ")'";
+        tc_i += " --cf='(";
+        for( vect_pair_str_str::const_iterator i = cfs.begin(); i != cfs.end(); ++i ) { tc_i += ((i==cfs.begin())?"_=(":",_=(") + i->second + ")"; }
+        tc_i += ")'";
+        printf( "tn_i=%s\n%s\n\n", str(tn_i).c_str(), str(tc_i).c_str() );
       }
 // "--cf2=(mode=rtc,quantize=(li_0=(name=conv1,max_val=1024,keep_bits=9)),op_tune=(tconv_max_ksz=11 11))" // quantize
 // "--cf2=(mode=rtc,enable_stats=1,op_tune=(tconv_max_ksz=11 11))" // stats

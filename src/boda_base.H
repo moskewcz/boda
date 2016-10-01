@@ -195,6 +195,8 @@ namespace boda
   p_ifstream ifs_open( string const & fn );
   p_ifstream ifs_open( filename_t const & fn );
   typedef shared_ptr< std::ostream > p_ostream;
+  typedef vector< p_ostream > vect_p_ostream;
+
   bool ifs_getline( std::string const &fn, p_ifstream in, std::string & line );
   p_ostream ofs_open( filename_t const & fn );
   p_ostream ofs_open( string const & fn );
@@ -932,6 +934,7 @@ namespace boda
   typedef vector< p_nda_double_t > vect_p_nda_double_t;
   typedef map< string, p_nda_float_t > map_str_p_nda_float_t;
   typedef shared_ptr< map_str_p_nda_float_t > p_map_str_p_nda_float_t;
+  typedef vector< p_map_str_p_nda_float_t > vect_p_map_str_p_nda_float_t;
   typedef map< string, p_vect_p_nda_float_t > map_str_p_vect_p_nda_float_t;
   typedef shared_ptr< map_str_p_vect_p_nda_float_t > p_map_str_p_vect_p_nda_float_t;
 
@@ -976,7 +979,9 @@ namespace boda
 
   // create a digest of an NDA designed to be compact (like a hash) and insensitive (only) to small relative per-element
   // changes (like LSH)
-  struct nda_digest_t; typedef shared_ptr< nda_digest_t > p_nda_digest_t;   
+  struct nda_digest_t; typedef shared_ptr< nda_digest_t > p_nda_digest_t;
+  typedef vector< p_nda_digest_t > vect_p_nda_digest_t;
+
   struct nda_digest_t {
     // when comparing this nda_digest_t against 'itself' (the digest of the an nda generated in the same exact way),
     // we'd normally expect both the nda and thus the digest to be identical. however, sometimes we're using a

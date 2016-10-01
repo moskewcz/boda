@@ -11,6 +11,7 @@ namespace caffe { class NetParameter; class NetState; }
 namespace boda 
 {
   struct has_conv_fwd_t; typedef shared_ptr< has_conv_fwd_t > p_has_conv_fwd_t; 
+  typedef vector< p_has_conv_fwd_t > vect_p_has_conv_fwd_t;
   typedef caffe::NetParameter net_param_t;
   typedef shared_ptr< net_param_t > p_net_param_t;
   typedef caffe::NetState net_state_t;
