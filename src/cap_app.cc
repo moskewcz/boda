@@ -257,6 +257,7 @@ namespace boda
     // FIXME: needs to use timer / subject to epoll() bug ...
     p_capture_t capture; //NESI(default="()",help="capture from camera options")    
     p_cnet_predict_t cnet_predict; //NESI(default="()",help="cnet running options")    
+    p_filename_t img_in_fn; //NESI(help="optional: if specified, use as filename for single input image instead of using camera")
     p_asio_fd_t cap_afd;
     disp_win_t disp_win;
     p_img_t in_img;
@@ -275,13 +276,20 @@ namespace boda
       cnet_predict->setup_predict(); 
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( cnet_predict->conv_pipe->get_data_img_xy_dims_3_chans_only() );
-
-      capture->cap_start();
       disp_win.disp_setup( in_img );
-
       io_service_t & io = get_io( &disp_win );
-      cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
-      setup_capture_on_read( *cap_afd, &capture_classify_t::on_cap_read, this );
+      if( img_in_fn ) { // single static image as input
+        p_img_t file_img = make_shared< img_t >();
+        file_img->load_fn( img_in_fn->exp ); 
+        p_img_t ds_img = resample_to_size( file_img, in_img->sz );
+        in_img->share_pels_from( ds_img );
+        disp_win.update_img_annos( 0, cnet_predict->do_predict( in_img, 0 ) );
+        disp_win.update_disp_imgs();
+      } else { // from camera
+        capture->cap_start();
+        cap_afd.reset( new asio_fd_t( io, ::dup(capture->get_fd() ) ) );
+        setup_capture_on_read( *cap_afd, &capture_classify_t::on_cap_read, this );
+      }
       io.run();
     }
   };
