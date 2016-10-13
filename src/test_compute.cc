@@ -352,7 +352,7 @@ namespace boda
         run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd[i], to_set_vns[i] );
         cf[i]->run_fwd( to_set_vns[i], fwd[i], tops );
       }
-      for( uint32_t i = 1; i < num_cf; ++i ) {  // compare cf[0] against others (i.e. cf[1:])
+      for( uint32_t i = 0; i < num_cf; ++i ) {  // compare cf[0] against others (i.e. cf[1:])
         (*outs[i]) << strprintf( "vars_to_compare: %s\n", str(tops).c_str() );
 	comp_vars( outs[i].get(), num_mad_fails[i],
 		   mrd_toler, &var_mrd_toler,
@@ -379,7 +379,7 @@ namespace boda
             bwrite( *digest_outs[i], digest[i] ); 
           }
           string const comp_res = kg_digest->mrd_comp( digest[i], vmt );
-          if( !comp_res.empty() ) { (*outs[i]) << (*tn) + " digest mrd_comp() failure '"+cfn[0]+"' vs '"+cfn[i]+"':\n" + comp_res + "\n";}
+          if( !comp_res.empty() ) { (*outs[i]) << (*tn) + " digest mrd_comp() failure '"+kg_digests_fn.in+"' vs '"+cfn[i]+"':\n" + comp_res + "\n";}
         }
       }
     }
