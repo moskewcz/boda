@@ -4,6 +4,10 @@
 #include"boda_base.H"
 
 namespace boda {
+  void read_and_check_boda_magic( std::istream & in );
+  void must_bread_string( std::istream & in, string const & s );
+  void must_bread_id( std::istream & in, string const & s );
+
   // two versions, since we have the usual c++ containers+inheritance problem that we can't cast from
   // p_map_str_p_nda_float_t to p_map_str_p_nda_t (legally, anyway)
   void comp_vars( std::ostream * const out, uint32_t & num_mad_fail,

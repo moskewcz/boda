@@ -3,6 +3,20 @@
 #include"str_util.H"
 
 namespace boda {
+  
+  void read_and_check_boda_magic( std::istream & in ) {
+    uint32_t maybe_boda_magic = 0;
+    bread( in, maybe_boda_magic );
+    if( maybe_boda_magic != boda_magic ) { rt_err( "error reading boda stream: boda_magic value 'BODA' not found as first 4 bytes" ); }
+  }
+
+  void must_bread_string( std::istream & in, string const & s ) {
+    string maybe_s;
+    bread( in, maybe_s );
+    if( s != maybe_s ) { rt_err( strprintf( "error reading boda stream: expecteded string '%s' but saw string '%s'", 
+                                            str(s).c_str(), str(maybe_s).c_str() ) ); }
+  }
+  void must_bread_id( std::istream & in, string const & s ) { must_bread_string( in, string("id") ); must_bread_string( in, s ); }
 
   void comp_vars( std::ostream * const out, uint32_t & num_mad_fail,
 		  double const mrd_toler, map_str_double const * const var_mrd_toler,

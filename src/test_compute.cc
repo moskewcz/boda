@@ -236,9 +236,11 @@ namespace boda
 
     vect_string tops; //NESI(help="vars to check")
 
-    uint32_t show_digests; //NESI(default="0",help="if non-zero, show nda digests for cf1" )
-    uint32_t cmp_digests; //NESI(default="0",help="if non-zero, compare nda digests for cf1 and cf2" )
-    uint32_t write_digests; //NESI(default="0",help="if non-zero, write nda digests for cf1 and cf2" )
+    filename_t kg_digests_fn; //NESI(help="input: known-good reference binary stream of digests of all ndas, to be compared against all digests created in this run. note that, in addition to this comparison, if this mode is run though test_cmds, all written digests will be compared against thier stored references. but when running a single backend not though test_cmds (i.e. for a new backend), this will be the only correctness test that can/will be performed, so it's important.",req=1)
+    p_istream kg_digests;
+
+    uint32_t show_digests; //NESI(default="0",help="if non-zero, show per-backend nda digests (for debugging only?)" )
+    uint32_t write_digests; //NESI(default="1",help="if non-zero, write per-backend nda digests" )
     filename_t digest_fn; //NESI(default="%(boda_output_dir)/digest-%%s.boda",help="output: binary stream of digests of all ndas. %%s will be replaced with the engine backend name (as specified by the --cfn=NAME options)")
 
     vect_p_ostream outs;
@@ -246,6 +248,8 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) {
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
+      kg_digests = ifs_open( kg_digests_fn.exp );
+      read_and_check_boda_magic( *kg_digests );
       if( tpd ) { run_cnet->in_dims["y"] = tpd_in_sz.d[1]; run_cnet->in_dims["x"] = tpd_in_sz.d[0]; }
       run_cnet->setup_cnet(); 
 
@@ -359,6 +363,11 @@ namespace boda
         double vmt = get( var_mrd_toler, *tn, mrd_toler );
         size_t const digest_seed = std::hash<string>()(*tn);
         vect_p_nda_digest_t digest;
+        must_bread_id( *kg_digests, *tn );
+        must_bread_string( *kg_digests, string("p_nda_digest_t") );
+	p_nda_digest_t kg_digest;
+	bread( *kg_digests, kg_digest );
+
         for( uint32_t i = 0; i < num_cf; ++i ) { 
           digest.push_back( nda_digest_t::make_from_nda( must_find( *fwd[i], *tn ), digest_seed ) );
           // FIXME/HACK: for now, set tolerance for caffe + bck runs (presuming usage of non-deterministic cuDNN)
@@ -369,10 +378,8 @@ namespace boda
             bwrite( *digest_outs[i], string("p_nda_digest_t") ); 
             bwrite( *digest_outs[i], digest[i] ); 
           }
-          if( i > 0 ) { // compare digest[0] against others (i.e. digest[1:])
-            string const comp_res = digest[0]->mrd_comp( digest[i], vmt );
-            if( !comp_res.empty() ) { (*outs[i]) << (*tn) + " digest mrd_comp() failure '"+cfn[0]+"' vs '"+cfn[i]+"':\n" + comp_res + "\n"; } 
-          }
+          string const comp_res = kg_digest->mrd_comp( digest[i], vmt );
+          if( !comp_res.empty() ) { (*outs[i]) << (*tn) + " digest mrd_comp() failure '"+cfn[0]+"' vs '"+cfn[i]+"':\n" + comp_res + "\n";}
         }
       }
     }
@@ -403,9 +410,9 @@ namespace boda
 
     string const rtc_opt = ",op_tune=(k1conv=1,tconv=1),enable_write_xpose=1"; // for rtc mode; orig. tests only for rtc+nvrtc submode
     string const rtc_bconv = ",enable_bconv=1"; // for rtc mode, enables optimized bck ops
-      
+    
     // for now, we only handle one input cfg, but that would be easy to change
-    string const test_cli = "boda test_compute_multi --write-digests=1 --cmp-digests=1 " + input_cfg;
+    string const test_cli = "boda test_compute_multi " + input_cfg;
     for( vect_pair_str_str::const_iterator i = model_cfgs.begin(); i != model_cfgs.end(); ++i ) {
       string const tn_i = i->first;
       string tc_i = test_cli + " " + i->second;
@@ -429,6 +436,10 @@ namespace boda
       tc_i += " --cf='(";
       for( vect_pair_str_str::const_iterator i = cfs.begin(); i != cfs.end(); ++i ) { tc_i += ((i==cfs.begin())?"_=(":",_=(") + i->second + ")"; }
       tc_i += ")'";
+      // for now, we assume/use the caffe-geenrated digests for this test as the known-good digest stream
+      string const kg_digests = " --kg-digests-fn=%(boda_test_dir)/good_tr/"+tn_i+"/digest-caffe.boda"; 
+      tc_i += kg_digests;
+
       (*out) << strprintf( "<li test_name=\"%s\" cli_str=\"%s\" />\n", str(tn_i).c_str(), str(tc_i).c_str() );
     }
 // "--cf2=(mode=rtc,quantize=(li_0=(name=conv1,max_val=1024,keep_bits=9)),op_tune=(tconv_max_ksz=11 11))" // quantize
