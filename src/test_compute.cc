@@ -236,7 +236,7 @@ namespace boda
 
     vect_string tops; //NESI(help="vars to check")
 
-    filename_t kg_digests_fn; //NESI(help="input: known-good reference binary stream of digests of all ndas, to be compared against all digests created in this run. note that, in addition to this comparison, if this mode is run though test_cmds, all written digests will be compared against thier stored references. but when running a single backend not though test_cmds (i.e. for a new backend), this will be the only correctness test that can/will be performed, so it's important.",req=1)
+    p_filename_t kg_digests_fn; //NESI(help="input: known-good reference binary stream of digests of all ndas, to be compared against all digests created in this run. note that, in addition to this comparison, if this mode is run though test_cmds, all written digests will be compared against thier stored references. but when running a single backend not though test_cmds (i.e. for a new backend), this will be the only correctness test that can/will be performed, so it's important.")
     p_istream kg_digests;
 
     uint32_t show_digests; //NESI(default="0",help="if non-zero, show per-backend nda digests (for debugging only?)" )
@@ -248,8 +248,10 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) {
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
-      kg_digests = ifs_open( kg_digests_fn.exp );
-      read_and_check_boda_magic( *kg_digests );
+      if( kg_digests_fn ) {
+        kg_digests = ifs_open( kg_digests_fn->exp );
+        read_and_check_boda_magic( *kg_digests );
+      }
       if( tpd ) { run_cnet->in_dims["y"] = tpd_in_sz.d[1]; run_cnet->in_dims["x"] = tpd_in_sz.d[0]; }
       run_cnet->setup_cnet(); 
 
@@ -363,10 +365,12 @@ namespace boda
         double vmt = get( var_mrd_toler, *tn, mrd_toler );
         size_t const digest_seed = std::hash<string>()(*tn);
         vect_p_nda_digest_t digest;
-        must_bread_id( *kg_digests, *tn );
-        must_bread_string( *kg_digests, string("p_nda_digest_t") );
 	p_nda_digest_t kg_digest;
-	bread( *kg_digests, kg_digest );
+        if( kg_digests ) { // skip if not availible, but complain (put message in output) about it. for first-runs, etc.
+          must_bread_id( *kg_digests, *tn );
+          must_bread_string( *kg_digests, string("p_nda_digest_t") );
+          bread( *kg_digests, kg_digest );
+        }
 
         for( uint32_t i = 0; i < num_cf; ++i ) { 
           digest.push_back( nda_digest_t::make_from_nda( must_find( *fwd[i], *tn ), digest_seed ) );
@@ -378,8 +382,12 @@ namespace boda
             bwrite( *digest_outs[i], string("p_nda_digest_t") ); 
             bwrite( *digest_outs[i], digest[i] ); 
           }
-          string const comp_res = kg_digest->mrd_comp( digest[i], vmt );
-          if( !comp_res.empty() ) { (*outs[i]) << (*tn) + " digest mrd_comp() failure '"+kg_digests_fn.in+"' vs '"+cfn[i]+"':\n" + comp_res + "\n";}
+          if( kg_digest ) {
+            string const comp_res = kg_digest->mrd_comp( digest[i], vmt );
+            if( !comp_res.empty() ) { (*outs[i]) << (*tn) + " digest mrd_comp() failure '"+kg_digests_fn->in+"' vs '"+cfn[i]+"':\n" + comp_res + "\n";}
+          } else {
+            (*outs[i]) << (*tn) + " digest mrd_comp() vs '"+cfn[i]+"' skipped, no known-good digest stream availible\n";
+          }
         }
       }
     }
