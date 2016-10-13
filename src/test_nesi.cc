@@ -42,6 +42,7 @@ namespace boda
     string test_name; //NESI(help="name of test",req=1)
     p_string needs; //NESI(help="comma-seperated list of boda feature names needed for this test. if not avail, will skip.")
     uint32_t slow; //NESI(default=0,help="is test slow to run (and thus disabled by default)?")
+    uint32_t ignore_missing_outputs; //NESI(default=0,help="if 1, don't treat missing outputs (aka file only in known-good) as failures (but still warn)")
     p_string err; //NESI(help="expected error (if any)")
     p_has_main_t command; //NESI(help="input")
     p_string cli_str; //NESI(help="cli-string-format command")
@@ -582,7 +583,8 @@ namespace boda
 	assert_st( is_directory( test_good_dir ) );
 	tgd_exists = 1; // in case we need to update, we'll need to remove first
 	// compare good and test directories
-	bool output_good = 1;
+	bool output_missing = 0;
+        bool output_new_or_diff = 0;
 	map_str_ziu32_t tags;
 	tag_dir_files( tags, test_good_dir, 0 );
 	tag_dir_files( tags, test_out_dir, 1 );
@@ -590,24 +592,29 @@ namespace boda
 	for( map_str_ziu32_t::const_iterator i = tags.begin(); i != tags.end(); ++i ) {
 	  uint32_t const & tv = i->second.v;
 	  if( tv == 1 ) { printf( "DIFF: file '%s' only in known-good output dir.\n", str(i->first).c_str()); 
-	    output_good = 0; continue; 
+	    output_missing = 1; continue; 
 	  }
 	  if( tv == 2 ) { printf( "DIFF: file '%s' only in under-test output dir.\n", str(i->first).c_str()); 
-	    output_good = 0; continue; 
+	    output_new_or_diff = 1; continue; 
 	  }
 	  assert_st( tv == 3 ); // file in both known-good an under-test output dirs
 	  if( diff_file( test_good_dir, test_out_dir, i->first ) ) { 
 	    printf( "DIFF: file '%s' differs between known-good(-) and under-test(+):\n", str(i->first).c_str()); 
-	    output_good = 0; continue; 
+	    output_new_or_diff = 1; continue; 
 	  }
 	}
-	if( !output_good ) {
+	if( output_missing || output_new_or_diff ) {
 	  if( update_failing ) { 
 	    printf("UPDATE-FAILING: test %s failed, will update.\n",cmd->test_name.c_str());
 	    update_tr = 1; 
 	  } else {
-	    printf("FAIL: test %s failed.\n",cmd->test_name.c_str());
-	    ++num_fail;
+            if( output_new_or_diff || (output_missing && (!cmd->ignore_missing_outputs) ) ) {
+              printf("FAIL: test %s failed.\n",cmd->test_name.c_str());
+              ++num_fail;
+            } else {
+              assert_st( output_missing && cmd->ignore_missing_outputs );
+              printf("WARNING: test %s missing some outputs, but ignore_missing_outputs=1: no failure.\n",cmd->test_name.c_str());
+            }
 	  }
 	}
       }	  

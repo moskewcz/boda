@@ -440,7 +440,7 @@ namespace boda
       string const kg_digests = " --kg-digests-fn=%(boda_test_dir)/good_tr/"+tn_i+"/digest-caffe.boda"; 
       tc_i += kg_digests;
 
-      (*out) << strprintf( "<li test_name=\"%s\" cli_str=\"%s\" />\n", str(tn_i).c_str(), str(tc_i).c_str() );
+      (*out) << strprintf( "<li ignore_missing_outputs=\"1\" test_name=\"%s\" cli_str=\"%s\" />\n", str(tn_i).c_str(), str(tc_i).c_str() );
     }
 // "--cf2=(mode=rtc,quantize=(li_0=(name=conv1,max_val=1024,keep_bits=9)),op_tune=(tconv_max_ksz=11 11))" // quantize
 // "--cf2=(mode=rtc,enable_stats=1,op_tune=(tconv_max_ksz=11 11))" // stats
