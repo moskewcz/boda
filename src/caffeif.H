@@ -49,8 +49,8 @@ namespace boda
     //" 3=label plus rank")
     uint32_t enable_upsamp_net; //NESI(default=0,help="if 1, create an extra internal net with internal 2X input upsampling.")
     uint32_t dump_rps; //NESI(default=0,help="if 1, dump region proposals for each feature pizel to 'rps.txt'.")
-    p_has_conv_fwd_t conv_fwd; //NESI(default="(mode=caffe)",help="fwd compute mode")
-    p_has_conv_fwd_t conv_fwd_upsamp; //NESI(default="(mode=caffe)",help="fwd compute mode (for upsampled net)")
+    p_has_conv_fwd_t conv_fwd; //NESI(default="(mode=rtc)",help="fwd compute mode")
+    p_has_conv_fwd_t conv_fwd_upsamp; //NESI(default="(mode=rtc)",help="fwd compute mode (for upsampled net)")
 
     uint32_t add_bck_ops; //NESI(default=0,help="if non-zero, add bck (aka backwards/backprop/gradients) operations.")
 
