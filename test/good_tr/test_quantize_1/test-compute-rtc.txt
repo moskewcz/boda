@@ -1,0 +1,3 @@
+(*i)->sz=353 500
+vars_to_compare: conv1
+***ALL IS WELL***
