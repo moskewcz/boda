@@ -1,0 +1,15 @@
+(*i)->sz=353 500
+vars_to_compare: cccp1_biases cccp1_filts cccp2_biases cccp2_filts cccp3_biases cccp3_filts cccp4_biases cccp4_filts cccp5_biases cccp5_filts cccp6_biases cccp6_filts cccp7-1024_biases cccp7-1024_filts cccp8-1024_biases cccp8-1024_filts conv1_biases conv1_filts conv2_biases conv2_filts conv3_biases conv3_filts conv4-1024_biases conv4-1024_filts data conv1 cccp1 cccp2 pool0 conv2 cccp3 cccp4 pool2 conv3 cccp5 cccp6 pool3 conv4 cccp7 cccp8 pool4
+cccp1: warning: size mismatch, can't compare: DIMS1[img=20:chan=96:y=55:x=55] DIMS2[blk=757:blk_iter=12:blk_iter_chan=8:blk_pel=80]
+cccp3: warning: size mismatch, can't compare: DIMS1[img=20:chan=256:y=27:x=27] DIMS2[blk=228:blk_iter=32:blk_iter_chan=8:blk_pel=64]
+cccp5: warning: size mismatch, can't compare: DIMS1[img=20:chan=384:y=13:x=13] DIMS2[blk=53:blk_iter=48:blk_iter_chan=8:blk_pel=64]
+cccp7: warning: size mismatch, can't compare: DIMS1[img=20:chan=1024:y=6:x=6] DIMS2[blk=12:blk_iter=128:blk_iter_chan=8:blk_pel=64]
+cccp1 digest mrd_comp() failure 'caffe' vs 'rtc_nvrtc_opt':
+nda_digest dims mismatch: v1.dims=(__tn__=float,img=20,chan=96,y=55,x=55) v2.dims=(__tn__=float,blk=757,blk_iter=12,blk_iter_chan=8,blk_pel=80)
+cccp3 digest mrd_comp() failure 'caffe' vs 'rtc_nvrtc_opt':
+nda_digest dims mismatch: v1.dims=(__tn__=float,img=20,chan=256,y=27,x=27) v2.dims=(__tn__=float,blk=228,blk_iter=32,blk_iter_chan=8,blk_pel=64)
+cccp5 digest mrd_comp() failure 'caffe' vs 'rtc_nvrtc_opt':
+nda_digest dims mismatch: v1.dims=(__tn__=float,img=20,chan=384,y=13,x=13) v2.dims=(__tn__=float,blk=53,blk_iter=48,blk_iter_chan=8,blk_pel=64)
+cccp7 digest mrd_comp() failure 'caffe' vs 'rtc_nvrtc_opt':
+nda_digest dims mismatch: v1.dims=(__tn__=float,img=20,chan=1024,y=6,x=6) v2.dims=(__tn__=float,blk=12,blk_iter=128,blk_iter_chan=8,blk_pel=64)
+***ALL IS WELL***

@@ -208,7 +208,7 @@ namespace boda
 			// bases=["has_main_t"], type_id="test_compute_multi")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    filename_t out_fn; //NESI(default="%(boda_output_dir)/test_compute.txt",help="output: text summary of differences between computations.")
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/test-compute-%%s.txt",help="output: per-backend text summary of differences between computations.")
     // FIXME: currently, we always just use one single image from pascal. this is certainly not ideal ...
     uint32_t wins_per_image; //NESI(default="10",help="number of random windows per image to test")
     p_load_pil_t imgs;//NESI(default="()")
@@ -232,7 +232,7 @@ namespace boda
 
     p_img_t in_img;
 
-    uint32_t num_mad_fail;
+    vect_uint32_t num_mad_fails;
 
     vect_string tops; //NESI(help="vars to check")
 
@@ -241,17 +241,10 @@ namespace boda
     uint32_t write_digests; //NESI(default="0",help="if non-zero, write nda digests for cf1 and cf2" )
     filename_t digest_fn; //NESI(default="%(boda_output_dir)/digest-%%s.boda",help="output: binary stream of digests of all ndas. %%s will be replaced with the engine backend name (as specified by the --cfn=NAME options)")
 
-    void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
-      rc->conv_pipe->dump_pipe( *out );
-      rc->conv_pipe->dump_ios( *out );
-      rc->conv_pipe->dump_ops( *out );
-    }
-
-    p_ostream out;
+    vect_p_ostream outs;
     vect_p_ostream digest_outs;
 
     virtual void main( nesi_init_arg_t * nia ) {
-      out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       if( tpd ) { run_cnet->in_dims["y"] = tpd_in_sz.d[1]; run_cnet->in_dims["x"] = tpd_in_sz.d[0]; }
       run_cnet->setup_cnet(); 
@@ -270,24 +263,26 @@ namespace boda
         cf[i]->init( run_cnet->conv_pipe ); 
       }
 
-      if( write_digests ) {
-        for( uint32_t i = 0; i != num_cf; ++i ) { 
+      for( uint32_t i = 0; i != num_cf; ++i ) { 
+        p_ostream out = ofs_open( strprintf( out_fn.exp.c_str(), cfn[i].c_str() ) );
+        outs.push_back( out );
+        if( write_digests ) {
           p_ostream digest_out = ofs_open( strprintf( digest_fn.exp.c_str(), cfn[i].c_str() ) );
           bwrite( *digest_out, boda_magic );
           digest_outs.push_back( digest_out );
         }
-        assert_st( digest_outs.size() == cf.size() );
       }
+      assert_st( digest_outs.size() == cf.size() );
       
       boost::random::mt19937 gen;
-      num_mad_fail = 0;
+      num_mad_fails.resize(num_cf,0);
       uint32_t tot_wins = 0;
       if( tpd ) {
 	make_tpd_batch( run_cnet->in_batch );
 	comp_batch();
       } else {
 	for( vect_p_img_info_t::const_iterator i = imgs->img_db->img_infos.begin(); i != imgs->img_db->img_infos.end(); ++i ) {
-	  (*out) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() );
+	  for( uint32_t cf = 0; cf != num_cf; ++cf ) { (*outs[cf]) << strprintf( "(*i)->sz=%s\n", str((*i)->img->sz).c_str() ); }
 	  for( uint32_t wix = 0; wix != wins_per_image; ++wix ) {
 	    if( !(*i)->img->sz.both_dims_ge( in_img->sz ) ) { 
 	      // img too small to sample. use whole image
@@ -304,12 +299,12 @@ namespace boda
 	  }
 	}
       }
-      // FIXME: delimit the two info logs somehow? but if they are empty, we don't want to output clutter ...
-      for( uint32_t i = 0; i != num_cf; ++i ) { (*out) << cf[i]->get_info_log(); }
-      if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
-      else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
-      out.reset();
-      if( write_digests ) { for( uint32_t i = 0; i != num_cf; ++i ) { bwrite( *digest_outs[i], string("END_BODA") ); } }
+      for( uint32_t i = 0; i != num_cf; ++i ) { 
+        (*outs[i]) << cf[i]->get_info_log(); 
+        if( !num_mad_fails[i] ) { (*outs[i]) << strprintf( "***ALL IS WELL***\n" ); }
+        else { (*outs[i]) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fails[i]).c_str() ); }
+        if( write_digests ) { bwrite( *digest_outs[i], string("END_BODA") ); }
+      }
     }
     void make_tpd_batch( p_nda_float_t const & in_batch ) {
       dims_t const & ibd = in_batch->dims;
@@ -353,9 +348,9 @@ namespace boda
         run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd[i], to_set_vns[i] );
         cf[i]->run_fwd( to_set_vns[i], fwd[i], tops );
       }
-      (*out) << strprintf( "vars_to_compare: %s\n", str(tops).c_str() );
       for( uint32_t i = 1; i < num_cf; ++i ) {  // compare cf[0] against others (i.e. cf[1:])
-	comp_vars( out.get(), num_mad_fail,
+        (*outs[i]) << strprintf( "vars_to_compare: %s\n", str(tops).c_str() );
+	comp_vars( outs[i].get(), num_mad_fails[i],
 		   mrd_toler, &var_mrd_toler,
 		   diff_show_mrd_only, max_err, 
 		   tops, fwd[0], fwd[i] );
@@ -376,7 +371,7 @@ namespace boda
           }
           if( i > 0 ) { // compare digest[0] against others (i.e. digest[1:])
             string const comp_res = digest[0]->mrd_comp( digest[i], vmt );
-            if( !comp_res.empty() ) { (*out) << (*tn) + " digest mrd_comp() failure '"+cfn[0]+"' vs '"+cfn[i]+"':\n" + comp_res + "\n"; } 
+            if( !comp_res.empty() ) { (*outs[i]) << (*tn) + " digest mrd_comp() failure '"+cfn[0]+"' vs '"+cfn[i]+"':\n" + comp_res + "\n"; } 
           }
         }
       }
