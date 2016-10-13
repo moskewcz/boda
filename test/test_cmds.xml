@@ -84,7 +84,7 @@
 
   <li test_name="test_rtc_nvrtc" needs="nvrtc" cli_str="boda rtc_test --rtc='(be=nvrtc)' --prog-fn='%(boda_test_dir)/nvrtc_test_dot.cu"/>
   <li test_name="test_rtc_ocl" cli_str="boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl'"/>
-  <li test_name="test_rtc_cucl_nvrtc" cli_str="boda rtc_test --rtc='(be=nvrtc)' "/>
+  <li test_name="test_rtc_cucl_nvrtc" needs="nvrtc" cli_str="boda rtc_test --rtc='(be=nvrtc)' "/>
   <li test_name="test_rtc_cucl_ocl" cli_str="boda rtc_test --rtc='(be=ocl)' "/>
   <li test_name="test_rtc_cucl_ipc" cli_str="boda rtc_test --rtc='(be=ipc)' "/>
   <li test_name="test_rtc_cucl_ipc_tcp" cli_str="boda rtc_test --rtc='(be=ipc,boda_parent_addr=tcp:127.0.0.1:12791)' "/>
