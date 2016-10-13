@@ -1,0 +1,4 @@
+(*i)->sz=353 500
+vars_to_compare: conv1
+conv1 digest mrd_comp() vs 'rtc-nq' skipped, no known-good digest stream availible
+***ALL IS WELL***
