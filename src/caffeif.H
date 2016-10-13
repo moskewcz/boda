@@ -57,7 +57,7 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia );
     p_nda_float_t in_batch;
 
-    void setup_cnet( void );
+    void setup_cnet( nesi_init_arg_t * const nia );
 
     p_nda_float_t run_one_blob_in_one_blob_out( void );
     p_nda_float_t run_one_blob_in_one_blob_out_upsamp( void );

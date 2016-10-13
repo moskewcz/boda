@@ -66,10 +66,10 @@ namespace boda
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       imgs->load_img_db( 1 );
-      run_cnet->setup_cnet();
+      run_cnet->setup_cnet( nia );
       u32_pt_t const max_img_sz = imgs->img_db->get_max_img_sz();
       run_cnet_dense->in_dims["y"] = max_img_sz.d[1]; run_cnet_dense->in_dims["x"] = max_img_sz.d[0];
-      run_cnet_dense->setup_cnet();
+      run_cnet_dense->setup_cnet( nia );
 
       in_img = make_p_img_t( run_cnet->conv_pipe->get_data_img_xy_dims_3_chans_only() );
       in_img_dense = make_p_img_t( run_cnet_dense->conv_pipe->get_data_img_xy_dims_3_chans_only() );
@@ -163,7 +163,7 @@ namespace boda
       out = ofs_open( out_fn.exp );
       //out = p_ostream( &std::cout, null_deleter<std::ostream>() );
       imgs->load_img_db( 1 );
-      run_cnet->setup_cnet(); 
+      run_cnet->setup_cnet( nia ); 
 
       boost::random::mt19937 gen;
 

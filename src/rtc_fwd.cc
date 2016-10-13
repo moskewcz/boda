@@ -77,14 +77,14 @@ namespace boda
     vect_string stats_names;
     map_str_float_t stats_map;
 
-    p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
+    p_rtc_compute_t rtc; //NESI(help="rtc back-end to use")
 
     vect_rtc_fwd_func_call_t fwd_calls;
     void add_fwd_call( p_rcg_func_call_t const & rcg, string const & call_tag ) { 
       fwd_calls.emplace_back( rcg, call_tag ); 
     }
 
-    virtual void init( p_conv_pipe_t const & cp_ );
+    virtual void init( p_conv_pipe_t const & cp_, nesi_init_arg_t * const nia );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     vect_uint32_t dropout_cixs;
     virtual void set_det_drop_seed( uint32_t const & det_drop_seed_ ) { 
@@ -465,7 +465,9 @@ namespace boda
     }
   }
 
-  void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_ ) {
+  p_rtc_compute_t make_p_rtc_compute_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
+  void conv_pipe_fwd_t::init( p_conv_pipe_t const & cp_, nesi_init_arg_t * const nia ) {
     cp = cp_;
     assert_st( cp );
 
@@ -503,7 +505,7 @@ namespace boda
 
       }
     }
-
+    if( !rtc ) { rtc = make_p_rtc_compute_t_init_and_check_unused_from_lexp( parse_lexp( "(be=nvrtc)" ), nia ); }
     rtc->init(); codegen.init( rtc, make_cnn_custom_codegen_t(), compile_opts );
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }

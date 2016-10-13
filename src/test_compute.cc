@@ -70,7 +70,7 @@ namespace boda
         read_and_check_boda_magic( *kg_digests );
       }
       if( tpd ) { run_cnet->in_dims["y"] = tpd_in_sz.d[1]; run_cnet->in_dims["x"] = tpd_in_sz.d[0]; }
-      run_cnet->setup_cnet(); 
+      run_cnet->setup_cnet( nia ); 
 
       if( !tpd ) { 
 	imgs->load_img_db( 1 ); 
@@ -83,7 +83,7 @@ namespace boda
       }
       uint32_t const num_cf = cf.size();
       for( uint32_t i = 0; i != num_cf; ++i ) { 
-        cf[i]->init( run_cnet->conv_pipe ); 
+        cf[i]->init( run_cnet->conv_pipe, nia ); 
       }
 
       for( uint32_t i = 0; i != num_cf; ++i ) { 

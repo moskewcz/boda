@@ -134,7 +134,7 @@ namespace boda
       cnet_predict->in_dims["img"] = ipp->num_bins; // how many planes we need
       cnet_predict->in_dims["y"] = ipp->bin_sz.d[1]; cnet_predict->in_dims["x"] = ipp->bin_sz.d[0]; // we will run cnet with images of size ipp->bin_sz
       cnet_predict->out_node_name = out_node_name; // FIXME: too error prone? automate / check / inherit?
-      cnet_predict->setup_cnet();
+      cnet_predict->setup_cnet( nia );
 
       vect_p_img_t disp_imgs;
       if( disp_feats ) { 

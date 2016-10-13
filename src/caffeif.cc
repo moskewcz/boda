@@ -140,7 +140,7 @@ namespace boda
 
 
   void run_cnet_t::main( nesi_init_arg_t * nia ) { 
-    setup_cnet();
+    setup_cnet( nia );
     p_map_str_p_nda_float_t fwd = make_shared<map_str_p_nda_float_t>();
     vect_string to_set_vns;
     conv_pipe->run_setup_input( in_batch, fwd, to_set_vns );
@@ -160,7 +160,7 @@ namespace boda
     return from_pipe->get_single_top_node()->dims;
   }
 
-  void run_cnet_t::setup_cnet( void ) {
+  void run_cnet_t::setup_cnet( nesi_init_arg_t * const nia ) {
     assert( !net_param );
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
     conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
@@ -170,7 +170,7 @@ namespace boda
     copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
 
     assert_st( conv_fwd );
-    conv_fwd->init( conv_pipe );
+    conv_fwd->init( conv_pipe, nia );
 
     // setup batch
     assert_st( !in_batch );
@@ -223,14 +223,14 @@ namespace boda
 				   conv_pipe_upsamp, upsamp_net_param->layer(upsamp_layer_ix).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
       assert_st( get_out_chans(0) == get_out_chans(1) ); // FIXME: too strong?
       assert_st( conv_fwd_upsamp );
-      conv_fwd_upsamp->init( conv_pipe_upsamp ); 
+      conv_fwd_upsamp->init( conv_pipe_upsamp, nia ); 
       assert_st( in_batch_dims == conv_pipe_upsamp->get_data_img_dims() ); // check that input batch dims agree
     }
 
   }
 
   void cnet_predict_t::main( nesi_init_arg_t * nia ) { 
-    setup_cnet();
+    setup_cnet( nia );
     setup_predict();
     p_img_t img_in( new img_t );
     img_in->load_fn( img_in_fn.exp );

@@ -40,7 +40,7 @@ namespace boda
     p_run_cnet_t run_cnet; //NESI(default="()",help="cnet running options")
 
     void main( nesi_init_arg_t * nia ) { 
-      run_cnet->setup_cnet(); 
+      run_cnet->setup_cnet( nia ); 
       lmdb_open_and_start_read_pass();
       vect_uint32_t batch_labels_gt;
       uint64_t num_test = 0;

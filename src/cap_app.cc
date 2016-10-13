@@ -272,7 +272,7 @@ namespace boda
       setup_capture_on_read( *cap_afd, &capture_classify_t::on_cap_read, this );
     }
     virtual void main( nesi_init_arg_t * nia ) { 
-      cnet_predict->setup_cnet();
+      cnet_predict->setup_cnet( nia );
       cnet_predict->setup_predict(); 
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( cnet_predict->conv_pipe->get_data_img_xy_dims_3_chans_only() );
@@ -399,7 +399,7 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) { 
       // note: run_cnet->in_sz not set here.
-      run_cnet->setup_cnet(); 
+      run_cnet->setup_cnet( nia ); 
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( run_cnet->conv_pipe->get_data_img_xy_dims_3_chans_only() );
 

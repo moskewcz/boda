@@ -49,7 +49,7 @@ namespace boda
 
     p_Net_float net;
 
-    virtual void init( p_conv_pipe_t const & cp_ );
+    virtual void init( p_conv_pipe_t const & cp_, nesi_init_arg_t * const nia );
     virtual void run_fwd( vect_string const & to_set_vns, p_map_str_p_nda_float_t const & fwd, vect_string const & to_get_vns );
     virtual string get_info_log( void ) { return string(); }
     virtual void set_det_drop_seed( uint32_t const & det_drop_seed_ ) { boda_stub_caffe_set_det_drop_seed( det_drop_seed_ ); }
@@ -168,7 +168,7 @@ namespace boda
     return net;
   }
 
-  void caffe_fwd_t::init( p_conv_pipe_t const & cp_ ) {
+  void caffe_fwd_t::init( p_conv_pipe_t const & cp_, nesi_init_arg_t * const nia ) {
     cp = cp_;
     assert_st( cp );
     init_caffe( gpu_id ); // FIXME/note: only does something on first call
