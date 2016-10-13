@@ -9,7 +9,6 @@ namespace boda {
 		  bool const diff_show_mrd_only, uint32_t const & max_err,
 		  vect_string const & vns, p_map_str_p_nda_t const & vs1, p_map_str_p_nda_t const & vs2 ) 
   {
-    (*out) << strprintf( "vars_to_compare: %s\n", str(vns).c_str() );
     for( vect_string::const_iterator i = vns.begin(); i != vns.end(); ++i ) {
       p_nda_t out_batch_1 = must_find( *vs1, *i );
       p_nda_t out_batch_2 = must_find( *vs2, *i );

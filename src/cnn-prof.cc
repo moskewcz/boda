@@ -279,6 +279,7 @@ namespace boda
         vect_string const vns2 = get_keys( *vs2 );
         if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 
                                                 str(vns1).c_str(), str(vns2).c_str() ) ); }
+        (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
         comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vs2 );
       }
       if( oet_out ) { to_latex.eff_row( oet_out.get(), anno_op->get_type(), rfc_dur_secs, peak_flops, rfc_dur_secs_comp ); }

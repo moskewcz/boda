@@ -171,7 +171,8 @@ namespace boda
       if( cf1 ) { cf1->run_fwd( to_set_vns1, fwd1, tops ); }
       if( cf2 ) { cf2->run_fwd( to_set_vns2, fwd2, tops ); }
       bool const do_cmp = bool(cf1) && bool(cf2);
-      if( do_cmp ) { 
+      if( do_cmp ) {
+        (*out) << strprintf( "vars_to_compare: %s\n", str(tops).c_str() ); 
 	comp_vars( out.get(), num_mad_fail,
 		   mrd_toler, &var_mrd_toler,
 		   diff_show_mrd_only, max_err, 
@@ -238,7 +239,7 @@ namespace boda
     uint32_t show_digests; //NESI(default="0",help="if non-zero, show nda digests for cf1" )
     uint32_t cmp_digests; //NESI(default="0",help="if non-zero, compare nda digests for cf1 and cf2" )
     uint32_t write_digests; //NESI(default="0",help="if non-zero, write nda digests for cf1 and cf2" )
-    filename_t digest_fn; //NESI(default="%(boda_output_dir)/digest-%%s.boda",help="output: binary stream of digests of all ndas. %%s will be replaced with the engine backend index (i.e. '1' or '2')")
+    filename_t digest_fn; //NESI(default="%(boda_output_dir)/digest-%%s.boda",help="output: binary stream of digests of all ndas. %%s will be replaced with the engine backend name (as specified by the --cfn=NAME options)")
 
     void dump_pipe_and_ios( p_run_cnet_t const & rc ) {
       rc->conv_pipe->dump_pipe( *out );
@@ -352,6 +353,7 @@ namespace boda
         run_cnet->conv_pipe->run_setup_input( run_cnet->in_batch, fwd[i], to_set_vns[i] );
         cf[i]->run_fwd( to_set_vns[i], fwd[i], tops );
       }
+      (*out) << strprintf( "vars_to_compare: %s\n", str(tops).c_str() );
       for( uint32_t i = 1; i < num_cf; ++i ) {  // compare cf[0] against others (i.e. cf[1:])
 	comp_vars( out.get(), num_mad_fail,
 		   mrd_toler, &var_mrd_toler,
