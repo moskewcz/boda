@@ -1,5 +1,6 @@
 // Copyright (c) 2015, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
+#include"build_info.H"
 #include"gbt_tile.H"
 #include"str_util.H"
 #include"has_conv_fwd.H"
@@ -505,7 +506,18 @@ namespace boda
 
       }
     }
-    if( !rtc ) { rtc = make_p_rtc_compute_t_init_and_check_unused_from_lexp( parse_lexp( "(be=nvrtc)" ), nia ); }
+    if( !rtc ) { 
+      string rtc_be;
+      // FIXME: this seems like it could be more general in a couple ways: first, we could use some NESI magic to look
+      // at the derived types of rtc_compute_t and pick one. second, maybe NESI could have some wholesale way of
+      // creating 'default' derived instances of some base type, based on some conditions (i.e. give me anything,
+      // anythign with a name like this, etc). but for now, let's not go down that hole.
+      if( 0 ) { }
+      else if( is_feature_enabled("nvrtc") ) { rtc_be = "(be=nvrtc)"; }
+      else if( is_feature_enabled("opencl") ) { rtc_be = "(be=ocl)"; }
+      else { rt_err("rtc-fwd: can't find enabled choice for default backend. specify, or update defaults list ..."); }
+      rtc = make_p_rtc_compute_t_init_and_check_unused_from_lexp( parse_lexp( rtc_be ), nia ); 
+    }
     rtc->init(); codegen.init( rtc, make_cnn_custom_codegen_t(), compile_opts );
     cp->topo_visit_setup();
     for( set_string::const_iterator i = cp->bots.begin(); i != cp->bots.end(); ++i ) { gen_ops_rec( *i ); }
