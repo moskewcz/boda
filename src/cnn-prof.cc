@@ -232,7 +232,7 @@ namespace boda
     rtc->init(); codegen.init( rtc, make_cnn_custom_codegen_t(), compile_opts );
     if( rtc_comp ) { rtc_comp->init(); codegen_comp.init( rtc_comp, make_cnn_custom_codegen_t(), compile_opts ); }
     bool const enable_prof = 0;
-    if( enable_prof ) { rtc->profile_start(); if(rtc_comp) { rtc_comp->init(); } }
+    if( enable_prof ) { rtc->profile_start(); if(rtc_comp) { rtc_comp->profile_start(); } }
     p_map_str_p_nda_t vs1;
     p_map_str_p_nda_t vs2;
     if( rtc_comp ) { 
