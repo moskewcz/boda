@@ -95,7 +95,7 @@ namespace boda
 
   };
   struct rtc_compute_t; typedef shared_ptr< rtc_compute_t > p_rtc_compute_t; 
-
+  typedef vector< p_rtc_compute_t > vect_p_rtc_compute_t;
   // an rtc argument is either: (1) the name of a var (stored in n, v is null) or (2) a value (stored in v, n is
   // empty). for var arguments, a pointer to the on-device memory for that var is passed. for values, the entire value
   // is passed as a single by-value argument (i.e. as raw data).

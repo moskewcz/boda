@@ -43,9 +43,9 @@ namespace boda
 
   inline bool is_k1_or_t_or_reg_conv( string const & cts ) { return (cts==k1conv_str) || (cts==tconv_str) || (cts==conv_str); }
 
-  void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune,
-                                    map_str_op_tune_t const *per_op_tune );
-  
+  void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune, map_str_op_tune_t const *per_op_tune );
+  void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune, map_str_op_tune_t const *per_op_tune );
+
 }
 
 #endif /* _CNN_OP_H_ */

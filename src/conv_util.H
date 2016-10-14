@@ -86,6 +86,7 @@ namespace boda
     u32_pt_t stride( void ) const { return get_xy_dims_strict( get_dims( "stride" ) ); }
     // FIXME: these fields are only used codegen, so maybe they don't belong here?
   };
+  typedef shared_ptr< conv_op_base_t > p_conv_op_base_t;
 
   // conv_opt_t: adds information to an operation about where how it relates to other operations (i.e what it's inputs
   // and outputs actually are in a global context; stored in tops/bots/arg_map) and a global name for this particular

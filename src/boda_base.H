@@ -783,6 +783,7 @@ namespace boda
   typedef vector< p_nda_t > vect_p_nda_t;
   typedef map< string, p_nda_t > map_str_p_nda_t;
   typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
+  typedef vector< p_map_str_p_nda_t > vect_p_map_str_p_nda_t;
 
   template< typename T > T nda_at( p_nda_t const & nda, dims_iter_t const & di ) {
     assert_st( get_ndat<T>().tn == nda->dims.tn );

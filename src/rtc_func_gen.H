@@ -207,6 +207,9 @@ namespace boda
     vect_p_rtc_call_gen_t compile_pend;
 
   };
+  typedef shared_ptr< rtc_codegen_t > p_rtc_codegen_t; 
+  typedef vector< p_rtc_codegen_t > vect_p_rtc_codegen_t;
+
 
 }
 #endif /* _RTC_FUNC_GEN_H_ */

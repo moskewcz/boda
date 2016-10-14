@@ -321,6 +321,55 @@ namespace boda
     else if( op->is( ZeroIfNonPos_coi ) ) { op->set_func_name( op->get_type() ); } // wow! one with a consistent name! sigh.
     // else if( op->is( BckConv_coi ) ) { } // no single value
   }
+
+  // FIXME: merge with add_cnn_codegen_annotations() wholesale? split into sub-funcs based on types with a dispatcher?
+  void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune, map_str_op_tune_t const *per_op_tune ) {
+    if( anno_op->is( Convolution_coi ) ) {
+      add_cnn_codegen_annotations( anno_op.get(), op_tune, per_op_tune );
+      anno_op->set_u32( "conv_has_relu", 1 );
+    } else if( anno_op->is( sgemm_coi ) ) {
+      if( op_tune.use_culibs ) {
+        anno_op->set_func_name("cublas_sgemm");
+      } else {
+        uint64_t const K = anno_op->get_dims("a").dsz("K"); // note == b.dsz("K")
+        dims_t const & c = anno_op->get_dims("c");
+        uint64_t const M_blk = op_tune.MNb.d[0] * op_tune.MNt.d[0];
+        uint64_t const N_blk = op_tune.MNb.d[1] * op_tune.MNt.d[1];
+        uint64_t const Mg = c.dsz("M") / M_blk;
+        uint64_t const Ng = c.dsz("N") / N_blk;
+        if( Mg * M_blk != c.dsz("M") ) { 
+          rt_err( strprintf( "FIXME: currently, M=%s must be a multiple of M_blk=%s\n", 
+                             str(c.dsz("M")).c_str(), str(M_blk).c_str() ) );
+        }
+        if( Ng * N_blk != c.dsz("N") ) { 
+          rt_err( strprintf( "FIXME: currently, N=%s must be a multiple of N_blk=%s\n", 
+                             str(c.dsz("N")).c_str(), str(N_blk).c_str() ) );
+        }
+        if( K % op_tune.Kb ) { 
+          rt_err( strprintf( "FIXME: currently, K=%s must be a multiple of Kb=%s\n", 
+                             str(K).c_str(), str(op_tune.Kb).c_str() ) );
+        }
+
+        dims_t work{ {(uint32_t)Mg,(uint32_t)Ng,op_tune.MNb.d[0],op_tune.MNb.d[1],op_tune.Kb,
+              op_tune.MNt.d[0],op_tune.MNt.d[1]}, {"Mg","Ng","Mb","Nb","Kb","Mt","Nt"}, "none" };
+        anno_op->set_dims( "work", work );
+        anno_op->set_u32( "use_local_mem", op_tune.use_local_mem );
+        anno_op->set_u32( "prof_variant", op_tune.prof_variant );
+        anno_op->set_u32( "vw", op_tune.vw );
+        if( op_tune.prof_variant ) { anno_op->set_func_name("sgemm_prof"); } 
+        else {
+          if( 0 ) { }
+          else if( op_tune.use_local_mem == 0 ) { anno_op->set_func_name("sgemm_no_local"); }
+          else if( op_tune.use_local_mem == 1 ) { anno_op->set_func_name("sgemm"); }
+          else if( op_tune.use_local_mem == 2 ) { anno_op->set_func_name("sgemm_simd"); }
+          else if( op_tune.use_local_mem == 3 ) { anno_op->set_func_name("sgemm_simd_local"); }
+          else { rt_err( strprintf( "unknonw value for op_tune.use_local_mem of %s\n", 
+                                    str(op_tune.use_local_mem).c_str() ) ); }
+          
+        }
+      }	  
+    }
+  }
   
 #include"gen/cnn_op.H.nesi_gen.cc"
 }

@@ -8,6 +8,8 @@
 #include"rtc_func_gen.H"
 #include"rtc_compute.H"
 #include"cnn_op.H"
+#include"conv_util.H"
+#include"comp_util.H"
 
 namespace boda 
 {
@@ -141,6 +143,7 @@ namespace boda
   }
 
   p_op_base_t make_p_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+  p_conv_op_base_t make_p_conv_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
   void rtc_prof_t::main( nesi_init_arg_t * nia ) {
     out = ofs_open( per_call_fn );
@@ -158,6 +161,100 @@ namespace boda
     if( enable_prof ) { rtc->profile_stop(); }
     rtc->finish_and_sync();
   }
+
+
+  struct ops_prof_t : virtual public nesi, public has_main_t // NESI(help="profile set of operations across backends and tuning params",
+			 // bases=["has_main_t"], type_id="ops-prof" )
+
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    p_filename_t out_fn; //NESI(help="output file (output goes to stdout if not specified)")
+
+    // FIXME: we should use a map_str_p_rtc_compute_t here, but NESI doesn't support that yet. might work with manual typedef initally?
+    vect_p_rtc_compute_t rtcs; //NESI(help="list of compute backends to use")
+    vect_string rtcns; //NESI(help="list of names of compute backends (must have same # of elements as --rtcs option")
+
+    rtc_compile_opts_t compile_opts; // NESI(default="()",help="runtime compilation options")
+    filename_t ops_fn; //NESI(default="%(boda_test_dir)/ops-prof/ops-prof-debug.txt",help="file to read ops from")
+
+    op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
+    map_str_op_tune_t per_op_tune; //NESI(default="()",help="tuning parameters / options")
+
+    uint32_t run_iter; //NESI(default="1",help="re-run op to profile this many times (for power testing)")
+
+    p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
+
+    double mrd_toler; //NESI(default="2e-4",help="maximum maximum-absolute-difference over which a failure is declared")
+    map_str_double var_mrd_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mrd_toler per-layer if specified")
+    uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
+
+    vect_p_rtc_codegen_t codegens;
+
+    virtual void main( nesi_init_arg_t * nia );
+  };
+
+  void ops_prof_t::main( nesi_init_arg_t * nia ) {
+    p_ostream out = out_fn ? ofs_open( *out_fn ) : p_ostream( &std::cout, null_deleter<std::ostream>() );
+    
+    if( rtcs.size() != rtcns.size() ) { rt_err( strprintf( "must specific the same # of rtcs and rtcns, but rtcs.size()=%s and rtcns.size()=%s\n", str(rtcs.size()).c_str(), str(rtcns.size()).c_str() ) ); }
+
+    size_t const num_rtcs = rtcs.size();
+    bool const enable_prof = 0;
+    vect_p_map_str_p_nda_t vss;
+    for( uint32_t i = 0; i != num_rtcs; ++i ) {
+      rtcs[i]->init();
+      codegens.push_back( make_shared< rtc_codegen_t >() );
+      codegens[i]->init( rtcs[i], make_cnn_custom_codegen_t(), compile_opts );
+      if( enable_prof ) { rtcs[i]->profile_start(); }
+      vss.push_back( make_shared<map_str_p_nda_t>() );
+    }
+
+    p_vect_string in_lines = readlines_fn( ops_fn );
+    uint32_t num_mad_fail = 0;
+    for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
+      p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+      op->set_and_check_coi();
+      for( uint32_t i = 0; i != num_rtcs; ++i ) {
+        vss[i]->clear();
+        // create rtc op
+        p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
+        // generate boda variant according to tuning params (just opt and t_tile_sz currently)
+        add_codegen_annotations( anno_op, op_tune, &per_op_tune );        
+        if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
+        double rfc_dur_secs = NAN;
+        string err;
+        try { rfc_dur_secs = profile_rcg_call( anno_op, *codegens[i], gen_data, vss[i].get(), run_iter ) / 1000.0; }
+        catch( rt_exception const & rte ) {
+          if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
+            err = "CL_OUT_OF_HOST_MEMORY"; 
+            // FIXME: we should probably handle this at the rtc_codegen_t level better. in fact, there's a good chance the
+            // handling is currently broken ... so for now, we'll give up here. note we used to call:
+            // codegen.clear(); 
+            assert_st( "TODO: re-handle compile/run failures better in codegen/prof" );
+          }
+          else { throw; }
+        }
+        if( err.empty() && (i > 0) ) {
+          vect_string const vns1 = get_keys( *vss[0] );
+          vect_string const vns2 = get_keys( *vss[i] );
+          if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns[0]=%s vns[%s]=%s\n", 
+                                                  str(vns1).c_str(), str(i).c_str(), str(vns2).c_str() ) ); }
+          (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
+          comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vss[0], vss[i] );
+        }
+      }
+    }
+
+    for( uint32_t i = 0; i != num_rtcs; ++i ) {
+      if( enable_prof ) { rtcs[i]->profile_stop(); }
+      rtcs[i]->finish_and_sync(); 
+    }
+
+    if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
+    else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
+
+  }
+
 
 #include"gen/rtc_prof.cc.nesi_gen.cc"
 
