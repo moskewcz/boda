@@ -11,6 +11,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     // shared
+    string use_be; //NESI(default="",help="if non-empty, use this tune only with the specific named backend")
     uint32_t use_culibs; //NESI(default=0,help="if 1, set use_culibs=1")
 
     // sgemm-specific (sort of)

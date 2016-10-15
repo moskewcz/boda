@@ -1,5 +1,6 @@
 // Copyright (c) 2015, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
+#include"build_info.H"
 #include"timers.H"
 #include<boost/filesystem.hpp>
 #include<boost/lexical_cast.hpp>
@@ -163,6 +164,24 @@ namespace boda
   }
 
 
+  
+  struct ops_be_t {
+    string rtcn;
+    p_rtc_compute_t rtc;
+    p_rtc_codegen_t codegen;
+  };
+  typedef shared_ptr< ops_be_t > p_ops_be_t; 
+  typedef map< string, ops_be_t > map_str_ops_be_t;
+
+  struct ops_run_t {
+    p_conv_op_base_t op;
+    op_tune_t op_tune;
+    p_conv_op_base_t anno_op;    
+    p_map_str_p_nda_t vs;
+  };
+  typedef vector< ops_run_t > vect_ops_run_t; 
+
+
   struct ops_prof_t : virtual public nesi, public has_main_t // NESI(help="profile set of operations across backends and tuning params",
 			 // bases=["has_main_t"], type_id="ops-prof" )
 
@@ -188,25 +207,44 @@ namespace boda
     map_str_double var_mrd_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mrd_toler per-layer if specified")
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
-    vect_p_rtc_codegen_t codegens;
+    map_str_ops_be_t ops_bes;
+
+    p_rtc_codegen_t & get_codegen_for_op( ops_run_t const & ops_run ) {
+      assert_st( !ops_bes.empty() );
+      if( ops_run.op_tune.use_be.empty() ) { return ops_bes.begin()->second.codegen; }
+      return must_find( ops_bes, ops_run.op_tune.use_be ).codegen;
+    }
 
     virtual void main( nesi_init_arg_t * nia );
   };
 
+  p_rtc_compute_t make_p_rtc_compute_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
+
   void ops_prof_t::main( nesi_init_arg_t * nia ) {
     p_ostream out = out_fn ? ofs_open( *out_fn ) : p_ostream( &std::cout, null_deleter<std::ostream>() );
-    
-    if( rtcs.size() != rtcns.size() ) { rt_err( strprintf( "must specific the same # of rtcs and rtcns, but rtcs.size()=%s and rtcns.size()=%s\n", str(rtcs.size()).c_str(), str(rtcns.size()).c_str() ) ); }
 
-    size_t const num_rtcs = rtcs.size();
+    // by default, add all enabled/availible backends
+    if( rtcs.size() != rtcns.size() ) { rt_err( strprintf( "must specific the same # of rtcs and rtcns, but rtcs.size()=%s and rtcns.size()=%s\n", str(rtcs.size()).c_str(), str(rtcns.size()).c_str() ) ); }
+    if( rtcs.empty() ) {
+      if( is_feature_enabled("nvrtc") ) {
+        ops_be_t ops_be{ "nvrtc", make_p_rtc_compute_t_init_and_check_unused_from_lexp( parse_lexp( "(be=nvrtc)" ), nia ) };
+        must_insert( ops_bes, ops_be.rtcn, ops_be );
+      }
+      if( is_feature_enabled("opencl") ) { 
+        ops_be_t ops_be{ "ocl", make_p_rtc_compute_t_init_and_check_unused_from_lexp( parse_lexp( "(be=ocl)" ), nia ) };
+        must_insert( ops_bes, ops_be.rtcn, ops_be );
+      }
+    } else { // otherwise, use exactly/only the specified backends
+      for( uint32_t i = 0; i != rtcs.size(); ++i ) { must_insert( ops_bes, rtcns[i], ops_be_t{rtcns[i],rtcs[i]} ); }
+    }
+    // init backends
     bool const enable_prof = 0;
-    vect_p_map_str_p_nda_t vss;
-    for( uint32_t i = 0; i != num_rtcs; ++i ) {
-      rtcs[i]->init();
-      codegens.push_back( make_shared< rtc_codegen_t >() );
-      codegens[i]->init( rtcs[i], make_cnn_custom_codegen_t(), compile_opts );
-      if( enable_prof ) { rtcs[i]->profile_start(); }
-      vss.push_back( make_shared<map_str_p_nda_t>() );
+    for( map_str_ops_be_t::iterator i = ops_bes.begin(); i != ops_bes.end(); ++i ) {
+      ops_be_t & ops_be = i->second;
+      ops_be.rtc->init();
+      ops_be.codegen->init( ops_be.rtc, make_cnn_custom_codegen_t(), compile_opts );
+      if( enable_prof ) { ops_be.rtc->profile_start(); }
     }
 
     p_vect_string in_lines = readlines_fn( ops_fn );
@@ -214,16 +252,20 @@ namespace boda
     for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
-      for( uint32_t i = 0; i != num_rtcs; ++i ) {
-        vss[i]->clear();
-        // create rtc op
-        p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op );
+      vect_ops_run_t ops_runs;
+      ops_runs.push_back( ops_run_t{op,op_tune,make_shared<conv_op_base_t>( *op ),make_shared<map_str_p_nda_t>()} );
+
+      for( vect_ops_run_t::iterator i = ops_runs.begin(); i != ops_runs.end(); ++i ) {
+        ops_run_t & ops_run = *i;
+        assert_st( ops_run.vs->empty() );
+        
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-        add_codegen_annotations( anno_op, op_tune, &per_op_tune );        
+        add_codegen_annotations( ops_run.anno_op, ops_run.op_tune, &per_op_tune );        
         if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
         double rfc_dur_secs = NAN;
         string err;
-        try { rfc_dur_secs = profile_rcg_call( anno_op, *codegens[i], gen_data, vss[i].get(), run_iter ) / 1000.0; }
+        p_rtc_codegen_t const & codegen = get_codegen_for_op( ops_run );
+        try { rfc_dur_secs = profile_rcg_call( ops_run.anno_op, *codegen, gen_data, ops_run.vs.get(), run_iter ) / 1000.0; }
         catch( rt_exception const & rte ) {
           if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
             err = "CL_OUT_OF_HOST_MEMORY"; 
@@ -234,20 +276,21 @@ namespace boda
           }
           else { throw; }
         }
-        if( err.empty() && (i > 0) ) {
-          vect_string const vns1 = get_keys( *vss[0] );
-          vect_string const vns2 = get_keys( *vss[i] );
+        if( err.empty() && (i != ops_runs.begin()) ) {
+          vect_string const vns1 = get_keys( *ops_runs.front().vs );
+          vect_string const vns2 = get_keys( *ops_run.vs );
           if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns[0]=%s vns[%s]=%s\n", 
-                                                  str(vns1).c_str(), str(i).c_str(), str(vns2).c_str() ) ); }
+                                                  str(vns1).c_str(), str(i - ops_runs.begin()).c_str(), str(vns2).c_str() ) ); }
           (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
-          comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vss[0], vss[i] );
+          comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, ops_runs.front().vs, ops_run.vs );
         }
       }
     }
 
-    for( uint32_t i = 0; i != num_rtcs; ++i ) {
-      if( enable_prof ) { rtcs[i]->profile_stop(); }
-      rtcs[i]->finish_and_sync(); 
+    for( map_str_ops_be_t::iterator i = ops_bes.begin(); i != ops_bes.end(); ++i ) {
+      ops_be_t & ops_be = i->second;
+      if( enable_prof ) { ops_be.rtc->profile_stop(); }
+      ops_be.rtc->finish_and_sync(); 
     }
 
     if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
