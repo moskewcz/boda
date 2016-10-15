@@ -63,11 +63,17 @@ namespace boda
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
       if( i.ad().io_type == "REF" ) { continue; }
       if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
+      if( i.ad().loi.v == 0 ) { // FIXME: not-too-nice special case for flags
+        if( i.vn() == "flags" ) { must_insert( arg_map, "flags", make_scalar_nda(uint32_t(0)) ); continue; }
+      }
       dims_t const & func_dims = rcg->get_arg_dims_by_name( i.vn() );
       if( func_dims == make_null_dims_t() ) { continue; } // NULL case -- ignore
       // FIXME: overwrite dims. yeah, this doesn't feel too right ... hmm. see comments in gen_func()
       arg_map[ i.vn() ] = i.vn();
     }
+    // FIXME: horrible: some kernels take a scalar uint32_t flags, and we know 0 is 'normal-mode'. so we set it here,
+    // for all ops, and hope that's okay.
+
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_rtc_arg_t::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       if( j->second.is_var() ) { 
@@ -178,6 +184,7 @@ namespace boda
     op_tune_t op_tune;
     p_conv_op_base_t anno_op;    
     p_map_str_p_nda_t vs;
+    double dur_secs;
   };
   typedef vector< ops_run_t > vect_ops_run_t; 
 
@@ -196,8 +203,7 @@ namespace boda
     rtc_compile_opts_t compile_opts; // NESI(default="()",help="runtime compilation options")
     filename_t ops_fn; //NESI(default="%(boda_test_dir)/ops-prof/ops-prof-debug.txt",help="file to read ops from")
 
-    op_tune_t op_tune; //NESI(default="()",help="tuning parameters / options")
-    map_str_op_tune_t per_op_tune; //NESI(default="()",help="tuning parameters / options")
+    map_str_op_tune_t op_tunes; //NESI(default="()",help="tuning parameters / options")
 
     uint32_t run_iter; //NESI(default="1",help="re-run op to profile this many times (for power testing)")
 
@@ -243,6 +249,7 @@ namespace boda
     for( map_str_ops_be_t::iterator i = ops_bes.begin(); i != ops_bes.end(); ++i ) {
       ops_be_t & ops_be = i->second;
       ops_be.rtc->init();
+      ops_be.codegen = make_shared<rtc_codegen_t>();
       ops_be.codegen->init( ops_be.rtc, make_cnn_custom_codegen_t(), compile_opts );
       if( enable_prof ) { ops_be.rtc->profile_start(); }
     }
@@ -253,19 +260,21 @@ namespace boda
       p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
       op->set_and_check_coi();
       vect_ops_run_t ops_runs;
-      ops_runs.push_back( ops_run_t{op,op_tune,make_shared<conv_op_base_t>( *op ),make_shared<map_str_p_nda_t>()} );
+      for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
+        ops_runs.push_back( ops_run_t{op,i->second,make_shared<conv_op_base_t>( *op ),make_shared<map_str_p_nda_t>()} );
+      }
 
       for( vect_ops_run_t::iterator i = ops_runs.begin(); i != ops_runs.end(); ++i ) {
         ops_run_t & ops_run = *i;
         assert_st( ops_run.vs->empty() );
         
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-        add_codegen_annotations( ops_run.anno_op, ops_run.op_tune, &per_op_tune );        
+        add_codegen_annotations( ops_run.anno_op, ops_run.op_tune, 0 );        
         if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
-        double rfc_dur_secs = NAN;
+        ops_run.dur_secs = NAN;
         string err;
         p_rtc_codegen_t const & codegen = get_codegen_for_op( ops_run );
-        try { rfc_dur_secs = profile_rcg_call( ops_run.anno_op, *codegen, gen_data, ops_run.vs.get(), run_iter ) / 1000.0; }
+        try { ops_run.dur_secs = profile_rcg_call( ops_run.anno_op, *codegen, gen_data, ops_run.vs.get(), run_iter ) / 1000.0; }
         catch( rt_exception const & rte ) {
           if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
             err = "CL_OUT_OF_HOST_MEMORY"; 
@@ -297,6 +306,78 @@ namespace boda
     else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
 
   }
+
+  void add_to_with_prefix( vect_pair_str_str & out, vect_pair_str_str const & in, pair_str_str const & prefix ) {
+    for( vect_pair_str_str::const_iterator i = in.begin(); i != in.end(); ++i ) {
+      out.push_back( {prefix.first+i->first,prefix.second+i->second} );
+    }
+  }
+
+  void emit_clis( p_ostream & out, vect_pair_str_str const & run_bases, vect_pair_str_str const & op_tunes ) {
+    for( vect_pair_str_str::const_iterator i = run_bases.begin(); i != run_bases.end(); ++i ) {
+      pair_str_str cli = *i;
+      cli.second += " --op-tunes='(";
+      for( vect_pair_str_str::const_iterator j = op_tunes.begin(); j != op_tunes.end(); ++j ) {
+        cli.second += string((j==op_tunes.begin())?"":",") + j->first +"=("+j->second+")";
+      }
+      cli.second += ")'";
+      (*out) << strprintf( "<li test_name=\"%s\" cli_str=\"%s\" />\n", str(cli.first).c_str(), str(cli.second).c_str() );
+    }
+  }
+
+  void gen_ops_prof_tests( p_ostream & out ) {
+    
+    vect_pair_str_str op_tune_sgemm_bases = { {"def", ""},
+                                              {"4-16-4-lm0","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=0"},
+                                              {"4-16-4-lm2-vw4","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=2,vw=4"},
+                                              {"4-16-4-lm3-vw4","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=3,vw=4" } };
+    // FIXME: enable_write_xpose=1 goes where? doesn't much matter for single ops? 
+    // FIXME: enable_bconv=1 goes where? not part of per-op flow currently ... maybe it should be though.
+    // FIXME: note: can't test per-op against caffe here -- should be enable that somehow? it's covered by test_compute_multi, of course ..
+    vect_pair_str_str op_tune_conv_bases = { {"def",""},
+                                             {"opt","k1conv=1,tconv=1"} };
+    vect_pair_str_str op_tunes_sgemm;
+    vect_pair_str_str op_tunes_conv;
+    if( is_feature_enabled("opencl") ) { 
+      add_to_with_prefix( op_tunes_sgemm, op_tune_sgemm_bases, {"ocl-","use_be=ocl,"} );
+      add_to_with_prefix( op_tunes_conv, op_tune_conv_bases, {"ocl-","use_be=ocl,"} );
+    }
+    if( is_feature_enabled("nvrtc") ) { 
+      add_to_with_prefix( op_tunes_sgemm, op_tune_sgemm_bases, {"nvrtc-","use_be=nvrtc,"} );
+      op_tunes_sgemm.push_back( {"culibs","use_be=nvrtc,use_culibs=1"} ); 
+      add_to_with_prefix( op_tunes_conv, op_tune_conv_bases, {"nvrtc-","use_be=nvrtc,"} );
+      op_tunes_conv.push_back( {"culibs","use_be=nvrtc,use_culibs=1"} ); 
+    }
+                                 
+    string const cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt'";
+    string const sgemm_ops = " --ops-fn='%(boda_test_dir)/sgemm-ops-debug.txt'";
+    string const cnn_ops = " --ops-fn='%(boda_test_dir)/conv-ops-debug.txt'";
+    string const gen_data_mode_600 = " --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=600)))'";
+    string const gen_data_mode_5 = " --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))'";
+    vect_pair_str_str run_bases_sgemm;
+    run_bases_sgemm.push_back( {"sgemm-gen600", cli_base + sgemm_ops + gen_data_mode_600 } );
+    run_bases_sgemm.push_back( {"sgemm-gen5", cli_base + sgemm_ops + gen_data_mode_5 } );
+    vect_pair_str_str run_bases_conv;
+    run_bases_conv.push_back( {"conv-gen5", cli_base + cnn_ops + gen_data_mode_5} );
+    
+    (*out) << "<root>\n";
+    emit_clis( out, run_bases_sgemm, op_tunes_sgemm );
+    emit_clis( out, run_bases_conv, op_tunes_conv );
+    (*out) << "</root>\n";                                
+  }
+
+  // normally, the output of this mode is generated automatically by a magic filename-based hack in
+  // test_cmds_t. however, this mode is provided as a way to generate the file without going though test_cmds_t ...
+  struct gen_ops_prof_tests_t : virtual public nesi, public has_main_t // NESI( help="generate list of ops-prof tests",
+			// bases=["has_main_t"], type_id="gen_ops_prof_tests")
+  {
+    filename_t out_fn; //NESI(default="gen_ops_prof_tests.xml",help="output: xml list of tests.")
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
+    virtual void main( nesi_init_arg_t * nia ) {
+      p_ostream out = ofs_open( out_fn.exp );
+      gen_ops_prof_tests( out );
+    }
+  };
 
 
 #include"gen/rtc_prof.cc.nesi_gen.cc"
