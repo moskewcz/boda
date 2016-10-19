@@ -16,32 +16,6 @@ namespace boda
 {
   typedef shared_ptr< dims_t > p_dims_t; 
 
-  struct rtc_prof_t : virtual public nesi, public has_main_t // NESI(help="profile set of rtc functions",
-		      // bases=["has_main_t"], type_id="rtc_prof" )
-
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    rtc_compile_opts_t compile_opts; // NESI(default="()",help="runtime compilation options")
-    uint32_t eat_megs; //NESI(default=0,help="if non-zero, allocate unused var of size eat_mega Mfloats via rtc")
-    filename_t rtc_func_sigs_fn; //NESI(default="%(boda_test_dir)/rtc_func_sigs_tiny.txt",help="file to hold all generated func signatures")
-    p_dims_t dummy_dims; // NESI(help="HACK: dummy NESI var of type dims_t (otherwise unused) to force tinfo generation. see map_str_T FIXME in nesi.cc")
-
-    p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
-    filename_t per_call_fn; //NESI(default="%(boda_output_dir)/rtc_prof.py",help="if non-empty, write per-call profiling (timing via events) to given file.")
-
-    vect_rcg_func_call_t calls;
-    // rtc->create_var_with_dims_floats( name, cp->must_get_node(node_name)->dims );
-    // calls.push_back( rcg_func_call_t{ gen_fn, oi->tag, oi->arg_map } );
-    
-    p_ostream out;
-    rtc_codegen_t codegen;
-
-    virtual void main( nesi_init_arg_t * nia );
-
-    double run_call( string const & func_name, p_rtc_call_gen_t const & rcg );
-    void run_calls( void );
-  };
-
   // semi-dupe'd with rtc_fwd gen_apply_func_to_var(). working toward convergence. note that in this use model, the
   // input and output variable names and arg names happen to be the same, hence the 'an_and_vn' arguments to this func.
   void run_xpose( p_op_base_t const & anno_op, rtc_codegen_t & codegen, string const & xpose_func_name, 
@@ -150,26 +124,6 @@ namespace boda
   }
 
   p_conv_op_base_t make_p_conv_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
-
-  void rtc_prof_t::main( nesi_init_arg_t * nia ) {
-    out = ofs_open( per_call_fn );
-    rtc->init(); codegen.init( rtc, make_cnn_custom_codegen_t(), compile_opts );
-    bool const enable_prof = 0;
-    if( enable_prof ) { rtc->profile_start(); }
-    if( eat_megs ) { rtc->create_var_with_dims( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, "float" } ); }
-
-    p_istream rtc_func_sigs = ifs_open( rtc_func_sigs_fn );
-    p_op_wisdom_t op_wisdom;
-    while( op_wisdom = read_next_wisdom( rtc_func_sigs_fn.exp, rtc_func_sigs ) ) {
-      p_op_base_t v = op_wisdom->op;
-      double const rfc_dur = profile_rcg_call( v, codegen, 0, 0, 1 );
-      (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s\n", str(rfc_dur/1000.0).c_str() );
-    }
-    if( enable_prof ) { rtc->profile_stop(); }
-    rtc->finish_and_sync();
-  }
-
-
   
   struct ops_be_t {
     string rtcn;
