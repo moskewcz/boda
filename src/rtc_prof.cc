@@ -210,9 +210,9 @@ namespace boda
 
     uint32_t num_mad_fail = 0;
     p_istream ops = ifs_open( ops_fn );
-    p_op_wisdom_t op_wisdom;
-    while( op_wisdom = read_next_wisdom( ops_fn.exp, ops ) ) {
-      p_op_base_t op = op_wisdom->op;
+    string line;
+    while( !ifs_getline( ops_fn.exp, ops, line ) ) {
+      p_op_base_t op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
       vect_ops_run_t ops_runs;
       for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
         ops_runs.push_back( ops_run_t{op,i->second,make_shared<conv_op_base_t>( *op ),make_shared<map_str_p_nda_t>()} );

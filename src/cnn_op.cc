@@ -388,16 +388,60 @@ namespace boda
   };
 #endif
 
+  bool read_string_or_EOF( string const & fn_for_errs, p_istream const & in, string const & s ) {
+    string line;
+    if( ifs_getline( fn_for_errs, in, line ) ) { return true; } // EOF
+    if( line != s ) { rt_err( strprintf( "error reading line-oriented text stream. expected a line with '%s', but saw '%s'.", 
+                                         str(s).c_str(), str(line).c_str() ) ); }
+    return false;
+  }
+  void must_read_string( string const & fn_for_errs, p_istream const & in, string const & s ) {
+    bool const at_eof = read_string_or_EOF( fn_for_errs, in, s );
+    if( at_eof ) { rt_err( strprintf( "error reading line-oriented text stream. expected a line with '%s', but got EOF.", 
+                                      str(s).c_str() ) ); }
+  }
+  string must_getline( string const & fn_for_errs, p_istream const & in ) {
+    string ret;
+    bool const at_eof = ifs_getline( fn_for_errs, in, ret );
+    if( at_eof ) { rt_err( "error reading line-oriented text stream. expected a non-empty line, but got EOF." ); }
+    return ret;
+  }
+
   // returns null if no more wisdoms in stream
   p_op_wisdom_t read_next_wisdom( string const & fn_for_errs, p_istream const & in ) {
     p_op_wisdom_t ret;
+    if( read_string_or_EOF( fn_for_errs, in, "op_wisdom_t" ) ) { return ret; } // EOF
+    ret = make_shared<op_wisdom_t>();
     string line;
-    if( !ifs_getline( fn_for_errs, in, line ) ) {
-      ret = make_shared<op_wisdom_t>();
-      ret->op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 );
+    while( 1 ) {
+      line = must_getline( fn_for_errs, in );
+      if( 0 ) {
+      } else if( line == "/op_wisdom_t" ) { 
+        return ret;
+      } else if( line == "op_base_t" ) { 
+        ret->op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( must_getline( fn_for_errs, in ) ), 0 ); 
+      } else if( line == "nda_digest_t" ) { 
+
+      } else if( line == "op_tune_wisdom_t" ) { 
+
+      } else { 
+        rt_err( strprintf( "unknown op_wisdom_t text format stream command read '%s' reading file '%s'\n", 
+                           line.c_str(), fn_for_errs.c_str() ) ); 
+      }
     }
     return ret; // may be null if at eof
   }
+
+  void write_wisdom( p_op_wisdom_t const & op_wisdom, p_ostream const & out ) {
+    (*out) << "op_wisdom_t\n";
+    (*out) << "op_base_t\n" << str(op_wisdom->op) << "\n";
+    for( vect_p_op_tune_wisdom_t::const_iterator i = op_wisdom->wisdoms.begin(); i != op_wisdom->wisdoms.end(); ++i ) {
+      (*out) << "op_tune_wisdom_t\n";
+      
+    }
+    (*out) << "/op_wisdom_t\n";
+  }
+
 
 #include"gen/cnn_op.H.nesi_gen.cc"
 }
