@@ -41,6 +41,10 @@ namespace boda
   };
   typedef shared_ptr< op_base_t > p_op_base_t; 
   typedef set< op_base_t > set_op_base_t;
+
+#include"nesi_decls.H"
+  p_op_base_t make_p_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
 }
 
 #endif /* _OP_BASE_H_ */

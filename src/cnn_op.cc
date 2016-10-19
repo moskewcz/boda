@@ -4,6 +4,7 @@
 #include"str_util.H"
 #include"gbt_tile.H"
 #include"nesi.H"
+#include"lexp.H"
 
 namespace boda 
 {
@@ -370,6 +371,33 @@ namespace boda
       }	  
     }
   }
-  
+
+  // wisdom IO functions
+#if 0 
+  struct op_run_t {
+    string be_plat_tag; 
+    double rt_secs;
+  };
+  struct op_tune_wisdom_t {
+    p_op_tune_t op_tune;
+    map_str_p_op_run_t runs; // map from be_plat_tag to op_run_t
+  };
+  struct op_wisdom_t {
+    p_op_base_t op;
+    vect_p_op_tune_wisdom_t wisdoms;
+  };
+#endif
+
+  // returns null if no more wisdoms in stream
+  p_op_wisdom_t read_next_wisdom( string const & fn_for_errs, p_istream const & in ) {
+    p_op_wisdom_t ret;
+    string line;
+    if( !ifs_getline( fn_for_errs, in, line ) ) {
+      ret = make_shared<op_wisdom_t>();
+      ret->op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 );
+    }
+    return ret; // may be null if at eof
+  }
+
 #include"gen/cnn_op.H.nesi_gen.cc"
 }

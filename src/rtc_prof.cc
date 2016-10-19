@@ -149,7 +149,6 @@ namespace boda
     return rfc_dur;
   }
 
-  p_op_base_t make_p_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
   p_conv_op_base_t make_p_conv_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
   void rtc_prof_t::main( nesi_init_arg_t * nia ) {
@@ -159,9 +158,10 @@ namespace boda
     if( enable_prof ) { rtc->profile_start(); }
     if( eat_megs ) { rtc->create_var_with_dims( "MEMEATER", dims_t{ {1024,1024,eat_megs}, {"a","b","M"}, "float" } ); }
 
-    p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
-    for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
-      p_op_base_t v = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
+    p_istream rtc_func_sigs = ifs_open( rtc_func_sigs_fn );
+    p_op_wisdom_t op_wisdom;
+    while( op_wisdom = read_next_wisdom( rtc_func_sigs_fn.exp, rtc_func_sigs ) ) {
+      p_op_base_t v = op_wisdom->op;
       double const rfc_dur = profile_rcg_call( v, codegen, 0, 0, 1 );
       (*out) << strprintf( "per_layer_time['tag']=per_layer_time.get('tag',0.0) + %s\n", str(rfc_dur/1000.0).c_str() );
     }
@@ -180,7 +180,7 @@ namespace boda
   typedef map< string, ops_be_t > map_str_ops_be_t;
 
   struct ops_run_t {
-    p_conv_op_base_t op;
+    p_op_base_t op;
     op_tune_t op_tune;
     p_conv_op_base_t anno_op;    
     p_map_str_p_nda_t vs;
@@ -254,11 +254,11 @@ namespace boda
       if( enable_prof ) { ops_be.rtc->profile_start(); }
     }
 
-    p_vect_string in_lines = readlines_fn( ops_fn );
     uint32_t num_mad_fail = 0;
-    for( vect_string::const_iterator i = in_lines->begin(); i != in_lines->end(); ++i ) {
-      p_conv_op_base_t op = make_p_conv_op_base_t_init_and_check_unused_from_lexp( parse_lexp( *i ), 0 );
-      op->set_and_check_coi();
+    p_istream ops = ifs_open( ops_fn );
+    p_op_wisdom_t op_wisdom;
+    while( op_wisdom = read_next_wisdom( ops_fn.exp, ops ) ) {
+      p_op_base_t op = op_wisdom->op;
       vect_ops_run_t ops_runs;
       for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
         ops_runs.push_back( ops_run_t{op,i->second,make_shared<conv_op_base_t>( *op ),make_shared<map_str_p_nda_t>()} );
@@ -285,14 +285,19 @@ namespace boda
           }
           else { throw; }
         }
-        if( err.empty() && (i != ops_runs.begin()) ) {
-          vect_string const vns1 = get_keys( *ops_runs.front().vs );
-          vect_string const vns2 = get_keys( *ops_run.vs );
-          if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns[0]=%s vns[%s]=%s\n", 
-                                                  str(vns1).c_str(), str(i - ops_runs.begin()).c_str(), str(vns2).c_str() ) ); }
-          (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
-          comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, ops_runs.front().vs, ops_run.vs );
+        if( err.empty() ) {
+          if( i != ops_runs.begin() ) {
+            vect_string const vns1 = get_keys( *ops_runs.front().vs );
+            vect_string const vns2 = get_keys( *ops_run.vs );
+            if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns[0]=%s vns[%s]=%s\n", 
+                                                    str(vns1).c_str(), str(i - ops_runs.begin()).c_str(), str(vns2).c_str() ) ); }
+            (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
+            comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, ops_runs.front().vs, ops_run.vs );
+          }
+        } else {
+          rt_err( "profile_rcg_call() failed: " + err ); 
         }
+        
       }
     }
 

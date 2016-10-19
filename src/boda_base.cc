@@ -565,7 +565,7 @@ namespace boda
 
   // clears line and reads one line from in. returns true if at EOF. 
   // note: calls rt_err() if a complete line cannot be read.
-  bool ifs_getline( std::string const &fn, p_ifstream in, string & line )
+  bool ifs_getline( std::string const &fn, p_istream const & in, string & line )
   {
     line.clear();
     // the file should initially be good (including if we just

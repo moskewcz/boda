@@ -600,7 +600,6 @@ namespace boda
 
   // ****** rtc_codegen_t ******
 
-  p_op_base_t make_p_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
   using boost::filesystem::is_regular_file;
 
   p_rcg_func_call_t rtc_codegen_t::gen_func( op_base_t const & rfs_full, map_str_rtc_arg_t const & arg_map ) { // note: no ref to rfs_full is kept

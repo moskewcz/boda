@@ -243,8 +243,6 @@ namespace boda
   }
 
   // FIXME: mostly dup'd with similar code in rtc_func_gen.cc for generated function signatures
-  typedef shared_ptr< op_base_t > p_op_base_t; 
-  p_op_base_t make_p_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
   void write_sigs( set_op_base_t & all_op_sigs, filename_t const & op_sigs_fn ) {
     if( boost::filesystem::is_regular_file( op_sigs_fn.exp ) ) {  // read in existing contents of file if it exists
       p_vect_string in_lines = readlines_fn( op_sigs_fn );

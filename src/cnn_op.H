@@ -28,12 +28,42 @@ namespace boda
     uint32_t tconv; //NESI(default=0,help="if 1, enable tconv variant (cnn operations only). if 2, (force-)enable tconv in more cases.")
     u32_pt_t tconv_max_ksz;  //NESI(default="11:11",help="max kernel size to use for tconv")
     uint32_t ipconv; //NESI(default=0,help="if 1, enable ipconv variant (cnn operations only)")
+
   };
   typedef vector< op_tune_t > vect_op_tune_t; 
   typedef shared_ptr< op_tune_t > p_op_tune_t; 
   typedef vector< p_op_tune_t > vect_p_op_tune_t;
   typedef map< string, op_tune_t > map_str_op_tune_t;
 
+  // FIXME: should be NESI struct? see related FIXME on op_tune_wisdom_t
+  struct op_run_t {
+    string be_plat_tag; 
+    double rt_secs;
+  };
+  typedef vector< op_run_t > vect_op_run_t; 
+  typedef shared_ptr< op_run_t > p_op_run_t; 
+  typedef vector< p_op_run_t > vect_p_op_run_t;
+  typedef map< string, p_op_run_t > map_str_p_op_run_t;
+
+  // FIXME: yet-another place where we need/could-use generic NESI map str->nesi_struct support?
+  struct op_tune_wisdom_t {
+    p_op_tune_t op_tune;
+    map_str_p_op_run_t runs; // map from be_plat_tag to op_run_t
+  };
+  typedef vector< op_tune_wisdom_t > vect_op_tune_wisdom_t; 
+  typedef shared_ptr< op_tune_wisdom_t > p_op_tune_wisdom_t; 
+  typedef vector< p_op_tune_wisdom_t > vect_p_op_tune_wisdom_t;
+
+  struct op_wisdom_t {
+    p_op_base_t op;
+    vect_p_op_tune_wisdom_t wisdoms;
+  };
+
+  typedef vector< op_wisdom_t > vect_op_wisdom_t; 
+  typedef shared_ptr< op_wisdom_t > p_op_wisdom_t; 
+  typedef vector< p_op_wisdom_t > vect_p_op_wisdom_t;
+
+  p_op_wisdom_t read_next_wisdom( string const & fn_for_errs, p_istream const & in );
 
   string const k1conv_str = "k1conv"; 
   string const k1conv_simd_str = "k1conv_simd"; 

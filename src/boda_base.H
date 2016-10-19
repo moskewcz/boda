@@ -198,7 +198,7 @@ namespace boda
   typedef shared_ptr< std::ostream > p_ostream;
   typedef vector< p_ostream > vect_p_ostream;
 
-  bool ifs_getline( std::string const &fn, p_ifstream in, std::string & line );
+  bool ifs_getline( std::string const &fn, p_istream const & in, std::string & line );
   p_ostream ofs_open( filename_t const & fn );
   p_ostream ofs_open( string const & fn );
   p_string read_whole_fn( filename_t const & fn );

@@ -79,6 +79,7 @@ namespace boda
     void set_and_check_coi( void ); // verify that 'type' string is recognized and set coi field accordingly to matching info struct
     bool is( conv_op_info_t const & coi ) const; // type string checking 
     conv_op_base_t( void ) : coi(0) { }
+    conv_op_base_t( op_base_t const & op ) : op_base_t(op), coi(0) { set_and_check_coi(); }
 
     // convienince accessor functions for commonly-used cnn operation fields
     u32_pt_t in_pad( void ) const { return get_xy_dims_strict( get_dims( "in_pad" ) ); }
