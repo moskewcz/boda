@@ -355,6 +355,14 @@ namespace boda
 
       init_done.v = 1;
     }
+
+    virtual string get_plat_tag( void ) {
+      bwrite( *worker, string("get_plat_tag") ); 
+      worker->flush();
+      string ret;
+      bread( *worker, ret );
+      return ret;
+    }
     
     ~ipc_compute_t( void ) {
       if( init_done.v ) {
@@ -552,8 +560,12 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
       while( 1 ) {
 	bread( *parent, cmd );
 	if( 0 ) {} 
-	else if( cmd == "init" ) { rtc->init(); }
 	else if( cmd == "quit" ) { break; }
+	else if( cmd == "init" ) { rtc->init(); }
+	else if( cmd == "get_plat_tag" ) { 
+          string const ret = rtc->get_plat_tag();
+	  bwrite( *parent, ret ); parent->flush(); 
+        }
 	else if( cmd == "compile" ) {
 	  vect_rtc_func_info_t func_infos; rtc_compile_opts_t opts;
 	  bread( *parent, func_infos ); bread( *parent, opts );

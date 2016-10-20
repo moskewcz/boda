@@ -165,6 +165,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     p_filename_t out_fn; //NESI(help="output file (output goes to stdout if not specified)")
+    p_filename_t wisdom_fn; //NESI(help="wisdom output file (wisdom not output if not specified)")
 
     // FIXME: we should use a map_str_p_rtc_compute_t here, but NESI doesn't support that yet. might work with manual typedef initally?
     vect_p_rtc_compute_t rtcs; //NESI(help="list of compute backends to use")
@@ -199,6 +200,7 @@ namespace boda
 
   void ops_prof_t::main( nesi_init_arg_t * nia ) {
     p_ostream out = out_fn ? ofs_open( *out_fn ) : p_ostream( &std::cout, null_deleter<std::ostream>() );
+    p_ostream wout = wisdom_fn ? ofs_open( *wisdom_fn ) : p_ostream();
 
     // by default, add all enabled/availible backends
     if( rtcs.size() != rtcns.size() ) { rt_err( strprintf( "must specific the same # of rtcs and rtcns, but rtcs.size()=%s and rtcns.size()=%s\n", str(rtcs.size()).c_str(), str(rtcns.size()).c_str() ) ); }
@@ -256,7 +258,7 @@ namespace boda
           else { throw; }
         }
         if( err.empty() ) {
-          string const plat_tag = "<TODO_plat_tag>";
+          string const plat_tag = codegen->rtc->get_plat_tag();
           (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs};
           uint32_t const wix = i - op_wisdom->wisdoms.begin();
           if( wix ) {
@@ -271,7 +273,7 @@ namespace boda
           rt_err( "profile_rcg_call() failed: " + err ); 
         }
       }
-      // write_op_wisdom( *op_wisdom, *out ); // FIXME: put to wisdom output file
+      if( wout ) { write_op_wisdom( *op_wisdom, *wout ); }
     }
 
     for( map_str_ops_be_t::iterator i = ops_bes.begin(); i != ops_bes.end(); ++i ) {
@@ -304,7 +306,7 @@ namespace boda
   }
 
   void gen_ops_prof_tests( p_ostream & out ) {
-    
+    bool output_wisdom = 0;
     vect_pair_str_str op_tune_sgemm_bases = { {"def", ""},
                                               {"4-16-4-lm0","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=0"},
                                               {"4-16-4-lm2-vw4","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=2,vw=4"},
@@ -327,7 +329,8 @@ namespace boda
       op_tunes_conv.push_back( {"culibs","use_be=nvrtc,use_culibs=1"} ); 
     }
                                  
-    string const cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt'";
+    string cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt'";
+    if( output_wisdom ) { cli_base += " --wisdom-fn='%(boda_output_dir)/wisdom.txt'"; }
     string const sgemm_ops = " --ops-fn='%(boda_test_dir)/sgemm-ops-debug.txt'";
     string const cnn_ops = " --ops-fn='%(boda_test_dir)/conv-ops-debug.txt'";
     string const gen_data_mode_600 = " --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=600)))'";

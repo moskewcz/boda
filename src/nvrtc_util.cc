@@ -204,6 +204,15 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       init_done.v = 1;
     }
 
+    virtual string get_plat_tag( void ) {
+      assert_st( init_done.v );
+      string dn;
+      dn.resize(256);
+      cu_err_chk( cuDeviceGetName( &dn[0], dn.size()-1, cu_dev ), "cuDeviceGetName" ); // FIXME: docs unclear if max size includes NULL
+      dn.resize( strlen(dn.c_str()) ); // remove unused space
+      return "nvrtc:" + dn;
+    }
+
     zi_uint32_t compile_call_ix;
     void compile( vect_rtc_func_info_t const & func_infos, rtc_compile_opts_t const & opts ) {
       if( func_infos.empty() ) { return; } // no work to do? don't compile just the base decls to no effect (slow).

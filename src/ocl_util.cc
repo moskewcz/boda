@@ -242,6 +242,12 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       init_done.v = 1;
     }
 
+    virtual string get_plat_tag( void ) {
+      assert_st( init_done.v );
+      assert_st( use_devices.size() == 1 );
+      return "ocl:" + get_info_str(Device_t(use_devices[0],CL_DEVICE_NAME));
+    }
+
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()
     void check_runnable( cl_program_t const & prog, rtc_func_info_t const & info, bool const show_func_attrs ) {
       assert_st( prog.valid() );
