@@ -224,26 +224,32 @@ namespace boda
         op_tune_t const & op_tune = *(*i)->op_tune;
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
         p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op_wisdom->op );
-        add_codegen_annotations( anno_op, op_tune, 0 );        
-        if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
+        p_rtc_codegen_t const & codegen = get_codegen_for_op_tune( op_tune );
+        p_map_str_p_nda_t vsi;
         double dur_secs = NAN;
         string err;
-        p_rtc_codegen_t const & codegen = get_codegen_for_op_tune( op_tune );
-        p_map_str_p_nda_t vsi = make_shared<map_str_p_nda_t>();
-        try { dur_secs = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter ) / 1000.0; }
-        catch( rt_exception const & rte ) {
-          if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
-            err = "CL_OUT_OF_HOST_MEMORY"; 
-            // FIXME: we should probably handle this at the rtc_codegen_t level better. in fact, there's a good chance the
-            // handling is currently broken ... so for now, we'll give up here. note we used to call:
-            // codegen.clear(); 
-            assert_st( "TODO: re-handle compile/run failures better in codegen/prof" );
-          }
-          else { throw; }
+        try { add_codegen_annotations( anno_op, op_tune, 0 ); }
+        catch( unsup_exception const & us_exp ) {
+          err = string("annotation failure: ") + us_exp.what();
         }
         if( err.empty() ) {
-          string const plat_tag = codegen->rtc->get_plat_tag();
-          (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs};
+          if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
+          vsi = make_shared<map_str_p_nda_t>();
+          try { dur_secs = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter ) / 1000.0; }
+          catch( rt_exception const & rte ) {
+            if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
+              err = "CL_OUT_OF_HOST_MEMORY"; 
+              // FIXME: we should probably handle this at the rtc_codegen_t level better. in fact, there's a good chance the
+              // handling is currently broken ... so for now, we'll give up here. note we used to call:
+              // codegen.clear(); 
+              assert_st( "TODO: re-handle compile/run failures better in codegen/prof" );
+            }
+            else { throw; }
+          }
+        }
+        string const plat_tag = codegen->rtc->get_plat_tag();
+        (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err};
+        if( err.empty() ) {
           uint32_t const wix = i - op_wisdom->wisdoms.begin();
           if( wix ) {
             vect_string const vns1 = get_keys( *vs1 );
@@ -260,7 +266,7 @@ namespace boda
             }
           }
         } else {
-          rt_err( "profile_rcg_call() failed: " + err ); 
+          (*out) << "profile_rcg_call() failed: " << err << "\n"; 
         }
       }
       if( wout ) { write_op_wisdom( *op_wisdom, *wout ); }

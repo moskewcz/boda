@@ -236,6 +236,7 @@ namespace boda
                                        vect_string{"chan","pel"}, op->get_dims("out").tn )); 
 	} else if( op->get_func_name() == conv_simd_str ) {
           op->set_u32( "vw", op_tune->vw );
+          if( op_tune->Kb != 1 ) { unsup_err( "conv_simd only supports Kb == 1" ); } // FIXME: for now, no inner loop unroll ...
           // FIXME: pad in_chan to multiple of Kb?
           assert_st( op_tune->Kb == 1 ); // FIXME: for now, no inner loop unroll ...
           op->set_u32( "Kb", op_tune->Kb );
@@ -416,6 +417,7 @@ namespace boda
   void read_op_run_t( op_run_t & v, p_istream const & in ) {
     v.be_plat_tag = must_getline( in );
     v.rt_secs = lc_str_d( must_getline( in ) );
+    v.err = must_getline( in );
   }
 
   void read_op_tune_wisdom( op_tune_wisdom_t & v, p_istream const & in ) {
@@ -470,6 +472,7 @@ namespace boda
     out << "op_run_t\n";
     out << v.be_plat_tag << "\n";
     out << v.rt_secs << "\n";
+    out << v.err << "\n";
   }
 
   void write_op_tune_wisdom( op_tune_wisdom_t const & v, std::ostream & out ) {

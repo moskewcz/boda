@@ -95,6 +95,9 @@ namespace boda
   void rt_py_err( string const & err_msg ) __attribute__((noreturn));
   void rt_err_errno( char const * const func_name ); // like rt_err, but prints errno
 
+  // similar to rt_err, but throws a derived class for some non-fatal (catchable) cases
+  void unsup_err( string const & err_msg ) __attribute__((noreturn));
+
   template< typename T > void must_insert( T & kvm, typename T::key_type const & k ) {
     bool const did_ins = kvm.insert( k ).second;
     assert_st( did_ins );
@@ -1014,6 +1017,10 @@ namespace boda
     virtual char const * what( void ) const throw();
     string what_and_stacktrace( void ) const;
     int get_ret_code( void ) const;
+  };
+
+  struct unsup_exception : public rt_exception {
+    unsup_exception( string const & err_msg_, p_vect_rp_void bt_ ) : rt_exception( err_msg_, bt_ ) {}
   };
 
   // for any class to have nesi support, it must inherit ": public

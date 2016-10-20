@@ -640,5 +640,6 @@ namespace boda
   string rt_exception::what_and_stacktrace( void ) const { return err_msg + "\n" + stacktrace_str( bt, 2 ); }
   int rt_exception::get_ret_code( void ) const { return 1; }
   void rt_err( std::string const & err_msg ) { throw rt_exception( "error: " + err_msg, get_backtrace() ); }
+  void unsup_err( std::string const & err_msg ) { throw unsup_exception( "error: " + err_msg, get_backtrace() ); }
 
 }

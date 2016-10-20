@@ -37,8 +37,9 @@ namespace boda
 
   // FIXME: should be NESI struct? see related FIXME on op_tune_wisdom_t
   struct op_run_t {
-    string be_plat_tag; 
+    string be_plat_tag;
     double rt_secs;
+    string err; // empty if no error
   };
   typedef vector< op_run_t > vect_op_run_t; 
   typedef map< string, op_run_t > map_str_op_run_t;
