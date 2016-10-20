@@ -581,9 +581,9 @@ namespace boda
       dims_t const & in_pels = rcg->get_arg_dims_by_name( "in_pels" );
       assert( (work.dsz("pels") % vw) == 0 );
       assert( (work.dsz("out_chan") % vw) == 0 );
-      uint64_t in_chan_stride = rcg->get_arg_dims_by_name("in").dstride("chan");
+      //uint64_t in_chan_stride = rcg->get_arg_dims_by_name("in").dstride("chan");
+      //printf( "in_chan_stride=%s\n", str(in_chan_stride).c_str() );
       uint64_t filts_in_chan_stride = rcg->get_arg_dims_by_name("filts").dstride("in_chan");
-      printf( "in_chan_stride=%s\n", str(in_chan_stride).c_str() );
       //assert_st( ( in_chan_stride % vw ) == 0 ); in_chan_stride /= vw;
       assert_st( ( filts_in_chan_stride % vw ) == 0 ); filts_in_chan_stride /= vw;
 

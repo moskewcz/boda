@@ -5,65 +5,29 @@ c
 0105000000666C6F61740101DADA0000000000000000020000000008000000080000010000004D0008000001000000010000004E05000000666C6F61740000400000000000018DFC7924BA111898493CEEC41E948E463C000000FC7A094C2AB9884BA959044C4B0FDA4A3C67DA4A323AA34A9DEF964AD967514A7C9E3D4A38824F4A6F602F4A66C81A4AB8E51F4A41A7E7493C15F649221A044A2E68044A4A06FE49B145F9496113F049FEAF9949F9D7B34962ABC249A0AA8B4926668E495F8D9849C2849749C8F04846BC2C8EC384525FC54C377146186C064720434547E3D2CB46429383461957F0C43E79D2C4CF78EFC3227BEF43D4C952C30397FB4316AEBBC266358343B7788EC3AE4014427CAFEF410E14D7C36AE843C363438EC3317E47C405384DC38672A043BD0A404263419FC326BB55C3EB8FB7C3C4CD1644C14EB3C218915443941379C3
 op_tune_wisdom_t
 (use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)
-op_run_t
-nvrtc:GeForce GTX TITAN X
-0.0029599
-
 /op_tune_wisdom_t
 op_tune_wisdom_t
 (use_be=nvrtc,MNt=4 4,MNb=16 16,Kb=4,use_local_mem=0,tconv_max_ksz=11 11)
-op_run_t
-nvrtc:GeForce GTX TITAN X
-0.0273664
-
 /op_tune_wisdom_t
 op_tune_wisdom_t
 (use_be=nvrtc,MNt=4 4,MNb=16 16,Kb=4,use_local_mem=2,vw=4,tconv_max_ksz=11 11)
-op_run_t
-nvrtc:GeForce GTX TITAN X
-0.0110163
-
 /op_tune_wisdom_t
 op_tune_wisdom_t
 (use_be=nvrtc,MNt=4 4,MNb=16 16,Kb=4,use_local_mem=3,vw=4,tconv_max_ksz=11 11)
-op_run_t
-nvrtc:GeForce GTX TITAN X
-0.00582637
-
 /op_tune_wisdom_t
 op_tune_wisdom_t
 (use_be=nvrtc,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)
-op_run_t
-nvrtc:GeForce GTX TITAN X
-0.00450374
-
 /op_tune_wisdom_t
 op_tune_wisdom_t
 (use_be=ocl,MNt=4 4,MNb=16 16,Kb=4,use_local_mem=0,tconv_max_ksz=11 11)
-op_run_t
-ocl:GeForce GTX TITAN X
-0.0425326
-
 /op_tune_wisdom_t
 op_tune_wisdom_t
 (use_be=ocl,MNt=4 4,MNb=16 16,Kb=4,use_local_mem=2,vw=4,tconv_max_ksz=11 11)
-op_run_t
-ocl:GeForce GTX TITAN X
-0.0110882
-
 /op_tune_wisdom_t
 op_tune_wisdom_t
 (use_be=ocl,MNt=4 4,MNb=16 16,Kb=4,use_local_mem=3,vw=4,tconv_max_ksz=11 11)
-op_run_t
-ocl:GeForce GTX TITAN X
-0.0055335
-
 /op_tune_wisdom_t
 op_tune_wisdom_t
 (use_be=ocl,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)
-op_run_t
-ocl:GeForce GTX TITAN X
-0.00603302
-
 /op_tune_wisdom_t
 /op_wisdom_t

@@ -5,8 +5,9 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float const * const filts, // CUC
                                           GASQ void const * const in_pad,  // CUCL REF y:x 
                                           GASQ void const * const work,  // CUCL REF pels_blk:out_chan_blk:pels_tile:out_chan_tile:pels:out_chan
                                           GASQ float const * const out_ref,  // CUCL REF img:chan:y:x
-					  GASQ float * const out // CUCL OUT chan:pel
-                                          )
+					  GASQ float * const out, // CUCL OUT chan:pel
+                                          uint32_t const vw, // CUCL IN :
+                                          uint32_t const Kb ) // CUCL IN :
 // yeah, okay, we don't use stride/in_pad here. but in codegen, we
 // check that the stride is really 1, so we must declare then here.
 {

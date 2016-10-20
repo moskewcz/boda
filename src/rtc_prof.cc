@@ -164,6 +164,8 @@ namespace boda
 
     uint32_t write_digests; //NESI(default="1",help="if non-zero, write 0'th op_tune's results as known-good nda digests into output wisdom. if zero, will copy known-good digests from input wisdom if availible" )
 
+    uint32_t write_runs; //NESI(default="0",help="if non-zero, write run data in output wisdom. will merge into existing runs if present (overwriting duplicates). if zero, output wisdom will have no runs (perhaps only known-good digests)" )
+
     p_rtc_codegen_t & get_codegen_for_op_tune( op_tune_t const & op_tune ) {
       assert_st( !ops_bes.empty() );
       if( op_tune.use_be.empty() ) { return ops_bes.begin()->second.codegen; }
@@ -223,25 +225,29 @@ namespace boda
       // check that the input and output set of per-op-tune wisdoms are the same. we could do better
       // (i.e. merge/reordering), but this is a start.
       if( op_wisdom_in ) {
-        if( op_wisdom_in->wisdoms.size() != wnum ) {
-          rt_err( strprintf( "number of wisdoms mismatch between input wisdom and set of op-tunes to run: "
-                             "op_wisdom_in->wisdoms.size()=%s op_wisdom_out->wisdoms.size()=%s", 
-                             str(op_wisdom_in->wisdoms.size()).c_str(), str(wnum).c_str() ) );
-        }
-        for( uint32_t i = 0; i != wnum; ++i ) {
-          string const ot_str_in = str(op_wisdom_in->wisdoms[i]->op_tune);
-          string const ot_str_out = str(op_wisdom_out->wisdoms[i]->op_tune);
-          if( ot_str_in != ot_str_out ) {
-            rt_err( strprintf( "in/out op_tune mismatch: wix=%s ot_str_in=%s ot_str_out=%s", 
-                               str(i).c_str(), str(ot_str_in).c_str(), str(ot_str_out).c_str() ) );
+        if( write_runs ) {
+          if( op_wisdom_in->wisdoms.size() != wnum ) {
+            rt_err( strprintf( "number of wisdoms mismatch between input wisdom and set of op-tunes to run: "
+                               "op_wisdom_in->wisdoms.size()=%s op_wisdom_out->wisdoms.size()=%s", 
+                               str(op_wisdom_in->wisdoms.size()).c_str(), str(wnum).c_str() ) );
           }
-        }
-      }
-      // copy over input runs to output as starting point
-      if( op_wisdom_in ) {
-        for( uint32_t i = 0; i != wnum; ++i ) {
-          assert_st( op_wisdom_out->wisdoms[i]->runs.empty() );
-          op_wisdom_out->wisdoms[i]->runs = op_wisdom_in->wisdoms[i]->runs;
+          for( uint32_t i = 0; i != wnum; ++i ) {
+            string const ot_str_in = str(op_wisdom_in->wisdoms[i]->op_tune);
+            string const ot_str_out = str(op_wisdom_out->wisdoms[i]->op_tune);
+            if( ot_str_in != ot_str_out ) {
+              rt_err( strprintf( "in/out op_tune mismatch: wix=%s ot_str_in=%s ot_str_out=%s", 
+                                 str(i).c_str(), str(ot_str_in).c_str(), str(ot_str_out).c_str() ) );
+            }
+          }
+          // copy over input runs to output as starting point
+          if( op_wisdom_in ) {
+            for( uint32_t i = 0; i != wnum; ++i ) {
+              assert_st( op_wisdom_out->wisdoms[i]->runs.empty() );
+              op_wisdom_out->wisdoms[i]->runs = op_wisdom_in->wisdoms[i]->runs;
+            }
+          }
+        } else {
+          // if we're not writing runs, the op_wisdom_in->wisdoms (if present) are unused 
         }
       }
       p_map_str_p_nda_t vs1; // we compare all runs against the first run, whose results will be stored here
@@ -274,7 +280,7 @@ namespace boda
           }
         }
         string const plat_tag = codegen->rtc->get_plat_tag();
-        (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err};
+        if( write_runs ) { (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err}; }
         if( err.empty() ) {
           // vs-first op-tune compare
           if( wix ) {
@@ -348,7 +354,7 @@ namespace boda
   }
 
   void gen_ops_prof_tests( p_ostream & out ) {
-    bool output_wisdom = 0;
+    bool output_wisdom = 1;
     vect_pair_str_str op_tune_sgemm_bases = { {"def", ""},
                                               {"4-16-4-lm0","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=0"},
                                               {"4-16-4-lm2-vw4","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=2,vw=4"},
@@ -357,12 +363,25 @@ namespace boda
     // FIXME: enable_bconv=1 goes where? not part of per-op flow currently ... maybe it should be though.
     // FIXME: note: can't test per-op against caffe here -- should be enable that somehow? it's covered by test_compute_multi, of course ..
     vect_pair_str_str op_tune_conv_bases = { {"def",""},
-                                             {"opt","k1conv=1,tconv=1"} };
+                                             {"opt","k1conv=1,tconv=1"}, // general op_tune for titan X
+                                             {"AMD1", // guess1 at tune for AMD/GCN
+                                              "use_culibs=0,MNt=4:4,MNb=8:8,k1conv=1,tconv=1"},
+                                             {"AMD2", // guess2 at tune for AMD/GCN
+                                              "use_culibs=0,MNt=4:4,MNb=8:8,tconv=1"},
+                                             {"AMD3", // guess3 at tune for AMD/GCN
+                                              "use_culibs=0,MNt=4:4,MNb=8:8,k1conv=1"},
+                                             {"AMD4", // guess4 at tune for AMD/GCN
+                                              "use_culibs=0,MNt=4:4,MNb=8:8"},
+    };
     vect_pair_str_str op_tunes_sgemm;
     vect_pair_str_str op_tunes_conv;
     if( is_feature_enabled("opencl") ) { 
       add_to_with_prefix( op_tunes_sgemm, op_tune_sgemm_bases, {"ocl-","use_be=ocl,"} );
       add_to_with_prefix( op_tunes_conv, op_tune_conv_bases, {"ocl-","use_be=ocl,"} );
+      // FIXME/NOTE: (some?) vector widths don't work with the nvrtc backend (only opencl) currently, due to syntax
+      // issues / language support issues. revisit/investigate?
+      op_tunes_conv.push_back( pair_str_str{"8-16-1-lm2-vm8",  // general tune for SD820 
+            "use_be=ocl,MNt=8:8,MNb=16:16,k1conv=1,tconv=0,Kb=1,use_local_mem=2,vw=8"} );
     }
     if( is_feature_enabled("nvrtc") ) { 
       add_to_with_prefix( op_tunes_sgemm, op_tune_sgemm_bases, {"nvrtc-","use_be=nvrtc,"} );
