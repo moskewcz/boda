@@ -354,7 +354,9 @@ namespace boda
   }
 
   void gen_ops_prof_tests( p_ostream & out ) {
-    bool output_wisdom = 1;
+    bool const output_wisdom = 1;
+    bool const run_slow = 0;
+    bool const first_run = 0; // if true, don't try to read input wisdom (since it won't exist for a new test)
     vect_pair_str_str op_tune_sgemm_bases = { {"def", ""},
                                               {"4-16-4-lm0","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=0"},
                                               {"4-16-4-lm2-vw4","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=2,vw=4"},
@@ -391,7 +393,7 @@ namespace boda
     }
                                  
     string cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt'";
-    cli_base += " --wisdom-in-fn='%(boda_test_dir)/good_tr/%(test_name)/wisdom.wis'";
+    if( !first_run ) { cli_base += " --wisdom-in-fn='%(boda_test_dir)/good_tr/%(test_name)/wisdom.wis'"; }
     if( output_wisdom ) { cli_base += " --wisdom-out-fn='%(boda_output_dir)/wisdom.wis'"; }
     string const sgemm_ops = " --ops-fn='%(boda_test_dir)/sgemm-ops-debug.txt'";
     string const cnn_ops = " --ops-fn='%(boda_test_dir)/conv-ops-debug.txt'";
@@ -402,6 +404,9 @@ namespace boda
     run_bases_sgemm.push_back( {"sgemm-gen5", cli_base + sgemm_ops + gen_data_mode_5 } );
     vect_pair_str_str run_bases_conv;
     run_bases_conv.push_back( {"conv-gen5", cli_base + cnn_ops + gen_data_mode_5} );
+    if( run_slow ) {
+      run_bases_conv.push_back( {"conv-full-gen5", cli_base + " --ops-fn='%(boda_test_dir)/conv-ops-1-5-20-nin-alex-gn.txt'" +gen_data_mode_5});
+    }
     
     (*out) << "<root>\n";
     emit_clis( out, run_bases_sgemm, op_tunes_sgemm );
