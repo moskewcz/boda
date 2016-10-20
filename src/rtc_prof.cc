@@ -11,6 +11,7 @@
 #include"cnn_op.H"
 #include"conv_util.H"
 #include"comp_util.H"
+#include<iostream>
 
 namespace boda 
 {
