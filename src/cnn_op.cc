@@ -432,14 +432,26 @@ namespace boda
     return ret; // may be null if at eof
   }
 
-  void write_wisdom( p_op_wisdom_t const & op_wisdom, p_ostream const & out ) {
-    (*out) << "op_wisdom_t\n";
-    (*out) << "op_base_t\n" << str(op_wisdom->op) << "\n";
-    for( vect_p_op_tune_wisdom_t::const_iterator i = op_wisdom->wisdoms.begin(); i != op_wisdom->wisdoms.end(); ++i ) {
-      (*out) << "op_tune_wisdom_t\n";
-      
+  void write_op_run( op_run_t const & v, std::ostream & out ) {
+    out << "op_run_t\n";
+    out << v.be_plat_tag << "\n";
+    out << v.rt_secs << "\n";
+  }
+
+  void write_op_tune_wisdom( op_tune_wisdom_t const & v, std::ostream & out ) {
+    out << "op_tune_wisdom_t\n";
+    out << str(v.op_tune) << "\n";
+    for( map_str_op_run_t::const_iterator i = v.runs.begin(); i != v.runs.end(); ++i ) { write_op_run( i->second, out ); }
+    out << "/op_tune_wisdom_t\n";
+  }
+
+  void write_op_wisdom( op_wisdom_t const & op_wisdom, std::ostream & out ) {
+    out << "op_wisdom_t\n";
+    out << "op_base_t\n" << str(op_wisdom.op) << "\n";
+    for( vect_p_op_tune_wisdom_t::const_iterator i = op_wisdom.wisdoms.begin(); i != op_wisdom.wisdoms.end(); ++i ) {
+      write_op_tune_wisdom( **i, out );
     }
-    (*out) << "/op_wisdom_t\n";
+    out << "/op_wisdom_t\n";
   }
 
 

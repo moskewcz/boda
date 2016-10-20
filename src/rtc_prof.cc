@@ -133,14 +133,30 @@ namespace boda
   typedef shared_ptr< ops_be_t > p_ops_be_t; 
   typedef map< string, ops_be_t > map_str_ops_be_t;
 
+#if 0 
+  struct op_run_t {
+    string be_plat_tag; 
+    double rt_secs;
+  };
+  struct op_tune_wisdom_t {
+    p_op_tune_t op_tune;
+    map_str_op_run_t runs; // map from be_plat_tag to op_run_t
+  };
+  struct op_wisdom_t {
+    p_op_base_t op;
+    vect_p_op_tune_wisdom_t wisdoms;
+  };
+#endif
+#if 0
   struct ops_run_t {
     p_op_base_t op;
     op_tune_t op_tune;
     p_conv_op_base_t anno_op;    
-    p_map_str_p_nda_t vs;
     double dur_secs;
   };
   typedef vector< ops_run_t > vect_ops_run_t; 
+#endif
+
 
 
   struct ops_prof_t : virtual public nesi, public has_main_t // NESI(help="profile set of operations across backends and tuning params",
@@ -169,10 +185,10 @@ namespace boda
 
     map_str_ops_be_t ops_bes;
 
-    p_rtc_codegen_t & get_codegen_for_op( ops_run_t const & ops_run ) {
+    p_rtc_codegen_t & get_codegen_for_op_tune( op_tune_t const & op_tune ) {
       assert_st( !ops_bes.empty() );
-      if( ops_run.op_tune.use_be.empty() ) { return ops_bes.begin()->second.codegen; }
-      return must_find( ops_bes, ops_run.op_tune.use_be ).codegen;
+      if( op_tune.use_be.empty() ) { return ops_bes.begin()->second.codegen; }
+      return must_find( ops_bes, op_tune.use_be ).codegen;
     }
 
     virtual void main( nesi_init_arg_t * nia );
@@ -212,23 +228,23 @@ namespace boda
     p_istream ops = ifs_open( ops_fn );
     string line;
     while( !ifs_getline( ops_fn.exp, ops, line ) ) {
-      p_op_base_t op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
-      vect_ops_run_t ops_runs;
+      p_op_wisdom_t op_wisdom = make_shared< op_wisdom_t >();
+      op_wisdom->op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
       for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
-        ops_runs.push_back( ops_run_t{op,i->second,make_shared<conv_op_base_t>( *op ),make_shared<map_str_p_nda_t>()} );
+        op_wisdom->wisdoms.push_back( p_op_tune_wisdom_t( new op_tune_wisdom_t{make_shared<op_tune_t>(i->second)} ) );
       }
-
-      for( vect_ops_run_t::iterator i = ops_runs.begin(); i != ops_runs.end(); ++i ) {
-        ops_run_t & ops_run = *i;
-        assert_st( ops_run.vs->empty() );
-        
+      p_map_str_p_nda_t vs1; // we compare all runs against the first run, whose results will be stored here
+      for( vect_p_op_tune_wisdom_t::iterator i = op_wisdom->wisdoms.begin(); i != op_wisdom->wisdoms.end(); ++i ) {
+        op_tune_t const & op_tune = *(*i)->op_tune;
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-        add_codegen_annotations( ops_run.anno_op, ops_run.op_tune, 0 );        
+        p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op_wisdom->op );
+        add_codegen_annotations( anno_op, op_tune, 0 );        
         if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
-        ops_run.dur_secs = NAN;
+        double dur_secs = NAN;
         string err;
-        p_rtc_codegen_t const & codegen = get_codegen_for_op( ops_run );
-        try { ops_run.dur_secs = profile_rcg_call( ops_run.anno_op, *codegen, gen_data, ops_run.vs.get(), run_iter ) / 1000.0; }
+        p_rtc_codegen_t const & codegen = get_codegen_for_op_tune( op_tune );
+        p_map_str_p_nda_t vsi = make_shared<map_str_p_nda_t>();
+        try { dur_secs = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter ) / 1000.0; }
         catch( rt_exception const & rte ) {
           if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
             err = "CL_OUT_OF_HOST_MEMORY"; 
@@ -240,19 +256,22 @@ namespace boda
           else { throw; }
         }
         if( err.empty() ) {
-          if( i != ops_runs.begin() ) {
-            vect_string const vns1 = get_keys( *ops_runs.front().vs );
-            vect_string const vns2 = get_keys( *ops_run.vs );
+          string const plat_tag = "<TODO_plat_tag>";
+          (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs};
+          uint32_t const wix = i - op_wisdom->wisdoms.begin();
+          if( wix ) {
+            vect_string const vns1 = get_keys( *vs1 );
+            vect_string const vns2 = get_keys( *vsi );
             if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns[0]=%s vns[%s]=%s\n", 
-                                                    str(vns1).c_str(), str(i - ops_runs.begin()).c_str(), str(vns2).c_str() ) ); }
+                                                    str(vns1).c_str(), str(wix).c_str(), str(vns2).c_str() ) ); }
             (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
-            comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, ops_runs.front().vs, ops_run.vs );
-          }
+            comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vsi );
+          } else { vs1 = vsi; }
         } else {
           rt_err( "profile_rcg_call() failed: " + err ); 
         }
-        
       }
+      // write_op_wisdom( *op_wisdom, *out ); // FIXME: put to wisdom output file
     }
 
     for( map_str_ops_be_t::iterator i = ops_bes.begin(); i != ops_bes.end(); ++i ) {
@@ -260,7 +279,7 @@ namespace boda
       if( enable_prof ) { ops_be.rtc->profile_stop(); }
       ops_be.rtc->finish_and_sync(); 
     }
-
+  
     if( !num_mad_fail ) { (*out) << strprintf( "***ALL IS WELL***\n" ); }
     else { (*out) << strprintf( "***MAD FAILS*** num_mad_fail=%s\n", str(num_mad_fail).c_str() ); }
 

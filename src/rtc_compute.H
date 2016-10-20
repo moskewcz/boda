@@ -43,6 +43,7 @@ namespace boda
     string const & get_rtc_base_decls( void ); // note: caches results in rtc_base_decls
 
     virtual void init( void ) = 0;
+    // virtual string get_plat_tag( void ) = 0; // TODO
 
     virtual void create_var_with_dims( string const & vn, dims_t const & dims ) = 0;
     virtual void create_var_with_dims_as_reshaped_view_of_var( string const & vn, dims_t const & dims, string const & src_vn ) = 0; // note: will point to (and share as a peer) the data of existing var named by src_vn

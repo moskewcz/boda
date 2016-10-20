@@ -41,14 +41,12 @@ namespace boda
     double rt_secs;
   };
   typedef vector< op_run_t > vect_op_run_t; 
-  typedef shared_ptr< op_run_t > p_op_run_t; 
-  typedef vector< p_op_run_t > vect_p_op_run_t;
-  typedef map< string, p_op_run_t > map_str_p_op_run_t;
+  typedef map< string, op_run_t > map_str_op_run_t;
 
   // FIXME: yet-another place where we need/could-use generic NESI map str->nesi_struct support?
   struct op_tune_wisdom_t {
     p_op_tune_t op_tune;
-    map_str_p_op_run_t runs; // map from be_plat_tag to op_run_t
+    map_str_op_run_t runs; // map from be_plat_tag to op_run_t
   };
   typedef vector< op_tune_wisdom_t > vect_op_tune_wisdom_t; 
   typedef shared_ptr< op_tune_wisdom_t > p_op_tune_wisdom_t; 
@@ -64,6 +62,7 @@ namespace boda
   typedef vector< p_op_wisdom_t > vect_p_op_wisdom_t;
 
   p_op_wisdom_t read_next_wisdom( string const & fn_for_errs, p_istream const & in );
+  void write_op_wisdom( op_wisdom_t const & op_wisdom, std::ostream & out );
 
   string const k1conv_str = "k1conv"; 
   string const k1conv_simd_str = "k1conv_simd"; 
