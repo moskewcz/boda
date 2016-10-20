@@ -162,6 +162,8 @@ namespace boda
 
     map_str_ops_be_t ops_bes;
 
+    uint32_t write_digests; //NESI(default="1",help="if non-zero, write 0'th op_tune's results as known-good nda digests into output wisdom. if zero, will copy known-good digests from input wisdom if availible" )
+
     p_rtc_codegen_t & get_codegen_for_op_tune( op_tune_t const & op_tune ) {
       assert_st( !ops_bes.empty() );
       if( op_tune.use_be.empty() ) { return ops_bes.begin()->second.codegen; }
@@ -207,23 +209,47 @@ namespace boda
     p_istream ops = ifs_open( ops_fn );
     string line;
     while( !ifs_getline( ops_fn.exp, ops, line ) ) {
-      p_op_wisdom_t op_wisdom = win ? read_next_wisdom( win ) : make_shared< op_wisdom_t >();
-      p_op_base_t op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
-      if( !op_wisdom->op ) { op_wisdom->op = op; }
-      if( *op_wisdom->op != *op ) { rt_err( strprintf( "op mismatch between wisdom and ops list: op_wisdom->op=%s op=%s", 
-                                                       str(op_wisdom->op).c_str(), str(op).c_str() ) ); }
-      // FIXME for now, we ignore any existing wisdom(s), but i think we instead want to merge them. but, for that, we
-      // need to have a map from op_tune to the wisdom data, not just a flat list. and i don't think we have that yet?
-      // but maybe we can just use the str() of the op_tune as a key initially.
-      op_wisdom->wisdoms.clear(); 
+      p_op_wisdom_t op_wisdom_in = win ? read_next_wisdom( win ) : p_op_wisdom_t();
+      p_op_wisdom_t op_wisdom_out = make_shared< op_wisdom_t >();
+      op_wisdom_out->op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
+      if( op_wisdom_in && (*op_wisdom_in->op != *op_wisdom_out->op) ) {
+        rt_err( strprintf( "op mismatch between input wisdom and ops-list (to output): op_wisdom_in->op=%s op_wisdom_out=%s", 
+                           str(op_wisdom_in->op).c_str(), str(op_wisdom_out->op).c_str() ) ); 
+      }
       for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
-        op_wisdom->wisdoms.push_back( p_op_tune_wisdom_t( new op_tune_wisdom_t{make_shared<op_tune_t>(i->second)} ) );
+        op_wisdom_out->wisdoms.push_back( p_op_tune_wisdom_t( new op_tune_wisdom_t{make_shared<op_tune_t>(i->second)} ) );
+      }
+      uint32_t const wnum = op_wisdom_out->wisdoms.size();
+      // check that the input and output set of per-op-tune wisdoms are the same. we could do better
+      // (i.e. merge/reordering), but this is a start.
+      if( op_wisdom_in ) {
+        if( op_wisdom_in->wisdoms.size() != wnum ) {
+          rt_err( strprintf( "number of wisdoms mismatch between input wisdom and set of op-tunes to run: "
+                             "op_wisdom_in->wisdoms.size()=%s op_wisdom_out->wisdoms.size()=%s", 
+                             str(op_wisdom_in->wisdoms.size()).c_str(), str(wnum).c_str() ) );
+        }
+        for( uint32_t i = 0; i != wnum; ++i ) {
+          string const ot_str_in = str(op_wisdom_in->wisdoms[i]->op_tune);
+          string const ot_str_out = str(op_wisdom_out->wisdoms[i]->op_tune);
+          if( ot_str_in != ot_str_out ) {
+            rt_err( strprintf( "in/out op_tune mismatch: wix=%s ot_str_in=%s ot_str_out=%s", 
+                               str(i).c_str(), str(ot_str_in).c_str(), str(ot_str_out).c_str() ) );
+          }
+        }
+      }
+      // copy over input runs to output as starting point
+      if( op_wisdom_in ) {
+        for( uint32_t i = 0; i != wnum; ++i ) {
+          assert_st( op_wisdom_out->wisdoms[i]->runs.empty() );
+          op_wisdom_out->wisdoms[i]->runs = op_wisdom_in->wisdoms[i]->runs;
+        }
       }
       p_map_str_p_nda_t vs1; // we compare all runs against the first run, whose results will be stored here
-      for( vect_p_op_tune_wisdom_t::iterator i = op_wisdom->wisdoms.begin(); i != op_wisdom->wisdoms.end(); ++i ) {
+      for( vect_p_op_tune_wisdom_t::iterator i = op_wisdom_out->wisdoms.begin(); i != op_wisdom_out->wisdoms.end(); ++i ) {
+        uint32_t const wix = i - op_wisdom_out->wisdoms.begin();
         op_tune_t const & op_tune = *(*i)->op_tune;
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
-        p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op_wisdom->op );
+        p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op_wisdom_out->op );
         p_rtc_codegen_t const & codegen = get_codegen_for_op_tune( op_tune );
         p_map_str_p_nda_t vsi;
         double dur_secs = NAN;
@@ -250,7 +276,7 @@ namespace boda
         string const plat_tag = codegen->rtc->get_plat_tag();
         (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err};
         if( err.empty() ) {
-          uint32_t const wix = i - op_wisdom->wisdoms.begin();
+          // vs-first op-tune compare
           if( wix ) {
             vect_string const vns1 = get_keys( *vs1 );
             vect_string const vns2 = get_keys( *vsi );
@@ -259,19 +285,39 @@ namespace boda
             (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
             comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vsi );
           } else { 
-            vs1 = vsi; // store first vsi as vs1 for later compares and also use vs1 as kgs for wisdom
-            for( map_str_p_nda_t::const_iterator i = vs1->begin(); i != vs1->end(); ++i ) {
-              size_t const digest_seed = std::hash<string>()(i->first); // FIXME: make better seed by including op/op_tune/???
-              op_wisdom->kgs.push_back( pair_str_p_nda_digest_t( i->first, nda_digest_t::make_from_nda( i->second, digest_seed ) ) );
+            vs1 = vsi; // store first vsi as vs1 for later compares and also use vs1 as kgs for output wisdom
+            if( write_digests ) {
+              for( map_str_p_nda_t::const_iterator i = vs1->begin(); i != vs1->end(); ++i ) {
+                size_t const digest_seed = std::hash<string>()(i->first); // FIXME: make better seed by including op/op_tune/???
+                op_wisdom_out->kgs.push_back( pair_str_p_nda_digest_t( i->first, nda_digest_t::make_from_nda( i->second, digest_seed ) ) );
+              }
+            } else {
+              if( op_wisdom_in ) { op_wisdom_out->kgs = op_wisdom_in->kgs; }
             }
+          }
+          // digest compare
+          if( op_wisdom_in ) {
+            assert_st( op_wisdom_in->kgs.size() == vsi->size() );
+            uint32_t vix = 0;
+            for( map_str_p_nda_t::const_iterator i = vsi->begin(); i != vsi->end(); ++i, ++vix ) {
+              assert_st( op_wisdom_in->kgs[vix].first == i->first ); // should be same var name
+              p_nda_digest_t const & kg_digest = op_wisdom_in->kgs[vix].second;
+              size_t const digest_seed = std::hash<string>()(i->first); // FIXME: make better seed by including op/op_tune/???
+              p_nda_digest_t digest = nda_digest_t::make_from_nda( i->second, digest_seed );
+              double vmt = get( var_mrd_toler, i->first, mrd_toler ); // FIXME: using name of output for per-var toler is questionable.
+              string const comp_res = kg_digest->mrd_comp( digest, vmt );
+              if( !comp_res.empty() ) { (*out) << (i->first) + " digest mrd_comp() failure '"+wisdom_in_fn->in+"' vs '"+str(op_tune)+"':\n" + comp_res + "\n";}
+            }
+          } else { // no input wisdom, so no digest compute
+            (*out) << "digest mrd_comp() vs '"+str(op_tune)+"' skipped, no input wisdom availible\n";
           }
         } else {
           (*out) << "profile_rcg_call() failed: " << err << "\n"; 
         }
       }
-      if( wout ) { write_op_wisdom( *op_wisdom, *wout ); }
+      if( wout ) { write_op_wisdom( *op_wisdom_out, *wout ); }
     }
-
+      
     for( map_str_ops_be_t::iterator i = ops_bes.begin(); i != ops_bes.end(); ++i ) {
       ops_be_t & ops_be = i->second;
       if( enable_prof ) { ops_be.rtc->profile_stop(); }
@@ -297,7 +343,7 @@ namespace boda
         cli.second += string((j==op_tunes.begin())?"":",") + j->first +"=("+j->second+")";
       }
       cli.second += ")'";
-      (*out) << strprintf( "<li test_name=\"%s\" cli_str=\"%s\" />\n", str(cli.first).c_str(), str(cli.second).c_str() );
+      (*out) << strprintf( "<li ignore_missing_outputs=\"1\" test_name=\"%s\" cli_str=\"%s\" />\n", str(cli.first).c_str(), str(cli.second).c_str() );
     }
   }
 
@@ -326,7 +372,8 @@ namespace boda
     }
                                  
     string cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt'";
-    if( output_wisdom ) { cli_base += " --wisdom-fn='%(boda_output_dir)/wisdom.txt'"; }
+    cli_base += " --wisdom-in-fn='%(boda_test_dir)/good_tr/%(test_name)/wisdom.wis'";
+    if( output_wisdom ) { cli_base += " --wisdom-out-fn='%(boda_output_dir)/wisdom.wis'"; }
     string const sgemm_ops = " --ops-fn='%(boda_test_dir)/sgemm-ops-debug.txt'";
     string const cnn_ops = " --ops-fn='%(boda_test_dir)/conv-ops-debug.txt'";
     string const gen_data_mode_600 = " --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=600)))'";

@@ -454,8 +454,6 @@ namespace boda
         pair_str_p_nda_digest_t kg;
         kg.first = must_getline( in );
         bread_from_str( unhex(must_getline( in )), kg.second );
-        printf( "kg.first=%s\n", str(kg.first).c_str() );
-        printf( "kg.second=%s\n", kg.second->get_digest().c_str() );
         ret->kgs.push_back( kg );
       } else if( line == "op_tune_wisdom_t" ) { 
         p_op_tune_wisdom_t v = make_shared< op_tune_wisdom_t >();
