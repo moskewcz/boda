@@ -11,6 +11,9 @@
 
 namespace boda
 {
+  string hex( string const & s );
+  string unhex( string const & s );
+
   string cxx_demangle( string const & sym );
 
   double lc_str_d( char const * const s );

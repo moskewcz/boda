@@ -133,31 +133,6 @@ namespace boda
   typedef shared_ptr< ops_be_t > p_ops_be_t; 
   typedef map< string, ops_be_t > map_str_ops_be_t;
 
-#if 0 
-  struct op_run_t {
-    string be_plat_tag; 
-    double rt_secs;
-  };
-  struct op_tune_wisdom_t {
-    p_op_tune_t op_tune;
-    map_str_op_run_t runs; // map from be_plat_tag to op_run_t
-  };
-  struct op_wisdom_t {
-    p_op_base_t op;
-    vect_p_op_tune_wisdom_t wisdoms;
-  };
-#endif
-#if 0
-  struct ops_run_t {
-    p_op_base_t op;
-    op_tune_t op_tune;
-    p_conv_op_base_t anno_op;    
-    double dur_secs;
-  };
-  typedef vector< ops_run_t > vect_ops_run_t; 
-#endif
-
-
 
   struct ops_prof_t : virtual public nesi, public has_main_t // NESI(help="profile set of operations across backends and tuning params",
 			 // bases=["has_main_t"], type_id="ops-prof" )
@@ -165,7 +140,8 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     p_filename_t out_fn; //NESI(help="output file (output goes to stdout if not specified)")
-    p_filename_t wisdom_fn; //NESI(help="wisdom output file (wisdom not output if not specified)")
+    p_filename_t wisdom_out_fn; //NESI(help="wisdom output file (wisdom not output if not specified)")
+    p_filename_t wisdom_in_fn; //NESI(help="wisdom input file (to add to, may contain known-good results for checking)")
 
     // FIXME: we should use a map_str_p_rtc_compute_t here, but NESI doesn't support that yet. might work with manual typedef initally?
     vect_p_rtc_compute_t rtcs; //NESI(help="list of compute backends to use")
@@ -200,7 +176,8 @@ namespace boda
 
   void ops_prof_t::main( nesi_init_arg_t * nia ) {
     p_ostream out = out_fn ? ofs_open( *out_fn ) : p_ostream( &std::cout, null_deleter<std::ostream>() );
-    p_ostream wout = wisdom_fn ? ofs_open( *wisdom_fn ) : p_ostream();
+    p_ostream wout = wisdom_out_fn ? ofs_open( *wisdom_out_fn ) : p_ostream();
+    p_istream win = wisdom_in_fn ? ifs_open( *wisdom_in_fn ) : p_istream();
 
     // by default, add all enabled/availible backends
     if( rtcs.size() != rtcns.size() ) { rt_err( strprintf( "must specific the same # of rtcs and rtcns, but rtcs.size()=%s and rtcns.size()=%s\n", str(rtcs.size()).c_str(), str(rtcns.size()).c_str() ) ); }
@@ -230,8 +207,15 @@ namespace boda
     p_istream ops = ifs_open( ops_fn );
     string line;
     while( !ifs_getline( ops_fn.exp, ops, line ) ) {
-      p_op_wisdom_t op_wisdom = make_shared< op_wisdom_t >();
-      op_wisdom->op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
+      p_op_wisdom_t op_wisdom = win ? read_next_wisdom( win ) : make_shared< op_wisdom_t >();
+      p_op_base_t op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
+      if( !op_wisdom->op ) { op_wisdom->op = op; }
+      if( *op_wisdom->op != *op ) { rt_err( strprintf( "op mismatch between wisdom and ops list: op_wisdom->op=%s op=%s", 
+                                                       str(op_wisdom->op).c_str(), str(op).c_str() ) ); }
+      // FIXME for now, we ignore any existing wisdom(s), but i think we instead want to merge them. but, for that, we
+      // need to have a map from op_tune to the wisdom data, not just a flat list. and i don't think we have that yet?
+      // but maybe we can just use the str() of the op_tune as a key initially.
+      op_wisdom->wisdoms.clear(); 
       for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
         op_wisdom->wisdoms.push_back( p_op_tune_wisdom_t( new op_tune_wisdom_t{make_shared<op_tune_t>(i->second)} ) );
       }
@@ -268,7 +252,13 @@ namespace boda
                                                     str(vns1).c_str(), str(wix).c_str(), str(vns2).c_str() ) ); }
             (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
             comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vsi );
-          } else { vs1 = vsi; }
+          } else { 
+            vs1 = vsi; // store first vsi as vs1 for later compares and also use vs1 as kgs for wisdom
+            for( map_str_p_nda_t::const_iterator i = vs1->begin(); i != vs1->end(); ++i ) {
+              size_t const digest_seed = std::hash<string>()(i->first); // FIXME: make better seed by including op/op_tune/???
+              op_wisdom->kgs.push_back( pair_str_p_nda_digest_t( i->first, nda_digest_t::make_from_nda( i->second, digest_seed ) ) );
+            }
+          }
         } else {
           rt_err( "profile_rcg_call() failed: " + err ); 
         }

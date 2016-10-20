@@ -26,7 +26,7 @@ namespace boda
     uint32_t get_u32( string const & an ) const;
     void set_u32( string const & an, uint32_t const & v );
     bool operator ==( op_base_t const & o ) const = delete;
-    bool operator !=( op_base_t const & o ) const = delete;
+    bool operator !=( op_base_t const & o ) const { return (*this < o) || (o < *this); }
 
     // a few commonly-used str_vals get accessors for cleanliness/convenience. FIXME: should these be here?
     bool has_type( void ) const;

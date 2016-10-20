@@ -245,7 +245,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
     virtual string get_plat_tag( void ) {
       assert_st( init_done.v );
       assert_st( use_devices.size() == 1 );
-      return "ocl:" + get_info_str(Device_t(use_devices[0],CL_DEVICE_NAME));
+      return "ocl:" + string(get_info_str(Device_t(use_devices[0],CL_DEVICE_NAME)).c_str()); // FIXME: check-for and strip NULL earlier?
     }
 
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()

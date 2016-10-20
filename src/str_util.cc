@@ -6,11 +6,15 @@
 #include<malloc.h>
 #include<boost/lexical_cast.hpp>
 #include<boost/algorithm/string.hpp>
+#include<boost/algorithm/hex.hpp>
 #include<cxxabi.h>
 
 namespace boda
 {
   using std::string;
+  
+  string hex( std::string const & s ) { string ret; boost::algorithm::hex( s.begin(), s.end(), std::back_inserter( ret ) ); return ret; }
+  string unhex( std::string const & s ) { string ret; boost::algorithm::unhex( s.begin(), s.end(), std::back_inserter( ret ) );return ret;}
 
   string cxx_demangle( string const & sym ) {
     int dm_ret = 0;

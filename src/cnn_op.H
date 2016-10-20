@@ -54,6 +54,7 @@ namespace boda
 
   struct op_wisdom_t {
     p_op_base_t op;
+    vect_pair_str_p_nda_digest_t kgs;
     vect_p_op_tune_wisdom_t wisdoms;
   };
 
@@ -61,7 +62,7 @@ namespace boda
   typedef shared_ptr< op_wisdom_t > p_op_wisdom_t; 
   typedef vector< p_op_wisdom_t > vect_p_op_wisdom_t;
 
-  p_op_wisdom_t read_next_wisdom( string const & fn_for_errs, p_istream const & in );
+  p_op_wisdom_t read_next_wisdom( p_istream const & in );
   void write_op_wisdom( op_wisdom_t const & op_wisdom, std::ostream & out );
 
   string const k1conv_str = "k1conv"; 
@@ -75,6 +76,9 @@ namespace boda
 
   void add_cnn_codegen_annotations( conv_op_base_t * const op, op_tune_t const & op_tune, map_str_op_tune_t const *per_op_tune );
   void add_codegen_annotations( p_conv_op_base_t const & anno_op, op_tune_t const & op_tune, map_str_op_tune_t const *per_op_tune );
+
+#include"nesi_decls.H"
+  p_op_tune_t make_p_op_tune_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
 }
 

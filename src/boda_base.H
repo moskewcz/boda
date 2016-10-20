@@ -983,6 +983,8 @@ namespace boda
   // changes (like LSH)
   struct nda_digest_t; typedef shared_ptr< nda_digest_t > p_nda_digest_t;
   typedef vector< p_nda_digest_t > vect_p_nda_digest_t;
+  typedef std::pair< string, p_nda_digest_t > pair_str_p_nda_digest_t;
+  typedef vector< pair_str_p_nda_digest_t > vect_pair_str_p_nda_digest_t;
 
   struct nda_digest_t {
     // when comparing this nda_digest_t against 'itself' (the digest of the an nda generated in the same exact way),

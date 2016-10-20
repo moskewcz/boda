@@ -565,6 +565,8 @@ namespace boda
 
   // clears line and reads one line from in. returns true if at EOF. 
   // note: calls rt_err() if a complete line cannot be read.
+  // FIXME: there's a bit of a hack below in the error message generation where we dupe a nasty trinary to support not
+  // passing the fn into this function (since maybe that was never a good idea).
   bool ifs_getline( std::string const &fn, p_istream const & in, string & line )
   {
     line.clear();
@@ -576,11 +578,11 @@ namespace boda
     assert_st( in->good() ); 
     getline(*in, line);
     if( in->eof() ) { 
-      if( !line.empty() ) { rt_err( "reading "+fn+": incomplete (no newline) line at EOF:'" + line + "'" ); } 
+      if( !line.empty() ) { rt_err( (fn.empty() ? string() : ("reading "+fn+": ")) + "incomplete (no newline) line at EOF:'" + line + "'" ); } 
       return 1;
     }
     else {
-      if( !in->good() ) { rt_err( "reading "+fn+ " unknown failure" ); }
+      if( !in->good() ) { rt_err( (fn.empty() ? string() : ("reading "+fn+": ")) + "unknown failure" ); }
       return 0;
     }
   }
