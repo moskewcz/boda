@@ -289,7 +289,7 @@ namespace boda
           }
         }
         string const plat_tag = codegen->rtc->get_plat_tag();
-        if( write_runs ) { (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err}; }
+        (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err};
         if( err.empty() ) {
           // vs-first op-tune compare
           if( vs1 ) { // already had a non-failing tune 
@@ -330,7 +330,10 @@ namespace boda
           (*out) << "profile_rcg_call() failed: " << err << "\n"; 
         }
       }
-      if( wout ) { write_op_wisdom( *op_wisdom_out, *wout ); }
+      if( wout ) { 
+        if( !write_runs ) { op_wisdom_out->wisdoms.clear(); }
+        write_op_wisdom( *op_wisdom_out, *wout ); 
+      }
     }
       
     for( map_str_ops_be_t::iterator i = ops_bes.begin(); i != ops_bes.end(); ++i ) {

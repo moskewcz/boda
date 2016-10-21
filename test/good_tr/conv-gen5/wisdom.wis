@@ -3,46 +3,4 @@ op_wisdom_t
 kg
 out
 0105000000666C6F61740101DADA00000000000000000400000014000000606E040003000000696D6760000000D10B0000040000006368616E370000003700000001000000793700000001000000010000007805000000666C6F6174809F580000000000018D905F1F69F488060000000049FD59445500000096A5AE4D32C92E4DF51CE94C3FDFE84CFFD68B4CDEF28B4C358D474C3E04484C6AEFFD4B717CFE4B2B63FE4BE9C1D64B708FD74BE170D64BB4D5A44B7D2DA44BEA6CA44B97B3A44B06E9924B9058934B34E7924B3CE8734B6284734B9207744BC890734BB9D3404B0B04414BE21F414BBFA8404B5D75CC4A7E51CA4A4B2ECB4AF1F7CB4AC566CC4A9AFEE24760CFEC47A318E6470274EA4776ACEB4759AEE1471382EC47040CE847442EEA479438EC47EC0DEF47B15CB744D8099A44AA1BB644E99BA844A51076445A63874400FE8F44997EE544DB540445AA51D944C00FBA440E769B4462DAC64313F03B44EFC0F344BE1F4C44FFC685448F3722440000000093C95243B906874300000000138A0F4300000000848B8343000000000000000021BCCE420000000079F8934300000000084D73420670EB4094FCB2432BBA674300000000000000000000000051C43C42C2F3C842
-op_tune_wisdom_t
-(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=nvrtc,MNt=4 4,MNb=8 8,k1conv=1,tconv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=nvrtc,MNt=4 4,MNb=8 8,tconv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=nvrtc,MNt=4 4,MNb=8 8,k1conv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=nvrtc,MNt=4 4,MNb=8 8,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=nvrtc,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=nvrtc,MNt=8 8,MNb=8 16,k1conv=1,tconv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=ocl,MNt=4 4,MNb=8 8,k1conv=1,tconv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=ocl,MNt=4 4,MNb=8 8,tconv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=ocl,MNt=4 4,MNb=8 8,k1conv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=ocl,MNt=4 4,MNb=8 8,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=ocl,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
-op_tune_wisdom_t
-(use_be=ocl,MNt=8 8,MNb=8 16,k1conv=1,tconv=1,tconv_max_ksz=11 11)
-/op_tune_wisdom_t
 /op_wisdom_t
