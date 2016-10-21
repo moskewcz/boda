@@ -167,6 +167,8 @@ namespace boda
 
     uint32_t write_runs; //NESI(default="0",help="if non-zero, write run data in output wisdom. will merge into existing runs if present (overwriting duplicates). if zero, output wisdom will have no runs (perhaps only known-good digests)" )
 
+    uint32_t skip_ops; //NESI(default="0",help="skip this many ops (for debugging/testing large op lists with multiple)" )
+
     p_rtc_codegen_t & get_codegen_for_op_tune( op_tune_t const & op_tune ) {
       assert_st( !ops_bes.empty() );
       if( op_tune.use_be.empty() ) { return ops_bes.begin()->second.codegen; }
@@ -182,7 +184,12 @@ namespace boda
   void ops_prof_t::main( nesi_init_arg_t * nia ) {
     p_ostream out = out_fn ? ofs_open( *out_fn ) : p_ostream( &std::cout, null_deleter<std::ostream>() );
     p_ostream wout = wisdom_out_fn ? ofs_open( *wisdom_out_fn ) : p_ostream();
-    p_istream win = wisdom_in_fn ? ifs_open( *wisdom_in_fn ) : p_istream();
+    p_istream win;
+    if( wisdom_in_fn ) {
+      // if non-existant, don't load, but do complain
+      if( boost::filesystem::is_regular_file( wisdom_in_fn->exp ) ) { win = ifs_open( *wisdom_in_fn ); } 
+      else { (*out) << "warning: specified input wisdom file could not be loaded; ignoring. known-good testing disabled.\n"; } // 
+    }
 
     // by default, add all enabled/availible backends
     if( rtcs.size() != rtcns.size() ) { rt_err( strprintf( "must specific the same # of rtcs and rtcns, but rtcs.size()=%s and rtcns.size()=%s\n", str(rtcs.size()).c_str(), str(rtcns.size()).c_str() ) ); }
@@ -215,6 +222,7 @@ namespace boda
       p_op_wisdom_t op_wisdom_in = win ? read_next_wisdom( win ) : p_op_wisdom_t();
       p_op_wisdom_t op_wisdom_out = make_shared< op_wisdom_t >();
       op_wisdom_out->op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
+      if( skip_ops ) { --skip_ops; continue; } // note: we already read from op_wisdom_in ... probably what we want?
       if( op_wisdom_in && (*op_wisdom_in->op != *op_wisdom_out->op) ) {
         rt_err( strprintf( "op mismatch between input wisdom and ops-list (to output): op_wisdom_in->op=%s op_wisdom_out=%s", 
                            str(op_wisdom_in->op).c_str(), str(op_wisdom_out->op).c_str() ) ); 
@@ -284,14 +292,14 @@ namespace boda
         if( write_runs ) { (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err}; }
         if( err.empty() ) {
           // vs-first op-tune compare
-          if( wix ) {
+          if( vs1 ) { // already had a non-failing tune 
             vect_string const vns1 = get_keys( *vs1 );
             vect_string const vns2 = get_keys( *vsi );
             if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns[0]=%s vns[%s]=%s\n", 
                                                     str(vns1).c_str(), str(wix).c_str(), str(vns2).c_str() ) ); }
             (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
             comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vsi );
-          } else { 
+          } else { // first non-failing tune for this op
             vs1 = vsi; // store first vsi as vs1 for later compares and also use vs1 as kgs for output wisdom
             if( write_digests ) {
               for( map_str_p_nda_t::const_iterator i = vs1->begin(); i != vs1->end(); ++i ) {
@@ -354,10 +362,8 @@ namespace boda
     }
   }
 
-  void gen_ops_prof_tests( p_ostream & out ) {
+  void gen_ops_prof_tests( p_ostream & out, bool const & run_slow ) {
     bool const output_wisdom = 1;
-    bool const run_slow = 0;
-    bool const first_run = 0; // if true, don't try to read input wisdom (since it won't exist for a new test)
     vect_pair_str_str op_tune_sgemm_bases = { {"def", ""},
                                               {"4-16-4-lm0","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=0"},
                                               {"4-16-4-lm2-vw4","MNt=4:4,MNb=16:16,Kb=4,use_local_mem=2,vw=4"},
@@ -394,7 +400,7 @@ namespace boda
     }
                                  
     string cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt'";
-    if( !first_run ) { cli_base += " --wisdom-in-fn='%(boda_test_dir)/good_tr/%(test_name)/wisdom.wis'"; }
+    cli_base += " --wisdom-in-fn='%(boda_test_dir)/good_tr/%(test_name)/wisdom.wis'";
     if( output_wisdom ) { cli_base += " --wisdom-out-fn='%(boda_output_dir)/wisdom.wis'"; }
     string const sgemm_ops = " --ops-fn='%(boda_test_dir)/sgemm-ops-debug.txt'";
     string const cnn_ops = " --ops-fn='%(boda_test_dir)/conv-ops-debug.txt'";
@@ -424,7 +430,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
     virtual void main( nesi_init_arg_t * nia ) {
       p_ostream out = ofs_open( out_fn.exp );
-      gen_ops_prof_tests( out );
+      gen_ops_prof_tests( out, 1 );
     }
   };
 

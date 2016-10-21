@@ -217,6 +217,9 @@ namespace boda
 	      work.dsz("pels_blk"), u32_ceil_div(ni_dims.dsz("chan"),in_blk_iter_chan_dim), in_blk_iter_chan_dim, work.dsz("pels_tile")*work.dsz("pels")}, 
 	    vect_string{"blk","blk_iter","blk_iter_chan","blk_pel"}, in_dims.tn ); 
 	} else if( op->get_func_name() == k1conv_simd_str ) { 
+          // currently, the codegen/code doesn't support some cases. so, for those, bail. FIXME: how to sync this with the codegen?
+          if( (work.dsz("pels") % op_tune->vw) != 0 ) { unsup_err( "k1conv_simd only supports work.pels being a multiple of vw" ); }
+          if( (work.dsz("out_chan") % op_tune->vw) != 0 ) {unsup_err( "k1conv_simd only supports work.out_chan being a multiple of vw" ); }
           op->set_u32( "vw", op_tune->vw );
           // simd, no-local-mem version of k1conv.  we xpose to pels:chans format for the file, input, and output. we
           // pad the pels and out_chans to exactly match the blocking.
@@ -233,9 +236,11 @@ namespace boda
             vect_uint32_t{ in_chan_pad, kern_sz_.d[1], kern_sz_.d[0], out_chan_pad }, 
             vect_string{"in_chan","y","x","out_chan"}, op->get_dims("filts").tn )); 
 	  op->reset_dims("out",dims_t( vect_uint32_t{ out_chan_pad, pels_sz_pad }, 
-                                       vect_string{"chan","pel"}, op->get_dims("out").tn )); 
+                                       vect_string{"chan","pel"}, op->get_dims("out").tn ));
 	} else if( op->get_func_name() == conv_simd_str ) {
           op->set_u32( "vw", op_tune->vw );
+          if( (work.dsz("pels") % op_tune->vw) != 0 ) { unsup_err( "conv_simd only supports work.pels being a multiple of vw" ); }
+          if( (work.dsz("out_chan") % op_tune->vw) != 0 ) {unsup_err( "conv_simd only supports work.out_chan being a multiple of vw" ); }
           if( op_tune->Kb != 1 ) { unsup_err( "conv_simd only supports Kb == 1" ); } // FIXME: for now, no inner loop unroll ...
           // FIXME: pad in_chan to multiple of Kb?
           assert_st( op_tune->Kb == 1 ); // FIXME: for now, no inner loop unroll ...
