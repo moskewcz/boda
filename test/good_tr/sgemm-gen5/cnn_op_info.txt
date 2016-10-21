@@ -1,9 +1,1 @@
-vars_to_compare: c
-vars_to_compare: c
-vars_to_compare: c
-vars_to_compare: c
-vars_to_compare: c
-vars_to_compare: c
-vars_to_compare: c
-vars_to_compare: c
 ***ALL IS WELL***

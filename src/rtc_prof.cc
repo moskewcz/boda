@@ -12,6 +12,7 @@
 #include"conv_util.H"
 #include"comp_util.H"
 #include<iostream>
+#include<sstream>
 
 namespace boda 
 {
@@ -268,18 +269,18 @@ namespace boda
         p_rtc_codegen_t const & codegen = get_codegen_for_op_tune( op_tune );
         p_map_str_p_nda_t vsi;
         double dur_secs = NAN;
-        string err;
+        std::ostringstream err;
         try { add_codegen_annotations( anno_op, op_tune, 0 ); }
         catch( unsup_exception const & us_exp ) {
-          err = string("annotation failure: ") + us_exp.what();
+          err << string("annotation failure: ") + us_exp.what();
         }
-        if( err.empty() ) {
+        if( err.str().empty() ) {
           if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
           vsi = make_shared<map_str_p_nda_t>();
           try { dur_secs = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter ) / 1000.0; }
           catch( rt_exception const & rte ) {
             if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
-              err = "CL_OUT_OF_HOST_MEMORY"; 
+              err << "CL_OUT_OF_HOST_MEMORY"; 
               // FIXME: we should probably handle this at the rtc_codegen_t level better. in fact, there's a good chance the
               // handling is currently broken ... so for now, we'll give up here. note we used to call:
               // codegen.clear(); 
@@ -289,16 +290,16 @@ namespace boda
           }
         }
         string const plat_tag = codegen->rtc->get_plat_tag();
-        (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err};
-        if( err.empty() ) {
+        (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err.str()};
+        if( err.str().empty() ) {
           // vs-first op-tune compare
           if( vs1 ) { // already had a non-failing tune 
             vect_string const vns1 = get_keys( *vs1 );
             vect_string const vns2 = get_keys( *vsi );
             if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns[0]=%s vns[%s]=%s\n", 
                                                     str(vns1).c_str(), str(wix).c_str(), str(vns2).c_str() ) ); }
-            (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
-            comp_vars( out.get(), num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vsi );
+            // TODO : (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
+            comp_vars( &err, num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vsi );
           } else { // first non-failing tune for this op
             vs1 = vsi; // store first vsi as vs1 for later compares and also use vs1 as kgs for output wisdom
             if( write_digests ) {
@@ -324,10 +325,11 @@ namespace boda
               if( !comp_res.empty() ) { (*out) << (i->first) + " digest mrd_comp() failure '"+wisdom_in_fn->in+"' vs '"+str(op_tune)+"':\n" + comp_res + "\n";}
             }
           } else { // no input wisdom, so no digest compute
-            (*out) << "digest mrd_comp() vs '"+str(op_tune)+"' skipped, no input wisdom availible\n";
+            err << "digest mrd_comp() vs '"+str(op_tune)+"' skipped, no input wisdom availible\n";
           }
-        } else {
-          (*out) << "profile_rcg_call() failed: " << err << "\n"; 
+        }
+        if( !err.str().empty() ) {
+          (*out) << "errors for op='" + str( op_wisdom_out->op ) + "' op_tune='" + str(op_tune) + "': \n" << err.str() << "\n";
         }
       }
       if( wout ) { 
