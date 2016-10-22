@@ -44,7 +44,7 @@ namespace boda {
 	uint32_t num_err = 0;
 	assert_st( out_batch_1->dims == out_batch_2->dims );
 	for( dims_iter_t di( out_batch_1->dims ) ; ; )  {
-          double const dv = ssds_diff.pt->get_diff_double(di);
+          double const dv = ssds_diff.pt->get_rd_double(di);
 	  if( fabs(dv) >= vmt ) { 
             (*out) << ssds_diff.pt->get_diff_str(di); 
 	    ++num_err;

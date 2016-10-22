@@ -141,7 +141,7 @@ namespace boda
         max_eq(v.mrd,min_sig_mag_rel_diff( 1.0, o1[i], o2[i] ) );
       }
     }
-    virtual double get_diff_double( dims_iter_t const & di ) { return nda_at<T>( v.o2, di ) - nda_at<T>( v.o1, di ); }
+    virtual double get_rd_double( dims_iter_t const & di ) { return min_sig_mag_rel_diff( 1.0, nda_at<T>( v.o1, di ), nda_at<T>( v.o2, di ) ); }
     virtual string get_diff_str( dims_iter_t const & di ) { 
       return strprintf( "[%s]: v1=%s v2=%s \n", v.o1->dims.ix_str(di.di,1).c_str(), 
                         str(nda_at<T>(v.o1,di)).c_str(), str(nda_at<T>(v.o2,di)).c_str() );

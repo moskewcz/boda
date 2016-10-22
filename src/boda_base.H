@@ -948,7 +948,7 @@ namespace boda
   struct ssds_diff_per_type_t {
     virtual void cnt_diff_elems( void ) = 0;
     virtual void sum_squared_diffs( void ) = 0;
-    virtual double get_diff_double( dims_iter_t const & di ) = 0;
+    virtual double get_rd_double( dims_iter_t const & di ) = 0;
     virtual string get_diff_str( dims_iter_t const & di ) = 0;
   };
   typedef shared_ptr< ssds_diff_per_type_t > p_ssds_diff_per_type_t; 
