@@ -219,7 +219,8 @@ namespace boda
     uint32_t num_mad_fail = 0;
     p_istream ops = ifs_open( ops_fn );
     string line;
-    while( !ifs_getline( ops_fn.exp, ops, line ) ) {
+    for( uint32_t op_ix = 0; !ifs_getline( ops_fn.exp, ops, line ); op_ix++ ) { // op_ix is for printouts, helpful to run specific op later
+      bool op_seen_errs = 0; // we only print out op info if there are errors, and then only once across all tunes.
       p_op_wisdom_t op_wisdom_in = win ? read_next_wisdom( win ) : p_op_wisdom_t();
       p_op_wisdom_t op_wisdom_out = make_shared< op_wisdom_t >();
       op_wisdom_out->op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( line ), 0 ); 
@@ -328,8 +329,13 @@ namespace boda
             err << "digest mrd_comp() vs '"+str(op_tune)+"' skipped, no input wisdom availible\n";
           }
         }
-        if( !err.str().empty() ) {
-          (*out) << "errors for op='" + str( op_wisdom_out->op ) + "' op_tune='" + str(op_tune) + "': \n" << err.str() << "\n";
+        if( !err.str().empty() ) { 
+          // if first err for this op, print out op
+          if( !op_seen_errs ) { 
+            (*out) << "-----\n errors for op_ix=" << str(op_ix) << " op='" << str( op_wisdom_out->op ) << "'\n"; 
+            op_seen_errs = 1; 
+          } 
+          (*out) << "--  op_tune='" + str(op_tune) + "'\n" << err.str() << "\n";
         }
       }
       if( wout ) { 

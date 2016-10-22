@@ -1,4 +1,6 @@
-errors for op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=64)),filts=(dims=(out_chan=64,in_chan=32,y=5,x=5)),in=(dims=(img=5,chan=32,y=14,x=14)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=5,chan=64,y=14,x=14)),out_chans=(tn=uint32_t,v=64),stride=(tn=none,dims=(y=1,x=1))))' op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)': 
+-----
+ errors for op_ix=0 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=64)),filts=(dims=(out_chan=64,in_chan=32,y=5,x=5)),in=(dims=(img=5,chan=32,y=14,x=14)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=5,chan=64,y=14,x=14)),out_chans=(tn=uint32_t,v=64),stride=(tn=none,dims=(y=1,x=1))))'
+--  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=64:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=29572 sum_squared_diffs=0.000402313 avg_abs_diff=8.00901e-05 max_abs_diff=0.0012207 sum_diffs=-0.00306579 avg_diff=-4.88807e-08 max_rel_diff=0.00020957 avg1=86.228 avg2=86.228
 [img=3:chan=28:y=4:x=10 (43186)]: v1=0.311458 v2=0.311248 
 
