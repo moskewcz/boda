@@ -419,7 +419,7 @@ namespace boda
     if( run_slow ) {
       run_bases_conv.push_back( {"conv-full-gen5", cli_base + " --ops-fn='%(boda_test_dir)/conv-ops-1-5-20-nin-alex-gn.txt'" +gen_data_mode_5});
     }
-    
+    run_bases_conv.push_back( {"conv-debug", cli_base + " --ops-fn='%(boda_test_dir)/conv-ops-debug-tmp.txt'" +gen_data_mode_5});
     (*out) << "<root>\n";
     emit_clis( out, run_bases_sgemm, op_tunes_sgemm );
     emit_clis( out, run_bases_conv, op_tunes_conv );
