@@ -323,7 +323,7 @@ namespace boda
               p_nda_digest_t digest = nda_digest_t::make_from_nda( i->second, digest_seed );
               double vmt = get( var_mrd_toler, i->first, mrd_toler ); // FIXME: using name of output for per-var toler is questionable.
               string const comp_res = kg_digest->mrd_comp( digest, vmt );
-              if( !comp_res.empty() ) { (*out) << (i->first) + " digest mrd_comp() failure '"+wisdom_in_fn->in+"' vs '"+str(op_tune)+"':\n" + comp_res + "\n";}
+              if( !comp_res.empty() ) { err << (i->first) + " digest mrd_comp() failure '"+wisdom_in_fn->in+"' vs '"+str(op_tune)+"':\n" + comp_res + "\n";}
             }
           } else { // no input wisdom, so no digest compute
             err << "digest mrd_comp() vs '"+str(op_tune)+"' skipped, no input wisdom availible\n";
