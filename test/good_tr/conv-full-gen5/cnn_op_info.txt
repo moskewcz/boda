@@ -1,12 +1,12 @@
 -----
  errors for op_ix=55 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=64)),filts=(dims=(out_chan=64,in_chan=32,y=5,x=5)),in=(dims=(img=5,chan=32,y=14,x=14)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=5,chan=64,y=14,x=14)),out_chans=(tn=uint32_t,v=64),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=64:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=29572 sum_squared_diffs=0.000402313 avg_abs_diff=8.00901e-05 max_abs_diff=0.0012207 sum_diffs=-0.00306579 avg_diff=-4.88807e-08 max_rel_diff=0.00020957 avg1=86.228 avg2=86.228
 [img=3:chan=28:y=4:x=10 (43186)]: v1=0.311458 v2=0.311248 
 
 -----
  errors for op_ix=72 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=96)),filts=(dims=(out_chan=96,in_chan=32,y=5,x=5)),in=(dims=(img=1,chan=32,y=28,x=28)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=1,chan=96,y=28,x=28)),out_chans=(tn=uint32_t,v=96),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=96:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=35381 sum_squared_diffs=0.000547773 avg_abs_diff=8.53113e-05 max_abs_diff=0.00128174 sum_diffs=0.0113459 avg_diff=1.50748e-07 max_rel_diff=0.000308037 avg1=89.6098 avg2=89.6098
 [img=0:chan=6:y=12:x=21 (5061)]: v1=0.996793 v2=0.99659 
 [img=0:chan=12:y=6:x=16 (9592)]: v1=1.31902 v2=1.31875 
@@ -15,13 +15,13 @@ out: DIMS[img=1:chan=96:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=35381 s
 
 -----
  errors for op_ix=93 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=32,y=5,x=5)),in=(dims=(img=1,chan=32,y=7,x=7)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=1,chan=128,y=7,x=7)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=2924 sum_squared_diffs=2.73723e-05 avg_abs_diff=6.60622e-05 max_abs_diff=0.000793457 sum_diffs=-0.00782287 avg_diff=-1.24727e-06 max_rel_diff=0.000349045 avg1=76.6925 avg2=76.6925
 [img=0:chan=62:y=2:x=3 (3055)]: v1=0.78909 v2=0.789439 
 
 -----
  errors for op_ix=95 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=32,y=5,x=5)),in=(dims=(img=5,chan=32,y=7,x=7)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=5,chan=128,y=7,x=7)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=14572 sum_squared_diffs=0.000134588 avg_abs_diff=6.55112e-05 max_abs_diff=0.0012207 sum_diffs=-0.00474623 avg_diff=-1.51347e-07 max_rel_diff=0.000349045 avg1=77.4685 avg2=77.4685
 [img=0:chan=62:y=2:x=3 (3055)]: v1=0.78909 v2=0.789439 
 [img=2:chan=37:y=3:x=2 (14380)]: v1=0.581741 v2=0.581478 
@@ -29,7 +29,7 @@ out: DIMS[img=5:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=14572 su
 
 -----
  errors for op_ix=96 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=32,y=5,x=5)),in=(dims=(img=5,chan=32,y=14,x=14)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=5,chan=128,y=14,x=14)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=128:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=59050 sum_squared_diffs=0.000789399 avg_abs_diff=7.93287e-05 max_abs_diff=0.00134277 sum_diffs=-0.00226651 avg_diff=-1.80685e-08 max_rel_diff=0.000334442 avg1=85.8119 avg2=85.8119
 [img=2:chan=86:y=7:x=3 (67133)]: v1=0.637586 v2=0.637805 
 [img=2:chan=111:y=7:x=6 (72036)]: v1=1.23614 v2=1.23573 
@@ -40,7 +40,7 @@ out: DIMS[img=5:chan=128:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=59050 
 
 -----
  errors for op_ix=97 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=32,y=5,x=5)),in=(dims=(img=20,chan=32,y=7,x=7)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=20,chan=128,y=7,x=7)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=58579 sum_squared_diffs=0.000537628 avg_abs_diff=6.54671e-05 max_abs_diff=0.0012207 sum_diffs=0.0291725 avg_diff=2.32561e-07 max_rel_diff=0.000349045 avg1=77.3809 avg2=77.3809
 [img=0:chan=62:y=2:x=3 (3055)]: v1=0.78909 v2=0.789439 
 [img=2:chan=37:y=3:x=2 (14380)]: v1=0.581741 v2=0.581478 
@@ -50,7 +50,7 @@ out: DIMS[img=20:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=58579 s
 
 -----
  errors for op_ix=102 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=96,y=3,x=3)),in=(dims=(img=1,chan=96,y=28,x=28)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=128,y=28,x=28)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=128:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=48017 sum_squared_diffs=0.00106015 avg_abs_diff=0.000102783 max_abs_diff=0.0010376 sum_diffs=-0.0429598 avg_diff=-4.28091e-07 max_rel_diff=0.000368953 avg1=95.3779 avg2=95.3779
 [img=0:chan=1:y=12:x=12 (1132)]: v1=1.02713 v2=1.0269 
 [img=0:chan=33:y=10:x=4 (26156)]: v1=0.985001 v2=0.984746 
@@ -63,7 +63,7 @@ out: DIMS[img=1:chan=128:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=48017 
 
 -----
  errors for op_ix=103 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=96,y=3,x=3)),in=(dims=(img=5,chan=96,y=28,x=28)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=128,y=28,x=28)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=128:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=239280 sum_squared_diffs=0.00527174 avg_abs_diff=0.000102501 max_abs_diff=0.00134277 sum_diffs=0.00984062 avg_diff=1.96122e-08 max_rel_diff=0.000368953 avg1=94.9707 avg2=94.9707
 [img=0:chan=1:y=12:x=12 (1132)]: v1=1.02713 v2=1.0269 
 [img=0:chan=33:y=10:x=4 (26156)]: v1=0.985001 v2=0.984746 
@@ -79,7 +79,7 @@ out: DIMS[img=5:chan=128:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=239280
 
 -----
  errors for op_ix=104 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=96,y=3,x=3)),in=(dims=(img=20,chan=96,y=28,x=28)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=128,y=28,x=28)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=128:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=957414 sum_squared_diffs=0.0209963 avg_abs_diff=0.000102281 max_abs_diff=0.00177002 sum_diffs=-0.0569732 avg_diff=-2.83867e-08 max_rel_diff=0.000537872 avg1=95.0092 avg2=95.0092
 [img=0:chan=1:y=12:x=12 (1132)]: v1=1.02713 v2=1.0269 
 [img=0:chan=33:y=10:x=4 (26156)]: v1=0.985001 v2=0.984746 
@@ -95,7 +95,7 @@ out: DIMS[img=20:chan=128:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=95741
 
 -----
  errors for op_ix=106 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=48,y=5,x=5)),in=(dims=(img=5,chan=48,y=7,x=7)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=5,chan=128,y=7,x=7)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=14798 sum_squared_diffs=0.000307993 avg_abs_diff=9.9102e-05 max_abs_diff=0.0012207 sum_diffs=-0.000208646 avg_diff=-6.65325e-09 max_rel_diff=0.000325868 avg1=94.756 avg2=94.756
 [img=2:chan=29:y=1:x=2 (13974)]: v1=0.450853 v2=0.451156 
 [img=2:chan=113:y=2:x=4 (18099)]: v1=1.42249 v2=1.42281 
@@ -104,7 +104,7 @@ out: DIMS[img=5:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=14798 su
 
 -----
  errors for op_ix=107 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=128)),filts=(dims=(out_chan=128,in_chan=48,y=5,x=5)),in=(dims=(img=20,chan=48,y=7,x=7)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=20,chan=128,y=7,x=7)),out_chans=(tn=uint32_t,v=128),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=59288 sum_squared_diffs=0.00125295 avg_abs_diff=9.9942e-05 max_abs_diff=0.00158691 sum_diffs=0.00481986 avg_diff=3.84236e-08 max_rel_diff=0.000361919 avg1=95.2818 avg2=95.2818
 [img=2:chan=29:y=1:x=2 (13974)]: v1=0.450853 v2=0.451156 
 [img=2:chan=113:y=2:x=4 (18099)]: v1=1.42249 v2=1.42281 
@@ -119,7 +119,7 @@ out: DIMS[img=20:chan=128:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=59288 s
 
 -----
  errors for op_ix=123 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=192)),filts=(dims=(out_chan=192,in_chan=64,y=3,x=3)),in=(dims=(img=1,chan=64,y=56,x=56)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=192,y=56,x=56)),out_chans=(tn=uint32_t,v=192),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=192:y=56:x=56] ssds_str(out_batch_1,out_batch_2)=cnt=284593 sum_squared_diffs=0.00294959 avg_abs_diff=6.9991e-05 max_abs_diff=0.0010376 sum_diffs=-0.0490349 avg_diff=-8.14382e-08 max_rel_diff=0.000262022 avg1=78.7329 avg2=78.7329
 [img=0:chan=12:y=34:x=12 (39548)]: v1=0.375849 v2=0.376111 
 [img=0:chan=28:y=24:x=32 (89184)]: v1=0.806751 v2=0.806541 
@@ -135,7 +135,7 @@ out: DIMS[img=1:chan=192:y=56:x=56] ssds_str(out_batch_1,out_batch_2)=cnt=284593
 
 -----
  errors for op_ix=124 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=192)),filts=(dims=(out_chan=192,in_chan=64,y=3,x=3)),in=(dims=(img=5,chan=64,y=56,x=56)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=192,y=56,x=56)),out_chans=(tn=uint32_t,v=192),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=192:y=56:x=56] ssds_str(out_batch_1,out_batch_2)=cnt=1420400 sum_squared_diffs=0.0147243 avg_abs_diff=6.99348e-05 max_abs_diff=0.00109863 sum_diffs=-0.0605739 avg_diff=-2.01205e-08 max_rel_diff=0.000394106 avg1=78.5077 avg2=78.5077
 [img=0:chan=12:y=34:x=12 (39548)]: v1=0.375849 v2=0.376111 
 [img=0:chan=28:y=24:x=32 (89184)]: v1=0.806751 v2=0.806541 
@@ -151,7 +151,7 @@ out: DIMS[img=5:chan=192:y=56:x=56] ssds_str(out_batch_1,out_batch_2)=cnt=142040
 
 -----
  errors for op_ix=125 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=192)),filts=(dims=(out_chan=192,in_chan=64,y=3,x=3)),in=(dims=(img=20,chan=64,y=56,x=56)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=192,y=56,x=56)),out_chans=(tn=uint32_t,v=192),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=192:y=56:x=56] ssds_str(out_batch_1,out_batch_2)=cnt=5680866 sum_squared_diffs=0.0589376 avg_abs_diff=6.99588e-05 max_abs_diff=0.00109863 sum_diffs=0.0683441 avg_diff=5.67536e-09 max_rel_diff=0.000394106 avg1=78.628 avg2=78.628
 [img=0:chan=12:y=34:x=12 (39548)]: v1=0.375849 v2=0.376111 
 [img=0:chan=28:y=24:x=32 (89184)]: v1=0.806751 v2=0.806541 
@@ -167,7 +167,7 @@ out: DIMS[img=20:chan=192:y=56:x=56] ssds_str(out_batch_1,out_batch_2)=cnt=56808
 
 -----
  errors for op_ix=129 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=192)),filts=(dims=(out_chan=192,in_chan=128,y=3,x=3)),in=(dims=(img=1,chan=128,y=28,x=28)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=192,y=28,x=28)),out_chans=(tn=uint32_t,v=192),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=192:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=72328 sum_squared_diffs=0.00282133 avg_abs_diff=0.000136905 max_abs_diff=0.00146484 sum_diffs=-0.0103864 avg_diff=-6.9e-08 max_rel_diff=0.0003829 avg1=110.596 avg2=110.596
 [img=0:chan=1:y=26:x=4 (1516)]: v1=0.593403 v2=0.593629 
 [img=0:chan=9:y=18:x=11 (7571)]: v1=0.96015 v2=0.959851 
@@ -183,7 +183,7 @@ out: DIMS[img=1:chan=192:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=72328 
 
 -----
  errors for op_ix=130 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=192)),filts=(dims=(out_chan=192,in_chan=128,y=3,x=3)),in=(dims=(img=5,chan=128,y=28,x=28)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=192,y=28,x=28)),out_chans=(tn=uint32_t,v=192),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=192:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=360863 sum_squared_diffs=0.0139693 avg_abs_diff=0.000136237 max_abs_diff=0.00183105 sum_diffs=-0.145668 avg_diff=-1.93543e-07 max_rel_diff=0.000811028 avg1=109.798 avg2=109.798
 [img=0:chan=1:y=26:x=4 (1516)]: v1=0.593403 v2=0.593629 
 [img=0:chan=9:y=18:x=11 (7571)]: v1=0.96015 v2=0.959851 
@@ -199,7 +199,7 @@ out: DIMS[img=5:chan=192:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=360863
 
 -----
  errors for op_ix=131 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=192)),filts=(dims=(out_chan=192,in_chan=128,y=3,x=3)),in=(dims=(img=20,chan=128,y=28,x=28)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=192,y=28,x=28)),out_chans=(tn=uint32_t,v=192),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=192:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=1443038 sum_squared_diffs=0.0555505 avg_abs_diff=0.000135838 max_abs_diff=0.00231934 sum_diffs=0.0708544 avg_diff=2.35353e-08 max_rel_diff=0.000811028 avg1=109.664 avg2=109.664
 [img=0:chan=1:y=26:x=4 (1516)]: v1=0.593403 v2=0.593629 
 [img=0:chan=9:y=18:x=11 (7571)]: v1=0.96015 v2=0.959851 
@@ -215,14 +215,14 @@ out: DIMS[img=20:chan=192:y=28:x=28] ssds_str(out_batch_1,out_batch_2)=cnt=14430
 
 -----
  errors for op_ix=132 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=208)),filts=(dims=(out_chan=208,in_chan=96,y=3,x=3)),in=(dims=(img=1,chan=96,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=208,y=14,x=14)),out_chans=(tn=uint32_t,v=208),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=208:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=19488 sum_squared_diffs=0.000411318 avg_abs_diff=0.000100445 max_abs_diff=0.00115967 sum_diffs=0.0116407 avg_diff=2.85534e-07 max_rel_diff=0.000271797 avg1=93.2329 avg2=93.2329
 [img=0:chan=146:y=9:x=8 (28750)]: v1=0.663139 v2=0.662924 
 [img=0:chan=161:y=5:x=7 (31633)]: v1=0.729015 v2=0.728743 
 
 -----
  errors for op_ix=133 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=208)),filts=(dims=(out_chan=208,in_chan=96,y=3,x=3)),in=(dims=(img=5,chan=96,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=208,y=14,x=14)),out_chans=(tn=uint32_t,v=208),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=208:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=97444 sum_squared_diffs=0.00201255 avg_abs_diff=9.93638e-05 max_abs_diff=0.00115967 sum_diffs=0.0756783 avg_diff=3.71263e-07 max_rel_diff=0.000365734 avg1=92.9283 avg2=92.9283
 [img=0:chan=146:y=9:x=8 (28750)]: v1=0.663139 v2=0.662924 
 [img=0:chan=161:y=5:x=7 (31633)]: v1=0.729015 v2=0.728743 
@@ -238,7 +238,7 @@ out: DIMS[img=5:chan=208:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=97444 
 
 -----
  errors for op_ix=134 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=208)),filts=(dims=(out_chan=208,in_chan=96,y=3,x=3)),in=(dims=(img=20,chan=96,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=208,y=14,x=14)),out_chans=(tn=uint32_t,v=208),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=208:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=388424 sum_squared_diffs=0.00799453 avg_abs_diff=9.90197e-05 max_abs_diff=0.00128174 sum_diffs=0.0392719 avg_diff=4.81651e-08 max_rel_diff=0.000400066 avg1=92.6805 avg2=92.6805
 [img=0:chan=146:y=9:x=8 (28750)]: v1=0.663139 v2=0.662924 
 [img=0:chan=161:y=5:x=7 (31633)]: v1=0.729015 v2=0.728743 
@@ -254,7 +254,7 @@ out: DIMS[img=20:chan=208:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=38842
 
 -----
  errors for op_ix=135 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=224)),filts=(dims=(out_chan=224,in_chan=112,y=3,x=3)),in=(dims=(img=1,chan=112,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=224,y=14,x=14)),out_chans=(tn=uint32_t,v=224),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=224:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=21124 sum_squared_diffs=0.000581548 avg_abs_diff=0.000115091 max_abs_diff=0.00109863 sum_diffs=-0.0546556 avg_diff=-1.24489e-06 max_rel_diff=0.000431061 avg1=101.133 avg2=101.133
 [img=0:chan=15:y=1:x=8 (2962)]: v1=0.294171 v2=0.294382 
 [img=0:chan=23:y=9:x=0 (4634)]: v1=1.27055 v2=1.27081 
@@ -268,7 +268,7 @@ out: DIMS[img=1:chan=224:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=21124 
 
 -----
  errors for op_ix=136 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=224)),filts=(dims=(out_chan=224,in_chan=112,y=3,x=3)),in=(dims=(img=5,chan=112,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=224,y=14,x=14)),out_chans=(tn=uint32_t,v=224),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=224:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=104876 sum_squared_diffs=0.00292558 avg_abs_diff=0.000115443 max_abs_diff=0.00140381 sum_diffs=-0.0804811 avg_diff=-3.66623e-07 max_rel_diff=0.000431061 avg1=100.376 avg2=100.376
 [img=0:chan=15:y=1:x=8 (2962)]: v1=0.294171 v2=0.294382 
 [img=0:chan=23:y=9:x=0 (4634)]: v1=1.27055 v2=1.27081 
@@ -284,7 +284,7 @@ out: DIMS[img=5:chan=224:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=104876
 
 -----
  errors for op_ix=137 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=224)),filts=(dims=(out_chan=224,in_chan=112,y=3,x=3)),in=(dims=(img=20,chan=112,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=224,y=14,x=14)),out_chans=(tn=uint32_t,v=224),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=224:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=419133 sum_squared_diffs=0.0116976 avg_abs_diff=0.00011542 max_abs_diff=0.00164795 sum_diffs=-0.105487 avg_diff=-1.20134e-07 max_rel_diff=0.00065732 avg1=99.8725 avg2=99.8725
 [img=0:chan=15:y=1:x=8 (2962)]: v1=0.294171 v2=0.294382 
 [img=0:chan=23:y=9:x=0 (4634)]: v1=1.27055 v2=1.27081 
@@ -300,7 +300,7 @@ out: DIMS[img=20:chan=224:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=41913
 
 -----
  errors for op_ix=147 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=256)),filts=(dims=(out_chan=256,in_chan=128,y=3,x=3)),in=(dims=(img=1,chan=128,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=256,y=14,x=14)),out_chans=(tn=uint32_t,v=256),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=256:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=24003 sum_squared_diffs=0.000889857 avg_abs_diff=0.000133172 max_abs_diff=0.00146484 sum_diffs=-0.000803098 avg_diff=-1.60056e-08 max_rel_diff=0.000390053 avg1=107.828 avg2=107.828
 [img=0:chan=10:y=9:x=8 (2094)]: v1=0.502748 v2=0.50254 
 [img=0:chan=21:y=4:x=9 (4181)]: v1=1.13621 v2=1.13588 
@@ -316,7 +316,7 @@ out: DIMS[img=1:chan=256:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=24003 
 
 -----
  errors for op_ix=148 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=256)),filts=(dims=(out_chan=256,in_chan=128,y=3,x=3)),in=(dims=(img=5,chan=128,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=256,y=14,x=14)),out_chans=(tn=uint32_t,v=256),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=256:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=120331 sum_squared_diffs=0.00432131 avg_abs_diff=0.000131243 max_abs_diff=0.00152588 sum_diffs=0.113823 avg_diff=4.53696e-07 max_rel_diff=0.00055027 avg1=107.368 avg2=107.368
 [img=0:chan=10:y=9:x=8 (2094)]: v1=0.502748 v2=0.50254 
 [img=0:chan=21:y=4:x=9 (4181)]: v1=1.13621 v2=1.13588 
@@ -332,7 +332,7 @@ out: DIMS[img=5:chan=256:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=120331
 
 -----
  errors for op_ix=149 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=256)),filts=(dims=(out_chan=256,in_chan=128,y=3,x=3)),in=(dims=(img=20,chan=128,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=256,y=14,x=14)),out_chans=(tn=uint32_t,v=256),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=256:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=480969 sum_squared_diffs=0.0172741 avg_abs_diff=0.0001312 max_abs_diff=0.00183105 sum_diffs=0.265442 avg_diff=2.64511e-07 max_rel_diff=0.000586987 avg1=106.994 avg2=106.994
 [img=0:chan=10:y=9:x=8 (2094)]: v1=0.502748 v2=0.50254 
 [img=0:chan=21:y=4:x=9 (4181)]: v1=1.13621 v2=1.13588 
@@ -348,7 +348,7 @@ out: DIMS[img=20:chan=256:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=48096
 
 -----
  errors for op_ix=150 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=256)),filts=(dims=(out_chan=256,in_chan=96,y=5,x=5)),in=(dims=(img=1,chan=96,y=27,x=27)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=1,chan=256,y=27,x=27)),out_chans=(tn=uint32_t,v=256),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=256:y=27:x=27] ssds_str(out_batch_1,out_batch_2)=cnt=88597 sum_squared_diffs=0.00927561 avg_abs_diff=0.00022294 max_abs_diff=0.0032959 sum_diffs=0.0212903 avg_diff=1.14081e-07 max_rel_diff=0.000632949 avg1=154.285 avg2=154.285
 [img=0:chan=0:y=6:x=19 (181)]: v1=0.291206 v2=0.290934 
 [img=0:chan=0:y=17:x=20 (479)]: v1=1.32508 v2=1.32543 
@@ -364,7 +364,7 @@ out: DIMS[img=1:chan=256:y=27:x=27] ssds_str(out_batch_1,out_batch_2)=cnt=88597 
 
 -----
  errors for op_ix=153 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=256)),filts=(dims=(out_chan=256,in_chan=384,y=3,x=3)),in=(dims=(img=1,chan=384,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=256,y=13,x=13)),out_chans=(tn=uint32_t,v=256),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=256:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=21163 sum_squared_diffs=0.00656844 avg_abs_diff=0.000389644 max_abs_diff=0.00598145 sum_diffs=-0.00564039 avg_diff=-1.30371e-07 max_rel_diff=0.00103009 avg1=184.156 avg2=184.156
 [img=0:chan=5:y=3:x=5 (889)]: v1=1.67073 v2=1.67132 
 [img=0:chan=11:y=3:x=7 (1905)]: v1=2.92886 v2=2.92948 
@@ -380,7 +380,7 @@ out: DIMS[img=1:chan=256:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=21163 
 
 -----
  errors for op_ix=154 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=256)),filts=(dims=(out_chan=256,in_chan=384,y=3,x=3)),in=(dims=(img=5,chan=384,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=256,y=13,x=13)),out_chans=(tn=uint32_t,v=256),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=256:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=105303 sum_squared_diffs=0.0319224 avg_abs_diff=0.000384149 max_abs_diff=0.00598145 sum_diffs=0.0962173 avg_diff=4.44792e-07 max_rel_diff=0.0015887 avg1=184.048 avg2=184.048
 [img=0:chan=5:y=3:x=5 (889)]: v1=1.67073 v2=1.67132 
 [img=0:chan=11:y=3:x=7 (1905)]: v1=2.92886 v2=2.92948 
@@ -396,7 +396,7 @@ out: DIMS[img=5:chan=256:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=105303
 
 -----
  errors for op_ix=155 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=256)),filts=(dims=(out_chan=256,in_chan=384,y=3,x=3)),in=(dims=(img=20,chan=384,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=256,y=13,x=13)),out_chans=(tn=uint32_t,v=256),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=256:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=422091 sum_squared_diffs=0.128172 avg_abs_diff=0.000384874 max_abs_diff=0.00598145 sum_diffs=0.455776 avg_diff=5.26739e-07 max_rel_diff=0.0015887 avg1=184.087 avg2=184.087
 [img=0:chan=5:y=3:x=5 (889)]: v1=1.67073 v2=1.67132 
 [img=0:chan=11:y=3:x=7 (1905)]: v1=2.92886 v2=2.92948 
@@ -412,7 +412,7 @@ out: DIMS[img=20:chan=256:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=42209
 
 -----
  errors for op_ix=156 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=288)),filts=(dims=(out_chan=288,in_chan=144,y=3,x=3)),in=(dims=(img=1,chan=144,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=288,y=14,x=14)),out_chans=(tn=uint32_t,v=288),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=288:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=27170 sum_squared_diffs=0.00125205 avg_abs_diff=0.000148931 max_abs_diff=0.00146484 sum_diffs=0.00841145 avg_diff=1.49012e-07 max_rel_diff=0.000504494 avg1=114.333 avg2=114.333
 [img=0:chan=1:y=4:x=10 (262)]: v1=0.610029 v2=0.610368 
 [img=0:chan=25:y=4:x=1 (4957)]: v1=1.2368 v2=1.23707 
@@ -428,7 +428,7 @@ out: DIMS[img=1:chan=288:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=27170 
 
 -----
  errors for op_ix=157 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=288)),filts=(dims=(out_chan=288,in_chan=144,y=3,x=3)),in=(dims=(img=5,chan=144,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=288,y=14,x=14)),out_chans=(tn=uint32_t,v=288),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=288:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=135639 sum_squared_diffs=0.00625923 avg_abs_diff=0.000148919 max_abs_diff=0.00189209 sum_diffs=-0.0247272 avg_diff=-8.76107e-08 max_rel_diff=0.000569701 avg1=113.988 avg2=113.988
 [img=0:chan=1:y=4:x=10 (262)]: v1=0.610029 v2=0.610368 
 [img=0:chan=25:y=4:x=1 (4957)]: v1=1.2368 v2=1.23707 
@@ -444,7 +444,7 @@ out: DIMS[img=5:chan=288:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=135639
 
 -----
  errors for op_ix=158 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=288)),filts=(dims=(out_chan=288,in_chan=144,y=3,x=3)),in=(dims=(img=20,chan=144,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=288,y=14,x=14)),out_chans=(tn=uint32_t,v=288),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=288:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=541866 sum_squared_diffs=0.0246355 avg_abs_diff=0.000147721 max_abs_diff=0.0022583 sum_diffs=-0.0224939 avg_diff=-1.99244e-08 max_rel_diff=0.000569701 avg1=113.165 avg2=113.165
 [img=0:chan=1:y=4:x=10 (262)]: v1=0.610029 v2=0.610368 
 [img=0:chan=25:y=4:x=1 (4957)]: v1=1.2368 v2=1.23707 
@@ -460,7 +460,7 @@ out: DIMS[img=20:chan=288:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=54186
 
 -----
  errors for op_ix=159 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=320)),filts=(dims=(out_chan=320,in_chan=160,y=3,x=3)),in=(dims=(img=1,chan=160,y=7,x=7)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=320,y=7,x=7)),out_chans=(tn=uint32_t,v=320),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=320:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=7584 sum_squared_diffs=0.000367689 avg_abs_diff=0.000153133 max_abs_diff=0.00158691 sum_diffs=0.00253153 avg_diff=1.6145e-07 max_rel_diff=0.000313282 avg1=113.315 avg2=113.315
 [img=0:chan=25:y=3:x=6 (1252)]: v1=1.45831 v2=1.45801 
 [img=0:chan=80:y=3:x=4 (3945)]: v1=0.78725 v2=0.786989 
@@ -470,7 +470,7 @@ out: DIMS[img=1:chan=320:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=7584 sum
 
 -----
  errors for op_ix=160 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=320)),filts=(dims=(out_chan=320,in_chan=160,y=3,x=3)),in=(dims=(img=1,chan=160,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=320,y=14,x=14)),out_chans=(tn=uint32_t,v=320),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=320:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=30090 sum_squared_diffs=0.00170585 avg_abs_diff=0.000164918 max_abs_diff=0.00201416 sum_diffs=-0.117971 avg_diff=-1.88091e-06 max_rel_diff=0.000364793 avg1=118.885 avg2=118.885
 [img=0:chan=15:y=11:x=11 (3105)]: v1=1.12639 v2=1.12675 
 [img=0:chan=41:y=2:x=10 (8074)]: v1=0.375991 v2=0.375691 
@@ -486,7 +486,7 @@ out: DIMS[img=1:chan=320:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=30090 
 
 -----
  errors for op_ix=161 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=320)),filts=(dims=(out_chan=320,in_chan=160,y=3,x=3)),in=(dims=(img=5,chan=160,y=7,x=7)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=320,y=7,x=7)),out_chans=(tn=uint32_t,v=320),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=320:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=37819 sum_squared_diffs=0.00176329 avg_abs_diff=0.00014997 max_abs_diff=0.0020752 sum_diffs=-0.0309323 avg_diff=-3.94545e-07 max_rel_diff=0.000660658 avg1=113.99 avg2=113.99
 [img=0:chan=25:y=3:x=6 (1252)]: v1=1.45831 v2=1.45801 
 [img=0:chan=80:y=3:x=4 (3945)]: v1=0.78725 v2=0.786989 
@@ -502,7 +502,7 @@ out: DIMS[img=5:chan=320:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=37819 su
 
 -----
  errors for op_ix=162 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=320)),filts=(dims=(out_chan=320,in_chan=160,y=3,x=3)),in=(dims=(img=5,chan=160,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=320,y=14,x=14)),out_chans=(tn=uint32_t,v=320),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=320:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=151011 sum_squared_diffs=0.00855155 avg_abs_diff=0.000165133 max_abs_diff=0.00201416 sum_diffs=-0.149184 avg_diff=-4.75714e-07 max_rel_diff=0.000751615 avg1=119.389 avg2=119.389
 [img=0:chan=15:y=11:x=11 (3105)]: v1=1.12639 v2=1.12675 
 [img=0:chan=41:y=2:x=10 (8074)]: v1=0.375991 v2=0.375691 
@@ -518,7 +518,7 @@ out: DIMS[img=5:chan=320:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=151011
 
 -----
  errors for op_ix=163 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=320)),filts=(dims=(out_chan=320,in_chan=160,y=3,x=3)),in=(dims=(img=20,chan=160,y=7,x=7)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=320,y=7,x=7)),out_chans=(tn=uint32_t,v=320),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=320:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=150545 sum_squared_diffs=0.00707832 avg_abs_diff=0.000150237 max_abs_diff=0.0020752 sum_diffs=-0.0189724 avg_diff=-6.04986e-08 max_rel_diff=0.000660658 avg1=113.114 avg2=113.114
 [img=0:chan=25:y=3:x=6 (1252)]: v1=1.45831 v2=1.45801 
 [img=0:chan=80:y=3:x=4 (3945)]: v1=0.78725 v2=0.786989 
@@ -534,7 +534,7 @@ out: DIMS[img=20:chan=320:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=150545 
 
 -----
  errors for op_ix=164 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=320)),filts=(dims=(out_chan=320,in_chan=160,y=3,x=3)),in=(dims=(img=20,chan=160,y=14,x=14)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=320,y=14,x=14)),out_chans=(tn=uint32_t,v=320),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=320:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=603055 sum_squared_diffs=0.0337975 avg_abs_diff=0.000164144 max_abs_diff=0.00244141 sum_diffs=0.0602466 avg_diff=4.80282e-08 max_rel_diff=0.000751615 avg1=119.49 avg2=119.49
 [img=0:chan=15:y=11:x=11 (3105)]: v1=1.12639 v2=1.12675 
 [img=0:chan=41:y=2:x=10 (8074)]: v1=0.375991 v2=0.375691 
@@ -550,7 +550,7 @@ out: DIMS[img=20:chan=320:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=60305
 
 -----
  errors for op_ix=171 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=384)),filts=(dims=(out_chan=384,in_chan=192,y=3,x=3)),in=(dims=(img=1,chan=192,y=7,x=7)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=384,y=7,x=7)),out_chans=(tn=uint32_t,v=384),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=384:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=9068 sum_squared_diffs=0.000599949 avg_abs_diff=0.000178564 max_abs_diff=0.00177002 sum_diffs=0.00524694 avg_diff=2.78855e-07 max_rel_diff=0.000748634 avg1=126.641 avg2=126.641
 [img=0:chan=13:y=3:x=3 (661)]: v1=2.29699 v2=2.29747 
 [img=0:chan=54:y=5:x=5 (2686)]: v1=1.38389 v2=1.38439 
@@ -566,7 +566,7 @@ out: DIMS[img=1:chan=384:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=9068 sum
 
 -----
  errors for op_ix=172 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=384)),filts=(dims=(out_chan=384,in_chan=192,y=3,x=3)),in=(dims=(img=5,chan=192,y=7,x=7)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=384,y=7,x=7)),out_chans=(tn=uint32_t,v=384),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=384:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=45498 sum_squared_diffs=0.00306014 avg_abs_diff=0.000180352 max_abs_diff=0.00219727 sum_diffs=-0.0146106 avg_diff=-1.553e-07 max_rel_diff=0.000822535 avg1=125.542 avg2=125.542
 [img=0:chan=13:y=3:x=3 (661)]: v1=2.29699 v2=2.29747 
 [img=0:chan=54:y=5:x=5 (2686)]: v1=1.38389 v2=1.38439 
@@ -582,7 +582,7 @@ out: DIMS[img=5:chan=384:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=45498 su
 
 -----
  errors for op_ix=173 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=384)),filts=(dims=(out_chan=384,in_chan=192,y=3,x=3)),in=(dims=(img=20,chan=192,y=7,x=7)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=384,y=7,x=7)),out_chans=(tn=uint32_t,v=384),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=384:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=181276 sum_squared_diffs=0.01224 avg_abs_diff=0.000180348 max_abs_diff=0.00238037 sum_diffs=0.0559692 avg_diff=1.48728e-07 max_rel_diff=0.000822535 avg1=124.056 avg2=124.056
 [img=0:chan=13:y=3:x=3 (661)]: v1=2.29699 v2=2.29747 
 [img=0:chan=54:y=5:x=5 (2686)]: v1=1.38389 v2=1.38439 
@@ -598,7 +598,7 @@ out: DIMS[img=20:chan=384:y=7:x=7] ssds_str(out_batch_1,out_batch_2)=cnt=181276 
 
 -----
  errors for op_ix=174 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=384)),filts=(dims=(out_chan=384,in_chan=256,y=3,x=3)),in=(dims=(img=1,chan=256,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=384,y=13,x=13)),out_chans=(tn=uint32_t,v=384),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=384:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=31423 sum_squared_diffs=0.00435836 avg_abs_diff=0.000259151 max_abs_diff=0.00268555 sum_diffs=0.049012 avg_diff=7.5524e-07 max_rel_diff=0.000577659 avg1=150.387 avg2=150.387
 [img=0:chan=8:y=2:x=8 (1386)]: v1=0.506223 v2=0.505991 
 [img=0:chan=11:y=8:x=0 (1963)]: v1=0.956778 v2=0.957103 
@@ -614,7 +614,7 @@ out: DIMS[img=1:chan=384:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=31423 
 
 -----
  errors for op_ix=177 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=384)),filts=(dims=(out_chan=384,in_chan=384,y=3,x=3)),in=(dims=(img=1,chan=384,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=384,y=13,x=13)),out_chans=(tn=uint32_t,v=384),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=384:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=31631 sum_squared_diffs=0.00979107 avg_abs_diff=0.000388424 max_abs_diff=0.00598145 sum_diffs=-0.0847208 avg_diff=-1.30549e-06 max_rel_diff=0.00103009 avg1=183.702 avg2=183.702
 [img=0:chan=5:y=3:x=5 (889)]: v1=1.67073 v2=1.67132 
 [img=0:chan=11:y=3:x=7 (1905)]: v1=2.92886 v2=2.92948 
@@ -630,259 +630,61 @@ out: DIMS[img=1:chan=384:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=31631 
 
 -----
  errors for op_ix=180 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1000)),filts=(dims=(out_chan=1000,in_chan=1024,y=1,x=1)),in=(dims=(img=1,chan=1024,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=1,chan=1000,y=1,x=1)),out_chans=(tn=uint32_t,v=1000),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=182 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1000)),filts=(dims=(out_chan=1000,in_chan=1024,y=1,x=1)),in=(dims=(img=5,chan=1024,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=5,chan=1000,y=1,x=1)),out_chans=(tn=uint32_t,v=1000),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=184 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1000)),filts=(dims=(out_chan=1000,in_chan=1024,y=1,x=1)),in=(dims=(img=20,chan=1024,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=20,chan=1000,y=1,x=1)),out_chans=(tn=uint32_t,v=1000),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=186 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1000)),filts=(dims=(out_chan=1000,in_chan=4096,y=1,x=1)),in=(dims=(img=1,chan=4096,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=1,chan=1000,y=1,x=1)),out_chans=(tn=uint32_t,v=1000),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=187 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1000)),filts=(dims=(out_chan=1000,in_chan=4096,y=1,x=1)),in=(dims=(img=5,chan=4096,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=5,chan=1000,y=1,x=1)),out_chans=(tn=uint32_t,v=1000),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=188 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1000)),filts=(dims=(out_chan=1000,in_chan=4096,y=1,x=1)),in=(dims=(img=20,chan=4096,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=20,chan=1000,y=1,x=1)),out_chans=(tn=uint32_t,v=1000),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=192 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1024)),filts=(dims=(out_chan=1024,in_chan=128,y=4,x=4)),in=(dims=(img=1,chan=128,y=4,x=4)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=4,x=4)),out=(dims=(img=1,chan=1024,y=1,x=1)),out_chans=(tn=uint32_t,v=1024),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,k1conv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=nvrtc,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=nvrtc,MNt=8 8,MNb=8 16,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,k1conv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=ocl,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-
---  op_tune='(use_be=ocl,MNt=8 8,MNb=8 16,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=0.00204372 avg_diff=1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+out: DIMS[img=1:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=496 sum_squared_diffs=4.3421e-05 avg_abs_diff=0.000205921 max_abs_diff=0.00164795 sum_diffs=-0.00204372 avg_diff=-1.99582e-06 max_rel_diff=0.000320196 avg1=152.014 avg2=152.014
+[img=0:chan=428:y=0:x=0 (428)]: v1=0.5317 v2=0.53202 
 
 -----
  errors for op_ix=193 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1024)),filts=(dims=(out_chan=1024,in_chan=128,y=4,x=4)),in=(dims=(img=5,chan=128,y=4,x=4)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=4,x=4)),out=(dims=(img=5,chan=1024,y=1,x=1)),out_chans=(tn=uint32_t,v=1024),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,k1conv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=nvrtc,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=nvrtc,MNt=8 8,MNb=8 16,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,k1conv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=ocl,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-
---  op_tune='(use_be=ocl,MNt=8 8,MNb=8 16,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=-0.0197991 avg_diff=-3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+out: DIMS[img=5:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=2477 sum_squared_diffs=0.000223858 avg_abs_diff=0.000209099 max_abs_diff=0.00177002 sum_diffs=0.0197991 avg_diff=3.86701e-06 max_rel_diff=0.000320196 avg1=152.654 avg2=152.654
+[img=0:chan=428:y=0:x=0 (428)]: v1=0.5317 v2=0.53202 
+[img=3:chan=2:y=0:x=0 (3074)]: v1=0.184019 v2=0.183774 
 
 -----
  errors for op_ix=194 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1024)),filts=(dims=(out_chan=1024,in_chan=128,y=4,x=4)),in=(dims=(img=20,chan=128,y=4,x=4)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=4,x=4)),out=(dims=(img=20,chan=1024,y=1,x=1)),out_chans=(tn=uint32_t,v=1024),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,k1conv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=nvrtc,MNt=4 4,MNb=8 8,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=nvrtc,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=nvrtc,MNt=8 8,MNb=8 16,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,k1conv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=ocl,MNt=4 4,MNb=8 8,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=ocl,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
-
---  op_tune='(use_be=ocl,MNt=8 8,MNb=8 16,k1conv=1,tconv=1,tconv_max_ksz=11 11)'
-out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=-0.0470538 avg_diff=-2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
-[img=0:chan=428:y=0:x=0 (428)]: v1=0.53202 v2=0.5317 
-[img=3:chan=2:y=0:x=0 (3074)]: v1=0.183774 v2=0.184019 
-[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55617 v2=1.55653 
-[img=10:chan=996:y=0:x=0 (11236)]: v1=0.82012 v2=0.820417 
-[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0851008 v2=0.0853311 
-[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63827 v2=1.63883 
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+out: DIMS[img=20:chan=1024:y=1:x=1] ssds_str(out_batch_1,out_batch_2)=cnt=9837 sum_squared_diffs=0.000929122 avg_abs_diff=0.000212996 max_abs_diff=0.00244141 sum_diffs=0.0470538 avg_diff=2.29755e-06 max_rel_diff=0.00034188 avg1=152.386 avg2=152.386
+[img=0:chan=428:y=0:x=0 (428)]: v1=0.5317 v2=0.53202 
+[img=3:chan=2:y=0:x=0 (3074)]: v1=0.184019 v2=0.183774 
+[img=9:chan=467:y=0:x=0 (9683)]: v1=1.55653 v2=1.55617 
+[img=10:chan=996:y=0:x=0 (11236)]: v1=0.820417 v2=0.82012 
+[img=12:chan=889:y=0:x=0 (13177)]: v1=0.0853311 v2=0.0851008 
+[img=13:chan=535:y=0:x=0 (13847)]: v1=1.63883 v2=1.63827 
 
 -----
  errors for op_ix=195 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1024)),filts=(dims=(out_chan=1024,in_chan=384,y=3,x=3)),in=(dims=(img=1,chan=384,y=6,x=6)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=1024,y=6,x=6)),out_chans=(tn=uint32_t,v=1024),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=1:chan=1024:y=6:x=6] ssds_str(out_batch_1,out_batch_2)=cnt=18062 sum_squared_diffs=0.00467697 avg_abs_diff=0.00035619 max_abs_diff=0.00427246 sum_diffs=0.017181 avg_diff=4.66064e-07 max_rel_diff=0.000664473 avg1=173.709 avg2=173.709
 [img=0:chan=8:y=1:x=0 (294)]: v1=1.02291 v2=1.0232 
 [img=0:chan=13:y=5:x=1 (499)]: v1=0.15906 v2=0.158589 
@@ -898,7 +700,7 @@ out: DIMS[img=1:chan=1024:y=6:x=6] ssds_str(out_batch_1,out_batch_2)=cnt=18062 s
 
 -----
  errors for op_ix=196 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1024)),filts=(dims=(out_chan=1024,in_chan=384,y=3,x=3)),in=(dims=(img=5,chan=384,y=6,x=6)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=1024,y=6,x=6)),out_chans=(tn=uint32_t,v=1024),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=1024:y=6:x=6] ssds_str(out_batch_1,out_batch_2)=cnt=90078 sum_squared_diffs=0.0229789 avg_abs_diff=0.000353084 max_abs_diff=0.00488281 sum_diffs=0.146054 avg_diff=7.92393e-07 max_rel_diff=0.0015732 avg1=172.95 avg2=172.95
 [img=0:chan=8:y=1:x=0 (294)]: v1=1.02291 v2=1.0232 
 [img=0:chan=13:y=5:x=1 (499)]: v1=0.15906 v2=0.158589 
@@ -914,7 +716,7 @@ out: DIMS[img=5:chan=1024:y=6:x=6] ssds_str(out_batch_1,out_batch_2)=cnt=90078 s
 
 -----
  errors for op_ix=197 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=1024)),filts=(dims=(out_chan=1024,in_chan=384,y=3,x=3)),in=(dims=(img=20,chan=384,y=6,x=6)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=20,chan=1024,y=6,x=6)),out_chans=(tn=uint32_t,v=1024),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=20:chan=1024:y=6:x=6] ssds_str(out_batch_1,out_batch_2)=cnt=360122 sum_squared_diffs=0.0924561 avg_abs_diff=0.000354121 max_abs_diff=0.00512695 sum_diffs=0.0428971 avg_diff=5.81829e-08 max_rel_diff=0.0015732 avg1=172.517 avg2=172.517
 [img=0:chan=8:y=1:x=0 (294)]: v1=1.02291 v2=1.0232 
 [img=0:chan=13:y=5:x=1 (499)]: v1=0.15906 v2=0.158589 
@@ -930,26 +732,26 @@ out: DIMS[img=20:chan=1024:y=6:x=6] ssds_str(out_batch_1,out_batch_2)=cnt=360122
 
 -----
  errors for op_ix=198 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=4096)),filts=(dims=(out_chan=4096,in_chan=4096,y=1,x=1)),in=(dims=(img=1,chan=4096,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=1,chan=4096,y=1,x=1)),out_chans=(tn=uint32_t,v=4096),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=199 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=4096)),filts=(dims=(out_chan=4096,in_chan=4096,y=1,x=1)),in=(dims=(img=5,chan=4096,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=5,chan=4096,y=1,x=1)),out_chans=(tn=uint32_t,v=4096),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=200 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=4096)),filts=(dims=(out_chan=4096,in_chan=4096,y=1,x=1)),in=(dims=(img=20,chan=4096,y=1,x=1)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=20,chan=4096,y=1,x=1)),out_chans=(tn=uint32_t,v=4096),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=201 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=4096)),filts=(dims=(out_chan=4096,in_chan=256,y=6,x=6)),in=(dims=(img=1,chan=256,y=6,x=6)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=6,x=6)),out=(dims=(img=1,chan=4096,y=1,x=1)),out_chans=(tn=uint32_t,v=4096),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=202 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=4096)),filts=(dims=(out_chan=4096,in_chan=256,y=6,x=6)),in=(dims=(img=5,chan=256,y=6,x=6)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=6,x=6)),out=(dims=(img=5,chan=4096,y=1,x=1)),out_chans=(tn=uint32_t,v=4096),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
 -----
  errors for op_ix=203 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=4096)),filts=(dims=(out_chan=4096,in_chan=256,y=6,x=6)),in=(dims=(img=20,chan=256,y=6,x=6)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=6,x=6)),out=(dims=(img=20,chan=4096,y=1,x=1)),out_chans=(tn=uint32_t,v=4096),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
+--  digest comp fail; op_tune='(use_be=ocl,MNt=8 8,MNb=16 16,Kb=1,use_local_mem=2,k1conv=1,tconv_max_ksz=11 11)'
 annotation failure: error: conv_simd only supports work.pels being a multiple of vw
-***MAD FAILS*** num_mad_fail=83
+***MAD FAILS*** num_mad_fail=50
