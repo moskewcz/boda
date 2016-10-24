@@ -164,7 +164,9 @@ namespace boda
 
     map_str_ops_be_t ops_bes;
 
-    uint32_t write_digests; //NESI(default="1",help="if non-zero, write 0'th op_tune's results as known-good nda digests into output wisdom. if zero, will copy known-good digests from input wisdom if availible" )
+    string kg_tune_tag; //NESI(help="use the tune with this tag for writing known-good digests and as the lhs for full-data live comparisons agains all tunes (inclusing itself).", req=1 )
+
+    uint32_t write_kg_digest; //NESI(default="1", help="if non-zero, write results of op_tune with tag equal to the value of the kg_tune_tag option as known-good nda digests into output wisdom. if zero, will copy known-good digests from input wisdom if availible." )
 
     uint32_t write_runs; //NESI(default="0",help="if non-zero, write run data in output wisdom. will merge into existing runs if present (overwriting duplicates). if zero, output wisdom will have no runs (perhaps only known-good digests)" )
 
@@ -181,6 +183,13 @@ namespace boda
 
   p_rtc_compute_t make_p_rtc_compute_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
 
+  void on_op_err( std::ostream & out, bool & op_seen_errs, uint32_t const & op_ix, p_op_base_t const & op ) {
+    // if first err for this op, print out op
+    if( !op_seen_errs ) { 
+      out << "-----\n errors for op_ix=" << str(op_ix) << " op='" << str( op ) << "'\n"; 
+      op_seen_errs = 1; 
+    } 
+  }
 
   void ops_prof_t::main( nesi_init_arg_t * nia ) {
     p_ostream out = out_fn ? ofs_open( *out_fn ) : p_ostream( &std::cout, null_deleter<std::ostream>() );
@@ -219,6 +228,7 @@ namespace boda
     uint32_t num_mad_fail = 0;
     p_istream ops = ifs_open( ops_fn );
     string line;
+    uint32_t kg_wix = uint32_t_const_max;
     for( uint32_t op_ix = 0; !ifs_getline( ops_fn.exp, ops, line ); op_ix++ ) { // op_ix is for printouts, helpful to run specific op later
       bool op_seen_errs = 0; // we only print out op info if there are errors, and then only once across all tunes.
       p_op_wisdom_t op_wisdom_in = win ? read_next_wisdom( win ) : p_op_wisdom_t();
@@ -229,8 +239,13 @@ namespace boda
         rt_err( strprintf( "op mismatch between input wisdom and ops-list (to output): op_wisdom_in->op=%s op_wisdom_out=%s", 
                            str(op_wisdom_in->op).c_str(), str(op_wisdom_out->op).c_str() ) ); 
       }
-      for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
-        op_wisdom_out->wisdoms.push_back( p_op_tune_wisdom_t( new op_tune_wisdom_t{make_shared<op_tune_t>(i->second)} ) );
+      {
+        uint32_t wix = 0;
+        for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i, ++wix ) {
+          op_wisdom_out->wisdoms.push_back( p_op_tune_wisdom_t( new op_tune_wisdom_t{make_shared<op_tune_t>(i->second)} ) );
+          if( i->first == kg_tune_tag ) { kg_wix = wix; }
+        }
+        assert_st( kg_wix != uint32_t_const_max );
       }
       uint32_t const wnum = op_wisdom_out->wisdoms.size();
       // check that the input and output set of per-op-tune wisdoms are the same. we could do better
@@ -261,7 +276,8 @@ namespace boda
           // if we're not writing runs, the op_wisdom_in->wisdoms (if present) are unused 
         }
       }
-      p_map_str_p_nda_t vs1; // we compare all runs against the first run, whose results will be stored here
+      p_map_str_p_nda_t vs_kg; // we compare all runs against the known-good run, whose results will be stored here
+      vect_p_map_str_p_nda_t vss;
       for( vect_p_op_tune_wisdom_t::iterator i = op_wisdom_out->wisdoms.begin(); i != op_wisdom_out->wisdoms.end(); ++i ) {
         uint32_t const wix = i - op_wisdom_out->wisdoms.begin();
         op_tune_t const & op_tune = *(*i)->op_tune;
@@ -292,26 +308,24 @@ namespace boda
         }
         string const plat_tag = codegen->rtc->get_plat_tag();
         (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err.str()};
-        if( err.str().empty() ) {
-          // vs-first op-tune compare
-          if( vs1 ) { // already had a non-failing tune 
-            vect_string const vns1 = get_keys( *vs1 );
-            vect_string const vns2 = get_keys( *vsi );
-            if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns[0]=%s vns[%s]=%s\n", 
-                                                    str(vns1).c_str(), str(wix).c_str(), str(vns2).c_str() ) ); }
-            // TODO : (*out) << strprintf( "vars_to_compare: %s\n", str(vns1).c_str() );
-            comp_vars( &err, num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns1, vs1, vsi );
-          } else { // first non-failing tune for this op
-            vs1 = vsi; // store first vsi as vs1 for later compares and also use vs1 as kgs for output wisdom
-            if( write_digests ) {
-              for( map_str_p_nda_t::const_iterator i = vs1->begin(); i != vs1->end(); ++i ) {
+        if( wix == kg_wix ) { // if this is the to-use-as-known-good op_tune, store it's results in vs1, and maybe write its digest.
+          if( !err.str().empty() ) { 
+            err << strprintf( "Error: known-good op_tune (kg_tune_tag=%s) failed. Can't write digests or do live comparisons.\n",
+                              kg_tune_tag.c_str() ); 
+          } else {
+            vs_kg = vsi;
+            if( write_kg_digest ) {
+              for( map_str_p_nda_t::const_iterator i = vs_kg->begin(); i != vs_kg->end(); ++i ) {
                 size_t const digest_seed = std::hash<string>()(i->first); // FIXME: make better seed by including op/op_tune/???
                 op_wisdom_out->kgs.push_back( pair_str_p_nda_digest_t( i->first, nda_digest_t::make_from_nda( i->second, digest_seed ) ) );
               }
-            } else {
-              if( op_wisdom_in ) { op_wisdom_out->kgs = op_wisdom_in->kgs; }
             }
           }
+        }
+        if( !err.str().empty() ) { vsi.reset(); } // failed-run --> don't keep results. also, the null vsi marks run as failed.
+        vss.push_back( vsi );
+          
+        if( err.str().empty() ) {
           // digest compare
           if( op_wisdom_in ) {
             assert_st( op_wisdom_in->kgs.size() == vsi->size() );
@@ -330,16 +344,32 @@ namespace boda
           }
         }
         if( !err.str().empty() ) { 
-          // if first err for this op, print out op
-          if( !op_seen_errs ) { 
-            (*out) << "-----\n errors for op_ix=" << str(op_ix) << " op='" << str( op_wisdom_out->op ) << "'\n"; 
-            op_seen_errs = 1; 
-          } 
-          (*out) << "--  op_tune='" + str(op_tune) + "'\n" << err.str() << "\n";
+          on_op_err( *out, op_seen_errs, op_ix, op_wisdom_out->op );
+          (*out) << "--  digest comp fail; op_tune='" + str(op_tune) + "'\n" << err.str() << "\n";
+        }
+      }      
+      // FIXME: if we could run the known-good tune first, we could merge this loop with the above one, and not need to
+      // buffer all the per-tune outputs.
+      assert_st( vss.size() == op_wisdom_out->wisdoms.size() );
+      if( vs_kg ) { // if we have a valid known-good results
+        for( uint32_t wix = 0; wix != vss.size(); ++wix ) { // compare it against all tunes
+          if( !vss[wix] ) { continue; } // skip compare for tunes that failed
+          vect_string const vns_kg = get_keys( *vs_kg );
+          vect_string const vns_wix = get_keys( *vss[wix] );
+          if( vns_kg != vns_wix ) { rt_err( strprintf( "reg/comp out var set mismatch: vns_kg=%s vns[%s]=%s\n", 
+                                                       str(vns_kg).c_str(), str(wix).c_str(), str(vns_wix).c_str() ) ); }
+          std::ostringstream err;
+          comp_vars( &err, num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns_kg, vs_kg, vss[wix] );
+          if( !err.str().empty() ) { 
+            on_op_err( *out, op_seen_errs, op_ix, op_wisdom_out->op );
+            (*out) << "--  full-data comp fail; op_tune='" + str(op_wisdom_out->wisdoms[wix]->op_tune) + "'\n" << err.str() << "\n";
+          }
         }
       }
+
       if( wout ) { 
         if( !write_runs ) { op_wisdom_out->wisdoms.clear(); }
+        if( !write_kg_digest ) { if( op_wisdom_in ) { op_wisdom_out->kgs = op_wisdom_in->kgs; } }
         write_op_wisdom( *op_wisdom_out, *wout ); 
       }
     }
@@ -395,7 +425,9 @@ namespace boda
     };
     vect_pair_str_str op_tunes_sgemm;
     vect_pair_str_str op_tunes_conv;
+    string kg_tune_tag;
     if( is_feature_enabled("opencl") ) { 
+      if( kg_tune_tag.empty() ) { kg_tune_tag = "ocl-def"; }
       add_to_with_prefix( op_tunes_sgemm, op_tune_sgemm_bases, {"ocl-","use_be=ocl,"} );
       add_to_with_prefix( op_tunes_conv, op_tune_conv_bases, {"ocl-","use_be=ocl,"} );
       // FIXME/NOTE: (some?) vector widths don't work with the nvrtc backend (only opencl) currently, due to syntax
@@ -404,13 +436,16 @@ namespace boda
             "use_be=ocl,MNt=8:8,MNb=16:16,k1conv=1,tconv=0,Kb=1,use_local_mem=2,vw=8"} );
     }
     if( is_feature_enabled("nvrtc") ) { 
+      if( kg_tune_tag.empty() ) { kg_tune_tag = "nvrtc-def"; }
       add_to_with_prefix( op_tunes_sgemm, op_tune_sgemm_bases, {"nvrtc-","use_be=nvrtc,"} );
       op_tunes_sgemm.push_back( {"culibs","use_be=nvrtc,use_culibs=1"} ); 
       add_to_with_prefix( op_tunes_conv, op_tune_conv_bases, {"nvrtc-","use_be=nvrtc,"} );
       op_tunes_conv.push_back( {"culibs","use_be=nvrtc,use_culibs=1"} ); 
     }
-                                 
-    string cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt'";
+    if( kg_tune_tag.empty() ) { 
+      rt_err( "no known-good tune tag set; can't generate ops-prof test command lines. are no operation-level backends enabled? i.e. both OpenCL and nvrtc are disabled?" ); 
+    }
+    string cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=" + kg_tune_tag;
     cli_base += " --wisdom-in-fn='%(boda_test_dir)/good_tr/%(test_name)/wisdom.wis'";
     if( output_wisdom ) { cli_base += " --wisdom-out-fn='%(boda_output_dir)/wisdom.wis'"; }
     string const sgemm_ops = " --ops-fn='%(boda_test_dir)/sgemm-ops-debug.txt'";

@@ -1,12 +1,12 @@
 -----
  errors for op_ix=0 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=64)),filts=(dims=(out_chan=64,in_chan=32,y=5,x=5)),in=(dims=(img=5,chan=32,y=14,x=14)),in_pad=(tn=none,dims=(y=2,x=2)),kern_sz=(tn=none,dims=(y=5,x=5)),out=(dims=(img=5,chan=64,y=14,x=14)),out_chans=(tn=uint32_t,v=64),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=64:y=14:x=14] ssds_str(out_batch_1,out_batch_2)=cnt=29572 sum_squared_diffs=0.000402313 avg_abs_diff=8.00901e-05 max_abs_diff=0.0012207 sum_diffs=-0.00306579 avg_diff=-4.88807e-08 max_rel_diff=0.00020957 avg1=86.228 avg2=86.228
 [img=3:chan=28:y=4:x=10 (43186)]: v1=0.311458 v2=0.311248 
 
 -----
  errors for op_ix=1 op='(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=256)),filts=(dims=(out_chan=256,in_chan=384,y=3,x=3)),in=(dims=(img=5,chan=384,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=256,y=13,x=13)),out_chans=(tn=uint32_t,v=256),stride=(tn=none,dims=(y=1,x=1))))'
---  op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
+--  full-data comp fail; op_tune='(use_be=nvrtc,use_culibs=1,MNt=8 8,MNb=8 16,tconv_max_ksz=11 11)'
 out: DIMS[img=5:chan=256:y=13:x=13] ssds_str(out_batch_1,out_batch_2)=cnt=105303 sum_squared_diffs=0.0319224 avg_abs_diff=0.000384149 max_abs_diff=0.00598145 sum_diffs=0.0962173 avg_diff=4.44792e-07 max_rel_diff=0.0015887 avg1=184.048 avg2=184.048
 [img=0:chan=5:y=3:x=5 (889)]: v1=1.67073 v2=1.67132 
 [img=0:chan=11:y=3:x=7 (1905)]: v1=2.92886 v2=2.92948 
