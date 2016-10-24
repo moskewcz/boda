@@ -394,6 +394,8 @@ namespace boda
   void emit_clis( p_ostream & out, vect_pair_str_str const & run_bases, vect_pair_str_str const & op_tunes ) {
     for( vect_pair_str_str::const_iterator i = run_bases.begin(); i != run_bases.end(); ++i ) {
       pair_str_str cli = *i;
+      // note: could use %(test_name) in wisdom-in-fn instead of cli.first, but then resultant cli can't be run outside test framework ...
+      cli.second += " --wisdom-in-fn='%(boda_test_dir)/good_tr/"+cli.first+"/wisdom.wis'"; 
       cli.second += " --op-tunes='(";
       for( vect_pair_str_str::const_iterator j = op_tunes.begin(); j != op_tunes.end(); ++j ) {
         cli.second += string((j==op_tunes.begin())?"":",") + j->first +"=("+j->second+")";
@@ -446,7 +448,6 @@ namespace boda
       rt_err( "no known-good tune tag set; can't generate ops-prof test command lines. are no operation-level backends enabled? i.e. both OpenCL and nvrtc are disabled?" ); 
     }
     string cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=" + kg_tune_tag;
-    cli_base += " --wisdom-in-fn='%(boda_test_dir)/good_tr/%(test_name)/wisdom.wis'";
     if( output_wisdom ) { cli_base += " --wisdom-out-fn='%(boda_output_dir)/wisdom.wis'"; }
     string const sgemm_ops = " --ops-fn='%(boda_test_dir)/sgemm-ops-debug.txt'";
     string const cnn_ops = " --ops-fn='%(boda_test_dir)/conv-ops-debug.txt'";
