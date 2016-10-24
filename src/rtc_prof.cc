@@ -251,27 +251,29 @@ namespace boda
       // check that the input and output set of per-op-tune wisdoms are the same. we could do better
       // (i.e. merge/reordering), but this is a start.
       if( op_wisdom_in ) {
-        if( write_runs ) {
-          if( op_wisdom_in->wisdoms.size() != wnum ) {
-            rt_err( strprintf( "number of wisdoms mismatch between input wisdom and set of op-tunes to run: "
-                               "op_wisdom_in->wisdoms.size()=%s op_wisdom_out->wisdoms.size()=%s", 
-                               str(op_wisdom_in->wisdoms.size()).c_str(), str(wnum).c_str() ) );
-          }
-          for( uint32_t i = 0; i != wnum; ++i ) {
-            string const ot_str_in = str(op_wisdom_in->wisdoms[i]->op_tune);
-            string const ot_str_out = str(op_wisdom_out->wisdoms[i]->op_tune);
-            if( ot_str_in != ot_str_out ) {
-              rt_err( strprintf( "in/out op_tune mismatch: wix=%s ot_str_in=%s ot_str_out=%s", 
-                                 str(i).c_str(), str(ot_str_in).c_str(), str(ot_str_out).c_str() ) );
+        if( write_runs ) { // if we're writing runs, and ...
+          if( op_wisdom_in->wisdoms.size() ) { // ... there are any input wisdoms, check them and use them as a base-to-append-runs-to.
+            if( op_wisdom_in->wisdoms.size() != wnum ) {
+              rt_err( strprintf( "number of input wisdoms is non-zero and doesn't match between input wisdom and set of op-tunes to run: "
+                                 "op_wisdom_in->wisdoms.size()=%s op_wisdom_out->wisdoms.size()=%s", 
+                                 str(op_wisdom_in->wisdoms.size()).c_str(), str(wnum).c_str() ) );
             }
-          }
-          // copy over input runs to output as starting point
-          if( op_wisdom_in ) {
             for( uint32_t i = 0; i != wnum; ++i ) {
-              assert_st( op_wisdom_out->wisdoms[i]->runs.empty() );
-              op_wisdom_out->wisdoms[i]->runs = op_wisdom_in->wisdoms[i]->runs;
+              string const ot_str_in = str(op_wisdom_in->wisdoms[i]->op_tune);
+              string const ot_str_out = str(op_wisdom_out->wisdoms[i]->op_tune);
+              if( ot_str_in != ot_str_out ) {
+                rt_err( strprintf( "in/out op_tune mismatch: wix=%s ot_str_in=%s ot_str_out=%s", 
+                                   str(i).c_str(), str(ot_str_in).c_str(), str(ot_str_out).c_str() ) );
+              }
             }
-          }
+            // copy over input runs to output as starting point
+            if( op_wisdom_in ) {
+              for( uint32_t i = 0; i != wnum; ++i ) {
+                assert_st( op_wisdom_out->wisdoms[i]->runs.empty() );
+                op_wisdom_out->wisdoms[i]->runs = op_wisdom_in->wisdoms[i]->runs;
+              }
+            }
+          } else { } // no input wisdoms? just do nothing (don't complain/errror-out)
         } else {
           // if we're not writing runs, the op_wisdom_in->wisdoms (if present) are unused 
         }
