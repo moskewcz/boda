@@ -168,9 +168,6 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia );
   };
 
-  double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
-			   p_op_base_t const & in_gen_op, map_str_p_nda_t * const outs, uint32_t const & run_iter );
-
   void cnn_op_info_t::main( nesi_init_arg_t * nia ) {
     vect_p_conv_op_t sigs;
     p_vect_string in_lines = readlines_fn( cnn_func_sigs_fn );
@@ -209,7 +206,7 @@ namespace boda
 
       double rfc_dur_secs = NAN;
       string err;
-      try { rfc_dur_secs = profile_rcg_call( anno_op, codegen, gen_data, vs1.get(), run_iter ) / 1000.0; }
+      try { rfc_dur_secs = profile_rcg_call( anno_op, codegen, gen_data, vs1.get(), run_iter ).rt_secs; }
       catch( rt_exception const & rte ) {
         if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
           err = "CL_OUT_OF_HOST_MEMORY"; 
@@ -223,7 +220,7 @@ namespace boda
       double rfc_dur_secs_comp = NAN;
       // (*out) << printf( "rfc_dur_secs=%s\n", str(rfc_dur_secs).c_str() );
       if( err.empty() && rtc_comp ) {
-        rfc_dur_secs_comp = profile_rcg_call( anno_op_comp, codegen_comp, gen_data, vs2.get(), 1 ) / 1000.0;
+        rfc_dur_secs_comp = profile_rcg_call( anno_op_comp, codegen_comp, gen_data, vs2.get(), 1 ).rt_secs;
         vect_string const vns1 = get_keys( *vs1 );
         vect_string const vns2 = get_keys( *vs2 );
         if( vns1 != vns2 ) { rt_err( strprintf( "reg/comp out var set mismatch: vns1=%s vns2=%s\n", 

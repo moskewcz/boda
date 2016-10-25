@@ -27,9 +27,9 @@ namespace boda
     codegen.run_func( *rfc );
   }
   
-  double profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
-			   p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
-                           uint32_t const & run_iter ) 
+  prc_ret_t profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
+                              p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
+                              uint32_t const & run_iter ) 
   {
     timer_t t("profile_rcg_call");
     string const anno_op_func_name = anno_op->get_func_name();
@@ -120,9 +120,10 @@ namespace boda
     codegen.rtc->finish_and_sync();
     double const rfc_dur = codegen.rtc->get_dur( call_id, call_id );
     codegen.rtc->release_per_call_id_data();
+    prc_ret_t const ret{make_shared<op_base_t>(rfc->rcg->op),rfc_dur / 1000.0 }; // convert msecs to secs
     rfc.reset(); // optional. allows just-used function (which is no longer needed) to be released now if func-gc happens.
     codegen.gc_clear();
-    return rfc_dur;
+    return ret;
   }
 
   p_conv_op_base_t make_p_conv_op_base_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
@@ -287,7 +288,7 @@ namespace boda
         p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op_wisdom_out->op );
         p_rtc_codegen_t const & codegen = get_codegen_for_op_tune( op_tune );
         p_map_str_p_nda_t vsi;
-        double dur_secs = NAN;
+        prc_ret_t prc_ret{0,NAN};
         std::ostringstream err;
         try { add_codegen_annotations( anno_op, op_tune, 0 ); }
         catch( unsup_exception const & us_exp ) {
@@ -296,7 +297,7 @@ namespace boda
         if( err.str().empty() ) {
           if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
           vsi = make_shared<map_str_p_nda_t>();
-          try { dur_secs = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter ) / 1000.0; }
+          try { prc_ret = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter ); }
           catch( rt_exception const & rte ) {
             if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
               err << "CL_OUT_OF_HOST_MEMORY"; 
@@ -309,7 +310,7 @@ namespace boda
           }
         }
         string const plat_tag = codegen->rtc->get_plat_tag();
-        (*i)->runs[plat_tag] = op_run_t{plat_tag,dur_secs,err.str()};
+        (*i)->runs[plat_tag] = op_run_t{plat_tag,prc_ret.op,prc_ret.rt_secs,err.str()};
         if( wix == kg_wix ) { // if this is the to-use-as-known-good op_tune, store it's results in vs1, and maybe write its digest.
           if( !err.str().empty() ) { 
             err << strprintf( "Error: known-good op_tune (kg_tune_tag=%s) failed. Can't write digests or do live comparisons.\n",

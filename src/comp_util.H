@@ -20,6 +20,18 @@ namespace boda {
 		  bool const diff_show_mrd_only, uint32_t const & max_err,
 		  vect_string const & vns, p_map_str_p_nda_t const & vs1, p_map_str_p_nda_t const & vs2 );
   
+  // FIXME/note: defined in rtc_prof.cc
+  struct op_base_t; typedef shared_ptr< op_base_t > p_op_base_t; 
+  struct rtc_codegen_t;
+  struct prc_ret_t {
+    p_op_base_t op; // reduced op (defines unique generated function)
+    double rt_secs;
+  };
+  prc_ret_t profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
+                              p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
+                              uint32_t const & run_iter ) ;
+
+
 }
 
 #endif /* _COMP_UTIL_H_ */

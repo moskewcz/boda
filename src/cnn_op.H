@@ -38,6 +38,7 @@ namespace boda
   // FIXME: should be NESI struct? see related FIXME on op_tune_wisdom_t
   struct op_run_t {
     string be_plat_tag;
+    p_op_base_t op;
     double rt_secs;
     string err; // empty if no error
   };
