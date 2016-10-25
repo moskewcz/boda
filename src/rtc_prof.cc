@@ -9,6 +9,7 @@
 #include"rtc_func_gen.H"
 #include"rtc_compute.H"
 #include"cnn_op.H"
+#include"op-tuner.H"
 #include"conv_util.H"
 #include"comp_util.H"
 #include<iostream>
