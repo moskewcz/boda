@@ -432,7 +432,7 @@ namespace boda
       rt_err( "no known-good tune tag set; can't generate ops-prof test command lines. are no operation-level backends enabled? i.e. both OpenCL and nvrtc are disabled?" ); 
     }
     string cli_base = "boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=" + kg_tune_tag;
-    cli_base += " --func-mrd-toler='(cudnn_conv=2e-3)'"; // FIXME: should be 4e-4 for non-winograd cudnn_conv.
+    cli_base += " --func-mrd-toler='(cudnn_conv=4e-4)'"; // FIXME: should be 4e-4 for non-winograd cudnn_conv, but 2e-3 for winograd ones.
     if( output_wisdom ) { cli_base += " --wisdom-out-fn='%(boda_output_dir)/wisdom.wis'"; }
     string const sgemm_ops = " --ops-fn='%(boda_test_dir)/sgemm-ops-debug.txt'";
     string const cnn_ops = " --ops-fn='%(boda_test_dir)/conv-ops-debug.txt'";
