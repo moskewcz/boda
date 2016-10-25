@@ -751,9 +751,12 @@ namespace boda
       nda_dispatch( *v, nda_elems_init_t( parts ) ); // actually fill in values
     } else {
       // note: data pointer left null
-      
-      // instead of an error here, we could maybe default the dims to scalar (i.e. one 'v' dim of sz 1). but do we ever really want that case?
-      if( !dims ) { rt_err( "nda_t has neither 'v' nor 'dims' field, can't determine size; set at least one." );}
+      // instead of an error here, we could maybe default the dims to scalar (i.e. one 'v' dim of sz 1). but do we ever really want that case? UPDATE: yes, it seems so. see below:
+      if( !dims ) { 
+        // note: this used to be an error; now we assume the value is a scalar
+        // rt_err( "nda_t has neither 'v' nor 'dims' field, can't determine size; set at least one." );
+        v->dims = dims_t( vect_uint32_t{}, tn_str );
+      }
       else if( tn ) { v->dims.tn = tn_str; }  // note: if !tn, tn_str came from v->dims in the first place
     }
   }

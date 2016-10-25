@@ -189,6 +189,8 @@ namespace boda
         dims_t arg_dims_no_sizes_or_strides = arg_dims;
         arg_dims_no_sizes_or_strides.clear_strides();
         arg_dims_no_sizes_or_strides.clear_dims();
+        // FIXME: is this needed/correct: 
+        // arg_dims_no_sizes_or_strides.calc_strides(); // for scalars, will set strides_sz = 1 (which is correct enough / better than 0?)
         ret.reduced->set_dims( i.vn(), arg_dims_no_sizes_or_strides );
         // put original nda in to_pass so function will have access to concrete dims (important for DYN REF dims)
         ret.to_pass->set( i.vn(), arg_nda );
