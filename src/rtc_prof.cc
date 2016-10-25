@@ -267,7 +267,8 @@ namespace boda
           }
           if( !merged_in ) { 
             // FIXME: make not fatal? ignore? or just add runs to output (but don't otherwise run this tune?)
-            rt_err( strprintf( "input-wisdom op_tune=%s is not to be run", str(ot_str_in).c_str() ) );
+            // rt_err( strprintf( "input-wisdom op_tune=%s is not to be run", str(ot_str_in).c_str() ) );
+            op_wisdom_out->wisdoms.push_back( op_wisdom_in->wisdoms[i] ); // preserve data, but don't run tune
           }
 
         }
