@@ -148,7 +148,8 @@ namespace boda
     { "bad_nda_8", "", ntb_b+"nda=(tn=float,v=1.2:3.4:5.6))", "var 'nda': error: nda_t 'v' field has 3 elements/parts, but 'dims' was omitted; dims may onlybe omitted for scalars (1 element)." },
     { "bad_nda_8_ok", "", ntb_b+"nda=(dims=(v=3),v=1.2:3.4:5.6))", 0 },
     { "bad_nda_9", "", ntb_b+"nda=(dims=(v=4),v=1.2:3.4:5.6))", "var 'nda': error: nda_t 'v' field has 3 elements/parts, but user-specified 'dims' say there should be 4." },
-    { "bad_nda_10", "", ntb_b+"nda=(tn=uint32_t))", "var 'nda': error: nda_t has neither 'v' nor 'dims' field, can't determine size; set at least one." }, 
+    //{ "bad_nda_10", "", ntb_b+"nda=(tn=uint32_t))", "var 'nda': error: nda_t has neither 'v' nor 'dims' field, can't determine size; set at least one." }, // no longer an error, treated as scalar
+    { "bad_nda_10", "", ntb_b+"nda=(tn=uint32_t))", 0 }, 
 
     // for the moment we're allowing this case:
     //{ "bad_val_t2", "", ntb+",dpf=23.1,vstr=(li_0=sdf,li_1=(li_0=biz)))", "var 'vstr': list elem 1: error: invalid attempt to use name/value list as string value. list was:(li_0=biz)"},
