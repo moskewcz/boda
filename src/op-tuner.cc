@@ -4,6 +4,7 @@
 #include"str_util.H"
 #include"nesi.H"
 #include"lexp.H"
+#include"has_main.H"
 #include<sstream>
 
 namespace boda 
@@ -119,5 +120,22 @@ namespace boda
     }
     out << "/op_wisdom_t\n";
   }
+
+
+  struct wis_ana_t : virtual public nesi, public has_main_t // NESI(help="analyses wisdom file, output data in format for plotting",
+           // bases=["has_main_t"], type_id="wis-ana" )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t wisdom_in_fn; //NESI(help="wisdom input file (to add to, may contain known-good results for checking)",req=1)
+
+    virtual void main( nesi_init_arg_t * nia ) {
+      p_istream win = ifs_open( wisdom_in_fn );
+      for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) {
+        printf( "owi->op=%s\n", str(owi->op).c_str() );        
+      }
+    }
+  };
+
+#include"gen/op-tuner.cc.nesi_gen.cc"
 
 }
