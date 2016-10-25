@@ -421,9 +421,9 @@ namespace boda
 
   void read_op_run_t( op_run_t & v, p_istream const & in ) {
     v.be_plat_tag = must_getline( in );
-    v.op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( must_getline( in ) ), 0 );     
     v.rt_secs = lc_str_d( must_getline( in ) );
     v.err = must_getline( in );
+    if( v.err.empty() ) { v.op = make_p_op_base_t_init_and_check_unused_from_lexp( parse_lexp( must_getline( in ) ), 0 ); }
   }
 
   void read_op_tune_wisdom( op_tune_wisdom_t & v, p_istream const & in ) {
@@ -475,9 +475,9 @@ namespace boda
   void write_op_run( op_run_t const & v, std::ostream & out ) {
     out << "op_run_t\n";
     out << v.be_plat_tag << "\n";
-    out << str(v.op) << "\n";
     out << v.rt_secs << "\n";
     out << v.err << "\n";
+    if( v.err.empty() ) { assert_st( v.op ); out << str(v.op) << "\n"; }
   }
 
   void write_op_tune_wisdom( op_tune_wisdom_t const & v, std::ostream & out ) {
