@@ -134,6 +134,12 @@ namespace boda
     uint32_t s_img; //NESI(default="0",help="0 == all # of imgs; otherwise, only ops with the specified #")
     string s_plat; //NESI(default=".*",help="regex to select targ plat tag")
 
+    map_str_uint32_t op_tunes;
+
+    uint32_t s_tix; //NESI(default=0,help="0 == all tixs, othewise, only specified tix")
+    uint32_t best_tix; //NESI(default=0,help="0 == all tixs, othewise, only lowest-time tix")
+
+    uint32_t get_tix( op_tune_t const & ot ) { return op_tunes.insert( make_pair( str(ot), op_tunes.size()+1 ) ).first->second; }
 
     virtual void main( nesi_init_arg_t * nia ) {
       p_istream win = ifs_open( wisdom_in_fn );
@@ -142,15 +148,36 @@ namespace boda
       for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) {
         if( s_img && (owi->op->get_dims("in").dsz("img") != s_img) ) { continue; }
         printf( "owi->op=%s\n", str(owi->op).c_str() );
+        double min_time = std::numeric_limits<double>::max();
+        op_run_t const * min_r = 0;
+        uint32_t min_tix = 0;
         for( vect_p_op_tune_wisdom_t::const_iterator otwi = owi->wisdoms.begin(); otwi != owi->wisdoms.end(); ++otwi ) {
           for( map_str_op_run_t::const_iterator ri = (*otwi)->runs.begin(); ri != (*otwi)->runs.end(); ++ri ) {
             op_run_t const & r = ri->second;
             if( !r.err.empty() ) { continue; }
             if( !regex_search( r.be_plat_tag, r_plat ) ) { continue; }
-            printf( "r.be_plat_tag=%s r.rt_secs=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str() );
+            uint32_t const tix = get_tix(*(*otwi)->op_tune);
+            if( s_tix && (tix != s_tix) ) { continue; }
+            min_eq( min_time, r.rt_secs );
+            if( best_tix ) {
+              if( r.rt_secs == min_time ) { min_r = &r; min_tix = tix;}
+            } else {
+              printf( "r.be_plat_tag=%s r.rt_secs=%s tix=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                      str(tix).c_str() );
+            }
           }
         }
+        if( best_tix && min_r ) {
+          op_run_t const & r = *min_r;
+          printf( "r.be_plat_tag=%s r.rt_secs=%s min_tix=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                  str(min_tix).c_str() );
+        }
       }
+      printstr( "\n-- LEGEND --\n" );
+      for( map_str_uint32_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
+        printf( "tix=%s op_tune=%s\n", str(i->second).c_str(), str(i->first).c_str() );
+      }
+
     }
   };
 
