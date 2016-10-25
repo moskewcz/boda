@@ -321,6 +321,11 @@ namespace boda
           
         if( err.str().empty() ) { // if tune ran without error, do compares
           double vmt = get( func_mrd_toler, prc_ret.op->get_func_name(), mrd_toler );
+          // FIXME: here's a nice little hack for the winograd cases. sigh. when/if we split up all the cudnn algos
+          // using a tuning parameter, maybe we can fix this better?
+          if( (prc_ret.op->get_func_name() == "cudnn_conv") && ( get_xy_dims( op_wisdom_out->op->get_dims("kern_sz") ) == u32_pt_t{3,3} ) ) {
+            vmt = 2e-3;
+          }
           // full-data compare
           if( vs_kg ) { // note: can only be only false if known-good run failed
             vect_string const vns_kg = get_keys( *vs_kg );
