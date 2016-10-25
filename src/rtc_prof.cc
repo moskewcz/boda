@@ -320,13 +320,13 @@ namespace boda
         }
           
         if( err.str().empty() ) { // if tune ran without error, do compares
+          double vmt = get( func_mrd_toler, prc_ret.op->get_func_name(), mrd_toler );
           // full-data compare
           if( vs_kg ) { // note: can only be only false if known-good run failed
             vect_string const vns_kg = get_keys( *vs_kg );
             vect_string const vns_wix = get_keys( *vsi );
             if( vns_kg != vns_wix ) { rt_err( strprintf( "reg/comp out var set mismatch: vns_kg=%s vns[%s]=%s\n", 
                                                          str(vns_kg).c_str(), str(*wix).c_str(), str(vns_wix).c_str() ) ); }
-            double vmt = get( func_mrd_toler, "", mrd_toler ); // FIXME: use op name here
             comp_vars( &err, num_mad_fail, vmt, 0, 0, max_err, vns_kg, vs_kg, vsi );
           }
           // digest compare
@@ -338,7 +338,6 @@ namespace boda
               p_nda_digest_t const & kg_digest = op_wisdom_in->kgs[vix].second;
               size_t const digest_seed = std::hash<string>()(i->first); // FIXME: make better seed by including op/op_tune/???
               p_nda_digest_t digest = nda_digest_t::make_from_nda( i->second, digest_seed );
-              double vmt = get( func_mrd_toler, "", mrd_toler ); // FIXME: use op name here
               string const comp_res = kg_digest->mrd_comp( digest, vmt );
               if( !comp_res.empty() ) { err << (i->first) + " digest mrd_comp() failure '"+wisdom_in_fn->in+"' vs '"+str(op_tune)+"':\n" + comp_res + "\n";}
             }
