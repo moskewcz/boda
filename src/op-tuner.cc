@@ -6,10 +6,13 @@
 #include"lexp.H"
 #include"has_main.H"
 #include<sstream>
+#include<boost/regex.hpp>
 
 namespace boda 
 {
 
+  using boost::regex;
+  using boost::regex_search;
 
   bool read_string_or_EOF( p_istream const & in, string const & s ) {
     string line;
@@ -128,10 +131,25 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t wisdom_in_fn; //NESI(help="wisdom input file (to add to, may contain known-good results for checking)",req=1)
 
+    uint32_t s_img; //NESI(default="0",help="0 == all # of imgs; otherwise, only ops with the specified #")
+    string s_plat; //NESI(default=".*",help="regex to select targ plat tag")
+
+
     virtual void main( nesi_init_arg_t * nia ) {
       p_istream win = ifs_open( wisdom_in_fn );
+      regex r_plat( s_plat );
+
       for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) {
-        printf( "owi->op=%s\n", str(owi->op).c_str() );        
+        if( s_img && (owi->op->get_dims("in").dsz("img") != s_img) ) { continue; }
+        printf( "owi->op=%s\n", str(owi->op).c_str() );
+        for( vect_p_op_tune_wisdom_t::const_iterator otwi = owi->wisdoms.begin(); otwi != owi->wisdoms.end(); ++otwi ) {
+          for( map_str_op_run_t::const_iterator ri = (*otwi)->runs.begin(); ri != (*otwi)->runs.end(); ++ri ) {
+            op_run_t const & r = ri->second;
+            if( !r.err.empty() ) { continue; }
+            if( !regex_search( r.be_plat_tag, r_plat ) ) { continue; }
+            printf( "r.be_plat_tag=%s r.rt_secs=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str() );
+          }
+        }
       }
     }
   };
