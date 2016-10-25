@@ -240,50 +240,42 @@ namespace boda
         rt_err( strprintf( "op mismatch between input wisdom and ops-list (to output): op_wisdom_in->op=%s op_wisdom_out=%s", 
                            str(op_wisdom_in->op).c_str(), str(op_wisdom_out->op).c_str() ) ); 
       }
+      vect_uint32_t out_wixs_to_run; // will contain all wixs specified on the command line, with the known-good wix first
       {
         uint32_t wix = 0;
         for( map_str_op_tune_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i, ++wix ) {
           op_wisdom_out->wisdoms.push_back( p_op_tune_wisdom_t( new op_tune_wisdom_t{make_shared<op_tune_t>(i->second)} ) );
           if( i->first == kg_tune_tag ) { kg_wix = wix; }
+          else{ out_wixs_to_run.push_back( wix ); }
         }
         assert_st( kg_wix != uint32_t_const_max );
+        out_wixs_to_run.insert( out_wixs_to_run.begin(), kg_wix );
       }
-      uint32_t const wnum = op_wisdom_out->wisdoms.size();
-      // check that the input and output set of per-op-tune wisdoms are the same. we could do better
-      // (i.e. merge/reordering), but this is a start.
-      if( op_wisdom_in ) {
-        if( write_runs ) { // if we're writing runs, and ...
-          if( op_wisdom_in->wisdoms.size() ) { // ... there are any input wisdoms, check them and use them as a base-to-append-runs-to.
-            if( op_wisdom_in->wisdoms.size() != wnum ) {
-              rt_err( strprintf( "number of input wisdoms is non-zero and doesn't match between input wisdom and set of op-tunes to run: "
-                                 "op_wisdom_in->wisdoms.size()=%s op_wisdom_out->wisdoms.size()=%s", 
-                                 str(op_wisdom_in->wisdoms.size()).c_str(), str(wnum).c_str() ) );
+      // FIXME: quadratic in in*out tunes ... just need local map to fix.
+      if( op_wisdom_in && write_runs ) // merge in input runs (if any)
+      { 
+        for( uint32_t i = 0; i != op_wisdom_in->wisdoms.size(); ++i ) {
+          string const ot_str_in = str(op_wisdom_in->wisdoms[i]->op_tune);
+          bool merged_in = 0;
+          for( uint32_t j = 0; j != op_wisdom_out->wisdoms.size(); ++j ) {
+            string const ot_str_out = str(op_wisdom_out->wisdoms[j]->op_tune);
+            if( ot_str_in == ot_str_out ) { // matching, merge in runs
+              assert_st( op_wisdom_out->wisdoms[j]->runs.empty() );
+              op_wisdom_out->wisdoms[j]->runs = op_wisdom_in->wisdoms[i]->runs;
+              merged_in = 1;
             }
-            for( uint32_t i = 0; i != wnum; ++i ) {
-              string const ot_str_in = str(op_wisdom_in->wisdoms[i]->op_tune);
-              string const ot_str_out = str(op_wisdom_out->wisdoms[i]->op_tune);
-              if( ot_str_in != ot_str_out ) {
-                rt_err( strprintf( "in/out op_tune mismatch: wix=%s ot_str_in=%s ot_str_out=%s", 
-                                   str(i).c_str(), str(ot_str_in).c_str(), str(ot_str_out).c_str() ) );
-              }
-            }
-            // copy over input runs to output as starting point
-            if( op_wisdom_in ) {
-              for( uint32_t i = 0; i != wnum; ++i ) {
-                assert_st( op_wisdom_out->wisdoms[i]->runs.empty() );
-                op_wisdom_out->wisdoms[i]->runs = op_wisdom_in->wisdoms[i]->runs;
-              }
-            }
-          } else { } // no input wisdoms? just do nothing (don't complain/errror-out)
-        } else {
-          // if we're not writing runs, the op_wisdom_in->wisdoms (if present) are unused 
+          }
+          if( !merged_in ) { 
+            // FIXME: make not fatal? ignore? or just add runs to output (but don't otherwise run this tune?)
+            rt_err( strprintf( "input-wisdom op_tune=%s is not to be run", str(ot_str_in).c_str() ) );
+          }
+
         }
       }
       p_map_str_p_nda_t vs_kg; // we compare all runs against the known-good run, whose results will be stored here
-      vect_p_map_str_p_nda_t vss;
-      for( vect_p_op_tune_wisdom_t::iterator i = op_wisdom_out->wisdoms.begin(); i != op_wisdom_out->wisdoms.end(); ++i ) {
-        uint32_t const wix = i - op_wisdom_out->wisdoms.begin();
-        op_tune_t const & op_tune = *(*i)->op_tune;
+      for( vect_uint32_t::const_iterator wix = out_wixs_to_run.begin(); wix != out_wixs_to_run.end(); ++wix ) {
+        p_op_tune_wisdom_t & op_tune_wisdom = op_wisdom_out->wisdoms[*wix];
+        op_tune_t const & op_tune = *op_tune_wisdom->op_tune;
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
         p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op_wisdom_out->op );
         p_rtc_codegen_t const & codegen = get_codegen_for_op_tune( op_tune );
@@ -310,8 +302,9 @@ namespace boda
             else { throw; }
           }
         }
-        (*i)->runs[plat_tag] = op_run_t{plat_tag,prc_ret.op,prc_ret.rt_secs,err.str()};
-        if( wix == kg_wix ) { // if this is the to-use-as-known-good op_tune, store it's results in vs1, and maybe write its digest.
+        op_tune_wisdom->runs[plat_tag] = op_run_t{plat_tag,prc_ret.op,prc_ret.rt_secs,err.str()};
+        if( (*wix) == kg_wix ) { // if this is the to-use-as-known-good op_tune, store it's results in vs1, and maybe write its digest.
+          assert_st( wix == out_wixs_to_run.begin() ); // should be first run
           if( !err.str().empty() ) { 
             err << strprintf( "Error: known-good op_tune (kg_tune_tag=%s) failed. Can't write digests or do live comparisons.\n",
                               kg_tune_tag.c_str() ); 
@@ -325,10 +318,17 @@ namespace boda
             }
           }
         }
-        if( !err.str().empty() ) { vsi.reset(); } // failed-run --> don't keep results. also, the null vsi marks run as failed.
-        vss.push_back( vsi );
           
-        if( err.str().empty() ) {
+        if( err.str().empty() ) { // if tune ran without error, do compares
+          // full-data compare
+          if( vs_kg ) { // note: can only be only false if known-good run failed
+            vect_string const vns_kg = get_keys( *vs_kg );
+            vect_string const vns_wix = get_keys( *vsi );
+            if( vns_kg != vns_wix ) { rt_err( strprintf( "reg/comp out var set mismatch: vns_kg=%s vns[%s]=%s\n", 
+                                                         str(vns_kg).c_str(), str(*wix).c_str(), str(vns_wix).c_str() ) ); }
+            double vmt = get( func_mrd_toler, "", mrd_toler ); // FIXME: use op name here
+            comp_vars( &err, num_mad_fail, vmt, 0, 0, max_err, vns_kg, vs_kg, vsi );
+          }
           // digest compare
           if( op_wisdom_in ) {
             assert_st( op_wisdom_in->kgs.size() == vsi->size() );
@@ -348,28 +348,9 @@ namespace boda
         }
         if( !err.str().empty() ) { 
           on_op_err( *out, op_seen_errs, op_ix, op_wisdom_out->op );
-          (*out) << "--  digest comp fail; op_tune='" + str(op_tune) + "'\n" << err.str() << "\n";
+          (*out) << "--  comp fail for op_tune='" + str(op_tune) + "'\n" << err.str() << "\n";
         }
       }      
-      // FIXME: if we could run the known-good tune first, we could merge this loop with the above one, and not need to
-      // buffer all the per-tune outputs.
-      assert_st( vss.size() == op_wisdom_out->wisdoms.size() );
-      if( vs_kg ) { // if we have a valid known-good results
-        for( uint32_t wix = 0; wix != vss.size(); ++wix ) { // compare it against all tunes
-          if( !vss[wix] ) { continue; } // skip compare for tunes that failed
-          vect_string const vns_kg = get_keys( *vs_kg );
-          vect_string const vns_wix = get_keys( *vss[wix] );
-          if( vns_kg != vns_wix ) { rt_err( strprintf( "reg/comp out var set mismatch: vns_kg=%s vns[%s]=%s\n", 
-                                                       str(vns_kg).c_str(), str(wix).c_str(), str(vns_wix).c_str() ) ); }
-          std::ostringstream err;
-          double vmt = get( func_mrd_toler, "", mrd_toler ); // FIXME: use op name here
-          comp_vars( &err, num_mad_fail, vmt, 0, 0, max_err, vns_kg, vs_kg, vss[wix] );
-          if( !err.str().empty() ) { 
-            on_op_err( *out, op_seen_errs, op_ix, op_wisdom_out->op );
-            (*out) << "--  full-data comp fail; op_tune='" + str(op_wisdom_out->wisdoms[wix]->op_tune) + "'\n" << err.str() << "\n";
-          }
-        }
-      }
 
       if( wout ) { 
         if( !write_runs ) { op_wisdom_out->wisdoms.clear(); }
