@@ -130,6 +130,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t wisdom_in_fn; //NESI(help="wisdom input file (to add to, may contain known-good results for checking)",req=1)
+    p_filename_t csv_out_fn; //NESI(help="csv output filename")
 
     uint32_t s_img; //NESI(default="0",help="0 == all # of imgs; otherwise, only ops with the specified #")
     string s_plat; //NESI(default=".*",help="regex to select targ plat tag")
@@ -141,10 +142,41 @@ namespace boda
 
     uint32_t get_tix( op_tune_t const & ot ) { return op_tunes.insert( make_pair( str(ot), op_tunes.size()+1 ) ).first->second; }
 
+    // FIXME: cut-n-paste from cnn-prof ...
+    uint64_t get_op_flops( p_op_base_t const & op ) {
+
+      // assert( op->is( Convolution_coi ) ); // FIXME
+
+      dims_t din;
+      dims_t dout;
+      uint64_t B;
+      uint64_t M,N,K;
+      //uint64_t forward_bytes;
+      uint64_t forward_flops;
+
+      dout = op->get_dims("out");
+      din = op->get_dims("in");
+      B = din.dsz( "img" );
+      assert_st( B == dout.dsz("img" ) );
+      // AI-related calculations
+      dims_t const & filts = op->get_dims("filts");
+      //dims_t const & biases = op->get_dims("biases");
+      M = dout.dsz("img")*dout.dsz("x")*dout.dsz("y"); // note: all-imgs M
+      K = filts.dsz("in_chan")*filts.dsz("x")*filts.dsz("y");
+      N = filts.dsz("out_chan");
+      //forward_bytes = (din.dims_prod() + dout.dims_prod() + filts.dims_prod() + biases.dims_prod()) * 4;
+      forward_flops = M * N * K * 2;
+
+      return forward_flops;
+    }
+
     virtual void main( nesi_init_arg_t * nia ) {
       p_istream win = ifs_open( wisdom_in_fn );
-      regex r_plat( s_plat );
+      p_ostream csv_out = csv_out_fn ? ofs_open( *csv_out_fn ) : p_ostream();
 
+      regex r_plat( s_plat );
+      double tot_time = 0;
+      uint64_t tot_runs = 0;
       for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) {
         if( s_img && (owi->op->get_dims("in").dsz("img") != s_img) ) { continue; }
         printf( "owi->op=%s\n", str(owi->op).c_str() );
@@ -164,6 +196,8 @@ namespace boda
             } else {
               printf( "r.be_plat_tag=%s r.rt_secs=%s tix=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
                       str(tix).c_str() );
+              tot_time += r.rt_secs;
+              ++tot_runs;
             }
           }
         }
@@ -171,8 +205,14 @@ namespace boda
           op_run_t const & r = *min_r;
           printf( "r.be_plat_tag=%s r.rt_secs=%s min_tix=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
                   str(min_tix).c_str() );
+          tot_time += r.rt_secs;
+          ++tot_runs;
+          if( csv_out ) {
+            (*csv_out) << strprintf( "%s,%s\n", str(r.rt_secs).c_str(), str(get_op_flops(owi->op)).c_str() );
+          }
         }
       }
+      printf( "\n----- tot_time=%s tot_runs=%s ------\n", str(tot_time).c_str(), str(tot_runs).c_str() );
       printstr( "\n-- LEGEND --\n" );
       for( map_str_uint32_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
         printf( "tix=%s op_tune=%s\n", str(i->second).c_str(), str(i->first).c_str() );
