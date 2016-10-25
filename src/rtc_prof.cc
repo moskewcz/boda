@@ -160,7 +160,7 @@ namespace boda
     p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
 
     double mrd_toler; //NESI(default="2e-4",help="maximum maximum-absolute-difference over which a failure is declared")
-    map_str_double var_mrd_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mrd_toler per-layer if specified")
+    map_str_double func_mrd_toler; //NESI(default="()",help="per-function custom maximum maximum-absolute-differences over which a failure is declared (overrides mrd_toler per-function if specified")
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
     map_str_ops_be_t ops_bes;
@@ -287,6 +287,7 @@ namespace boda
         // generate boda variant according to tuning params (just opt and t_tile_sz currently)
         p_conv_op_base_t anno_op = make_shared<conv_op_base_t>( *op_wisdom_out->op );
         p_rtc_codegen_t const & codegen = get_codegen_for_op_tune( op_tune );
+        string const plat_tag = codegen->rtc->get_plat_tag();
         p_map_str_p_nda_t vsi;
         prc_ret_t prc_ret{0,NAN};
         std::ostringstream err;
@@ -309,7 +310,6 @@ namespace boda
             else { throw; }
           }
         }
-        string const plat_tag = codegen->rtc->get_plat_tag();
         (*i)->runs[plat_tag] = op_run_t{plat_tag,prc_ret.op,prc_ret.rt_secs,err.str()};
         if( wix == kg_wix ) { // if this is the to-use-as-known-good op_tune, store it's results in vs1, and maybe write its digest.
           if( !err.str().empty() ) { 
@@ -338,7 +338,7 @@ namespace boda
               p_nda_digest_t const & kg_digest = op_wisdom_in->kgs[vix].second;
               size_t const digest_seed = std::hash<string>()(i->first); // FIXME: make better seed by including op/op_tune/???
               p_nda_digest_t digest = nda_digest_t::make_from_nda( i->second, digest_seed );
-              double vmt = get( var_mrd_toler, i->first, mrd_toler ); // FIXME: using name of output for per-var toler is questionable.
+              double vmt = get( func_mrd_toler, "", mrd_toler ); // FIXME: use op name here
               string const comp_res = kg_digest->mrd_comp( digest, vmt );
               if( !comp_res.empty() ) { err << (i->first) + " digest mrd_comp() failure '"+wisdom_in_fn->in+"' vs '"+str(op_tune)+"':\n" + comp_res + "\n";}
             }
@@ -362,7 +362,8 @@ namespace boda
           if( vns_kg != vns_wix ) { rt_err( strprintf( "reg/comp out var set mismatch: vns_kg=%s vns[%s]=%s\n", 
                                                        str(vns_kg).c_str(), str(wix).c_str(), str(vns_wix).c_str() ) ); }
           std::ostringstream err;
-          comp_vars( &err, num_mad_fail, mrd_toler, &var_mrd_toler, 0, max_err, vns_kg, vs_kg, vss[wix] );
+          double vmt = get( func_mrd_toler, "", mrd_toler ); // FIXME: use op name here
+          comp_vars( &err, num_mad_fail, vmt, 0, 0, max_err, vns_kg, vs_kg, vss[wix] );
           if( !err.str().empty() ) { 
             on_op_err( *out, op_seen_errs, op_ix, op_wisdom_out->op );
             (*out) << "--  full-data comp fail; op_tune='" + str(op_wisdom_out->wisdoms[wix]->op_tune) + "'\n" << err.str() << "\n";
