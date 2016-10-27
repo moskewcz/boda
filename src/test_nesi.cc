@@ -190,18 +190,18 @@ namespace boda
 	assert_st( !no_error );
 	if( !lt.err_fmt ) { // expected no error, but got one
 	  test_fail_err( rte.err_msg ); 
-	  // (*ofs_open("/tmp/eib.txt")) << rte.err_msg; // poor-man's auto-update
+	  // (*ofs_open("eib.txt")) << rte.err_msg; // poor-man's auto-update
 	} 
 	else { 	// check if error is correct one
 	  string const exp_err_msg = string(lt.err_fmt); 
 	  if( rte.err_msg != exp_err_msg ) { 
 	    test_fail_wrong_err( strprintf( "  '%s'\nexpected:\n  '%s'\n", 
 					    str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) );
-	    // (*ofs_open("/tmp/eib.txt")) << rte.err_msg; // poor-man's auto-update
+	    // (*ofs_open("eib.txt")) << rte.err_msg; // poor-man's auto-update
 	  }
 	}
       }
-      // (insert-file "/tmp/eib.txt")
+      // (insert-file "eib.txt")
       if( no_error ) {
 	assert_st( has_main );
 	if( lt.err_fmt ) { test_fail_no_err( string(lt.err_fmt) ); }
@@ -544,18 +544,18 @@ namespace boda
 	assert_st( !no_error );
 	if( !cmd->err ) { // expected no error, but got one
 	  test_fail_err( rte.err_msg ); 
-	  if( write_err ) { (*ofs_open("/tmp/eib.txt")) << rte.err_msg; } // poor-man's auto-update 
+	  if( write_err ) { (*ofs_open("eib.txt")) << rte.err_msg; } // poor-man's auto-update 
 	} 
 	else { 	// check if error is correct one
 	  string const exp_err_msg = *cmd->err;
 	  if( rte.err_msg != exp_err_msg ) { 
 	    test_fail_wrong_err( strprintf( "  '%s'\nexpected:\n  '%s'\n", 
 					    str(rte.err_msg).c_str(), str(exp_err_msg).c_str() ) );
-	    if( write_err ) { (*ofs_open("/tmp/eib.txt")) << rte.err_msg; } // poor-man's auto-update
+	    if( write_err ) { (*ofs_open("eib.txt")) << rte.err_msg; } // poor-man's auto-update
 	  }
 	}
       }
-      // (insert-file "/tmp/eib.txt")
+      // (insert-file "eib.txt")
       if( no_error ) {
 	if( cmd->err ) { test_fail_no_err( *cmd->err ); }
 	else { do_diff = 1; }
