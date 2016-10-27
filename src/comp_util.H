@@ -26,6 +26,7 @@ namespace boda {
   struct prc_ret_t {
     p_op_base_t op; // reduced op (defines unique generated function)
     double rt_secs;
+    string err_str;
   };
   prc_ret_t profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
                               p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,

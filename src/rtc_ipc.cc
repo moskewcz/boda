@@ -436,7 +436,18 @@ namespace boda
       bwrite( *worker, string("release_func") ); bwrite( *worker, func_name ); worker->flush(); }
     uint32_t run( rtc_func_call_t const & rfc ) { 
       bwrite( *worker, string("run") ); bwrite( *worker, rfc ); worker->flush(); 
-      uint32_t call_id; bread( *worker, call_id ); return call_id; } 
+      uint32_t ret = 0;
+      string err_str;
+      bread( *worker, ret ); // 0 --> no error
+      if( ret ) { 
+        bread( *worker, err_str );
+        unsup_err( "------BEGIN NESTED ERROR FROM IPC WORKER ------\n" + err_str 
+                   + "------END NESTED ERROR FROM IPC WORKER ------\n" );
+      }
+      uint32_t call_id; 
+      bread( *worker, call_id ); 
+      return call_id; 
+    } 
     void finish_and_sync( void ) { bwrite( *worker, string("finish_and_sync") ); worker->flush(); }
     void release_per_call_id_data( void ) { bwrite( *worker, string("release_per_call_id_data") ); worker->flush(); }
     void release_all_funcs( void ) { bwrite( *worker, string("release_all_funcs") ); worker->flush(); }
@@ -573,7 +584,8 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
           string err_str;
           try {
             rtc->compile( func_infos, opts );
-          } catch( rt_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
+          } 
+          catch( rt_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
           bwrite( *parent, ret ); // 0 --> no error
           if( ret ) { bwrite( *parent, err_str ); }
 	  parent->flush();
@@ -631,8 +643,21 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
 	  bwrite( *parent, ret ); parent->flush(); 
 	}
 	else if( cmd == "release_func" ) { string func_name; bread( *parent, func_name ); rtc->release_func( func_name ); }
-	else if( cmd == "run" ) { rtc_func_call_t rfc; bread( *parent, rfc ); 
-          uint32_t const call_id = rtc->run( rfc ); bwrite( *parent, call_id ); parent->flush(); }
+	else if( cmd == "run" ) { 
+          rtc_func_call_t rfc; bread( *parent, rfc ); 
+          uint32_t call_id;
+          uint32_t ret = 0;
+          string err_str;
+          try { call_id = rtc->run( rfc ); }
+          catch( unsup_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
+          bwrite( *parent, ret ); 
+          if( !ret ) {
+            bwrite( *parent, call_id ); 
+          } else {
+            bwrite( *parent, err_str ); 
+          }
+          parent->flush(); 
+        }
 	else if( cmd == "finish_and_sync" ) { rtc->finish_and_sync(); }
 	else if( cmd == "profile_start" ) { rtc->profile_start(); }
 	else if( cmd == "profile_stop" ) { rtc->profile_stop(); }

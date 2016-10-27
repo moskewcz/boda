@@ -91,23 +91,33 @@ namespace boda
     }
 
     uint32_t call_id = uint32_t_const_max;
-    for( uint32_t i = 0; i != run_iter; ++i ) { call_id = codegen.run_func( *rfc ); }
-
-    // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
-    for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
-      if( !endswith( i.ad().io_type, "OUT" ) ) { continue; }
-      dims_t const & out_dims = anno_op->get_dims( i.vn() );
-      string const ref_out_dims_name = i.vn()+"_ref";
-      dims_t const & ref_out_dims = anno_op->has(ref_out_dims_name)?anno_op->get_dims(ref_out_dims_name):out_dims;
-      string gen_vn = i.vn();
-      if( out_dims != ref_out_dims ) { 
-        gen_vn += "_ref"; 
-        codegen.rtc->create_var_with_dims( gen_vn, ref_out_dims ); 
-        xpose_vars_to_release.push_back( gen_vn );
+    prc_ret_t ret{make_shared<op_base_t>(rfc->rcg->op), NAN};
+    string err_str;
+    try { 
+      for( uint32_t i = 0; i != run_iter; ++i ) { call_id = codegen.run_func( *rfc ); }
+      // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
+      for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
+        if( !endswith( i.ad().io_type, "OUT" ) ) { continue; }
+        dims_t const & out_dims = anno_op->get_dims( i.vn() );
+        string const ref_out_dims_name = i.vn()+"_ref";
+        dims_t const & ref_out_dims = anno_op->has(ref_out_dims_name)?anno_op->get_dims(ref_out_dims_name):out_dims;
+        string gen_vn = i.vn();
+        if( out_dims != ref_out_dims ) { 
+          gen_vn += "_ref"; 
+          codegen.rtc->create_var_with_dims( gen_vn, ref_out_dims ); 
+          xpose_vars_to_release.push_back( gen_vn );
+        }
+        if( gen_vn != i.vn() ) { run_xpose( anno_op, codegen, anno_op_func_name+"_xpose_"+i.vn(), gen_vn, i.vn() ); }
+        if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
       }
-      if( gen_vn != i.vn() ) { run_xpose( anno_op, codegen, anno_op_func_name+"_xpose_"+i.vn(), gen_vn, i.vn() ); }
-      if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
+      codegen.rtc->finish_and_sync();
+      double const rfc_dur = codegen.rtc->get_dur( call_id, call_id ); // get call duration in msecs
+      ret.rt_secs = rfc_dur / 1000.0; // convert msecs to secs
     }
+    catch( unsup_exception const & us_exp ) {
+       ret.err_str = string("execution failure: ") + us_exp.what();
+    }
+
     for( map_str_rtc_arg_t::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
       if( j->second.is_var() ) {
         codegen.rtc->release_var( j->second.get_var() );
@@ -116,12 +126,8 @@ namespace boda
     for( vect_string::const_iterator i = xpose_vars_to_release.begin(); i != xpose_vars_to_release.end(); ++i ) {
       codegen.rtc->release_var( *i );
     }
-    // get call duration
-    //if( rfc.call_tag.empty() ) { release; return; } // FIXME: possible here? 
-    codegen.rtc->finish_and_sync();
-    double const rfc_dur = codegen.rtc->get_dur( call_id, call_id );
+
     codegen.rtc->release_per_call_id_data();
-    prc_ret_t const ret{make_shared<op_base_t>(rfc->rcg->op),rfc_dur / 1000.0 }; // convert msecs to secs
     rfc.reset(); // optional. allows just-used function (which is no longer needed) to be released now if func-gc happens.
     codegen.gc_clear();
     return ret;
@@ -303,6 +309,7 @@ namespace boda
             }
             else { throw; }
           }
+          if( !prc_ret.err_str.empty() ) { err << "profile call failure: " << prc_ret.err_str; }
         }
         op_tune_wisdom->runs[plat_tag] = op_run_t{plat_tag,prc_ret.op,prc_ret.rt_secs,err.str()};
         if( (*wix) == kg_wix ) { // if this is the to-use-as-known-good op_tune, store it's results in vs1, and maybe write its digest.
