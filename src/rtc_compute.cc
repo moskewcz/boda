@@ -140,6 +140,8 @@ namespace boda
     uint32_t data_sz; //NESI(default=10000,help="size in floats of test data")
     p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
 
+    string func_name; //NESI(default="my_dot",help="name of function to call; use 'my_dot_struct' to test struct passing.")
+
     boost::random::mt19937 gen;
 
     virtual void main( nesi_init_arg_t * nia ) { 
@@ -153,7 +155,7 @@ namespace boda
       // if so, the func_name tells it what library and function to call). so we must set it here, since it's
       // unconditionally looked-up. that's the current state anyway, but it subject to change/improvement ...
       op_base_t dot;
-      dot.set_func_name("my_dot");
+      dot.set_func_name(func_name);
       rtc->compile( vect_rtc_func_info_t{rtc_func_info_t{dot.get_func_name(),*prog_str,
             {"a","b","c","n"},dot}}, rtc_compile_opts_t() );
 
@@ -167,11 +169,11 @@ namespace boda
       rtc->init_var_from_vect_float( "b", b );
       rtc->init_var_from_vect_float( "c", c );
       
-      rtc_func_call_t rfc{ "my_dot", map_str_rtc_arg_t({
+      rtc_func_call_t rfc{ dot.get_func_name(), map_str_rtc_arg_t({
             {"a",rtc_arg_t{"a"}},
             {"b",rtc_arg_t{"b"}},
             {"c",rtc_arg_t{"c"}},
-            {"n",rtc_arg_t{make_scalar_nda(data_sz)}}}) }; 
+            {"n",rtc_arg_t{make_vector_nda(vect_uint32_t{data_sz})}}}) }; 
       rfc.tpb.v = 256;
       rfc.blks.v = u32_ceil_div( data_sz, rfc.tpb.v );
 

@@ -86,6 +86,7 @@
   <li test_name="test_rtc_ocl" cli_str="boda rtc_test --rtc='(be=ocl)' --prog-fn='%(boda_test_dir)/ocl_test_dot.cl'"/>
   <li test_name="test_rtc_cucl_nvrtc" needs="nvrtc" cli_str="boda rtc_test --rtc='(be=nvrtc)' "/>
   <li test_name="test_rtc_cucl_ocl" cli_str="boda rtc_test --rtc='(be=ocl)' "/>
+  <li test_name="test_rtc_cucl_ocl_struct" cli_str="boda rtc_test --rtc='(be=ocl)' --func-name=my_dot_struct "/>
   <li test_name="test_rtc_cucl_ipc" cli_str="boda rtc_test --rtc='(be=ipc)' "/>
   <li test_name="test_rtc_cucl_ipc_tcp" cli_str="boda rtc_test --rtc='(be=ipc,boda_parent_addr=tcp:127.0.0.1:12791)' "/>
   <li test_name="test_dense_boda_rtc_1" cli_str="boda test_dense --model-name=nin_imagenet_nopad --wins_per_image=10000 --in_dims='(img=1)' --conv_fwd='(mode=rtc)' --run_cnet='()' --run_cnet_dense='()'"/>

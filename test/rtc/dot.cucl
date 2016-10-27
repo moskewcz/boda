@@ -4,3 +4,12 @@ CUCL_GLOBAL_KERNEL void my_dot( GASQ float const * const a, GASQ float const * c
   if( ix < n ) { c[ix] = a[ix] + b[ix]; }
 }
 
+struct n_t {
+  uint32_t n;
+};
+
+CUCL_GLOBAL_KERNEL void my_dot_struct( GASQ float const * const a, GASQ float const * const b, GASQ float * const c, struct n_t const n ) {
+  uint32_t const ix = GLOB_ID_1D;
+  if( ix < n.n ) { c[ix] = a[ix] + b[ix]; }
+}
+

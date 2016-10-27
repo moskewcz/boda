@@ -4,3 +4,12 @@ kernel void my_dot( global float const * const a, global float const * const b, 
   uint32_t const ix = get_global_id(0);
   if( ix < n ) { c[ix] = a[ix] + b[ix]; }
 }
+
+struct n_t {
+  uint32_t n;
+};
+
+kernel void my_dot_struct( global float const * const a, global float const * const b, global float * const c, struct n_t const n ) {
+  uint32_t const ix = get_global_id(0);
+  if( ix < n.n ) { c[ix] = a[ix] + b[ix]; }
+}
