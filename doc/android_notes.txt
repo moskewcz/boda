@@ -116,3 +116,20 @@ adb shell "cd /data/local/boda/run/tr1; ../../lib/boda ipc_compute_worker --rtc=
 
 #original locally-run boda process should now complete.
 
+------- 2016.10.27 ----- 
+working on porting opt-prof to sd820. working command line for debugging:
+boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=sd820 --func-mrd-toler='(cudnn_conv=4e-4)' --wisdom-out-fn='%(boda_output_dir)/wisdom.wis' --ops-fn='%(boda_test_dir)/conv-ops-debug-tmp.txt' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --wisdom-in-fn='%(boda_test_dir)/good_tr/conv-debug/wisdom.wis' --op-tunes='(sd820=(use_be=ocl,MNt=8:8,MNb=16:16,k1conv=1,tconv=0,Kb=1,use_local_mem=2,vw=8))'
+# for remote run, add:
+# --rtcs="(${SD820_RTC})" --rtcns='(_=ocl)'
+# with SD820_RTC being the usual ocl-over-ipc (using tcp networking for transport):
+export SD820_RTC="rtc=(be=ipc,remote_rtc=(be=ocl,gen_src=1,gen_src_output_dir=/data/local/rtc-gen-src),spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)"
+
+current result: output all zeros? hmm. inital analysis seems to
+indicate that passing-structs-to-kernel doesn't work on the SD820. no
+errors, data is correct at the point clSetKernelArg is called, but the
+kernel gets all 0s. will all-zero values in the cucl_arg_info struct,
+the gen_data functions don't do anything. as usual, it's unclear if
+this is a bug in boda, OpenCL (the spec), or the SD820 OpenCL
+implementation. however, i'm leaning toward bug-in-qualcomm's OpenCL
+impl for passing structs (at least for error checking anyway, if
+perhaps some size limit is being exceeded).
