@@ -208,7 +208,8 @@ namespace boda
           tot_time += r.rt_secs;
           ++tot_runs;
           if( csv_out ) {
-            (*csv_out) << strprintf( "%s,%s\n", str(r.rt_secs).c_str(), str(get_op_flops(owi->op)).c_str() );
+            (*csv_out) << strprintf( "%s %s %s %s\n", str(min_tix).c_str(), str(r.rt_secs).c_str(), str(get_op_flops(owi->op)).c_str(),
+                                     str(owi->op).c_str() );
           }
         }
       }
