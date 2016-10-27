@@ -1,4 +1,3 @@
-struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( uint32_t const tpb, // CUCL IN :
                                           GASQ float const * const min_in, // CUCL IN_DYN v
 					  GASQ float const * const max_in, // CUCL IN_DYN v
@@ -10,8 +9,8 @@ CUCL_GLOBAL_KERNEL void %(rtc_func_name)( uint32_t const tpb, // CUCL IN :
 					  GASQ float * const sum_out, // CUCL OUT_DYN v
 					  GASQ float * const hist_out, // CUCL OUT_DYN v
 					  GASQ float * const cnt_out, // CUCL OUT_DYN v
-                                          uint32_t const primary_in, // CUCL IN :
-                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL IN v
+                                          uint32_t const primary_in // CUCL IN :
+                                          %(cucl_arg_info_decls) )
 {
   // CUCL IX GLOB_ID_1D min_in
   // note: all input v dims are == to each other and == to in_sz; output v dims are all u32_ceil_div(in_sz,%(tpb))

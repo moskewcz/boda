@@ -114,7 +114,6 @@ namespace boda
     vect_arg_decl_t arg_decls; // parsed out of template_str
     vect_ix_decl_t ix_decls; // parsed out of template_str
     vect_string all_tvs; // list of all referenced template variables
-    zi_bool has_cucl_arg_info;
     void init( string const & template_fn_ );
     void init_proc_line( string const & line );
     check_args_ret_t check_args( op_base_t const & rfs_in );
@@ -163,7 +162,8 @@ namespace boda
     void init( op_base_t const & op_, p_rtc_template_t const & rtc_func_template_, custom_codegen_t * const cc, string const & gen_fn_ );
     dims_t const & get_arg_dims_by_name( string const & arg_vn, string const & err_tag = "TEMPLATE" );
     string cai_tn( void ) const { return "int32_t"; } // type string for cucl arg info vars
-    void add_dyn_nda_dims_sz( string const & nda_vn, dims_t const & dims, bool const add_ref_templates );
+    void add_dyn_nda_dims_sz( vect_string * const dyn_arg_names, map_str_rtc_arg_t * const arg_map, 
+                              string const & nda_vn, dims_t const & dims, bool const add_ref_templates );
     void instantiate_template( string const & template_str );
   };
   

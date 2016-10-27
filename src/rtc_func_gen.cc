@@ -104,16 +104,6 @@ namespace boda
           if( cad.tn == ("%("+cad.vn+"_tn)") ) { cad.tn = ""; } 
           if( cad.tn == "void" ) { cad.tn = "none"; } // void CUCL args want nda_t's with type "none" (FIXME?)
 
-          // another special case: if the var is named "cucl_arg_info", it's where we stuff the arg info
-          if( cad.vn == "cucl_arg_info" ) {
-            if( has_cucl_arg_info.v ) { rt_err( "duplicate CUCL ARGINFO declartion. must have exactly 0 or 1 ARGINFO arguments."); }
-            has_cucl_arg_info.v = 1;
-            if( cad.multi.v ) { rt_err( "invalid CUCL ARGINFO decl; should not be multi." ); }
-            if( cad.tn.empty() ) { rt_err( "invalid CUCL ARGINFO decl; no var type found." ); }
-            if( cad.tn != "%(rtc_func_name)_arg_info_t" ) { rt_err( "invalid CUCL ARGINFO decl; must use '%(rtc_func_name)_arg_info_t' as type name." ); }
-            //if( cad.vn != "cucl_arg_info" ) { rt_err( "invalid CUCL ARGINFO decl; must use 'cucl_arg_info' as var name." ); }
-            if( cad.loi.v != 0 ) { rt_err( "invalid CUCL ARGINGO decl; should be exactly zero levels-of-indirection/*s:");}  
-          }
           for( uint32_t i = 2; i != mmc_parts.size(); ++i ) { 
             cad.ok_dims.push_back( dims_from_nda_spec( cad.tn, mmc_parts[i] ) );
           }
@@ -151,7 +141,7 @@ namespace boda
 
     // error check existence of num field for multi args
     for( vect_arg_decl_t::multi_iter i = arg_decls.multi_begin( &rfs_in ); !i.at_end(); ++i ) {
-      if( i.vn() == "cucl_arg_info" ) { assert_st( has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
+      //if( i.vn() == "cucl_arg_info" ) { assert_st( has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) {
         string const multi_num = i.ad().vn+"_num";
         if( !rfs_in.has(multi_num) ) {
@@ -249,7 +239,7 @@ namespace boda
   }
 
   string dyn_dims( string const & vn, dims_t const & dims, uint32_t const & dix ) {
-    return strprintf( "cucl_arg_info.%s_%s", vn.c_str(), dims[dix].name.c_str() );
+    return strprintf( "cai__%s_%s", vn.c_str(), dims[dix].name.c_str() );
   }
 
   void insert_nda_dyn_ix_exprs( map_str_str & mss, string const & ix_vn, dims_t const & dims, string ix_expr ) {
@@ -265,7 +255,7 @@ namespace boda
       if( i ) { v = "("+v+"%%"+dyn_dims(ix_vn,dims,i)+"_dim"+")"; }
       must_insert( mss, ix_vn+"_"+dims[i].name, v );
     }
-    must_insert( mss, ix_vn+"_dims_prod", "cucl_arg_info."+ix_vn+"_dims_prod" ); // also emit dim(0)*stride(0)?
+    must_insert( mss, ix_vn+"_dims_prod", "cai__"+ix_vn+"_dims_prod" ); // also emit dim(0)*stride(0)?
   }
 
   dims_t dims_from_nda_spec( string const & tn, string const & nda_spec ) {
@@ -364,6 +354,7 @@ namespace boda
     //printf( "op.func_name=%s gen_fn=%s op.str_vals=%s\n", str(op.get_func_name()).c_str(), gen_fn.c_str(), str(op.str_vals).c_str() );
     // if we have a str_val with the magic name 'tpb', use it to set the call geom:
     if( op.has( "tpb" ) ) { rtc_call_geom.tpb = op.get_u32( "tpb" ); } // note: the tpb scalar must have a value for now
+    vect_string dyn_arg_names; // to be added to end of arg_names, after all 'regular' args
     for( vect_ix_decl_t::const_iterator i = rtc_func_template->ix_decls.begin(); i != rtc_func_template->ix_decls.end(); ++i ) {
       dims_t ix_dims = apply_use_dims( get_arg_dims_by_name( i->arg_vn, "IX" ), i->use_dims );
       assert_st( ix_dims.size() && ix_dims.has_name() );
@@ -371,7 +362,7 @@ namespace boda
       if( ix_is_dyn ) { 
         assert_st( i->ix_vn != i->arg_vn ); // FIXME: too strong? but used later to see if this dyn is an ix ...
         dyn_vars.push_back( dyn_dim_info_t{ i->ix_vn, i->arg_vn, i->use_dims } ); 
-        add_dyn_nda_dims_sz( i->ix_vn, ix_dims, 0 ); // omit ref templates for used-for-ix-only dyn dims
+        add_dyn_nda_dims_sz( &dyn_arg_names, 0, i->ix_vn, ix_dims, 0 ); // omit ref templates for used-for-ix-only dyn dims
         insert_nda_dyn_ix_exprs( tsvs, i->ix_vn, ix_dims );
         //rt_err( "NEVER_SAY_NEVER, but can't create CUCL IX for dynamically-sized var" );
       } else {
@@ -396,14 +387,14 @@ namespace boda
 
     for( vect_arg_decl_t::multi_iter i = rtc_func_template->arg_decls.multi_begin( &op ); !i.at_end(); ++i ) {
       arg_names.push_back( i.vn() ); // in-order-list of function arg names for rtc level
-      if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
+      //if( i.vn() == "cucl_arg_info" ) { assert_st( rtc_func_template->has_cucl_arg_info.v ); continue; } // FIXME: yeah, not great.
       if( i.ad().multi.v ) { line( i.ad().vn + "_decl", "GASQ "+i.ad().tn+" const * const "+i.vn()+"," ); }
       p_nda_t const & arg_nda = op.get(i.vn()); // can this fail? if so, need get_arg_dims_by_name()-like error reporting?
       dims_t const & arg_dims = arg_nda->dims;
       if( i.ad().dyn.v ) {
         assert_st( i.ad().loi.v == 1 );
         dyn_vars.push_back( dyn_dim_info_t{ i.vn(), i.vn(), vect_string{} } ); 
-        add_dyn_nda_dims_sz( i.vn(), arg_dims, 1 ); 
+        add_dyn_nda_dims_sz( &dyn_arg_names, 0, i.vn(), arg_dims, 1 ); 
       } else {	
         bool const dims_only = !arg_dims.has_sz_and_stride_and_name();
         insert_nda_dims_sz( tsvs, i.vn(), arg_dims, dims_only ); 
@@ -415,7 +406,7 @@ namespace boda
         } 
       }
     }
-
+    arg_names.insert( arg_names.end(), dyn_arg_names.begin(), dyn_arg_names.end() );
     // make these always availible as template vars, since why not?  FIXME: should set these to fields inside
     // cucl_arg_info if they are dynamic. however, codegen that uses tpb directly would still be broken in that case
     // (and such code should probably assert that tpb is non-zero/set). some code might be updatable to use the template
@@ -429,52 +420,57 @@ namespace boda
     instantiate_template( *rtc_func_template->template_str );
   }
 
-  void rtc_call_gen_t::add_dyn_nda_dims_sz( string const & nda_vn, dims_t const & dims, bool const add_ref_templates ) {
+  void must_insert_u32_arg( map_str_rtc_arg_t & arg_map, string const & vn, uint32_t val ) {
+    must_insert( arg_map, vn, rtc_arg_t{make_scalar_nda(val)} );
+  }
+  
+  // FIXME: not too pretty. function has two two modes: decl-time and call time. string-var-name gook is shared ...
+  void rtc_call_gen_t::add_dyn_nda_dims_sz( vect_string * const dyn_arg_names, map_str_rtc_arg_t * const arg_map, 
+                                            string const & nda_vn, dims_t const & dims, bool const add_ref_templates ) {
+    assert_st( uint32_t(bool(dyn_arg_names)) + uint32_t(bool(arg_map)) == 1 );
     // FIXME: since it is dynamic, we don't seem to know if nda_vn will be 'dims only' or not here. so for now we
     // assume all dynamic vars are not dims only; this means we'll always generate stride vars for them in the arg
     // info, but maybe that's okay?
     bool const dims_only = 0;
     assert_st( dims.valid() );
     // note: type is still non-dynamic, so we still set it here, similarly to the non-dyn case
-    set( nda_vn+"_tn", str(dims.tn) ); 
+    if( dyn_arg_names ) { set( nda_vn+"_tn", str(dims.tn) ); }
     for( uint32_t i = 0; i != dims.sz(); ++i ) {
       string const vn_dim = nda_vn+"_"+dims[i].name+"_dim";
-      line( "cucl_arg_info_decls", cai_tn() + " " + vn_dim + ";" );
-      if( add_ref_templates ) { set( vn_dim, "cucl_arg_info."+vn_dim ); }
+      string const vn_dim_decl = "cai__" + vn_dim;
+      if( dyn_arg_names ) {
+        line( "cucl_arg_info_decls", "," + cai_tn() + " " + vn_dim_decl );
+        dyn_arg_names->push_back( vn_dim_decl );
+        if( add_ref_templates ) { set( vn_dim, vn_dim_decl ); }
+      }
+      if( arg_map ) { must_insert_u32_arg( *arg_map, vn_dim_decl, dims[i].sz ); }
       if( !dims_only ) { 
         //assert_st( dims[i].has_sz_and_stride_and_name() );
         string const vn_stride = nda_vn+"_"+dims[i].name+"_stride";
-        line( "cucl_arg_info_decls", cai_tn() + " " + vn_stride + ";" );
-        if( add_ref_templates ) { set( vn_stride, "cucl_arg_info."+vn_stride ); }
+        string const vn_stride_decl = "cai__" + vn_stride;
+        if( dyn_arg_names ) {
+          line( "cucl_arg_info_decls", "," + cai_tn() + " " + vn_stride_decl );
+          dyn_arg_names->push_back( vn_stride_decl );
+          if( add_ref_templates ) { set( vn_stride, vn_stride_decl ); }
+        }
+        if( arg_map ) { must_insert_u32_arg( *arg_map, vn_stride_decl, dims[i].stride ); }
       }
     }
     if( !dims_only ) { 
       string const vn_dims_prod = nda_vn+"_dims_prod";
-      line( "cucl_arg_info_decls", cai_tn() + " " + vn_dims_prod + ";" );
-      if( add_ref_templates ) { set( vn_dims_prod, "cucl_arg_info."+vn_dims_prod ); }
+      string const vn_dims_prod_decl = "cai__" + vn_dims_prod;
+      if( dyn_arg_names ) {
+        line( "cucl_arg_info_decls", "," + cai_tn() + " " + vn_dims_prod_decl );
+        dyn_arg_names->push_back( vn_dims_prod_decl );
+        if( add_ref_templates ) { set( vn_dims_prod, vn_dims_prod_decl ); }
+      }
+      if( arg_map ) { must_insert_u32_arg( *arg_map, vn_dims_prod_decl, dims.dims_prod() ); }
     }
-  }
-
-  void add_arg_info_for_dims( dims_t const & dims, vect_int32_t & cucl_arg_info ) {
-    // FIXME: since it is dynamic, we don't seem to know if nda_vn will be 'dims only' or not here. so for now we
-    // assume all dynamic vars are not dims only; this means we'll always generate stride vars for them in the arg
-    // info, but maybe that's okay?
-    bool const dims_only = 0;
-    assert_st( dims.valid() );
-    for( uint32_t i = 0; i != dims.sz(); ++i ) {
-      cucl_arg_info.push_back( dims[i].sz );
-      if( !dims_only ) { cucl_arg_info.push_back( dims[i].stride ); }
-    }
-    if( !dims_only ) { cucl_arg_info.push_back( dims.dims_prod() ); }
   }
 
   void rtc_call_gen_t::instantiate_template( string const & template_str ) {
     assert_st( rtc_prog_str.empty() ); // should only call only
 
-    if( (!rtc_func_template->has_cucl_arg_info.v) && (!dyn_vars.empty()) ) {
-      rt_err( "template declares _DYN arguments, but no CUCL ARGINFO declaration was found." );
-    }
-      
     rtc_prog_str += "// -- codegen begins for '"+rtc_func_template->template_fn+
       "'; template substituion table used (bulk sections ommited): --\n";
     for( map_str_str::const_iterator i = tsvs.begin(); i != tsvs.end(); ++i ) {
@@ -502,34 +498,22 @@ namespace boda
     rfc.rtc_func_name = rcg->gen_fn;
     rtc_call_geom_t dyn_rtc_call_geom = rcg->rtc_call_geom;
     //printf( "op=%s arg_map=%s\n", str(op).c_str(), str(rcg_func_call.arg_map).c_str() );
-    p_nda_t cucl_arg_info_nda;
-    assert_st( rcg->rtc_func_template->has_cucl_arg_info.v || rcg->dyn_vars.empty() );
-    if( rcg->rtc_func_template->has_cucl_arg_info.v ) {
-      vect_int32_t cucl_arg_info;
-      for( vect_dyn_dim_info_t::const_iterator i = rcg->dyn_vars.begin(); i != rcg->dyn_vars.end(); ++i ) {
-        //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
-        map_str_rtc_arg_t::const_iterator an = arg_map.find( i->src_vn );
-        if( an == arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
-        dims_t const & arg_call_dims = an->second.get_dims( *rtc );
-        dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
-        //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
-        add_arg_info_for_dims( dyn_call_dims, cucl_arg_info );
-        if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
-          dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
-        }
-      }
-      cucl_arg_info_nda = make_vector_nda( cucl_arg_info ); // convert cucl_arg_info to nda
-    }
 
+    for( vect_dyn_dim_info_t::const_iterator i = rcg->dyn_vars.begin(); i != rcg->dyn_vars.end(); ++i ) {
+      //printf( "i->nda_vn=%s i->src_vn=%s i->use_dims=%s\n", str(i->nda_vn).c_str(), str(i->src_vn).c_str(), str(i->use_dims).c_str() );
+      map_str_rtc_arg_t::const_iterator an = arg_map.find( i->src_vn );
+      if( an == arg_map.end() ) { rt_err( "<internal error> src arg for dynamic size info '"+i->src_vn+"' not found in arg_map at call time." ); }
+      dims_t const & arg_call_dims = an->second.get_dims( *rtc );
+      dims_t dyn_call_dims = apply_use_dims( arg_call_dims, i->use_dims );
+      //printf( "dyn_call_dims=%s\n", str(dyn_call_dims).c_str() );
+      rcg->add_dyn_nda_dims_sz( 0, &rfc.arg_map, i->nda_vn, dyn_call_dims, 0 ); // note: add_ref_templates arg ignored in call-mode
+      if( i->nda_vn != i->src_vn ) { // see earlier FIXME, but for now we use this cond to select IX-derived dyn dims
+        dyn_rtc_call_geom.maybe_update_for_special_cucl_ixs( i->nda_vn, dyn_call_dims );
+      }
+    }
     for( vect_arg_decl_t::const_iterator i = rcg->rtc_func_template->arg_decls.begin(); 
          i != rcg->rtc_func_template->arg_decls.end(); ++i ) 
     {
-      if( i->vn == "cucl_arg_info" ) { // FIXME: not-too-nice special case for cucl_arg_info argument 
-        assert_st( rcg->rtc_func_template->has_cucl_arg_info.v );
-        must_insert( rfc.arg_map, i->vn, rtc_arg_t{cucl_arg_info_nda} );
-        cucl_arg_info_nda.reset(); // mark as used
-        continue;
-      }
       uint32_t const multi_sz = i->get_multi_sz( rcg->op );
       for( uint32_t mix = 0; mix != multi_sz; ++mix ) {
         string const vn = i->get_multi_vn(mix);
@@ -585,7 +569,6 @@ namespace boda
         }	  
       }
     }
-    assert_st( !bool(cucl_arg_info_nda) ); // if created, should have been used.
 
     if( show_rtc_calls ) { 
       printf( "%s( %s ) tpb=%s call_blks=%s\n", str(rfc.rtc_func_name).c_str(), 

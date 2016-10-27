@@ -39,7 +39,7 @@ namespace boda
     map_str_rtc_arg_t & arg_map = rfc->arg_map;
     for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
       if( i.ad().io_type == "REF" ) { continue; }
-      if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
+      //if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
       if( i.ad().loi.v == 0 ) { // FIXME: not-too-nice special case for flags
         if( i.vn() == "flags" ) { must_insert( arg_map, "flags", make_scalar_nda(uint32_t(0)) ); continue; }
       }
@@ -62,7 +62,7 @@ namespace boda
       for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
         p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
 	if( i.ad().io_type != "IN" ) { continue; }
-        if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
+        //if( i.vn() == "cucl_arg_info" ) { continue; } // FIXME: not-too-nice special case for cucl_arg_info argument 
         if( i.ad().loi.v == 0 ) { continue; } // FIXME: not-too-nice special case for scalars ... better be const.
         // note: gen_data variant choice based on gen type and op type (*not* op func_name)
 	in_gen_op->set_func_name( in_gen_op->get_type()+"_"+anno_op->get_type()+"_"+i.vn() ); 

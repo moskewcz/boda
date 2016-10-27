@@ -1,8 +1,7 @@
-struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( GASQ float * const out, // CUCL INOUT_DYN img:chan:y:x
 					  uint32_t const max_val, // CUCL IN :
-                                          uint32_t const drop_mask, // CUCL IN :
-                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL IN v
+                                          uint32_t const drop_mask // CUCL IN :
+                                          %(cucl_arg_info_decls) )
 {
   // CUCL IX GLOB_ID_1D out
   if( GLOB_ID_1D >= %(out_dims_prod) ) { return; }

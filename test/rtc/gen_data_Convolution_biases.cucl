@@ -1,9 +1,8 @@
 // CUCL INCLUDE gen-util.h
-struct %(rtc_func_name)_arg_info_t { %(cucl_arg_info_decls) };
 CUCL_GLOBAL_KERNEL void %(rtc_func_name)( uint32_t const mode, // CUCL IN :
                                           float const vi, // CUCL IN :
-                                          GASQ float * const biases, // CUCL OUT_DYN out_chan
-                                          struct %(rtc_func_name)_arg_info_t cucl_arg_info ) // CUCL IN v
+                                          GASQ float * const biases // CUCL OUT_DYN out_chan
+                                          %(cucl_arg_info_decls) )
 {
   // CUCL IX GLOB_ID_1D biases
   if( GLOB_ID_1D >= %(biases_dims_prod) ) { return; }

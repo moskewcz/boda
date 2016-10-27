@@ -92,8 +92,9 @@ namespace boda
     }
 
     void conv( rtc_func_info_t const & fi, map_str_rtc_arg_t const & arg_map ) {
-      // verify func iface
-      assert_st( (fi.arg_names == vect_string{"filts","biases","in","stride","in_pad","out","cucl_arg_info"}) ); 
+      // verify func iface. FIXME: hard to do with flat cai__ args ...? check prefix at least? not needed?
+      // assert_st( (fi.arg_names == vect_string{"filts","biases","in","stride","in_pad","out","cai__???",...}) ); 
+
       op_base_t const & op = fi.op;
       p_nda_t filts = get_arg( arg_map, "filts" );
       p_nda_t biases = get_arg( arg_map, "biases" );
@@ -210,7 +211,9 @@ namespace boda
     }
 
     void sgemm( rtc_func_info_t const & fi, map_str_rtc_arg_t const & arg_map ) {
-      assert_st( (fi.arg_names == vect_string{"a","b","c","cucl_arg_info"}) ); // verify func iface
+      // verify func iface. FIXME: hard to do with flat cai__ args ...? check prefix at least? not needed?
+      // assert_st( (fi.arg_names == vect_string{"a","b","c","cai__???",...}) ); // verify func iface
+
       p_nda_t a = get_arg( arg_map, "a" );
       p_nda_t b = get_arg( arg_map, "b" );
       p_nda_t c = get_arg( arg_map, "c" );
