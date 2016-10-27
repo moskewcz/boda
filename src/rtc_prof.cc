@@ -30,7 +30,7 @@ namespace boda
   
   prc_ret_t profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
                               p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
-                              uint32_t const & run_iter ) 
+                              uint32_t const & run_iter, bool const & include_ins_in_outs ) 
   {
     timer_t t("profile_rcg_call");
     string const anno_op_func_name = anno_op->get_func_name();
@@ -79,14 +79,15 @@ namespace boda
 	p_rcg_func_call_t rfc_in_gen = codegen.gen_func( *in_gen_op, map_str_rtc_arg_t{{i.vn(),gen_vn}} );
 	codegen.run_func( *rfc_in_gen );
         // check if xpose needed:
+	if( include_ins_in_outs && outs ) { must_insert( *outs, gen_vn, codegen.rtc->create_nda_from_var( gen_vn ) ); }
         if( gen_vn != i.vn() ) {
           // FIXME: some ugly, cut-n-paste, brittle stuff here ... but it's pending more global cleanup.
           string xpose_op = anno_op_func_name+"_xpose_"+i.vn();
           // FIXME: sigh.
           if( ( i.vn() == "filts" ) && is_k1_or_t_or_reg_conv(anno_op->get_func_name())) { xpose_op = "xpose_filts"; }
           run_xpose( anno_op, codegen, xpose_op, gen_vn, i.vn() );
+          if( include_ins_in_outs && outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( i.vn() ) ); } 
         }
-	//if( outs ) { must_insert( *outs, i.vn(), p_nda_float_t() ); } // include inputs in 'outputs'
       }
     }
 
@@ -298,7 +299,7 @@ namespace boda
         if( err.str().empty() ) {
           if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
           vsi = make_shared<map_str_p_nda_t>();
-          try { prc_ret = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter ); }
+          try { prc_ret = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter, 0 ); }
           catch( rt_exception const & rte ) {
             if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
               err << "CL_OUT_OF_HOST_MEMORY"; 
