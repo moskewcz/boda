@@ -99,6 +99,7 @@ LDFLAGS := $(LDFLAGS) -L/scratch/moskewcz/android/qsml/QSML-0.14.0/ilp64/aarch64
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+op-tuner.o
 cnn_op.o
 qblas-test.o qblas
 comp_util.o
@@ -114,7 +115,6 @@ rtc_fwd.o
 rtc_compute.o
 ocl_util.o opencl
 caffe_fwd.o caffe_pb caffe
-slow_cpu_fwd.o
 has_conv_fwd.o
 nvrtc_util.o nvrtc
 lmdb_caffe_disp.o caffe_pb lmdb SDL2
@@ -132,6 +132,7 @@ caffe.pb.o caffe_pb -caffe
 caffepb.o caffe_pb
 
 lmdbif.o lmdb
+test_compute.o caffe_pb
 test_dense.o caffe_pb
 conv_common.o
 asio_util.o
