@@ -72,7 +72,6 @@ class GenObjList( object ):
             orig_line = line
             if comment_char_idx != -1: line = line[:comment_char_idx] # remove comment if any
             line = line.strip()
-            if not line: continue # skip blank lines
             self.cur_line = line
             self.cur_orig_line = orig_line # unstripped
             return True
@@ -93,6 +92,7 @@ class GenObjList( object ):
 
     def parse_objs( self ):
         while not self.at_section_start_or_eof():
+            if not self.cur_line: self.next_line(); continue # skip empty lines (after comment is stripped)
             parts = self.cur_line.split()
             assert parts
             enable = True
@@ -120,7 +120,7 @@ class GenObjList( object ):
             elif opt.startswith( gen_fn_str ): new_dep.gen_fns.append( opt[len(gen_fn_str):] )
             else: self.parse_error( "unknown dep section option %r" % (opt,) )
         while not self.at_section_start_or_eof():
-            new_dep.lines.append( self.cur_orig_line ) # note: whitespace/comments preserved
+            new_dep.lines.append( self.cur_orig_line ) # note: whitespace/comments preserved (including empty lines)
             self.next_line();
         self.deps[dep_name] = new_dep
         self.deps_list.append( new_dep )
@@ -136,7 +136,9 @@ class GenObjList( object ):
         self.ol_lines = open( obj_list_fn ).readlines()
         if not self.ol_lines: raise ValueError( "empty obj_list file at: " + obj_list_fn )
         self.next_ol_line = 0
-        self.next_line()
+        while 1:
+            self.next_line()
+            if (self.cur_line is None) or len(self.cur_line): break # quit if EOF (will fall though to error) or non-empty line
 
         while self.cur_line is not None:
             sec_start = self.get_section_start()
