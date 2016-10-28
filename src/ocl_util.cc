@@ -280,7 +280,12 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       prog.reset( clCreateProgramWithSource( context.v, srcs.size(), &srcs[0], 0, &err ) );
       cl_err_chk( err, "clCreateProgramWithSource" );
       err = clBuildProgram( prog.v, use_devices.size(), &use_devices[0], "-cl-fast-relaxed-math -cl-denorms-are-zero", 0, 0 );
-      cl_err_chk_build( err, prog.v, use_devices );
+      try {  cl_err_chk_build( err, prog.v, use_devices ); }
+      catch( rt_exception const & rte ) {
+        if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
+          unsup_err( "got odd no-log CL_OUT_OF_HOST_MEMORY during compile ..." );
+        } else { throw; }
+      }
       if( gen_src ) {
         // get binaries
         cl_uint const num_devs = get_info<cl_uint>(Program_t(prog.v,CL_PROGRAM_NUM_DEVICES));

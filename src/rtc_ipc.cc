@@ -380,8 +380,8 @@ namespace boda
       bread( *worker, ret ); // 0 --> no error
       if( ret ) { 
         bread( *worker, err_str );
-        rt_err( "------BEGIN NESTED ERROR FROM IPC WORKER ------\n" + err_str 
-                + "------END NESTED ERROR FROM IPC WORKER ------\n" );
+        unsup_err( "------BEGIN NESTED ERROR FROM IPC WORKER ------\n" + err_str 
+                   + "------END NESTED ERROR FROM IPC WORKER ------\n" );
       }
     }
     void copy_nda_to_var( string const & vn, p_nda_t const & nda ) {
@@ -585,7 +585,7 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
           try {
             rtc->compile( func_infos, opts );
           } 
-          catch( rt_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
+          catch( unsup_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
           bwrite( *parent, ret ); // 0 --> no error
           if( ret ) { bwrite( *parent, err_str ); }
 	  parent->flush();

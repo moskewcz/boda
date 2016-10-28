@@ -28,10 +28,22 @@ namespace boda
     codegen.run_func( *rfc );
   }
   
+  // scoped RAII for rtc vars
+  struct rtc_var_holder_t {
+    p_rtc_compute_t rtc;
+    vect_string vns;
+    rtc_var_holder_t( p_rtc_compute_t const & rtc_ ) : rtc(rtc_) {}
+    void create( string const & vn, dims_t const & dims ) { vns.push_back( vn ); return rtc->create_var_with_dims( vn, dims ); }
+    ~rtc_var_holder_t( void ) {
+      for( vect_string::const_iterator i = vns.begin(); i != vns.end(); ++i ) { rtc->release_var( *i ); }
+    }
+  };
+
   prc_ret_t profile_rcg_call( p_op_base_t const & anno_op, rtc_codegen_t & codegen,
                               p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
                               uint32_t const & run_iter, bool const & include_ins_in_outs ) 
   {
+    rtc_var_holder_t rvh( codegen.rtc );
     timer_t t("profile_rcg_call");
     string const anno_op_func_name = anno_op->get_func_name();
     p_rcg_func_call_t rfc = codegen.gen_func( *anno_op, map_str_rtc_arg_t() ); // FIXME: not passing in args here. yet?
@@ -53,11 +65,8 @@ namespace boda
 
     //printf( "run: i->rtc_func_name=%s\n", str(rcg->gen_fn).c_str() );
     for( map_str_rtc_arg_t::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      if( j->second.is_var() ) { 
-        codegen.rtc->create_var_with_dims( j->second.n, anno_op->get_dims( j->first ) ); 
-      }
+      if( j->second.is_var() ) { rvh.create( j->second.n, anno_op->get_dims( j->first ) ); }
     }
-    vect_string xpose_vars_to_release;
     if( in_gen_op_orig ) { 
       for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
         p_op_base_t in_gen_op = make_shared<op_base_t>( *in_gen_op_orig );
@@ -73,8 +82,7 @@ namespace boda
         string gen_vn = i.vn();
         if( in_dims != ref_in_dims ) { 
           gen_vn += "_ref"; 
-          codegen.rtc->create_var_with_dims( gen_vn, ref_in_dims ); 
-          xpose_vars_to_release.push_back( gen_vn );
+          rvh.create( gen_vn, ref_in_dims ); 
         }
 	p_rcg_func_call_t rfc_in_gen = codegen.gen_func( *in_gen_op, map_str_rtc_arg_t{{i.vn(),gen_vn}} );
 	codegen.run_func( *rfc_in_gen );
@@ -105,8 +113,7 @@ namespace boda
         string gen_vn = i.vn();
         if( out_dims != ref_out_dims ) { 
           gen_vn += "_ref"; 
-          codegen.rtc->create_var_with_dims( gen_vn, ref_out_dims ); 
-          xpose_vars_to_release.push_back( gen_vn );
+          rvh.create( gen_vn, ref_out_dims ); 
         }
         if( gen_vn != i.vn() ) { run_xpose( anno_op, codegen, anno_op_func_name+"_xpose_"+i.vn(), gen_vn, i.vn() ); }
         if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
@@ -117,15 +124,6 @@ namespace boda
     }
     catch( unsup_exception const & us_exp ) {
        ret.err_str = string("execution failure: ") + us_exp.what();
-    }
-
-    for( map_str_rtc_arg_t::const_iterator j = arg_map.begin(); j != arg_map.end(); ++j ) {
-      if( j->second.is_var() ) {
-        codegen.rtc->release_var( j->second.get_var() );
-      }
-    }
-    for( vect_string::const_iterator i = xpose_vars_to_release.begin(); i != xpose_vars_to_release.end(); ++i ) {
-      codegen.rtc->release_var( *i );
     }
 
     codegen.rtc->release_per_call_id_data();
@@ -312,7 +310,6 @@ namespace boda
           }
           if( !prc_ret.err_str.empty() ) { err << "profile call failure: " << prc_ret.err_str; }
         }
-        op_tune_wisdom->runs[plat_tag] = op_run_t{plat_tag,prc_ret.op,prc_ret.rt_secs,err.str()};
         if( (*wix) == kg_wix ) { // if this is the to-use-as-known-good op_tune, store it's results in vs1, and maybe write its digest.
           assert_st( wix == out_wixs_to_run.begin() ); // should be first run
           if( !err.str().empty() ) { 
@@ -360,6 +357,7 @@ namespace boda
             err << "digest mrd_comp() vs '"+str(op_tune)+"' skipped, no input wisdom availible\n";
           }
         }
+        op_tune_wisdom->runs[plat_tag] = op_run_t{plat_tag,prc_ret.op,prc_ret.rt_secs,err.str()};
         if( !err.str().empty() ) { 
           on_op_err( *out, op_seen_errs, op_ix, op_wisdom_out->op );
           (*out) << "--  comp fail for op_tune='" + str(op_tune) + "'\n" << err.str() << "\n";

@@ -133,3 +133,10 @@ this is a bug in boda, OpenCL (the spec), or the SD820 OpenCL
 implementation. however, i'm leaning toward bug-in-qualcomm's OpenCL
 impl for passing structs (at least for error checking anyway, if
 perhaps some size limit is being exceeded).
+
+okay, after work-around for cucl_arg_info, let's run the full conv
+benchmark set, using ipc (although we should be able run on the device
+locally too; note that in ipc mode, we could add a local rtc (maybe
+nvrtc), and have some tunes run there, for live testing).
+
+boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=ocl-def --func-mrd-toler='(cudnn_conv=4e-4)' --wisdom-out-fn='%(boda_output_dir)/wisdom.wis' --ops-fn='%(boda_test_dir)/conv-ops-1-5-20-nin-alex-gn.txt' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --wisdom-in-fn='%(boda_test_dir)/good_tr/conv-full/wisdom.wis' --op-tunes='(ocl-def=(use_be=ocl,),ocl-opt=(use_be=ocl,k1conv=1,tconv=1),ocl-AMD1=(use_be=ocl,use_culibs=0,MNt=4:4,MNb=8:8,k1conv=1,tconv=1),ocl-AMD2=(use_be=ocl,use_culibs=0,MNt=4:4,MNb=8:8,tconv=1),ocl-AMD3=(use_be=ocl,use_culibs=0,MNt=4:4,MNb=8:8,k1conv=1),ocl-AMD4=(use_be=ocl,use_culibs=0,MNt=4:4,MNb=8:8),8-16-1-lm2-vm8=(use_be=ocl,MNt=8:8,MNb=16:16,k1conv=1,tconv=0,Kb=1,use_local_mem=2,vw=8))' --rtcs="(${SD820_RTC})" --rtcns='(_=ocl)'
