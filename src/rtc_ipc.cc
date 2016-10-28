@@ -583,7 +583,7 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
           try {
             rtc->compile( func_infos, opts );
           } 
-          catch( unsup_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
+          catch( unsup_exception const & rte ) { ret=1; err_str = rte.what(); } // FIXME: stacktrace lost 
           bwrite( *parent, ret ); // 0 --> no error
           if( ret ) { bwrite( *parent, err_str ); }
 	  parent->flush();
@@ -647,7 +647,7 @@ moskewcz@maaya:~/git_work/boda/run/tr4$ boda cs_test_worker --boda-parent-addr=f
           uint32_t ret = 0;
           string err_str;
           try { call_id = rtc->run( rfc ); }
-          catch( unsup_exception const & rte ) { ret=1; err_str = rte.what_and_stacktrace(); }
+          catch( unsup_exception const & rte ) { ret=1; err_str = rte.what(); } // FIXME: stacktrace lost 
           bwrite( *parent, ret ); 
           if( !ret ) {
             bwrite( *parent, call_id ); 

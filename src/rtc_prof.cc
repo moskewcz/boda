@@ -282,7 +282,8 @@ namespace boda
         string const plat_tag = codegen->rtc->get_plat_tag();
         p_map_str_p_nda_t vsi;
         prc_ret_t prc_ret{0,NAN};
-        std::ostringstream err;
+        std::ostringstream err; // one-line-only, goes to wisdom and text output; non-empty if any error
+        std::ostringstream err_extra; // can be multi-line, goes to only to text output, may be empty even if error (if no extra info)
         try { add_codegen_annotations( anno_op, op_tune, 0 ); }
         catch( unsup_exception const & us_exp ) {
           err << string("annotation failure: ") + us_exp.what();
@@ -334,16 +335,19 @@ namespace boda
               size_t const digest_seed = std::hash<string>()(i->first); // FIXME: make better seed by including op/op_tune/???
               p_nda_digest_t digest = nda_digest_t::make_from_nda( i->second, digest_seed );
               string const comp_res = kg_digest->mrd_comp( digest, vmt );
-              if( !comp_res.empty() ) { err << (i->first) + " digest mrd_comp() failure '"+wisdom_in_fn->in+"' vs '"+str(op_tune)+"':\n" + comp_res + "\n";}
+              if( !comp_res.empty() ) { 
+                err << (i->first) + " digest mrd_comp() failure vs stored digest in '"+wisdom_in_fn->in+"'";
+                err_extra << "comp_res:\n" + comp_res + "\n";
+              }
             }
           } else { // no input wisdom, so no digest compute
-            err << "digest mrd_comp() vs '"+str(op_tune)+"' skipped, no input wisdom availible\n";
+            err << "digest mrd_comp() vs '"+str(op_tune)+"' skipped, no input wisdom availible";
           }
         }
         op_tune_wisdom->runs[plat_tag] = op_run_t{plat_tag,prc_ret.op,prc_ret.rt_secs,err.str()};
         if( !err.str().empty() ) { 
           on_op_err( *out, op_seen_errs, op_ix, op_wisdom_out->op );
-          (*out) << "--  comp fail for op_tune='" + str(op_tune) + "'\n" << err.str() << "\n";
+          (*out) << "--  comp fail for op_tune='" + str(op_tune) + "'\n" << err.str() << "\n" << err_extra.str();
         }
       }      
 
