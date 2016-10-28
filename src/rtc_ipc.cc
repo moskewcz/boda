@@ -380,8 +380,7 @@ namespace boda
       bread( *worker, ret ); // 0 --> no error
       if( ret ) { 
         bread( *worker, err_str );
-        unsup_err( "------BEGIN NESTED ERROR FROM IPC WORKER ------\n" + err_str 
-                   + "------END NESTED ERROR FROM IPC WORKER ------\n" );
+        unsup_err( "rtc_ipc: " + err_str );
       }
     }
     void copy_nda_to_var( string const & vn, p_nda_t const & nda ) {
@@ -441,8 +440,7 @@ namespace boda
       bread( *worker, ret ); // 0 --> no error
       if( ret ) { 
         bread( *worker, err_str );
-        unsup_err( "------BEGIN NESTED ERROR FROM IPC WORKER ------\n" + err_str 
-                   + "------END NESTED ERROR FROM IPC WORKER ------\n" );
+        unsup_err( "rtc_ipc: " + err_str );
       }
       uint32_t call_id; 
       bread( *worker, call_id ); 

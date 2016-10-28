@@ -420,7 +420,7 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       size_t const kwgs = get_info<size_t>(KernelWorkGroup_t(ofi.kern.v,use_devices[0],CL_KERNEL_WORK_GROUP_SIZE));
       // printf( "kwgs=%s\n", str(kwgs).c_str() ); // might be handy to see; might indicate occupancy limits for kernel
       if( loc_work_sz > kwgs ) {
-        unsup_err( strprintf( "Can't run kernel: loc_work_sz is %s but OpenCL says max is %s for this kernel+device.\n", 
+        unsup_err( strprintf( "Can't run kernel: loc_work_sz is %s but OpenCL says max is %s for this kernel+device.", 
                               str(loc_work_sz).c_str(), str(kwgs).c_str() ) );
       }
       cl_event ev = 0;

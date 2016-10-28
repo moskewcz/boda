@@ -28,14 +28,16 @@ namespace boda
     codegen.run_func( *rfc );
   }
   
-  // scoped RAII for rtc vars
+  // scoped RAII for rtc vars / codegen
   struct rtc_var_holder_t {
-    p_rtc_compute_t rtc;
+    rtc_codegen_t codegen;
     vect_string vns;
-    rtc_var_holder_t( p_rtc_compute_t const & rtc_ ) : rtc(rtc_) {}
-    void create( string const & vn, dims_t const & dims ) { vns.push_back( vn ); return rtc->create_var_with_dims( vn, dims ); }
+    rtc_var_holder_t( rtc_codegen_t & codegen_ ) : codegen(codegen_) {}
+    void create( string const & vn, dims_t const & dims ) { vns.push_back( vn ); return codegen.rtc->create_var_with_dims( vn, dims ); }
     ~rtc_var_holder_t( void ) {
-      for( vect_string::const_iterator i = vns.begin(); i != vns.end(); ++i ) { rtc->release_var( *i ); }
+      for( vect_string::const_iterator i = vns.begin(); i != vns.end(); ++i ) { codegen.rtc->release_var( *i ); }
+      codegen.rtc->release_per_call_id_data();
+      codegen.gc_clear();
     }
   };
 
@@ -43,7 +45,7 @@ namespace boda
                               p_op_base_t const & in_gen_op_orig, map_str_p_nda_t * const outs,
                               uint32_t const & run_iter, bool const & include_ins_in_outs ) 
   {
-    rtc_var_holder_t rvh( codegen.rtc );
+    rtc_var_holder_t rvh( codegen );
     timer_t t("profile_rcg_call");
     string const anno_op_func_name = anno_op->get_func_name();
     p_rcg_func_call_t rfc = codegen.gen_func( *anno_op, map_str_rtc_arg_t() ); // FIXME: not passing in args here. yet?
@@ -101,34 +103,25 @@ namespace boda
 
     uint32_t call_id = uint32_t_const_max;
     prc_ret_t ret{make_shared<op_base_t>(rfc->rcg->op), NAN};
-    string err_str;
-    try { 
-      for( uint32_t i = 0; i != run_iter; ++i ) { call_id = codegen.run_func( *rfc ); }
-      // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
-      for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
-        if( !endswith( i.ad().io_type, "OUT" ) ) { continue; }
-        dims_t const & out_dims = anno_op->get_dims( i.vn() );
-        string const ref_out_dims_name = i.vn()+"_ref";
-        dims_t const & ref_out_dims = anno_op->has(ref_out_dims_name)?anno_op->get_dims(ref_out_dims_name):out_dims;
-        string gen_vn = i.vn();
-        if( out_dims != ref_out_dims ) { 
-          gen_vn += "_ref"; 
-          rvh.create( gen_vn, ref_out_dims ); 
-        }
-        if( gen_vn != i.vn() ) { run_xpose( anno_op, codegen, anno_op_func_name+"_xpose_"+i.vn(), gen_vn, i.vn() ); }
-        if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
-      }
-      codegen.rtc->finish_and_sync();
-      double const rfc_dur = codegen.rtc->get_dur( call_id, call_id ); // get call duration in msecs
-      ret.rt_secs = rfc_dur / 1000.0; // convert msecs to secs
-    }
-    catch( unsup_exception const & us_exp ) {
-       ret.err_str = string("execution failure: ") + us_exp.what();
-    }
 
-    codegen.rtc->release_per_call_id_data();
-    rfc.reset(); // optional. allows just-used function (which is no longer needed) to be released now if func-gc happens.
-    codegen.gc_clear();
+    for( uint32_t i = 0; i != run_iter; ++i ) { call_id = codegen.run_func( *rfc ); }
+    // FIXME: xpose of OUTs is semi-dup'd with "IN"/gen_data handling above
+    for( vect_arg_decl_t::multi_iter i = rcg->rtc_func_template->arg_decls.multi_begin( &rcg->op ); !i.at_end(); ++i ) {
+      if( !endswith( i.ad().io_type, "OUT" ) ) { continue; }
+      dims_t const & out_dims = anno_op->get_dims( i.vn() );
+      string const ref_out_dims_name = i.vn()+"_ref";
+      dims_t const & ref_out_dims = anno_op->has(ref_out_dims_name)?anno_op->get_dims(ref_out_dims_name):out_dims;
+      string gen_vn = i.vn();
+      if( out_dims != ref_out_dims ) { 
+        gen_vn += "_ref"; 
+        rvh.create( gen_vn, ref_out_dims ); 
+      }
+      if( gen_vn != i.vn() ) { run_xpose( anno_op, codegen, anno_op_func_name+"_xpose_"+i.vn(), gen_vn, i.vn() ); }
+      if( outs ) { must_insert( *outs, i.vn(), codegen.rtc->create_nda_from_var( gen_vn ) ); } 
+    }
+    codegen.rtc->finish_and_sync();
+    double const rfc_dur = codegen.rtc->get_dur( call_id, call_id ); // get call duration in msecs
+    ret.rt_secs = rfc_dur / 1000.0; // convert msecs to secs
     return ret;
   }
 
@@ -298,22 +291,12 @@ namespace boda
           if( gen_data ) { assert_st( gen_data->get_type() == "gen_data" ); } // FIXME: remove assert after fixing existing usages
           vsi = make_shared<map_str_p_nda_t>();
           try { prc_ret = profile_rcg_call( anno_op, *codegen, gen_data, vsi.get(), run_iter, 0 ); }
-          catch( rt_exception const & rte ) {
-            if( rte.what_and_stacktrace().find( "CL_OUT_OF_HOST_MEMORY" ) != string::npos ) { 
-              err << "CL_OUT_OF_HOST_MEMORY"; 
-              // FIXME: we should probably handle this at the rtc_codegen_t level better. in fact, there's a good chance the
-              // handling is currently broken ... so for now, we'll give up here. note we used to call:
-              // codegen.clear(); 
-              assert_st( "TODO: re-handle compile/run failures better in codegen/prof" );
-            }
-            else { throw; }
-          }
-          if( !prc_ret.err_str.empty() ) { err << "profile call failure: " << prc_ret.err_str; }
+          catch( unsup_exception const & ue ) { err << "profile call failure: " << ue.what(); }
         }
         if( (*wix) == kg_wix ) { // if this is the to-use-as-known-good op_tune, store it's results in vs1, and maybe write its digest.
           assert_st( wix == out_wixs_to_run.begin() ); // should be first run
           if( !err.str().empty() ) { 
-            err << strprintf( "Error: known-good op_tune (kg_tune_tag=%s) failed. Can't write digests or do live comparisons.\n",
+            err << strprintf( "known-good op_tune (kg_tune_tag=%s) failed. Can't write digests or do live comparisons.",
                               kg_tune_tag.c_str() ); 
           } else {
             vs_kg = vsi;
