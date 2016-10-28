@@ -30,7 +30,7 @@ namespace boda
   
   // scoped RAII for rtc vars / codegen
   struct rtc_var_holder_t {
-    rtc_codegen_t codegen;
+    rtc_codegen_t & codegen;
     vect_string vns;
     rtc_var_holder_t( rtc_codegen_t & codegen_ ) : codegen(codegen_) {}
     void create( string const & vn, dims_t const & dims ) { vns.push_back( vn ); return codegen.rtc->create_var_with_dims( vn, dims ); }
