@@ -653,16 +653,19 @@ namespace boda
   }
 
   // clear functions that aren't externally referenced
-  void rtc_codegen_t::clear( void ) {
+  void rtc_codegen_t::clear( bool const & dump_only ) {
+    if( dump_only ) { printf( "clear(): rtc_func_sigs_map.size()=%s\n", str(rtc_func_sigs_map.size()).c_str() ); }
     // note: this process is a bit tricky. need to be careful about order of operations and maintaining state in all cases
     compile_pend.clear(); // will be recreated on the fly, but need to clear refs temp. for unique ref check to be correct
     for( rtc_func_sigs_map_t::const_iterator i = rtc_func_sigs_map.begin(); i != rtc_func_sigs_map.end(); /*no inc*/ ) {
-      if( i->second.unique() ) { // not externally referenced? then remove func.
-        if( i->second->is_compiled.v ) { rtc->release_func( i->second->gen_fn ); } // only release from rtc if compiled
-        must_erase( used_names, i->second->gen_fn ); // name no longer in use
+      p_rtc_call_gen_t const & rcg = i->second;
+      if( dump_only ) { printf( "  use_count=%s   %s\n", str(rcg.use_count()).c_str(), str(rcg->gen_fn).c_str() ); }
+      if( (!dump_only) && rcg.unique() ) { // not externally referenced? then remove func.
+        if( rcg->is_compiled.v ) { rtc->release_func( rcg->gen_fn ); } // only release from rtc if compiled
+        must_erase( used_names, rcg->gen_fn ); // name no longer in use
         i = rtc_func_sigs_map.erase(i); // remove from map
       } else { // ... else, keep func.
-        if( !i->second->is_compiled.v ) { compile_pend.push_back( i->second ); } // if pending compiling, re-track
+        if( !rcg->is_compiled.v ) { compile_pend.push_back( rcg ); } // if pending compiling, re-track
         ++i; // keep func in map
       }
     }
