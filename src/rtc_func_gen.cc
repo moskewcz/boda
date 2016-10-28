@@ -671,7 +671,7 @@ namespace boda
     }
   }
   
-  void rtc_codegen_t::gc_clear( void ) { if( rtc_func_sigs_map.size() > 1000 ) { clear(); } }
+  void rtc_codegen_t::gc_clear( void ) { if( rtc_func_sigs_map.size() > 256 ) { clear(); } }
 
   void rtc_codegen_t::read_rtc_func_sigs( filename_t const & rtc_func_sigs_fn ) {
     p_vect_string in_lines = readlines_fn( rtc_func_sigs_fn );
