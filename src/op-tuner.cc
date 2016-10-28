@@ -124,6 +124,51 @@ namespace boda
     out << "/op_wisdom_t\n";
   }
 
+  void op_tune_wisdom_t::merge_runs_from( op_tune_wisdom_t const & o ) {
+    // for now, don't allow overwrite ...
+    for( map_str_op_run_t::const_iterator i = o.runs.begin(); i != o.runs.end(); ++i ) {
+      must_insert( runs, i->first, i->second );
+    }
+  }
+
+  void by_op_tune_set_p_op_tune_wisdom_t::add_runs( vect_p_op_tune_wisdom_t const & wisdoms ) {
+    for( vect_p_op_tune_wisdom_t::const_iterator i = wisdoms.begin(); i != wisdoms.end(); ++i ) {
+      std::pair<iterator,bool> ins_ret = this->insert( *i );
+      if( !ins_ret.second ) { (*ins_ret.first)->merge_runs_from( **i ); }
+    }
+  }
+
+  void op_wisdom_t::merge_wisdoms_from( op_wisdom_t const & o ) {
+    by_op_tune_set_p_op_tune_wisdom_t all_otw;
+    all_otw.add_runs( wisdoms );
+    all_otw.add_runs( o.wisdoms );
+    wisdoms.clear();
+    for( by_op_tune_set_p_op_tune_wisdom_t::const_iterator i = all_otw.begin(); i != all_otw.end(); ++i ) { wisdoms.push_back( *i ); }
+  }
+
+  // merge multiple wisdom files into one. note: output ops will be sorted by op, not by order in any input files.
+  struct wis_merge_t : virtual public nesi, public has_main_t // NESI(help="analyses wisdom file, output data in format for plotting",
+           // bases=["has_main_t"], type_id="wis-merge" )
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_filename_t wisdom_in_fns; //NESI(help="wisdom input files to merge")
+    filename_t wisdom_out_fn; //NESI(help="output merged wisdom file",req=1)
+    uint32_t keep_kgs; //NESI(default="0",help="if zero, kgs are dropped. else, kgs from the first input file with a given op are kept.")
+    by_op_set_p_op_wisdom_t all_wis;
+    void proc_fn( filename_t const & win_fn ) {
+      p_istream win = ifs_open( win_fn );
+      for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) { 
+        if( !keep_kgs ) { owi->kgs.clear(); } // no way to merge, so better not need later? or keep first? up to user.
+        std::pair<by_op_set_p_op_wisdom_t::iterator,bool> ins_ret = all_wis.insert( owi );
+        if( !ins_ret.second ) { (*ins_ret.first)->merge_wisdoms_from( *owi ); }
+      }
+    }
+    virtual void main( nesi_init_arg_t * nia ) {
+      p_ostream wout = ofs_open( wisdom_out_fn ); // open early to check for fn/fs errors
+      for( vect_filename_t::const_iterator i = wisdom_in_fns.begin(); i != wisdom_in_fns.end(); ++i ) { proc_fn( *i ); }
+      for( by_op_set_p_op_wisdom_t::const_iterator i = all_wis.begin(); i != all_wis.end(); ++i ) { write_op_wisdom( **i, *wout ); }
+    }
+  };
 
   struct wis_ana_t : virtual public nesi, public has_main_t // NESI(help="analyses wisdom file, output data in format for plotting",
            // bases=["has_main_t"], type_id="wis-ana" )
