@@ -350,11 +350,12 @@ namespace boda
           (*out) << "--  comp fail for op_tune='" + str(op_tune) + "'\n" << err.str() << "\n" << err_extra.str();
         }
       }      
-
+      out->flush();
       if( wout ) { 
         if( !write_runs ) { op_wisdom_out->wisdoms.clear(); }
         if( !write_kg_digest ) { if( op_wisdom_in ) { op_wisdom_out->kgs = op_wisdom_in->kgs; } }
         write_op_wisdom( *op_wisdom_out, *wout ); 
+        wout->flush();
       }
     }
       
