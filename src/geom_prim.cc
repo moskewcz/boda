@@ -42,9 +42,9 @@ namespace boda
     return str(pascal_box.p[0]) + " " + str(pascal_box.p[1]);
   }
 
-  std::ostream & operator <<(std::ostream & os, u32_pt_t const & v) { return os << v.d[0] << " " << v.d[1]; }
-  std::ostream & operator <<(std::ostream & os, i32_pt_t const & v) { return os << v.d[0] << " " << v.d[1]; }
-  std::ostream & operator <<(std::ostream & os, u32_pt_w_t const & v) { return os << v.d[0] << " " << v.d[1] << " w=" << v.w; }
+  std::ostream & operator <<(std::ostream & os, u32_pt_t const & v) { return os << v.d[0] << ":" << v.d[1]; }
+  std::ostream & operator <<(std::ostream & os, i32_pt_t const & v) { return os << v.d[0] << ":" << v.d[1]; }
+  std::ostream & operator <<(std::ostream & os, u32_pt_w_t const & v) { return os << v.d[0] << ":" << v.d[1] << ":w=" << v.w; }
 
   std::ostream & operator <<(std::ostream & os, u32_box_t const & v) { return os << "(" << v.p[0] << ")(" << v.p[1] << ")"; }
   std::ostream & operator <<(std::ostream & os, i32_box_t const & v) { return os << "(" << v.p[0] << ")(" << v.p[1] << ")"; }

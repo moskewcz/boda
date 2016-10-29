@@ -46,7 +46,7 @@
   <li test_name="oct_resize_1" needs="octave" cli_str="boda oct_resize --image_list_fn='%(boda_test_dir)/plasma_imgs.txt'"/>
   <li test_name="oct_resize_2" needs="octave" slow="1" cli_str="boda oct_resize --image_list_fn='%(boda_test_dir)/pascal_imgs_10.txt'"/>
   <li test_name="blf_pack_1" 
-      err="error: box (*i)=50 50 cannot be placed into empty bin of shape (0 0)(40 40) (i.e. box to place > bin size)" >
+      err="error: box (*i)=50:50 cannot be placed into empty bin of shape (0:0)(40:40) (i.e. box to place > bin size)" >
   <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="40"/>
   </li>
   <li test_name="blf_pack_2"> <command mode="blf_pack" to_pack_fn="%(boda_test_dir)/blf_in_1.txt" bin_sz="50"/></li>

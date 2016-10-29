@@ -1,4 +1,4 @@
-(*i)->sz=353 500
+(*i)->sz=353:500
 vars_to_compare: conv1
 conv1: DIMS[img=1:chan=96:y=55:x=55] MRD=1
 [img=0:chan=0:y=0:x=11 (11)]: v1=10.8417 v2=10 

@@ -1,4 +1,4 @@
-(*i)->sz=353 500
+(*i)->sz=353:500
 vars_to_compare: conv1
 conv1 digest mrd_comp() vs 'rtc' skipped, no known-good digest stream availible
 conv1_biases_cnt_out_sz_1=96
