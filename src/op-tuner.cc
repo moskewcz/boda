@@ -131,6 +131,16 @@ namespace boda
     }
   }
 
+  void filter_runs( op_wisdom_t & owi, regex const & r_plat ) {
+    for( vect_p_op_tune_wisdom_t::const_iterator i = owi.wisdoms.begin(); i != owi.wisdoms.end(); ++i ) {
+      for( map_str_op_run_t::iterator j = (*i)->runs.begin(); j != (*i)->runs.end(); ) {
+        op_run_t const & r = j->second;
+        if( (!r.err.empty()) || (!regex_search( r.be_plat_tag, r_plat )) ) { j = (*i)->runs.erase(j); }
+        else { ++j; }
+      }
+    }
+  }
+      
   void by_op_tune_set_p_op_tune_wisdom_t::add_runs( vect_p_op_tune_wisdom_t const & wisdoms ) {
     for( vect_p_op_tune_wisdom_t::const_iterator i = wisdoms.begin(); i != wisdoms.end(); ++i ) {
       std::pair<iterator,bool> ins_ret = this->insert( *i );
@@ -170,6 +180,23 @@ namespace boda
     }
   };
 
+  
+  struct filt_score_t {
+    double tot_rt_secs;
+    uint32_t tot_num;
+    filt_score_t( void ) : tot_rt_secs(0), tot_num(0) {}
+    void add_run( op_run_t const & r ) { ++tot_num; tot_rt_secs += r.rt_secs; }
+  };
+
+  
+  typedef map< string, filt_score_t > map_str_filt_score_t;
+
+  struct per_op_ana_t {
+    op_run_t const * min_r;
+    p_op_tune_t min_tune;
+  };
+  typedef vector< per_op_ana_t > vect_per_op_ana_t; 
+
   struct wis_ana_t : virtual public nesi, public has_main_t // NESI(help="analyses wisdom file, output data in format for plotting",
            // bases=["has_main_t"], type_id="wis-ana" )
   {
@@ -182,8 +209,10 @@ namespace boda
 
     map_str_uint32_t op_tunes;
 
-    uint32_t s_tix; //NESI(default=0,help="0 == all tixs, othewise, only specified tix")
-    uint32_t best_tix; //NESI(default=0,help="0 == all tixs, othewise, only lowest-time tix")
+    by_op_set_p_op_wisdom_t all_wis;
+
+    vect_per_op_ana_t per_op_anas;
+    map_str_filt_score_t filt_scores;
 
     uint32_t get_tix( op_tune_t const & ot ) { return op_tunes.insert( make_pair( str(ot), op_tunes.size()+1 ) ).first->second; }
 
@@ -220,50 +249,83 @@ namespace boda
       p_ostream csv_out = csv_out_fn ? ofs_open( *csv_out_fn ) : p_ostream();
 
       regex r_plat( s_plat );
-      double tot_time = 0;
-      uint64_t tot_runs = 0;
-      for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) {
-        if( s_img && (owi->op->get_dims("in").dsz("img") != s_img) ) { continue; }
-        printf( "owi->op=%s\n", str(owi->op).c_str() );
+      for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) { 
+        owi->kgs.clear(); // no need for kgs
+        if( s_img && (owi->op->get_dims("in").dsz("img") != s_img) ) { continue; } // filter by # imgs (permanent)
+        std::pair<by_op_set_p_op_wisdom_t::iterator,bool> ins_ret = all_wis.insert( owi );
+        assert_st( ins_ret.second ); // should be no dupe ops
+        filter_runs( **ins_ret.first, r_plat );
+      }
+
+      filt_score_t best_fs;
+
+      for( by_op_set_p_op_wisdom_t::const_iterator i = all_wis.begin(); i != all_wis.end(); ++i ) { 
+        p_op_wisdom_t const & owi = *i;
         double min_time = std::numeric_limits<double>::max();
         op_run_t const * min_r = 0;
-        uint32_t min_tix = 0;
+        p_op_tune_t min_tune;
         for( vect_p_op_tune_wisdom_t::const_iterator otwi = owi->wisdoms.begin(); otwi != owi->wisdoms.end(); ++otwi ) {
+          p_op_tune_t const & op_tune = (*otwi)->op_tune;
           for( map_str_op_run_t::const_iterator ri = (*otwi)->runs.begin(); ri != (*otwi)->runs.end(); ++ri ) {
             op_run_t const & r = ri->second;
-            if( !r.err.empty() ) { continue; }
-            if( !regex_search( r.be_plat_tag, r_plat ) ) { continue; }
-            uint32_t const tix = get_tix(*(*otwi)->op_tune);
-            if( s_tix && (tix != s_tix) ) { continue; }
-            min_eq( min_time, r.rt_secs );
-            if( best_tix ) {
-              if( r.rt_secs == min_time ) { min_r = &r; min_tix = tix;}
-            } else {
-              printf( "r.be_plat_tag=%s r.rt_secs=%s tix=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                      str(tix).c_str() );
-              tot_time += r.rt_secs;
-              ++tot_runs;
+            filt_scores[str(op_tune)].add_run( r );
+            if( r.rt_secs < min_time ) { min_time = r.rt_secs; min_r = &r; min_tune = op_tune;}
+          }
+        }        
+        if( min_r ) {
+          assert_st( min_tune );
+          op_run_t const & r = *min_r;
+          best_fs.add_run( r );
+        }
+        per_op_anas.push_back( per_op_ana_t{ min_r, min_tune } );
+      }
+      assert_st( per_op_anas.size() == all_wis.size() ); // one-to-one mapping, in order
+
+      // find best overall tune. FIXME: deal with differing #s of runs better ... normalize?
+      double min_filt_time = std::numeric_limits<double>::max();
+      string min_filt_tune;
+      for( map_str_filt_score_t::const_iterator i = filt_scores.begin(); i != filt_scores.end(); ++i ) {
+        if( i->second.tot_rt_secs < min_filt_time ) { min_filt_time = i->second.tot_rt_secs; min_filt_tune = i->first; }
+      }
+
+      uint32_t poa_ix = 0;
+      for( by_op_set_p_op_wisdom_t::const_iterator i = all_wis.begin(); i != all_wis.end(); ++i, ++poa_ix ) { 
+        p_op_wisdom_t const & owi = *i;
+        per_op_ana_t & poa = per_op_anas[poa_ix];
+        printf( "owi->op=%s\n", str(owi->op).c_str() );
+        double per_op_min = NAN;
+        if( poa.min_r ) {
+          op_run_t const & r = *poa.min_r;
+          per_op_min = r.rt_secs;
+          printf( "  PER-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                  str(poa.min_tune).c_str() );
+        }
+        double all_op_min = NAN;
+        for( vect_p_op_tune_wisdom_t::const_iterator otwi = owi->wisdoms.begin(); otwi != owi->wisdoms.end(); ++otwi ) {
+          p_op_tune_t const & op_tune = (*otwi)->op_tune;
+          for( map_str_op_run_t::const_iterator ri = (*otwi)->runs.begin(); ri != (*otwi)->runs.end(); ++ri ) {
+            op_run_t const & r = ri->second;
+            all_op_min = r.rt_secs;
+            if( str(op_tune) == str(min_filt_tune) ) {
+              printf( "  ALL-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                      str(op_tune).c_str() );
             }
           }
         }
-        if( best_tix && min_r ) {
-          op_run_t const & r = *min_r;
-          printf( "r.be_plat_tag=%s r.rt_secs=%s min_tix=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                  str(min_tix).c_str() );
-          tot_time += r.rt_secs;
-          ++tot_runs;
-          if( csv_out ) {
-            (*csv_out) << strprintf( "%s %s %s %s\n", str(min_tix).c_str(), str(r.rt_secs).c_str(), str(get_op_flops(owi->op)).c_str(),
-                                     str(owi->op).c_str() );
-          }
+        if( csv_out ) {
+          (*csv_out) << strprintf( "%s %s %s %s\n", str(all_op_min).c_str(), str(per_op_min).c_str(), str(get_op_flops(owi->op)).c_str(),
+                                   str(owi->op).c_str() );
         }
       }
+        
+
+#if 0
       printf( "\n----- tot_time=%s tot_runs=%s ------\n", str(tot_time).c_str(), str(tot_runs).c_str() );
       printstr( "\n-- LEGEND --\n" );
       for( map_str_uint32_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
         printf( "tix=%s op_tune=%s\n", str(i->second).c_str(), str(i->first).c_str() );
       }
-
+#endif
     }
   };
 

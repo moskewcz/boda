@@ -22,11 +22,12 @@ class EffPt( object ):
     def __init__( self, elp ):
         assert len(elp) == 4
         self.cols = ["varname","rts","flops"] #["varname","bxf","flops","ai","rts"]
-        self.varname = elp[0]
+        self.varname = "1"
         self.rts = float(elp[1])
         self.flops = float(elp[2])
         self.opinfo = elp[3]
-        self.comp = None # point to compare this point against (if any)
+        self.comp = None
+        self.comp_rtc = float(elp[0]) 
     def __str__( self ):
         return " ".join( str(col)+"="+str(getattr(self,col)) for col in self.cols )
 
