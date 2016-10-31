@@ -118,7 +118,7 @@ class EffPlot( object ):
         #rc('xtick.minor',size =0 )
 
         #formatting:
-        ax.set_title("Per-Convolution Runtime (seconds) [log scale]",fontsize=12,fontweight='bold')
+        ax.set_title(self.args.title,fontsize=12,fontweight='bold')
         ax.set_xlabel("Convolution index, sorted by \\#-of-FLOPS", fontsize=12) # ,fontproperties = font)
         ax.set_ylabel("RUNTIME (seconds)", fontsize=12) # ,fontproperties = font)
 
@@ -161,5 +161,7 @@ parser.add_argument('--eff-fn', metavar="FN", type=str, default="out.csv", help=
 parser.add_argument('--eff-comp-fn', metavar="FN", type=str, default="", help="filename of eff values in latex table format for comparison to those from the file specified by --eff-fn" )
 parser.add_argument('--out-fn', metavar="FN", type=str, default="eff", help="base filename of output plot image" )
 parser.add_argument('--out-fmt', metavar="EXT", type=str, default="png", help="extention/format for output plot image" )
+parser.add_argument('--title', metavar="STR", type=str, default="Per-Convolution Runtime (seconds) [log scale]", help="plot title" )
+
 args = parser.parse_args()
 ep = EffPlot(args)

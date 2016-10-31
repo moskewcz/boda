@@ -190,6 +190,7 @@ namespace boda
 
   
   typedef map< string, filt_score_t > map_str_filt_score_t;
+  void run_system_cmd( string const &cmd, bool const verbose );
 
   struct per_op_ana_t {
     op_run_t const * min_r;
@@ -213,11 +214,13 @@ namespace boda
 
     p_string ref_tune; //NESI(help="if specified, emit 'reference' tune times (and exclude this tune from selection for per-op-best)")
 
-
     by_op_set_p_op_wisdom_t all_wis;
 
     vect_per_op_ana_t per_op_anas;
     map_str_filt_score_t filt_scores;
+
+    uint32_t run_wis_plot; //NESI(default="0",help="if true, run wis-plot.py (implicitly on csv output)")
+
 
     uint32_t get_tix( op_tune_t const & ot ) { return op_tunes.insert( make_pair( str(ot), op_tunes.size()+1 ) ).first->second; }
 
@@ -340,15 +343,12 @@ namespace boda
                                    str(all_op_min).c_str(), str(per_op_min).c_str(), str(per_op_ref).c_str() );
         }
       }
-        
-
-#if 0
-      printf( "\n----- tot_time=%s tot_runs=%s ------\n", str(tot_time).c_str(), str(tot_runs).c_str() );
-      printstr( "\n-- LEGEND --\n" );
-      for( map_str_uint32_t::const_iterator i = op_tunes.begin(); i != op_tunes.end(); ++i ) {
-        printf( "tix=%s op_tune=%s\n", str(i->second).c_str(), str(i->first).c_str() );
+      
+      if( run_wis_plot ) {
+        string const title_str = strprintf( "%s (FWD-only, %s Images)", str(s_plat).c_str(), str(s_img).c_str() );
+        string const cmd = "python ../../pysrc/wis-plot.py --title=\""+title_str+"\"";
+        run_system_cmd( cmd, 1 );
       }
-#endif
     }
   };
 
