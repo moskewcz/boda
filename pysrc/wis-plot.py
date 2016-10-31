@@ -20,14 +20,13 @@ def latex_float(f):
 
 class EffPt( object ):
     def __init__( self, elp ):
-        assert len(elp) == 4
+        assert len(elp) == 5
         self.cols = ["varname","rts","flops"] #["varname","bxf","flops","ai","rts"]
-        self.varname = "1"
         self.rts = float(elp[1])
-        self.flops = float(elp[2])
-        self.opinfo = elp[3]
-        self.comp = None
+        self.flops = float(elp[3])
+        self.opinfo = elp[4]
         self.comp_rtc = float(elp[0]) 
+        self.ref_rtc = float(elp[2]) 
     def __str__( self ):
         return " ".join( str(col)+"="+str(getattr(self,col)) for col in self.cols )
 
@@ -37,47 +36,20 @@ class varinfo( object ):
         self.name = name
         self.color = color
         self.mark = mark
-        self.mark_comp = mark_comp
         self.art = plt.Line2D((0,0),(0,0), color=self.color, marker=self.mark, linestyle='')
-        self.art_comp = plt.Line2D((0,0),(0,0), color=self.color, marker=self.mark_comp, linestyle='')
-        self.num_use = 0
-        self.num_use_comp = 0
-    def clear_use( self ):
-        self.num_use = 0
-        self.num_use_comp = 0        
-    def inc_use( self, is_comp ):
-        if is_comp: 
-            self.num_use_comp += 1 
-        else:
-            self.num_use += 1
-    def get_mark( self, is_comp ): 
-        return self.mark_comp if is_comp else self.mark
+    def get_mark( self ): return self.mark
 
     def get_leg( self, leg_art, leg_lab ):
         verb_name = "\\verb|"+self.name+"|"
-        if self.num_use:
-            leg_art.append( self.art) 
-            leg_lab.append( verb_name )
-        if self.num_use_comp:
-            leg_art.append( self.art_comp) 
-            leg_lab.append( verb_name[:-1] + " (Comp)|" )
-        self.clear_use()
+        leg_art.append( self.art) 
+        leg_lab.append( verb_name )
         
 vis = [ 
-    varinfo( "conv", "cornflowerblue" ),
-    varinfo( "conv_simd", "cornflowerblue" ),
-    varinfo( "k1conv", "green" ),
-    varinfo( "k1conv_simd", "green" ),
-    varinfo( "tconv", "purple" ),
-    varinfo( "cudnn_conv", "red" ),
+    varinfo( "AOM", "cornflowerblue" ),
+    varinfo( "POM", "green" ),
+    varinfo( "REF", "red" ),
 ]        
-#vis_map = { vi.name:vi for vi in vis }
-vis_map = { str(i):varinfo(str(i),"cornflowerblue") for i in range(20) }
-
-def inc_comp( epts ):
-    for ept in epts:
-        yield ept
-        if ept.comp: yield ept.comp
+vis_map = { vi.name:vi for vi in vis }
 
 def read_eff_file( epts, fn ):
     els = open( fn ).readlines()
@@ -100,45 +72,17 @@ class EffPlot( object ):
     def __init__( self, args ):
         self.args = args
         self.epts = []
-        self.epts_comp = []
         read_eff_file( self.epts, self.args.eff_fn )
-        if self.args.eff_comp_fn:
-            read_eff_file( self.epts_comp, self.args.eff_comp_fn )
-            assert len(self.epts) == len(self.epts_comp)
-            for ept,ept_comp in zip(self.epts,self.epts_comp):
-                assert ept.opinfo == ept_comp.opinfo
-                ept.comp = ept_comp
         self.do_plots()
-        if self.args.do_zooms:
-            for zl in [1,2]:
-                self.args.out_fn += "-zoom"
-                max_flops = max( ept.flops for ept in self.epts )
-                self.epts = [ ept for ept in self.epts if ept.flops < (max_flops/10.0) ]
-                self.do_plots()
 
     def skip_plot_check_flops_vs_time( self, ept ):
         return 0
-        if not ept.comp: return 0 # no comp? if so, never skip.
-        delta = abs( ept.rts - ept.comp.rts )
-        rel_delta = delta * 2.0 / (ept.rts + ept.comp.rts)
-        # if rel_delta < self.args.min_rel_delta_to_show: return 1 # we're really trying to show varaint difference, so skip this check
-        if ept.varname == ept.comp.varname: return 1 # FIXME: skip when comp is same varaint. not right in general, but okay for now
-        # FIXME: a few data points have the same variant, but sig. diff runtimes. there is certainly some noise in the runtimes, or the code might have shifted a bit between the two runs, or it's possible the tuning params were a little different between the two runs. for now, we'll skip such points, but we should investigate more. 
-        return 0
 
-    def plot_flops_vs_time_pt( self, ax, ept, is_comp ):
-        vi = vis_map[ept.varname]
-        vi.inc_use( is_comp )
+
+    def plot_flops_vs_time_pt( self, ax, ept ):
+        vi = vis_map["AOM"]
         x,y = math.log(ept.flops,10), math.log(ept.rts,10)
-        ax.plot(x, y, color=vi.color, markersize=4, alpha=.7, marker=vi.get_mark(is_comp), linestyle=' ' )
-        return x,y
-
-    def plot_fps_vs_ai_pt( self, ax, ept, is_comp ):
-        vi = vis_map[ept.varname]
-        vi.inc_use( is_comp )
-        x = ept.ai
-        y = ept.flops/ept.rts
-        ax.plot( x,y, color=vi.color, markersize=2*max(1,math.log(ept.flops,10)-6), alpha=.7, marker=vi.get_mark(is_comp), linestyle=' ' )
+        ax.plot(x, y, color=vi.color, markersize=4, alpha=.7, marker=vi.get_mark(), linestyle=' ' )
         return x,y
 
     def do_plots( self ):
@@ -167,31 +111,18 @@ class EffPlot( object ):
         ax.set_title("RUNTIME (seconds) vs \\#-of-FLOPS [log/log scale]",fontsize=12,fontweight='bold')
         ax.set_xlabel("\\#-of-FLOPS", fontsize=12) # ,fontproperties = font)
         ax.set_ylabel("RUNTIME (seconds)", fontsize=12) # ,fontproperties = font)
-        x = [ math.log(ept.flops,10) for ept in inc_comp(self.epts) ]
-        y = [ math.log(ept.rts,10) for ept in inc_comp(self.epts) ]
+        x = [ math.log(ept.flops,10) for ept in self.epts ]
+        y = [ math.log(ept.rts,10) for ept in self.epts ]
         self.set_bnds( ax, x, y )
 
         # print matplotlib.lines.Line2D.filled_markers 
         # --> (u'o', u'v', u'^', u'<', u'>', u'8', u's', u'p', u'*', u'h', u'H', u'D', u'd')
-        for ept in self.epts:
-            x,y = self.plot_flops_vs_time_pt( ax, ept, 0 )
-            if ept.comp:
-                xc,yc = self.plot_flops_vs_time_pt( ax, ept.comp, 1 )
-                ax.plot( [x,xc], [y,yc], linewidth=0.5, color='black' )
+        for ept in self.epts: x,y = self.plot_flops_vs_time_pt( ax, ept )
 
         leg_art = []; leg_lab = []
         for vi in vis: vi.get_leg( leg_art, leg_lab )
         legend = ax.legend(leg_art,leg_lab,loc='lower right', shadow=True, fontsize='small',numpoints=1,ncol=1)
         legend.get_frame().set_facecolor('#eeddcc')
-
-        max_fps = max( ept.flops/ept.rts for ept in inc_comp(self.epts) )
-        log10_max_fps = int(math.ceil(math.log(max_fps,10)))
-        if 1:
-            fps_bnd = 10**log10_max_fps
-            self.add_fps_line( ax, fps_bnd / 10.0 )
-            self.add_fps_line( ax, fps_bnd / 5.0 )
-            self.add_fps_line( ax, fps_bnd / 2.0 )
-            self.add_fps_line( ax, fps_bnd )
 
         self.adj_ticks(ax,fig)
 
@@ -221,34 +152,6 @@ class EffPlot( object ):
         tls = [ adj_tick_lab(lab) for lab in tls ]
         ax.set_yticklabels( tls )
 
-    def add_fps_line( self, ax, fps ): self.add_fps_line_log( ax, fps )
-
-    def add_fps_line_lin( self, ax, fps ):
-        #Peak performance line and text
-        x = [self.x_min,(self.x_min+self.x_max)*0.5,self.x_max]
-        y = [ v/fps for v in x ]
-        y_mid = (self.y_min+self.y_max)/2
-        if y[1] > y_mid: # high slope case; use target y val
-            y[1] = y_mid
-            x[1] = y[1]*fps
-        ax.plot(x,y, linewidth=1.0, color='black', linestyle=':' )
-        label_string = "%.1fGF/s" % (fps/1e9)
-        rot=np.arctan(y[1]/x[1]*self.axis_aspect) * 180 / np.pi
-        ax.text(x[1], y[1], label_string, fontsize=8, rotation=rot, ha="left", va="bottom")
-
-    def add_fps_line_log( self, ax, fps ):
-        #Peak performance line and text
-        x = [self.x_min,self.x_min*0.2+self.x_max*0.8,self.x_max]
-        y = [ v - math.log(fps,10) for v in x ]
-        y_mid = self.y_min*0.2+self.y_max*0.8
-        if y[1] > y_mid: # high slope case; use target y val
-            y[1] = y_mid
-            x[1] = y[1] + math.log(fps,10)
-        ax.plot(x,y, linewidth=1.0, color='black', linestyle=':' )
-        label_string = "%.1fGF/s" % (fps/1e9)
-        rot=np.arctan(self.data_aspect) * 180 / np.pi
-        ax.text(x[1], y[1], label_string, fontsize=12, rotation=rot, ha="left", va="bottom")
-
 
 
 import argparse
@@ -257,8 +160,6 @@ parser.add_argument('--eff-fn', metavar="FN", type=str, default="out.csv", help=
 parser.add_argument('--eff-comp-fn', metavar="FN", type=str, default="", help="filename of eff values in latex table format for comparison to those from the file specified by --eff-fn" )
 parser.add_argument('--out-fn', metavar="FN", type=str, default="eff", help="base filename of output plot image" )
 parser.add_argument('--out-fmt', metavar="EXT", type=str, default="png", help="extention/format for output plot image" )
-parser.add_argument('--do-zooms', metavar="BOOL", type=bool, default=0, help="if true, output zoomed and 2X zoomed graphs" )
-parser.add_argument('--min-rel-delta-to-show', metavar="FLOAT", type=float, default=0.05, help="if true, skip showing points where delta/avg is < this value in comparison mode" )
 args = parser.parse_args()
 ep = EffPlot(args)
 

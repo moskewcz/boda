@@ -194,6 +194,8 @@ namespace boda
   struct per_op_ana_t {
     op_run_t const * min_r;
     p_op_tune_t min_tune;
+    op_run_t const * ref_r;
+    per_op_ana_t( void ) : min_r(0), ref_r(0) { }
   };
   typedef vector< per_op_ana_t > vect_per_op_ana_t; 
 
@@ -208,6 +210,9 @@ namespace boda
     string s_plat; //NESI(default=".*",help="regex to select targ plat tag")
 
     map_str_uint32_t op_tunes;
+
+    p_string ref_tune; //NESI(help="if specified, emit 'reference' tune times (and exclude this tune from selection for per-op-best)")
+
 
     by_op_set_p_op_wisdom_t all_wis;
 
@@ -262,30 +267,36 @@ namespace boda
       for( by_op_set_p_op_wisdom_t::const_iterator i = all_wis.begin(); i != all_wis.end(); ++i ) { 
         p_op_wisdom_t const & owi = *i;
         double min_time = std::numeric_limits<double>::max();
-        op_run_t const * min_r = 0;
-        p_op_tune_t min_tune;
+        per_op_anas.push_back( per_op_ana_t() );
+        per_op_ana_t & poa = per_op_anas.back();
         for( vect_p_op_tune_wisdom_t::const_iterator otwi = owi->wisdoms.begin(); otwi != owi->wisdoms.end(); ++otwi ) {
           p_op_tune_t const & op_tune = (*otwi)->op_tune;
           for( map_str_op_run_t::const_iterator ri = (*otwi)->runs.begin(); ri != (*otwi)->runs.end(); ++ri ) {
             op_run_t const & r = ri->second;
-            filt_scores[str(op_tune)].add_run( r );
-            if( r.rt_secs < min_time ) { min_time = r.rt_secs; min_r = &r; min_tune = op_tune;}
+            string const op_tune_str = str(op_tune);
+            if( ref_tune && (op_tune_str == *ref_tune) ) { // if ref tune, store and exclude from min-tune set
+              assert_st( !poa.ref_r ); // should be no dupe runs (i.e. only one-plat filts supported)
+              poa.ref_r = &r;
+            } else {
+              filt_scores[op_tune_str].add_run( r );
+              if( r.rt_secs < min_time ) { min_time = r.rt_secs; poa.min_r = &r; poa.min_tune = op_tune;}
+            }
           }
         }        
-        if( min_r ) {
-          assert_st( min_tune );
-          op_run_t const & r = *min_r;
-          best_fs.add_run( r );
-        }
-        per_op_anas.push_back( per_op_ana_t{ min_r, min_tune } );
+        if( poa.min_r ) { best_fs.add_run( *poa.min_r ); }
       }
       assert_st( per_op_anas.size() == all_wis.size() ); // one-to-one mapping, in order
 
       // find best overall tune. FIXME: deal with differing #s of runs better ... normalize?
-      double min_filt_time = std::numeric_limits<double>::max();
+      
+      filt_score_t const * min_filt_fs = 0;
       string min_filt_tune;
       for( map_str_filt_score_t::const_iterator i = filt_scores.begin(); i != filt_scores.end(); ++i ) {
-        if( i->second.tot_rt_secs < min_filt_time ) { min_filt_time = i->second.tot_rt_secs; min_filt_tune = i->first; }
+        if( (!min_filt_fs) || 
+            (i->second.tot_num > min_filt_fs->tot_num) || // first priority: max # of cases handled without error
+            ( (i->second.tot_num == min_filt_fs->tot_num) && (i->second.tot_rt_secs < min_filt_fs->tot_rt_secs) ) ) {
+          min_filt_fs = &i->second; min_filt_tune = i->first; 
+        }
       }
 
       uint32_t poa_ix = 0;
@@ -293,13 +304,6 @@ namespace boda
         p_op_wisdom_t const & owi = *i;
         per_op_ana_t & poa = per_op_anas[poa_ix];
         printf( "owi->op=%s\n", str(owi->op).c_str() );
-        double per_op_min = NAN;
-        if( poa.min_r ) {
-          op_run_t const & r = *poa.min_r;
-          per_op_min = r.rt_secs;
-          printf( "  PER-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                  str(poa.min_tune).c_str() );
-        }
         double all_op_min = NAN;
         for( vect_p_op_tune_wisdom_t::const_iterator otwi = owi->wisdoms.begin(); otwi != owi->wisdoms.end(); ++otwi ) {
           p_op_tune_t const & op_tune = (*otwi)->op_tune;
@@ -312,8 +316,24 @@ namespace boda
             }
           }
         }
+        double per_op_min = NAN;
+        if( poa.min_r ) {
+          op_run_t const & r = *poa.min_r;
+          per_op_min = r.rt_secs;
+          printf( "  PER-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                  str(poa.min_tune).c_str() );
+        }
+        double per_op_ref = NAN;
+        if( poa.ref_r ) {
+          op_run_t const & r = *poa.ref_r;
+          per_op_ref = r.rt_secs;
+          printf( "  PER-OP REF: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                  str(poa.min_tune).c_str() );
+        }
+
         if( csv_out ) {
-          (*csv_out) << strprintf( "%s %s %s %s\n", str(all_op_min).c_str(), str(per_op_min).c_str(), str(get_op_flops(owi->op)).c_str(),
+          (*csv_out) << strprintf( "%s %s %s %s %s\n", str(all_op_min).c_str(), str(per_op_min).c_str(), str(per_op_ref).c_str(), 
+                                   str(get_op_flops(owi->op)).c_str(),
                                    str(owi->op).c_str() );
         }
       }
