@@ -10,6 +10,10 @@ from scipy import stats
 from matplotlib.patches import Polygon, Circle
 import matplotlib.font_manager as fm
 
+nan = float("nan")
+
+def zero_nan(v): return 0.0 if (v == nan) else v
+
 def latex_float(f):
     float_str = "{0:.2g}".format(f)
     if "e" in float_str:
@@ -21,14 +25,16 @@ def latex_float(f):
 class EffPt( object ):
     def __init__( self, elp ):
         assert len(elp) == 5
-        self.cols = ["varname","rts","flops"] #["varname","bxf","flops","ai","rts"]
-        self.rts = float(elp[1])
+        self.cols = ["flops","aom_rts","pom_rts","ref_rts","opinfo"] #["varname","bxf","flops","ai","rts"]
         self.flops = float(elp[3])
+        self.aom_rts = float(elp[0])
+        self.pom_rts = float(elp[1]) 
+        self.ref_rts = float(elp[2]) 
         self.opinfo = elp[4]
-        self.comp_rtc = float(elp[0]) 
-        self.ref_rtc = float(elp[2]) 
-    def __str__( self ):
+    def __repr__( self ):
         return " ".join( str(col)+"="+str(getattr(self,col)) for col in self.cols )
+    def max_rts( self ):
+        return max(zero_nan(self.aom_rts),zero_nan(self.pom_rts),zero_nan(self.ref_rts))
 
 
 class varinfo( object ):
@@ -45,9 +51,9 @@ class varinfo( object ):
         leg_lab.append( verb_name )
         
 vis = [ 
-    varinfo( "AOM", "cornflowerblue" ),
-    varinfo( "POM", "green" ),
-    varinfo( "REF", "red" ),
+    varinfo( "aom", "cornflowerblue" ),
+    varinfo( "pom", "green" ),
+    varinfo( "ref", "red" ),
 ]        
 vis_map = { vi.name:vi for vi in vis }
 
@@ -58,7 +64,6 @@ def read_eff_file( epts, fn ):
         elps = [ elp.strip() for elp in elps ]
         #print len(elps), elps
         epts.append( EffPt( elps ) )
-        if math.isnan(epts[-1].rts): epts.pop()
 
 def adj_tick_lab( lab ): 
     lt = lab.get_text()
@@ -77,13 +82,6 @@ class EffPlot( object ):
 
     def skip_plot_check_flops_vs_time( self, ept ):
         return 0
-
-
-    def plot_flops_vs_time_pt( self, ax, ept ):
-        vi = vis_map["AOM"]
-        x,y = math.log(ept.flops,10), math.log(ept.rts,10)
-        ax.plot(x, y, color=vi.color, markersize=4, alpha=.7, marker=vi.get_mark(), linestyle=' ' )
-        return x,y
 
     def do_plots( self ):
         # flops vs runtime plot with 60GF/s line
@@ -104,27 +102,45 @@ class EffPlot( object ):
 
         # filter data based on skip check
         self.epts = [ ept for ept in self.epts if not self.skip_plot_check_flops_vs_time( ept ) ]
+
+        # sort data by flops
+        self.epts.sort( key=lambda x: x.flops )
+
+        ixs = [ ix for (ix,ept) in enumerate(self.epts) ]
         
         fig = plt.figure()
+        plt.yscale('log', nonposy='clip')
         ax = fig.add_subplot(111)
+        ax.xaxis.grid(0)
+        ax.xaxis.set_ticks([])
+        #rc('xtick.major',size =0 )
+        #rc('xtick.minor',size =0 )
+
         #formatting:
-        ax.set_title("RUNTIME (seconds) vs \\#-of-FLOPS [log/log scale]",fontsize=12,fontweight='bold')
-        ax.set_xlabel("\\#-of-FLOPS", fontsize=12) # ,fontproperties = font)
+        ax.set_title("Per-Convolution Runtime (seconds) [log scale]",fontsize=12,fontweight='bold')
+        ax.set_xlabel("Convolution index, sorted by \\#-of-FLOPS", fontsize=12) # ,fontproperties = font)
         ax.set_ylabel("RUNTIME (seconds)", fontsize=12) # ,fontproperties = font)
-        x = [ math.log(ept.flops,10) for ept in self.epts ]
-        y = [ math.log(ept.rts,10) for ept in self.epts ]
-        self.set_bnds( ax, x, y )
+
+        #x = [ math.log(ept.flops,10) for ept in self.epts ]
+        #x = [ math.log(ept.flops,10) for ept in self.epts ]
+        # y = [ ept.max_rts() for ept in self.epts ]
+        # self.set_bnds( ax, ixs, y )
 
         # print matplotlib.lines.Line2D.filled_markers 
         # --> (u'o', u'v', u'^', u'<', u'>', u'8', u's', u'p', u'*', u'h', u'H', u'D', u'd')
-        for ept in self.epts: x,y = self.plot_flops_vs_time_pt( ax, ept )
+        num_bars = 1
+        width = 1.0 / (len(vis) + 1 )
+        offset = 0.0
+        for vi in vis:
+            vi_y = [ getattr(ept,vi.name+"_rts") for ept in self.epts ]
+            rects = ax.bar(np.array(ixs) + offset, vi_y, width, log=True, color=vi.color, linewidth=0 ) # note: output rects unused
+            offset += width
+
 
         leg_art = []; leg_lab = []
         for vi in vis: vi.get_leg( leg_art, leg_lab )
         legend = ax.legend(leg_art,leg_lab,loc='lower right', shadow=True, fontsize='small',numpoints=1,ncol=1)
         legend.get_frame().set_facecolor('#eeddcc')
-
-        self.adj_ticks(ax,fig)
 
         fig.savefig( self.args.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
 
@@ -136,22 +152,6 @@ class EffPlot( object ):
         self.y_max = max(y)*1.05
         ax.axis([self.x_min,self.x_max,self.y_min,self.y_max])
 
-        self.data_aspect = float(self.x_max - self.x_min ) / (self.y_max - self.y_min)
-        #self.axis_aspect_rat = .618
-        self.axis_aspect_rat = 1
-        self.axis_aspect = self.axis_aspect_rat * self.data_aspect
-        ax.set_aspect(self.axis_aspect)
-        
-    def adj_ticks( self, ax, fig ):
-        fig.canvas.draw()
-        tls = ax.get_xticklabels()
-        tls = [ adj_tick_lab(lab) for lab in tls ]
-        ax.set_xticklabels( tls )
-
-        tls = ax.get_yticklabels()
-        tls = [ adj_tick_lab(lab) for lab in tls ]
-        ax.set_yticklabels( tls )
-
 
 
 import argparse
@@ -162,13 +162,3 @@ parser.add_argument('--out-fn', metavar="FN", type=str, default="eff", help="bas
 parser.add_argument('--out-fmt', metavar="EXT", type=str, default="png", help="extention/format for output plot image" )
 args = parser.parse_args()
 ep = EffPlot(args)
-
-# example command lines for generating inputs to this script:
-
-# boda on titan-X, optimized variants enabled
-# boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/conv-ops-1-5-20-nin-alex-gn.txt --op-eff-tab-fn=conv-1-5-20-nin-alex-gn-titanX-boda.raw  --rtc='(be=nvrtc)' --gen-data='(type=foo,str_vals=(vi=0.0f,mode=5))' --op-tune='(tconv=1,k1conv=1)' --rtc-comp='(be=nvrtc)'  --max-err=10 --show-rtc-calls=1 --mad-toler=3e-3 --print-format=1 --inc-op-info-in-eff=1
-
-# run on SD820, optimizations enabled, no comparison:
-# export SD820_RTC="rtc=(be=ipc,remote_rtc=(be=ocl,gen_src=1,gen_src_output_dir=/data/local/rtc-gen-src),spawn_str=adb shell LD_LIBRARY_PATH=/data/local/lib /data/local/bin/boda,spawn_shell_escape_args=1,boda_parent_addr=tcp:10.0.0.100:12791)"
-# export OP_TUNE="op_tune=(use_culibs=0,MNt=8:8,MNb=16:16,k1conv=1,tconv=0,Kb=1,vw=8,use_local_mem=2)"
-# boda cnn_op_info --cnn-func-sigs-fn='%(boda_test_dir)'/conv-ops-1-5-20-nin-alex-gn.txt --op-eff-tab-fn=conv-1-5-20-nin-alex-gn-SD820-boda.raw --"${SD820_RTC}" --"${OP_TUNE}" --show-rtc-calls=1 --peak-flops=320e9 --print-format=1 --inc-op-info-in-eff=1

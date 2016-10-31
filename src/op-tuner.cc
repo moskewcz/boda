@@ -309,8 +309,8 @@ namespace boda
           p_op_tune_t const & op_tune = (*otwi)->op_tune;
           for( map_str_op_run_t::const_iterator ri = (*otwi)->runs.begin(); ri != (*otwi)->runs.end(); ++ri ) {
             op_run_t const & r = ri->second;
-            all_op_min = r.rt_secs;
             if( str(op_tune) == str(min_filt_tune) ) {
+              all_op_min = r.rt_secs;
               printf( "  ALL-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
                       str(op_tune).c_str() );
             }
@@ -328,7 +328,7 @@ namespace boda
           op_run_t const & r = *poa.ref_r;
           per_op_ref = r.rt_secs;
           printf( "  PER-OP REF: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                  str(poa.min_tune).c_str() );
+                  ref_tune->c_str() );
         }
 
         if( csv_out ) {
