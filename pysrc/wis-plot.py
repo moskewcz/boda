@@ -23,23 +23,26 @@ def latex_float(f):
         return float_str
 
 class EffPt( object ):
-    def __init__( self, elp ):
-        assert len(elp) == 5
-        self.cols = ["flops","aom_rts","pom_rts","ref_rts","opinfo"] #["varname","bxf","flops","ai","rts"]
-        self.flops = float(elp[3])
-        self.aom_rts = float(elp[0])
-        self.pom_rts = float(elp[1]) 
-        self.ref_rts = float(elp[2]) 
-        self.opinfo = elp[4]
+    def __init__( self, elp, cols ):
+        assert len(elp) == len(cols)
+        assert cols[0] == "OP"
+        assert cols[1] == "FLOPS"
+        self.cols = ["opinfo","flops"]
+        self.data_cols = cols[2:]
+        self.opinfo = elp[0]
+        self.flops = float(elp[1])
+        self.rtss = [ float(p) for p in elp[2:] ]
+
     def __repr__( self ):
-        return " ".join( str(col)+"="+str(getattr(self,col)) for col in self.cols )
+        return " ".join( str(col)+"="+str(getattr(self,col)) for col in self.cols ) + " " + str(self.rtss)
     def max_rts( self ):
-        return max(zero_nan(self.aom_rts),zero_nan(self.pom_rts),zero_nan(self.ref_rts))
+        return max(zero_nan(rts) for rts in self.rtss)
 
 
 class varinfo( object ):
-    def __init__( self, name, color, mark='o', mark_comp='d' ):
+    def __init__( self, name, dix, color, mark='s' ):
         self.name = name
+        self.dix = dix # data index inside EffPt
         self.color = color
         self.mark = mark
         self.art = plt.Line2D((0,0),(0,0), color=self.color, marker=self.mark, linestyle='')
@@ -49,21 +52,19 @@ class varinfo( object ):
         verb_name = "\\verb|"+self.name+"|"
         leg_art.append( self.art) 
         leg_lab.append( verb_name )
-        
-vis = [ 
-    varinfo( "aom", "cornflowerblue" ),
-    varinfo( "pom", "green" ),
-    varinfo( "ref", "red" ),
-]        
-vis_map = { vi.name:vi for vi in vis }
+
+colors = [ "cornflowerblue", "green", "red" ]
+vis = [ ]
 
 def read_eff_file( epts, fn ):
     els = open( fn ).readlines()
-    for el in els:
+    cols = [el.strip() for el in els[0].split(" ")]
+    for dix,col in enumerate(cols[2:]):
+        vis.append( varinfo( col, dix, colors[dix] ) )
+    for el in els[1:]:
         elps = el.split(" ")
         elps = [ elp.strip() for elp in elps ]
-        #print len(elps), elps
-        epts.append( EffPt( elps ) )
+        epts.append( EffPt( elps, cols ) )
 
 def adj_tick_lab( lab ): 
     lt = lab.get_text()
@@ -132,7 +133,7 @@ class EffPlot( object ):
         width = 1.0 / (len(vis) + 1 )
         offset = 0.0
         for vi in vis:
-            vi_y = [ getattr(ept,vi.name+"_rts") for ept in self.epts ]
+            vi_y = [ ept.rtss[vi.dix] for ept in self.epts ]
             rects = ax.bar(np.array(ixs) + offset, vi_y, width, log=True, color=vi.color, linewidth=0 ) # note: output rects unused
             offset += width
 

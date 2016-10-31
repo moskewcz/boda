@@ -253,6 +253,10 @@ namespace boda
       p_istream win = ifs_open( wisdom_in_fn );
       p_ostream csv_out = csv_out_fn ? ofs_open( *csv_out_fn ) : p_ostream();
 
+      // print csv header
+      if( csv_out ) { (*csv_out) << strprintf( "OP FLOPS AOM POM REF\n" ); }
+
+
       regex r_plat( s_plat );
       for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) { 
         owi->kgs.clear(); // no need for kgs
@@ -332,9 +336,8 @@ namespace boda
         }
 
         if( csv_out ) {
-          (*csv_out) << strprintf( "%s %s %s %s %s\n", str(all_op_min).c_str(), str(per_op_min).c_str(), str(per_op_ref).c_str(), 
-                                   str(get_op_flops(owi->op)).c_str(),
-                                   str(owi->op).c_str() );
+          (*csv_out) << strprintf( "%s %s %s %s %s\n", str(owi->op).c_str(), str(get_op_flops(owi->op)).c_str(),
+                                   str(all_op_min).c_str(), str(per_op_min).c_str(), str(per_op_ref).c_str() );
         }
       }
         
