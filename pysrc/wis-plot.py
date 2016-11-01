@@ -11,6 +11,7 @@ from matplotlib.patches import Polygon, Circle
 import matplotlib.font_manager as fm
 
 nan = float("nan")
+from math import isnan
 
 def zero_nan(v): return 0.0 if (v == nan) else v
 
@@ -30,8 +31,7 @@ class EffPt( object ):
 
     def __repr__( self ):
         return "%s %s %s" % (self.opinfo, self.flops, self.rtss)
-    def max_rts( self ):
-        return max(zero_nan(rts) for rts in self.rtss.itervalues())
+    def non_nan_rts( self ): return [rts for rts in self.rtss.itervalues() if not isnan(rts)]
 
 
 class varinfo( object ):
@@ -99,16 +99,21 @@ class EffPlot( object ):
         # convert epts map to list; sort data by flops
         self.epts = self.epts.values()
         self.epts.sort( key=lambda x: x.flops )
-        
         for ix,ept in enumerate(self.epts): ept.ix = ix
-        
+
+        all_rts = []
+        for ept in self.epts: all_rts.extend( ept.non_nan_rts() )
+        floor_log10_min_v = math.floor(math.log(min(all_rts),10))
+        ceil_log10_max_v = math.ceil(math.log(max(all_rts),10))
+        #print floor_log10_min_v, ceil_log10_max_v
+
         fig = plt.figure()
         plt.yscale('log', nonposy='clip')
         ax = fig.add_subplot(111)
         ax.xaxis.grid(0)
         ax.xaxis.set_ticks([])
         #ax.set_autoscaley_on(True)
-        #ax.set_ylim([1e-5,1])
+        ax.set_ylim([10**floor_log10_min_v,10**ceil_log10_max_v])
         #formatting:
         ax.set_title(self.args.title,fontsize=12,fontweight='bold')
         ax.set_xlabel("Individual Convolutions, sorted by \\#-of-FLOPS", fontsize=12) # ,fontproperties = font)
@@ -120,7 +125,7 @@ class EffPlot( object ):
         width = 1.0 / (len(vis) + 1 )
         offset = 0.0
         for vi in vis:
-            vi_data = [ (ept.ix, ept.rtss[vi.name]) for ept in self.epts if ( not math.isnan( ept.rtss.get(vi.name,nan) ) ) ]
+            vi_data = [ (ept.ix, ept.rtss[vi.name]) for ept in self.epts if ( not isnan( ept.rtss.get(vi.name,nan) ) ) ]
             vi_y = [ d[1] for d in vi_data ]
             ixs = [ d[0] for d in vi_data ]
             rects = ax.bar(np.array(ixs) + offset, vi_y, width, log=True, color=vi.color, linewidth=0 ) # note: output rects unused
