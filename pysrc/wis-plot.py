@@ -100,17 +100,15 @@ class EffPlot( object ):
         self.epts = self.epts.values()
         self.epts.sort( key=lambda x: x.flops )
         
-        for ept in self.epts[0:4]:
-            print ept
-
-        ixs = [ ix for (ix,ept) in enumerate(self.epts) ]
+        for ix,ept in enumerate(self.epts): ept.ix = ix
         
         fig = plt.figure()
         plt.yscale('log', nonposy='clip')
         ax = fig.add_subplot(111)
         ax.xaxis.grid(0)
         ax.xaxis.set_ticks([])
-
+        #ax.set_autoscaley_on(True)
+        #ax.set_ylim([1e-5,1])
         #formatting:
         ax.set_title(self.args.title,fontsize=12,fontweight='bold')
         ax.set_xlabel("Individual Convolutions, sorted by \\#-of-FLOPS", fontsize=12) # ,fontproperties = font)
@@ -122,7 +120,9 @@ class EffPlot( object ):
         width = 1.0 / (len(vis) + 1 )
         offset = 0.0
         for vi in vis:
-            vi_y = [ ept.rtss.get( vi.name, nan ) for ept in self.epts ]
+            vi_data = [ (ept.ix, ept.rtss[vi.name]) for ept in self.epts if ( not math.isnan( ept.rtss.get(vi.name,nan) ) ) ]
+            vi_y = [ d[1] for d in vi_data ]
+            ixs = [ d[0] for d in vi_data ]
             rects = ax.bar(np.array(ixs) + offset, vi_y, width, log=True, color=vi.color, linewidth=0 ) # note: output rects unused
             offset += width
 
@@ -131,6 +131,8 @@ class EffPlot( object ):
         legend = ax.legend(leg_art,leg_lab,loc='lower right', shadow=True, fontsize='small',numpoints=1,ncol=1)
         legend.get_frame().set_facecolor('#eeddcc')
 
+        #ax.autoscale_view()
+        #ax.plot()
         fig.savefig( self.args.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
 
 

@@ -204,8 +204,11 @@ namespace boda
            // bases=["has_main_t"], type_id="wis-ana" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="if true, include print results to stdout")
     filename_t wisdom_in_fn; //NESI(help="wisdom input file (to add to, may contain known-good results for checking)",req=1)
     p_filename_t csv_out_fn; //NESI(help="csv output filename")
+    string csv_res_tag; //NESI(default="",help="suffix to add to csv results column names in header line")
+
 
     uint32_t s_img; //NESI(default="0",help="0 == all # of imgs; otherwise, only ops with the specified #")
     string s_plat; //NESI(default=".*",help="regex to select targ plat tag")
@@ -262,9 +265,9 @@ namespace boda
 
       // print csv header
       if( csv_out ) { (*csv_out) << "OP FLOPS"; }
-      if( csv_out && show_aom ) { (*csv_out) << " AOM"; }
-      if( csv_out && show_pom ) { (*csv_out) << " POM"; }
-      if( csv_out && show_ref ) { (*csv_out) << " REF"; }
+      if( csv_out && show_aom ) { (*csv_out) << " AOM" + csv_res_tag; }
+      if( csv_out && show_pom ) { (*csv_out) << " POM" + csv_res_tag; }
+      if( csv_out && show_ref ) { (*csv_out) << " REF" + csv_res_tag; }
       if( csv_out ) { (*csv_out) << "\n"; }
 
       regex r_plat( s_plat );
@@ -317,7 +320,7 @@ namespace boda
       for( by_op_set_p_op_wisdom_t::const_iterator i = all_wis.begin(); i != all_wis.end(); ++i, ++poa_ix ) { 
         p_op_wisdom_t const & owi = *i;
         per_op_ana_t & poa = per_op_anas[poa_ix];
-        printf( "owi->op=%s\n", str(owi->op).c_str() );
+        if( verbose ) { printf( "owi->op=%s\n", str(owi->op).c_str() ); }
         if( csv_out ) { (*csv_out) << strprintf( "%s %s", str(owi->op).c_str(), str(get_op_flops(owi->op)).c_str() ); }
 
         if( show_aom ) {
@@ -328,8 +331,10 @@ namespace boda
               op_run_t const & r = ri->second;
               if( str(op_tune) == str(min_filt_tune) ) {
                 v = r.rt_secs;
-                printf( "  ALL-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                        str(op_tune).c_str() );
+                if( verbose ) { 
+                  printf( "  ALL-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                          str(op_tune).c_str() );
+                }
               }
             }
           }
@@ -340,8 +345,10 @@ namespace boda
           if( poa.min_r ) {
             op_run_t const & r = *poa.min_r;
             v = r.rt_secs;
-            printf( "  PER-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                    str(poa.min_tune).c_str() );
+            if( verbose ) {
+              printf( "  PER-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                      str(poa.min_tune).c_str() );
+            }
           }
           if( csv_out ) { (*csv_out) << strprintf( " %s", str(v).c_str() ); }
         }
@@ -350,8 +357,10 @@ namespace boda
           if( poa.ref_r ) {
             op_run_t const & r = *poa.ref_r;
             v = r.rt_secs;
-            printf( "  PER-OP REF: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                    ref_tune->c_str() );
+            if( verbose ) {
+              printf( "  PER-OP REF: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                      ref_tune->c_str() );
+            }
           }
           if( csv_out ) { (*csv_out) << strprintf( " %s", str(v).c_str() ); }
         }
