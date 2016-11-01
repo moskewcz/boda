@@ -219,6 +219,10 @@ namespace boda
     vect_per_op_ana_t per_op_anas;
     map_str_filt_score_t filt_scores;
 
+    uint32_t show_aom; //NESI(default="1",help="if true, include aom in output")
+    uint32_t show_pom; //NESI(default="1",help="if true, include pom in output")
+    uint32_t show_ref; //NESI(default="1",help="if true, include pom in output")
+
     uint32_t run_wis_plot; //NESI(default="0",help="if true, run wis-plot.py (implicitly on csv output)")
 
 
@@ -257,8 +261,11 @@ namespace boda
       p_ostream csv_out = csv_out_fn ? ofs_open( *csv_out_fn ) : p_ostream();
 
       // print csv header
-      if( csv_out ) { (*csv_out) << strprintf( "OP FLOPS AOM POM REF\n" ); }
-
+      if( csv_out ) { (*csv_out) << "OP FLOPS"; }
+      if( csv_out && show_aom ) { (*csv_out) << " AOM"; }
+      if( csv_out && show_pom ) { (*csv_out) << " POM"; }
+      if( csv_out && show_ref ) { (*csv_out) << " REF"; }
+      if( csv_out ) { (*csv_out) << "\n"; }
 
       regex r_plat( s_plat );
       for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) { 
@@ -311,42 +318,49 @@ namespace boda
         p_op_wisdom_t const & owi = *i;
         per_op_ana_t & poa = per_op_anas[poa_ix];
         printf( "owi->op=%s\n", str(owi->op).c_str() );
-        double all_op_min = NAN;
-        for( vect_p_op_tune_wisdom_t::const_iterator otwi = owi->wisdoms.begin(); otwi != owi->wisdoms.end(); ++otwi ) {
-          p_op_tune_t const & op_tune = (*otwi)->op_tune;
-          for( map_str_op_run_t::const_iterator ri = (*otwi)->runs.begin(); ri != (*otwi)->runs.end(); ++ri ) {
-            op_run_t const & r = ri->second;
-            if( str(op_tune) == str(min_filt_tune) ) {
-              all_op_min = r.rt_secs;
-              printf( "  ALL-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                      str(op_tune).c_str() );
+        if( csv_out ) { (*csv_out) << strprintf( "%s %s", str(owi->op).c_str(), str(get_op_flops(owi->op)).c_str() ); }
+
+        if( show_aom ) {
+          double v = NAN;
+          for( vect_p_op_tune_wisdom_t::const_iterator otwi = owi->wisdoms.begin(); otwi != owi->wisdoms.end(); ++otwi ) {
+            p_op_tune_t const & op_tune = (*otwi)->op_tune;
+            for( map_str_op_run_t::const_iterator ri = (*otwi)->runs.begin(); ri != (*otwi)->runs.end(); ++ri ) {
+              op_run_t const & r = ri->second;
+              if( str(op_tune) == str(min_filt_tune) ) {
+                v = r.rt_secs;
+                printf( "  ALL-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                        str(op_tune).c_str() );
+              }
             }
           }
+          if( csv_out ) { (*csv_out) << strprintf( " %s", str(v).c_str() ); }
         }
-        double per_op_min = NAN;
-        if( poa.min_r ) {
-          op_run_t const & r = *poa.min_r;
-          per_op_min = r.rt_secs;
-          printf( "  PER-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                  str(poa.min_tune).c_str() );
+        if( show_pom ) {
+          double v = NAN;
+          if( poa.min_r ) {
+            op_run_t const & r = *poa.min_r;
+            v = r.rt_secs;
+            printf( "  PER-OP MIN: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                    str(poa.min_tune).c_str() );
+          }
+          if( csv_out ) { (*csv_out) << strprintf( " %s", str(v).c_str() ); }
         }
-        double per_op_ref = NAN;
-        if( poa.ref_r ) {
-          op_run_t const & r = *poa.ref_r;
-          per_op_ref = r.rt_secs;
-          printf( "  PER-OP REF: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
-                  ref_tune->c_str() );
+        if( show_ref ) {
+          double v = NAN;
+          if( poa.ref_r ) {
+            op_run_t const & r = *poa.ref_r;
+            v = r.rt_secs;
+            printf( "  PER-OP REF: r.be_plat_tag=%s r.rt_secs=%s min_tune=%s\n", str(r.be_plat_tag).c_str(), str(r.rt_secs).c_str(), 
+                    ref_tune->c_str() );
+          }
+          if( csv_out ) { (*csv_out) << strprintf( " %s", str(v).c_str() ); }
         }
-
-        if( csv_out ) {
-          (*csv_out) << strprintf( "%s %s %s %s %s\n", str(owi->op).c_str(), str(get_op_flops(owi->op)).c_str(),
-                                   str(all_op_min).c_str(), str(per_op_min).c_str(), str(per_op_ref).c_str() );
-        }
+        if( csv_out ) { (*csv_out) << "\n"; }
       }
-      
+      if( csv_out ) { csv_out.reset(); } // flush/close
       if( run_wis_plot ) {
         string const title_str = strprintf( "%s (FWD-only, %s Images)", str(s_plat).c_str(), str(s_img).c_str() );
-        string const cmd = "python ../../pysrc/wis-plot.py --title=\""+title_str+"\"";
+        string const cmd = "python ../../pysrc/wis-plot.py --title=\""+title_str+"\" out.csv";
         run_system_cmd( cmd, 1 );
       }
     }
