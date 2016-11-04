@@ -2,6 +2,7 @@ from matplotlib import rc
 rc('text', usetex=True) # this is if you want to use latex to print text. If you do you can create strings that go on labels or titles like this for example (with an r in front): r"$n=$ " + str(int(n))
 from numpy import *
 from pylab import *
+import re
 import random
 from matplotlib.font_manager import FontProperties
 import matplotlib.pyplot as plt
@@ -16,7 +17,7 @@ from math import isnan
 def zero_nan(v): return 0.0 if (v == nan) else v
 
 def latex_float(f):
-    float_str = "{0:.2g}".format(f)
+    float_str = "{0:.3g}".format(f)
     if "e" in float_str:
         base, exponent = float_str.split("e")
         return r"{0} \times 10^{{{1}}}".format(base, int(exponent))
@@ -111,7 +112,7 @@ class EffPlot( object ):
         #for ept in self.epts[0:25]: print ept
         self.epts = [ ept for ept in self.epts if (ept.flops > self.args.min_flops) ]
         for ix,ept in enumerate(self.epts): ept.ix = ix
-
+        #for ept in self.epts: print "FLOPS={0:.3g}".format(ept.flops), re.compile("tn=none,").sub("",ept.opinfo)
         all_rts = []
         for ept in self.epts: all_rts.extend( ept.non_nan_rts() )
         # nearest power-of-10 bounds:
