@@ -128,6 +128,7 @@ class EffPlot( object ):
         ax = fig.add_subplot(111)
         ax.tick_params( which="both", direction="out", top="off", right="off" )
         ax.tick_params( which="minor", left="off" )
+        ax.tick_params( which="major", labelsize=8 )
 
         ax.xaxis.grid(0)
         if (ceil_log10_max_v - floor_log10_min_v) > 3.5: ax.yaxis.grid(0,which="minor")
@@ -140,8 +141,9 @@ class EffPlot( object ):
         #formatting:
         #ax.set_title(self.args.title,fontsize=12,fontweight='bold')
         ax.set_xlabel("FLOPS", fontsize=8) # ,fontproperties = font)
-        ax.set_ylabel("Seconds", fontsize=8) # ,fontproperties = font)
-
+        ax.xaxis.set_label_coords(.97, -.05)
+        ax.set_ylabel("Secs", fontsize=8) # ,fontproperties = font)
+        ax.yaxis.set_label_coords(-.02, .97)
         # print matplotlib.lines.Line2D.filled_markers 
         # --> (u'o', u'v', u'^', u'<', u'>', u'8', u's', u'p', u'*', u'h', u'H', u'D', u'd')
         num_bars = 1
@@ -161,7 +163,7 @@ class EffPlot( object ):
 
         #ax.autoscale_view()
         #ax.plot()
-        fig.set_size_inches(6.5, 9.5/4.0)
+        fig.set_size_inches(6.5, 9.5/5.0)
         fig.savefig( self.args.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
 
 
