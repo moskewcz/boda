@@ -32,6 +32,13 @@ class figgen_t( object ):
             "python ../../pysrc/wis-plot.py out-tit-ocl-5-pom.csv out-tit-nvrtc-5-pom.csv --out-fn=%(out_fn)s --out-fmt=pdf --title='OpenCL vs CUDA(nvrtc) Speed on NVIDIA Titan-X(Maxwell)'",
         ]
         run_cmds( cmds, fmt_data )
+        fmt_data["out_fn"] = ospj(self.args.out_dir,"sd820-tune") # generate SD820 tuning figure
+        cmds = [
+            "boda wis-ana %(wis)s %(s_img)s --s-plat='Adreno' --csv-out-fn=out-adreno.csv --show-ref=0 --show-aom=0",
+            "boda wis-ana %(wis)s %(s_img)s --s-plat='Adreno' --csv-out-fn=out-adreno-nvtune.csv --show-ref=1 --show-aom=0 --show-pom=0 --ref-tune='(use_be=ocl)'",
+            "python ../../pysrc/wis-plot.py out-adreno.csv out-adreno-nvtune.csv --out-fn=%(out_fn)s --out-fmt=pdf --title='Tuned and Autotuned Speed on Qualcomm Snapdragon 820'" ]
+        run_cmds( cmds, fmt_data )
+
         fmt_data["out_fn"] = ospj(self.args.out_dir,"fiji-tune") # generate AMD tuning figure
         cmds = [
             "boda wis-ana %(wis)s %(s_img)s --s-plat='Fiji' --csv-out-fn=out-fiji.csv --show-ref=0",
@@ -39,7 +46,7 @@ class figgen_t( object ):
         run_cmds( cmds, fmt_data )
         fmt_data["out_fn"] = ospj(self.args.out_dir, "titan-tune") # generate NVIDIA tuning figure
         cmds = [
-            "boda wis-ana %(wis)s %(s_img)s %(cudnn_ref)s --s-plat='nvrtc.*TITAN' --csv-out-fn=out-titan.csv --show-ref=1",
+            "boda wis-ana %(wis)s %(s_img)s %(cudnn_ref)s --s-plat='nvrtc.*TITAN' --csv-out-fn=out-titan.csv --show-ref=1 --show-aom=0",
             "python ../../pysrc/wis-plot.py out-titan.csv --out-fn=%(out_fn)s --out-fmt=pdf --title='Tuned, Autotuned, and Reference(cuDNNv5) Speed on NVIDIA Titan-X(Maxwell)'" ]
         run_cmds( cmds, fmt_data )
         fmt_data["out_fn"] = ospj(self.args.out_dir,"all-plats") # generate all-plats figure
