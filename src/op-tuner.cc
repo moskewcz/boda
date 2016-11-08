@@ -1,5 +1,6 @@
 // Copyright (c) 2015, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
+#include"latex-util.H"
 #include"op-tuner.H"
 #include"str_util.H"
 #include"nesi.H"
@@ -207,7 +208,7 @@ namespace boda
     uint32_t verbose; //NESI(default="0",help="if true, include print results to stdout")
     filename_t wisdom_in_fn; //NESI(help="wisdom input file (to add to, may contain known-good results for checking)",req=1)
     p_filename_t csv_out_fn; //NESI(help="csv output filename")
-    string csv_res_tag; //NESI(default="",help="suffix to add to csv results column names in header line")
+    p_filename_t ops_out_fn; //NESI(help="ops output filename (same order as .csv)")
 
 
     uint32_t s_img; //NESI(default="0",help="0 == all # of imgs; otherwise, only ops with the specified #")
@@ -223,11 +224,15 @@ namespace boda
     map_str_filt_score_t filt_scores;
 
     uint32_t show_aom; //NESI(default="1",help="if true, include aom in output")
+    string   aom_tag; //NESI(default="boda-manual-tune",help="tag to use for AOM in csv results column names in header line")
     uint32_t show_pom; //NESI(default="1",help="if true, include pom in output")
+    string   pom_tag; //NESI(default="boda-autotuned",help="tag to use for AOM in csv results column names in header line")
     uint32_t show_ref; //NESI(default="1",help="if true, include pom in output")
+    string   ref_tag; //NESI(default="REF",help="tag to use for AOM in csv results column names in header line")
 
     uint32_t run_wis_plot; //NESI(default="0",help="if true, run wis-plot.py (implicitly on csv output)")
 
+    double min_flops; //NESI(default="0",help="include only ops with >= min_flops flops")
 
     uint32_t get_tix( op_tune_t const & ot ) { return op_tunes.insert( make_pair( str(ot), op_tunes.size()+1 ) ).first->second; }
 
@@ -262,18 +267,21 @@ namespace boda
     virtual void main( nesi_init_arg_t * nia ) {
       p_istream win = ifs_open( wisdom_in_fn );
       p_ostream csv_out = csv_out_fn ? ofs_open( *csv_out_fn ) : p_ostream();
+      p_ostream ops_out = ops_out_fn ? ofs_open( *ops_out_fn ) : p_ostream();
 
       // print csv header
       if( csv_out ) { (*csv_out) << "OP FLOPS"; }
-      if( csv_out && show_aom ) { (*csv_out) << " AOM" + csv_res_tag; }
-      if( csv_out && show_pom ) { (*csv_out) << " POM" + csv_res_tag; }
-      if( csv_out && show_ref ) { (*csv_out) << " REF" + csv_res_tag; }
+      if( csv_out && show_aom ) { (*csv_out) << " " + aom_tag; }
+      if( csv_out && show_pom ) { (*csv_out) << " " + pom_tag; }
+      if( csv_out && show_ref ) { (*csv_out) << " " + ref_tag; }
       if( csv_out ) { (*csv_out) << "\n"; }
 
       regex r_plat( s_plat );
       for( p_op_wisdom_t owi; owi = read_next_wisdom( win ); ) { 
-        owi->kgs.clear(); // no need for kgs
         if( s_img && (owi->op->get_dims("in").dsz("img") != s_img) ) { continue; } // filter by # imgs (permanent)
+        if( !(get_op_flops(owi->op) >= min_flops ) ) { continue; } // filter by min_flops (permanent)
+
+        owi->kgs.clear(); // no need for kgs
         std::pair<by_op_set_p_op_wisdom_t::iterator,bool> ins_ret = all_wis.insert( owi );
         assert_st( ins_ret.second ); // should be no dupe ops
         filter_runs( **ins_ret.first, r_plat );
@@ -322,6 +330,12 @@ namespace boda
         per_op_ana_t & poa = per_op_anas[poa_ix];
         if( verbose ) { printf( "owi->op=%s\n", str(owi->op).c_str() ); }
         if( csv_out ) { (*csv_out) << strprintf( "%s %s", str(owi->op).c_str(), str(get_op_flops(owi->op)).c_str() ); }
+        if( ops_out ) {
+          conv_op_info_to_latex_t to_latex;
+          p_conv_op_base_t conv_op = make_shared< conv_op_base_t >( *owi->op );
+          to_latex.init( conv_op, 1, 1, 0 );
+          to_latex.info_row( ops_out.get() );
+        }
 
         if( show_aom ) {
           double v = NAN;
