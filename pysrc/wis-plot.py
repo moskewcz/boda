@@ -51,8 +51,8 @@ class varinfo( object ):
         leg_lab.append( verb_name )
 
 #colors = [ "#F6B26B", "#93C47D", "#CFE2F3", "cornflowerblue", "green", "red","black","yellow","purple" ] # matches paper figure colors
-colors = [ "#7070F3", "#F6B26B", "#93C47D", "cornflowerblue", "green", "red","black","yellow","purple" ]
-colors = [ "#A4C2F4", "#F6B26B", "#54873D" ]
+#colors = [ "#7070F3", "#F6B26B", "#93C47D", "cornflowerblue", "green", "red","black","yellow","purple" ]
+colors = [ "#5699D5", "#F6B26B", "#54873D" ]
 
 vis = [ ]
 
@@ -158,7 +158,7 @@ class EffPlot( object ):
 
         leg_art = []; leg_lab = []
         for vi in vis: vi.get_leg( leg_art, leg_lab )
-        legend = ax.legend(leg_art,leg_lab,loc='upper left', shadow=True, fontsize='small',numpoints=1,ncol=1)
+        legend = ax.legend(leg_art,leg_lab,loc='best', shadow=True, fontsize='7',numpoints=1,ncol=1)
         legend.get_frame().set_facecolor('#eeddcc')
 
         #ax.autoscale_view()
