@@ -152,8 +152,9 @@ class EffPlot( object ):
         for vi in vis:
             vi_data = [ (ept.ix, ept.rtss[vi.name]) for ept in self.epts if ( not isnan( ept.rtss.get(vi.name,nan) ) ) ]
             vi_y = [ d[1] for d in vi_data ]
+            vi_bot_y = [ 10**floor_log10_min_v for d in vi_data ] # set min y val manually (to avoid .svg clipping issue)
             ixs = [ d[0] for d in vi_data ]
-            rects = ax.bar(np.array(ixs) + offset, vi_y, width, log=True, color=vi.color, linewidth=0 ) # note: output rects unused
+            rects = ax.bar(np.array(ixs) + offset, vi_y, width, bottom=vi_bot_y, log=True, color=vi.color, linewidth=0 ) # note: output rects unused
             offset += width
 
         leg_art = []; leg_lab = []
