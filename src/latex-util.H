@@ -30,7 +30,7 @@ namespace boda
     uint32_t inc_op_info_in_eff;
     bool show_bytes_and_ai;
     // locally override the global pp_foo() function with member functions that can control formatting
-    uint32_t print_format;
+    uint32_t print_format; // 0: pretty, 1: raw, 2: raw-with-less-decimals-hack-for-info
 #define PP_FMT( t ) string pp_##t( double const v ) const { return (print_format == 0) ? boda::pp_##t( v ) : str(v); }
     PP_FMT( bytes ) PP_FMT( flops ) PP_FMT( val ) PP_FMT( secs ) PP_FMT( fps ) PP_FMT( bps )
 #undef PP_FMT
@@ -49,13 +49,18 @@ namespace boda
         (*out) << strprintf( " %s & %s & %s & %s ", mkn_str(M,K,N).c_str(), 
                              pp_bytes(forward_bytes).c_str(), pp_flops(forward_flops).c_str(), pp_val(ai).c_str() );
       } else { // flops only
-        (*out) << strprintf( " %s ", pp_flops(forward_flops).c_str() );
+        if( print_format == 2 ) {
+          (*out) << strprintf( "%.3g", double(forward_flops) ); // FIXME/HACK: only place print_format == 2 is checked ...
+        } else {
+          (*out) << strprintf( " %s ", pp_flops(forward_flops).c_str() );
+        }
       }
     }
-    void info_row( std::ostream * const out ) {
+    void info_row( std::ostream * const out, bool const & brief ) {
       base_info( out );
       if( op->is( Convolution_coi ) ) {
-	(*out) << strprintf( " & %s & %s & %s & ", str(B).c_str(), dims_yxc_str(din).c_str(), dims_yxc_str(dout).c_str() );
+	(*out) << strprintf( " & %s & %s & ", str(B).c_str(), dims_yxc_str(din).c_str() );
+        if( !brief ) { (*out) << strprintf( "%s & ", dims_yxc_str(dout).c_str() ); }
       }
       ai_mkn_row( out );
       (*out) << "\\\\ " << std::endl;

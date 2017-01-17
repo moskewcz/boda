@@ -209,7 +209,7 @@ namespace boda
     filename_t wisdom_in_fn; //NESI(help="wisdom input file (to add to, may contain known-good results for checking)",req=1)
     p_filename_t csv_out_fn; //NESI(help="csv output filename")
     p_filename_t ops_out_fn; //NESI(help="ops output filename (same order as .csv)")
-
+    uint32_t ops_out_brief; //NESI(default="0",help="if 1, use brief(er) ops output format")
 
     uint32_t s_img; //NESI(default="0",help="0 == all # of imgs; otherwise, only ops with the specified #")
     string s_plat; //NESI(default=".*",help="regex to select targ plat tag")
@@ -333,8 +333,8 @@ namespace boda
         if( ops_out ) {
           conv_op_info_to_latex_t to_latex;
           p_conv_op_base_t conv_op = make_shared< conv_op_base_t >( *owi->op );
-          to_latex.init( conv_op, 1, 1, 0 );
-          to_latex.info_row( ops_out.get() );
+          to_latex.init( conv_op, 2, 1, 0 );
+          to_latex.info_row( ops_out.get(), ops_out_brief );
         }
 
         if( show_aom ) {

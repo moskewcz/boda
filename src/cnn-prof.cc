@@ -80,7 +80,7 @@ namespace boda
       conv_op_info_to_latex_t to_latex;
       to_latex.init( op, print_format, inc_op_info_in_eff, 1 );
       if( op_tune.prof_variant ) { to_latex.emit_bw = 1; } // HACK; see comment in conv_op_info_to_latex_t
-      if( oit_out ) { to_latex.info_row( oit_out.get() ); }
+      if( oit_out ) { to_latex.info_row( oit_out.get(), 0 ); } // note: always use non-brief info here
 
       if( rtc_comp ) { vs1->clear(); vs2->clear(); }
       // create rtc op
