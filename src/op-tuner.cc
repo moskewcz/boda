@@ -268,7 +268,7 @@ namespace boda
       p_istream win = ifs_open( wisdom_in_fn );
       p_ostream csv_out = csv_out_fn ? ofs_open( *csv_out_fn ) : p_ostream();
       p_ostream ops_out = ops_out_fn ? ofs_open( *ops_out_fn ) : p_ostream();
-
+      uint64_t tot_runs = 0;
       // print csv header
       if( csv_out ) { (*csv_out) << "OP FLOPS"; }
       if( csv_out && show_aom ) { (*csv_out) << " " + aom_tag; }
@@ -303,6 +303,7 @@ namespace boda
               assert_st( !poa.ref_r ); // should be no dupe runs (i.e. only one-plat filts supported)
               poa.ref_r = &r;
             } else {
+              ++tot_runs;
               filt_scores[op_tune_str].add_run( r );
               if( r.rt_secs < min_time ) { min_time = r.rt_secs; poa.min_r = &r; poa.min_tune = op_tune;}
             }
@@ -386,6 +387,7 @@ namespace boda
         string const cmd = "python ../../pysrc/wis-plot.py --title=\""+title_str+"\" out.csv";
         run_system_cmd( cmd, 1 );
       }
+      printf( "tot_runs=%s\n", str(tot_runs).c_str() );
     }
   };
 
