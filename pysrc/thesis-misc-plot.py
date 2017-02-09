@@ -34,7 +34,8 @@ colors = [ "#5699D5", "#F6B26B", "#54873D" ] # light-ish blue, medium yellow, da
 
 vis = [ ]
 
-        
+from scipy.ndimage.filters import maximum_filter, convolve
+
 class MiscPlot( object ):
     def __init__( self, args ):
         self.args = args
@@ -101,10 +102,28 @@ class MiscPlot( object ):
             img_sep = np.array(img)
             for c in range(img_sep.shape[2]):
                 if c == cix: continue
-                img_sep[:,:,c] = np.zeros(img_sep.shape[:1])
-            ax.set_title("RGB"[cix])
+                img_sep[:,:,c] = img_sep[:,:,cix] #np.zeros(img_sep.shape[:1]) 
+            ax.set_title(("RED","GREEN","BLUE")[cix])
             ax.imshow(img_sep,interpolation="nearest")
 
+        plt.tight_layout(w_pad=3)
+        fig.savefig( self.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
+        plt.close()
+        return
+
+    def rgb_robot_pool( self ):
+        fig, (ax,ax_mp,ax_ap) = plt.subplots(1,3)
+        ax.set_title("RED")
+        img = mpimg.imread("../../test/robot.png")
+        img = img[15:300:30,15:300:30,0]
+        #print img
+        ax.imshow(img,cmap="gray",interpolation="nearest")
+        img_mp = maximum_filter( img, footprint=np.ones((3,3)), mode="constant" )
+        ax_mp.set_title("MAX-POOL")
+        ax_mp.imshow(img_mp,cmap="gray",interpolation="nearest")
+        img_ap = convolve( img, np.ones((3,3))/9, mode="constant" ) # FIXME: debatably not 'right' on borders ...
+        ax_ap.set_title("AVG-POOL")
+        ax_ap.imshow(img_ap,cmap="gray",interpolation="nearest")
         plt.tight_layout(w_pad=3)
         fig.savefig( self.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
         plt.close()
