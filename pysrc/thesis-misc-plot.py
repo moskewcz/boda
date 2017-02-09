@@ -10,6 +10,7 @@ import matplotlib
 from matplotlib.font_manager import FontProperties
 import matplotlib.pyplot as plt
 import matplotlib.lines as lns
+import matplotlib.image as mpimg
 from scipy import stats
 from matplotlib.patches import Polygon, Circle
 import matplotlib.font_manager as fm
@@ -37,18 +38,6 @@ vis = [ ]
 class MiscPlot( object ):
     def __init__( self, args ):
         self.args = args
-        self.do_plots()
-
-    def do_plots( self ):
-
-        #
-        # python code to plot nonlinearity functions
-        # written 2015 by Dan Stowell, dedicated to the public domain
-        #plt.rcParams.update({'font.size': 12})
-
-
-        evalpoints = np.linspace(-4, 4, 51)
-
         params = {
             'font.size': 12,
            'axes.labelsize': 12,
@@ -61,9 +50,19 @@ class MiscPlot( object ):
            'lines.markersize': 4,
         }
         plt.rcParams.update(params)
-        #plt.figure(frameon=False)
-        #plt.axes(frameon=0)
+        for figname in args.fignames:
+            self.out_fn = self.args.out_fn # may be none, if so, use default
+            if self.out_fn is None: self.out_fn = figname
+            ffn = "".join([ (ch if ch != "-" else "_") for ch in figname ])
+            fig_func = getattr(self,ffn)
+            fig_func()
+
+    def tanh_and_relu( self ):
+        #
+        # python code to plot nonlinearity functions
+        # written 2015 by Dan Stowell, dedicated to the public domain
         fig, (ax1,ax2) = plt.subplots(1,2)
+        evalpoints = np.linspace(-4, 4, 51)
         nlfuns = {
                 'tanh':     (ax1,'b', '', lambda x: np.tanh(x)),
                 'ReLU':     (ax2,'b', '', lambda x: np.maximum(0, x)),
@@ -85,36 +84,38 @@ class MiscPlot( object ):
                 ax.yaxis.set_label_coords(-0.15,0.5)
         plt.tight_layout(w_pad=3)
         #plt.legend(loc='upper left', frameon=False)
-        fig.savefig( self.args.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
+        fig.savefig( self.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
         #plt.savefig('tanh-and-relu.pdf')
         plt.close()
         return
 
-        #background_color =(0.85,0.85,0.85) #'#C0C0C0'    
-        #grid_color = 'white' #FAFAF7'
-        background_color = "#ffffff"
-        grid_color = 'black'
-        rc('axes', facecolor = background_color)
-        rc('axes', edgecolor = grid_color)
-        #rc('axes', linewidth = 1.2)
-        rc('axes', linewidth = 0.6)
-        rc('axes', grid = True )
-        rc('axes', axisbelow = True)
-        rc('grid',color = grid_color)
-        rc('grid',linestyle='-' )
-        #rc('grid',linewidth=0.7 )
-        rc('grid',linewidth=0.3 )
-        #rc('xtick.major',size =0 )
-        #rc('xtick.minor',size =0 )
-        #rc('ytick.major',size =0 )
-        #rc('ytick.minor',size =0 )
+    def rgb_robot( self ):
+        fig, (ax_rgb,ax_r,ax_g,ax_b) = plt.subplots(1,4)
+        ax_rgb.set_title("RGB")
+        img = mpimg.imread("../../test/robot.png")
+        img = img[15:300:30,15:300:30,:]
+        ax_sep = [ax_r,ax_g,ax_b]
+        #print img
+        ax_rgb.imshow(img,interpolation="nearest")
+        for cix,ax in enumerate(ax_sep):
+            img_sep = np.array(img)
+            for c in range(img_sep.shape[2]):
+                if c == cix: continue
+                img_sep[:,:,c] = np.zeros(img_sep.shape[:1])
+            ax.set_title("RGB"[cix])
+            ax.imshow(img_sep,interpolation="nearest")
 
+        plt.tight_layout(w_pad=3)
+        fig.savefig( self.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
+        plt.close()
+        return
 
 
 
 import argparse
 parser = argparse.ArgumentParser(description='Create eff plots.')
-parser.add_argument('--out-fn', metavar="FN", type=str, default="out", help="base filename of output plot image" )
+parser.add_argument('--out-fn', metavar="FN", type=str, help="override filename of output plot image" )
 parser.add_argument('--out-fmt', metavar="EXT", type=str, default="pdf", help="extention/format for output plot image" )
+parser.add_argument('fignames', metavar="FIGS", type=str, nargs="+", help="name(s) of figure(s) to create" )
 args = parser.parse_args()
 ep = MiscPlot(args)
