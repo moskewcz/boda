@@ -30,6 +30,14 @@ See the [INSTALL.md](INSTALL.md) file.
 [Boda Poster Preview Slides](https://docs.google.com/presentation/d/170rZ7dDnMdc6VgTjfnZsWJcAuBr0x2m6RZxqkz08EfY/edit?usp=sharing)
 [Boda Poster](https://drive.google.com/open?id=0B2T3gdjZVy_RVXRYNW9zbnA1eHM)
 
+### Getting Started
+
+There are 3 main config files for you to edit:
+
+1. `cp mwm_boda_cfg.xml lib/boda_cfg.xml`. At the minimum, you should probably set: home_dir, caffe_dir, and models_dir. Others are mostly optional.
+2. `obj_list`. This is where you control what software to link with. For example, to disable Caffe integration, change `[caffe]` to `[caffe disable]`. Modify the paths as needed.
+3. `boda_env.sh` This is where you specify environment variables, such as the location of the `boda` binary and the locations of libs like `libcaffe.so`. This is optional -- if you have a different strategy for managing environment variables, that's fine too.
+
 #### May 2014 Poster
 [Boda Poster Preview Slides](https://docs.google.com/presentation/d/1kvyTOTBpmslKcxvPl4QF8NYlAbGriYA8IYOPL_dkSfw/edit?usp=sharing)
 [Boda Poster](https://drive.google.com/file/d/0B2T3gdjZVy_RT1N6SkVoNFp1SmM/edit?usp=sharing)
