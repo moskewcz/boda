@@ -16,6 +16,9 @@ moskewcz@maaya:~/scratch$ adb forward tcp:5039 tcp:5039
 # start debugging session on maaya (via port forward to bitter)
 moskewcz@maaya:~/scratch$ /scratch/moskewcz/android/crys-android-tc/bin/aarch64-linux-android-gdb ~/git_work/boda_android/lib/boda -ex "target remote :5039"
 
+# updated gdb example 2017-03-26 (commit this somewhere), reflects using updated 'obj2' build method for boda and setting sysroot to avoid long device->host copies of system libs:
+moskewcz@maaya:/tmp$ /scratch/android-stc/bin/aarch64-linux-android-gdb ~/git_work/boda/obj2/boda -ex "set sysroot /scratch/moskewcz/android/sysroot_msm8996" -ex "target remote :5039"
+
 #building boost using android NDK: see http://stackoverflow.com/questions/30491158/compile-and-use-boost-for-android-ndk-r10e/35922934#35922934
 
 # configure/compile google sparsehash
