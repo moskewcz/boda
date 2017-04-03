@@ -1,0 +1,141 @@
+-- at the top level, we run the following command, and inspect the out_0.cu and out_0.ptx files:
+moskewcz@maaya:~/git_work/boda/run/tr4$ boda cnn_op_info --op-tune='(use_be=nvrtc,k1conv=1,tconv=1)' --rtc='(be=nvrtc,gen_src=1)'
+
+-- the correstponding first operation from test/conv-ops-tiny.txt (the default ops input file for cnn_op_info):
+(
+  str_vals=(type=Convolution),
+  nda_vals=(
+    biases=(dims=(out_chan=256)),
+    filts=(dims=(out_chan=256,in_chan=256,y=1,x=1)),
+    in=(dims=(img=5,chan=256,y=27,x=27)),
+    in_pad=(tn=none,dims=(y=0,x=0)),
+    kern_sz=(tn=none,dims=(y=1,x=1)),
+    out=(dims=(img=5,chan=256,y=27,x=27)),
+    out_chans=(tn=uint32_t,v=256),
+    stride=(tn=none,dims=(y=1,x=1))))
+note: also, a RELU activation operation on the output is added and fused, as this is common usage.
+
+-- for running on titan X using nvrtc(CUDA), and here is the annoted op after variant-selection/tuning. note that k1conv variant is selected with default-for-NVIDIA blocking parameters.
+
+(
+  str_vals=(func_name=k1conv,type=Convolution),
+  nda_vals=(
+    biases=(dims=(out_chan=256)),
+    conv_has_relu=(tn=uint32_t,v=1),
+    filts=(dims=(out_chan_blk=2,in_chan=256,y=1,x=1,out_chan_reg=8,out_chan_tile=16)),
+    filts_ref=(dims=(out_chan=256,in_chan=256,y=1,x=1)),
+    flags=(tn=uint32_t),
+    in=(dims=(blk=57,blk_iter=32,blk_iter_chan=8,blk_pel=64)),
+    in_pad=(tn=none,dims=(y=0,x=0)),
+    in_ref=(dims=(img=5,chan=256,y=27,x=27)),
+    kern_sz=(tn=none,dims=(y=1,x=1)),out=(dims=(img=5,chan=256,y=27,x=27)),
+    out_chans=(tn=uint32_t,v=256),
+    out_ref=(dims=(img=5,chan=256,y=27,x=27)),
+    stride=(tn=none,dims=(y=1,x=1)),
+    work=(tn=none,dims=(pels_blk=57,out_chan_blk=2,pels_tile=8,out_chan_tile=16,pels=8,out_chan=8))))
+
+-- looking at the file in rtc-gen-src/out_0.cu, we inspect the generated CUCL code (post template expansion) for the global-to-shared-memory load for the input data. note the lack of loops/conditionals:
+
+metacode:
+      // generate smem loads
+      gen_filts_smem_loads( rcg, filts_smem_sz );
+      uint32_t const in_smem_load_iter = u32_ceil_div( in.dstride("blk_iter"), rcg->rtc_call_geom.tpb );    
+      for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
+	string const ixe = "(LOC_ID_1D + %(tpb) * "+str(i)+")";
+	string eif;
+	if( (i+1)*rcg->rtc_call_geom.tpb > in.dstride("blk_iter") ) { rcg->line( "smem_loads", "if( "+ixe+" < %(in_blk_iter_stride)) { ");eif = "}";}
+	rcg->line( "smem_loads", strprintf("    in_smem[%s] = in[ blk_in_ix_base + (%%(tpb)*%s) ];%s\n",
+					     ixe.c_str(),str(i).c_str(),eif.c_str()) );
+      }
+
+original CUCL code (just a template variable to be filled in by the metacode):
+   %(smem_loads);
+
+generated CUCL for smem loads:
+    // begin smem_loads
+       in_smem[(LOC_ID_1D + 128 * 0)] = in[ blk_in_ix_base + (128*0) ];
+       in_smem[(LOC_ID_1D + 128 * 1)] = in[ blk_in_ix_base + (128*1) ];
+       in_smem[(LOC_ID_1D + 128 * 2)] = in[ blk_in_ix_base + (128*2) ];
+       in_smem[(LOC_ID_1D + 128 * 3)] = in[ blk_in_ix_base + (128*3) ];
+    // end smem_loads
+
+when compiled, this yields following ptx in inner (and only) loop:
+...
+	mul.wide.s32 	%rd26, %r249, 4;
+	add.s64 	%rd27, %rd2, %rd26;
+	ld.global.nc.f32 	%f209, [%rd27];
+	ld.global.nc.f32 	%f210, [%rd27+512];
+	ld.global.nc.f32 	%f211, [%rd27+1024];
+	ld.global.nc.f32 	%f212, [%rd27+1536];
+	st.shared.f32 	[%rd7+4096], %f209;
+	st.shared.f32 	[%rd7+4608], %f210;
+	st.shared.f32 	[%rd7+5120], %f211;
+	st.shared.f32 	[%rd7+5632], %f212;
+...
+
+
+-- now, we consider the case using only CUCL template substituion. first, we 'demote' the meta-code to the CUCL level, we have no metacode. the CUCL becomes:
+
+#pragma unroll
+    uint32_t const in_smem_load_iter = ( %(in_blk_iter_stride) + %(tpb) - 1 ) / %(tpb); 
+    for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
+      if( (LOC_ID_1D + %(tpb) * i) < %(in_blk_iter_stride) ) {
+        in_smem[LOC_ID_1D + %(tpb) * i] = in[ blk_in_ix_base + %(tpb)*i ];
+      } 
+    }
+
+-- and the post-expansion generated CUCL is:
+
+#pragma unroll
+    uint32_t const in_smem_load_iter = ( 512 + 128 - 1 ) / 128; 
+    for( uint32_t i = 0; i != in_smem_load_iter; ++i ) {
+      if( (LOC_ID_1D + 128 * i) < 512 ) {
+        in_smem[LOC_ID_1D + 128 * i] = in[ blk_in_ix_base + 128*i ];
+      } 
+    }
+
+-- when compiled, this yields following ptx in inner (and only) loop. note that while the loop has been unrolled, the conditional has not been removed. presumably, this is due to the compiler being unable to exploit the knowledge that this kernel will always be invoked with threads-per-block=128, and there is no clear way to work around this. in general, we can use %(tpb) as a constant for the number of threads, which is empirically better than using the dynamic equivalent overall, but we can't let the compiler know that the number of threads will be always equal to %(tbp). if we instead use the dynamic number of threads (i.e blockDim), then the compiler knows that LOC_ID_1D (i.e threadIdx) must be less that that value, but then it *doesn't* know that 512 is evenly divisible by the number of threads. in any event, while some cleaner solution might in thoery be possible (i.e. some form of CUDA compilation that allows specification of a fixed blockDim), in practice these situtations arise in various cases on various platforms, and require metacode to work around.
+
+	setp.gt.u32	%p1, %r3, 511;
+	@%p1 bra 	BB0_3;
+
+	mul.wide.u32 	%rd26, %r257, 4;
+	add.s64 	%rd27, %rd2, %rd26;
+	ld.global.nc.f32 	%f209, [%rd27];
+	st.shared.f32 	[%rd7+4096], %f209;
+
+BB0_3:
+	setp.gt.u32	%p2, %r8, 511;
+	@%p2 bra 	BB0_5;
+
+	add.s32 	%r27, %r257, 128;
+	mul.wide.u32 	%rd28, %r27, 4;
+	add.s64 	%rd29, %rd2, %rd28;
+	ld.global.nc.f32 	%f210, [%rd29];
+	st.shared.f32 	[%rd7+4608], %f210;
+
+BB0_5:
+	setp.gt.u32	%p3, %r9, 511;
+	@%p3 bra 	BB0_7;
+
+	add.s32 	%r28, %r257, 256;
+	mul.wide.u32 	%rd30, %r28, 4;
+	add.s64 	%rd31, %rd2, %rd30;
+	ld.global.nc.f32 	%f211, [%rd31];
+	st.shared.f32 	[%rd7+5120], %f211;
+
+BB0_7:
+	setp.gt.u32	%p4, %r10, 511;
+	@%p4 bra 	BB0_9;
+
+	add.s32 	%r29, %r257, 384;
+	mul.wide.u32 	%rd32, %r29, 4;
+	add.s64 	%rd33, %rd2, %rd32;
+	ld.global.nc.f32 	%f212, [%rd33];
+	st.shared.f32 	[%rd7+5632], %f212;
+
+BB0_9:
+
+
+-- a final note: in this particular simply case, the perf difference between the 'good' and 'bad' assembly isn't too large (perhaps 10%). however, in other more complex cases, the difference is greater. further, bear in mind that even the 'bad' case here, we have used template variables for all values that are constant at run-time. if were using, say, C++ templates, this would not be possible, and the performance and code would be worse.
+
