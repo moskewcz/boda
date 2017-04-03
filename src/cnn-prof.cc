@@ -27,7 +27,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     rtc_compile_opts_t compile_opts; // NESI(default="()",help="runtime compilation options")
-    filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/cnn_func_sigs_tiny.txt",help="file to read cnn ops from")
+    filename_t cnn_func_sigs_fn; //NESI(default="%(boda_test_dir)/conv-ops-tiny.txt",help="file to read cnn ops from")
     p_filename_t out_fn; //NESI(help="output file (output goes to stdout if not specified)")
     p_filename_t op_info_tab_fn; //NESI(help="file to write op info latex rows to")
     p_filename_t op_eff_tab_fn; //NESI(help="file to write op info latex rows to")
