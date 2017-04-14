@@ -34,7 +34,7 @@ colors = [ "#5699D5", "#F6B26B", "#54873D" ] # light-ish blue, medium yellow, da
 
 vis = [ ]
 
-from scipy.ndimage.filters import maximum_filter, convolve
+from scipy.ndimage.filters import maximum_filter, convolve, correlate
 
 class MiscPlot( object ):
     def __init__( self, args ):
@@ -127,7 +127,35 @@ class MiscPlot( object ):
         plt.tight_layout(w_pad=3)
         fig.savefig( self.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
         plt.close()
-        return
+
+    def show_conv( self, img, tag, ax, f ):
+        oimg = correlate( img, f, mode="constant" ) # FIXME: debatably not 'right' on borders ...
+        #print tag, oimg
+        ax.set_title(tag)
+        ax.imshow(oimg,cmap="gray",interpolation="nearest")
+        
+
+    def rgb_robot_conv( self ):
+        fig, (ax,ax_ap,ax_xg,ax_yg) = plt.subplots(1,4)
+        ax.set_title("RED")
+        img = mpimg.imread("../../test/robot.png")
+        img = img[15:300:30,15:300:30,0]
+        #print img
+        ax.imshow(img,cmap="gray",interpolation="nearest")
+        zf = np.zeros((3,3))
+        self.show_conv( img, "AVG-POOL", ax_ap, np.ones((3,3))/9 )
+        xgf = np.copy(zf)
+        xgf[(1,0)] = -1
+        xgf[(1,2)] = 1
+        #print xgf
+        self.show_conv( img, "X-GRAD", ax_xg, xgf )
+        ygf = np.copy(zf)
+        ygf[(0,1)] = -1
+        ygf[(2,1)] = 1
+        self.show_conv( img, "Y-GRAD", ax_yg, ygf )
+        plt.tight_layout(w_pad=3)
+        fig.savefig( self.out_fn + "." + self.args.out_fmt, dpi=600,  bbox_inches='tight')
+        plt.close()
 
 
 
