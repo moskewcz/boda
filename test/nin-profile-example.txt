@@ -1,0 +1,95 @@
+-----
+In this example, we profile the common network-in-network NN, and show
+that the convolution layers dominate the overall runtime, as shown in
+the profile at the bottom. There are only convolution operations, data
+transformations for the convolution operations, and pooling
+operations. Note: the convultion layers include fused ReLU layers, but
+this adds negligible time (which is why the fusion optimzation was
+performed).
+
+----- 
+
+moskewcz@maaya:~/git_work/boda/run/tr4$ boda run_cnet --model-name=nin_imagenet_nopad --in-dims='(img=5)' --conv-fwd='(mode=rtc,per_call_fn=out.py)' --op-tune='(k1conv=1,tconv=1)'  && python ../../pysrc/flops.py --per-layer=1 --ai-mnk=1 --per-layer-in-info=1 --profile=1
+TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  
+          28      5.846ms      0.208ms    caffe_copy_layer_blob_data
+           1      0.620ms      0.620ms    conv_pipe_fwd_t::set_vars
+           1       2.573s       2.573s    conv_pipe_fwd_t::run_fwd
+           1       2.222s       2.222s    nvrtc_compile
+          40      0.269ms      0.006ms    cu_launch_and_sync
+           1      0.030ms      0.030ms    conv_pipe_fwd_t::get_vars
+conv1 input 5*3*227*227=3.09MB filts 96*3*11*11=139KB out 5*96*55*55=5.81MB
+conv1 FWD 1.05GF 9.04MB  FWD_AI 117F/B  MxNxK=15125x96x363  ---  465us 2.27TF/s 
+cccp1 input 5*96*55*55=5.81MB filts 96*96*1*1=36.9KB out 5*96*55*55=5.81MB
+cccp1 FWD 279MF 11.7MB  FWD_AI 23.9F/B  MxNxK=15125x96x96  ---  231us 1.21TF/s 
+cccp2 input 5*96*55*55=5.81MB filts 96*96*1*1=36.9KB out 5*96*55*55=5.81MB
+cccp2 FWD 279MF 11.7MB  FWD_AI 23.9F/B  MxNxK=15125x96x96  ---  219us 1.27TF/s 
+conv2 input 5*96*27*27=1.40MB filts 256*96*5*5=2.46MB out 5*256*23*23=2.71MB
+conv2 FWD 3.25GF 6.57MB  FWD_AI 495F/B  MxNxK=2645x256x2400  ---  969us 3.35TF/s 
+cccp3 input 5*256*23*23=2.71MB filts 256*256*1*1=262KB out 5*256*23*23=2.71MB
+cccp3 FWD 347MF 5.68MB  FWD_AI 61.0F/B  MxNxK=2645x256x256  ---  179us 1.94TF/s 
+cccp4 input 5*256*23*23=2.71MB filts 256*256*1*1=262KB out 5*256*23*23=2.71MB
+cccp4 FWD 347MF 5.68MB  FWD_AI 61.0F/B  MxNxK=2645x256x256  ---  175us 1.98TF/s 
+conv3 input 5*256*21*21=2.26MB filts 384*256*3*3=3.54MB out 5*384*19*19=2.77MB
+conv3 FWD 3.19GF 8.57MB  FWD_AI 373F/B  MxNxK=1805x384x2304  ---  1.91ms 1.67TF/s 
+cccp5 input 5*384*19*19=2.77MB filts 384*384*1*1=590KB out 5*384*19*19=2.77MB
+cccp5 FWD 532MF 6.14MB  FWD_AI 86.7F/B  MxNxK=1805x384x384  ---  227us 2.35TF/s 
+cccp6 input 5*384*19*19=2.77MB filts 384*384*1*1=590KB out 5*384*19*19=2.77MB
+cccp6 FWD 532MF 6.14MB  FWD_AI 86.7F/B  MxNxK=1805x384x384  ---  225us 2.37TF/s 
+conv4-1024 input 5*384*9*9=622KB filts 1024*384*3*3=14.2MB out 5*1024*7*7=1.00MB
+conv4-1024 FWD 1.73GF 15.8MB  FWD_AI 110F/B  MxNxK=245x1024x3456  ---  1.26ms 1.38TF/s 
+cccp7-1024 input 5*1024*7*7=1.00MB filts 1024*1024*1*1=4.19MB out 5*1024*7*7=1.00MB
+cccp7-1024 FWD 514MF 6.21MB  FWD_AI 82.8F/B  MxNxK=245x1024x1024  ---  268us 1.91TF/s 
+cccp8-1024 input 5*1024*7*7=1.00MB filts 1000*1024*1*1=4.10MB out 5*1000*7*7=980KB
+cccp8-1024 FWD 502MF 6.08MB  FWD_AI 82.5F/B  MxNxK=245x1000x1024  ---  269us 1.86TF/s 
+total _inxp time:  1.39ms
+-- INPUT: RUNTIME=0.00793677s --
+-- INPUT: POWER=200W --
+-- "data" node dims:  5*3*227*227=3.09MB
+- SUM-OVER-FWD-LAYERS-TOTALS: fwd_input_bytes=32.0MB fwd_filt_bytes=30.4MB fwd_output_bytes=36.9MB
+--- FWD TOTALS ---
+12.6GF 1.58TF/s
+99.2MB 12.5GB/s AI=127F/B
+1.59J 7.91GF/s/W
+PROFILE:
+time      time%     cum_time  cum_time% func_name 
+1.91ms    24.1%     1.91ms    24.1%     conv3     
+1.26ms    15.9%     3.17ms    39.9%     conv4-1024
+969us     12.2%     4.14ms    52.1%     conv2     
+465us     5.9%      4.60ms    58.0%     conv1     
+420us     5.3%      5.02ms    63.3%     conv4-1024_filts__inxp
+269us     3.4%      5.29ms    66.7%     cccp8-1024
+268us     3.4%      5.56ms    70.1%     cccp7-1024
+231us     2.9%      5.79ms    73.0%     cccp1     
+227us     2.9%      6.02ms    75.8%     cccp5     
+225us     2.8%      6.24ms    78.7%     cccp6     
+219us     2.8%      6.46ms    81.4%     cccp2     
+179us     2.2%      6.64ms    83.7%     cccp3     
+175us     2.2%      6.82ms    85.9%     cccp4     
+126us     1.6%      6.94ms    87.5%     cccp7-1024_filts__inxp
+123us     1.5%      7.06ms    89.0%     cccp8-1024_filts__inxp
+110us     1.4%      7.17ms    90.4%     conv3_filts__inxp
+76.9us    1.0%      7.25ms    91.4%     conv2_filts__inxp
+66.2us    0.8%      7.32ms    92.2%     data__inxp
+56.9us    0.7%      7.37ms    92.9%     cccp1__inxp
+56.6us    0.7%      7.43ms    93.6%     conv1__inxp
+47.4us    0.6%      7.48ms    94.2%     pool2__inxp
+38.3us    0.5%      7.52ms    94.7%     pool0__inxp
+33.5us    0.4%      7.55ms    95.1%     pool0     
+31.2us    0.4%      7.58ms    95.5%     pool2     
+29.9us    0.4%      7.61ms    95.9%     cccp5__inxp
+29.8us    0.4%      7.64ms    96.3%     conv3__inxp
+26.6us    0.3%      7.67ms    96.6%     conv2__inxp
+26.0us    0.3%      7.69ms    96.9%     cccp3__inxp
+23.4us    0.3%      7.72ms    97.2%     cccp5_filts__inxp
+23.1us    0.3%      7.74ms    97.5%     cccp6_filts__inxp
+21.1us    0.3%      7.76ms    97.8%     conv1_filts__inxp
+16.8us    0.2%      7.78ms    98.0%     pool3     
+14.9us    0.2%      7.79ms    98.2%     pool3__inxp
+14.5us    0.2%      7.81ms    98.4%     cccp7__inxp
+14.2us    0.2%      7.82ms    98.6%     cccp3_filts__inxp
+14.0us    0.2%      7.84ms    98.7%     conv4__inxp
+14.0us    0.2%      7.85ms    98.9%     cccp4_filts__inxp
+11.7us    0.1%      7.86ms    99.1%     pool4     
+7.33us    0.1%      7.87ms    99.1%     cccp2_filts__inxp
+7.26us    0.1%      7.88ms    99.2%     cccp1_filts__inxp
+moskewcz@maaya:~/git_work/boda/run/tr4$ 
