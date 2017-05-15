@@ -135,7 +135,8 @@ namespace boda
                                                        stride.dsz("x"),        // horizontal filter stride
                                                        1, // upscale the input in x-direction
                                                        1, // upscale the input in y-direction
-                                                       CUDNN_CROSS_CORRELATION
+                                                       CUDNN_CROSS_CORRELATION,
+                                                       CUDNN_DATA_FLOAT
                                                        ), "cudnnSetConvolution2dDescriptor" );
 
       vect_int cu_out_dims;
