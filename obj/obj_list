@@ -56,7 +56,7 @@ LDFLAGS := $(LDFLAGS) -lOpenCL
 [caffe needs=cuda needs=caffe_pb]
 CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
 CAFFE_LIB := $(CAFFE_HOME)/build/lib
-CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/src
+CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/include -I$(CAFFE_HOME)/build/src
 LDFLAGS := $(LDFLAGS) -L$(CAFFE_LIB) -lcaffe -lglog -ldl 
 # we choose to rpath the caffe library dir here, since it is not commonly in the system library path. this is optional;
 # if you prefer to use LD_LIBRARY_PATH or other methods, comment out the following line:
