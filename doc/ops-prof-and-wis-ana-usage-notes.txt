@@ -1,0 +1,86 @@
+# note on creating wisdom files with runtimes:
+# assume you have an ops-prof command line that runs the correct set of operations, such as from a test:
+<li ignore_missing_outputs="1" test_name="ops-prof-conv-3x3-cudnn-boda" cli_str="boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=ocl-opt --func-mrd-toler='(cudnn_conv=4e-4)' --wisdom-out-fn='%(boda_output_dir)/wisdom.wis' --ops-fn='%(boda_test_dir)/ops/conv/conv-ops-kern-3x3-batch-1-5-20-nin-alex-gn.txt' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --wisdom-in-fn='%(boda_test_dir)/good_tr/ops-prof-conv-3x3-cudnn-boda/wisdom.wis' --op-tunes='(ocl-opt=(use_be=ocl,k1conv=1,tconv=1),culibs=(use_be=nvrtc,use_culibs=1))'" />
+# if you run the test, it should pass:
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda test_cmds --filt='ops-prof-conv-3x3'
+TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  
+           1       4.249s       4.249s    test_cmds_cmd
+          84       1.481s     17.631ms    profile_rcg_call
+         100    130.888ms      1.308ms    ocl_compile
+           3    560.691ms    186.897ms    nvrtc_compile
+         168     13.012ms      0.077ms    cu_launch_and_sync
+           1      0.906ms      0.906ms    diff_command
+moskewcz@maaya:~/git_work/boda/run/tr1$ 
+# note no failures above. then, temporarily add --write-runs=1 to the command line, and re-run the test:
+<li ignore_missing_outputs="1" test_name="ops-prof-conv-3x3-cudnn-boda" cli_str="boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=ocl-opt --func-mrd-toler='(cudnn_conv=4e-4)' --wisdom-out-fn='%(boda_output_dir)/wisdom.wis' --ops-fn='%(boda_test_dir)/ops/conv/conv-ops-kern-3x3-batch-1-5-20-nin-alex-gn.txt' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --wisdom-in-fn='%(boda_test_dir)/good_tr/ops-prof-conv-3x3-cudnn-boda/wisdom.wis' --op-tunes='(ocl-opt=(use_be=ocl,k1conv=1,tconv=1),culibs=(use_be=nvrtc,use_culibs=1))' --write-runs=1" />
+# note that now, the test should fail, since the wisdom file has runtimes in it (which are not normally present in the known-good wisdom file):
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda test_cmds --filt='ops-prof-conv-3x3'
+DIFF: binary file 'wisdom.wis' edit distance:43682
+DIFF: file 'wisdom.wis' differs between known-good(-) and under-test(+):
+FAIL: test ops-prof-conv-3x3-cudnn-boda failed.
+test_cmds num_fail=1
+TIMERS:  CNT     TOT_DUR      AVG_DUR    TAG  
+           1       4.162s       4.162s    test_cmds_cmd
+          84       1.507s     17.940ms    profile_rcg_call
+         100    144.682ms      1.446ms    ocl_compile
+           3    558.498ms    186.166ms    nvrtc_compile
+         168     53.256ms      0.317ms    cu_launch_and_sync
+           1      2.501ms      2.501ms    diff_command
+
+# we can inspect the wisdom file to see the per-op runtimes (one for each op_wisdom_t block):
+
+moskewcz@maaya:~/git_work/boda/run/tr1$ less ops-prof-conv-3x3-cudnn-boda/wisdom.wis 
+....
+op_wisdom_t
+(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=384)),filts=(dims=(out_chan=384,in_chan=384,y=3,x=3)),in=(dims=(img=5,chan=384,y=13,x=13)),in_pad=(tn=none,dims=(y=1,x=1)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=5,chan=384,y=13,x=13)),out_chans=(tn=uint32_t,v=384),stride=(tn=none,dims=(y=1,x=1))))
+kg
+out
+0105000000666C6F61740101DADA0000000000000000040000000500000080FD000003000000696D6780010000A9000000040000006368616E0D0000000D00000001000000790D00000001000000010000007805000000666C6F617480F3040000000000018D905F1F69F4880600000000628217454500000058BA634CB2BCE34BA6CA974B7D2C984B51BD364B4788354B9972034B5493004B38D3A24A1507A64A4AAEA34A2B386A4ACE50924A8D07904A8C0B584AD83A574A9F72584AEF75594A71483F4A5D45424AF2503D4AF03E1D4A14B4204A0AA31D4ABFC71D4A21B2F94932EAFB49F11DFB49C9F9FD4912C4B048FAE6B748C9A4AF48CD869B48852C9648F1C3BB48DCBCAE48DB7E884278EB6744AC71C543C0E816445B370F424C7BF643FCF3C643061396432AE09444A3010C4552CDF643E33287440563E5443D23434425C122440000000034A04F3F00000000807E85430000000041679B43E24F054400000000000000000000000037D089437E3D66445DCFD7415DC4694300000000000000008DC6DA4300000000
+op_tune_wisdom_t
+(use_be=nvrtc,use_culibs=1)
+op_run_t
+nvrtc:Graphics Device
+0.000242688
+
+(str_vals=(func_name=cudnn_conv,type=Convolution),nda_vals=(biases=(dims=(out_chan=0)),conv_has_relu=(tn=uint32_t,v=1),filts=(dims=(out_chan=0,in_chan=0,y=0,x=0)),in=(dims=(img=0,chan=0,y=0,x=0)),in_pad=(tn=none,dims=(y=1,x=1)),out=(dims=(img=0,chan=0,y=0,x=0)),stride=(tn=none,dims=(y=1,x=1))))
+/op_tune_wisdom_t
+op_tune_wisdom_t
+(use_be=ocl,k1conv=1,tconv=1)
+op_run_t
+ocl:Graphics Device
+0.00095376
+
+(str_vals=(func_name=tconv,type=Convolution),nda_vals=(biases=(dims=(out_chan=384)),conv_has_relu=(tn=uint32_t,v=1),filts=(dims=(out_chan_blk=3,in_chan=384,y=3,x=3,out_chan_reg=8,out_chan_tile=16)),flags=(tn=uint32_t),in=(dims=(blk_bline=9,blk_bx=2,blk_in_chan=384,blk_y=12,blk_x=10)),in_pad=(tn=none,dims=(y=1,x=1)),in_ref=(dims=(img=5,chan=384,y=13,x=13)),out=(dims=(img=5,chan=384,y=13,x=13)),stride=(tn=none,dims=(y=1,x=1)),work=(tn=none,dims=(blk_bline=9,blk_bx=2,out_chan_blk=3,blk_y=8,out_chan_tile=16,pels=8,out_chan=8))))
+/op_tune_wisdom_t
+/op_wisdom_t
+...
+
+# in the above case, we can see that cuDNN is ~4X faster than the boda tconv variant ... for this semi-random and maybe non-optimal set of tuning paramters. for a better comparison, we must run boda using all the normal tuning points and pick the best one for comparison. but here, we've limited boda to one point in the tuning space to simplify the example. normally you'd see many runs using different boda tuning parameters for each op. however, the cuDNN numbers should be a good/valid point of comparison (albeit probably an unatainable one overall).
+
+
+# now, to plot the results using wis-ans/wis-plot (see boda-aa-fig-gen.py for a full example):
+
+# (1) get list of ops (unsorted by flops)
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda wis-ana --wisdom-in-fn=ops-prof-conv-3x3-cudnn-boda/wisdom.wis --s-plat='ocl.*TITAN' --ops-out-fn=ops-out-nosort.tex --show-pom=0 --show-ref=0 --show-aom=0 --ops-out-brief=1
+tot_runs=0
+# (2) sort by flops 
+sort -g -k17 ops-out-nosort.tex > ops-out.tex
+
+# note: tex snippet for table using ops-out.tex:
+\begin{tabular}{lllllll}
+\hline
+KSZ  & S & OC & $B$ & $input$ $X\dx Y\dx Chan$ & FLOPs \\ 
+\hline
+\input{figs/ops-out-sort-by-flops.tex}
+
+# (3) generate .csv of comparison of boda (all tunes, but note there is only one in this wisdom file) with cudnn:
+
+moskewcz@maaya:~/git_work/boda/run/tr1$ boda wis-ana --wisdom-in-fn=ops-prof-conv-3x3-cudnn-boda/wisdom.wis --ref-tune='(use_be=nvrtc,use_culibs=1)' --csv-out-fn=out-3x3.csv --show-ref=1 --show-aom=0 --pom-tag='%(boda)s-ocl-opt-TITAN' --ref-tag='NVIDIA-cuDNNv5-library'
+
+tot_runs=42
+
+# (4) create and view figure:
+moskewcz@maaya:~/git_work/boda/run/tr1$ python ../../pysrc/wis-plot.py out-3x3.csv --out-fn=boda-cudnn-3x3 --out-fmt=png --title='non-autotuned-ocl-opt-boda and Reference(cuDNNv5) Speed on NVIDIA TITAN-X(Maxwell)'
+
+moskewcz@maaya:~/git_work/boda/run/tr1$ eog boda-cudnn-3x3.png 
+
