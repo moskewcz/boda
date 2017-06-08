@@ -107,4 +107,6 @@
 
 <li test_name="test_cnn_op_info_conv_cudnn_1" cli_str="boda cnn_op_info --rtc='(be=ocl)' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --rtc-comp='(be=nvrtc)' --cnn-func-sigs-fn='%(boda_test_dir)/conv-ops-debug.txt' --out-fn='%(boda_output_dir)/cnn_op_info.txt'"/>
 
+<li ignore_missing_outputs="1" test_name="ops-prof-conv-3x3-cudnn-boda" cli_str="boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=ocl-opt --func-mrd-toler='(cudnn_conv=4e-4)' --wisdom-out-fn='%(boda_output_dir)/wisdom.wis' --ops-fn='%(boda_test_dir)/ops/conv/conv-ops-kern-3x3-batch-1-5-20-nin-alex-gn.txt' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --wisdom-in-fn='%(boda_test_dir)/good_tr/ops-prof-conv-3x3-cudnn-boda/wisdom.wis' --op-tunes='(ocl-opt=(use_be=ocl,k1conv=1,tconv=1),culibs=(use_be=nvrtc,use_culibs=1))'" />
+
 </root>
