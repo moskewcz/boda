@@ -1,2 +1,7 @@
 # to create full.txt, run from boda root:
 python pysrc/to-prof-ops-gen.py --set=conv > test/ops/conv/full.txt
+
+# note: ../../conv-ops-1-5-20-nin-alex-gn.txt was created using cnn-prof-op-sigs-gen.py and filtering for convolutions; see notes in cnn-prof-op-sigs-gen.py
+# then, to create conv-ops-kern-3x3-batch-1-5-20-nin-alex-gn.txt, run from here (filtering to get only 3x3 kernel cases):
+moskewcz@maaya:~/git_work/boda/test/ops/conv$ grep 'kern_sz=(tn=none,dims=(y=3,x=3))' ../../conv-ops-1-5-20-nin-alex-gn.txt > conv-ops-kern-3x3-batch-1-5-20-nin-alex-gn.txt
+
