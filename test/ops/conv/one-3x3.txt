@@ -1,0 +1,1 @@
+(str_vals=(type=Convolution),nda_vals=(biases=(dims=(out_chan=96)),filts=(dims=(out_chan=96,in_chan=3,y=3,x=3)),in=(dims=(img=1,chan=3,y=1024,x=1024)),in_pad=(tn=none,dims=(y=0,x=0)),kern_sz=(tn=none,dims=(y=3,x=3)),out=(dims=(img=1,chan=96,y=1022,x=1022)),out_chans=(tn=uint32_t,v=96),stride=(tn=none,dims=(y=1,x=1))))
