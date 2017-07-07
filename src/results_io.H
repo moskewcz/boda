@@ -117,6 +117,7 @@ namespace boda
 
   struct img_db_t;
   typedef shared_ptr< img_db_t > p_img_db_t;
+  p_per_class_scored_dets_t read_results_file( p_img_db_t img_db, string const & fn, string const & class_name );
   void write_results_file( p_img_db_t img_db, string const & fn, p_per_class_scored_dets_t scored_dets );
   void img_db_show_dets( p_img_db_t img_db, p_per_class_scored_dets_t scored_dets, uint32_t img_ix );
 

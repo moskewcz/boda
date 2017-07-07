@@ -51,7 +51,9 @@ namespace boda
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t rand_winds; //NESI(default=0,help="if set, display 1/2 image size random windows instead of full image")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
-    uint32_t do_score; //NESI(default=1,help="if set, run scoring. if == 2, quit after scoring.")
+    uint32_t do_score; //NESI(default=0,help="if set, run scoring. 1: use rp_boxes; 2: use res_fn.")
+    double det_show_thresh; //NESI(default=0.0,help="when do_score is set, visualize/show only dets with score >= this value")
+    uint32_t quit_after_score; //NESI(default=0,help="if set, quit after scoring.")
     uint32_t show_filt; //NESI(default=0,help="0 == show_all, 1 == show matched, 2 == show unmatched")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
@@ -65,6 +67,8 @@ namespace boda
     filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
     filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
     p_vect_p_per_class_scored_dets_t scored_dets;
+
+    filename_t res_fn; //NESI(default="%(bench_dir)/results/%%s_test.txt",help="format for filenames of pascal-VOC format DPM detection results files. %%s will be replaced with the class name")
 
     vect_u32_box_t rp_boxes;
     filename_t rp_boxes_fn; //NESI(default="rps.txt",help="input: region proposal boxes")
@@ -116,10 +120,14 @@ namespace boda
 	    p_per_class_scored_dets_t const & sds = scored_dets->at( i - classes->begin() );
 	    gtms = &sds->get_gtms( img_info->ix, gt_dets.size() );
 	    p_vect_base_scored_det_t const & img_sds = sds->get_per_img_sds( img_info->ix, 0 );
-	    assert( img_sds );
-	    for( vect_base_scored_det_t::const_iterator i = img_sds->begin(); i != img_sds->end(); ++i ) {
-	      //annos->push_back( anno_t{u32_to_i32(*i), rgba_to_pel(40,40,170), 0, cn + "=" + str(i->score), rgba_to_pel(220,220,255) } );
-	    }	
+	    if( img_sds ) {
+              for( vect_base_scored_det_t::const_iterator i = img_sds->begin(); i != img_sds->end(); ++i ) {
+                //printf( "cn=%s i->score=%s\n", str(cn).c_str(), str(i->score).c_str() );
+                if( i->score > det_show_thresh ) {
+                  annos->push_back( anno_t{u32_to_i32(*i), rgba_to_pel(40,40,170), 0, cn + "=" + str(i->score), rgba_to_pel(220,220,255) } );
+                }
+              }
+            }
 	  }
 
 	  // annotate GTs
@@ -175,16 +183,24 @@ namespace boda
 
       if( do_score ) {
 	// setup scored_dets
-	read_text_file( rp_boxes, rp_boxes_fn.exp );
 	scored_dets.reset( new vect_p_per_class_scored_dets_t );
-	for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
-	  scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
-	}
-	for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
-	  p_img_info_t img_info = img_db->img_infos[ix];
-	  score_img( img_info );
-	}	
-	bool const quit_after_score = (do_score == 2);
+        if( do_score == 1 ) { // use one set of rp_boxes as dets for all classes
+          read_text_file( rp_boxes, rp_boxes_fn.exp );
+          for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+            scored_dets->push_back( p_per_class_scored_dets_t( new per_class_scored_dets_t( *i ) ) );
+          }
+          for (uint32_t ix = 0; ix < img_db->img_infos.size(); ++ix) {
+            p_img_info_t img_info = img_db->img_infos[ix];
+            score_img( img_info );
+          }
+        } else if( do_score == 2 ) { // use res_fn to get per-class results files
+          for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+            scored_dets->push_back( read_results_file( img_db, strprintf( res_fn.exp.c_str(), (*i).c_str() ), *i ) );
+          }
+        } else {
+          rt_err( "unknown do_score value; should be 1 or 2 (or 0 to disable)" );
+        }
+        
 	img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, "", quit_after_score ); // NOTE: no summary output
 	if( quit_after_score ) { return; }
       }
