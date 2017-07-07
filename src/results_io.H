@@ -146,10 +146,10 @@ namespace boda
     string get_id_for_img_ix( uint32_t const img_ix );
     uint32_t get_ix_for_img_id( string const & img_id );
     match_res_t try_match( string const & class_name, p_per_class_scored_dets_t scored_dets, scored_det_t const & sd );
-    void score_results_for_class( p_per_class_scored_dets_t name_scored_dets, 
-				  string const & prc_txt_fn, string const & prc_png_fn );
+    double score_results_for_class( p_per_class_scored_dets_t name_scored_dets, 
+                                         string const & prc_txt_fn, string const & prc_png_fn ); // returns AP
     void score_results( p_vect_p_per_class_scored_dets_t name_scored_dets_map, 
-			string const & prc_fn, string const & plot_base_fn, bool const pre_merge_post_clear );
+			string const & prc_fn, string const & plot_base_fn, string const & summary_fn, bool const pre_merge_post_clear );
 
     u32_pt_t get_max_img_sz( void ) const;
   };

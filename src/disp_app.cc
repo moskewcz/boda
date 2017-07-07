@@ -185,7 +185,7 @@ namespace boda
 	  score_img( img_info );
 	}	
 	bool const quit_after_score = (do_score == 2);
-	img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, quit_after_score );
+	img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, "", quit_after_score ); // NOTE: no summary output
 	if( quit_after_score ) { return; }
       }
 

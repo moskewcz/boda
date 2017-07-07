@@ -141,6 +141,17 @@ namespace boda
     return img_info->second->ix;
   }
 
+  uint32_t lc_str_double_and_round_to_u32( string const & s ) {
+    double const v = lc_str_d( s );
+    double rv = round( v );
+    // yolo seems to output negative/invalid coords sometimes. here, we clamp them to 1.
+    // if( rv < 1.0 ) { rv = 1.0; } 
+    assert_st( rv >= 1.0 );
+    uint32_t ret = (uint32_t)rv;
+    assert_st( double(ret) == rv ); // check that rv is representable as a uint32_t
+    return ret;
+  }
+  
   p_per_class_scored_dets_t read_results_file( p_img_db_t img_db, string const & fn, string const & class_name )
   {
     timer_t t("read_results_file");
@@ -157,10 +168,10 @@ namespace boda
       string const img_id = parts[0];
       scored_det.img_ix = img_db->get_ix_for_img_id( img_id );
       scored_det.score = lc_str_d( parts[1] );
-      scored_det.p[0].d[0] = lc_str_u32( parts[2] );
-      scored_det.p[0].d[1] = lc_str_u32( parts[3] );
-      scored_det.p[1].d[0] = lc_str_u32( parts[4] );
-      scored_det.p[1].d[1] = lc_str_u32( parts[5] );
+      scored_det.p[0].d[0] = lc_str_double_and_round_to_u32( parts[2] );
+      scored_det.p[0].d[1] = lc_str_double_and_round_to_u32( parts[3] );
+      scored_det.p[1].d[0] = lc_str_double_and_round_to_u32( parts[4] );
+      scored_det.p[1].d[1] = lc_str_double_and_round_to_u32( parts[5] );
       scored_det.from_pascal_coord_adjust();
       assert_st( scored_det.is_strictly_normalized() );
       scored_dets->add_det( scored_det );
@@ -344,6 +355,25 @@ namespace boda
     }
   };
 
+  struct score_results_files_t : virtual public nesi, public load_pil_t // NESI(help="score a set of pascal-VOC-format results files",bases=["load_pil_t"], type_id="score-files")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t res_fn; //NESI(default="%(bench_dir)/results/%%s_test.txt",help="format for filenames of pascal-VOC format DPM detection results files. %%s will be replaced with the class name")
+    filename_t summary_fn; //NESI(default="%(boda_output_dir)/summary.txt",help="output: all-classes text summary filename")
+    filename_t prc_txt_fn; //NESI(default="%(boda_output_dir)/prc_",help="output: text prc curve base filename")
+    filename_t prc_png_fn; //NESI(default="%(boda_output_dir)/mAP_",help="output: png prc curve base filename")
+    virtual void main( nesi_init_arg_t * nia ) {
+      load_img_db( 0 );
+      p_vect_p_per_class_scored_dets_t scored_dets( new vect_p_per_class_scored_dets_t );
+      
+      for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
+	scored_dets->push_back( read_results_file( img_db, strprintf( res_fn.exp.c_str(), (*i).c_str() ), *i ) );
+	printf( "(*i)=%s\n", str((*i)).c_str() );
+      }
+      img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, summary_fn.exp, 0 );
+    }
+  };
+
   // returns (matched, match_was_difficult). note that difficult is
   // only seems meaningfull when matched=true, although it is
   // sometimes valid when matched=false (i.e. if the match is false
@@ -397,8 +427,8 @@ namespace boda
   }
 
 
-  void img_db_t::score_results_for_class( p_per_class_scored_dets_t name_scored_dets,
-					  string const & prc_txt_fn, string const & prc_png_fn )
+  double img_db_t::score_results_for_class( p_per_class_scored_dets_t name_scored_dets,
+                                            string const & prc_txt_fn, string const & prc_png_fn )
   {
     timer_t t("score_results_for_class");
     string const & class_name = name_scored_dets->class_name;
@@ -411,7 +441,7 @@ namespace boda
     vect_prc_elem_t prc_elems;
     uint32_t num_pos = 0;
     uint32_t num_test = 0;
-    double map = 0;
+    double map = 0; // FIXME: misnamed, should be just 'ap'
     uint32_t print_skip = 1 + (tot_num_class / 20); // print about 20 steps in recall
     uint32_t next_print = 1;
     (*prc_out ) << strprintf( "---BEGIN--- class_name=%s tot_num_class=%s name_scored_dets->size()=%s\n", str(class_name).c_str(), str(tot_num_class).c_str(), str(all_sds->size()).c_str() );
@@ -452,17 +482,25 @@ namespace boda
       prc_plot( plt_fn, tot_num_class, prc_elems, 
 		strprintf( "class_name=%s map=%s\n", str(class_name).c_str(), str(map).c_str() ) );
     }
-
+    return map;
   }
 
   void img_db_t::score_results( p_vect_p_per_class_scored_dets_t name_scored_dets_map,
 				string const & prc_fn, string const & plot_base_fn,
+                                string const & summary_fn,
 				bool const pre_merge_post_clear ) {
     timer_t t("score_results");
+    double mean_ap = 0.0;
+    p_ostream summary_out;
+    if( !summary_fn.empty() ) { summary_out = ofs_open( summary_fn ); }
     for( vect_p_per_class_scored_dets_t::iterator i = name_scored_dets_map->begin(); i != name_scored_dets_map->end(); ++i ) {
-      score_results_for_class( *i, prc_fn, plot_base_fn );
+      double const class_ap = score_results_for_class( *i, prc_fn, plot_base_fn );
+      if( summary_out ) { (*summary_out) << strprintf( "class_name=%s ap=%s\n", str((*i)->class_name).c_str(), str(class_ap).c_str() ); }
+      mean_ap += class_ap;
       if( pre_merge_post_clear ) { (*i).reset(); }
     }
+    mean_ap /= name_scored_dets_map->size();
+    if( summary_out ) { (*summary_out) << strprintf( "all classes mean_ap=%s\n", str(mean_ap).c_str() ); }
   }
 
   struct is_comma { bool operator()( char const & c ) const { return c == ','; } };
@@ -517,8 +555,9 @@ namespace boda
 	dpm_scored_dets->push_back( read_results_file( img_db, strprintf( dpm_fn.exp.c_str(), (*i).c_str() ), *i ) );
 	printf( "(*i)=%s (DPM)\n", str((*i)).c_str() );
       }
-      img_db->score_results( hamming_scored_dets, prc_txt_fn.exp + "ham_", prc_png_fn.exp + "ham_", 0);
-      img_db->score_results( dpm_scored_dets, prc_txt_fn.exp + "dpm_", prc_png_fn.exp + "dpm_", 0 );
+      // FIXME: no summaries output here, since this code predated summary-writing code in score_results()
+      img_db->score_results( hamming_scored_dets, prc_txt_fn.exp + "ham_", prc_png_fn.exp + "ham_", "", 0);
+      img_db->score_results( dpm_scored_dets, prc_txt_fn.exp + "dpm_", prc_png_fn.exp + "dpm_", "", 0 );
 #if 1      
       p_ostream summ_out = ofs_open( score_diff_summary_fn.exp );  
       (*summ_out) << strprintf( "class_name,num_tot,ham_only,dpm_only,num_ham,num_dpm,num_both,num_either,num_neither,\n");
