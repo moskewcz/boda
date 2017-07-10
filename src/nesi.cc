@@ -333,8 +333,9 @@ namespace boda
       void * fo = 0;
       vinfo_t const * vi = nesi_struct_find_var( ci, o, help_args->at(help_ix), fo ); // may or may not set fo
       if( !vi ) { 
-	*os += strprintf("struct '%s' has no field '%s', so help cannot be provided for it.\n",
+	*os += strprintf("struct '%s' has no field '%s', so help cannot be provided for it. Ignoring remaining args and showing help here.\n",
 			 ci->cname, help_args->at(help_ix).c_str() );
+	nesi_struct_nesi_help( tinfo, o, os, prefix, show_all, help_args, help_args->size() ); // call to self
       } else {
 	*os += strprintf( "%sDESCENDING TO DETAILED HELP FOR field '%s' of type=%s of struct '%s'\n",
 			  prefix.c_str(), vi->vname, vi->tinfo->tname, ci->cname );
