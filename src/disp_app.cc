@@ -51,6 +51,7 @@ namespace boda
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t rand_winds; //NESI(default=0,help="if set, display 1/2 image size random windows instead of full image")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
+    uint32_t start_img_ix; //NESI(default=0,help="start at image ix")
     uint32_t do_score; //NESI(default=0,help="if set, run scoring. 1: use rp_boxes; 2: use res_fn.")
     double det_show_thresh; //NESI(default=0.0,help="when do_score is set, visualize/show only dets with score >= this value")
     uint32_t quit_after_score; //NESI(default=0,help="if set, quit after scoring.")
@@ -111,6 +112,7 @@ namespace boda
 	if( !rand_winds ) { disp_imgs->at(0)->fill_with_pel( grey_to_pel( 128 ) ); }
 	img_copy_to_clip( img.get(), disp_imgs->at(0).get(), dest_pt, src_pt, copy_sz );
 	p_vect_anno_t annos( new vect_anno_t );
+        keep_img |= (show_filt == 0); // always keep img if show_filt==0
 	for( vect_string::const_iterator i = (*classes).begin(); i != (*classes).end(); ++i ) {
 	  string const & cn = *i;
 	  vect_gt_det_t const & gt_dets = img_info->gt_dets[cn];
@@ -131,7 +133,6 @@ namespace boda
 	  }
 
 	  // annotate GTs
-	  keep_img |= (show_filt == 0); // always keep if show_filt==0
 	  keep_img |= (!gt_dets.empty()); // keep if any gts
 	  for( uint32_t i = 0; i != gt_dets.size(); ++i ) {
 	    bool const is_matched = (!gtms) || gtms->at(i).matched;
@@ -165,6 +166,11 @@ namespace boda
       if( 0 ) { }
       else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
       else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
+      else if( lbe.is_key && (lbe.keycode == 'i') ) {
+        auto_adv=0;
+        p_img_info_t img_info = img_db->img_infos[cur_img_ix];
+        printf( "cur_img_ix=%s img_info->full_fn=%s img_info->id=%s\n", str(cur_img_ix).c_str(), str(img_info->full_fn).c_str(), str(img_info->id).c_str() );
+      }
       else if( lbe.is_key && (lbe.keycode == 'p') ) { auto_adv ^= 1; }
       else if( lbe.is_key ) { // unknown command handlers
 	unknown_command = 1; 
@@ -207,7 +213,7 @@ namespace boda
 
       disp_imgs = disp_win.disp_setup( {img_db->get_max_img_sz()} );
       
-      cur_img_ix = 0;
+      cur_img_ix = start_img_ix;
       io_service_t & io = get_io( &disp_win );
       frame_timer.reset( new deadline_timer_t( io ) );
       frame_dur = microseconds( 1000 * 1000 / fps );
