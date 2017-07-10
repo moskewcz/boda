@@ -307,7 +307,25 @@ namespace boda
       img_db->class_infos[cn].v += gt_dets.num_non_difficult.v;
     }
   }
-  
+
+  void load_pil_t::darknet_load( void ) {
+
+    p_vect_string fl_list_lines = readlines_fn( darknet_imgs_fn );
+    set_string classes_set;
+    classes.reset( new vect_string );
+    for( vect_string::iterator i = fl_list_lines->begin(); i != fl_list_lines->end(); ++i ) {
+      string const & img_fn = (*i);
+      string const & img_id = img_fn; // for this mode, use fn as id
+      p_img_info_t & img_info = img_db->id_to_img_info_map[img_id];
+      if( img_info ) { rt_err( "darknet img_db load: tried to image multiple times: '"+img_id+"'"); }
+      img_info.reset( new img_info_t( img_id ) );
+      img_info->full_fn = img_fn;
+      img_info->ix = img_db->img_infos.size();
+      img_db->img_infos.push_back( img_info );
+      
+    }
+  }
+
   void load_pil_t::load_img_db( bool const load_imgs ) {
     if( load_mode == "pascal" ) { // pascal load; handle first and return, since it loads imgs itself in subfunction
       // note: this assumes (and checks) that all the per-class file lists
@@ -326,6 +344,7 @@ namespace boda
     // all other modes use below || iamge loading block after filling in img_infos
     if( 0 ) { }
     else if( load_mode == "flickr" ) { flickr_logos_load(); }
+    else if( load_mode == "darknet" ) { darknet_load(); }
     else { rt_err( "unknown load_img_db mode: " + load_mode ); }
 
     if( load_imgs ) {

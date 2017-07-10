@@ -172,7 +172,7 @@ namespace boda
     filename_t fl_img; //NESI(default="%(datasets_dir)/flickrlogos/all_images/%%(fn)",help="format for filenames of per-image bbox files. %%(fn) will be replaced with the image filename (e.g. 01032234.jpg), %%(cn) will be replaced with the category")
     filename_t fl_list; //NESI(default="%(datasets_dir)/flickrlogos/all.txt",help="path to FlickrLogos-style list of images")
 
-    p_filename_t darknet_imgs_fn; //NESI(help="path to darknet-style file with list of image filenames")
+    filename_t darknet_imgs_fn; //NESI(default="%(datasets_dir)/KITTI/darknet-val.txt",help="path to darknet-style file with list of image filenames")
 
     p_vect_string classes;
     void load_img_db( bool const load_imgs );
