@@ -167,10 +167,12 @@ namespace boda
     p_img_db_t img_db; //NESI(default="()", help="image database")
     filename_t pil_fn; //NESI(default="%(boda_test_dir)/pascal/head_10/%%s.txt",help="format for filenames of image list files. %%s will be replaced with the class name")
 
-    uint32_t fl_load; //NESI(default=0,help="if 1, load a FlickrLogos-style image dataset. (note: disables pascal loading)")
+    string load_mode; //NESI(default="pascal",help="options: 'pascal', 'flickr' for FlickrLogos-style image dataset; 'darknet' for darknet-style list of image filenames")
     filename_t fl_bbox; //NESI(default="%(datasets_dir)/flickrlogos/all_bboxes/%%(fn).bboxes.txt",help="format for filenames of per-image bbox files. %%(fn) will be replaced with the image filename (e.g. 01032234.jpg), %%(cn) will be replaced with the category")
     filename_t fl_img; //NESI(default="%(datasets_dir)/flickrlogos/all_images/%%(fn)",help="format for filenames of per-image bbox files. %%(fn) will be replaced with the image filename (e.g. 01032234.jpg), %%(cn) will be replaced with the category")
     filename_t fl_list; //NESI(default="%(datasets_dir)/flickrlogos/all.txt",help="path to FlickrLogos-style list of images")
+
+    p_filename_t darknet_imgs_fn; //NESI(help="path to darknet-style file with list of image filenames")
 
     p_vect_string classes;
     void load_img_db( bool const load_imgs );
@@ -178,6 +180,8 @@ namespace boda
     void show_dets( p_per_class_scored_dets_t scored_dets, uint32_t img_ix );
 
   private:
+    void flickr_logos_load( void );
+    void darknet_load( void );
     void read_pascal_image_list_file( filename_t const & class_pil_fn, bool const load_imgs, bool const check_ix_only );
     void load_pascal_data_for_id( string const & img_id, bool load_img, uint32_t const in_file_ix, bool check_ix_only );
     void read_pascal_image_for_id( p_img_info_t img_info );
