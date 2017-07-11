@@ -71,8 +71,11 @@ namespace boda
   struct gt_det_t : public u32_box_t
   {
     uint32_t truncated;
-    uint32_t difficult;    
-    gt_det_t( void ) : truncated(0), difficult(0) { }
+    uint32_t difficult;
+    bool darknet_style;
+    double x,y,w,h; // darknet-style normalized [0,1] location; will be converted to box in image space once image is loaded.
+    void darknet_to_img_space_conv( u32_pt_t const & img_sz );
+    gt_det_t( void ) : truncated(0), difficult(0), darknet_style(0), x(0.0), y(0.0), w(0.0), h(0.0) { }
   };
   struct vect_gt_det_t : public vector< gt_det_t >
   {
@@ -88,10 +91,10 @@ namespace boda
     u32_pt_t size;
     uint32_t depth;
 #endif
-    name_vect_gt_det_map_t gt_dets;
-
+    name_vect_gt_det_map_t gt_dets;    
     p_img_t img;
     img_info_t( string const & id_ ) : id(id_), ix( uint32_t_const_max ), depth(0) { }
+    void img_loaded_hook( void );
   };
   typedef shared_ptr< img_info_t > p_img_info_t;
   typedef map< string, p_img_info_t > id_to_img_info_map_t;
@@ -173,6 +176,7 @@ namespace boda
     filename_t fl_list; //NESI(default="%(datasets_dir)/flickrlogos/all.txt",help="path to FlickrLogos-style list of images")
 
     filename_t darknet_imgs_fn; //NESI(default="%(datasets_dir)/KITTI/darknet-val.txt",help="path to darknet-style file with list of image filenames")
+    filename_t darknet_classes_fn; //NESI(default="%(datasets_dir)/KITTI/darknet-kitti.names",help="path to darknet-style file with list of classes (one per line, matches 0-based indexes in GT labels")
 
     p_vect_string classes;
     void load_img_db( bool const load_imgs );

@@ -49,6 +49,7 @@ namespace boda
   string get_part_before( string const & s, string const & to_find );
   string get_part_after( string const & s, string const & to_find );
   string replace_chars_with_char( string const & s, string const & chars_to_find, char const rep_with );
+  bool maybe_replace_str_with_str( string & s, string const & find_s, string const & rep_s );
   string strip_ending_chars( string const & s, string const & chars_to_strip );
 
   std::string join( vect_string const & vs, std::string const & sep );

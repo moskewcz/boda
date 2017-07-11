@@ -31,12 +31,45 @@ namespace boda
   typedef vector< string > vect_string;
   typedef map< string, uint32_t > str_uint32_t_map_t;
 
+  void rng_check( string const & vs, double const & v ) {
+    if( (v < 0.0) || (v > 1.0) ) {
+      rt_err( strprintf( "value '%s'=%s not in range [0.0,1.0]\n", str(vs).c_str(), str(v).c_str() ) );
+    }
+  }
+  
+  void gt_det_t::darknet_to_img_space_conv( u32_pt_t const & img_sz ) {
+    rng_check("x",x); rng_check("y",y); rng_check("w",w); rng_check("h",h); // all input vals should be normalized
+    double const x1 = x - w/2;
+    double const x2 = x + w/2;
+    double const y1 = y - h/2;
+    double const y2 = y + h/2; 
+    rng_check("x1",x1); rng_check("y1",y1); rng_check("x2",x2); rng_check("y2",y2); // all box edges should be normalized too
+    p[0].d[0] = lround( x1*img_sz.d[0] );
+    p[0].d[1] = lround( y1*img_sz.d[1] );
+    p[1].d[0] = lround( x2*img_sz.d[0] );
+    p[1].d[1] = lround( y2*img_sz.d[1] );
+    assert_st( is_normalized() ); // FIXME: should be strictly normalized?
+  }
+
+  // with the image data (in particular the size), do any setup that we deffered that needs such info.
+  void img_info_t::img_loaded_hook( void ) {
+    assert_st(img);
+    // iterate over GT labels, and set the image-space box for any darknet-style ones.
+    for( name_vect_gt_det_map_t::iterator i = gt_dets.begin(); i != gt_dets.end(); ++i ) {
+      for( vect_gt_det_t::iterator j = i->second.begin(); j != i->second.end(); ++j ) {
+        if( j->darknet_style ) { j->darknet_to_img_space_conv( img->sz );  }
+      } 
+    }
+  }
+
   void img_info_load_img( p_img_info_t img_info, string const & img_fn ) {
     img_info->full_fn = img_fn;
     img_info->img.reset( new img_t );
     img_info->img->load_fn( img_info->full_fn.c_str() );
+    img_info->img_loaded_hook();
   }
 
+  
   u32_pt_t img_db_t::get_max_img_sz( void ) const {
     u32_pt_t ret;
     for( vect_p_img_info_t::const_iterator i = img_infos.begin(); i != img_infos.end(); ++i ) {
@@ -308,11 +341,26 @@ namespace boda
     }
   }
 
-  void load_pil_t::darknet_load( void ) {
+  string darknet_find_labels_fn_for_image_fn( string const & img_fn ) {
+    // first, check that image file ends with some image ext (could be laxer about this)
+    vect_string image_exts{ ".png", ".jpg" };
+    string labels_fn;
+    for( vect_string::const_iterator i = image_exts.begin(); i != image_exts.end(); ++i ) {
+      string maybe_labels_fn = img_fn;
+      bool const had_ext = maybe_strip_suffix( maybe_labels_fn, *i );
+      if( had_ext ) { labels_fn = maybe_labels_fn + ".txt"; break; }
+    }
+    if( labels_fn.empty() ) { rt_err( "image filename did not end with .png or .jpg (need to add new known image ext?): " + img_fn ); }
+    // next, munge path. for now, we only allow/understand our default kitti path munging scheme. note the leading slash ...
+    bool const did_rep = maybe_replace_str_with_str( labels_fn, "/image_", "/darknet_label_" );
+    if( !did_rep ) { rt_err( "failed to munge image fn into labels fn; see hard-coded scheme in code:" + img_fn ); }
+    return labels_fn;
+  }
 
+  
+  void load_pil_t::darknet_load( void ) {
+    classes = readlines_fn( darknet_classes_fn );
     p_vect_string fl_list_lines = readlines_fn( darknet_imgs_fn );
-    set_string classes_set;
-    classes.reset( new vect_string );
     for( vect_string::iterator i = fl_list_lines->begin(); i != fl_list_lines->end(); ++i ) {
       string const & img_fn = (*i);
       string const & img_id = img_fn; // for this mode, use fn as id
@@ -322,7 +370,34 @@ namespace boda
       img_info->full_fn = img_fn;
       img_info->ix = img_db->img_infos.size();
       img_db->img_infos.push_back( img_info );
-      
+      string const labels_fn = darknet_find_labels_fn_for_image_fn( img_fn );
+      p_istream labels_in = ifs_open( labels_fn ); // for now, we assume/assert that a GT label file will exist for every image
+      string label;
+      while( !ifs_getline( labels_fn, labels_in, label ) ) {
+        boost::algorithm::trim( label ); // not ideal, but removes trailing newlines at least (and CRs if present)
+        vect_string parts;
+        split( parts, label, is_space(), token_compress_on );
+        if( (parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
+        assert( parts.size() == 5 );
+        uint32_t const cn_ix = lc_str_u32( parts[0] );
+        if( !( cn_ix < classes->size() ) ) {
+          rt_err( strprintf( "darknet label read error: class index out of bounds: cn_ix=%s (*classes)=%s\n",
+                             str(cn_ix).c_str(), str((*classes)).c_str() ) );
+        }
+        string const & cn = classes->at( cn_ix );
+        vect_gt_det_t & gt_dets = img_info->gt_dets[cn];
+        gt_det_t gt_det;
+        gt_det.truncated = 0;
+        gt_det.difficult = 0;
+        gt_det.darknet_style = 1;
+        gt_det.x = lc_str_d( parts[1] );
+        gt_det.y = lc_str_d( parts[2] );
+        gt_det.w = lc_str_d( parts[3] );
+        gt_det.h = lc_str_d( parts[4] );
+        gt_dets.push_back(gt_det);
+        gt_dets.num_non_difficult.v += 1;
+        img_db->class_infos[cn].v += 1;
+      }
     }
   }
 

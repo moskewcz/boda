@@ -159,6 +159,14 @@ namespace boda
     return ret;
   }
 
+  bool maybe_replace_str_with_str( string & s, string const & find_s, string const & rep_s ) {
+    string ret;
+    size_t const fp = s.find( find_s, 0 );
+    if( fp == string::npos ) { return 0; }
+    s = s.substr( 0, fp ) + rep_s + s.substr( fp+find_s.size(), string::npos );
+    return 1;
+  }
+
   string strip_ending_chars( string const & s, string const & chars_to_strip ) { 
     string ret;
     size_t epos = s.size();
