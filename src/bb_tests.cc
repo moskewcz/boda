@@ -56,7 +56,7 @@ namespace boda {
 	if( !exp_err ) { test_fail_err( rte.err_msg ); } // expected no error, but got one
 	else { 	// check if error is correct one
 	  if( rte.err_msg != string(exp_err) ) { test_fail_wrong_err( 
-	      strprintf( "  %s\nexpected:\n  %s\n", str(rte.err_msg).c_str(), exp_err ) ); 
+	      strprintf( "  %s\nexpected:\n===\n%s===\n", str(rte.err_msg).c_str(), exp_err ) ); 
 	  }
 	}
       }
@@ -64,7 +64,7 @@ namespace boda {
 	if( exp_err ) { test_fail_no_err( exp_err ); }
 	else if ( exp_out ) {
 	  if( cur_str_out != string(exp_out) ) { test_fail_wrong_res( 
-	      strprintf( "%s\nexpected:\n  %s\n", cur_str_out.c_str(), exp_out ) ); 
+	      strprintf( "%s\nexpected:\n===\n%s===\n", cur_str_out.c_str(), exp_out ) ); 
 	  }
 	}
 	// note: further !had_err && !exp_err case handling (i.e. checking correct output) may be inside test function.
@@ -191,7 +191,27 @@ namespace boda {
       test_run( TND(boda_main_t7), 0 ); 
       test_run( TND(boda_main_t8), 0 ); 
       test_run( TND(boda_main_t9_orig), 0, 0 ); // return usage, ignore args after help
-      test_run( TND(boda_main_t9), 0, "struct 'various_stuff_t' has no field 'boozle', so help cannot be provided for it.\n" ); 
+      test_run( TND(boda_main_t9), 0,
+R"FOO(struct 'various_stuff_t' has no field 'boozle', so help cannot be provided for it. Ignoring remaining args and showing help here.
+TYPE INFO:
+FIELDS:
+  mode: (required) type=string  --  name of mode to run
+  boda_output_dir: (required) type=filename_t  --  directory in which to place all outputs. will be created if non-existant.
+  u64: (default='345') type=uint64_t  --  a u64 with a default
+  dpf: (required) type=double  --  No Help Given
+  dpf_nr: (default='233.5') type=double  --  No Help Given
+  vdpf: (optional) type=vect_double  --  No Help Given
+  pdpf: (optional) type=p_double  --  No Help Given
+  vu64: (optional) type=vect_uint64_t  --  No Help Given
+  vops: (optional) type=vect_one_p_string_t  --  No Help Given
+  ops: (optional) type=one_p_string_t  --  No Help Given
+  vstr: (optional) type=vect_string  --  No Help Given
+  fn: (default='yo.mom') type=filename_t  --  No Help Given
+  vct: (optional) type=vect_p_cmd_test_t  --  No Help Given
+  nda: (optional) type=p_nda_t  --  No Help Given
+  out_fn: (default='%(boda_output_dir)/test_vst.txt') type=filename_t  --  output: print out nda, if specified.
+)FOO");
+
       test_run( TND(boda_main_t10), 0 ); 
       test_run( TND(boda_main_t11), 0, 
 		"DESCENDING TO DETAILED HELP FOR field 'dpf' of type=double of struct 'various_stuff_t'\n" 
