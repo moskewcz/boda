@@ -679,7 +679,7 @@ namespace boda
 	string c_res_fn = strprintf( res_fn.exp.c_str(), (*i).c_str() );
 	write_results_file( img_db, c_res_fn, scored_dets->back() );
       }
-      img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, 0 );
+      img_db->score_results( scored_dets, prc_txt_fn.exp, prc_png_fn.exp, "", 0 ); // note: no summary here
     }
   };
 
