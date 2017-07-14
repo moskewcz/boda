@@ -6,6 +6,7 @@
 #include"geom_prim.H"
 #include"img_io.H"
 #include"has_main.H"
+#include<boost/iostreams/device/mapped_file.hpp>
 
 namespace boda 
 {
@@ -17,9 +18,12 @@ namespace boda
     filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
     u32_pt_t frame_sz; //NESI(default="10 5",help="X/Y frame size")
     uint32_t padding; //NESI(default="0",help="frame padding")
-    
-    
-    uint64_t num_to_read; //NESI(default=100,help="read this many records")
+    uint32_t bytes_per_pel; //NESI(default="2",help="bytes per pel")
+
+    uint64_t start_frame; //NESI(default=0,help="start at this frame")
+    uint64_t skip_frames; //NESI(default=0,help="drop/skip this many frames after each returned frame (default 0, no skipped/dropped frames)")
+
+    uint64_t num_to_read; //NESI(default=0,help="read this many records; zero for unlimited")
 
     uint64_t tot_num_read; // num frames read so far
     p_mapped_file_source fn_map;
@@ -29,20 +33,30 @@ namespace boda
     p_img_t frame_buf;
     
     p_img_t read_next_frame( void ) {
-      assert_st( tot_num_read <= num_to_read );
-      if( tot_num_read == num_to_read ) { return p_img_t(); }
+      if( num_to_read && (tot_num_read == num_to_read) ) { return p_img_t(); }
+      uint64_t const frame_sz_bytes = frame_sz.dims_prod() * bytes_per_pel; // assumes 2 bytes per pel
+      if( !( (frame_sz_bytes + fn_map_pos) < fn_map->size() ) ) { return p_img_t(); } // not enough bytes left for another frame
+      uint16_t const * const rp_frame = (uint16_t const *)((uint8_t const *)fn_map->data() + fn_map_pos);
+      // copy and convert frame data
+      for( uint32_t y = 0; y < frame_sz.d[1]; ++y ) {
+        uint32_t * const dest_data = frame_buf->get_row_addr( y );
+        uint16_t const * const src_data = rp_frame + y*frame_sz.d[0];
+        for( uint32_t x = 0; x < frame_sz.d[0]; ++x ) { dest_data[x] = grey_to_pel( src_data[x] >> 4 ); }
+      }
+      //frame_buf->fill_with_pel( grey_to_pel( (10 * tot_num_read) & 0xff ) );
       ++tot_num_read;
-      frame_buf->fill_with_pel( grey_to_pel( (10 * tot_num_read) & 0xff ) );
+      fn_map_pos += frame_stride; // move to next raw frame
+      for( uint32_t i = 0; i != skip_frames; ++i ) { fn_map_pos += frame_stride; } // skip frames if requested
       return frame_buf;
     }
 
     void raw_vid_init( void ) {
       tot_num_read = 0;
       fn_map = map_file_ro( fn );
-      fn_map_pos = 0;
-      frame_stride = frame_sz.dims_prod() + padding;
+      frame_stride = frame_sz.dims_prod()*bytes_per_pel + padding;
       frame_buf = make_shared< img_t >();
       frame_buf->set_sz_and_alloc_pels( frame_sz );
+      fn_map_pos = start_frame * frame_stride;
       // unsigned ret = lodepng::decode( lp_pels, lp_w, lp_h, (uint8_t *)mfile->data(), mfile->size() )
     }
     

@@ -48,6 +48,10 @@ namespace boda
       if( 0 ) { }
       //else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
       //else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
+      else if( lbe.is_key && (lbe.keycode == 'i') ) {
+        auto_adv=0;
+        printf( "fn_map_pos=%s tot_num_read=%s\n", str(fn_map_pos).c_str(), str(tot_num_read).c_str() );
+      }
       else if( lbe.is_key && (lbe.keycode == 'p') ) { auto_adv ^= 1; }
       else if( lbe.is_key ) { // unknown command handlers
 	unknown_command = 1; 
