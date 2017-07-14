@@ -4,15 +4,17 @@
 
 #include"disp_util.H" 
 #include"asio_util.H"
+#include"raw-vid-io.H"
 
 namespace boda 
 {
   // FIXME: dupe'd code with display_pil_t
-  struct display_raw_vid_t : virtual public nesi, public has_main_t // NESI(
+  struct display_raw_vid_t : virtual public nesi, public raw_vid_io_t // NESI(
                              // help="display frame from raw video file in video window",
-                             // bases=["has_main_t"], type_id="display-raw-vid")
+                             // bases=["raw_vid_io_t"], type_id="display-raw-vid")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    u32_pt_t disp_sz; //NESI(default="300 300",help="X/Y display size")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     disp_win_t disp_win;
@@ -20,18 +22,20 @@ namespace boda
     p_deadline_timer_t frame_timer;
     time_duration frame_dur;
 
+    p_img_t in_img;
+    
     void on_frame( error_code const & ec ) {
       if( ec ) { return; }
       assert( !ec );
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) ); 
 
-      //p_datum_t next_datum = read_next_datum();
-      //if( !next_datum ) { return; }
-      //p_img_t img = datum_to_img( next_datum );
+      p_img_t img = read_next_frame();
+      if( !img ) { return; }
 
-      //if( !rand_winds ) { disp_imgs->at(0)->fill_with_pel( grey_to_pel( 128 ) ); }
-      //img_copy_to_clip( img.get(), disp_imgs->at(0).get() );
+      p_img_t ds_img = resample_to_size( img, in_img->sz );
+      in_img->share_pels_from( ds_img );
+
       disp_win.update_disp_imgs();
     }
     void on_quit( error_code const & ec ) { get_io( &disp_win ).stop(); }
@@ -57,8 +61,12 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      disp_imgs = disp_win.disp_setup( {{300,300}} );      
-      //cur_img_ix = 0;
+      raw_vid_init();
+      
+      in_img.reset( new img_t );
+      in_img->set_sz_and_alloc_pels( disp_sz );
+      disp_win.disp_setup( in_img );
+
       io_service_t & io = get_io( &disp_win );
       frame_timer.reset( new deadline_timer_t( io ) );
       frame_dur = microseconds( 1000 * 1000 / fps );
