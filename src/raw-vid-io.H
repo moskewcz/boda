@@ -25,6 +25,8 @@ namespace boda
 
     uint64_t num_to_read; //NESI(default=0,help="read this many records; zero for unlimited")
 
+    string read_mode; //NESI(default="raw",help="file reading mode: raw=raw frames; qt=qt-style binary encapsulation")
+    
     uint64_t tot_num_read; // num frames read so far
     p_mapped_file_source fn_map;
     uint64_t fn_map_pos;
@@ -32,8 +34,7 @@ namespace boda
 
     p_img_t frame_buf;
     
-    p_img_t read_next_frame( void ) {
-      if( num_to_read && (tot_num_read == num_to_read) ) { return p_img_t(); }
+    p_img_t read_next_frame_raw( void ) {
       uint64_t const frame_sz_bytes = frame_sz.dims_prod() * bytes_per_pel; // assumes 2 bytes per pel
       if( !( (frame_sz_bytes + fn_map_pos) < fn_map->size() ) ) { return p_img_t(); } // not enough bytes left for another frame
       uint16_t const * const rp_frame = (uint16_t const *)((uint8_t const *)fn_map->data() + fn_map_pos);
@@ -50,14 +51,38 @@ namespace boda
       return frame_buf;
     }
 
+    p_img_t read_next_frame_qt( void ) {
+      return p_img_t();
+    }
+
+    p_img_t read_next_frame( void ) {
+      if( num_to_read && (tot_num_read == num_to_read) ) { return p_img_t(); }
+      if( 0 ) {}
+      else if( read_mode == "raw" ) { return read_next_frame_raw(); }
+      else if( read_mode == "qt" ) { return read_next_frame_qt(); }
+      else { rt_err( "unknown read_mode: " + read_mode ); }
+    }
+
+    void raw_vid_init_raw( void ) {
+      frame_stride = frame_sz.dims_prod()*bytes_per_pel + padding;
+      fn_map_pos = start_frame * frame_stride;
+    }
+
+    void raw_vid_init_qt( void ) {
+
+    }
+    
     void raw_vid_init( void ) {
       tot_num_read = 0;
       fn_map = map_file_ro( fn );
-      frame_stride = frame_sz.dims_prod()*bytes_per_pel + padding;
       frame_buf = make_shared< img_t >();
       frame_buf->set_sz_and_alloc_pels( frame_sz );
-      fn_map_pos = start_frame * frame_stride;
-      // unsigned ret = lodepng::decode( lp_pels, lp_w, lp_h, (uint8_t *)mfile->data(), mfile->size() )
+
+      if( 0 ) {}
+      else if( read_mode == "raw" ) { raw_vid_init_raw(); }
+      else if( read_mode == "qt" ) { raw_vid_init_qt(); }
+      else { rt_err( "unknown read_mode: " + read_mode ); }
+
     }
     
     void main( nesi_init_arg_t * nia ) { 
