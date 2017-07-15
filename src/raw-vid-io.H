@@ -7,6 +7,17 @@
 #include"img_io.H"
 #include"has_main.H"
 #include<boost/iostreams/device/mapped_file.hpp>
+#include<boost/endian/conversion.hpp>
+
+#include<locale>
+#include<codecvt>
+
+template <typename T> std::string to_utf8(const std::basic_string<T, std::char_traits<T>, std::allocator<T>>& source) {
+  std::string result;
+  std::wstring_convert<std::codecvt_utf8_utf16<T>, T> convertor;
+  result = convertor.to_bytes(source);
+  return result;
+}
 
 namespace boda 
 {
@@ -33,6 +44,7 @@ namespace boda
     uint32_t frame_stride;
 
     p_img_t frame_buf;
+    bool need_endian_reverse;
     
     p_img_t read_next_frame_raw( void ) {
       uint64_t const frame_sz_bytes = frame_sz.dims_prod() * bytes_per_pel; // assumes 2 bytes per pel
@@ -68,8 +80,39 @@ namespace boda
       fn_map_pos = start_frame * frame_stride;
     }
 
-    void raw_vid_init_qt( void ) {
+    template< typename T > void read_val( T & v ) {
+      if( !( (sizeof(T)+fn_map_pos) < fn_map->size() ) ) { rt_err( "unexpected end of stream" ); }
+      v = *reinterpret_cast< T const * >((uint8_t const *)fn_map->data() + fn_map_pos);
+      if( need_endian_reverse ) { boost::endian::endian_reverse_inplace(v); }
+      fn_map_pos += sizeof(T);
+    }
 
+    void read_val( string & v ) {
+      uint32_t str_len;
+      read_val( str_len );
+      //printf( "str_len=%s\n", str(str_len).c_str() );
+      assert_st( !(str_len & 1) ); // should be utf-16 string, so must be even # of bytes      
+      std::u16string u16s;
+      for( uint32_t i = 0; i != str_len; i += 2 ) {
+        uint16_t v;
+        read_val( v );
+        u16s.push_back( v );
+      }
+      v = to_utf8( u16s );
+    }
+
+      
+    void raw_vid_init_qt( void ) {
+      need_endian_reverse = 1; // asume stream is big endian, and native is little endian. could check this ...
+      frame_stride = 0; // no fixed frame stride
+      fn_map_pos = 0; // FIXME: skip to start frame
+
+      uint32_t ver;
+      read_val( ver );
+      printf( "ver=%s\n", str(ver).c_str() );
+      string tag;
+      read_val( tag );
+      printf( "tag=%s\n", str(tag).c_str() );
     }
     
     void raw_vid_init( void ) {
