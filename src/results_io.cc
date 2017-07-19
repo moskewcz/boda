@@ -174,15 +174,15 @@ namespace boda
     return img_info->second->ix;
   }
 
-  uint32_t lc_str_double_and_round_to_u32( string const & s ) {
+  int32_t lc_str_double_and_round_to_i32( string const & s ) {
     double const v = lc_str_d( s );
-    double rv = round( v );
+    double rv = ceil( v - 0.5 ); // always round .5 up
     // yolo seems to output negative/invalid coords sometimes. here, we clamp them to 1.
     // if( rv < 1.0 ) { rv = 1.0; }
     // rv += 4000; if( rv < 1.0 ) { rv = 1.0; }
-    assert_st( rv >= 1.0 );
-    uint32_t ret = (uint32_t)rv;
-    assert_st( double(ret) == rv ); // check that rv is representable as a uint32_t
+    // assert_st( rv >= 1.0 ); allow negative/0 returns ...
+    int32_t ret = (int32_t)rv;
+    assert_st( double(ret) == rv ); // check that rv is representable as a int32_t
     return ret;
   }
   
@@ -202,10 +202,10 @@ namespace boda
       string const img_id = parts[0];
       scored_det.img_ix = img_db->get_ix_for_img_id( img_id );
       scored_det.score = lc_str_d( parts[1] );
-      scored_det.p[0].d[0] = lc_str_double_and_round_to_u32( parts[2] );
-      scored_det.p[0].d[1] = lc_str_double_and_round_to_u32( parts[3] );
-      scored_det.p[1].d[0] = lc_str_double_and_round_to_u32( parts[4] );
-      scored_det.p[1].d[1] = lc_str_double_and_round_to_u32( parts[5] );
+      scored_det.p[0].d[0] = lc_str_double_and_round_to_i32( parts[2] );
+      scored_det.p[0].d[1] = lc_str_double_and_round_to_i32( parts[3] );
+      scored_det.p[1].d[0] = lc_str_double_and_round_to_i32( parts[4] );
+      scored_det.p[1].d[1] = lc_str_double_and_round_to_i32( parts[5] );
       scored_det.from_pascal_coord_adjust();
       assert_st( scored_det.is_strictly_normalized() );
       scored_dets->add_det( scored_det );
