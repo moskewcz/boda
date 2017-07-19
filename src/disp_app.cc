@@ -71,13 +71,13 @@ namespace boda
 
     filename_t res_fn; //NESI(default="%(bench_dir)/results/%%s_test.txt",help="format for filenames of pascal-VOC format DPM detection results files. %%s will be replaced with the class name")
 
-    vect_u32_box_t rp_boxes;
+    vect_i32_box_t rp_boxes;
     filename_t rp_boxes_fn; //NESI(default="rps.txt",help="input: region proposal boxes")
 
 
     void score_img( p_img_info_t const & img_info ) {
       p_vect_base_scored_det_t img_sds( new vect_base_scored_det_t );
-      for( vect_u32_box_t::const_iterator i = rp_boxes.begin(); i != rp_boxes.end(); ++i ) {
+      for( vect_i32_box_t::const_iterator i = rp_boxes.begin(); i != rp_boxes.end(); ++i ) {
 	img_sds->push_back( base_scored_det_t{*i,1} );
       }
 
@@ -126,7 +126,7 @@ namespace boda
               for( vect_base_scored_det_t::const_iterator i = img_sds->begin(); i != img_sds->end(); ++i ) {
                 //printf( "cn=%s i->score=%s\n", str(cn).c_str(), str(i->score).c_str() );
                 if( i->score > det_show_thresh ) {
-                  annos->push_back( anno_t{u32_to_i32(*i), rgba_to_pel(40,40,170), 0, cn + "=" + str(i->score), rgba_to_pel(220,220,255) } );
+                  annos->push_back( anno_t{*i, rgba_to_pel(40,40,170), 0, cn + "=" + str(i->score), rgba_to_pel(220,220,255) } );
                 }
               }
             }
@@ -137,7 +137,7 @@ namespace boda
 	  for( uint32_t i = 0; i != gt_dets.size(); ++i ) {
 	    bool const is_matched = (!gtms) || gtms->at(i).matched;
 	    uint32_t gt_color = is_matched ? rgba_to_pel(40,170,40) : rgba_to_pel(170,40,40);
-	    annos->push_back( anno_t{u32_to_i32(gt_dets[i]), gt_color, 0, cn, rgba_to_pel(220,220,255) } );
+	    annos->push_back( anno_t{gt_dets[i], gt_color, 0, cn, rgba_to_pel(220,220,255) } );
 	    if( show_filt != 0 ) {
 	      if( !gtms ) { keep_img |= 1; } // always keep if no scoring done
 	      else if( is_matched ? (show_filt==1) : (show_filt==2) ) { keep_img |= 1; }

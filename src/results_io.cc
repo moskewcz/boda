@@ -332,7 +332,7 @@ namespace boda
         if( (box_parts.size() == 1) && parts[0].empty() ) { continue; } // skip ws-only lines
         assert( box_parts.size() == 4 );
         if( box_parts[0] == "x" ) { continue; } // skip header
-        gt_det.p[0].read_from_line_parts( box_parts, 0 ); gt_det.p[0] -= u32_pt_t{1,1}; // 1-based, so adjust
+        gt_det.p[0].read_from_line_parts( box_parts, 0 ); gt_det.p[0] -= i32_pt_t{1,1}; // 1-based, so adjust
         gt_det.p[1].read_from_line_parts( box_parts, 2 ); gt_det.p[1] += gt_det.p[0]; // read as size, so add nc to make pc	  
         assert_st( gt_det.is_strictly_normalized() );
         gt_dets.push_back(gt_det);

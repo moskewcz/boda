@@ -216,12 +216,14 @@ namespace boda
   typedef map< i32_pt_t, i32_box_t > map_i32_pt_t_to_i32_box_t;
   typedef set< u32_pt_t > set_u32_pt_t;
 
-  typedef vector< u32_box_t > vect_u32_box_t; 
+  typedef vector< u32_box_t > vect_u32_box_t;
+  typedef vector< i32_box_t > vect_i32_box_t; 
+  typedef shared_ptr< vect_u32_box_t > p_vect_u32_box_t;
+  typedef shared_ptr< vect_i32_box_t > p_vect_i32_box_t; 
   typedef set< u32_box_t > set_u32_box_t;
   typedef set< i32_box_t > set_i32_box_t;
   typedef shared_ptr< u32_box_t > p_u32_box_t; 
   typedef vector< p_u32_box_t > vect_p_u32_box_t;
-  typedef shared_ptr< vect_u32_box_t > p_vect_u32_box_t; 
 
 
   std::ostream & operator <<(std::ostream & os, u32_box_t const & v);

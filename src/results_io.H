@@ -21,11 +21,11 @@ namespace boda
   typedef vector< name_vect_gt_match_map_t > vect_name_vect_gt_match_map_t;
   typedef vector< vect_gt_match_t > vect_vect_gt_match_t;
 
-  struct base_scored_det_t : public u32_box_t
+  struct base_scored_det_t : public i32_box_t
   {
     double score;
     base_scored_det_t( void ) : score(0) {}
-    base_scored_det_t( u32_box_t const & b_, double const & score_ ) : u32_box_t(b_), score(score_) {}
+    base_scored_det_t( i32_box_t const & b_, double const & score_ ) : i32_box_t(b_), score(score_) {}
   };
   typedef vector< base_scored_det_t > vect_base_scored_det_t;
   typedef vector< vect_base_scored_det_t > vect_vect_base_scored_det_t;
@@ -68,7 +68,7 @@ namespace boda
   typedef vector< p_per_class_scored_dets_t > vect_p_per_class_scored_dets_t;
   typedef shared_ptr< vect_p_per_class_scored_dets_t > p_vect_p_per_class_scored_dets_t; 
 
-  struct gt_det_t : public u32_box_t
+  struct gt_det_t : public i32_box_t
   {
     uint32_t truncated;
     uint32_t difficult;

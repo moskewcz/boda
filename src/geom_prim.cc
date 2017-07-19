@@ -11,11 +11,21 @@ namespace boda
     d[0] = lc_str_u32( parts[init_ix+0] );
     d[1] = lc_str_u32( parts[init_ix+1] );
   }
-
   template<> void u32_box_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
     p[0].read_from_line_parts( parts, init_ix   );
     p[1].read_from_line_parts( parts, init_ix+2 );
   }
+
+  template<> void i32_pt_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
+    if( parts.size() < (init_ix+2) ) { lc_str_i32("not enough parts"); } // will throw bad_lexical_cast
+    d[0] = lc_str_i32( parts[init_ix+0] );
+    d[1] = lc_str_i32( parts[init_ix+1] );
+  }
+  template<> void i32_box_t::read_from_line_parts( vect_string const & parts, uint32_t const init_ix ) {
+    p[0].read_from_line_parts( parts, init_ix   );
+    p[1].read_from_line_parts( parts, init_ix+2 );
+  }
+
 
   template<> void u32_box_t::from_pascal_coord_adjust( void )
   {
@@ -23,7 +33,16 @@ namespace boda
       if( !p[0].d[d] ) { rt_err( "during from_pascal_coord_adjust(), box had 0 coord, expected >= 1" ); }
       --p[0].d[d]; // adjust 1 based [] coords into 0 based [) ones.
       // check for strict normalization
-      if( p[1].d[d] <= p[0].d[d] ) { rt_err( "denormalized box after from_pascal_coord_adjust()" ); } 
+      if( p[1].d[d] <= p[0].d[d] ) { rt_err( "denormalized u32 box after from_pascal_coord_adjust()" ); } 
+    }
+  }
+
+  template<> void i32_box_t::from_pascal_coord_adjust( void )
+  {
+    for( uint32_t d = 0; d < 2; ++d ) {
+      --p[0].d[d]; // adjust 1 based [] coords into 0 based [) ones.
+      // check for strict normalization
+      if( p[1].d[d] <= p[0].d[d] ) { rt_err( "denormalized i32 box after from_pascal_coord_adjust()" ); } 
     }
   }
 
@@ -34,10 +53,23 @@ namespace boda
       assert( p[1].d[d] >= p[0].d[d] ); // check for non-strict normalization
     }
   }
+  template<> void i32_box_t::to_pascal_coord_adjust( void )
+  {
+    for( uint32_t d = 0; d < 2; ++d ) {
+      ++p[0].d[d]; // adjust 0 based [) coords into 1 based [] ones.
+      assert( p[1].d[d] >= p[0].d[d] ); // check for non-strict normalization
+    }
+  }
 
   template<> std::string u32_box_t::pascal_str( void ) const
   {
     u32_box_t pascal_box( *this );
+    pascal_box.to_pascal_coord_adjust();
+    return str(pascal_box.p[0]) + " " + str(pascal_box.p[1]);
+  }
+  template<> std::string i32_box_t::pascal_str( void ) const
+  {
+    i32_box_t pascal_box( *this );
     pascal_box.to_pascal_coord_adjust();
     return str(pascal_box.p[0]) + " " + str(pascal_box.p[1]);
   }
