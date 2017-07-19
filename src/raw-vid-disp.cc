@@ -29,13 +29,11 @@ namespace boda
       assert( !ec );
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) ); 
-
+      if( !auto_adv ) { return; }
       p_img_t img = read_next_frame();
       if( !img ) { return; }
-
       p_img_t ds_img = resample_to_size( img, in_img->sz );
       in_img->share_pels_from( ds_img );
-
       disp_win.update_disp_imgs();
     }
     void on_quit( error_code const & ec ) { get_io( &disp_win ).stop(); }
@@ -46,6 +44,10 @@ namespace boda
       //printf( "lbe.is_key=%s lbe.keycode=%s\n", str(lbe.is_key).c_str(), str(lbe.keycode).c_str() );
       bool unknown_command = 0;
       if( 0 ) { }
+      if( !lbe.is_key ) {
+        samp_pt = lbe.xy;
+        printf( "samp_pt=%s\n", str(samp_pt).c_str() );
+      }
       //else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
       //else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
       else if( lbe.is_key && (lbe.keycode == 'i') ) {

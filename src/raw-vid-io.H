@@ -21,13 +21,15 @@ template <typename T> std::string to_utf8(const std::basic_string<T, std::char_t
 
 namespace boda 
 {
-
+  
   struct raw_vid_io_t : virtual public nesi, public has_main_t // NESI(help="parse raw video into frames",
                            // bases=["has_main_t"], type_id="parse-raw-vid")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
     u32_pt_t frame_sz; //NESI(default="10 5",help="X/Y frame size")
+    string mosiac; //NESI(default="none",help="mosiac mode; valid values 'none' (gryyscale) or 'RGGB'")
     uint32_t padding; //NESI(default="0",help="frame padding")
     uint32_t bytes_per_pel; //NESI(default="2",help="bytes per pel")
 
@@ -47,17 +49,50 @@ namespace boda
     
     bool need_endian_reverse;
     vect_uint8_t qt_frame_buf;
+
+    i32_pt_t samp_pt;
     
     p_img_t read_next_frame_raw( void ) {
       uint64_t const frame_sz_bytes = frame_sz.dims_prod() * bytes_per_pel; // assumes 2 bytes per pel
       if( !( (frame_sz_bytes + fn_map_pos) < fn_map->size() ) ) { return p_img_t(); } // not enough bytes left for another frame
       uint16_t const * const rp_frame = (uint16_t const *)((uint8_t const *)fn_map->data() + fn_map_pos);
       // copy and convert frame data
-      for( uint32_t y = 0; y < frame_sz.d[1]; ++y ) {
-        uint32_t * const dest_data = frame_buf->get_row_addr( y );
-        uint16_t const * const src_data = rp_frame + y*frame_sz.d[0];
-        for( uint32_t x = 0; x < frame_sz.d[0]; ++x ) { dest_data[x] = grey_to_pel( src_data[x] >> 4 ); }
-      }
+      if( 0 ) {
+      } else if( mosiac == "RGGB" ) {
+        assert_st( !(frame_sz.d[1]&1) );
+        for( uint32_t y = 0; y < frame_sz.d[1]; y += 2 ) {
+          uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          uint32_t * const dest_data_yp1 = frame_buf->get_row_addr( y+1 );
+          uint16_t const * const src_data = rp_frame + y*frame_sz.d[0];
+          uint16_t const * const src_data_yp1 = rp_frame + (y+1)*frame_sz.d[0];
+          for( uint32_t x = 0; x < frame_sz.d[0]; x += 2 ) {
+            if( int32_t(x|1) == (samp_pt.d[0]|1) && int32_t(y|1) == (samp_pt.d[1]|1)  ) {
+              printf( "\nx,y = %s,%s  --  %s %s\n                   %s %s\n",
+                      str(uint32_t(x)).c_str(), str(uint32_t(y)).c_str(),
+                      str(uint32_t(src_data[x])).c_str(), str(uint32_t(src_data[x+1])).c_str(),
+                      str(uint32_t(src_data_yp1[x])).c_str(), str(uint32_t(src_data_yp1[x+1])).c_str() );
+            }
+            //uint8_t const r = src_data[x+1] >> 4;
+            //uint8_t const g = (src_data[x] + src_data_yp1[x+1]) >> 5;
+            //uint8_t const b = src_data_yp1[x] >> 4;
+            uint16_t const lev = 2048;
+            uint8_t const r = (std::max(src_data[x+1],lev)-lev) >> 3;
+            uint8_t const g = ((std::max(src_data[x],lev)-lev) + (std::max(src_data_yp1[x+1],lev)-lev) ) >> 4;
+            uint8_t const b = (std::max(src_data_yp1[x],lev)-lev) >> 3;
+
+            uint32_t const pel = rgba_to_pel(r,g,b);
+            dest_data[x] = pel;  dest_data[x+1] = pel;
+            dest_data_yp1[x] = pel;  dest_data_yp1[x+1] = pel;
+          }
+        }
+      } else if( mosiac == "none" ) {
+        for( uint32_t y = 0; y < frame_sz.d[1]; ++y ) {
+          uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          uint16_t const * const src_data = rp_frame + y*frame_sz.d[0];
+          for( uint32_t x = 0; x < frame_sz.d[0]; ++x ) { dest_data[x] = grey_to_pel( src_data[x] >> 4 ); }
+        }
+      } else { rt_err( "unknown mosiac: " + mosiac ); }
+
       //frame_buf->fill_with_pel( grey_to_pel( (10 * tot_num_read) & 0xff ) );
       ++tot_num_read;
       fn_map_pos += frame_stride; // move to next raw frame
@@ -70,7 +105,7 @@ namespace boda
       if( !can_read( sizeof( timestamp_ns ) ) ) { return p_img_t(); }
       read_val( timestamp_ns );
       read_val( qt_frame_buf );
-      printf( "timestamp_ns=%s qt_frame_buf.size()=%s\n", str(timestamp_ns).c_str(), str(qt_frame_buf.size()).c_str() );
+      if( verbose ) { printf( "timestamp_ns=%s qt_frame_buf.size()=%s\n", str(timestamp_ns).c_str(), str(qt_frame_buf.size()).c_str() ); }
       if( qt_frame_buf.size() != frame_sz.dims_prod() * 4 ) {
         printf( "don't know how to convert qt_frame_buf.size()=%s to image with frame_sz.dims_prod()=%s (currenly only handling 4 bytes/pixel)\n", str(qt_frame_buf.size()).c_str(), str(frame_sz.dims_prod()).c_str() );
       }
@@ -79,9 +114,7 @@ namespace boda
         float const * const src_data = ((float const *)&qt_frame_buf[0]) + (y*frame_sz.d[0]);
         for( uint32_t x = 0; x < frame_sz.d[0]; ++x ) {
           dest_data[x] = grey_to_pel( src_data[x] );
-          if( x == 128 && y == 32 ) {
-            printf( "src_data[x]=%s\n", str(src_data[x]).c_str() );
-          }
+          if( verbose ) { if( x == 128 && y == 32 ) { printf( "src_data[x]=%s\n", str(src_data[x]).c_str() ); } }
         }
       }
       
@@ -98,7 +131,7 @@ namespace boda
 
     void raw_vid_init_raw( void ) {
       frame_stride = frame_sz.dims_prod()*bytes_per_pel + padding;
-      fn_map_pos = start_frame * frame_stride;
+      fn_map_pos = start_frame * frame_stride + padding;
     }
 
     bool can_read( uint64_t const & sz ) { return (sz+fn_map_pos) < fn_map->size(); }
@@ -163,7 +196,8 @@ namespace boda
       fn_map = map_file_ro( fn );
       frame_buf = make_shared< img_t >();
       frame_buf->set_sz_and_alloc_pels( frame_sz );
-
+      samp_pt = i32_pt_t(-1,-1); // invalid/sentinel value to suppress samp_pt prinouts
+      
       if( 0 ) {}
       else if( read_mode == "raw" ) { raw_vid_init_raw(); }
       else if( read_mode == "qt" ) { raw_vid_init_qt(); }
