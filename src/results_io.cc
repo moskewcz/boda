@@ -181,7 +181,13 @@ namespace boda
     // if( rv < 1.0 ) { rv = 1.0; }
     // rv += 4000; if( rv < 1.0 ) { rv = 1.0; }
     // assert_st( rv >= 1.0 ); allow negative/0 returns ...
+    if( (rv < -10000) || (rv > 10000) ) {
+      printf( "WARNING: extreme image-space value of rv=%s; clamped to [-10000,10000]\n", str(rv).c_str() );
+      min_eq( rv, 10000.0 ); max_eq( rv, -10000.0 );
+    }
     int32_t ret = (int32_t)rv;
+    // check that rv is representable as a int32_t
+    if( double(ret) != rv ) { printf( "ret=%s rv=%s\n", str(ret).c_str(), str(rv).c_str() ); }
     assert_st( double(ret) == rv ); // check that rv is representable as a int32_t
     return ret;
   }
