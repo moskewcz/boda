@@ -17,7 +17,7 @@ LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lb
 # assume system defaults include needed include/lib dirs
 LDFLAGS := $(LDFLAGS) -llmdb
 
-[octave disable]
+[octave]
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/octave-4.0.0 -I/usr/include/octave-4.0.0/octave
 LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 
@@ -44,7 +44,7 @@ caffe.pb.cc caffe.pb.h : ../src/ext/caffe.proto
 	$(PROTOC) -I../src/ext --cpp_out=. ../src/ext/caffe.proto
 
 
-[cuda disable]
+[cuda]
 CUDA_HOME := /usr/local/cuda
 CPPFLAGS := $(CPPFLAGS) -I$(CUDA_HOME)/include
 CUDA_LIB = $(CUDA_HOME)/lib64
@@ -53,16 +53,16 @@ LDFLAGS := $(LDFLAGS) -L$(CUDA_LIB) -lcudart -lcurand -lcuda
 # if you prefer to use LD_LIBRARY_PATH or other methods, comment out the following line:
 LDFLAGS := $(LDFLAGS) -Wl,-rpath,$(CUDA_LIB)
 
-[culibs needs=cuda disable]
+[culibs needs=cuda]
 LDFLAGS := $(LDFLAGS) -lcublas -lcudnn
 
-[nvrtc needs=cuda disable]
+[nvrtc needs=cuda]
 LDFLAGS := $(LDFLAGS) -lnvrtc
 
-[opencl disable]
+[opencl]
 LDFLAGS := $(LDFLAGS) -lOpenCL
 
-[caffe needs=cuda needs=caffe_pb disable]
+[caffe needs=cuda needs=caffe_pb]
 CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
 CAFFE_LIB := $(CAFFE_HOME)/build/lib
 CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/include -I$(CAFFE_HOME)/build/src
