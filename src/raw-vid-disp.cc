@@ -4,7 +4,7 @@
 
 #include"disp_util.H" 
 #include"asio_util.H"
-#include"raw-vid-io.H"
+#include"data_stream.H"
 
 namespace boda 
 {
@@ -17,7 +17,7 @@ namespace boda
     u32_pt_t disp_sz; //NESI(default="300 300",help="X/Y display size")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
-    p_raw_vid_io_t stream; //NESI(help="data stream to read images from")
+    p_data_stream_t stream; //NESI(help="data stream to read images from")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
@@ -48,8 +48,8 @@ namespace boda
       bool unknown_command = 0;
       if( 0 ) { }
       if( !lbe.is_key ) {
-        stream->samp_pt = lbe.xy;
-        printf( "samp_pt=%s\n", str(stream->samp_pt).c_str() );
+        stream->set_samp_pt( lbe.xy );
+        printf( "set_samp_pt(%s)\n", str( lbe.xy ).c_str() );
       }
       //else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
       //else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
@@ -70,7 +70,7 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      stream->raw_vid_init();
+      stream->data_stream_init( nia );
       
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( disp_sz );

@@ -84,6 +84,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+data_stream.o
 raw-vid-io.o
 raw-vid-disp.o
 op-tuner.o
