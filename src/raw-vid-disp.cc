@@ -18,6 +18,7 @@ namespace boda
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
+    vect_p_data_to_img_t data_to_img; //NESI(help="data stream to img converters (must specify same # of these as data streams)")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
