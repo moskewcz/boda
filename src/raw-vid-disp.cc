@@ -9,14 +9,15 @@
 namespace boda 
 {
   // FIXME: dupe'd code with display_pil_t
-  struct display_raw_vid_t : virtual public nesi, public raw_vid_io_t // NESI(
-                             // help="display frame from raw video file in video window",
-                             // bases=["raw_vid_io_t"], type_id="display-raw-vid")
+  struct display_raw_vid_t : virtual public nesi, public has_main_t // NESI(
+                             // help="display frame from data stream file in video window",
+                             // bases=["has_main_t"], type_id="display-raw-vid")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     u32_pt_t disp_sz; //NESI(default="300 300",help="X/Y display size")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
+    p_raw_vid_io_t stream; //NESI(help="data stream to read images from")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
@@ -24,13 +25,15 @@ namespace boda
 
     p_img_t in_img;
     
+
+    
     void on_frame( error_code const & ec ) {
       if( ec ) { return; }
       assert( !ec );
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) ); 
       if( !auto_adv ) { return; }
-      p_img_t img = read_next_frame();
+      p_img_t img = stream->read_next_frame();
       if( !img ) { return; }
       p_img_t ds_img = resample_to_size( img, in_img->sz );
       in_img->share_pels_from( ds_img );
@@ -45,14 +48,14 @@ namespace boda
       bool unknown_command = 0;
       if( 0 ) { }
       if( !lbe.is_key ) {
-        samp_pt = lbe.xy;
-        printf( "samp_pt=%s\n", str(samp_pt).c_str() );
+        stream->samp_pt = lbe.xy;
+        printf( "samp_pt=%s\n", str(stream->samp_pt).c_str() );
       }
       //else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
       //else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
       else if( lbe.is_key && (lbe.keycode == 'i') ) {
         auto_adv=0;
-        printf( "fn_map_pos=%s tot_num_read=%s\n", str(fn_map_pos).c_str(), str(tot_num_read).c_str() );
+        printstr( stream->get_pos_info_str() + "\n" );
       }
       else if( lbe.is_key && (lbe.keycode == 'p') ) { auto_adv ^= 1; }
       else if( lbe.is_key ) { // unknown command handlers
@@ -67,7 +70,7 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      raw_vid_init();
+      stream->raw_vid_init();
       
       in_img.reset( new img_t );
       in_img->set_sz_and_alloc_pels( disp_sz );

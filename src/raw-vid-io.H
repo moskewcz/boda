@@ -6,6 +6,7 @@
 #include"geom_prim.H"
 #include"img_io.H"
 #include"has_main.H"
+#include"str_util.H"
 #include<boost/iostreams/device/mapped_file.hpp>
 #include<boost/endian/conversion.hpp>
 
@@ -51,7 +52,11 @@ namespace boda
     vect_uint8_t qt_frame_buf;
 
     i32_pt_t samp_pt;
-    
+
+    string get_pos_info_str( void ) {
+      return strprintf( "fn_map_pos=%s tot_num_read=%s", str(fn_map_pos).c_str(), str(tot_num_read).c_str() );
+    }
+
     p_img_t read_next_frame_raw( void ) {
       uint64_t const frame_sz_bytes = frame_sz.dims_prod() * bytes_per_pel; // assumes 2 bytes per pel
       if( !( (frame_sz_bytes + fn_map_pos) < fn_map->size() ) ) { return p_img_t(); } // not enough bytes left for another frame
@@ -212,6 +217,9 @@ namespace boda
 
   };
 
+  typedef shared_ptr< raw_vid_io_t > p_raw_vid_io_t; 
+
+  
   uint64_t score_batch( p_nda_float_t const & out_batch, vect_uint32_t const & batch_labels_gt );
 
 }
