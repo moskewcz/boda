@@ -26,7 +26,10 @@ namespace boda
     virtual string get_pos_info_str( void ) = 0;
   };
   
+  typedef vector< data_stream_t > vect_data_stream_t; 
   typedef shared_ptr< data_stream_t > p_data_stream_t; 
+  typedef vector< p_data_stream_t > vect_p_data_stream_t;
+
 }
 
 #endif /* _DATA_STREAM_H_ */

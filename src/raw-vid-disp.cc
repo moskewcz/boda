@@ -17,13 +17,13 @@ namespace boda
     u32_pt_t disp_sz; //NESI(default="300 300",help="X/Y display size")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
-    p_data_stream_t stream; //NESI(help="data stream to read images from")
+    vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
     time_duration frame_dur;
 
-    p_img_t in_img;
+    vect_p_img_t in_imgs;
     
 
     
@@ -33,11 +33,16 @@ namespace boda
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) ); 
       if( !auto_adv ) { return; }
-      p_img_t img = stream->read_next_frame();
-      if( !img ) { return; }
-      p_img_t ds_img = resample_to_size( img, in_img->sz );
-      in_img->share_pels_from( ds_img );
-      disp_win.update_disp_imgs();
+      assert_st( stream.size() == in_imgs.size() );
+      bool had_new_img = 0;
+      for( uint32_t i = 0; i != stream.size(); ++i ) {
+        p_img_t img = stream[i]->read_next_frame();
+        if( !img ) { continue; }
+        had_new_img = 1;
+        p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz );
+        in_imgs[i]->share_pels_from( ds_img );
+      }
+      if( had_new_img ) { disp_win.update_disp_imgs(); }
     }
     void on_quit( error_code const & ec ) { get_io( &disp_win ).stop(); }
 
@@ -48,14 +53,19 @@ namespace boda
       bool unknown_command = 0;
       if( 0 ) { }
       if( !lbe.is_key ) {
-        stream->set_samp_pt( lbe.xy );
-        printf( "set_samp_pt(%s)\n", str( lbe.xy ).c_str() );
+        if( lbe.img_ix != uint32_t_const_max ) {
+          assert_st( lbe.img_ix < stream.size() );
+          stream[lbe.img_ix]->set_samp_pt( lbe.xy );
+          printf( "set_samp_pt(%s)\n", str( lbe.xy ).c_str() );
+        }
       }
       //else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
       //else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
       else if( lbe.is_key && (lbe.keycode == 'i') ) {
         auto_adv=0;
-        printstr( stream->get_pos_info_str() + "\n" );
+        for( uint32_t i = 0; i != stream.size(); ++i ) {
+          printf( "stream[%s]: %s\n", str(i).c_str(), stream[i]->get_pos_info_str().c_str() );
+        }
       }
       else if( lbe.is_key && (lbe.keycode == 'p') ) { auto_adv ^= 1; }
       else if( lbe.is_key ) { // unknown command handlers
@@ -70,11 +80,14 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      stream->data_stream_init( nia );
-      
-      in_img.reset( new img_t );
-      in_img->set_sz_and_alloc_pels( disp_sz );
-      disp_win.disp_setup( in_img );
+      for( vect_p_data_stream_t::const_iterator i = stream.begin(); i != stream.end(); ++i ) {
+        (*i)->data_stream_init( nia );
+        in_imgs.push_back( make_shared<img_t>() );
+        in_imgs.back()->set_sz_and_alloc_pels( disp_sz );
+        
+      }
+
+      disp_win.disp_setup( in_imgs );
 
       io_service_t & io = get_io( &disp_win );
       frame_timer.reset( new deadline_timer_t( io ) );
