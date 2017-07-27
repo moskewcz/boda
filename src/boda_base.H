@@ -45,10 +45,14 @@ namespace boda
   uint8_t const uint8_t_const_max = boost::integer_traits< uint8_t >::const_max;
   int8_t const int8_t_const_max = boost::integer_traits< int8_t >::const_max;
   int8_t const int8_t_const_min = boost::integer_traits< int8_t >::const_min;
+  float const float_const_max = std::numeric_limits<float>::max();
+  float const float_const_min = std::numeric_limits<float>::lowest(); // note: ::min() is the lowest pos value ... sigh/sorry!
 
   // note: returns 0 for v==0
   inline uint64_t floor_log2_u64( uint64_t v ) { uint64_t ret = 0; while( v >>= 1 ) { ++ret; } return ret; }
-  
+
+  template< typename T > inline T clamp( T const & v, T const & min_v, T const & max_v  ) { return std::min( std::max( v, min_v ), max_v ); }
+  template< typename T > inline void clamp_eq( T & v, T const & min_v, T const & max_v  ) { v = std::min( std::max( v, min_v ), max_v ); }
   template< typename T > inline void min_eq( T & v, T const & o ) { v = std::min( v, o ); }
   template< typename T > inline void max_eq( T & v, T const & o ) { v = std::max( v, o ); }
   inline uint32_t u32_ceil_div( uint32_t const & val, uint32_t const & d ) { return (val + d - 1) / d; }

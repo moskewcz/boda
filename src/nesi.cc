@@ -592,6 +592,13 @@ namespace boda
   nesi_dump_t * uint64_t_nesi_dump = &with_op_left_shift_nesi_dump< uint64_t >;
   void *uint64_t_init_arg = (void *)"uint64_t (64-bit unsigned integer)";
 
+  // float  
+  init_t * nesi_float_init = &nesi_lexcast_init< float >;
+  make_p_t * float_make_p = &has_def_ctor_make_p< float >;
+  vect_push_back_t * float_vect_push_back = &has_def_ctor_vect_push_back_t< float >;
+  nesi_dump_t * float_nesi_dump = &with_op_left_shift_nesi_dump< float >;
+  void *float_init_arg = (void *)"float (single precision floating point number)";
+
   // double  
   init_t * nesi_double_init = &nesi_lexcast_init< double >;
   make_p_t * double_make_p = &has_def_ctor_make_p< double >;
