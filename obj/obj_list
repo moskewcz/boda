@@ -9,7 +9,7 @@
 
 [base] # special basic setup / global dependencies; always enabled, will always be emmited first in dependencies.make
 CPP := g++
-CPPFLAGS := -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall -I. # -I. is so files in gen/* can be included ... not ideal?
+CPPFLAGS := -fuse-ld=gold -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall -I. # -I. is so files in gen/* can be included ... not ideal?
 LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lboost_program_options 
 
 [lmdb]
