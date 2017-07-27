@@ -34,10 +34,12 @@ namespace boda
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) ); 
       if( !auto_adv ) { return; }
+      assert_st( stream.size() == data_to_img.size() );
       assert_st( stream.size() == in_imgs.size() );
       bool had_new_img = 0;
       for( uint32_t i = 0; i != stream.size(); ++i ) {
-        p_img_t img = stream[i]->read_next_frame();
+        data_block_t db = stream[i]->read_next_block();
+        p_img_t img = data_to_img[i]->data_block_to_img( db );
         if( !img ) { continue; }
         had_new_img = 1;
         p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz );
@@ -56,7 +58,7 @@ namespace boda
       if( !lbe.is_key ) {
         if( lbe.img_ix != uint32_t_const_max ) {
           assert_st( lbe.img_ix < stream.size() );
-          stream[lbe.img_ix]->set_samp_pt( lbe.xy );
+          data_to_img[lbe.img_ix]->set_samp_pt( lbe.xy );
           printf( "set_samp_pt(%s)\n", str( lbe.xy ).c_str() );
         }
       }
@@ -81,13 +83,17 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      for( vect_p_data_stream_t::const_iterator i = stream.begin(); i != stream.end(); ++i ) {
-        (*i)->data_stream_init( nia );
+      if( stream.size() != data_to_img.size() ) {
+        rt_err( strprintf( "error: must specify same number of data streams and data-to-img converters, but; stream.size()=%s and data_to_img.size()=%s\n",
+                           str(stream.size()).c_str(), str(data_to_img.size()).c_str() ) );
+      }
+      for( uint32_t i = 0; i != stream.size(); ++i ) {
+        stream[i]->data_stream_init( nia );
+        data_to_img[i]->data_to_img_init( nia );
         in_imgs.push_back( make_shared<img_t>() );
         in_imgs.back()->set_sz_and_alloc_pels( disp_sz );
-        
       }
-
+      
       disp_win.disp_setup( in_imgs );
 
       io_service_t & io = get_io( &disp_win );

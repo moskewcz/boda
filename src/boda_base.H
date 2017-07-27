@@ -32,6 +32,7 @@ namespace boost {
 namespace boda
 {
   struct zi_uint32_t { uint32_t v; zi_uint32_t( void ) : v(0) { } };
+  struct zi_uint64_t { uint64_t v; zi_uint64_t( void ) : v(0) { } };
   struct zi_bool { bool v; zi_bool( void ) : v(0) { } zi_bool( bool const & v_ ) : v(v_) { } };
 
   uint64_t const uint64_t_const_max = boost::integer_traits< uint64_t >::const_max;
