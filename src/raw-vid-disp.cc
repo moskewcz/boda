@@ -17,6 +17,7 @@ namespace boda
     u32_pt_t disp_sz; //NESI(default="300 300",help="X/Y display size")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
+    uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
     vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
     vect_p_data_to_img_t data_to_img; //NESI(help="data stream to img converters (must specify same # of these as data streams)")
     disp_win_t disp_win;
@@ -37,8 +38,13 @@ namespace boda
       assert_st( stream.size() == data_to_img.size() );
       assert_st( stream.size() == in_imgs.size() );
       bool had_new_img = 0;
+      if( print_timestamps ) { printf( "--- frame ---\n"); }
       for( uint32_t i = 0; i != stream.size(); ++i ) {
         data_block_t db = stream[i]->read_next_block();
+        if( print_timestamps ) {
+          printf( "stream[%s]: got db.timestamp_ns=%s (db.size=%s)\n",
+                  str(i).c_str(), str(db.timestamp_ns).c_str(), str(db.sz).c_str() );
+        }
         p_img_t img = data_to_img[i]->data_block_to_img( db );
         if( !img ) { continue; }
         had_new_img = 1;
