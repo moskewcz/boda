@@ -29,6 +29,8 @@ namespace boda
     filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
     string read_mode; //NESI(default="dumpvideo",help="file reading mode: dumpvideo=mplayer video dump format; qt=qt-style binary encapsulation")
 
+    uint32_t text_tsfix; //NESI(default=0,help="text time-stamp-field-index; when read_mode==text, use the N'th field as a decimal timestamp in seconds (with fractional part).")
+
     // for debugging / skipping:
     uint64_t start_block; //NESI(default=0,help="start at this block")
     uint64_t skip_blocks; //NESI(default=0,help="drop/skip this many blocks after each returned block (default 0, no skipped/dropped blocks)")
@@ -66,6 +68,43 @@ namespace boda
       v = to_utf8( u16s );
     }
 
+    // read a newline-terminated text line as a block. notes: block includes newline if any found; will return rest of
+    // file if no newline; doesn't set timestamp field of block.
+    void read_line_as_block( data_block_t & v ) {
+      v.d.reset( (uint8_t *)fn_map->data() + fn_map_pos, null_deleter<uint8_t>() ); // borrow pointer
+      uint8_t *lb = (uint8_t *)fn_map->data() + fn_map_pos;
+      uint8_t *le = lb;
+      uint8_t *de = (uint8_t *)fn_map->data() + fn_map->size();
+      if( !(le < de) ) { rt_err( "unexpected end of file when trying to read a line of text: started read at EOF." ); }
+      while( le != de ) {
+        if( *le == '\r' ) { // DOS "\r\n" newline
+          ++le;
+          if( le == de ) { rt_err( "unexpected end of file when trying to read a line of text: EOF after \\r." ); }
+          if( *le != '\n' ) {
+            rt_err( "error reading text string: expected \\n after \\r, but got char with decimal val = " +
+                    str(uint32_t(*le)) ); }
+          ++le;
+          break;
+        }
+        if( *le == '\n' ) { ++le; break; } // regular unix "\n" newline
+        ++le; // non-newline char, add to string
+      }
+      v.sz = le - lb;
+      fn_map_pos += v.sz; // consume str
+    }
+
+    // set timestamp from field of text line stored in block
+    void set_timestamp_from_text_line( data_block_t & v ) {
+      string line( v.d.get(), v.d.get()+v.sz );
+      vect_string parts = split( line, ' ' );
+      if( !( text_tsfix < parts.size() ) ) {
+        rt_err( strprintf( "can't parse timestamp from text_tsfix=%s; line had parts.size()=%s; full line=%s\n", str(text_tsfix).c_str(), str(parts.size()).c_str(), str(line).c_str() ) );
+      }
+      //if( verbose ) { printf( "parts[text_tsfix]=%s\n", str(parts[text_tsfix]).c_str() ); }
+      double const ts_d_ns = lc_str_d( parts[text_tsfix] ) * 1e9;
+      v.timestamp_ns = lround(ts_d_ns);
+    }
+
     // note: does not read/fill-in timestamp_ns field of data_block_t, just size and data/pointer
     void read_val( data_block_t & v ) {
       uint32_t v_len;
@@ -82,7 +121,7 @@ namespace boda
     virtual string get_pos_info_str( void ) { return strprintf( "fn_map_pos=%s tot_num_read=%s", str(fn_map_pos).c_str(), str(tot_num_read).c_str() ); }
 
     virtual data_block_t read_next_block( void ) {
-      if( num_to_read && (tot_num_read == num_to_read) ) { return data_block_t(); }
+      if( num_to_read && (tot_num_read >= num_to_read) ) { return data_block_t(); }
       data_block_t ret = read_next_block_inner();
       for( uint32_t i = 0; i != skip_blocks; ++i ) { read_next_block_inner(); } // skip blocks if requested
       return ret;
@@ -104,19 +143,24 @@ namespace boda
         if( !can_read( sizeof( ret.timestamp_ns ) ) ) { return ret; } // not enough bytes left for another block
         read_val( ret.timestamp_ns );
         read_val( ret );
+      } else if( read_mode == "text" ) {
+        if( !can_read( 1 ) ) { return ret; } // not enough bytes left for another block
+        read_line_as_block( ret );
+        set_timestamp_from_text_line( ret );
       } else { rt_err( "unknown read_mode: " + read_mode ); }
+      
       ++tot_num_read;
-      if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
+      if( verbose ) { printf( "%s ret.sz=%s ret.timestamp_ns=%s\n", read_mode.c_str(), str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
       return ret;
     }
 
     // init/setup
     
-    void raw_vid_init_dumpvideo( void ) {
+    void data_stream_init_dumpvideo( void ) {
       need_endian_reverse = 0;
     }
 
-    void raw_vid_init_qt( void ) {
+    void data_stream_init_qt( void ) {
       need_endian_reverse = 1; // assume stream is big endian, and native is little endian. could check this ...
 
       uint32_t ver;
@@ -131,19 +175,27 @@ namespace boda
       read_val( chunk_off );
       uint64_t duration_ns;
       read_val( duration_ns );
-      printf( "qt stream header: ver=%s tag=%s header.size()=%s timestamp_off=%s chunk_off=%s duration_ns=%s\n",
+      printf( "  qt stream header: ver=%s tag=%s header.size()=%s timestamp_off=%s chunk_off=%s duration_ns=%s\n",
               str(ver).c_str(), str(tag).c_str(), str(header.sz).c_str(), str(timestamp_off).c_str(),
               str(chunk_off).c_str(), str(duration_ns).c_str() );
       
     }
-    
+
+    void data_stream_init_text( void ) {
+      data_block_t header;
+      read_line_as_block( header );
+      printf( "  text stream header.sz=%s\n", str(header.sz).c_str() );
+    }
+
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      printf( "data_stream_init(): fn.exp=%s read_mode=%s start_block=%s skip_blocks=%s\n", str(fn.exp).c_str(), str(read_mode).c_str(), str(start_block).c_str(), str(skip_blocks).c_str() );
       fn_map = map_file_ro( fn );
       fn_map_pos = 0;
       tot_num_read = 0;
       if( 0 ) {}
-      else if( read_mode == "dumpvideo" ) { raw_vid_init_dumpvideo(); }
-      else if( read_mode == "qt" ) { raw_vid_init_qt(); }
+      else if( read_mode == "dumpvideo" ) { data_stream_init_dumpvideo(); }
+      else if( read_mode == "qt" ) { data_stream_init_qt(); }
+      else if( read_mode == "text" ) { data_stream_init_text(); }
       else { rt_err( "unknown read_mode: " + read_mode ); }
       // skip to start block
       for( uint32_t i = 0; i != start_block; ++i ) { read_next_block_inner(); }
@@ -312,9 +364,21 @@ namespace boda
     }
   };
 
-    
-  struct data_stream_base_t; typedef shared_ptr< data_stream_base_t > p_data_stream_base_t; 
+  struct data_to_img_null_t : virtual public nesi, public data_to_img_t // NESI(help="consume data blocks and return nothing (null images)",
+                           // bases=["data_to_img_t"], type_id="null")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
 
+    virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) { }    
+    virtual void data_to_img_init( nesi_init_arg_t * const nia ) { }
+    virtual p_img_t data_block_to_img( data_block_t const & db ) {
+      if( verbose ) { printf( "data_to_img_null: db.sz=%s db.timestamp_ns=%s\n",
+                              str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
+      return p_img_t();
+    }
+    
+  };
 #include"gen/raw-vid-io.cc.nesi_gen.cc"
 
 }
