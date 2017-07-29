@@ -44,8 +44,12 @@ namespace boda
 
     // low-level stream reading
     bool can_read( uint64_t const & sz ) { return (sz+fn_map_pos) < fn_map->size(); }
-    void check_can_read( uint64_t const & sz ) { if( !can_read(sz) ) { rt_err( "unexpected end of stream" ); } }
-    
+    void check_can_read( uint64_t const & sz ) {
+      if( !can_read(sz) ) {
+        rt_err( strprintf( "unexpected end of stream trying to read sz=%s bytes at fn_map_pos=%s\n",
+                           str(sz).c_str(), str(fn_map_pos).c_str() ) );
+      }
+    }
     template< typename T > void read_val( T & v ) {
       check_can_read( sizeof( T ) );
       v = *reinterpret_cast< T const * >((uint8_t const *)fn_map->data() + fn_map_pos);
@@ -140,8 +144,20 @@ namespace boda
         ret.d.reset( (uint8_t *)fn_map->data() + fn_map_pos, null_deleter<uint8_t>() ); // borrow pointer
         fn_map_pos += block_sz;
       } else if( read_mode == "qt" ) {
+        if( fn_map_pos == timestamp_off ) {
+#if 0
+          printf( "at timestamp_off: fn_map_pos=%s\n", str(fn_map_pos).c_str() );
+          uint8_t ch;
+          while( can_read( sizeof(ch) ) ) {
+            read_val(ch);
+            printf( "ch=%s ch=%s\n", str(uint32_t(ch)).c_str(), str(ch).c_str() );
+          }
+#endif     
+          return ret;
+        }
         if( !can_read( sizeof( ret.timestamp_ns ) ) ) { return ret; } // not enough bytes left for another block
         read_val( ret.timestamp_ns );
+        if( !can_read( sizeof( uint32_t ) ) ) { rt_err( "qt stream: read timestamp, but not enough data left to read payload size" ); }
         read_val( ret );
       } else if( read_mode == "text" ) {
         if( !can_read( 1 ) ) { return ret; } // not enough bytes left for another block
@@ -160,6 +176,10 @@ namespace boda
       need_endian_reverse = 0;
     }
 
+    // for qt stream
+    uint64_t timestamp_off;
+    uint64_t chunk_off;
+
     void data_stream_init_qt( void ) {
       need_endian_reverse = 1; // assume stream is big endian, and native is little endian. could check this ...
 
@@ -169,16 +189,17 @@ namespace boda
       read_val( tag );
       data_block_t header;
       read_val( header );
-      uint64_t timestamp_off;
       read_val( timestamp_off );
-      uint64_t chunk_off;
       read_val( chunk_off );
       uint64_t duration_ns;
       read_val( duration_ns );
       printf( "  qt stream header: ver=%s tag=%s header.size()=%s timestamp_off=%s chunk_off=%s duration_ns=%s\n",
               str(ver).c_str(), str(tag).c_str(), str(header.sz).c_str(), str(timestamp_off).c_str(),
               str(chunk_off).c_str(), str(duration_ns).c_str() );
-      
+      if( fn_map->size() > timestamp_off ) {
+        printf( "   !! warning: (fn_map->size() - timestamp_off)=%s bytes at end of file will be ignored\n",
+                str((fn_map->size() - timestamp_off)).c_str() );
+      }
     }
 
     void data_stream_init_text( void ) {
@@ -516,6 +537,23 @@ namespace boda
     
   };
 
+
+  struct scan_data_stream_t : virtual public nesi, public has_main_t // NESI(
+                              // help="scan N data streams one-by-one, and print total number of blocks read for each.",
+                              // bases=["has_main_t"], type_id="scan-data-stream")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
+
+    void main( nesi_init_arg_t * nia ) {
+      for( uint32_t i = 0; i != stream.size(); ++i ) {
+        stream[i]->data_stream_init( nia );
+        while( stream[i]->read_next_block().d.get() ) { }
+        printf( "stream[%s]->get_pos_info_str()=%s\n", str(i).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
+      }
+    }
+
+  };
 
 #include"gen/raw-vid-io.cc.nesi_gen.cc"
 
