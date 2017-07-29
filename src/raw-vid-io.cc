@@ -209,6 +209,109 @@ namespace boda
   };
   struct data_stream_base_t; typedef shared_ptr< data_stream_base_t > p_data_stream_base_t; 
 
+  struct block_info_t {
+    uint16_t block_id;
+    uint16_t rot_pos;
+  } __attribute__((packed));
+
+  struct laser_info_t {
+    uint16_t distance;
+    uint8_t intensity;
+  } __attribute__((packed));
+
+  struct data_stream_velodyne_t : virtual public nesi, public data_stream_t // NESI(help="parse data stream (velodyne) into per-full-revolution data blocks by merging across packets",
+                             // bases=["data_stream_t"], type_id="velodyne")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    p_data_stream_base_t vps; //NESI(req=1,help="underlying velodyne packet stream")
+
+    // FIXME: somehow factor out shared start_block, skip_blocks, num_to_read handling
+    // for debugging / skipping:
+    uint64_t start_block; //NESI(default=0,help="start at this block")
+    uint64_t skip_blocks; //NESI(default=0,help="drop/skip this many blocks after each returned block (default 0, no skipped/dropped blocks)")
+    uint64_t num_to_read; //NESI(default=0,help="read this many records; zero for unlimited")
+
+    uint32_t fbs_per_packet; //NESI(default="12",help="firing blocks per packet")
+    uint32_t beams_per_fb; //NESI(default="32",help="beams per firing block")
+    uint32_t status_bytes; //NESI(default="6",help="bytes of status at end of block")
+
+    uint32_t fb_sz;
+    uint32_t packet_sz;
+    uint16_t last_rot;
+    
+    virtual p_img_t data_block_to_img( data_block_t const & db ) {
+      return p_img_t();
+    }
+
+    // internal state:
+    uint64_t tot_num_read; // num blocks read so far
+
+    virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s vps->tot_num_read=%s", str(tot_num_read).c_str(), str(vps->tot_num_read).c_str() ); }
+
+    virtual data_block_t read_next_block( void ) {
+      if( num_to_read && (tot_num_read >= num_to_read) ) { return data_block_t(); }
+      data_block_t ret = read_next_block_inner();
+      for( uint32_t i = 0; i != skip_blocks; ++i ) { read_next_block_inner(); } // skip blocks if requested
+      return ret;
+    }
+    
+    data_block_t read_next_block_inner( void ) {
+      bool packet_is_rot_start = 0;
+      data_block_t db;
+      while( !packet_is_rot_start ) {
+        db = vps->read_next_block();
+        if( !db.d.get() ) { return db; } // not enough data for another frame, give up
+        if( db.sz != packet_sz ) { rt_err(
+            strprintf( "lidar decode expected packet_sz=%s but got block with dv.sz=%s",
+                       str(packet_sz).c_str(), str(db.sz).c_str() ) ); }
+        if( verbose ) { printf( "data_to_img_null: db.sz=%s db.timestamp_ns=%s\n",
+                                str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
+        for( uint32_t i = 0; i != fbs_per_packet; ++i ) {
+          block_info_t bi = *(block_info_t *)(db.d.get()+fb_sz*i);
+          if( verbose ) {
+            printf( "bi.block_id=%hx bi.rot_pos=%hu\n", bi.block_id, bi.rot_pos );
+          }
+          if( bi.rot_pos < last_rot ) { packet_is_rot_start = 1; }
+          last_rot = bi.rot_pos;
+        }
+      }
+      // last packet was a frame start, so return it. FIXME: obv. this drops lots'o'data, but should emit one packet per
+      // rotation, which is all we want for now.
+      ++tot_num_read;
+      if( verbose ) { printf( "velodyne ret.sz=%s ret.timestamp_ns=%s\n", str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
+      return db;
+    }
+
+    // init/setup
+
+    virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      printf( "data_stream_init(): mode=velodyne start_block=%s skip_blocks=%s\n",
+              str(start_block).c_str(), str(skip_blocks).c_str() );
+      tot_num_read = 0;
+
+      // setup internal state
+      fb_sz = sizeof( block_info_t ) + beams_per_fb * sizeof( laser_info_t );
+      packet_sz = fbs_per_packet * fb_sz + status_bytes;
+      last_rot = 0;
+        
+      // override/clear nested skip/etc params. FIXME: a bit ugly; use a wrapper to both factor out and fix this?
+      vps->start_block = 0;
+      vps->skip_blocks = 0;
+      vps->num_to_read = 0;
+      vps->data_stream_init( nia );
+      // skip to start block
+      for( uint32_t i = 0; i != start_block; ++i ) { read_next_block_inner(); }
+    }
+    
+    void main( nesi_init_arg_t * nia ) { 
+      data_stream_init( nia );
+      while( read_next_block().d.get() ) { }
+    }
+
+  };
+
+  
   struct data_to_img_raw_t : virtual public nesi, public data_to_img_t // NESI(help="convert data blocks (containing raw video frames) to images",
                            // bases=["data_to_img_t"], type_id="raw")
   {
@@ -379,6 +482,41 @@ namespace boda
     }
     
   };
+
+  struct data_to_img_lidar_t : virtual public nesi, public data_to_img_t // NESI(help="consume velodyne lidar data blocks (packets) and return nothing (null images)",
+                           // bases=["data_to_img_t"], type_id="lidar")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    uint32_t fbs_per_packet; //NESI(default="12",help="firing blocks per packet")
+    uint32_t beams_per_fb; //NESI(default="32",help="beams per firing block")
+    uint32_t status_bytes; //NESI(default="6",help="bytes of status at end of block")
+
+    uint32_t fb_sz;
+    uint32_t packet_sz;
+    virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) { }    
+    virtual void data_to_img_init( nesi_init_arg_t * const nia ) {
+      fb_sz = sizeof( block_info_t ) + beams_per_fb * sizeof( laser_info_t );
+      packet_sz = fbs_per_packet * fb_sz + status_bytes;
+    }
+    virtual p_img_t data_block_to_img( data_block_t const & db ) {
+      if( db.sz != packet_sz ) { rt_err(
+          strprintf( "lidar decode expected packet_sz=%s but got block with dv.sz=%s",
+                     str(packet_sz).c_str(), str(db.sz).c_str() ) ); }
+      if( verbose ) { printf( "data_to_img_null: db.sz=%s db.timestamp_ns=%s\n",
+                              str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
+      for( uint32_t i = 0; i != fbs_per_packet; ++i ) {
+        block_info_t bi = *(block_info_t *)(db.d.get()+fb_sz*i);
+        if( verbose ) {
+          printf( "bi.block_id=%hx bi.rot_pos=%hu\n", bi.block_id, bi.rot_pos );
+        }
+      }
+      return p_img_t();
+    }
+    
+  };
+
+
 #include"gen/raw-vid-io.cc.nesi_gen.cc"
 
 }
