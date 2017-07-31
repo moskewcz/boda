@@ -20,7 +20,49 @@ template <typename T> std::string to_utf8(const std::basic_string<T, std::char_t
 
 namespace boda 
 {
-  
+
+  struct data_stream_start_stop_skip_t : virtual public nesi, public data_stream_t // NESI(help="wrap another data stream and optionally: skip initial blocks and/or skip blocks after each returned block and/or limit the number of blocks returned.",
+                             // bases=["data_stream_t"], type_id="start-stop-skip")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    p_data_stream_t src; //NESI(req=1,help="wrapped data stream")
+
+    // for debugging / skipping:
+    uint64_t start_block; //NESI(default=0,help="start at this block")
+    uint64_t skip_blocks; //NESI(default=0,help="drop/skip this many blocks after each returned block (default 0, no skipped/dropped blocks)")
+    uint64_t num_to_read; //NESI(default=0,help="read this many records; zero for unlimited")
+
+    // internal state:
+    uint64_t tot_num_read; // num blocks read so far
+
+    virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s; src info: %s", str(tot_num_read).c_str(), str(src->get_pos_info_str()).c_str() ); }
+
+    virtual data_block_t read_next_block( void ) {
+      if( num_to_read && (tot_num_read >= num_to_read) ) { return data_block_t(); }
+      data_block_t ret = src->read_next_block();
+      ++tot_num_read;
+      for( uint32_t i = 0; i != skip_blocks; ++i ) { src->read_next_block(); } // skip blocks if requested
+      return ret;
+    }
+    
+    // init/setup
+    virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      src->data_stream_init( nia );
+      printf( "data_stream_init(): mode=%s start_block=%s skip_blocks=%s num_to_read=%s\n",
+              str(mode).c_str(), str(start_block).c_str(), str(skip_blocks).c_str(), str(num_to_read).c_str() );
+      tot_num_read = 0;
+      // skip to start block
+      for( uint32_t i = 0; i != start_block; ++i ) { src->read_next_block(); }
+    }
+    
+    void main( nesi_init_arg_t * nia ) { 
+      data_stream_init( nia );
+      while( read_next_block().d.get() ) { }
+    }
+
+  };
+
   struct data_stream_base_t : virtual public nesi, public data_stream_t // NESI(help="parse data stream (dumpvideo/qt) into data blocks",
                              // bases=["data_stream_t"], type_id="base")
   {
@@ -30,11 +72,6 @@ namespace boda
     string read_mode; //NESI(default="dumpvideo",help="file reading mode: dumpvideo=mplayer video dump format; qt=qt-style binary encapsulation")
 
     uint32_t text_tsfix; //NESI(default=0,help="text time-stamp-field-index; when read_mode==text, use the N'th field as a decimal timestamp in seconds (with fractional part).")
-
-    // for debugging / skipping:
-    uint64_t start_block; //NESI(default=0,help="start at this block")
-    uint64_t skip_blocks; //NESI(default=0,help="drop/skip this many blocks after each returned block (default 0, no skipped/dropped blocks)")
-    uint64_t num_to_read; //NESI(default=0,help="read this many records; zero for unlimited")
 
     // internal state:
     bool need_endian_reverse;
@@ -123,15 +160,8 @@ namespace boda
     // block-level reading
     
     virtual string get_pos_info_str( void ) { return strprintf( "fn_map_pos=%s tot_num_read=%s", str(fn_map_pos).c_str(), str(tot_num_read).c_str() ); }
-
-    virtual data_block_t read_next_block( void ) {
-      if( num_to_read && (tot_num_read >= num_to_read) ) { return data_block_t(); }
-      data_block_t ret = read_next_block_inner();
-      for( uint32_t i = 0; i != skip_blocks; ++i ) { read_next_block_inner(); } // skip blocks if requested
-      return ret;
-    }
     
-    data_block_t read_next_block_inner( void ) {
+    virtual data_block_t read_next_block( void ) {
       data_block_t ret;
       if( 0 ) {}
       else if( read_mode == "dumpvideo" ) {
@@ -209,7 +239,7 @@ namespace boda
     }
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
-      printf( "data_stream_init(): fn.exp=%s read_mode=%s start_block=%s skip_blocks=%s\n", str(fn.exp).c_str(), str(read_mode).c_str(), str(start_block).c_str(), str(skip_blocks).c_str() );
+      printf( "data_stream_init(): mode=%s fn.exp=%s read_mode=%s\n", str(mode).c_str(), str(fn.exp).c_str(), str(read_mode).c_str() );
       fn_map = map_file_ro( fn );
       fn_map_pos = 0;
       tot_num_read = 0;
@@ -218,15 +248,7 @@ namespace boda
       else if( read_mode == "qt" ) { data_stream_init_qt(); }
       else if( read_mode == "text" ) { data_stream_init_text(); }
       else { rt_err( "unknown read_mode: " + read_mode ); }
-      // skip to start block
-      for( uint32_t i = 0; i != start_block; ++i ) { read_next_block_inner(); }
     }
-    
-    void main( nesi_init_arg_t * nia ) { 
-      data_stream_init( nia );
-      while( read_next_block().d.get() ) { }
-    }
-
   };
   struct data_stream_base_t; typedef shared_ptr< data_stream_base_t > p_data_stream_base_t; 
 
@@ -247,12 +269,6 @@ namespace boda
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     p_data_stream_base_t vps; //NESI(req=1,help="underlying velodyne packet stream")
 
-    // FIXME: somehow factor out shared start_block, skip_blocks, num_to_read handling
-    // for debugging / skipping:
-    uint64_t start_block; //NESI(default=0,help="start at this block")
-    uint64_t skip_blocks; //NESI(default=0,help="drop/skip this many blocks after each returned block (default 0, no skipped/dropped blocks)")
-    uint64_t num_to_read; //NESI(default=0,help="read this many records; zero for unlimited")
-
     uint32_t fbs_per_packet; //NESI(default="12",help="firing blocks per packet")
     uint32_t beams_per_fb; //NESI(default="32",help="beams per firing block")
     uint32_t status_bytes; //NESI(default="6",help="bytes of status at end of block")
@@ -267,13 +283,6 @@ namespace boda
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s vps->tot_num_read=%s", str(tot_num_read).c_str(), str(vps->tot_num_read).c_str() ); }
 
     virtual data_block_t read_next_block( void ) {
-      if( num_to_read && (tot_num_read >= num_to_read) ) { return data_block_t(); }
-      data_block_t ret = read_next_block_inner();
-      for( uint32_t i = 0; i != skip_blocks; ++i ) { read_next_block_inner(); } // skip blocks if requested
-      return ret;
-    }
-    
-    data_block_t read_next_block_inner( void ) {
       bool packet_is_rot_start = 0;
       data_block_t db;
       while( !packet_is_rot_start ) {
@@ -303,29 +312,19 @@ namespace boda
     // init/setup
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
-      printf( "data_stream_init(): mode=velodyne start_block=%s skip_blocks=%s\n",
-              str(start_block).c_str(), str(skip_blocks).c_str() );
+      printf( "data_stream_init(): mode=%s\n", str(mode).c_str() );
       tot_num_read = 0;
-
       // setup internal state
       fb_sz = sizeof( block_info_t ) + beams_per_fb * sizeof( laser_info_t );
       packet_sz = fbs_per_packet * fb_sz + status_bytes;
-      last_rot = 0;
-        
-      // override/clear nested skip/etc params. FIXME: a bit ugly; use a wrapper to both factor out and fix this?
-      vps->start_block = 0;
-      vps->skip_blocks = 0;
-      vps->num_to_read = 0;
+      last_rot = 0;        
       vps->data_stream_init( nia );
-      // skip to start block
-      for( uint32_t i = 0; i != start_block; ++i ) { read_next_block_inner(); }
     }
     
     void main( nesi_init_arg_t * nia ) { 
       data_stream_init( nia );
       while( read_next_block().d.get() ) { }
     }
-
   };
 
   
