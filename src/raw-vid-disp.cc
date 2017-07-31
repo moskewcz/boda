@@ -4,7 +4,8 @@
 
 #include"disp_util.H" 
 #include"asio_util.H"
-#include"data_stream.H"
+#include"data-stream.H"
+#include"data-to-img.H"
 
 namespace boda 
 {
