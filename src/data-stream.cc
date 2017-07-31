@@ -63,35 +63,47 @@ namespace boda
 
   };
 
-  struct data_stream_base_t : virtual public nesi, public data_stream_t // NESI(help="parse data stream (dumpvideo/qt) into data blocks",
-                             // bases=["data_stream_t"], type_id="base")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
-    string read_mode; //NESI(default="dumpvideo",help="file reading mode: dumpvideo=mplayer video dump format; qt=qt-style binary encapsulation")
-
-    uint32_t text_tsfix; //NESI(default=0,help="text time-stamp-field-index; when read_mode==text, use the N'th field as a decimal timestamp in seconds (with fractional part).")
-
-    // internal state:
-    bool need_endian_reverse;
+  struct mapped_file_stream_reader {
     p_mapped_file_source fn_map;
-    uint64_t fn_map_pos;
-    uint64_t tot_num_read; // num blocks read so far
-
+    uint64_t pos;
+    bool need_endian_reverse;
+    mapped_file_stream_reader( void ) : pos(0), need_endian_reverse(0) { }
+    void init( filename_t const & fn ) {
+      fn_map = map_file_ro( fn );
+      pos = 0;
+      need_endian_reverse = 0;
+    }
     // low-level stream reading
-    bool can_read( uint64_t const & sz ) { return (sz+fn_map_pos) < fn_map->size(); }
+    uint64_t size( void ) { return fn_map->size(); }
+    bool can_read( uint64_t const & sz ) { return (sz+pos) < size(); }
     void check_can_read( uint64_t const & sz ) {
       if( !can_read(sz) ) {
-        rt_err( strprintf( "unexpected end of stream trying to read sz=%s bytes at fn_map_pos=%s\n",
-                           str(sz).c_str(), str(fn_map_pos).c_str() ) );
+        rt_err( strprintf( "unexpected end of stream trying to read sz=%s bytes at pos=%s\n",
+                           str(sz).c_str(), str(pos).c_str() ) );
       }
     }
+
+    // consume a block of bytes from the stream and return a borrowed pointer to it.
+    p_uint8_t consume_borrowed_raw_block( uint64_t const block_sz ) {
+      check_can_read( block_sz );
+      p_uint8_t ret( (uint8_t *)fn_map->data() + pos, null_deleter<uint8_t>() ); // borrow pointer
+      pos += block_sz;
+      return ret;
+    }
+    // like above, but return result in a data_block_t with default/not-set timestamp
+    data_block_t consume_borrowed_block( uint64_t const block_sz ) {
+      data_block_t ret;
+      ret.sz = block_sz;
+      ret.d = consume_borrowed_raw_block( block_sz );
+      return ret;
+    }
+
+
     template< typename T > void read_val( T & v ) {
       check_can_read( sizeof( T ) );
-      v = *reinterpret_cast< T const * >((uint8_t const *)fn_map->data() + fn_map_pos);
+      v = *reinterpret_cast< T const * >((uint8_t const *)fn_map->data() + pos);
       if( need_endian_reverse ) { boost::endian::endian_reverse_inplace(v); }
-      fn_map_pos += sizeof(T);
+      pos += sizeof(T);
     }
 
     void read_val( string & v ) {
@@ -112,10 +124,10 @@ namespace boda
     // read a newline-terminated text line as a block. notes: block includes newline if any found; will return rest of
     // file if no newline; doesn't set timestamp field of block.
     void read_line_as_block( data_block_t & v ) {
-      v.d.reset( (uint8_t *)fn_map->data() + fn_map_pos, null_deleter<uint8_t>() ); // borrow pointer
-      uint8_t *lb = (uint8_t *)fn_map->data() + fn_map_pos;
+      v.d.reset( (uint8_t *)fn_map->data() + pos, null_deleter<uint8_t>() ); // borrow pointer
+      uint8_t *lb = (uint8_t *)fn_map->data() + pos;
       uint8_t *le = lb;
-      uint8_t *de = (uint8_t *)fn_map->data() + fn_map->size();
+      uint8_t *de = (uint8_t *)fn_map->data() + size();
       if( !(le < de) ) { rt_err( "unexpected end of file when trying to read a line of text: started read at EOF." ); }
       while( le != de ) {
         if( *le == '\r' ) { // DOS "\r\n" newline
@@ -131,8 +143,36 @@ namespace boda
         ++le; // non-newline char, add to string
       }
       v.sz = le - lb;
-      fn_map_pos += v.sz; // consume str
+      pos += v.sz; // consume str
     }
+
+    // note: does not read/fill-in timestamp_ns field of data_block_t, just size and data/pointer
+    void read_val( data_block_t & v ) {
+      uint32_t v_len;
+      read_val( v_len );
+      if( v_len == uint32_t_const_max ) { rt_err( "unexpected null byte array" ); }
+      check_can_read( v_len );
+      v.sz = v_len;
+      v.d.reset( (uint8_t *)fn_map->data() + pos, null_deleter<uint8_t>() ); // borrow pointer
+      pos += v_len;
+    }
+
+  };
+  
+  struct data_stream_base_t : virtual public nesi, public data_stream_t // NESI(help="parse data stream (dumpvideo/qt) into data blocks",
+                             // bases=["data_stream_t"], type_id="base")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
+    string read_mode; //NESI(default="dumpvideo",help="file reading mode: dumpvideo=mplayer video dump format; qt=qt-style binary encapsulation")
+
+    uint32_t text_tsfix; //NESI(default=0,help="text time-stamp-field-index; when read_mode==text, use the N'th field as a decimal timestamp in seconds (with fractional part).")
+
+    uint64_t tot_num_read; // num blocks read so far
+
+    mapped_file_stream_reader mfsr;
+    
 
     // set timestamp from field of text line stored in block
     void set_timestamp_from_text_line( data_block_t & v ) {
@@ -146,52 +186,37 @@ namespace boda
       v.timestamp_ns = lround(ts_d_ns);
     }
 
-    // note: does not read/fill-in timestamp_ns field of data_block_t, just size and data/pointer
-    void read_val( data_block_t & v ) {
-      uint32_t v_len;
-      read_val( v_len );
-      if( v_len == uint32_t_const_max ) { rt_err( "unexpected null byte array" ); }
-      check_can_read( v_len );
-      v.sz = v_len;
-      v.d.reset( (uint8_t *)fn_map->data() + fn_map_pos, null_deleter<uint8_t>() ); // borrow pointer
-      fn_map_pos += v_len;
-    }
-
     // block-level reading
     
-    virtual string get_pos_info_str( void ) { return strprintf( "fn_map_pos=%s tot_num_read=%s", str(fn_map_pos).c_str(), str(tot_num_read).c_str() ); }
+    virtual string get_pos_info_str( void ) { return strprintf( "pos=%s tot_num_read=%s", str(mfsr.pos).c_str(), str(tot_num_read).c_str() ); }
     
     virtual data_block_t read_next_block( void ) {
       data_block_t ret;
       if( 0 ) {}
       else if( read_mode == "dumpvideo" ) {
         uint32_t block_sz;
-        if( !can_read( sizeof( block_sz ) ) ) { return ret; } // not enough bytes left for another block
-        read_val( block_sz );
-        check_can_read( block_sz );
-        ret.sz = block_sz;
-        //ret.timestamp_ns = ???; // FIXME: need nested stream
-        ret.d.reset( (uint8_t *)fn_map->data() + fn_map_pos, null_deleter<uint8_t>() ); // borrow pointer
-        fn_map_pos += block_sz;
+        if( !mfsr.can_read( sizeof( block_sz ) ) ) { return ret; } // not enough bytes left for another block
+        mfsr.read_val( block_sz );
+        ret = mfsr.consume_borrowed_block( block_sz ); // note: timestamp not set here
       } else if( read_mode == "qt" ) {
-        if( fn_map_pos == timestamp_off ) {
+        if( mfsr.pos == timestamp_off ) {
 #if 0
-          printf( "at timestamp_off: fn_map_pos=%s\n", str(fn_map_pos).c_str() );
+          printf( "at timestamp_off: pos=%s\n", str(mfsr.pos).c_str() );
           uint8_t ch;
-          while( can_read( sizeof(ch) ) ) {
-            read_val(ch);
+          while( mfsr.can_read( sizeof(ch) ) ) {
+            mfsr.read_val(ch);
             printf( "ch=%s ch=%s\n", str(uint32_t(ch)).c_str(), str(ch).c_str() );
           }
 #endif     
           return ret;
         }
-        if( !can_read( sizeof( ret.timestamp_ns ) ) ) { return ret; } // not enough bytes left for another block
-        read_val( ret.timestamp_ns );
-        if( !can_read( sizeof( uint32_t ) ) ) { rt_err( "qt stream: read timestamp, but not enough data left to read payload size" ); }
-        read_val( ret );
+        if( !mfsr.can_read( sizeof( ret.timestamp_ns ) ) ) { return ret; } // not enough bytes left for another block
+        mfsr.read_val( ret.timestamp_ns );
+        if( !mfsr.can_read( sizeof( uint32_t ) ) ) { rt_err( "qt stream: read timestamp, but not enough data left to read payload size" ); }
+        mfsr.read_val( ret );
       } else if( read_mode == "text" ) {
-        if( !can_read( 1 ) ) { return ret; } // not enough bytes left for another block
-        read_line_as_block( ret );
+        if( !mfsr.can_read( 1 ) ) { return ret; } // not enough bytes left for another block
+        mfsr.read_line_as_block( ret );
         set_timestamp_from_text_line( ret );
       } else { rt_err( "unknown read_mode: " + read_mode ); }
       
@@ -203,7 +228,7 @@ namespace boda
     // init/setup
     
     void data_stream_init_dumpvideo( void ) {
-      need_endian_reverse = 0;
+      mfsr.need_endian_reverse = 0;
     }
 
     // for qt stream
@@ -211,37 +236,36 @@ namespace boda
     uint64_t chunk_off;
 
     void data_stream_init_qt( void ) {
-      need_endian_reverse = 1; // assume stream is big endian, and native is little endian. could check this ...
+      mfsr.need_endian_reverse = 1; // assume stream is big endian, and native is little endian. could check this ...
 
       uint32_t ver;
-      read_val( ver );
+      mfsr.read_val( ver );
       string tag;
-      read_val( tag );
+      mfsr.read_val( tag );
       data_block_t header;
-      read_val( header );
-      read_val( timestamp_off );
-      read_val( chunk_off );
+      mfsr.read_val( header );
+      mfsr.read_val( timestamp_off );
+      mfsr.read_val( chunk_off );
       uint64_t duration_ns;
-      read_val( duration_ns );
+      mfsr.read_val( duration_ns );
       printf( "  qt stream header: ver=%s tag=%s header.size()=%s timestamp_off=%s chunk_off=%s duration_ns=%s\n",
               str(ver).c_str(), str(tag).c_str(), str(header.sz).c_str(), str(timestamp_off).c_str(),
               str(chunk_off).c_str(), str(duration_ns).c_str() );
-      if( fn_map->size() > timestamp_off ) {
-        printf( "   !! warning: (fn_map->size() - timestamp_off)=%s bytes at end of file will be ignored\n",
-                str((fn_map->size() - timestamp_off)).c_str() );
+      if( mfsr.size() > timestamp_off ) {
+        printf( "   !! warning: (size() - timestamp_off)=%s bytes at end of file will be ignored\n",
+                str((mfsr.size() - timestamp_off)).c_str() );
       }
     }
 
     void data_stream_init_text( void ) {
       data_block_t header;
-      read_line_as_block( header );
+      mfsr.read_line_as_block( header );
       printf( "  text stream header.sz=%s\n", str(header.sz).c_str() );
     }
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
       printf( "data_stream_init(): mode=%s fn.exp=%s read_mode=%s\n", str(mode).c_str(), str(fn.exp).c_str(), str(read_mode).c_str() );
-      fn_map = map_file_ro( fn );
-      fn_map_pos = 0;
+      mfsr.init( fn );
       tot_num_read = 0;
       if( 0 ) {}
       else if( read_mode == "dumpvideo" ) { data_stream_init_dumpvideo(); }
