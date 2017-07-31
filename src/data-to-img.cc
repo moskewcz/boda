@@ -58,10 +58,10 @@ namespace boda
       return data_block_to_img_inner( db );
     }
     p_img_t data_block_to_img_inner( data_block_t const & db ) {
+      if( !db.d.get() ) { return p_img_t(); } // if no data block, return no (null) img_t
       if( db.sz != frame_sz_bytes.v ) {
         rt_err( strprintf( "error: can't convert data block to image, had db.sz=%s but frame_sz_bytes.v=%s\n", str(db.sz).c_str(), str(frame_sz_bytes.v).c_str() ) );
       }
-      if( db.sz < frame_sz_bytes.v ) { return p_img_t(); } // not enough bytes left for another frame
       u32_pt_t const & img_sz = frame_buf->sz;
       rgb_levs_frame_min = float_const_max;
       rgb_levs_frame_max = float_const_min;
