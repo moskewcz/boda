@@ -41,12 +41,11 @@ namespace boda
               str(mode).c_str(), str(start_block).c_str(), str(skip_blocks).c_str(), str(num_to_read).c_str() );
       tot_num_read = 0;
       for( uint32_t i = 0; i != start_block; ++i ) { src->read_next_block(); } // skip to start block
-    }
-    
+    }    
   };
-  
-  struct data_stream_qt_t : virtual public nesi, public data_stream_t // NESI(help="parse qt-style-serialized data stream into data blocks",
-                            // bases=["data_stream_t"], type_id="qt")
+
+  struct data_stream_file_t : virtual public nesi, public data_stream_t // NESI(help="parse serialized data stream from file into data blocks",
+                              // bases=["data_stream_t"], type_id="file", is_abstract=1)
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
@@ -55,6 +54,18 @@ namespace boda
     mapped_file_stream_reader mfsr;
     
     virtual string get_pos_info_str( void ) { return strprintf( "pos=%s tot_num_read=%s", str(mfsr.pos).c_str(), str(tot_num_read).c_str() ); }
+    
+    virtual void data_stream_init( nesi_init_arg_t * nia ) { // note: to be called explicity by derived classes if they override
+      printf( "data_stream_init(): mode=%s fn.exp=%s\n", str(mode).c_str(), str(fn.exp).c_str() );
+      mfsr.init( fn );
+      tot_num_read = 0;
+    }
+  };
+
+  struct data_stream_qt_t : virtual public nesi, public data_stream_file_t // NESI(help="parse qt-style-serialized data stream into data blocks",
+                            // bases=["data_stream_file_t"], type_id="qt")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     
     virtual data_block_t read_next_block( void ) {
       data_block_t ret;
@@ -84,9 +95,7 @@ namespace boda
     uint64_t chunk_off;
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
-      printf( "data_stream_init(): mode=%s fn.exp=%s\n", str(mode).c_str(), str(fn.exp).c_str() );
-      mfsr.init( fn );
-      tot_num_read = 0;
+      data_stream_file_t::data_stream_init( nia );
       mfsr.need_endian_reverse = 1; // assume stream is big endian, and native is little endian. could check this ...
       uint32_t ver;
       mfsr.read_val( ver );
@@ -108,19 +117,10 @@ namespace boda
     }
   };
 
-  struct data_stream_dumpvideo_t : virtual public nesi, public data_stream_t // NESI(help="parse dumpvideo data stream into data blocks",
-                                   // bases=["data_stream_t"], type_id="dumpvideo")
+  struct data_stream_dumpvideo_t : virtual public nesi, public data_stream_file_t // NESI(help="parse dumpvideo data stream into data blocks",
+                                   // bases=["data_stream_file_t"], type_id="dumpvideo")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
-
-    // internal state
-    uint64_t tot_num_read; // num blocks read so far
-    mapped_file_stream_reader mfsr;
-    
-    virtual string get_pos_info_str( void ) { return strprintf( "pos=%s tot_num_read=%s", str(mfsr.pos).c_str(), str(tot_num_read).c_str() ); }
-    
     virtual data_block_t read_next_block( void ) {
       data_block_t ret;
       uint32_t block_sz;
@@ -130,26 +130,14 @@ namespace boda
       if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
       return ret;
     }
-
-    virtual void data_stream_init( nesi_init_arg_t * nia ) {
-      printf( "data_stream_init(): mode=%s fn.exp=%s\n", str(mode).c_str(), str(fn.exp).c_str() );
-      mfsr.init( fn );
-      tot_num_read = 0;
-    }
   };
 
-  struct data_stream_text_t : virtual public nesi, public data_stream_t // NESI(help="parse data stream (dumpvideo/qt) into data blocks",
-                             // bases=["data_stream_t"], type_id="text")
+  struct data_stream_text_t : virtual public nesi, public data_stream_file_t // NESI(help="parse data stream (dumpvideo/qt) into data blocks",
+                             // bases=["data_stream_file_t"], type_id="text")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
     uint32_t text_tsfix; //NESI(default=0,help="text time-stamp-field-index: use the N'th field as a decimal timestamp in seconds (with fractional part).")
 
-    // internal state
-    mapped_file_stream_reader mfsr;
-    uint64_t tot_num_read; // num blocks read so far
-    
     // set timestamp from field of text line stored in block
     void set_timestamp_from_text_line( data_block_t & v ) {
       string line( v.d.get(), v.d.get()+v.sz );
@@ -162,8 +150,6 @@ namespace boda
       v.timestamp_ns = lround(ts_d_ns);
     }
 
-    virtual string get_pos_info_str( void ) { return strprintf( "pos=%s tot_num_read=%s", str(mfsr.pos).c_str(), str(tot_num_read).c_str() ); }
-    
     virtual data_block_t read_next_block( void ) {
       data_block_t ret;
       if( !mfsr.can_read( 1 ) ) { return ret; } // not enough bytes left for another block
@@ -176,10 +162,7 @@ namespace boda
     }
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
-      printf( "data_stream_init(): mode=%s fn.exp=%s\n", str(mode).c_str(), str(fn.exp).c_str() );
-      mfsr.init( fn );
-      tot_num_read = 0;
-
+      data_stream_file_t::data_stream_init( nia );
       data_block_t header;
       mfsr.read_line_as_block( header );
       printf( "  text stream header.sz=%s\n", str(header.sz).c_str() );
@@ -262,9 +245,8 @@ namespace boda
     }
   };
 
-  
   struct scan_data_stream_t : virtual public nesi, public has_main_t // NESI(
-                              // help="scan N data streams one-by-one, and print total number of blocks read for each.",
+                              // help="testing mode to scan N data streams one-by-one, and print total number of blocks read for each.",
                               // bases=["has_main_t"], type_id="scan-data-stream")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
