@@ -11,10 +11,13 @@ namespace boda
   typedef lexp_name_val_map_t nesi_init_arg_t;
 
   struct data_block_t {
-    p_uint8_t d;
-    uint64_t sz;
-    uint64_t timestamp_ns;
-    data_block_t( void ) : sz(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
+    p_uint8_t d; // pointer to data block, null if no data (usually a borrowed pointer from data_stream_t. TODO: add clone/copy iface?
+    uint64_t sz; // size of data
+    // metadata (optional in general)
+    uint64_t frame_ix; // what frame is this? zero based. const_max is invalid.
+    uint64_t timestamp_ns; // data-stream-defined timestamp in nanoseconds. may not start at zero.
+    data_block_t( void ) : sz(uint64_t_const_max), frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
+    bool valid( void ) const { return d.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
   };
   
   struct data_stream_t : virtual public nesi // NESI(help="modes that can be used for reading streams of timestamped data blocks"

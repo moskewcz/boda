@@ -26,7 +26,7 @@ namespace boda
     uint64_t tot_num_read; // num blocks read so far
 
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s; src info: %s", str(tot_num_read).c_str(), str(src->get_pos_info_str()).c_str() ); }
-
+    // note: preserves frame_ix from nested src.
     virtual data_block_t read_next_block( void ) {
       if( num_to_read && (tot_num_read >= num_to_read) ) { return data_block_t(); }
       data_block_t ret = src->read_next_block();
@@ -44,6 +44,42 @@ namespace boda
     }    
   };
 
+  // overlap timestamp of one stream onto a stream that is missing timestamps. checks that frame_ix's are equal across streams.
+  struct data_stream_ts_merge_t : virtual public nesi, public data_stream_t // NESI(help="wrap one data and one timestamp stream and apply the timestamp stream timestamp to the data stream. will complain if data stream has a timestamp already of if frame_ix's don't agree across streams.",
+                                  // bases=["data_stream_t"], type_id="ts-merge")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    p_data_stream_t data_src; //NESI(req=1,help="wrapped data stream")
+    p_data_stream_t ts_src; //NESI(req=1,help="wrapped data stream")
+
+    virtual string get_pos_info_str( void ) {
+      return strprintf( " data_src info: %s -- ts_src info: %s",
+                        str(data_src->get_pos_info_str()).c_str(),  str(ts_src->get_pos_info_str()).c_str() );
+    }
+
+    virtual data_block_t read_next_block( void ) {
+      data_block_t ret = data_src->read_next_block();
+      data_block_t ts_db = ts_src->read_next_block();
+      if( ret.frame_ix != ts_db.frame_ix ) {
+        rt_err( strprintf( "refusing to apply timestamp since stream frame_ix's don't match: data_src frame_ix=%s ts_src frame_ix=%s\n",
+                           str(ret.frame_ix).c_str(), str(ts_db.frame_ix).c_str() ) );
+      }
+      if( ret.timestamp_ns != uint64_t_const_max ) {
+        rt_err( strprintf( "refusing to apply timestamp since data stream already has timestamp: data_src timestamp_ns=%s\n",
+                           str(ret.timestamp_ns).c_str() ) );
+      }
+      ret.timestamp_ns = ts_db.timestamp_ns;
+      return ret;
+    }
+
+    virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      data_src->data_stream_init( nia );
+      ts_src->data_stream_init( nia );
+      printf( "data_stream_init(): mode=%s\n", str(mode).c_str() );
+    }    
+  };
+  
   struct data_stream_file_t : virtual public nesi, public data_stream_t // NESI(help="parse serialized data stream from file into data blocks",
                               // bases=["data_stream_t"], type_id="file", is_abstract=1)
   {
@@ -59,6 +95,11 @@ namespace boda
       printf( "data_stream_init(): mode=%s fn.exp=%s\n", str(mode).c_str(), str(fn.exp).c_str() );
       mfsr.init( fn );
       tot_num_read = 0;
+    }
+    void data_stream_file_block_done_hook( data_block_t & ret ) {
+      ret.frame_ix = tot_num_read;
+      ++tot_num_read;
+      if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
     }
   };
 
@@ -84,9 +125,7 @@ namespace boda
       mfsr.read_val( ret.timestamp_ns );
       if( !mfsr.can_read( sizeof( uint32_t ) ) ) { rt_err( "qt stream: read timestamp, but not enough data left to read payload size" ); }
       mfsr.read_val( ret );
-
-      ++tot_num_read;
-      if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
+      data_stream_file_block_done_hook( ret );
       return ret;
     }
 
@@ -127,27 +166,31 @@ namespace boda
       if( !mfsr.can_read( sizeof( block_sz ) ) ) { return ret; } // not enough bytes left for another block
       mfsr.read_val( block_sz );
       ret = mfsr.consume_borrowed_block( block_sz ); // note: timestamp not set here
-      if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
+      data_stream_file_block_done_hook( ret );
       return ret;
     }
   };
 
+  // parse stream from text file, one block per line, with a one-line header (which is currently ignored)
   struct data_stream_text_t : virtual public nesi, public data_stream_file_t // NESI(help="parse data stream (dumpvideo/qt) into data blocks",
                              // bases=["data_stream_file_t"], type_id="text")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t text_tsfix; //NESI(default=0,help="text time-stamp-field-index: use the N'th field as a decimal timestamp in seconds (with fractional part).")
+    uint32_t timestamp_fix; //NESI(default=0,help="timestamp field-index: use the N'th field as a decimal timestamp in seconds (with fractional part).")
+    uint32_t frame_ix_fix; //NESI(default=0,help="frame-ix field-index: use the N'th field as a integer frame index.")
 
     // set timestamp from field of text line stored in block
     void set_timestamp_from_text_line( data_block_t & v ) {
       string line( v.d.get(), v.d.get()+v.sz );
       vect_string parts = split( line, ' ' );
-      if( !( text_tsfix < parts.size() ) ) {
-        rt_err( strprintf( "can't parse timestamp from text_tsfix=%s; line had parts.size()=%s; full line=%s\n", str(text_tsfix).c_str(), str(parts.size()).c_str(), str(line).c_str() ) );
+      if( !( timestamp_fix < parts.size() ) || !( frame_ix_fix < parts.size() ) ) {
+        rt_err( strprintf( "can't parse timestamp and frame_ix from fields %s and %s; line had %s fields; full line=%s\n",
+                           str(timestamp_fix).c_str(), str(frame_ix_fix).c_str(), str(parts.size()).c_str(), str(line).c_str() ) );
       }
       //if( verbose ) { printf( "parts[text_tsfix]=%s\n", str(parts[text_tsfix]).c_str() ); }
-      double const ts_d_ns = lc_str_d( parts[text_tsfix] ) * 1e9;
+      double const ts_d_ns = lc_str_d( parts[timestamp_fix] ) * 1e9;
       v.timestamp_ns = lround(ts_d_ns);
+      v.frame_ix = lc_str_u64(parts[frame_ix_fix]);
     }
 
     virtual data_block_t read_next_block( void ) {
@@ -155,9 +198,7 @@ namespace boda
       if( !mfsr.can_read( 1 ) ) { return ret; } // not enough bytes left for another block
       mfsr.read_line_as_block( ret );
       set_timestamp_from_text_line( ret );
-
-      ++tot_num_read;
-      if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
+      data_stream_file_block_done_hook( ret );
       return ret;
     }
 
@@ -222,6 +263,7 @@ namespace boda
       }
       // last packet was a frame start, so return it. FIXME: obv. this drops lots'o'data, but should emit one packet per
       // rotation, which is all we want for now.
+      db.frame_ix = tot_num_read;
       ++tot_num_read;
       if( verbose ) { printf( "velodyne ret.sz=%s ret.timestamp_ns=%s\n", str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
       return db;
