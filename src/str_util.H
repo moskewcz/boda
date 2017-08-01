@@ -18,10 +18,15 @@ namespace boda
 
   double lc_str_d( char const * const s );
   uint32_t lc_str_u32( char const * const s );
+  uint64_t lc_str_u64( char const * const s );
   int32_t lc_str_i32( char const * const s );
+  int64_t lc_str_i64( char const * const s );
+  
   double lc_str_d( std::string const & s );
   uint32_t lc_str_u32( std::string const & s );
+  uint64_t lc_str_u64( std::string const & s );
   int32_t lc_str_i32( std::string const & s );
+  int64_t lc_str_i64( std::string const & s );
 
   typedef std::vector< std::string > vect_string;
 

@@ -44,14 +44,26 @@ namespace boda
     try { return boost::lexical_cast< uint32_t >( s ); }
     catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to uint32_t.", s ) ); }
   }
+  uint64_t lc_str_u64( char const * const s )
+  { 
+    try { return boost::lexical_cast< uint64_t >( s ); }
+    catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to uint64_t.", s ) ); }
+  }
   int32_t lc_str_i32( char const * const s )
   { 
     try { return boost::lexical_cast< int32_t >( s ); }
     catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to int32_t.", s ) ); }
   }
+  int64_t lc_str_i64( char const * const s )
+  { 
+    try { return boost::lexical_cast< int64_t >( s ); }
+    catch( boost::bad_lexical_cast & e ) { rt_err( strprintf("can't convert '%s' to int64_t.", s ) ); }
+  }
   double lc_str_d( string const & s ) { return lc_str_d( s.c_str() ); } 
   uint32_t lc_str_u32( string const & s ) { return lc_str_u32( s.c_str() ); }
+  uint64_t lc_str_u64( string const & s ) { return lc_str_u64( s.c_str() ); }
   int32_t lc_str_i32( string const & s ) { return lc_str_i32( s.c_str() ); } 
+  int64_t lc_str_i64( string const & s ) { return lc_str_i64( s.c_str() ); }
 
   string join( vect_string const & vs, string const & sep ) {
     string ret;
