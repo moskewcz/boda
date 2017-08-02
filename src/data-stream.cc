@@ -61,6 +61,7 @@ namespace boda
     virtual data_block_t read_next_block( void ) {
       data_block_t ret = data_src->read_next_block();
       data_block_t ts_db = ts_src->read_next_block();
+      if( (!ret.valid()) || (!ts_db.valid()) ) { return data_block_t(); } // if either stream is ended/invalid, silently give ... not ideal?
       if( ret.frame_ix != ts_db.frame_ix ) {
         rt_err( strprintf( "refusing to apply timestamp since stream frame_ix's don't match: data_src frame_ix=%s ts_src frame_ix=%s\n",
                            str(ret.frame_ix).c_str(), str(ts_db.frame_ix).c_str() ) );
@@ -107,7 +108,11 @@ namespace boda
                             // bases=["data_stream_file_t"], type_id="qt")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    
+    uint32_t ts_jump_hack; //NESI(default="0",help="if non-zero, detect and try to fix large timestamp jumps. not a good idea.")
+
+    uint64_t last_ts;
+    uint64_t last_delta;
+    uint64_t ts_jump_hack_off;
     virtual data_block_t read_next_block( void ) {
       data_block_t ret;
       if( mfsr.pos == timestamp_off ) {
@@ -126,6 +131,18 @@ namespace boda
       if( !mfsr.can_read( sizeof( uint32_t ) ) ) { rt_err( "qt stream: read timestamp, but not enough data left to read payload size" ); }
       mfsr.read_val( ret );
       data_stream_file_block_done_hook( ret );
+      if( ts_jump_hack ) {
+        ret.timestamp_ns -= ts_jump_hack_off;
+        if( last_ts != uint64_t_const_max ) {
+          if( (ret.timestamp_ns - last_ts) > 1000000000 ) {
+            ts_jump_hack_off += ret.timestamp_ns - last_ts - last_delta;
+            printf( "WARNING: ts_jump_hack activated; ts_jump_hack_off=%s\n", str(ts_jump_hack_off).c_str() );
+            ret.timestamp_ns = last_ts + last_delta;
+          }
+        }
+        last_delta = ret.timestamp_ns - last_ts;
+        last_ts = ret.timestamp_ns;
+      }
       return ret;
     }
 
@@ -134,6 +151,11 @@ namespace boda
     uint64_t chunk_off;
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      if( ts_jump_hack ) {
+        ts_jump_hack_off = 0;
+        last_ts = uint64_t_const_max;
+      }
+      
       data_stream_file_t::data_stream_init( nia );
       mfsr.need_endian_reverse = 1; // assume stream is big endian, and native is little endian. could check this ...
       uint32_t ver;
@@ -293,17 +315,93 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
+    uint32_t full_dump_ix; //NESI(default="-1",help="for this stream, dump all block sizes")
 
     void main( nesi_init_arg_t * nia ) {
       for( uint32_t i = 0; i != stream.size(); ++i ) {
+        uint64_t last_ts = 0;
         stream[i]->data_stream_init( nia );
-        while( stream[i]->read_next_block().d.get() ) { }
-        printf( "stream[%s]->get_pos_info_str()=%s\n", str(i).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
+        while( 1 ) {
+          data_block_t db = stream[i]->read_next_block();
+          if( !db.valid() ) { break; }
+          if( db.timestamp_ns <= last_ts ) {
+            printf( "**ERROR: ts did not increase: stream[%s] db.timestamp_ns=%s last_ts=%s stream[i]->get_pos_info_str()=%s\n",
+                    str(i).c_str(), str(db.timestamp_ns).c_str(), str(last_ts).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
+          }
+          if( (i == full_dump_ix) || last_ts == 0 ) { // if on first block, dump out ts
+            printf( "stream[%s] first_ts=%s get_pos_info_str()=%s\n",
+                    str(i).c_str(), str(db.timestamp_ns).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
+          }
+          last_ts = db.timestamp_ns;
+        }
+        printf( "stream[%s] last_ts=%s get_pos_info_str()=%s\n",
+                str(i).c_str(), str(last_ts).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
       }
     }
 
   };
 
+  typedef vector< data_block_t > vect_data_block_t; 
+  typedef vector< vect_data_block_t > vect_vect_data_block_t;
+
+
+  uint64_t ts_delta( data_block_t const & a, data_block_t const & b ) {
+    return ( a.timestamp_ns > b.timestamp_ns ) ? ( a.timestamp_ns - b.timestamp_ns ) : ( b.timestamp_ns - a.timestamp_ns );
+  }
+  
+  struct sync_data_stream_t : virtual public nesi, public has_main_t // NESI(
+                               // help="testing mode to scan N data streams, with one as primary, and output one block across all streams for each primary stream block, choosing the nearest-by-timestamp-to-the-primary-block-timestamp-block for each non-primary stream. ",
+                               // bases=["has_main_t"], type_id="sync-data-stream")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
+    uint64_t max_delta_ns; //NESI(default="0",help="if non-zero, refuse to emit a primary block if, for any secondary stream, no block with a timestamp <= max_detla_ns from the primary block can be found (i.e. all secondary streams must have a 'current' block).")
+    uint32_t psix; //NESI(default="0",help="primary stream index (0 based)")
+
+    vect_vect_data_block_t cur_dbs;
+    
+    void main( nesi_init_arg_t * nia ) {
+      if( !( psix < stream.size() ) ) { rt_err( strprintf( "psix=%s must be < stream.size()=%s\n",
+                                                           str(psix).c_str(), str(stream.size()).c_str() ) ); }
+      for( uint32_t i = 0; i != stream.size(); ++i ) {
+        stream[i]->data_stream_init( nia );
+      }
+      cur_dbs.resize( stream.size() );
+      for( uint32_t i = 0; i != stream.size(); ++i ) {
+        if( i == psix ) { continue; }
+        cur_dbs[i].push_back( stream[i]->read_next_block() );
+        if( !cur_dbs[i][0].valid() ) { rt_err( strprintf( "no blocks at all in stream i=%s\n", str(i).c_str() ) ); }
+        cur_dbs[i].push_back( stream[i]->read_next_block() );
+      }
+      
+      while( 1 ) {
+        data_block_t pdb = stream[psix]->read_next_block();
+        if( !pdb.valid() ) { break; } // done
+        printf( "-- psix=%s pdb.timestamp=%s\n", str(psix).c_str(), str(pdb.timestamp_ns).c_str() );
+        for( uint32_t i = 0; i != stream.size(); ++i ) {
+          if( i == psix ) { continue; }
+          vect_data_block_t & i_dbs = cur_dbs[i];
+          assert( i_dbs.size() == 2 ); // always 2 entries, but note that head may be invalid/end-of-stream
+          while( i_dbs[1].valid() && ( i_dbs[1].timestamp_ns < pdb.timestamp_ns ) ) {
+            i_dbs[0] = i_dbs[1];
+            i_dbs[1] = stream[i]->read_next_block();
+          }
+          assert_st( i_dbs[0].valid() ); // tail should always be valid since we require all streams to be non-empty
+          uint64_t const tail_delta = ts_delta( pdb, i_dbs[0] );
+          bool const head_is_closer = i_dbs[1].valid() && ( ts_delta( pdb, i_dbs[1] ) < tail_delta );
+          data_block_t sdb = i_dbs[head_is_closer];
+          assert_st( sdb.valid() );
+          printf( "i=%s sdb.timestamp=%s\n", str(i).c_str(), str(sdb.timestamp_ns).c_str() );
+          if( max_delta_ns && (ts_delta( pdb, sdb ) > max_delta_ns) ) { printf( "*** no current-enough secondary block found. skipping primary block.\n" ); }
+        }
+      }
+    }
+
+  };
+
+
+
+  
 #include"gen/data-stream.H.nesi_gen.cc"
 #include"gen/data-stream.cc.nesi_gen.cc"
 
