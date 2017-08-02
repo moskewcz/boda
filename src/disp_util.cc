@@ -146,7 +146,7 @@ namespace boda
     
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
 
-    window_sz = {640,480};
+    if( window_sz == u32_pt_t() ) { window_sz = {640,480}; }
     assert( !window );
     window = make_p_SDL( SDL_CreateWindow( "boda display", 
 							SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
