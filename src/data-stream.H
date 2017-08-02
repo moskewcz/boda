@@ -19,6 +19,10 @@ namespace boda
     data_block_t( void ) : sz(uint64_t_const_max), frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
     bool valid( void ) const { return d.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
   };
+  typedef vector< data_block_t > vect_data_block_t; 
+  typedef shared_ptr< data_block_t > p_data_block_t; 
+  typedef vector< p_data_block_t > vect_p_data_block_t;
+
   
   struct data_stream_t : virtual public nesi // NESI(help="modes that can be used for reading streams of timestamped data blocks"
                                               // ,is_abstract=1,tid_vn="mode")
@@ -34,7 +38,21 @@ namespace boda
   typedef vector< data_stream_t > vect_data_stream_t; 
   typedef shared_ptr< data_stream_t > p_data_stream_t; 
   typedef vector< p_data_stream_t > vect_p_data_stream_t;
-  
+
+  struct multi_data_stream_t : virtual public nesi // NESI(help="modes that can be used for reading streams of timestamped data blocks"
+                                              // ,is_abstract=1,tid_vn="mode")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string mode; //NESI(help="type of datastream",req=1)
+    virtual uint32_t multi_data_stream_init( nesi_init_arg_t * const nia ) = 0; // return # of multiplexed streams
+    virtual void multi_read_next_block( vect_data_block_t & dbs ) = 0;
+
+    // debugging iface(s) (may only have meaning for certain modes)
+    virtual string get_pos_info_str( void ) = 0;
+  };
+  typedef vector< multi_data_stream_t > vect_multi_data_stream_t; 
+  typedef shared_ptr< multi_data_stream_t > p_multi_data_stream_t; 
+  typedef vector< p_multi_data_stream_t > vect_p_multi_data_stream_t;
 
 }
 

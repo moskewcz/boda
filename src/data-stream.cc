@@ -349,18 +349,20 @@ namespace boda
     return ( a.timestamp_ns > b.timestamp_ns ) ? ( a.timestamp_ns - b.timestamp_ns ) : ( b.timestamp_ns - a.timestamp_ns );
   }
   
-  struct sync_data_stream_t : virtual public nesi, public has_main_t // NESI(
-                               // help="testing mode to scan N data streams, with one as primary, and output one block across all streams for each primary stream block, choosing the nearest-by-timestamp-to-the-primary-block-timestamp-block for each non-primary stream. ",
-                               // bases=["has_main_t"], type_id="sync-data-stream")
+  struct multi_data_stream_sync_t : virtual public nesi, public multi_data_stream_t // NESI(
+                                    // help="take N data streams, with one as primary, and output one block across all streams for each primary stream block, choosing the nearest-by-timestamp-to-the-primary-block-timestamp-block for each non-primary stream. ",
+                                    // bases=["multi_data_stream_t"], type_id="sync")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    vect_p_data_stream_t stream; //NESI(help="input data streams")
     uint64_t max_delta_ns; //NESI(default="0",help="if non-zero, refuse to emit a primary block if, for any secondary stream, no block with a timestamp <= max_detla_ns from the primary block can be found (i.e. all secondary streams must have a 'current' block).")
     uint32_t psix; //NESI(default="0",help="primary stream index (0 based)")
 
     vect_vect_data_block_t cur_dbs;
-    
-    void main( nesi_init_arg_t * nia ) {
+
+
+    virtual uint32_t multi_data_stream_init( nesi_init_arg_t * const nia ) {
       if( !( psix < stream.size() ) ) { rt_err( strprintf( "psix=%s must be < stream.size()=%s\n",
                                                            str(psix).c_str(), str(stream.size()).c_str() ) ); }
       for( uint32_t i = 0; i != stream.size(); ++i ) {
@@ -373,11 +375,25 @@ namespace boda
         if( !cur_dbs[i][0].valid() ) { rt_err( strprintf( "no blocks at all in stream i=%s\n", str(i).c_str() ) ); }
         cur_dbs[i].push_back( stream[i]->read_next_block() );
       }
-      
-      while( 1 ) {
+      return stream.size();
+    }
+    
+    virtual string get_pos_info_str( void ) {
+      string ret = "\n";
+      for( uint32_t i = 0; i != stream.size(); ++i ) {
+        ret += "  " + str(i) + ": " + stream[i]->get_pos_info_str() + "\n";
+      }
+      return ret;
+    }
+
+    virtual void multi_read_next_block( vect_data_block_t & dbs ) {
+      while ( 1 ) {
         data_block_t pdb = stream[psix]->read_next_block();
-        if( !pdb.valid() ) { break; } // done
-        printf( "-- psix=%s pdb.timestamp=%s\n", str(psix).c_str(), str(pdb.timestamp_ns).c_str() );
+        dbs.clear();
+        dbs.resize( stream.size() );
+        if( !pdb.valid() ) { return; } // done
+        if( verbose ) { printf( "-- psix=%s pdb.timestamp=%s\n", str(psix).c_str(), str(pdb.timestamp_ns).c_str() ); }
+        bool ret_valid = 1;
         for( uint32_t i = 0; i != stream.size(); ++i ) {
           if( i == psix ) { continue; }
           vect_data_block_t & i_dbs = cur_dbs[i];
@@ -391,17 +407,51 @@ namespace boda
           bool const head_is_closer = i_dbs[1].valid() && ( ts_delta( pdb, i_dbs[1] ) < tail_delta );
           data_block_t sdb = i_dbs[head_is_closer];
           assert_st( sdb.valid() );
-          printf( "i=%s sdb.timestamp=%s\n", str(i).c_str(), str(sdb.timestamp_ns).c_str() );
-          if( max_delta_ns && (ts_delta( pdb, sdb ) > max_delta_ns) ) { printf( "*** no current-enough secondary block found. skipping primary block.\n" ); }
+          if( verbose ) { printf( "i=%s sdb.timestamp=%s\n", str(i).c_str(), str(sdb.timestamp_ns).c_str() ); }
+          if( max_delta_ns && (ts_delta( pdb, sdb ) > max_delta_ns) ) {
+            if( verbose ) { printf( "*** no current-enough secondary block found. skipping primary block.\n" ); }
+            ret_valid = 0;
+          } else {
+            dbs[i] = sdb;
+          }
         }
+        if( ret_valid ) {
+          dbs[psix] = pdb;
+          return;
+        }
+        // else continue
       }
     }
-
+    
   };
 
 
+  struct scan_multi_data_stream_t : virtual public nesi, public has_main_t // NESI(
+                                    // help="scan multi data stream ",
+                                    // bases=["has_main_t"], type_id="scan-data-stream-multi")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
+    p_multi_data_stream_t multi_stream; //NESI(help="input data multi stream")
 
-  
+    void main( nesi_init_arg_t * nia ) {
+      uint32_t num_srcs = multi_stream->multi_data_stream_init( nia );
+      vect_data_block_t dbs;
+      bool had_data = 1;
+      while( had_data ) {
+        multi_stream->multi_read_next_block( dbs );
+        assert_st( dbs.size() == num_srcs );
+        had_data = 0;
+        printf( "----\n" );
+        for( uint32_t i = 0; i != num_srcs; ++i ) {
+          if( dbs[i].valid() ) {
+            had_data = 1;
+            printf( "  i=%s dbs[i].timestamp_sz=%s\n", str(i).c_str(), str(dbs[i].timestamp_ns).c_str() );
+          }
+        }
+      }
+    }
+  };
+
 #include"gen/data-stream.H.nesi_gen.cc"
 #include"gen/data-stream.cc.nesi_gen.cc"
 
