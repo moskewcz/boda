@@ -70,6 +70,14 @@ namespace boda
           printf( "set_samp_pt(%s)\n", str( lbe.xy ).c_str() );
         }
       }
+      else if( lbe.is_key && (lbe.keycode == 'c') ) { 
+        for( uint32_t i = 0; i != num_srcs; ++i ) {
+          data_block_t & db = src_dbs[i];
+          assert_st( db.valid() );
+          p_ostream out = ofs_open( strprintf( "src_%s-%s.csv", str(i).c_str(), str(db.timestamp_ns).c_str() ) );
+          (*out) << data_to_img[i]->data_block_to_str( db );
+        }
+      }
       //else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
       //else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
       else if( lbe.is_key && (lbe.keycode == 'i') ) {

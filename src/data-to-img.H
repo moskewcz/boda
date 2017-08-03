@@ -19,6 +19,7 @@ namespace boda
     string mode; //NESI(help="type of raw image",req=1)
     virtual void data_to_img_init( nesi_init_arg_t * const nia ) = 0;
     virtual p_img_t data_block_to_img( data_block_t const & db ) = 0;
+    virtual string data_block_to_str( data_block_t const & db ) = 0;
 
     // debugging iface(s) (may only have meaning for certain modes)
     virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) = 0;

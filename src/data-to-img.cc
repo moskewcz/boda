@@ -162,6 +162,49 @@ namespace boda
       }
       return frame_buf;
     }
+    string data_block_to_str( data_block_t const & db ) {
+      string ret;
+      if( !db.d.get() ) { return ret; } // if no data block, return empty string (not ideal? error? special null rep?)
+      if( db.sz != frame_sz_bytes.v ) {
+        rt_err( strprintf( "error: can't convert data block to string, had db.sz=%s but frame_sz_bytes.v=%s\n", str(db.sz).c_str(), str(frame_sz_bytes.v).c_str() ) );
+      }
+      u32_pt_t const & img_sz = frame_buf->sz;
+      ret += img_fmt + " " + str(img_sz) + "\n";
+      // copy and convert frame data
+      if( 0 ) {
+      } else if( img_fmt == "16u-RGGB" || img_fmt == "16u-grey" ) {
+        uint16_t const * const rp_frame = (uint16_t const *)(db.d.get());
+        for( uint32_t d = 0; d != 2; ++d ) {
+          assert_st( !(frame_sz.d[d]&1) );
+          assert_st( !(crop.p[0].d[d]&1) );
+          assert_st( !(crop.p[1].d[d]&1) );
+        }
+        for( uint32_t y = 0; y < img_sz.d[1]; y += 1 ) {
+          uint32_t const src_y = crop.p[0].d[1] + y;
+          uint16_t const * const src_data = rp_frame + (src_y)*frame_sz.d[0];
+          //uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          for( uint32_t x = 0; x < img_sz.d[0]; x += 1 ) {
+            uint32_t const src_x = crop.p[0].d[0] + x;
+            uint16_t v = src_data[src_x];
+            ret += " " + str(v);
+          }
+          ret += "\n";
+        }
+      } else if( img_fmt == "32f-grey" ) {
+        for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
+          uint32_t const src_y = crop.p[0].d[1] + y;
+          float const * const src_data = ((float const *)db.d.get()) + (src_y*frame_sz.d[0]);
+          //uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
+            uint32_t const src_x = crop.p[0].d[0] + x;
+            float gv = src_data[src_x];
+            ret += " " + str(gv);
+          }
+          ret += "\n";
+        }
+      } else { rt_err( "can't decode frame: unknown img_fmt: " + img_fmt ); }
+      return ret;
+    }
   };
 
   struct data_to_img_null_t : virtual public nesi, public data_to_img_t // NESI(help="consume data blocks and return nothing (null images)",
@@ -176,8 +219,9 @@ namespace boda
       if( verbose ) { printf( "data_to_img_null: db.sz=%s db.timestamp_ns=%s\n",
                               str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
       return p_img_t();
-    }
-    
+    } 
+    virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_null_t:to-strnot-implemented>"; } 
+   
   };
 
   struct data_to_img_lidar_t : virtual public nesi, public data_to_img_t // NESI(help="consume velodyne lidar data blocks (packets) and return nothing (null images)",
@@ -194,6 +238,7 @@ namespace boda
                               str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
       return p_img_t();
     }
+    virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_lidar_t:to-str-not-implemented>"; } 
     
   };
 
