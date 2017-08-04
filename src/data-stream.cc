@@ -5,11 +5,11 @@
 #include"has_main.H"
 #include"str_util.H"
 #include"data-stream.H"
-#include"mapped-file-util.H"
+#include"data-stream-file.H"
 
 namespace boda 
 {
-
+  
   struct data_stream_start_stop_skip_t : virtual public nesi, public data_stream_t // NESI(help="wrap another data stream and optionally: skip initial blocks and/or skip blocks after each returned block and/or limit the number of blocks returned.",
                              // bases=["data_stream_t"], type_id="start-stop-skip")
   {
@@ -81,29 +81,6 @@ namespace boda
     }    
   };
   
-  struct data_stream_file_t : virtual public nesi, public data_stream_t // NESI(help="parse serialized data stream from file into data blocks",
-                              // bases=["data_stream_t"], type_id="file", is_abstract=1)
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
-    uint64_t tot_num_read; // num blocks read so far
-    mapped_file_stream_reader mfsr;
-    
-    virtual string get_pos_info_str( void ) { return strprintf( "pos=%s tot_num_read=%s", str(mfsr.pos).c_str(), str(tot_num_read).c_str() ); }
-    
-    virtual void data_stream_init( nesi_init_arg_t * nia ) { // note: to be called explicity by derived classes if they override
-      printf( "data_stream_init(): mode=%s fn.exp=%s\n", str(mode).c_str(), str(fn.exp).c_str() );
-      mfsr.init( fn );
-      tot_num_read = 0;
-    }
-    void data_stream_file_block_done_hook( data_block_t & ret ) {
-      ret.frame_ix = tot_num_read;
-      ++tot_num_read;
-      if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
-    }
-  };
-
   struct data_stream_qt_t : virtual public nesi, public data_stream_file_t // NESI(help="parse qt-style-serialized data stream into data blocks",
                             // bases=["data_stream_file_t"], type_id="qt")
   {
@@ -329,8 +306,8 @@ namespace boda
                     str(i).c_str(), str(db.timestamp_ns).c_str(), str(last_ts).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
           }
           if( (i == full_dump_ix) || last_ts == 0 ) { // if on first block, dump out ts
-            printf( "stream[%s] first_ts=%s get_pos_info_str()=%s\n",
-                    str(i).c_str(), str(db.timestamp_ns).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
+            printf( "stream[%s] sz=%s first_ts=%s get_pos_info_str()=%s\n",
+                    str(i).c_str(), str(db.sz).c_str(), str(db.timestamp_ns).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
           }
           last_ts = db.timestamp_ns;
         }

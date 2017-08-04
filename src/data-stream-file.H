@@ -1,0 +1,37 @@
+// Copyright (c) 2017, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
+#ifndef DATA_STREAM_FILE_H
+#define DATA_STREAM_FILE_H
+
+#include"boda_base.H"
+#include"data-stream.H"
+#include"mapped-file-util.H"
+
+namespace boda 
+{
+
+  struct data_stream_file_t : virtual public nesi, public data_stream_t // NESI(help="parse serialized data stream from file into data blocks",
+                              // bases=["data_stream_t"], type_id="file", is_abstract=1)
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
+    uint64_t tot_num_read; // num blocks read so far
+    mapped_file_stream_reader mfsr;
+    
+    virtual string get_pos_info_str( void ) { return strprintf( "pos=%s tot_num_read=%s", str(mfsr.pos).c_str(), str(tot_num_read).c_str() ); }
+    
+    virtual void data_stream_init( nesi_init_arg_t * nia ) { // note: to be called explicity by derived classes if they override
+      printf( "data_stream_init(): mode=%s fn.exp=%s\n", str(mode).c_str(), str(fn.exp).c_str() );
+      mfsr.init( fn );
+      tot_num_read = 0;
+    }
+    void data_stream_file_block_done_hook( data_block_t & ret ) {
+      ret.frame_ix = tot_num_read;
+      ++tot_num_read;
+      if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
+    }
+  };
+
+}
+
+#endif /* DATA_STREAM_FILE_H */
