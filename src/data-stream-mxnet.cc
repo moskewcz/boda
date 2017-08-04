@@ -5,6 +5,10 @@
 #include"data-stream.H"
 #include"data-stream-file.H"
 
+// for test-gen stream only
+#include"rand_util.H" 
+#include<boost/functional/hash.hpp>
+
 namespace boda 
 {
 
@@ -137,6 +141,85 @@ namespace boda
       bwrite_bytes( *out, (char * const)&zero, pad );
     }
   };
+
+  
+  struct data_stream_test_gen_t : virtual public nesi, public data_stream_t // NESI(help="generate a data stream for testing",
+                                     // bases=["data_stream_t"], type_id="test-gen")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint64_t rng_seed; //NESI(default="0",help="seed for rng")
+    uint64_t blocks_to_gen; //NESI(default="1000",help="non-hash blocks to generate (actual stream will have 2X this many blocks)")
+    uint64_t bsz_min; //NESI(default="0",help="min block size")
+    uint64_t bsz_max; //NESI(default="32",help="max block size")
+
+    uint64_t tot_num_gen;
+    boost::random::mt19937 gen;
+    vect_uint8_t gen_data;
+    size_t block_hash;
+    
+    // for now, alternate blocks are checksums of prior block
+    virtual data_block_t read_next_block( void ) {
+      data_block_t ret;
+      if( !(tot_num_gen&1) ) {
+        if( tot_num_gen == (2*blocks_to_gen) ) { return ret; }
+        boost::random::uniform_int_distribution<uint64_t> bsz_dist( bsz_min, bsz_max );
+        gen_data.resize( bsz_dist(gen) );
+        rand_fill_int_vect( gen_data, uint8_t(0), uint8_t_const_max, gen );
+        // TODO: add magic corruption here
+
+        block_hash = boost::hash_range( gen_data.begin(), gen_data.end() );
+        ret.sz = gen_data.size();
+        ret.d = ma_p_uint8_t( ret.sz, boda_default_align );
+        ret.frame_ix = tot_num_gen;
+        ret.timestamp_ns = tot_num_gen;
+        std::copy( gen_data.begin(), gen_data.end(), ret.d.get() ); 
+      } else {
+        // last block was gen'd data. send it's hash.
+        ret.sz = sizeof(size_t);
+        ret.d = ma_p_uint8_t( ret.sz, boda_default_align );
+        std::copy( (uint8_t const *)&block_hash, ((uint8_t const *)&block_hash)+sizeof(block_hash), ret.d.get() );
+      }
+      ret.frame_ix = tot_num_gen;
+      ret.timestamp_ns = tot_num_gen;
+      ++tot_num_gen;
+      return ret;
+    }
+
+    virtual void data_stream_init( nesi_init_arg_t * nia ) { tot_num_gen = 0; gen.seed( rng_seed ); }
+    virtual string get_pos_info_str( void ) { return strprintf( "tot_num_gen=%s", str(tot_num_gen).c_str() ); }
+  };
+
+  struct data_sink_hash_check_t : virtual public nesi, public data_sink_t // NESI(help="read sequence of block/prior-block-hash-block pairs.",
+                                  // bases=["data_sink_t"],type_id="hash-check")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint64_t tot_num_read;
+    size_t block_hash;
+    virtual void data_sink_init( nesi_init_arg_t * const nia ) { tot_num_read = 0; }
+    
+    virtual void consume_block( data_block_t const & db ) {
+      assert_st( db.valid() ); // don't pass invalid blocks?
+      if( !(tot_num_read & 1) ) {
+        block_hash = boost::hash_range( db.d.get(), db.d.get() + db.sz ); // cache hash
+      } else {
+        if( db.sz != sizeof(size_t) ) {
+          rt_err( strprintf( "expected hash-only block at tot_num_read=%s, but db.sz=%s\n",
+                             str(tot_num_read).c_str(), str(db.sz).c_str() ) );
+        }
+        size_t const fs_block_hash = *((size_t *)db.d.get());
+        if( fs_block_hash != block_hash ) {
+          rt_err( strprintf( "block hash compare failure: fs_block_hash=%s block_hash=%s\n",
+                             str(fs_block_hash).c_str(), str(block_hash).c_str() ) );
+        }
+      }
+      ++tot_num_read;
+    }
+    // yeah, not the best way/place to check, but better than not checking? fails if we got an odd # of blocks (i.e. last block lost)
+    // FIXME: maybe we need a stream-length check too? (to check for block level truncation?)
+    ~data_sink_hash_check_t( void ) { assert_st( ! (tot_num_read & 1) ); } 
+      
+  };
+
 
   
 #include"gen/data-stream-mxnet.cc.nesi_gen.cc"
