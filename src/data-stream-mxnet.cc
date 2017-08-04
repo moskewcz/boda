@@ -79,7 +79,8 @@ namespace boda
           if( i != parts.begin() ) { tot_sz += sizeof(mxnet_brick_magic); } // will join parts with magic val
           tot_sz += (*i).sz;
         }
-        ret.d = ma_p_uint8_t( tot_sz, boda_default_align );
+        ret.sz = tot_sz;
+        ret.d = ma_p_uint8_t( ret.sz, boda_default_align );
         uint64_t pos = 0;
         for( vect_data_block_t::const_iterator i = parts.begin(); i != parts.end(); ++i ) {
           if( i != parts.begin() ) { // join parts with magic val
@@ -112,6 +113,7 @@ namespace boda
       out = ofs_open( fn );
     }
     void write_chunk( uint32_t const & cflag, uint8_t const * const & start, uint64_t const & len ) {
+      //printf( "write_chunk: cflag=%s len=%s\n", str(cflag).c_str(), str(len).c_str() );
       bwrite( *out, mxnet_brick_magic );
       uint32_t const lrec = make_lrec( cflag, len );
       bwrite( *out, lrec );
@@ -130,7 +132,7 @@ namespace boda
         if( src_data[i] == mxnet_brick_magic ) {
           uint64_t const ipos = i << 2;
           final_cflag = 3;
-           write_chunk( next_part_cflag, db.d.get()+spos, ipos - spos );
+          write_chunk( next_part_cflag, db.d.get()+spos, ipos - spos );
           spos = ipos + 4;
           next_part_cflag = 2;
         }
@@ -152,10 +154,14 @@ namespace boda
     uint64_t bsz_min; //NESI(default="0",help="min block size")
     uint64_t bsz_max; //NESI(default="32",help="max block size")
 
+    string hex_magic_corruption; //NESI(default="deadbeef", help="hex string of specific binary data to maybe-include in gen'd blocks" )
+    uint32_t magic_corruption_cnt; //NESI(default=0,help="how many times to put magic corruption in each gen'd block" )
+    
     uint64_t tot_num_gen;
     boost::random::mt19937 gen;
     vect_uint8_t gen_data;
     size_t block_hash;
+    string magic_corruption;
     
     // for now, alternate blocks are checksums of prior block
     virtual data_block_t read_next_block( void ) {
@@ -165,8 +171,13 @@ namespace boda
         boost::random::uniform_int_distribution<uint64_t> bsz_dist( bsz_min, bsz_max );
         gen_data.resize( bsz_dist(gen) );
         rand_fill_int_vect( gen_data, uint8_t(0), uint8_t_const_max, gen );
-        // TODO: add magic corruption here
-
+        boost::random::uniform_int_distribution<uint64_t> pos_dist( 0, gen_data.size() );
+        for( uint32_t i = 0; i != magic_corruption_cnt; ++i ) {
+          uint64_t pos = pos_dist(gen);
+          for( uint32_t j = 0; (j != magic_corruption.size()) && (pos < gen_data.size()); ++j, ++pos ) {
+            gen_data[pos] = magic_corruption[j];
+          }
+        }
         block_hash = boost::hash_range( gen_data.begin(), gen_data.end() );
         ret.sz = gen_data.size();
         ret.d = ma_p_uint8_t( ret.sz, boda_default_align );
@@ -185,7 +196,11 @@ namespace boda
       return ret;
     }
 
-    virtual void data_stream_init( nesi_init_arg_t * nia ) { tot_num_gen = 0; gen.seed( rng_seed ); }
+    virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      tot_num_gen = 0;
+      gen.seed( rng_seed );
+      magic_corruption = unhex( hex_magic_corruption );
+    }
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_gen=%s", str(tot_num_gen).c_str() ); }
   };
 
