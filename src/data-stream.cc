@@ -293,8 +293,10 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
     uint32_t full_dump_ix; //NESI(default="-1",help="for this stream, dump all block sizes")
+    p_data_sink_t sink; //NESI(help="optional; if specific, send all block to this data sink")
 
     void main( nesi_init_arg_t * nia ) {
+      if( sink ) { sink->data_sink_init( nia ); }
       for( uint32_t i = 0; i != stream.size(); ++i ) {
         uint64_t last_ts = 0;
         stream[i]->data_stream_init( nia );
@@ -310,6 +312,7 @@ namespace boda
                     str(i).c_str(), str(db.sz).c_str(), str(db.timestamp_ns).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
           }
           last_ts = db.timestamp_ns;
+          if( sink ) { sink->consume_block( db ); }
         }
         printf( "stream[%s] last_ts=%s get_pos_info_str()=%s\n",
                 str(i).c_str(), str(last_ts).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
