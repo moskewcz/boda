@@ -134,7 +134,7 @@ class cinfo_t( object ):
                     tid_vix = ix
                     break
             else:
-                raise RuntimeError("in nesi struct %r: %r specified as tid_nv, but no nesi var with that name found." %
+                raise RuntimeError("in nesi struct %r: %r specified as tid_vn, but no nesi var with that name found." %
                                    (self.cname,self.tid_vn) )
         tid_str = "0"
         if not self.type_id is None:

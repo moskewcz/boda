@@ -8,10 +8,11 @@
 namespace boda 
 {
 
-  uint32_t mxnet_brick_magic = 0xced7230a;
+  uint32_t const mxnet_brick_magic = 0xced7230a;
+  uint32_t const mxnet_brick_max_rec_sz = 1<<29;
   uint32_t make_lrec( uint32_t const & cflag, uint32_t const & len ) {
     assert_st( cflag < ( 1 << 3 ) );
-    assert_st( len < ( 1 << 29 ) );
+    assert_st( len < mxnet_brick_max_rec_sz );
     return len + ( cflag << 29 );
   }
   uint32_t lrec_get_cflag( uint32_t const & lrec ) { return lrec >> 29; }
@@ -29,7 +30,7 @@ namespace boda
     }
     
     virtual data_block_t read_next_block( void ) {
-      parts.clear();
+      assert_st( parts.empty() );
       data_block_t ret;
       if( mfsr.at_eof() ) { return ret; } // at end of stream
       while( 1 ) {
@@ -67,6 +68,7 @@ namespace boda
       assert_st( !parts.empty() );
       if( parts.size() == 1 ) { ret = parts[0]; parts.clear(); }
       else {
+        //printf( "parts.size()=%s\n", str(parts.size()).c_str() );
         // stitch parts: 1) get size. 2) alloc. 3) copy. // FIXME: test!
         uint64_t tot_sz = 0;
         for( vect_data_block_t::const_iterator i = parts.begin(); i != parts.end(); ++i ) {
@@ -87,12 +89,56 @@ namespace boda
       }
       ret.timestamp_ns = tot_num_read;
       data_stream_file_block_done_hook( ret );
+      parts.clear();
       return ret;
     }
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) { data_stream_file_t::data_stream_init( nia );  }
   };
 
+
+  struct data_sink_mxnet_brick_t : virtual public nesi, public data_sink_t // NESI(help="write sequence of blocks (i.e. records) into mxnet brick.",
+                                                       // bases=["data_sink_t"],type_id="mxnet-brick")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
+    p_ostream out;
+    virtual void data_sink_init( nesi_init_arg_t * const nia ) {
+      out = ofs_open( fn );
+    }
+    void write_chunk( uint32_t const & cflag, uint8_t const * const & start, uint64_t const & len ) {
+      bwrite( *out, mxnet_brick_magic );
+      uint32_t const lrec = make_lrec( cflag, len );
+      bwrite( *out, lrec );
+      bwrite_bytes( *out, (char * const)start, len );
+    }
+    
+    virtual void consume_block( data_block_t const & db ) {
+      if( !( db.sz < mxnet_brick_max_rec_sz ) ) { rt_err( strprintf( "mxnet_brick_max_rec_sz=%s but db.sz=%s",
+                                                                     str(db.sz).c_str(), str(mxnet_brick_max_rec_sz).c_str() ) ); }
+      // split payload at every occurance of magic number
+      uint32_t const * const src_data = (uint32_t const *)db.d.get();
+      uint32_t final_cflag = 0;
+      uint32_t next_part_cflag = 1;
+      uint64_t spos = 0;
+      for( uint64_t i = 0; i < (db.sz>>2); ++i ) {
+        if( src_data[i] == mxnet_brick_magic ) {
+          uint64_t const ipos = i << 2;
+          final_cflag = 3;
+           write_chunk( next_part_cflag, db.d.get()+spos, ipos - spos );
+          spos = ipos + 4;
+          next_part_cflag = 2;
+        }
+      }
+      write_chunk( final_cflag, db.d.get()+spos, db.sz - spos ); // last record (may be zero size)
+      uint32_t const pad = u32_ceil_align( db.sz, 4 ) - db.sz; // padding
+      uint32_t const zero = 0;
+      bwrite_bytes( *out, (char * const)&zero, pad );
+    }
+  };
+
+  
 #include"gen/data-stream-mxnet.cc.nesi_gen.cc"
 
 }
