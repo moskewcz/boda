@@ -3,6 +3,7 @@
 #define MAPPED_FILE_UTIL_H
 
 #include"boda_base.H"
+#include"str_util.H"
 #include<boost/iostreams/device/mapped_file.hpp>
 #include<boost/endian/conversion.hpp>
 
@@ -31,15 +32,18 @@ namespace boda
       need_endian_reverse = 0;
     }
     // low-level stream reading
-    uint64_t size( void ) { return fn_map->size(); }
-    bool can_read( uint64_t const & sz ) { return (sz+pos) < size(); }
-    void check_can_read( uint64_t const & sz ) {
+    uint64_t size( void ) const { return fn_map->size(); }
+    bool at_eof( void ) const { assert_st( pos <= size() ); return pos == size(); }
+    uint64_t bytes_left( void ) const { assert_st( pos <= size() ); return size() - pos; }
+    bool can_read( uint64_t const & sz ) const { return (sz+pos) <= size(); }
+    void check_can_read( uint64_t const & sz ) const {
       if( !can_read(sz) ) {
         rt_err( strprintf( "unexpected end of stream trying to read sz=%s bytes at pos=%s\n",
                            str(sz).c_str(), str(pos).c_str() ) );
       }
     }
-
+    void consume_and_discard_bytes( uint64_t const & sz ) { check_can_read( sz ); pos += sz; }
+    
     // consume a block of bytes from the stream and return a borrowed pointer to it.
     p_uint8_t consume_borrowed_raw_block( uint64_t const block_sz ) {
       check_can_read( block_sz );
