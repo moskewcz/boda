@@ -419,10 +419,10 @@ namespace boda
       bool had_data = 1;
       while( had_data ) {
         multi_stream->multi_read_next_block( dbs );
-        assert_st( dbs.size() == num_srcs );
+        if( num_srcs ) { assert_st( dbs.size() == num_srcs ); } // num_srcs == 0 --> dynamic # of blocks
         had_data = 0;
         printf( "----\n" );
-        for( uint32_t i = 0; i != num_srcs; ++i ) {
+        for( uint32_t i = 0; i != dbs.size(); ++i ) {
           if( dbs[i].valid() ) {
             had_data = 1;
             printf( "  i=%s dbs[i].timestamp_sz=%s\n", str(i).c_str(), str(dbs[i].timestamp_ns).c_str() );
