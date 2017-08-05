@@ -411,7 +411,8 @@ namespace boda
                                     // bases=["has_main_t"], type_id="scan-data-stream-multi")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
-    p_multi_data_stream_t multi_stream; //NESI(help="input data multi stream")
+    p_multi_data_stream_t multi_stream; //NESI(req=1,help="input data multi stream")
+    p_multi_data_sink_t multi_sink; //NESI(help="output data multi sink")
 
     void main( nesi_init_arg_t * nia ) {
       uint32_t num_srcs = multi_stream->multi_data_stream_init( nia );
@@ -428,6 +429,7 @@ namespace boda
             printf( "  i=%s dbs[i].timestamp_sz=%s\n", str(i).c_str(), str(dbs[i].timestamp_ns).c_str() );
           }
         }
+        if( had_data ) { if( multi_sink ) { multi_sink->multi_consume_block( dbs ); } }
       }
     }
   };

@@ -66,6 +66,19 @@ namespace boda
   typedef shared_ptr< multi_data_stream_t > p_multi_data_stream_t; 
   typedef vector< p_multi_data_stream_t > vect_p_multi_data_stream_t;
 
+  struct multi_data_sink_t : virtual public nesi // NESI(help="modes that can be used for consuming streams of timestamped data blocks"
+                                              // ,is_abstract=1,tid_vn="mode")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string mode; //NESI(help="type of datasink",req=1)
+    virtual void multi_data_sink_init( nesi_init_arg_t * const nia ) = 0;
+    virtual void multi_consume_block( vect_data_block_t const & db ) = 0;
+  };
+  typedef vector< multi_data_sink_t > vect_multi_data_sink_t; 
+  typedef shared_ptr< multi_data_sink_t > p_multi_data_sink_t; 
+  typedef vector< p_multi_data_sink_t > vect_p_multi_data_sink_t;
+
+  
 }
 
 #endif /* _DATA_STREAM_H_ */
