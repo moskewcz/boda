@@ -24,15 +24,23 @@ LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2
 LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 
-[caffe_pb gen_fn=caffe.pb.cc gen_fn=caffe.pb.h]
-LDFLAGS := $(LDFLAGS) -lprotobuf
+[protobuf]
+PROTOBUF_LIB := /mnt/gluster/exp/lib
+LDFLAGS := $(LDFLAGS) -L$(PROTOBUF_LIB) -lprotobuf
+# use rpath by default ...
+LDFLAGS := $(LDFLAGS) -Wl,-rpath,$(PROTOBUF_LIB)
+
+CPPFLAGS := $(CPPFLAGS) -I/mnt/gluster/exp/include
+PROTOC := /mnt/gluster/exp/bin/protoc
+
+[caffe_pb gen_fn=caffe.pb.cc gen_fn=caffe.pb.h needs=protobuf]
 # manually add deps since we can create this particular header (which is unusual and otherwise unhandled by the header
 # deps system.
 caffepb.o : caffe.pb.h 
 upgrade_proto.o : caffe.pb.h 
 # note: it may be possible to not rebuild caffe.pb.h / caffe.pb.cc in some cases
 caffe.pb.cc caffe.pb.h : ../src/ext/caffe.proto
-	protoc -I../src/ext --cpp_out=. ../src/ext/caffe.proto
+	$(PROTOC) -I../src/ext --cpp_out=. ../src/ext/caffe.proto
 
 
 [cuda disable]
@@ -73,7 +81,6 @@ LDFLAGS := $(LDFLAGS) -lpython2.7
 LDFLAGS := $(LDFLAGS) -lturbojpeg
 
 [stacktrace_gnu] # if enabled, get stacktrace using gnu extentions backtrace() and backtrace_symbols() 
-
 
 # list of object files to compile. at least the objects that are direct dependencies of the above sections should be
 # marked by adding the dependency section name after the object file below. thus, if the dependency is disabled, the

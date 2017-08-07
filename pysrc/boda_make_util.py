@@ -1,5 +1,6 @@
 # Copyright (c) 2015, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 import os, re
+osp = os.path
 
 # one complication/flaw of the gcc generated .d files + the make
 # system we are using is that when a source file is changed in a way
@@ -109,30 +110,28 @@ class GenObjList( object ):
     
     def parse_dep( self, sec_start ):
         dep_name = sec_start[0]
-        if dep_name in self.deps: self.parse_error( "duplicate dep section" )
-        new_dep = DepInfo(dep_name)
+        dep = self.deps.get(dep_name,None)
+        if dep is None:
+            dep = DepInfo(dep_name)
+            self.deps[dep_name] = dep
+            self.deps_list.append( dep )
+        else:
+            # allow only base section to be duplicated (well, objs too, but that's not handled here)
+            if dep_name != "base": self.parse_error( "duplicate dep section: " + dep_name )
         needs_str = "needs="
         gen_fn_str = "gen_fn="
         for opt in sec_start[1:]:
             if 0: pass
-            elif opt == "disable": new_dep.force_disable = 1
-            elif opt.startswith( needs_str ): new_dep.needs.append( opt[len(needs_str):] )
-            elif opt.startswith( gen_fn_str ): new_dep.gen_fns.append( opt[len(gen_fn_str):] )
+            elif opt == "disable": dep.force_disable = 1
+            elif opt.startswith( needs_str ): dep.needs.append( opt[len(needs_str):] )
+            elif opt.startswith( gen_fn_str ): dep.gen_fns.append( opt[len(gen_fn_str):] )
             else: self.parse_error( "unknown dep section option %r" % (opt,) )
         while not self.at_section_start_or_eof():
-            new_dep.lines.append( self.cur_orig_line ) # note: whitespace/comments preserved (including empty lines)
+            dep.lines.append( self.cur_orig_line ) # note: whitespace/comments preserved (including empty lines)
             self.next_line();
-        self.deps[dep_name] = new_dep
-        self.deps_list.append( new_dep )
 
-    def __init__( self, obj_list_fn ):    
-        self.deps = {}
-        # we also keep a list of deps (in addition to the map) to preserve declaration order to use when emmiting
-        # dependencies.make; this only matters for the 'base' dep currently, and probably should *not* be allowed to
-        # matter for other deps. however, having the orders agree does seem sensible overall.
-        self.deps_list = [] 
-        self.gen_fns = set()
-        self.gen_objs = []
+    def read_obj_list( self, obj_list_fn ):
+        if obj_list_fn.endswith("~"): return # skip ~ files ... yeah, it's a bit of blatant emacs bias, i'll admit.
         self.ol_lines = open( obj_list_fn ).readlines()
         if not self.ol_lines: raise ValueError( "empty obj_list file at: " + obj_list_fn )
         self.next_ol_line = 0
@@ -146,7 +145,23 @@ class GenObjList( object ):
             self.next_line() # consume section start line
             if sec_start[0] == "objs": self.parse_objs()
             else: self.parse_dep( sec_start )
-        
+
+    def __init__( self, obj_list_fn ):    
+        self.deps = {}
+        # we also keep a list of deps (in addition to the map) to preserve declaration order to use when emmiting
+        # dependencies.make; this only matters for the 'base' dep currently, and probably should *not* be allowed to
+        # matter for other deps. however, having the orders agree does seem sensible overall.
+        self.deps_list = [] 
+        self.gen_fns = set()
+        self.gen_objs = []
+        # read obj list, and then (optionally) read all files in any directory with the same name + ".dir"
+        self.read_obj_list( obj_list_fn )
+        obj_list_dir = obj_list_fn + ".dir"
+        if osp.isdir( obj_list_dir ):
+            for root, dirs, fns in os.walk( obj_list_dir ):
+                for fn in fns: self.read_obj_list( osp.join(root,fn) )
+                dirs[:] = []
+
         if not self.gen_objs: raise ValueError( "obj_list error: [objs] section missing or empty" )
             
         # add in any generated c++ file that need top-level compilation. FIXME: probably this shouldn't be hard-coded here.
