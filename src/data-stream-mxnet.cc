@@ -122,7 +122,7 @@ namespace boda
     
     virtual void consume_block( data_block_t const & db ) {
       if( !( db.sz < mxnet_brick_max_rec_sz ) ) { rt_err( strprintf( "mxnet_brick_max_rec_sz=%s but db.sz=%s",
-                                                                     str(db.sz).c_str(), str(mxnet_brick_max_rec_sz).c_str() ) ); }
+                                                                     str(mxnet_brick_max_rec_sz).c_str(), str(db.sz).c_str() ) ); }
       // split payload at every occurance of magic number
       uint32_t const * const src_data = (uint32_t const *)db.d.get();
       uint32_t final_cflag = 0;
