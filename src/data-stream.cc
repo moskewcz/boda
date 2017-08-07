@@ -416,6 +416,7 @@ namespace boda
 
     void main( nesi_init_arg_t * nia ) {
       uint32_t num_srcs = multi_stream->multi_data_stream_init( nia );
+      if( multi_sink ) { multi_sink->multi_data_sink_init( nia ); }
       vect_data_block_t dbs;
       bool had_data = 1;
       while( had_data ) {
