@@ -146,7 +146,7 @@ class GenObjList( object ):
             if sec_start[0] == "objs": self.parse_objs()
             else: self.parse_dep( sec_start )
 
-    def __init__( self, obj_list_fn ):    
+    def __init__( self, obj_list_fns ):    
         self.deps = {}
         # we also keep a list of deps (in addition to the map) to preserve declaration order to use when emmiting
         # dependencies.make; this only matters for the 'base' dep currently, and probably should *not* be allowed to
@@ -154,13 +154,9 @@ class GenObjList( object ):
         self.deps_list = [] 
         self.gen_fns = set()
         self.gen_objs = []
-        # read obj list, and then (optionally) read all files in any directory with the same name + ".dir"
-        self.read_obj_list( obj_list_fn )
-        obj_list_dir = obj_list_fn + ".dir"
-        if osp.isdir( obj_list_dir ):
-            for root, dirs, fns in os.walk( obj_list_dir ):
-                for fn in fns: self.read_obj_list( osp.join(root,fn) )
-                dirs[:] = []
+        self.obj_list_fns = obj_list_fns
+        for obj_list_fn in obj_list_fns:
+            self.read_obj_list( obj_list_fn )
 
         if not self.gen_objs: raise ValueError( "obj_list error: [objs] section missing or empty" )
             

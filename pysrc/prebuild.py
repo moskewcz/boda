@@ -4,11 +4,12 @@ from boda_make_util import DepFileProc, GenObjList
 import argparse
 
 parser = argparse.ArgumentParser(description='Boda prebuild/makefile-generation system.')
-parser.add_argument('--obj-list-fn', metavar="FN", type=str, help="filename of objects/dependencies list", required=True )
+parser.add_argument('--obj-list-fns', metavar="FN", type=str, help="space-seperated filenames of objects/dependencies list", required=True )
 args = parser.parse_args()
 
+obj_list_fns = args.obj_list_fns.split() # FIXME: handle spaces/escapes/etc better?
 DepFileProc() # post-processing for gcc/makefile generated .d dependency files
-gol = GenObjList( args.obj_list_fn ) # generate list of object file to build for make
+gol = GenObjList( obj_list_fns ) # generate list of object file to build for make
 nesi_gen( gol ) # NESI c++ reflection system code generation
 
 # if we get here, we assume prebuild is done and good, and write an
