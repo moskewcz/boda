@@ -411,6 +411,7 @@ namespace boda
                                     // bases=["has_main_t"], type_id="scan-data-stream-multi")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     p_multi_data_stream_t multi_stream; //NESI(req=1,help="input data multi stream")
     p_multi_data_sink_t multi_sink; //NESI(help="output data multi sink")
 
@@ -423,11 +424,11 @@ namespace boda
         multi_stream->multi_read_next_block( dbs );
         if( num_srcs ) { assert_st( dbs.size() == num_srcs ); } // num_srcs == 0 --> dynamic # of blocks
         had_data = 0;
-        printf( "----\n" );
+        if( verbose ) { printf( "----\n" ); }
         for( uint32_t i = 0; i != dbs.size(); ++i ) {
           if( dbs[i].valid() ) {
             had_data = 1;
-            printf( "  i=%s dbs[i].timestamp_sz=%s\n", str(i).c_str(), str(dbs[i].timestamp_ns).c_str() );
+            if( verbose ) { printf( "  i=%s dbs[i].timestamp_sz=%s\n", str(i).c_str(), str(dbs[i].timestamp_ns).c_str() ); }
           }
         }
         if( had_data ) { if( multi_sink ) { multi_sink->multi_consume_block( dbs ); } }
