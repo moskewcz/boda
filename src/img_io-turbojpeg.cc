@@ -2,6 +2,7 @@
 #include"boda_tu_base.H"
 #include"str_util.H"
 #include"img_io.H"
+#include"timers.H"
 #include<turbojpeg.h>
 #include<boost/iostreams/device/mapped_file.hpp>
 
@@ -10,6 +11,10 @@ namespace boda
 
   void check_tj_ret( int const & tj_ret, string const & fn, string const & err_tag ) { 
     if( tj_ret ) { rt_err( "failed to load image '"+fn+"': "  + err_tag + " failed:" + string(tjGetErrorStr()) ); } }
+
+  struct uint8_t_tj_deleter { 
+    void operator()( uint8_t * const & b ) const { tjFree( b ); } // can't fail, apparently ...
+  };
 
   void img_t::load_fn_jpeg( std::string const & fn )
   {
@@ -28,6 +33,26 @@ namespace boda
     check_tj_ret( tj_ret, fn, "tjDecompress2" );
     tj_ret = tjDestroy( tj_dec ); 
     check_tj_ret( tj_ret, fn, "tjDestroy" );
+  }
+
+  void img_t::save_fn_jpeg( std::string const & fn ) {
+    timer_t t("save_fn_jpeg");
+    int tj_ret = -1;
+    tjhandle tj_enc = tjInitCompress();
+    check_tj_ret( !tj_enc, fn, "tjInitCompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
+    int const quality = 75;
+    uint32_t const tj_pixel_format = TJPF_RGBA;
+    ulong tj_size_out = 0;
+    uint8_t * tj_buf_out = 0;
+    tj_ret = tjCompress2( tj_enc, pels.get(), sz.d[0], row_pitch, sz.d[1], tj_pixel_format, &tj_buf_out, &tj_size_out, TJSAMP_444, quality, 0 );
+    check_tj_ret( tj_ret, fn, "tjCompress2" );
+    assert_st( tj_size_out > 0 );
+    p_uint8_t ret( tj_buf_out, uint8_t_tj_deleter() ); // FIXME: will need to ret size too ...
+    tj_ret = tjDestroy( tj_enc ); 
+    check_tj_ret( tj_ret, fn, "tjDestroy" );
+    // write to file
+    p_ostream out = ofs_open( fn );
+    bwrite_bytes( *out, (char const *)ret.get(), tj_size_out );
   }
 
 }

@@ -33,6 +33,7 @@ namespace boda
     void fill_with_pel( uint32_t const & v );
     void load_fn( std::string const & fn );
     void load_fn_jpeg( std::string const & fn );
+    void save_fn_jpeg( std::string const & fn );
     void load_fn_png( std::string const & fn );
     void save_fn_png( std::string const & fn, bool const disable_compression = 0 );
 
