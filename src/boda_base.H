@@ -263,6 +263,11 @@ namespace boda
 
   __attribute__((used)) uint32_t const boda_magic= *(uint32_t *)"BODA";
 
+  struct p_uint8_with_sz_t : public p_uint8_t {
+    uint64_t sz;
+    p_uint8_with_sz_t( uint8_t * & p, uint64_t const & sz_ ) : p_uint8_t( p ), sz(sz_) {}
+    template< typename DELETER > p_uint8_with_sz_t( uint8_t * & p, uint64_t const & sz_, DELETER const & deleter ) : p_uint8_t( p, deleter ), sz(sz_) {}
+  };
 
   // the b{read,write}_bytes() functions are the basic low-level read/write that must be implimented
   // for any stream class we wish to use for IO. the two basic ones here are for istream/ostream and
