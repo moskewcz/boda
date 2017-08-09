@@ -326,6 +326,13 @@ namespace boda
 	  paused = 1;
 	  break;
 	}
+	if( event.key.keysym.sym == SDLK_j ) {
+	  for( uint32_t i = 0; i != imgs->size(); ++i ) {
+	    imgs->at(i)->save_fn_jpeg( strprintf( "ss_%s.jpg", str(i).c_str() ) );
+	  }
+	  paused = 1;
+	  break;
+	}
 	if (event.key.keysym.sym == SDLK_SPACE) {
 	  paused = !paused;
 	  break;
