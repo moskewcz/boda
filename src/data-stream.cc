@@ -162,8 +162,9 @@ namespace boda
     virtual data_block_t read_next_block( void ) {
       data_block_t ret;
       uint32_t block_sz;
-      if( !mfsr.can_read( sizeof( block_sz ) ) ) { return ret; } // not enough bytes left for another block
+      if( !mfsr.can_read( sizeof( block_sz ) ) ) { return ret; } // not enough bytes left for another block. FIXME: should be an error?
       mfsr.read_val( block_sz );
+      if( block_sz == uint32_t_const_max ) { return ret; } // end of dumpvideo stream marker
       ret = mfsr.consume_borrowed_block( block_sz ); // note: timestamp not set here
       data_stream_file_block_done_hook( ret );
       return ret;
@@ -328,6 +329,31 @@ namespace boda
   uint64_t ts_delta( data_block_t const & a, data_block_t const & b ) {
     return ( a.timestamp_ns > b.timestamp_ns ) ? ( a.timestamp_ns - b.timestamp_ns ) : ( b.timestamp_ns - a.timestamp_ns );
   }
+
+  struct multi_data_stream_merge_t : virtual public nesi, public multi_data_stream_t // NESI(
+                                    // help="take N data streams and output one block across all streams for each multi-stream-block read. ",
+                                    // bases=["multi_data_stream_t"], type_id="merge")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_p_data_stream_t stream; //NESI(help="input data streams")
+
+    virtual uint32_t multi_data_stream_init( nesi_init_arg_t * const nia ) {
+      for( uint32_t i = 0; i != stream.size(); ++i ) {  stream[i]->data_stream_init( nia );  }
+      return stream.size();
+    }    
+    virtual string get_pos_info_str( void ) {
+      string ret = "\n";
+      for( uint32_t i = 0; i != stream.size(); ++i ) {
+        ret += "  " + str(i) + ": " + stream[i]->get_pos_info_str() + "\n";
+      }
+      return ret;
+    }
+    virtual void multi_read_next_block( vect_data_block_t & dbs ) {
+      dbs.clear();
+      dbs.resize( stream.size() );
+      for( uint32_t i = 0; i != stream.size(); ++i ) { dbs[i] = stream[i]->read_next_block(); }
+    }
+  };
   
   struct multi_data_stream_sync_t : virtual public nesi, public multi_data_stream_t // NESI(
                                     // help="take N data streams, with one as primary, and output one block across all streams for each primary stream block, choosing the nearest-by-timestamp-to-the-primary-block-timestamp-block for each non-primary stream. ",
