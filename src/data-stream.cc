@@ -432,21 +432,26 @@ namespace boda
   };
 
 
-  struct scan_multi_data_stream_t : virtual public nesi, public has_main_t // NESI(
+  struct scan_data_stream_multi_t : virtual public nesi, public has_main_t // NESI(
                                     // help="scan multi data stream ",
                                     // bases=["has_main_t"], type_id="scan-data-stream-multi")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    uint64_t num_to_proc; //NESI(default=0,help="read/write this many records; zero for unlimited")
     p_multi_data_stream_t multi_stream; //NESI(req=1,help="input data multi stream")
     p_multi_data_sink_t multi_sink; //NESI(help="output data multi sink")
 
+    uint64_t tot_num_proc;
+    
     void main( nesi_init_arg_t * nia ) {
+      tot_num_proc = 0;
       uint32_t num_srcs = multi_stream->multi_data_stream_init( nia );
       if( multi_sink ) { multi_sink->multi_data_sink_init( nia ); }
       vect_data_block_t dbs;
       bool had_data = 1;
       while( had_data ) {
+        if( num_to_proc && (tot_num_proc == num_to_proc) ) { break; } // done
         multi_stream->multi_read_next_block( dbs );
         if( num_srcs ) { assert_st( dbs.size() == num_srcs ); } // num_srcs == 0 --> dynamic # of blocks
         had_data = 0;
@@ -458,6 +463,7 @@ namespace boda
           }
         }
         if( had_data ) { if( multi_sink ) { multi_sink->multi_consume_block( dbs ); } }
+        ++tot_num_proc;
       }
     }
   };
