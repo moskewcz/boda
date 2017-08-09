@@ -448,6 +448,7 @@ namespace boda
   ndat_info_t const double_ndat{"double",8,1,1};
   ndat_info_t const int32_t_ndat{"int32_t",4,0,1};
   ndat_info_t const uint32_t_ndat{"uint32_t",4,0,0};
+  ndat_info_t const uint16_t_ndat{"uint16_t",2,0,0};
   ndat_info_t const uint8_t_ndat{"uint8_t",1,0,0};
   template< typename T > inline ndat_info_t const & get_ndat( void );
   template<> inline ndat_info_t const & get_ndat<void>( void ) { return none_ndat; }
@@ -455,6 +456,7 @@ namespace boda
   template<> inline ndat_info_t const & get_ndat<float>( void ) { return float_ndat; }
   template<> inline ndat_info_t const & get_ndat<double>( void ) { return double_ndat; }
   template<> inline ndat_info_t const & get_ndat<uint32_t>( void ) { return uint32_t_ndat; }
+  template<> inline ndat_info_t const & get_ndat<uint16_t>( void ) { return uint16_t_ndat; }
   template<> inline ndat_info_t const & get_ndat<int32_t>( void ) { return int32_t_ndat; }
   template<> inline ndat_info_t const & get_ndat<uint8_t>( void ) { return uint8_t_ndat; }
   typedef map< string, rp_ndat_info_t > ndat_infos_t;
@@ -465,6 +467,7 @@ namespace boda
     {double_ndat.tn,&double_ndat},
     {int32_t_ndat.tn,&int32_t_ndat},
     {uint32_t_ndat.tn,&uint32_t_ndat},
+    {uint16_t_ndat.tn,&uint16_t_ndat},
     {uint8_t_ndat.tn,&uint8_t_ndat},
   };
 
