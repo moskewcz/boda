@@ -32,6 +32,7 @@ namespace boda
     i32_pt_t samp_pt;
     uint32_t get_bytes_per_pel( void ) {
       if( startswith(img_fmt, "32") ) { return 4; }
+      if( startswith(img_fmt, "24") ) { return 3; }
       if( startswith(img_fmt, "16") ) { return 2; }
       rt_err( "can't determine bytes-per-pel: unknown img_fmt: " + img_fmt );
     }
@@ -123,6 +124,16 @@ namespace boda
               gv = clamp( (float(gv) - rgb_levs_filt_min) * (float(uint8_t_const_max) + 1.0f) / rgb_levs_filt_rng, 0.0f, float(uint8_t_const_max) );
             } else { gv >>= 4; } // hard-coded assume 12-bits
             dest_data[x] = grey_to_pel( gv ); 
+          }
+        }
+      } else if( img_fmt == "24u-RGB" ) {
+        for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
+          uint32_t const src_y = crop.p[0].d[1] + y;
+          uint8_t const * const src_data = (uint8_t const *)(db.d.get()) + src_y*frame_sz.d[0]*get_bytes_per_pel();
+          uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
+            uint32_t const src_x = (crop.p[0].d[0] + x)*get_bytes_per_pel();
+            dest_data[x] = rgba_to_pel( src_data[src_x+2], src_data[src_x+1], src_data[src_x] ); 
           }
         }
       } else if( img_fmt == "32f-grey" ) {
