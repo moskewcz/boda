@@ -287,15 +287,24 @@ namespace boda
   bwrite_bytes( AsioWritable & out, char const * const & d, size_t const & sz ); //write( out, buffer( d, sz ) ); }
   template< typename AsioReadable, typename check_T<typename AsioReadable::lowest_layer_type>::int_ = 0 > void 
   bread_bytes( AsioReadable & in, char * const & d, size_t const & sz ); // read( in, buffer( d, sz ) ); }
+
+  // similarly, for mapped file reader (and anthing else with has_bread_bytes, we need the relevant pre-declaration
+  template< typename HasBreadBytes, typename check_T<typename HasBreadBytes::has_bread_bytes>::int_ = 0 > void 
+  bread_bytes( HasBreadBytes & in, char * const & d, size_t const & sz );
+
 #endif
 
   template< typename T > struct breadwrite_raw_T { };
   template<> struct breadwrite_raw_T<bool>{ typedef int int_; };
-  template<> struct breadwrite_raw_T<uint8_t>{ typedef int int_; };
   template< typename T > struct T_pt_t; template<> struct breadwrite_raw_T<T_pt_t<uint32_t> >{ typedef int int_; };
+  template<> struct breadwrite_raw_T<uint8_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<uint16_t>{ typedef int int_; };
   template<> struct breadwrite_raw_T<uint32_t>{ typedef int int_; };
-  template<> struct breadwrite_raw_T<int32_t>{ typedef int int_; };
   template<> struct breadwrite_raw_T<uint64_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<int8_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<int16_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<int32_t>{ typedef int int_; };
+  template<> struct breadwrite_raw_T<int64_t>{ typedef int int_; };
   template<> struct breadwrite_raw_T<half>{ typedef int int_; };
   template<> struct breadwrite_raw_T<float>{ typedef int int_; };
   template<> struct breadwrite_raw_T<double>{ typedef int int_; };

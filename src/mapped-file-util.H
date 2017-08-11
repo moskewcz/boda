@@ -31,6 +31,8 @@ namespace boda
       pos = 0;
       need_endian_reverse = 0;
     }
+    // bread hook enable magic typedef (see template magic in boda_base.H)
+    typedef void has_bread_bytes;
     // low-level stream reading
     uint64_t size( void ) const { return fn_map->size(); }
     bool at_eof( void ) const { assert_st( pos <= size() ); return pos == size(); }
@@ -42,6 +44,7 @@ namespace boda
                            str(sz).c_str(), str(pos).c_str() ) );
       }
     }
+
     void consume_and_discard_bytes( uint64_t const & sz ) { check_can_read( sz ); pos += sz; }
     
     // consume a block of bytes from the stream and return a borrowed pointer to it.
@@ -58,8 +61,14 @@ namespace boda
       ret.d = consume_borrowed_raw_block( block_sz );
       return ret;
     }
-
-
+    
+    void bread_bytes( char * const & d, size_t const & sz ) {
+      check_can_read( sz );
+      uint8_t const * cur = (uint8_t const *)fn_map->data() + pos;
+      std::copy( cur, cur + sz, d ); 
+      pos += sz;
+    }
+    
     template< typename T > void read_val( T & v ) {
       check_can_read( sizeof( T ) );
       v = *reinterpret_cast< T const * >((uint8_t const *)fn_map->data() + pos);
@@ -119,6 +128,10 @@ namespace boda
     }
 
   };
+
+  template< typename HasBreadBytes, typename check_T<typename HasBreadBytes::has_bread_bytes>::int_ = 0 > void 
+  bread_bytes( HasBreadBytes & in, char * const & d, size_t const & sz ) { in.bread_bytes( d, sz ); }
+
 }
 
 #endif /* MAPPED_FILE_UTIL_H */

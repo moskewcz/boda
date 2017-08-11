@@ -14,7 +14,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
+    filename_t fn; //NESI(req=1,help="input filename")
     uint64_t tot_num_read; // num blocks read so far
     mapped_file_stream_reader mfsr;
     
@@ -33,7 +33,7 @@ namespace boda
   };
 
   struct data_sink_file_t : virtual public nesi, public data_sink_t // NESI(help="base functionality to write stream of data blocks into file",
-                            // bases=["data_stream_t"], type_id="file", is_abstract=1)
+                            // bases=["data_sink_t"], type_id="file", is_abstract=1)
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
