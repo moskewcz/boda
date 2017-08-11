@@ -210,14 +210,16 @@ namespace boda
     }
   };
 
-  struct block_info_t {
-    uint16_t block_id;
-    uint16_t rot_pos;
-  } __attribute__((packed));
 
   struct laser_info_t {
     uint16_t distance;
     uint8_t intensity;
+  } __attribute__((packed));
+
+  struct block_info_t {
+    uint16_t block_id;
+    uint16_t rot_pos;
+    laser_info_t lis[];
   } __attribute__((packed));
 
   struct data_stream_velodyne_t : virtual public nesi, public data_stream_t // NESI(help="parse data stream (velodyne) into per-full-revolution data blocks by merging across packets",
@@ -231,17 +233,27 @@ namespace boda
     uint32_t beams_per_fb; //NESI(default="32",help="beams per firing block")
     uint32_t status_bytes; //NESI(default="6",help="bytes of status at end of block")
 
+    double fov_center; //NESI(default=0.0,help="center of FoV to sample in degrees. frames will be split at (VAL + 180) degrees.")
+    uint32_t fov_rot_samps; //NESI(default="384",help="number of samples-in-rotation to extract around fov_center")
+
+    uint32_t tot_lasers; //NESI(default="64",help="total number of lasers. must be either 32 (one block) or 64 laser (two block) scanner.")
+    uint32_t dual_return_and_use_only_first_return; //NESI(default="1",help="if 1, assume dual return mode, and use only first return.")
+    string laser_to_row_ix_str; //NESI(req=1,help="':'-seperated list of 0-based dense-matrix-row values to which to map each laser id to. should have tot_lasers elements, and should be a permutation of [0,tot_lasers).") 
+
+    vect_uint32_t laser_to_row_ix;
     uint32_t fb_sz;
     uint32_t packet_sz;
     uint16_t last_rot;
-    
+    uint16_t split_rot;
+    dims_t out_dims;
     // internal state:
     uint64_t tot_num_read; // num blocks read so far
-
+    
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s vps info:%s",
                                                                 str(tot_num_read).c_str(), vps->get_pos_info_str().c_str() ); }
 
     virtual data_block_t read_next_block( void ) {
+      p_nda_t out_nda = make_shared<nda_t>( out_dims );
       bool packet_is_rot_start = 0;
       data_block_t db;
       while( !packet_is_rot_start ) {
@@ -253,12 +265,38 @@ namespace boda
         if( verbose ) { printf( "data_to_img_null: db.sz=%s db.timestamp_ns=%s\n",
                                 str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
         for( uint32_t i = 0; i != fbs_per_packet; ++i ) {
-          block_info_t bi = *(block_info_t *)(db.d.get()+fb_sz*i);
-          if( verbose ) {
-            printf( "bi.block_id=%hx bi.rot_pos=%hu\n", bi.block_id, bi.rot_pos );
+          block_info_t const * bi = (block_info_t *)(db.d.get()+fb_sz*i);
+          uint32_t laser_id_base = 0;
+          if( tot_lasers == 64 ) {
+            if( bi->block_id != ( (i&1) ? 0xddff : 0xeeff ) ) {
+              rt_err( strprintf( "(64 laser mode) saw unexpected bi->block_id=%s for firing block i=%s\n",
+                                 str(bi->block_id).c_str(), str(i).c_str() ) );
+            }
+            if( i&i ) { laser_id_base = 32; }
+          } else if( tot_lasers == 32 ) {            
+            assert_st( 0 ); // not implmented yet, should just check for 0xeeff?
+          } else { assert_st( 0 ); }
+
+          if( dual_return_and_use_only_first_return ) {
+            if( i&2 ) { // skip second return blocks, but check that they are the same rot
+              if( bi->rot_pos != last_rot ) {
+                rt_err( strprintf( "error skipping second return block: expected bi->rot_pos=%s to equal processed block rot last_rot=%s."
+                                   " refusing to proceed.",
+                                   str(bi->rot_pos).c_str(), str(last_rot).c_str() ) );
+              }
+              continue; // if no error, we're good to skip.
+            } 
           }
-          if( bi.rot_pos < last_rot ) { packet_is_rot_start = 1; }
-          last_rot = bi.rot_pos;
+          
+          if( verbose ) {
+            printf( "bi.block_id=%hx bi.rot_pos=%hu\n", bi->block_id, bi->rot_pos );
+            for( uint32_t i = 0; i != beams_per_fb; ++i ) {
+              printf( " %s", str(bi->lis[i].distance).c_str() );
+            }
+            printf("\n");
+          }
+          if( bi->rot_pos < last_rot ) { packet_is_rot_start = 1; }
+          last_rot = bi->rot_pos;
         }
       }
       // last packet was a frame start, so return it. FIXME: obv. this drops lots'o'data, but should emit one packet per
@@ -272,12 +310,40 @@ namespace boda
     // init/setup
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      if( !(tot_lasers == 64) ) { rt_err( "non-64 laser mode not implemented" ); }
+      if( !dual_return_and_use_only_first_return ) { rt_err( "non-dual return mode not implemented" ); }
+      
       printf( "data_stream_init(): mode=%s\n", str(mode).c_str() );
       tot_num_read = 0;
       // setup internal state
       fb_sz = sizeof( block_info_t ) + beams_per_fb * sizeof( laser_info_t );
       packet_sz = fbs_per_packet * fb_sz + status_bytes;
-      last_rot = 0;        
+      last_rot = 0;
+      if( (fov_center < 0.0) || (fov_center >= 360.0) ) { rt_err( strprintf( "fov_center must be in [0.0,360.0) but was =%s",
+                                                                             str(fov_center).c_str() ) ); }
+      double split_rot_deg = fov_center + 180.0;
+      while( split_rot_deg >= 360.0 ) { split_rot_deg -= 360.0; }
+      assert_st( (split_rot_deg >= 0.0) && (split_rot_deg < 360.0) );
+      split_rot = uint16_t( lround( split_rot_deg * 100 ) );
+
+      out_dims = dims_t{ dims_t{ { tot_lasers, fov_rot_samps }, {"y","x"}, "uint16_t" }};
+
+      vect_string laser_to_row_ix_str_parts = split(laser_to_row_ix_str,':');
+      if( laser_to_row_ix_str_parts.size() != tot_lasers ) {
+        rt_err( strprintf( "expected tot_lasers=%s ':' seperated indexes in laser_to_row_ix_str=%s, but got laser_to_row_ix_str_parts.size()=%s\n",
+                           str(tot_lasers).c_str(), str(laser_to_row_ix_str).c_str(), str(laser_to_row_ix_str_parts.size()).c_str() ) );
+      }
+      for( uint32_t i = 0; i != tot_lasers; ++i ) {
+        try {  laser_to_row_ix.push_back( lc_str_u32( laser_to_row_ix_str_parts[i] ) ); }
+        catch( rt_exception & rte ) { rte.err_msg = "parsing element " + str(i) + " of laser_to_row_ix_str: " + rte.err_msg; throw; }
+      }
+      vect_uint32_t laser_to_row_ix_sorted = laser_to_row_ix;
+      sort( laser_to_row_ix_sorted.begin(), laser_to_row_ix_sorted.end() );
+      assert_st( laser_to_row_ix_sorted.size() == tot_lasers );
+      for( uint32_t i = 0; i != tot_lasers; ++i ) {
+        if( laser_to_row_ix_sorted[i] != i ) { rt_err( "the elements of laser_to_row_ix_sorted are not a permutation of [0,tot_lasers)" ); }
+      }
+      
       vps->data_stream_init( nia );
     }
     

@@ -18,6 +18,7 @@ namespace boda
     u32_box_t crop; //NESI(default="0:0:0:0",help="crop pels from sides")
     string img_fmt; //NESI(req=1,help="image format; valid values '16u-grey', '32f-grey', '16u-RGGB' ")
     string meta; //NESI(default="nda",help="if image has a natural type, specify it here (default is generic nda)")
+    string tag; //NESI(default="stream",help="descriptive short string tag for type of stream: lidar, radar, camera, ...")
     uint32_t level_adj; //NESI(default=1,help="if non-zero, adjust levels with filt_alpha LPF sliding window on per-frame min/max. otherwise (if 0), make some random assumptions about levels: 12-bit for 16u-grey/RGGB, direct-cast-to-uint8_t for 32f")
     uint32_t level_adj_log_for_float_data; //NESI(default=0,help="if non-zero, level_adj will use for log-scale normalization for float data values")
     float level_filt_alpha; //NESI(default=.9,help="LPF alpha constant for sliding window level adjustment")
@@ -38,6 +39,7 @@ namespace boda
       rt_err( "can't determine bytes-per-pel: unknown img_fmt: " + img_fmt );
     }
     virtual string data_block_get_meta( data_block_t const & db ) { return meta; }
+    virtual string get_stream_tag( void ) { return tag; }
 
     virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) { samp_pt = samp_pt_; }
     
@@ -251,6 +253,7 @@ namespace boda
     virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_null_t:to-strnot-implemented>"; } 
     virtual string data_block_get_meta( data_block_t const & db ) { return string("null"); }
     virtual p_nda_t data_block_to_nda( data_block_t const & db ) { return p_nda_t(); }
+    virtual string get_stream_tag( void ) { return string("null"); }
    
   };
 
@@ -271,10 +274,11 @@ namespace boda
     virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_lidar_t:to-str-not-implemented>"; } 
     virtual string data_block_get_meta( data_block_t const & db ) { return string("lidar"); }
     virtual p_nda_t data_block_to_nda( data_block_t const & db ) {
-      p_nda_t nda = make_shared<nda_t>( dims_t{ vect_uint32_t{32U,384U}, "uint16_t" } );
+      p_nda_t nda = make_shared<nda_t>( dims_t{ vect_uint32_t{64U,384U}, "uint16_t" } );
       memset( nda->rp_elems(), 0, nda->dims.bytes_sz() );
       return nda;
     }
+    virtual string get_stream_tag( void ) { return string("lidar"); }
   };
 
 #include"gen/data-to-img.H.nesi_gen.cc"
