@@ -286,21 +286,21 @@ namespace boda
                        str(packet_sz).c_str(), str(db.sz).c_str() ) ); }
         if( verbose ) { printf( "data_to_img_null: db.sz=%s db.timestamp_ns=%s\n",
                                 str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
-        for( uint32_t i = 0; i != fbs_per_packet; ++i ) {
-          block_info_t const * bi = (block_info_t *)(db.d.get()+fb_sz*i);
+        for( uint32_t fbix = 0; fbix != fbs_per_packet; ++fbix ) {
+          block_info_t const * bi = (block_info_t *)(db.d.get()+fb_sz*fbix);
           uint32_t laser_id_base = 0;
           if( tot_lasers == 64 ) {
-            if( bi->block_id != ( (i&1) ? 0xddff : 0xeeff ) ) {
-              rt_err( strprintf( "(64 laser mode) saw unexpected bi->block_id=%s for firing block i=%s\n",
-                                 str(bi->block_id).c_str(), str(i).c_str() ) );
+            if( bi->block_id != ( (fbix&1) ? 0xddff : 0xeeff ) ) {
+              rt_err( strprintf( "(64 laser mode) saw unexpected bi->block_id=%s for firing block fbix=%s\n",
+                                 str(bi->block_id).c_str(), str(fbix).c_str() ) );
             }
-            if( i&i ) { laser_id_base = 32; }
+            if( fbix&1 ) { laser_id_base = 32; }
           } else if( tot_lasers == 32 ) {            
             assert_st( 0 ); // not implmented yet, should just check for 0xeeff?
           } else { assert_st( 0 ); }
 
           if( dual_return_and_use_only_first_return ) {
-            if( i&2 ) { // skip second return blocks, but check that they are the same rot
+            if( fbix&2 ) { // skip second return blocks, but check that they are the same rot
               if( bi->rot_pos != last_rot ) {
                 rt_err( strprintf( "error skipping second return block: expected bi->rot_pos=%s to equal processed block rot last_rot=%s."
                                    " refusing to proceed.",
@@ -310,17 +310,19 @@ namespace boda
             } 
           }
           
-          if( verbose ) {
-            printf( "bi.block_id=%hx bi.rot_pos=%hu\n", bi->block_id, bi->rot_pos );
+          if( verbose > 50 ) {
+            printf( "fbix=%s laser_id_base=%s bi.block_id=%hx bi.rot_pos=%hu\n",
+                    str(fbix).c_str(), str(laser_id_base).c_str(), bi->block_id, bi->rot_pos );
             for( uint32_t i = 0; i != beams_per_fb; ++i ) {
               printf( " %s", str(bi->lis[i].distance).c_str() );
             }
             printf("\n");
           }
           for( uint32_t i = 0; i != beams_per_fb; ++i ) {
-            buf_nda->at2( laser_to_row_ix.at(laser_id_base+i), buf_nda_rot ) = bi->lis[i].distance;
+            uint32_t const rix = laser_to_row_ix.at(laser_id_base+i);
+            buf_nda->at2( rix, buf_nda_rot ) = bi->lis[i].distance;
           }
-          if( (tot_lasers == 64) && (!(i&1)) ) { last_ub_rot = bi->rot_pos; continue; } // FIXME: handle upper/lower more cleanly
+          if( (tot_lasers == 64) && (!(fbix&1)) ) { last_ub_rot = bi->rot_pos; continue; } // FIXME: handle upper/lower more cleanly
           else {
             if( bi->rot_pos != last_ub_rot ) {
               rt_err( strprintf( "error on second block for 64 laser sensor: expected bi->rot_pos=%s to equal last_ub_rot=%s."
@@ -342,10 +344,9 @@ namespace boda
             --rots_till_emit;
             if( !rots_till_emit ) {
               // done, copy rotated buf_nda into out_nda and emit buf as FoV
-              for( uint32_t i = 0; i != fov_rot_samps; ++i ) {
-                uint32_t const buf_rot = (i+buf_nda_rot+1)%fov_rot_samps;
-                //if( verbose ) { printf( "i=%s buf_rot=%s\n", str(i).c_str(), str(buf_rot).c_str() ); }
-                for( uint32_t j = 0; j != tot_lasers; ++j ) {
+              for( uint32_t j = 0; j != tot_lasers; ++j ) {
+                for( uint32_t i = 0; i != fov_rot_samps; ++i ) {
+                  uint32_t const buf_rot = (i+buf_nda_rot+1)%fov_rot_samps;
                   out_nda->at2( j, i ) = buf_nda->at2( j, buf_rot );
                 }
               }
@@ -355,6 +356,7 @@ namespace boda
               rots_till_emit = uint32_t_const_max; // back to untriggered state
             } 
           }
+          if( verbose > 50 ) printf( "last_rot=%s bi->rot_pos=%s\n", str(last_rot).c_str(), str(bi->rot_pos).c_str() );
           last_rot = bi->rot_pos;
           buf_nda_rot += 1; if( buf_nda_rot == fov_rot_samps ) { buf_nda_rot = 0; } // FIXME: don't we have inc_mod for this?
         }
