@@ -109,6 +109,7 @@ namespace boda
         in_imgs.back()->set_sz_and_alloc_pels( disp_sz );
       }
       disp_win.window_sz = window_sz;
+      disp_win.layout_mode = "vert";
       disp_win.disp_setup( in_imgs );
 
       io_service_t & io = get_io( &disp_win );
