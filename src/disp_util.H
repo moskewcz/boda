@@ -57,6 +57,7 @@ namespace boda {
     p_YV12_buf_t YV12_buf;
     p_vect_p_img_t imgs;
     vect_u32_pt_t imgs_buf_nc;
+    string layout_mode;
     vect_p_vect_anno_t img_annos;
 
     uint64_t frame_cnt;

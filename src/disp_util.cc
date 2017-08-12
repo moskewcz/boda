@@ -147,6 +147,7 @@ namespace boda
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
 
     if( window_sz == u32_pt_t() ) { window_sz = {640,480}; }
+    if( layout_mode.empty() ) { layout_mode = "horiz"; }
     assert( !window );
     window = make_p_SDL( SDL_CreateWindow( "boda display", 
 							SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -169,13 +170,24 @@ namespace boda
     {
       uint32_t img_w = 0;
       uint32_t img_h = 0;
-      for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
-	max_eq( img_h, (*i)->sz.d[1] );
-      }
-      for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
-        imgs_buf_nc.push_back( u32_pt_t{ img_w, img_h - (*i)->sz.d[1] } );
-	img_w += (*i)->sz.d[0];
-      }
+      if( layout_mode == "horiz" ) {
+        for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
+          max_eq( img_h, (*i)->sz.d[1] );
+        }
+        for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
+          imgs_buf_nc.push_back( u32_pt_t{ img_w, img_h - (*i)->sz.d[1] } );
+          img_w += (*i)->sz.d[0];
+        }
+      } else if( layout_mode == "vert" ) {
+        for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
+          max_eq( img_w, (*i)->sz.d[0] );
+        }
+        for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
+          imgs_buf_nc.push_back( u32_pt_t{ img_w - (*i)->sz.d[0], img_h } );
+          img_h += (*i)->sz.d[1];
+        }
+
+      } else { rt_err( "unknown layout_mode=" + layout_mode ); }
       // make w/h even for simplicity of YUV UV (2x downsampled) planes
       if( img_w & 1 ) { ++img_w; }
       if( img_h & 1 ) { ++img_h; }
