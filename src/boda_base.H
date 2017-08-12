@@ -735,6 +735,7 @@ namespace boda
     }
     void const * rp_elems( void ) const { return (void const *)d.get(); }
     void * rp_elems( void ) { return (void *)d.get(); }
+    p_uint8_t const & get_internal_data( void ) { return d; } // be careful with this ...
   protected:
     p_uint8_t d;
   public:
@@ -968,6 +969,8 @@ namespace boda
   typedef shared_ptr< map_str_p_vect_p_nda_float_t > p_map_str_p_vect_p_nda_float_t;
 
   typedef nda_T< uint8_t > nda_uint8_t;
+  typedef nda_T< uint16_t > nda_uint16_t;
+  typedef shared_ptr< nda_uint16_t > p_nda_uint16_t; 
 
   struct ssds_diff_per_type_t {
     virtual void cnt_diff_elems( void ) = 0;

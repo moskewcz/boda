@@ -274,9 +274,8 @@ namespace boda
     virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_lidar_t:to-str-not-implemented>"; } 
     virtual string data_block_get_meta( data_block_t const & db ) { return string("lidar"); }
     virtual p_nda_t data_block_to_nda( data_block_t const & db ) {
-      p_nda_t nda = make_shared<nda_t>( dims_t{ vect_uint32_t{64U,384U}, "uint16_t" } );
-      memset( nda->rp_elems(), 0, nda->dims.bytes_sz() );
-      return nda;
+      if( !db.nda_dims.valid() ) { rt_err( "<unsurprising internal error: data_to_img_lidar expected nda_dims to be set, but it wasn't>" ); }
+      return make_shared<nda_t>( db.nda_dims, db.d );
     }
     virtual string get_stream_tag( void ) { return string("lidar"); }
   };
