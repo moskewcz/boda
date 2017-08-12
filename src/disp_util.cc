@@ -170,8 +170,11 @@ namespace boda
       uint32_t img_w = 0;
       uint32_t img_h = 0;
       for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
-	img_w += (*i)->sz.d[0];
 	max_eq( img_h, (*i)->sz.d[1] );
+      }
+      for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
+        imgs_buf_nc.push_back( u32_pt_t{ img_w, img_h - (*i)->sz.d[1] } );
+	img_w += (*i)->sz.d[0];
       }
       // make w/h even for simplicity of YUV UV (2x downsampled) planes
       if( img_w & 1 ) { ++img_w; }
@@ -226,10 +229,10 @@ namespace boda
   // call when changes to imgs should be reflected/copied onto the display texture
   void disp_win_t::update_disp_imgs( void ) {
     if( paused ) { return; }
-    uint32_t out_x = 0;
-    for( uint32_t i = 0; i != imgs->size(); ++i ) { 
-      img_to_YV12( *YV12_buf, imgs->at(i), out_x, YV12_buf->h - imgs->at(i)->sz.d[1] );
-      out_x += imgs->at(i)->sz.d[0];
+    assert_st( imgs->size() == imgs_buf_nc.size() );
+    for( uint32_t i = 0; i != imgs->size(); ++i ) {
+      u32_pt_t const & img_nc = imgs_buf_nc[i];
+      img_to_YV12( *YV12_buf, imgs->at(i), img_nc.d[0], img_nc.d[1] );
     }
     SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
   }
@@ -248,11 +251,12 @@ namespace boda
     i32_pt_t const tex_sz{ int32_t(YV12_buf->w), int32_t(YV12_buf->h) }; // the texture is always it is always drawn resized to the window size (regardless of offset)
     uint32_t out_x = 0;
     asio->lb_event.img_ix = uint32_t_const_max; // default: not inside any image
+    assert_st( imgs->size() == imgs_buf_nc.size() );
     for( uint32_t i = 0; i != imgs->size(); ++i ) { 
       p_img_t const & img = imgs->at(i);
       // calculate what region in the display window this image occupies
       // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
-      i32_pt_t const img_nc = { int32_t(out_x), int32_t(YV12_buf->h) - int32_t(img->sz.d[1]) };
+      i32_pt_t const img_nc = u32_to_i32( imgs_buf_nc[i] ); // { int32_t(out_x), int32_t(YV12_buf->h) - int32_t(img->sz.d[1]) };
       i32_pt_t const disp_img_nc = (img_nc*disp_sz/tex_sz) + disp_off;
       i32_pt_t const img_sz = u32_to_i32( img->sz );
       i32_pt_t const disp_img_sz = img_sz*disp_sz/tex_sz;
