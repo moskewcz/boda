@@ -789,6 +789,7 @@ namespace boda
     else if( tn == double_ndat.tn ) { func.template operator()<double>(); }
     else if( tn == int32_t_ndat.tn ) { func.template operator()<int32_t>(); }
     else if( tn == uint32_t_ndat.tn ) { func.template operator()<uint32_t>(); }
+    else if( tn == uint16_t_ndat.tn) { func.template operator()<uint16_t>(); }
     else if( tn == uint8_t_ndat.tn) { func.template operator()<uint8_t>(); }
     else { rt_err( "unhandled type in tn_dispatch; tn=" + tn ); } 
   }
