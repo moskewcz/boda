@@ -221,7 +221,12 @@ namespace boda
     uint16_t rot_pos;
     laser_info_t lis[];
   } __attribute__((packed));
-
+  struct status_info_t {
+    uint32_t gps_timestamp_us;
+    uint8_t status_type;
+    uint8_t status_val;
+  } __attribute__((packed));
+  
 
   uint16_t const ang_max = 36000;
   uint16_t const half_ang_max = 18000;
@@ -284,8 +289,11 @@ namespace boda
         if( db.sz != packet_sz ) { rt_err(
             strprintf( "lidar decode expected packet_sz=%s but got block with dv.sz=%s",
                        str(packet_sz).c_str(), str(db.sz).c_str() ) ); }
-        if( verbose ) { printf( "data_to_img_null: db.sz=%s db.timestamp_ns=%s\n",
-                                str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
+        if( verbose > 10 ) { printf( "data_stream_velodyne: db.sz=%s db.timestamp_ns=%s\n",
+                                     str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
+        status_info_t const * si = (status_info_t *)(db.d.get()+fb_sz*fbs_per_packet);
+        if( verbose > 10 ) { printf( "  packet: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
+                                     str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
         for( uint32_t fbix = 0; fbix != fbs_per_packet; ++fbix ) {
           block_info_t const * bi = (block_info_t *)(db.d.get()+fb_sz*fbix);
           uint32_t laser_id_base = 0;
@@ -337,6 +345,8 @@ namespace boda
                 rel_angle_lt(last_rot,fov_center_rot) && !rel_angle_lt(bi->rot_pos,fov_center_rot) ) { // trigger
               ret_db.timestamp_ns = db.timestamp_ns;
               if( verbose ) { printf( "-- TRIGGER -- bi->rot_pos=%s\n", str(bi->rot_pos).c_str() ); }
+              if( verbose ) { printf( "  @TRIGGER: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
+                                      str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
               rots_till_emit = fov_rot_samps >> 1; // have 1/2 of fov samps in buf, need other 1/2 now
             } 
           } else {
@@ -361,11 +371,10 @@ namespace boda
           buf_nda_rot += 1; if( buf_nda_rot == fov_rot_samps ) { buf_nda_rot = 0; } // FIXME: don't we have inc_mod for this?
         }
       }
-      // last packet was a frame start, so return it. FIXME: obv. this drops lots'o'data, but should emit one packet per
-      // rotation, which is all we want for now.
       ret_db.frame_ix = tot_num_read;
       ++tot_num_read;
-      if( verbose ) { printf( "velodyne ret.sz=%s ret.timestamp_ns=%s\n", str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
+      if( verbose ) { printf( "velodyne ret_db.sz=%s ret_db.frame_ix=%s ret_db.timestamp_ns=%s\n",
+                              str(ret_db.sz).c_str(), str(ret_db.frame_ix).c_str(), str(ret_db.timestamp_ns).c_str() ); }
       return ret_db;
     }
 
@@ -495,6 +504,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    uint32_t sync_verbose; //NESI(default="0",help="sync-local verbosity level (max 99) -- if non-zero, locally overrides verbosity")
     vect_p_data_stream_t stream; //NESI(help="input data streams")
     uint64_t max_delta_ns; //NESI(default="0",help="if non-zero, refuse to emit a primary block if, for any secondary stream, no block with a timestamp <= max_detla_ns from the primary block can be found (i.e. all secondary streams must have a 'current' block).")
     uint32_t psix; //NESI(default="0",help="primary stream index (0 based)")
@@ -503,6 +513,7 @@ namespace boda
 
 
     virtual uint32_t multi_data_stream_init( nesi_init_arg_t * const nia ) {
+      if( sync_verbose ) { verbose = sync_verbose; }
       if( !( psix < stream.size() ) ) { rt_err( strprintf( "psix=%s must be < stream.size()=%s\n",
                                                            str(psix).c_str(), str(stream.size()).c_str() ) ); }
       for( uint32_t i = 0; i != stream.size(); ++i ) {
