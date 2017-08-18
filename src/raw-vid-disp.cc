@@ -20,7 +20,7 @@ namespace boda
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
-    p_multi_data_stream_t src; //NESI(help="multi data stream to read images from")
+    p_data_stream_t src; //NESI(help="data stream to read images from")
     vect_p_data_to_img_t data_to_img; //NESI(help="data stream to img converters (must specify same # of these as data streams)")
     disp_win_t disp_win;
     p_vect_p_img_t disp_imgs;
@@ -28,9 +28,8 @@ namespace boda
     time_duration frame_dur;
 
     uint64_t frame_ix;
-    uint32_t num_srcs;
     vect_p_img_t in_imgs;
-    vect_data_block_t src_dbs;
+    data_block_t db;
     
     void on_frame( error_code const & ec ) {
       if( ec ) { return; }
@@ -38,23 +37,24 @@ namespace boda
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) ); 
       if( !auto_adv ) { return; }
-      assert_st( num_srcs == data_to_img.size() );
-      assert_st( num_srcs == in_imgs.size() );
+      assert_st( data_to_img.size() == in_imgs.size() );
+      db = src->read_next_block();
+      if( !db.valid() ) { return; }
+      if( db.num_subblocks() != data_to_img.size() ) {
+        rt_err( strprintf( "number of subblocks must equal number of data-to-img converters, but num_subblocks=%s and data_to_img.size()=%s\n",
+                           str(db.num_subblocks()).c_str(), str(data_to_img.size()).c_str() ) );
+      }
       bool had_new_img = 0;
-      if( print_timestamps ) { printf( "--- frame %s ---\n", str(frame_ix).c_str() ); }
-      src->multi_read_next_block( src_dbs );
-      for( uint32_t i = 0; i != num_srcs; ++i ) {
-        if( print_timestamps ) {
-          printf( "src[%s]: got db.frame_ix=%s db.timestamp_ns=%s (db.size=%s)\n",
-                  str(i).c_str(), str(src_dbs[i].frame_ix).c_str(), str(src_dbs[i].timestamp_ns).c_str(), str(src_dbs[i].sz).c_str() );
-        }
-        p_img_t img = data_to_img[i]->data_block_to_img( src_dbs[i] );
+      for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
+        p_img_t img = data_to_img[i]->data_block_to_img( db.subblocks->at(i) );
         if( !img ) { continue; }
         had_new_img = 1;
         p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz );
         in_imgs[i]->share_pels_from( ds_img );
       }
       if( had_new_img ) {
+        if( print_timestamps ) { printf( "--- frame %s ---\n", str(frame_ix).c_str() ); }
+        if( print_timestamps ) { printf( "db=%s\n", str(db).c_str() ); }
         ++frame_ix;
         disp_win.update_disp_imgs();
       }
@@ -69,17 +69,18 @@ namespace boda
       if( 0 ) { }
       if( !lbe.is_key ) {
         if( lbe.img_ix != uint32_t_const_max ) {
-          assert_st( lbe.img_ix < num_srcs );
+          assert_st( lbe.img_ix < data_to_img.size() );
           data_to_img[lbe.img_ix]->set_samp_pt( lbe.xy );
           printf( "set_samp_pt(%s)\n", str( lbe.xy ).c_str() );
         }
       }
-      else if( lbe.is_key && (lbe.keycode == 'c') ) { 
-        for( uint32_t i = 0; i != num_srcs; ++i ) {
-          data_block_t & db = src_dbs[i];
-          assert_st( db.valid() );
-          p_ostream out = ofs_open( strprintf( "src_%s-%s.csv", str(i).c_str(), str(db.timestamp_ns).c_str() ) );
-          (*out) << data_to_img[i]->data_block_to_str( db );
+      else if( lbe.is_key && (lbe.keycode == 'c') ) {
+        assert_st( db.num_subblocks() == data_to_img.size() );
+        for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
+          data_block_t & sdb = db.subblocks->at(i);
+          assert_st( sdb.valid() );
+          p_ostream out = ofs_open( strprintf( "src_%s-%s.csv", str(i).c_str(), str(sdb.timestamp_ns).c_str() ) );
+          (*out) << data_to_img[i]->data_block_to_str( sdb );
         }
       }
       //else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
@@ -102,13 +103,8 @@ namespace boda
 
     virtual void main( nesi_init_arg_t * nia ) {
       frame_ix = 0;
-      num_srcs = src->multi_data_stream_init( nia );
-      if( num_srcs != data_to_img.size() ) {
-        rt_err( strprintf( "error: must specify same number of data streams and data-to-img converters, but; num_srcs=%s and data_to_img.size()=%s\n",
-                           str(num_srcs).c_str(), str(data_to_img.size()).c_str() ) );
-      }
-      for( uint32_t i = 0; i != num_srcs; ++i ) {
-        //stream[i]->data_stream_init( nia );
+      src->data_stream_init( nia );
+      for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
         data_to_img[i]->data_to_img_init( nia );
         in_imgs.push_back( make_shared<img_t>() );
         in_imgs.back()->set_sz_and_alloc_pels( disp_sz );

@@ -10,6 +10,9 @@ namespace boda
   struct lexp_name_val_map_t;
   typedef lexp_name_val_map_t nesi_init_arg_t;
 
+  struct data_block_t;
+  typedef vector< data_block_t > vect_data_block_t; 
+  typedef shared_ptr< vect_data_block_t > p_vect_data_block_t; 
   struct data_block_t {
     p_uint8_t d; // pointer to data block, null if no data (usually a borrowed pointer from data_stream_t. TODO: add clone/copy iface?
     uint64_t sz; // size of data
@@ -17,14 +20,15 @@ namespace boda
     uint64_t frame_ix; // what frame is this? zero based. const_max is invalid.
     uint64_t timestamp_ns; // data-stream-defined timestamp in nanoseconds. may not start at zero.
     dims_t nda_dims; // if non-empty (sorry scalar case!), can form an nda as nda_t(nda_dims,d)
-    data_block_t( void ) : sz(uint64_t_const_max), frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
-    bool valid( void ) const { return d.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
-  };
-  typedef vector< data_block_t > vect_data_block_t; 
-  typedef shared_ptr< data_block_t > p_data_block_t; 
-  typedef vector< p_data_block_t > vect_p_data_block_t;
 
-  
+    p_vect_data_block_t subblocks; // FIXME: make mapping from str->subblock? add meta data somewhere?
+    data_block_t( void ) : sz(uint64_t_const_max), frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
+    uint32_t num_subblocks( void ) const { return subblocks.get() ? subblocks->size() : uint32_t_const_max; }
+    bool valid( void ) const { return d.get() || subblocks.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
+    string info_str( void ) const;      
+  };
+  std::ostream & operator << ( std::ostream & out, data_block_t const & db );
+
   struct data_stream_t : virtual public nesi // NESI(help="modes that can be used for reading streams of timestamped data blocks"
                                               // ,is_abstract=1,tid_vn="mode")
   {
@@ -32,6 +36,7 @@ namespace boda
     string mode; //NESI(help="type of datastream",req=1)
     virtual void data_stream_init( nesi_init_arg_t * const nia ) = 0;
     virtual data_block_t read_next_block( void ) = 0;
+    virtual bool seek_to_block( uint64_t const & frame_ix ) { return false; } // by default, not implemented / fails.
 
     // debugging iface(s) (may only have meaning for certain modes)
     virtual string get_pos_info_str( void ) = 0;
@@ -51,34 +56,6 @@ namespace boda
   typedef vector< data_sink_t > vect_data_sink_t; 
   typedef shared_ptr< data_sink_t > p_data_sink_t; 
   typedef vector< p_data_sink_t > vect_p_data_sink_t;
-
-  struct multi_data_stream_t : virtual public nesi // NESI(help="modes that can be used for reading streams of timestamped data blocks"
-                                              // ,is_abstract=1,tid_vn="mode")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string mode; //NESI(help="type of datastream",req=1)
-    virtual uint32_t multi_data_stream_init( nesi_init_arg_t * const nia ) = 0; // return # of multiplexed streams
-    virtual void multi_read_next_block( vect_data_block_t & dbs ) = 0;
-
-    // debugging iface(s) (may only have meaning for certain modes)
-    virtual string get_pos_info_str( void ) = 0;
-  };
-  typedef vector< multi_data_stream_t > vect_multi_data_stream_t; 
-  typedef shared_ptr< multi_data_stream_t > p_multi_data_stream_t; 
-  typedef vector< p_multi_data_stream_t > vect_p_multi_data_stream_t;
-
-  struct multi_data_sink_t : virtual public nesi // NESI(help="modes that can be used for consuming streams of timestamped data blocks"
-                                              // ,is_abstract=1,tid_vn="mode")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string mode; //NESI(help="type of datasink",req=1)
-    virtual void multi_data_sink_init( nesi_init_arg_t * const nia ) = 0;
-    virtual void multi_consume_block( vect_data_block_t const & db ) = 0;
-  };
-  typedef vector< multi_data_sink_t > vect_multi_data_sink_t; 
-  typedef shared_ptr< multi_data_sink_t > p_multi_data_sink_t; 
-  typedef vector< p_multi_data_sink_t > vect_p_multi_data_sink_t;
-
   
 }
 

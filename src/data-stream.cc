@@ -9,7 +9,24 @@
 
 namespace boda 
 {
-  
+
+  std::ostream & operator << ( std::ostream & out, data_block_t const & db ) { out << db.info_str(); return out; }
+  string data_block_t::info_str( void ) const {
+    string ret;
+    if( d.get() ) {
+      ret += strprintf( "sz=%s frame_ix=%s timestamp_ns=%s",
+                        str(sz).c_str(), str(frame_ix).c_str(), str(timestamp_ns).c_str() );
+    }
+    if( subblocks ) {
+      ret += strprintf( "subblocks->size()=%s [", str(subblocks->size()).c_str() );
+      for( vect_data_block_t::const_iterator i = subblocks->begin(); i != subblocks->end(); ++i ) {
+        if( i != subblocks->begin() ) { ret += " , "; }
+        ret += (*i).info_str();
+      }
+    }
+    return ret;
+  }
+
   struct data_stream_start_stop_skip_t : virtual public nesi, public data_stream_t // NESI(help="wrap another data stream and optionally: skip initial blocks and/or skip blocks after each returned block and/or limit the number of blocks returned.",
                              // bases=["data_stream_t"], type_id="start-stop-skip")
   {
@@ -289,8 +306,7 @@ namespace boda
         if( db.sz != packet_sz ) { rt_err(
             strprintf( "lidar decode expected packet_sz=%s but got block with dv.sz=%s",
                        str(packet_sz).c_str(), str(db.sz).c_str() ) ); }
-        if( verbose > 10 ) { printf( "data_stream_velodyne: db.sz=%s db.timestamp_ns=%s\n",
-                                     str(db.sz).c_str(), str(db.timestamp_ns).c_str() ); }
+        if( verbose > 10 ) { printf( "data_stream_velodyne: %s\n", str(db).c_str() ); }
         status_info_t const * si = (status_info_t *)(db.d.get()+fb_sz*fbs_per_packet);
         if( verbose > 10 ) { printf( "  packet: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
                                      str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
@@ -373,8 +389,7 @@ namespace boda
       }
       ret_db.frame_ix = tot_num_read;
       ++tot_num_read;
-      if( verbose ) { printf( "velodyne ret_db.sz=%s ret_db.frame_ix=%s ret_db.timestamp_ns=%s\n",
-                              str(ret_db.sz).c_str(), str(ret_db.frame_ix).c_str(), str(ret_db.timestamp_ns).c_str() ); }
+      if( verbose ) { printf( "velodyne ret_db: %s\n", str(ret_db).c_str() ); }
       return ret_db;
     }
 
@@ -420,49 +435,9 @@ namespace boda
       for( uint32_t i = 0; i != tot_lasers; ++i ) {
         if( laser_to_row_ix_sorted[i] != i ) { rt_err( "the elements of laser_to_row_ix_sorted are not a permutation of [0,tot_lasers)" ); }
       }
-      
       vps->data_stream_init( nia );
     }
     
-    void main( nesi_init_arg_t * nia ) { 
-      data_stream_init( nia );
-      while( read_next_block().d.get() ) { }
-    }
-  };
-
-  struct scan_data_stream_t : virtual public nesi, public has_main_t // NESI(
-                              // help="testing mode to scan N data streams one-by-one, and print total number of blocks read for each.",
-                              // bases=["has_main_t"], type_id="scan-data-stream")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    vect_p_data_stream_t stream; //NESI(help="data stream to read images from")
-    uint32_t full_dump_ix; //NESI(default="-1",help="for this stream, dump all block sizes")
-    p_data_sink_t sink; //NESI(help="optional; if specific, send all block to this data sink")
-
-    void main( nesi_init_arg_t * nia ) {
-      if( sink ) { sink->data_sink_init( nia ); }
-      for( uint32_t i = 0; i != stream.size(); ++i ) {
-        uint64_t last_ts = 0;
-        stream[i]->data_stream_init( nia );
-        while( 1 ) {
-          data_block_t db = stream[i]->read_next_block();
-          if( !db.valid() ) { break; }
-          if( db.timestamp_ns <= last_ts ) {
-            printf( "**ERROR: ts did not increase: stream[%s] db.timestamp_ns=%s last_ts=%s stream[i]->get_pos_info_str()=%s\n",
-                    str(i).c_str(), str(db.timestamp_ns).c_str(), str(last_ts).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
-          }
-          if( (i == full_dump_ix) || last_ts == 0 ) { // if on first block, dump out ts
-            printf( "stream[%s] sz=%s first_ts=%s get_pos_info_str()=%s\n",
-                    str(i).c_str(), str(db.sz).c_str(), str(db.timestamp_ns).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
-          }
-          last_ts = db.timestamp_ns;
-          if( sink ) { sink->consume_block( db ); }
-        }
-        printf( "stream[%s] last_ts=%s get_pos_info_str()=%s\n",
-                str(i).c_str(), str(last_ts).c_str(), str(stream[i]->get_pos_info_str()).c_str() );
-      }
-    }
-
   };
 
   typedef vector< data_block_t > vect_data_block_t; 
@@ -473,16 +448,15 @@ namespace boda
     return ( a.timestamp_ns > b.timestamp_ns ) ? ( a.timestamp_ns - b.timestamp_ns ) : ( b.timestamp_ns - a.timestamp_ns );
   }
 
-  struct multi_data_stream_merge_t : virtual public nesi, public multi_data_stream_t // NESI(
-                                    // help="take N data streams and output one block across all streams for each multi-stream-block read. ",
-                                    // bases=["multi_data_stream_t"], type_id="merge")
+  struct data_stream_merge_t : virtual public nesi, public data_stream_t // NESI(
+                               // help="take N data streams and output one block across all streams for each stream-block read.",
+                               // bases=["data_stream_t"], type_id="merge")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     vect_p_data_stream_t stream; //NESI(help="input data streams")
 
-    virtual uint32_t multi_data_stream_init( nesi_init_arg_t * const nia ) {
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       for( uint32_t i = 0; i != stream.size(); ++i ) {  stream[i]->data_stream_init( nia );  }
-      return stream.size();
     }    
     virtual string get_pos_info_str( void ) {
       string ret = "\n";
@@ -491,16 +465,24 @@ namespace boda
       }
       return ret;
     }
-    virtual void multi_read_next_block( vect_data_block_t & dbs ) {
-      dbs.clear();
-      dbs.resize( stream.size() );
-      for( uint32_t i = 0; i != stream.size(); ++i ) { dbs[i] = stream[i]->read_next_block(); }
+
+    // we keep producing blocks until *all* streams are invalid, then we ret an invalid block
+    virtual data_block_t read_next_block( void ) {
+      data_block_t ret;
+      ret.subblocks = make_shared<vect_data_block_t>(stream.size());
+      bool has_valid_subblock = 0;
+      for( uint32_t i = 0; i != stream.size(); ++i ) {
+        ret.subblocks->at(i) = stream[i]->read_next_block();
+        if( ret.subblocks->at(i).valid() ) { has_valid_subblock = 1; }
+      }
+      if( !has_valid_subblock ) { ret.subblocks.reset(); }
+      return ret;
     }
   };
   
-  struct multi_data_stream_sync_t : virtual public nesi, public multi_data_stream_t // NESI(
-                                    // help="take N data streams, with one as primary, and output one block across all streams for each primary stream block, choosing the nearest-by-timestamp-to-the-primary-block-timestamp-block for each non-primary stream. ",
-                                    // bases=["multi_data_stream_t"], type_id="sync")
+  struct data_stream_sync_t : virtual public nesi, public data_stream_t // NESI(
+                              // help="take N data streams, with one as primary, and output one block across all streams for each primary stream block, choosing the nearest-by-timestamp-to-the-primary-block-timestamp-block for each non-primary stream. ",
+                                    // bases=["data_stream_t"], type_id="sync")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
@@ -511,14 +493,11 @@ namespace boda
 
     vect_vect_data_block_t cur_dbs;
 
-
-    virtual uint32_t multi_data_stream_init( nesi_init_arg_t * const nia ) {
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       if( sync_verbose ) { verbose = sync_verbose; }
       if( !( psix < stream.size() ) ) { rt_err( strprintf( "psix=%s must be < stream.size()=%s\n",
                                                            str(psix).c_str(), str(stream.size()).c_str() ) ); }
-      for( uint32_t i = 0; i != stream.size(); ++i ) {
-        stream[i]->data_stream_init( nia );
-      }
+      for( uint32_t i = 0; i != stream.size(); ++i ) { stream[i]->data_stream_init( nia ); }
       cur_dbs.resize( stream.size() );
       for( uint32_t i = 0; i != stream.size(); ++i ) {
         if( i == psix ) { continue; }
@@ -526,7 +505,6 @@ namespace boda
         if( !cur_dbs[i][0].valid() ) { rt_err( strprintf( "no blocks at all in stream i=%s\n", str(i).c_str() ) ); }
         cur_dbs[i].push_back( stream[i]->read_next_block() );
       }
-      return stream.size();
     }
     
     virtual string get_pos_info_str( void ) {
@@ -537,12 +515,12 @@ namespace boda
       return ret;
     }
 
-    virtual void multi_read_next_block( vect_data_block_t & dbs ) {
+    virtual data_block_t read_next_block( void ) {
       while ( 1 ) {
         data_block_t pdb = stream[psix]->read_next_block();
-        dbs.clear();
-        dbs.resize( stream.size() );
-        if( !pdb.valid() ) { return; } // done
+        data_block_t ret;
+        if( !pdb.valid() ) { return ret; } // done
+        ret.subblocks = make_shared<vect_data_block_t>(stream.size());
         if( verbose ) { printf( "-- psix=%s pdb.timestamp=%s\n", str(psix).c_str(), str(pdb.timestamp_ns).c_str() ); }
         bool ret_valid = 1;
         for( uint32_t i = 0; i != stream.size(); ++i ) {
@@ -563,51 +541,64 @@ namespace boda
             if( verbose ) { printf( "*** no current-enough secondary block found. skipping primary block.\n" ); }
             ret_valid = 0;
           } else {
-            dbs[i] = sdb;
+            ret.subblocks->at(i) = sdb;
           }
         }
         if( ret_valid ) {
-          dbs[psix] = pdb;
-          return;
+          ret.subblocks->at(psix) = pdb;
+          return ret;
         }
         // else continue
       }
     }
-    
   };
-
-
-  struct scan_data_stream_multi_t : virtual public nesi, public has_main_t // NESI(
-                                    // help="scan multi data stream ",
-                                    // bases=["has_main_t"], type_id="scan-data-stream-multi")
+  
+  struct scan_data_stream_t : virtual public nesi, public has_main_t // NESI(
+                                    // help="scan data stream ",
+                                    // bases=["has_main_t"], type_id="scan-data-stream")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     uint64_t num_to_proc; //NESI(default=0,help="read/write this many records; zero for unlimited")
-    p_multi_data_stream_t multi_stream; //NESI(req=1,help="input data multi stream")
-    p_multi_data_sink_t multi_sink; //NESI(help="output data multi sink")
+    uint32_t full_dump_ix; //NESI(default="-1",help="for this sub-stream (if it exists), dump all block sizes")
+    p_data_stream_t src; //NESI(req=1,help="input data stream")
+    p_data_sink_t sink; //NESI(help="output data sink")
 
     uint64_t tot_num_proc;
     
     void main( nesi_init_arg_t * nia ) {
       tot_num_proc = 0;
-      uint32_t num_srcs = multi_stream->multi_data_stream_init( nia );
-      if( multi_sink ) { multi_sink->multi_data_sink_init( nia ); }
-      vect_data_block_t dbs;
-      bool had_data = 1;
-      while( had_data ) {
-        if( num_to_proc && (tot_num_proc == num_to_proc) ) { break; } // done
-        multi_stream->multi_read_next_block( dbs );
-        if( num_srcs ) { assert_st( dbs.size() == num_srcs ); } // num_srcs == 0 --> dynamic # of blocks
-        had_data = 0;
-        if( verbose ) { printf( "----\n" ); }
-        for( uint32_t i = 0; i != dbs.size(); ++i ) {
-          if( dbs[i].valid() ) {
-            had_data = 1;
-            if( verbose ) { printf( "  i=%s dbs[i].timestamp_sz=%s\n", str(i).c_str(), str(dbs[i].timestamp_ns).c_str() ); }
+      src->data_stream_init( nia );
+      if( sink ) { sink->data_sink_init( nia ); }
+      uint64_t last_ts = 0;
+      while( 1 ) {
+        if( num_to_proc && (tot_num_proc == num_to_proc) ) { break; } // proc'd req'd # of blocks --> done
+        data_block_t db = src->read_next_block();
+        if( !db.valid() ) { break; } // not more data --> done
+        if( verbose ) {
+          printf( "-- src: frame_ix=%s ts=%s sz=%s @ %s\n",
+                  str(db.frame_ix).c_str(), str(db.timestamp_ns).c_str(), str(db.sz).c_str(), src->get_pos_info_str().c_str() );
+        }
+        // FIXME: make this recursive wrt subblocks or the like?
+        if( db.d.get() ) { // if db has data, check timestamp (old non-multi-stream-scan functionality)
+          if( db.timestamp_ns <= last_ts ) {
+            printf( "**ERROR: ts did not increase: db.timestamp_ns=%s last_ts=%s src->get_pos_info_str()=%s\n",
+                    str(db.timestamp_ns).c_str(), str(last_ts).c_str(), str(src->get_pos_info_str()).c_str() );
+          }
+          last_ts = db.timestamp_ns;
+        }
+        if( db.subblocks.get() ) { // if db has sub-blocks, maybe dump some info on them (old multi-stream-scan functionality)
+          if( verbose ) { printf( "----\n" ); }
+          for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
+            data_block_t const & sdb = db.subblocks->at(i);
+            // if block valid, and: on first block, or if verbose, or if this is the full-dump-stream-ix substream
+            if( sdb.valid() && (verbose || (i == full_dump_ix) || (tot_num_proc == 0) ) ) {
+              printf( "substream[%s] frame_ix=%s ts=%s sz=%s\n",
+                      str(i).c_str(), str(sdb.frame_ix).c_str(), str(sdb.timestamp_ns).c_str(), str(sdb.sz).c_str() );
+            }            
           }
         }
-        if( had_data ) { if( multi_sink ) { multi_sink->multi_consume_block( dbs ); } }
+        if( sink ) { sink->consume_block( db ); }
         ++tot_num_proc;
       }
     }
