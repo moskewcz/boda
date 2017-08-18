@@ -37,6 +37,10 @@ namespace boda
       frame_timer->expires_at( frame_timer->expires_at() + frame_dur );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) ); 
       if( !auto_adv ) { return; }
+      read_next_block();
+    }
+
+    void read_next_block( void ) {
       assert_st( data_to_img.size() == in_imgs.size() );
       db = src->read_next_block();
       if( !db.valid() ) { return; }
@@ -83,8 +87,17 @@ namespace boda
           (*out) << data_to_img[i]->data_block_to_str( sdb );
         }
       }
-      //else if( lbe.is_key && (lbe.keycode == 'd') ) { mod_adj( cur_img_ix, img_db->img_infos.size(),  1 ); auto_adv=0; }
-      //else if( lbe.is_key && (lbe.keycode == 'a') ) { mod_adj( cur_img_ix, img_db->img_infos.size(), -1 ); auto_adv=0; }
+      else if( lbe.is_key && (lbe.keycode == 'd') ) { read_next_block(); auto_adv=0; }
+      else if( lbe.is_key && (lbe.keycode == 'a') ) {
+        if( frame_ix > 1 ) {
+          frame_ix -= 2;
+          if( !src->seek_to_block(frame_ix) ) {
+            printf( "seek to frame_ix=%s failed.\n", str(frame_ix).c_str() );
+            frame_ix += 2;
+          } else {  read_next_block(); }
+        }
+        auto_adv=0;
+      }
       else if( lbe.is_key && (lbe.keycode == 'i') ) {
         auto_adv=0;
         printf( "src: %s\n", src->get_pos_info_str().c_str() );
