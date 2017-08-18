@@ -27,6 +27,7 @@ namespace boda
     p_deadline_timer_t frame_timer;
     time_duration frame_dur;
 
+    uint64_t frame_ix;
     uint32_t num_srcs;
     vect_p_img_t in_imgs;
     vect_data_block_t src_dbs;
@@ -40,12 +41,12 @@ namespace boda
       assert_st( num_srcs == data_to_img.size() );
       assert_st( num_srcs == in_imgs.size() );
       bool had_new_img = 0;
-      if( print_timestamps ) { printf( "--- frame ---\n"); }
+      if( print_timestamps ) { printf( "--- frame %s ---\n", str(frame_ix).c_str() ); }
       src->multi_read_next_block( src_dbs );
       for( uint32_t i = 0; i != num_srcs; ++i ) {
         if( print_timestamps ) {
-          printf( "src[%s]: got db.timestamp_ns=%s (db.size=%s)\n",
-                  str(i).c_str(), str(src_dbs[i].timestamp_ns).c_str(), str(src_dbs[i].sz).c_str() );
+          printf( "src[%s]: got db.frame_ix=%s db.timestamp_ns=%s (db.size=%s)\n",
+                  str(i).c_str(), str(src_dbs[i].frame_ix).c_str(), str(src_dbs[i].timestamp_ns).c_str(), str(src_dbs[i].sz).c_str() );
         }
         p_img_t img = data_to_img[i]->data_block_to_img( src_dbs[i] );
         if( !img ) { continue; }
@@ -53,7 +54,10 @@ namespace boda
         p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz );
         in_imgs[i]->share_pels_from( ds_img );
       }
-      if( had_new_img ) { disp_win.update_disp_imgs(); }
+      if( had_new_img ) {
+        ++frame_ix;
+        disp_win.update_disp_imgs();
+      }
     }
     void on_quit( error_code const & ec ) { get_io( &disp_win ).stop(); }
 
@@ -97,6 +101,7 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
+      frame_ix = 0;
       num_srcs = src->multi_data_stream_init( nia );
       if( num_srcs != data_to_img.size() ) {
         rt_err( strprintf( "error: must specify same number of data streams and data-to-img converters, but; num_srcs=%s and data_to_img.size()=%s\n",
