@@ -205,8 +205,8 @@ namespace boda
       addrinfo hints = {0};
       hints.ai_socktype = SOCK_STREAM; // want reliable communication, 
       hints.ai_protocol = IPPROTO_TCP; // ... with  TCP (minimally because we try to set TCP_NODELAY) ...
-      // hints.ai_family = AF_INET; // but allow any family (IPv4 or IPv6). or, uncomment to force IPv4
-      hints.ai_flags = AI_PASSIVE; // for binding to wildcard addr
+      hints.ai_family = AF_UNSPEC; // but allow any family (IPv4 or IPv6). or, uncomment to force IPv4
+      hints.ai_flags = AI_PASSIVE|AI_ADDRCONFIG; // bind to wildcard, use AI_ADDRCONFIG scheme for filtering out IPv4/IPv6 if not in use
 
       int const aret = getaddrinfo( 0, port.c_str(), &hints, &rp_bind_addrs );
       if( aret != 0 ) { rt_err( strprintf("getaddrinfo with port %s failed: %s", port.c_str(), gai_strerror( aret ) ) ); }

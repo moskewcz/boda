@@ -49,5 +49,41 @@ namespace boda
   }
 
 
+  struct udp_stream_t {
+    int listen_fd;
+    vect_uint8_t msg_buf;
+    sockaddr_storage src_addr;
+    
+    void init_and_bind( string const & port ) {
+      listen_fd = -1;
+      msg_buf.resize( 4096 );
+
+      addrinfo * rp_bind_addrs = 0;
+      addrinfo hints = {0};
+      hints.ai_socktype = SOCK_DGRAM;
+      hints.ai_protocol = IPPROTO_UDP;
+      hints.ai_family = AF_UNSPEC; // but allow any family (IPv4 or IPv6). or, uncomment to force IPv4
+      hints.ai_flags = AI_PASSIVE|AI_ADDRCONFIG; // bind to wildcard, use AI_ADDRCONFIG scheme for filtering out IPv4/IPv6 if not in use
+
+      int const aret = getaddrinfo( 0, port.c_str(), &hints, &rp_bind_addrs );
+      if( aret != 0 ) { rt_err( strprintf("getaddrinfo with port %s failed: %s", port.c_str(), gai_strerror( aret ) ) ); }
+      addrinfo * rpa = rp_bind_addrs; // for now, only try first returned addr
+      listen_fd = socket( rpa->ai_family, rpa->ai_socktype, rpa->ai_protocol );
+      int const bret = bind( listen_fd, rpa->ai_addr, rpa->ai_addrlen );
+      if( bret != 0 ) { rt_err( strprintf( "bind to port %s failed: %s", port.c_str(), strerror( errno ) ) ); }
+      freeaddrinfo( rp_bind_addrs );
+    }
+
+    void recv_msg( void ) {
+      assert_st( listen_fd != -1 );
+      socklen_t src_addr_len = sizeof(src_addr);
+      ssize_t recv_sz = recvfrom( listen_fd, &msg_buf[0], msg_buf.size(), 0, (sockaddr *)&src_addr, &src_addr_len );
+      if( recv_sz == -1 ) { rt_err( strprintf( "recvfrom failed: %s", strerror( errno ) ) ); }
+      if( recv_sz == (ssize_t)msg_buf.size() ) { rt_err( "recieved unexpected too-large datagram of size " + str(recv_sz) ); }
+      printf( "got datagram with msg_buf.size()=%s\n", str(msg_buf.size()).c_str() );
+      // TODO: process msg
+    }
+  };
+
 
 }
