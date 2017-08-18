@@ -20,6 +20,7 @@ namespace boda
     string meta; //NESI(default="nda",help="if image has a natural type, specify it here (default is generic nda)")
     string tag; //NESI(default="stream",help="descriptive short string tag for type of stream: lidar, radar, camera, ...")
     uint32_t level_adj; //NESI(default=1,help="if non-zero, adjust levels with filt_alpha LPF sliding window on per-frame min/max. otherwise (if 0), make some random assumptions about levels: 12-bit for 16u-grey/RGGB, direct-cast-to-uint8_t for 32f")
+    uint32_t invert_intensity; //NESI(default=0,help="if non-zero, for greyscale outputs only, map [data_min,data_max] to [1,0] (instead of to [0,1])")
     uint32_t level_adj_log_for_float_data; //NESI(default=0,help="if non-zero, level_adj will use for log-scale normalization for float data values")
     float level_filt_alpha; //NESI(default=.9,help="LPF alpha constant for sliding window level adjustment")
 
@@ -27,6 +28,8 @@ namespace boda
     float rgb_levs_filt_rng; 
     float rgb_levs_frame_min;
     float rgb_levs_frame_max;
+
+    uint32_t grey_to_pel_maybe_inv( uint8_t const & gv ) { return invert_intensity ? grey_to_pel( 255 - gv ) : grey_to_pel( gv ); }
     
     // internal state and buffers
     zi_uint64_t frame_sz_bytes;
@@ -127,7 +130,7 @@ namespace boda
               max_eq( rgb_levs_frame_max, float(gv) );
               gv = clamp( (float(gv) - rgb_levs_filt_min) * (float(uint8_t_const_max) + 1.0f) / rgb_levs_filt_rng, 0.0f, float(uint8_t_const_max) );
             } else { gv >>= 4; } // hard-coded assume 12-bits
-            dest_data[x] = grey_to_pel( gv ); 
+            dest_data[x] = grey_to_pel_maybe_inv( gv ); 
           }
         }
       } else if( img_fmt == "24u-RGB" ) {
@@ -158,7 +161,7 @@ namespace boda
               clamp_eq( gv, 0.0f, float(uint8_t_const_max) );
             } else { } // hard-coded assume already in [0,256)
             if( verbose ) { printf( "=%s", str(gv).c_str() ); }
-            dest_data[x] = grey_to_pel( gv ); 
+            dest_data[x] = grey_to_pel_maybe_inv( gv ); 
           }
           if( verbose ) { printf( "\n" ); }
         }
