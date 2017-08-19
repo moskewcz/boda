@@ -4,6 +4,7 @@
 
 #include"boda_base.H"
 #include"geom_prim.H"
+#include<deque>
 
 namespace boda
 {
@@ -12,6 +13,7 @@ namespace boda
 
   struct data_block_t;
   typedef vector< data_block_t > vect_data_block_t; 
+  typedef std::deque< data_block_t > deque_data_block_t; 
   typedef shared_ptr< vect_data_block_t > p_vect_data_block_t; 
   struct data_block_t {
     p_uint8_t d; // pointer to data block, null if no data (usually a borrowed pointer from data_stream_t. TODO: add clone/copy iface?

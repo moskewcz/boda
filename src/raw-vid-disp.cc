@@ -27,7 +27,6 @@ namespace boda
     p_deadline_timer_t frame_timer;
     time_duration frame_dur;
 
-    uint64_t frame_ix;
     vect_p_img_t in_imgs;
     data_block_t db;
     
@@ -57,9 +56,7 @@ namespace boda
         in_imgs[i]->share_pels_from( ds_img );
       }
       if( had_new_img ) {
-        if( print_timestamps ) { printf( "--- frame %s ---\n", str(frame_ix).c_str() ); }
-        if( print_timestamps ) { printf( "db=%s\n", str(db).c_str() ); }
-        ++frame_ix;
+        if( print_timestamps ) { printf( "--- frame: %s ---\n", str(db).c_str() ); }
         disp_win.update_disp_imgs();
       }
     }
@@ -89,11 +86,9 @@ namespace boda
       }
       else if( lbe.is_key && (lbe.keycode == 'd') ) { read_next_block(); auto_adv=0; }
       else if( lbe.is_key && (lbe.keycode == 'a') ) {
-        if( frame_ix > 1 ) {
-          frame_ix -= 2;
-          if( !src->seek_to_block(frame_ix) ) {
-            printf( "seek to frame_ix=%s failed.\n", str(frame_ix).c_str() );
-            frame_ix += 2;
+        if( db.frame_ix > 1 ) {
+          if( !src->seek_to_block(db.frame_ix - 1) ) {
+            printf( "seek to db.frame_ix-1=%s failed.\n", str(db.frame_ix - 1).c_str() );
           } else {  read_next_block(); }
         }
         auto_adv=0;
@@ -115,7 +110,6 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
-      frame_ix = 0;
       src->data_stream_init( nia );
       for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
         data_to_img[i]->data_to_img_init( nia );

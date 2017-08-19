@@ -42,6 +42,11 @@ namespace boda
     // internal state:
     uint64_t tot_num_read; // num blocks read so far
 
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      // FIXME: do something with tot_num_read here?
+      return src->seek_to_block( frame_ix );
+    }
+
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s; src info: %s", str(tot_num_read).c_str(), str(src->get_pos_info_str()).c_str() ); }
     // note: preserves frame_ix from nested src.
     virtual data_block_t read_next_block( void ) {
@@ -57,7 +62,7 @@ namespace boda
       printf( "data_stream_init(): mode=%s start_block=%s skip_blocks=%s num_to_read=%s\n",
               str(mode).c_str(), str(start_block).c_str(), str(skip_blocks).c_str(), str(num_to_read).c_str() );
       tot_num_read = 0;
-      for( uint32_t i = 0; i != start_block; ++i ) { src->read_next_block(); } // skip to start block
+      for( uint32_t i = 0; i != start_block; ++i ) { src->read_next_block(); } // skip to start block // FIXME: use seek here? prob. not.
     }    
   };
 
@@ -73,6 +78,14 @@ namespace boda
     virtual string get_pos_info_str( void ) {
       return strprintf( " data_src info: %s -- ts_src info: %s",
                         str(data_src->get_pos_info_str()).c_str(),  str(ts_src->get_pos_info_str()).c_str() );
+    }
+
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      if( !data_src->seek_to_block( frame_ix ) ) { return false; }
+      if( !ts_src->seek_to_block( frame_ix ) ) {
+        assert_st( 0 ); // FIXME: we need to roll back the seek that worked above here -- but with no 'tell' that's hard ..,
+      }
+      return true;
     }
 
     virtual data_block_t read_next_block( void ) {
@@ -491,12 +504,19 @@ namespace boda
     uint64_t max_delta_ns; //NESI(default="0",help="if non-zero, refuse to emit a primary block if, for any secondary stream, no block with a timestamp <= max_detla_ns from the primary block can be found (i.e. all secondary streams must have a 'current' block).")
     uint32_t psix; //NESI(default="0",help="primary stream index (0 based)")
 
+    uint64_t seek_buf_size; //NESI(default="4096",help="max depth of seek buffer (i.e. keep this many old frames for seeking)")
+    uint64_t seek_buf_pos;
+    deque_data_block_t seek_buf;
+
+    uint64_t next_frame_ix;
     vect_vect_data_block_t cur_dbs;
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       if( sync_verbose ) { verbose = sync_verbose; }
+      next_frame_ix = 0;
       if( !( psix < stream.size() ) ) { rt_err( strprintf( "psix=%s must be < stream.size()=%s\n",
                                                            str(psix).c_str(), str(stream.size()).c_str() ) ); }
+      seek_buf_pos = 0;
       for( uint32_t i = 0; i != stream.size(); ++i ) { stream[i]->data_stream_init( nia ); }
       cur_dbs.resize( stream.size() );
       for( uint32_t i = 0; i != stream.size(); ++i ) {
@@ -515,7 +535,21 @@ namespace boda
       return ret;
     }
 
+   virtual bool seek_to_block( uint64_t const & frame_ix ) {
+     for( uint32_t i = 0; i != seek_buf.size() ; ++i ) {
+       if( seek_buf[i].frame_ix == frame_ix ) { seek_buf_pos = i; return true; }
+     }
+     return false; // note: state/pos is unchanged on failure
+   }
+
+    
     virtual data_block_t read_next_block( void ) {
+      assert_st( seek_buf_pos <= seek_buf.size() );
+      if( seek_buf_pos < seek_buf.size() ) { // fill request from seek_buf if possible
+        ++seek_buf_pos;
+        return seek_buf[ seek_buf_pos - 1 ];
+      }
+      
       while ( 1 ) {
         data_block_t pdb = stream[psix]->read_next_block();
         data_block_t ret;
@@ -545,7 +579,16 @@ namespace boda
           }
         }
         if( ret_valid ) {
+          ret.frame_ix = next_frame_ix;
+          ++next_frame_ix;
           ret.subblocks->at(psix) = pdb;
+          assert_st( seek_buf.size() == seek_buf_pos ); // if we're reading a block, we should be at end of seek_buf
+          if( seek_buf_size ) { // otherwise, we'd try to pop_front() on a empty buf to make room ...
+            assert_st( seek_buf.size() <= seek_buf_size );
+            if( seek_buf.size() == seek_buf_size ) { seek_buf.pop_front(); } // if buf was full, free a slot ...
+            else { ++seek_buf_pos; } // ... else it will grow, so update pos.
+            seek_buf.push_back( ret );
+          }
           return ret;
         }
         // else continue
