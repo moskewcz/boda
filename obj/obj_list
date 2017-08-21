@@ -92,6 +92,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+data-stream-velo.o
 data-stream-pcap.o
 data-stream-mxnet.o
 data-stream-file.o
