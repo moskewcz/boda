@@ -54,6 +54,10 @@ namespace boda
     return ret;
   }
 
+  uint32_t const velo_packets_in_cycle = 16;
+  uint32_t const velo_cycles_in_epoch = 260;
+  string const velo_cycle_prefix_types = "HMSDNYGTV";
+
   struct test_velo_crc_t : virtual public nesi, public has_main_t // NESI(help="test velodyne crc16 function impl",
                      // bases=["has_main_t"], type_id="test-velo-crc")
   {
@@ -87,12 +91,13 @@ namespace boda
 
     uint32_t fbs_per_packet; //NESI(default="12",help="firing blocks per packet")
     uint32_t beams_per_fb; //NESI(default="32",help="beams per firing block")
-    uint32_t status_bytes; //NESI(default="6",help="bytes of status at end of block")
 
     double fov_center; //NESI(default=0.0,help="center of FoV to sample in degrees. frames will be split at (VAL + 180) degrees.")
     uint32_t fov_rot_samps; //NESI(default="384",help="number of samples-in-rotation to extract around fov_center")
 
     uint32_t tot_lasers; //NESI(default="64",help="total number of lasers. must be either 32 (one block) or 64 laser (two block) scanner.")
+    uint32_t enable_proc_status; //NESI(default="0",help="if non-zero, process status bytes (only present for 64 laser scanner).")
+
     uint32_t dual_return_and_use_only_first_return; //NESI(default="1",help="if 1, assume dual return mode, and use only first return.")
     string laser_to_row_ix_str; //NESI(req=1,help="':'-seperated list of 0-based dense-matrix-row values to which to map each laser id to. should have tot_lasers elements, and should be a permutation of [0,tot_lasers).") 
 
@@ -125,6 +130,7 @@ namespace boda
                        str(packet_sz).c_str(), str(db.sz).c_str() ) ); }
         if( verbose > 10 ) { printf( "data_stream_velodyne: %s\n", str(db).c_str() ); }
         status_info_t const * si = (status_info_t *)(db.d.get()+fb_sz*fbs_per_packet);
+        if( enable_proc_status ) { proc_status( *si ); }
         if( verbose > 10 ) { printf( "  packet: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
                                      str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
         for( uint32_t fbix = 0; fbix != fbs_per_packet; ++fbix ) {
@@ -210,9 +216,81 @@ namespace boda
       return ret_db;
     }
 
+    // called on each packet. assumes packets are presented in stream order.
+    // TODO: check timestamp sequence
+    // TODO: extract config data
+    uint32_t cycle_in_epoch;
+    uint32_t packet_in_cycle;
+
+    vect_uint16_t cycle_types;
+    vect_uint16_t cycle_vals;
+    
+    void on_bad_status( string const & msg ) {
+      packet_in_cycle = uint32_t_const_max; // confused/unsynced state
+      cycle_in_epoch = uint32_t_const_max; // confused/unsynced state
+      cycle_types.clear();
+      cycle_vals.clear();
+      if( msg.empty() ) { return; } // initial/expected stream reset, no error
+      printf( "%s\n", str(msg).c_str() );
+    }
+    
+    void proc_status_epoch( void ) {
+
+    }
+    
+    void proc_status_cycle( void ) {
+      assert_st( cycle_types.size() == velo_packets_in_cycle ); // 16 (total packets/cycle) = 9 (# prefix statuses) + 7 (per-cycle stuff)
+      assert_st( cycle_vals.size() == velo_packets_in_cycle );
+      if( cycle_in_epoch == uint32_t_const_max ) { // if we're confused/unsynced, just look for 0xF7 as last status type
+        if( cycle_types.back() == 0xF6u ) { cycle_in_epoch = 0; }
+      }
+      if( cycle_in_epoch == uint32_t_const_max ) { return; } // if (still) no cycle sync, give up for now
+      // process cycle
+      if( cycle_in_epoch == 0 ) {
+        printf( "cycle_types=%s cycle_vals=%s\n", str(cycle_types).c_str(), str(cycle_vals).c_str() );
+      }
+      ++cycle_in_epoch;
+      // if epoch done, do end-of-epoch processing (checksum, capture config)
+      if( cycle_in_epoch == velo_cycles_in_epoch ) {
+        proc_status_epoch();
+        cycle_in_epoch = 0;
+        // TODO: clear epoch-related stuff
+      }
+      
+    }
+    
+    void proc_status( status_info_t const & si ) {
+      //printf( "si.status_type=%s si.status_val=%s\n", str(si.status_type).c_str(), str(si.status_val).c_str() );
+      if( packet_in_cycle == uint32_t_const_max ) { // if we're confused/unsynced, just look for 'H'
+        if( si.status_type == 'H' ) { packet_in_cycle = 0; }
+      }
+      if( packet_in_cycle == uint32_t_const_max ) { return; } // if (still) no packet sync, give up for now
+      // check for expected value in start of cycle
+      if( packet_in_cycle < velo_cycle_prefix_types.size() ) {
+        if( si.status_type != velo_cycle_prefix_types[packet_in_cycle] ) {
+          on_bad_status( strprintf( "velodyne stream corrupt; at packet_in_cycle=%s, saw status type byte si.status_type=%s but expected velo_cycle_prefix_types[packet_in_cycle]=%s",
+                                    str(packet_in_cycle).c_str(), str(uint32_t(si.status_type)).c_str(), str(uint32_t(velo_cycle_prefix_types[packet_in_cycle])).c_str() ) );
+          return;
+          
+        }
+        // TODO: process prefix fields (as needed)
+      }
+      cycle_types.push_back( si.status_type ); cycle_vals.push_back( si.status_val ); // capture type/val
+      // we need to know cycle_in_epoch to do more parsing/checking. for simplicity, we defer this until the cycle is complete
+      ++packet_in_cycle;
+      if( packet_in_cycle == velo_packets_in_cycle ) {
+        proc_status_cycle();
+        cycle_types.clear();
+        cycle_vals.clear();
+        packet_in_cycle = 0;
+      }
+    }
+    
     // init/setup
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      on_bad_status("");
+      
       if( !(tot_lasers == 64) ) { rt_err( "non-64 laser mode not implemented" ); }
       if( !dual_return_and_use_only_first_return ) { rt_err( "non-dual return mode not implemented" ); }
       if( !(fov_rot_samps >= 2) ) { rt_err( "fov_rot_samps must be >= 2" ); }
@@ -220,7 +298,7 @@ namespace boda
       tot_num_read = 0;
       // setup internal state
       fb_sz = sizeof( block_info_t ) + beams_per_fb * sizeof( laser_info_t );
-      packet_sz = fbs_per_packet * fb_sz + status_bytes;
+      packet_sz = fbs_per_packet * fb_sz + sizeof( status_info_t );
       last_rot = uint16_t_const_max;
       if( (fov_center < 0.0) || (fov_center >= 360.0) ) { rt_err( strprintf( "fov_center must be in [0.0,360.0) but was =%s",
                                                                              str(fov_center).c_str() ) ); }

@@ -235,6 +235,9 @@ namespace boda
   typedef vector< uint8_t > vect_uint8_t;  
   typedef shared_ptr< uint8_t > p_uint8_t;  
   typedef vector< p_uint8_t > vect_p_uint8_t;  
+  typedef vector< uint16_t > vect_uint16_t;  
+  typedef shared_ptr< uint16_t > p_uint16_t;  
+  typedef vector< p_uint16_t > vect_p_uint16_t;  
   typedef vector< uint32_t > vect_uint32_t;
   typedef shared_ptr< uint32_t > p_uint32_t;  
   typedef vector< int32_t > vect_int32_t;
