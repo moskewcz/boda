@@ -38,7 +38,43 @@ namespace boda
     if( delta < -half_ang_max ) { delta += ang_max; }
     return delta;
   }
+  
+  uint16_t const velo_crc_poly = 0x8005;  
+  uint16_t velo_crc( uint8_t const * const & d, uint32_t const len ) {
+    // note: below is (mostly) hard-coded for the above poly of 0x8005
+    uint16_t ret = 0;
+    for( uint32_t i = 0; i != len; ++i ) {
+      ret ^= d[i] << 8;
+      for( uint32_t b = 8; b > 0; --b ) {
+        bool const hbs = ret & 0x8000;
+        ret <<= 1;
+        if( hbs ) { ret ^= velo_crc_poly; }
+      }
+    }
+    return ret;
+  }
 
+  struct test_velo_crc_t : virtual public nesi, public has_main_t // NESI(help="test velodyne crc16 function impl",
+                     // bases=["has_main_t"], type_id="test-velo-crc")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t out_fn; //NESI(default="%(boda_output_dir)/test-velo-crc.txt",help="output expected/computed crc and note if they are ==.")
+    string hex_input; //NESI(default="0607", help="hex string of binary data to compute velodync crc16 over" )
+    string hex_crc; //NESI(default="9411", help="hex string of expect crc (must be 2 bytes)" )
+
+    void main( nesi_init_arg_t * nia ) {
+      p_ostream out = ofs_open( out_fn.exp );
+      string const input = unhex( hex_input );
+      string expected_crc_str = unhex( hex_crc );
+      if( expected_crc_str.size() != 2 ) { rt_err( strprintf( "hex_crc=%s must unhex into exactly 2 bytes\n", str(hex_crc).c_str() ) ); }
+      std::swap( expected_crc_str[0], expected_crc_str[1] ); // endian swap
+      uint16_t const expected_crc = *(uint16_t *)&expected_crc_str[0];
+      uint16_t const calc_crc = velo_crc( (uint8_t const *)&input[0], input.size() );
+      (*out) << strprintf( "calc_crc=%hx expected_crc=%hx\n", calc_crc, expected_crc );
+      (*out) << strprintf( ( calc_crc == expected_crc ) ? "OK\n" : "FAIL\n" );
+    }    
+  };
+  
   // we can order two angles by saying (a1 < a2) if thier rel_angle_delta(a1,a2) < 0 
   bool rel_angle_lt( uint16_t const a1, uint16_t const & a2 ) { return rel_angle_delta(a1,a2) < 0; }
   

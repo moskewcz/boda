@@ -109,4 +109,11 @@
 
 <li ignore_missing_outputs="1" test_name="ops-prof-conv-3x3-cudnn-boda" cli_str="boda ops-prof --out-fn='%(boda_output_dir)/cnn_op_info.txt' --kg-tune-tag=ocl-opt --func-mrd-toler='(cudnn_conv=4e-4)' --wisdom-out-fn='%(boda_output_dir)/wisdom.wis' --ops-fn='%(boda_test_dir)/ops/conv/conv-ops-kern-3x3-batch-1-5-20-nin-alex-gn.txt' --gen-data='(str_vals=(type=gen_data),nda_vals=(vi=(tn=float,v=0.0),mode=(tn=uint32_t,v=5)))' --wisdom-in-fn='%(boda_test_dir)/good_tr/ops-prof-conv-3x3-cudnn-boda/wisdom.wis' --op-tunes='(ocl-opt=(use_be=ocl,k1conv=1,tconv=1),culibs=(use_be=nvrtc,use_culibs=1))'" />
 
+
+<!-- note: test cases from velodyne (public) documentation -->
+<li test_name="velo-crc-1" cli_str="boda test-velo-crc --hex-input=0607 --hex-crc=9411"/>
+<li test_name="velo-crc-2" cli_str="boda test-velo-crc --hex-input=f10bf02478 --hex-crc=6328"/>
+<li test_name="velo-crc-3" cli_str="boda test-velo-crc --hex-input=10173b7b02ff000417175a8491c8 --hex-crc=ca6c"/>
+<li test_name="velo-crc-4" cli_str="boda test-velo-crc --hex-input=fe7bfd27050e0553053600C5001936b0000a00ffff51fd4404f60550054200C5ffe62328000f00ff018f0006049b04f404b700Ce00192ee0001414ff --hex-crc=a542"/>
+
 </root>
