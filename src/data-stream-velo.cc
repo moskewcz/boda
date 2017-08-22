@@ -142,11 +142,14 @@ namespace boda
                                  str(bi->block_id).c_str(), str(fbix).c_str() ) );
             }
             if( fbix&1 ) { laser_id_base = 32; }
-          } else if( tot_lasers == 32 ) {            
-            assert_st( 0 ); // not implmented yet, should just check for 0xeeff?
+          } else if( tot_lasers == 32 ) {
+            if( bi->block_id != 0xeeff ) {
+              rt_err( strprintf( "(32 laser mode) saw unexpected bi->block_id=%s for firing block fbix=%s\n",
+                                 str(bi->block_id).c_str(), str(fbix).c_str() ) );
+            }
           } else { assert_st( 0 ); }
 
-          if( dual_return_and_use_only_first_return ) {
+          if( (tot_lasers == 64) && dual_return_and_use_only_first_return ) {
             if( fbix&2 ) { // skip second return blocks, but check that they are the same rot
               if( bi->rot_pos != last_rot ) {
                 rt_err( strprintf( "error skipping second return block: expected bi->rot_pos=%s to equal processed block rot last_rot=%s."
@@ -169,15 +172,19 @@ namespace boda
             uint32_t const rix = laser_to_row_ix.at(laser_id_base+i);
             buf_nda->at2( rix, buf_nda_rot ) = bi->lis[i].distance;
           }
-          if( (tot_lasers == 64) && (!(fbix&1)) ) { last_ub_rot = bi->rot_pos; continue; } // FIXME: handle upper/lower more cleanly
-          else {
-            if( bi->rot_pos != last_ub_rot ) {
-              rt_err( strprintf( "error on second block for 64 laser sensor: expected bi->rot_pos=%s to equal last_ub_rot=%s."
-                                 " refusing to proceed.",
-                                 str(bi->rot_pos).c_str(), str(last_ub_rot).c_str() ) );
-              
+          if( tot_lasers == 64 ) {
+            if( !(fbix&1) ) { last_ub_rot = bi->rot_pos; continue; } // FIXME: handle upper/lower more cleanly
+            else {
+              if( bi->rot_pos != last_ub_rot ) {
+                rt_err( strprintf( "error on second block for 64 laser sensor: expected bi->rot_pos=%s to equal last_ub_rot=%s."
+                                   " refusing to proceed.",
+                                   str(bi->rot_pos).c_str(), str(last_ub_rot).c_str() ) );
+                
+              }
             }
-          }
+          } else if (tot_lasers == 32 ) {
+            // every block should be a new rot. FIXME: check this?
+          } else { assert_st(0); }
             
           if( rots_till_emit == uint32_t_const_max ) { // if not triggered yet
             if( (last_rot != uint16_t_const_max) &&
