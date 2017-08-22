@@ -99,7 +99,7 @@ namespace boda
     uint32_t enable_proc_status; //NESI(default="0",help="if non-zero, process status bytes (only present for 64 laser scanner).")
 
     uint32_t dual_return_and_use_only_first_return; //NESI(default="1",help="if 1, assume dual return mode, and use only first return.")
-    string laser_to_row_ix_str; //NESI(req=1,help="':'-seperated list of 0-based dense-matrix-row values to which to map each laser id to. should have tot_lasers elements, and should be a permutation of [0,tot_lasers).") 
+    p_string laser_to_row_ix_str; //NESI(help="':'-seperated list of 0-based dense-matrix-row values to which to map each laser id to. should have tot_lasers elements, and should be a permutation of [0,tot_lasers).") 
 
     vect_uint32_t laser_to_row_ix;
     uint32_t fb_sz;
@@ -291,8 +291,14 @@ namespace boda
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
       on_bad_status("");
       
-      if( !(tot_lasers == 64) ) { rt_err( "non-64 laser mode not implemented" ); }
-      if( !dual_return_and_use_only_first_return ) { rt_err( "non-dual return mode not implemented" ); }
+      if( ! ( (tot_lasers == 64) || (tot_lasers == 32) ) ) { rt_err( "non-32/64 laser mode not implemented" ); }
+      if( tot_lasers == 64 ) {
+        if( !dual_return_and_use_only_first_return ) { rt_err( "non-dual return mode not implemented for 64 laser sensor" ); }
+      }
+      if( tot_lasers == 32 ) {
+        if( dual_return_and_use_only_first_return ) { rt_err( "dual return mode not implemented for 32 laser sensor (doesn't exist?)" ); }
+      }
+      
       if( !(fov_rot_samps >= 2) ) { rt_err( "fov_rot_samps must be >= 2" ); }
       printf( "data_stream_init(): mode=%s\n", str(mode).c_str() );
       tot_num_read = 0;
@@ -314,15 +320,37 @@ namespace boda
       buf_nda = make_shared<nda_uint16_t>( out_dims );
       buf_nda_rot = 0;
       rots_till_emit = uint32_t_const_max; // start in untriggered state
-      
-      vect_string laser_to_row_ix_str_parts = split(laser_to_row_ix_str,':');
-      if( laser_to_row_ix_str_parts.size() != tot_lasers ) {
-        rt_err( strprintf( "expected tot_lasers=%s ':' seperated indexes in laser_to_row_ix_str=%s, but got laser_to_row_ix_str_parts.size()=%s\n",
-                           str(tot_lasers).c_str(), str(laser_to_row_ix_str).c_str(), str(laser_to_row_ix_str_parts.size()).c_str() ) );
-      }
-      for( uint32_t i = 0; i != tot_lasers; ++i ) {
-        try {  laser_to_row_ix.push_back( lc_str_u32( laser_to_row_ix_str_parts[i] ) ); }
-        catch( rt_exception & rte ) { rte.err_msg = "parsing element " + str(i) + " of laser_to_row_ix_str: " + rte.err_msg; throw; }
+
+      if( tot_lasers == 32 ) {
+        if( laser_to_row_ix_str ) { rt_err( "you-can't/please-don't specify laser_to_row_ix_str (laser order) for 32 laser sensor" ); }
+        // the velodyn hdl-32 uses a fixed firing order, with the downward-most laser first. then lasers from the top
+        // and bottom blocks are interleaved, continuing from downward-most to upward-most. the nominal spacing of the
+        // lasers is 4/3 (i.e. ~1.333) degrees. thus, the pattern is: -30.67, -9.33, -29.33, -8.00 ...
+
+        // so, given this, we simply fill in laser_to_row_ix directly.
+        laser_to_row_ix.resize(32);
+        for( uint32_t blix = 0; blix != 16; ++blix ) { // most downward first
+          for( uint32_t block = 0; block != 2; ++block ) { // lower, upper
+            uint32_t const lix = blix*2 + block; // laser index in firing/packet order
+            uint32_t const row = 31 - ( block*16 + blix ); // row in scanline order (note: 31 - (rest) flips y axis)
+            laser_to_row_ix[lix] = row;
+          }
+        }
+        
+      } else {
+        if( !laser_to_row_ix_str ) { rt_err( "you must specify laser_to_row_ix_str (laser order) for 64 laser sensor" ); }
+        // for now, we take as input the laser order for the hdl64, as determined from the config file horiz angles. we
+        // should instead read the config ... but all we need here for the vertical axis is the order of the lasers, not
+        // the exact positions. now, the horizontal corrections we're ignoring are more of a problem ...
+        vect_string laser_to_row_ix_str_parts = split(*laser_to_row_ix_str,':');
+        if( laser_to_row_ix_str_parts.size() != tot_lasers ) {
+          rt_err( strprintf( "expected tot_lasers=%s ':' seperated indexes in laser_to_row_ix_str=%s, but got laser_to_row_ix_str_parts.size()=%s\n",
+                             str(tot_lasers).c_str(), str(laser_to_row_ix_str).c_str(), str(laser_to_row_ix_str_parts.size()).c_str() ) );
+        }
+        for( uint32_t i = 0; i != tot_lasers; ++i ) {
+          try {  laser_to_row_ix.push_back( lc_str_u32( laser_to_row_ix_str_parts[i] ) ); }
+          catch( rt_exception & rte ) { rte.err_msg = "parsing element " + str(i) + " of laser_to_row_ix_str: " + rte.err_msg; throw; }
+        }
       }
       vect_uint32_t laser_to_row_ix_sorted = laser_to_row_ix;
       sort( laser_to_row_ix_sorted.begin(), laser_to_row_ix_sorted.end() );
@@ -330,7 +358,9 @@ namespace boda
       for( uint32_t i = 0; i != tot_lasers; ++i ) {
         if( laser_to_row_ix_sorted[i] != i ) { rt_err( "the elements of laser_to_row_ix_sorted are not a permutation of [0,tot_lasers)" ); }
       }
+      
       vps->data_stream_init( nia );
+        
     }   
   };
 #include"gen/data-stream-velo.cc.nesi_gen.cc"
