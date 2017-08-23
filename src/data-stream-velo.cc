@@ -130,7 +130,7 @@ namespace boda
                        str(packet_sz).c_str(), str(db.sz).c_str() ) ); }
         if( verbose > 10 ) { printf( "data_stream_velodyne: %s\n", str(db).c_str() ); }
         status_info_t const * si = (status_info_t *)(db.d.get()+fb_sz*fbs_per_packet);
-        if( enable_proc_status ) { proc_status( *si ); }
+        if( enable_proc_status ) { proc_status( db, *si ); }
         if( verbose > 10 ) { printf( "  packet: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
                                      str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
         for( uint32_t fbix = 0; fbix != fbs_per_packet; ++fbix ) {
@@ -223,8 +223,10 @@ namespace boda
       return ret_db;
     }
 
-    // called on each packet. assumes packets are presented in stream order.
-    uint32_t last_status_ts;
+    // status-related state
+    uint32_t last_status_gps_ts;
+    uint64_t last_status_db_ts;
+    string last_status_src_pos;
     // TODO: check timestamp sequence
     // TODO: extract config data
     uint32_t cycle_in_epoch;
@@ -233,9 +235,12 @@ namespace boda
     vect_uint16_t cycle_types;
     vect_uint16_t cycle_vals;
     
+    // called on each packet. assumes packets are presented in stream order.
     void on_bad_status( string const & msg ) {
       // set state to confused/unsynced state
-      last_status_ts = uint32_t_const_max;
+      last_status_gps_ts = uint32_t_const_max;
+      last_status_db_ts = uint64_t_const_max;
+      last_status_src_pos = string();
       packet_in_cycle = uint32_t_const_max; 
       cycle_in_epoch = uint32_t_const_max; // confused/unsynced state
       cycle_types.clear();
@@ -270,21 +275,31 @@ namespace boda
     }
 
     
-    void proc_status( status_info_t const & si ) {
+    void proc_status( data_block_t const & db, status_info_t const & si ) {
       //printf( "si.status_type=%s si.status_val=%s\n", str(si.status_type).c_str(), str(si.status_val).c_str() );
-      if( last_status_ts != uint32_t_const_max ) { // if we had a prior timestamp
-        if( si.gps_timestamp_us < last_status_ts ) {
-          printf( "timestamp went backwards: last_status_ts=%s si.timestamp_ns=%s\n", str(last_status_ts).c_str(), str(si.gps_timestamp_us).c_str() );
+      if( last_status_gps_ts != uint32_t_const_max ) { // if we had a prior timestamp
+        bool had_err = 0;
+        if( si.gps_timestamp_us < last_status_gps_ts ) {
+          printf( "timestamp went backwards:\n" );
+          had_err = 1;
         } else {
-          uint32_t ts_delta = si.gps_timestamp_us - last_status_ts;
+          uint32_t ts_delta = si.gps_timestamp_us - last_status_gps_ts;
           uint32_t max_ts_delta = (tot_lasers == 32) ? 600 : 200;
           if( ts_delta > max_ts_delta ) {
-            printf( "large (>max_ts_delta=%s) ts_delta=%s\n", str(max_ts_delta).c_str(), str(ts_delta).c_str() );
+            printf( "large (>max_ts_delta=%s) ts_delta=%s:\n", str(max_ts_delta).c_str(), str(ts_delta).c_str() );
+            had_err = 1;
           }
+        }
+        if( had_err ) {
+          printf( "  @ si.gps_timestamp_us=%s db.timestamp_ns=%s src_pos=%s (prior packet: gps=%s db=%s src_pos=%s);\n",
+                  str(si.gps_timestamp_us).c_str(), str(db.timestamp_ns).c_str(), vps->get_pos_info_str().c_str(),
+                  str(last_status_gps_ts).c_str(), str(last_status_db_ts).c_str(), last_status_src_pos.c_str() );
         }
       }
       
-      last_status_ts = si.gps_timestamp_us;
+      last_status_gps_ts = si.gps_timestamp_us;
+      last_status_db_ts = db.timestamp_ns;
+      last_status_src_pos = vps->get_pos_info_str();
       
       if( tot_lasers != 64 ) { return; } // all the remaining processing is only for 64 laser scanners ...
       if( packet_in_cycle == uint32_t_const_max ) { // if we're confused/unsynced, just look for 'H'
