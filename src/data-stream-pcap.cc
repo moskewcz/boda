@@ -10,9 +10,42 @@
 
 namespace boda 
 {
+
+  unsigned short in_cksum(unsigned short *addr, int len)
+  {
+    int				nleft = len;
+    int				sum = 0;
+    unsigned short	*w = addr;
+    unsigned short	answer = 0;
+
+    /*
+     * Our algorithm is simple, using a 32 bit accumulator (sum), we add
+     * sequential 16 bit words to it, and at the end, fold back all the
+     * carry bits from the top 16 bits into the lower 16 bits.
+     */
+    while (nleft > 1)  {
+      sum += *w++;
+      nleft -= 2;
+    }
+
+    /* 4mop up an odd byte, if necessary */
+    if (nleft == 1) {
+      *(unsigned char *)(&answer) = *(unsigned char *)w ;
+      sum += answer;
+    }
+
+    /* 4add back carry outs from top 16 bits to low 16 bits */
+    sum = (sum >> 16) + (sum & 0xffff);	/* add hi 16 to low 16 */
+    sum += (sum >> 16);			/* add carry */
+    answer = ~sum;				/* truncate to 16 bits */
+    return(answer);
+  }
+
+
   // from libpcap documentation, we learned the pcap file format global and packet header format: https://wiki.wireshark.org/Development/LibpcapFileFormat
   uint32_t const pcap_file_magic = 0xa1b2c3d4;
-
+  uint16_t const ethertype_ipv4 = 0x0800;
+  
   struct ethernet_header {
     uint8_t src_mac[6];
     uint8_t dest_mac[6];
@@ -77,8 +110,8 @@ namespace boda
                               // bases=["data_stream_file_t"], type_id="pcap")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t drop_header; //NESI(default="0",help="if 1, drop some header bytes from the start of each block")
-    uint32_t drop_header_bytes; //NESI(default="42",help="if drop_header=1, drop number of bytes to drop from the start of each block. default is 42 (ethernet), but note that the actual pcap network type doesn't affect this and isn't checked/used.")
+    uint32_t extract_udp_payload; //NESI(default="0",help="if 1, assume ethernet+ip+udp packets, and extract udp payload")
+    p_uint32_t udp_dest_port; //NESI(help="if set and extract_udp_payload=1, keep only payloads for this dest port")
 
     pcap_hdr_t hdr;
     
@@ -94,65 +127,38 @@ namespace boda
     
     virtual data_block_t read_next_block( void ) {
       data_block_t ret;
-      if( mfsr.at_eof() ) { return ret; }
-      pcaprec_hdr_t rec_hdr;
-      bread( mfsr, rec_hdr );
-      if( drop_header ) {
-        if( rec_hdr.incl_len < drop_header_bytes ) {
-          rt_err( strprintf( "error, can't drop drop_header_bytes=%s from packet with rec_hdr.incl_len=%s\n",
-                             str(rec_hdr.incl_len).c_str(), str(drop_header_bytes).c_str() ) );
+      while( 1 ) {
+        if( mfsr.at_eof() ) { return ret; }
+        pcaprec_hdr_t rec_hdr;
+        bread( mfsr, rec_hdr );
+        if( extract_udp_payload ) {
+          ethernet_header const * eth_hdr = (ethernet_header const *)mfsr.consume_borrowed_raw_block( sizeof( ethernet_header ) ).get();
+          uint16_t const ethertype = ntohs(eth_hdr->ethertype);
+          if( ethertype != ethertype_ipv4 ) { rt_err( strprintf( "expected IPv4 ethertype but got ethertype=%s\n", str(ethertype).c_str() ) ); }
+          ip const * ip_hdr = (ip const *)mfsr.consume_borrowed_raw_block( sizeof( ip ) ).get(); // with no options
+          if( ip_hdr->ip_v != 4 ) { rt_err( strprintf( "error, expected IPv4 packet, but ip_hdr->ip_v=%s\n", str(ip_hdr->ip_v).c_str() ) ); }
+          int32_t opts_sz = (int32_t(ip_hdr->ip_hl) << 2) - sizeof(ip);
+          if( opts_sz < 0 ) { rt_err( strprintf( "error, bad IPv4 packet length ip_hdr->ip_hl=%s\n", str(ip_hdr->ip_hl).c_str() ) ); }
+          mfsr.consume_and_discard_bytes( opts_sz );
+          udphdr const * udp_hdr = (udphdr const *)mfsr.consume_borrowed_raw_block( sizeof( udphdr ) ).get();
+          //printf( "ntohs(udp_hdr->dest)=%s ntohs(udp_hdr->len)=%s\n", str(ntohs(udp_hdr->dest)).c_str(), str(ntohs(udp_hdr->len)).c_str() );
+          int32_t udp_payload_sz =  ntohs(udp_hdr->len) - sizeof(udp_hdr);
+          if( udp_payload_sz < 0 ) { rt_err( strprintf( "error, bad UDP packet length ntohs(upd_hdr.len)=%s\n", str(ntohs(udp_hdr->len)).c_str() ) ); }
+          uint32_t expected_packet_size = sizeof( ethernet_header ) + sizeof( ip ) + opts_sz + sizeof( udphdr ) + udp_payload_sz;
+          if( rec_hdr.incl_len != expected_packet_size ) {
+            rt_err( strprintf( "rec_hdr.incl_len=%s rec_hdr.orig_len=%s, but expected_packet_size=%s (if == orig_len but incl_len is smaller, packet was truncated in capture. otherwise, if orig_len == incl_len, the stream is correct/unsupported)\n", str(rec_hdr.incl_len).c_str(), str(rec_hdr.orig_len).c_str(), str(expected_packet_size).c_str() ) );
+          }
+          if( udp_dest_port && (ntohs(udp_hdr->dest) != *udp_dest_port) ) { mfsr.consume_and_discard_bytes( udp_payload_sz ); continue; } // skip packet 
+          else { ret = mfsr.consume_borrowed_block( udp_payload_sz ); }
+        } else {
+          // FIXME: for now, we just pass along the incl_len part, and we discard orig_len ...
+          ret = mfsr.consume_borrowed_block( rec_hdr.incl_len );
         }
-        mfsr.consume_and_discard_bytes( drop_header_bytes );
-        rec_hdr.incl_len -= drop_header_bytes;
+        ret.timestamp_ns = (uint64_t(rec_hdr.ts_sec)*1000*1000+uint64_t(rec_hdr.ts_usec))*1000;
+        return ret;
       }
-        
-      // FIXME: for now, we just pass along the incl_len part, and we discard orig_len ...
-      ret = mfsr.consume_borrowed_block( rec_hdr.incl_len );
-      ret.timestamp_ns = (uint64_t(rec_hdr.ts_sec)*1000*1000+uint64_t(rec_hdr.ts_usec))*1000;
-
-      if( verbose && (!drop_header) ) {
-        uint8_t * hdr = ret.d.get();
-        hdr += sizeof( ethernet_header );
-        struct ip *ip_hdr = (struct ip *)hdr;
-        printf( "ip_hdr->ip_v=%s ip_hdr->ip_p=%s\n", str(ip_hdr->ip_v).c_str(), str(uint32_t(ip_hdr->ip_p)).c_str() );
-        hdr += ip_hdr->ip_hl << 2;
-        struct udphdr *udp_hdr = (struct udphdr *)hdr;
-        printf( "ntohs(udp_hdr->dest)=%s ntohs(udp_hdr->len)=%s\n", str(ntohs(udp_hdr->dest)).c_str(), str(ntohs(udp_hdr->len)).c_str() );        
-      }
-      return ret;
     }
   };
-  unsigned short
-  in_cksum(unsigned short *addr, int len)
-  {
-    int				nleft = len;
-    int				sum = 0;
-    unsigned short	*w = addr;
-    unsigned short	answer = 0;
-
-    /*
-     * Our algorithm is simple, using a 32 bit accumulator (sum), we add
-     * sequential 16 bit words to it, and at the end, fold back all the
-     * carry bits from the top 16 bits into the lower 16 bits.
-     */
-    while (nleft > 1)  {
-      sum += *w++;
-      nleft -= 2;
-    }
-
-    /* 4mop up an odd byte, if necessary */
-    if (nleft == 1) {
-      *(unsigned char *)(&answer) = *(unsigned char *)w ;
-      sum += answer;
-    }
-
-    /* 4add back carry outs from top 16 bits to low 16 bits */
-    sum = (sum >> 16) + (sum & 0xffff);	/* add hi 16 to low 16 */
-    sum += (sum >> 16);			/* add carry */
-    answer = ~sum;				/* truncate to 16 bits */
-    return(answer);
-  }
-
   
   struct data_sink_pcap_t : virtual public nesi, public data_sink_file_t // NESI(
                               // help="parse pcap file and output one block per packet/block in the file",
@@ -204,7 +210,7 @@ namespace boda
         // FIXME: not sure about byte order here, and doesn't seem needed ...
         //std::copy( header_smac.begin(), header_smac.end(), eth_hdr.src_mac );
         //std::copy( header_dmac.begin(), header_dmac.end(), eth_hdr.dest_mac );
-        eth_hdr.ethertype = 0x08;
+        eth_hdr.ethertype = htons(ethertype_ipv4); 
         bwrite_bytes( *out, (char const *)&eth_hdr, sizeof(eth_hdr) );
         ip ip_hdr = {};
         ip_hdr.ip_v = 4;
