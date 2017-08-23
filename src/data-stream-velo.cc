@@ -224,6 +224,7 @@ namespace boda
     }
 
     // called on each packet. assumes packets are presented in stream order.
+    uint32_t last_status_ts;
     // TODO: check timestamp sequence
     // TODO: extract config data
     uint32_t cycle_in_epoch;
@@ -233,7 +234,9 @@ namespace boda
     vect_uint16_t cycle_vals;
     
     void on_bad_status( string const & msg ) {
-      packet_in_cycle = uint32_t_const_max; // confused/unsynced state
+      // set state to confused/unsynced state
+      last_status_ts = uint32_t_const_max;
+      packet_in_cycle = uint32_t_const_max; 
       cycle_in_epoch = uint32_t_const_max; // confused/unsynced state
       cycle_types.clear();
       cycle_vals.clear();
@@ -254,7 +257,7 @@ namespace boda
       if( cycle_in_epoch == uint32_t_const_max ) { return; } // if (still) no cycle sync, give up for now
       // process cycle
       if( cycle_in_epoch == 0 ) {
-        printf( "cycle_types=%s cycle_vals=%s\n", str(cycle_types).c_str(), str(cycle_vals).c_str() );
+        if( verbose ) { printf( "cycle_types=%s cycle_vals=%s\n", str(cycle_types).c_str(), str(cycle_vals).c_str() ); }
       }
       ++cycle_in_epoch;
       // if epoch done, do end-of-epoch processing (checksum, capture config)
@@ -265,9 +268,25 @@ namespace boda
       }
       
     }
+
     
     void proc_status( status_info_t const & si ) {
       //printf( "si.status_type=%s si.status_val=%s\n", str(si.status_type).c_str(), str(si.status_val).c_str() );
+      if( last_status_ts != uint32_t_const_max ) { // if we had a prior timestamp
+        if( si.gps_timestamp_us < last_status_ts ) {
+          printf( "timestamp went backwards: last_status_ts=%s si.timestamp_ns=%s\n", str(last_status_ts).c_str(), str(si.gps_timestamp_us).c_str() );
+        } else {
+          uint32_t ts_delta = si.gps_timestamp_us - last_status_ts;
+          uint32_t max_ts_delta = (tot_lasers == 32) ? 600 : 200;
+          if( ts_delta > max_ts_delta ) {
+            printf( "large (>max_ts_delta=%s) ts_delta=%s\n", str(max_ts_delta).c_str(), str(ts_delta).c_str() );
+          }
+        }
+      }
+      
+      last_status_ts = si.gps_timestamp_us;
+      
+      if( tot_lasers != 64 ) { return; } // all the remaining processing is only for 64 laser scanners ...
       if( packet_in_cycle == uint32_t_const_max ) { // if we're confused/unsynced, just look for 'H'
         if( si.status_type == 'H' ) { packet_in_cycle = 0; }
       }
