@@ -107,7 +107,7 @@ namespace boda
 
   struct data_stream_pcap_t : virtual public nesi, public data_stream_file_t // NESI(
                               // help="parse pcap file and output one block per packet/block in the file",
-                              // bases=["data_stream_file_t"], type_id="pcap")
+                              // bases=["data_stream_file_t"], type_id="pcap-src")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t extract_udp_payload; //NESI(default="0",help="if 1, assume ethernet+ip+udp packets, and extract udp payload")
@@ -162,7 +162,7 @@ namespace boda
   
   struct data_sink_pcap_t : virtual public nesi, public data_sink_file_t // NESI(
                               // help="parse pcap file and output one block per packet/block in the file",
-                              // bases=["data_sink_file_t"], type_id="pcap")
+                              // bases=["data_sink_file_t"], type_id="pcap-sink")
   {
     uint32_t add_header; //NESI(default="0",help="if 1, add some zero header bytes from the start of each block")
     uint32_t add_header_bytes; //NESI(default="42",help="if add_header=1, number of (zero) bytes to add to the start of each block. default is 42 (ethernet), but note that the actual pcap network type doesn't affect this and isn't checked/used.")
