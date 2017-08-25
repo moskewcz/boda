@@ -49,7 +49,8 @@ namespace boda
       }
       bool had_new_img = 0;
       for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
-        p_img_t img = data_to_img[i]->data_block_to_img( db.subblocks->at(i) );
+        p_img_t img = db.subblocks->at(i).as_img;
+        if( !img ) { img = data_to_img[i]->data_block_to_img( db.subblocks->at(i) ); }
         if( !img ) { continue; }
         had_new_img = 1;
         p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz );
