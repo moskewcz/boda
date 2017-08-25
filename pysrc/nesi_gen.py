@@ -136,6 +136,16 @@ class cinfo_t( object ):
             else:
                 raise RuntimeError("in nesi struct %r: %r specified as tid_vn, but no nesi var with that name found." %
                                    (self.cname,self.tid_vn) )
+
+        # check for duplicate tid_str's (ie. type_id's) in derived list
+        derived_type_ids_set = set()
+        for dci in self.derived:
+            if not (dci.type_id is None):
+                if dci.type_id in derived_type_ids_set:
+                    raise RuntimeError("in nesi struct %r: encountered dervied type %r with duplicate type_id %r" % (self.cname, dci.cname, dci.type_id) )
+                else:
+                    derived_type_ids_set.add(dci.type_id)
+        
         tid_str = "0"
         if not self.type_id is None:
             tid_str = '"'+self.type_id+'"'
