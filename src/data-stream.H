@@ -22,7 +22,8 @@ namespace boda
     uint64_t frame_ix; // what frame is this? zero based. const_max is invalid.
     uint64_t timestamp_ns; // data-stream-defined timestamp in nanoseconds. may not start at zero.
     dims_t nda_dims; // if non-empty (sorry scalar case!), can form an nda as nda_t(nda_dims,d)
-
+    p_img_t as_img; // if non-null, a image representation of this data (potentially smoothed/modified/etc)
+    
     p_vect_data_block_t subblocks; // FIXME: make mapping from str->subblock? add meta data somewhere?
     data_block_t( void ) : sz(uint64_t_const_max), frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
     uint32_t num_subblocks( void ) const { return subblocks.get() ? subblocks->size() : uint32_t_const_max; }
@@ -31,13 +32,26 @@ namespace boda
   };
   std::ostream & operator << ( std::ostream & out, data_block_t const & db );
 
+
+  // by convention:
+  //  -- 'source' data_stream_t's are passed a default/empty data block (which they use generally use as a template). they generally do something like read a file as a side-effect.
+  //  -- 'sink' data_stream_t's don't return anything of interest (i.e. they always return a null data block), but do something as a side-effect on each call: write a file, etc.
+  //  -- 'xform' data_stream_t's transform/filter data blocks. they might keep some internal state as well.
+  //
+  // in general, seeking has stream-defined semantics, and if often not implemeneted (and/or not sensible). but for
+  // 'source'-like streams, the idea is to allow going backwards in the stream, or perhaps to allow full
+  // jumping. sometimes limited backwards seeking can be implemented with buffering. in other case, fast random seeking
+  // might even be possible (i.e. with some existing index). but, often enabling seeking has a price in
+  // time/memory/complexity ...
+
+  
   struct data_stream_t : virtual public nesi // NESI(help="modes that can be used for reading streams of timestamped data blocks"
                                               // ,is_abstract=1,tid_vn="mode")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string mode; //NESI(help="type of datastream",req=1)
     virtual void data_stream_init( nesi_init_arg_t * const nia ) = 0;
-    virtual data_block_t read_next_block( void ) = 0;
+    virtual data_block_t proc_block( data_block_t const & db ) = 0;
     virtual bool seek_to_block( uint64_t const & frame_ix ) { return false; } // by default, not implemented / fails.
 
     // debugging iface(s) (may only have meaning for certain modes)
@@ -46,18 +60,6 @@ namespace boda
   typedef vector< data_stream_t > vect_data_stream_t; 
   typedef shared_ptr< data_stream_t > p_data_stream_t; 
   typedef vector< p_data_stream_t > vect_p_data_stream_t;
-
-  struct data_sink_t : virtual public nesi // NESI(help="modes that can be used for consuming timestamped data blocks"
-                                           // ,is_abstract=1,tid_vn="mode")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string mode; //NESI(help="type of data sink",req=1)
-    virtual void data_sink_init( nesi_init_arg_t * const nia ) = 0;
-    virtual void consume_block( data_block_t const & db ) = 0;
-  };
-  typedef vector< data_sink_t > vect_data_sink_t; 
-  typedef shared_ptr< data_sink_t > p_data_sink_t; 
-  typedef vector< p_data_sink_t > vect_p_data_sink_t;
   
 }
 

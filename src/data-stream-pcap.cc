@@ -125,8 +125,8 @@ namespace boda
               str(hdr.snaplen).c_str(), str(hdr.network).c_str() );
     }
     
-    virtual data_block_t read_next_block( void ) {
-      data_block_t ret;
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
       while( 1 ) {
         if( mfsr.at_eof() ) { return ret; }
         pcaprec_hdr_t rec_hdr;
@@ -176,9 +176,11 @@ namespace boda
     pcap_hdr_t hdr;
 
     vect_uint8_t header;
+
+    virtual string get_pos_info_str( void ) { return string("data_sink_pcal: wrote <NOT_IMPL> packets to:") + data_sink_file_t::get_pos_info_str(); }
     
-    virtual void data_sink_init( nesi_init_arg_t * const nia ) {
-      data_sink_file_t::data_sink_init( nia );
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      data_sink_file_t::data_stream_init( nia );
       hdr.magic_number = pcap_file_magic;
       hdr.version_major = 2;
       hdr.version_minor = 4;
@@ -194,7 +196,7 @@ namespace boda
       if( header_dmac.size() != 6 ) { rt_err( "dest mac should be 6 bytes as hex with no spaces/seperators" ); }
     }
 
-    virtual void consume_block( data_block_t const & db ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       pcaprec_hdr_t rec_hdr;
       uint64_t timestamp_us = db.timestamp_ns / 1000;
       rec_hdr.ts_sec = timestamp_us / ( 1000 * 1000 );
@@ -229,6 +231,7 @@ namespace boda
         bwrite_bytes( *out, (char const *)&udp_hdr, sizeof(udp_hdr) );
       }
       bwrite_bytes( *out, (char const *)db.d.get(), db.sz );
+      return data_block_t();
     }
     
   };

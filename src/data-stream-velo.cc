@@ -117,24 +117,24 @@ namespace boda
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s vps info:%s",
                                                                 str(tot_num_read).c_str(), vps->get_pos_info_str().c_str() ); }
 
-    virtual data_block_t read_next_block( void ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       p_nda_uint16_t out_nda = make_shared<nda_uint16_t>( out_dims );
-      data_block_t ret_db;
-      data_block_t db;
+      data_block_t ret_db = db;
+      data_block_t vps_db;
       uint16_t last_ub_rot = uint16_t_const_max;
       while( !ret_db.valid() ) {
-        db = vps->read_next_block();
-        if( !db.d.get() ) { return db; } // not enough data for another frame, give up
-        if( db.sz != packet_sz ) { rt_err(
+        vps_db = vps->proc_block(data_block_t());
+        if( !vps_db.d.get() ) { return db; } // not enough data for another frame, give up
+        if( vps_db.sz != packet_sz ) { rt_err(
             strprintf( "lidar decode expected packet_sz=%s but got block with dv.sz=%s",
-                       str(packet_sz).c_str(), str(db.sz).c_str() ) ); }
-        if( verbose > 10 ) { printf( "data_stream_velodyne: %s\n", str(db).c_str() ); }
-        status_info_t const * si = (status_info_t *)(db.d.get()+fb_sz*fbs_per_packet);
-        if( enable_proc_status ) { proc_status( db, *si ); }
+                       str(packet_sz).c_str(), str(vps_db.sz).c_str() ) ); }
+        if( verbose > 10 ) { printf( "data_stream_velodyne: %s\n", str(vps_db).c_str() ); }
+        status_info_t const * si = (status_info_t *)(vps_db.d.get()+fb_sz*fbs_per_packet);
+        if( enable_proc_status ) { proc_status( vps_db, *si ); }
         if( verbose > 10 ) { printf( "  packet: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
                                      str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
         for( uint32_t fbix = 0; fbix != fbs_per_packet; ++fbix ) {
-          block_info_t const * bi = (block_info_t *)(db.d.get()+fb_sz*fbix);
+          block_info_t const * bi = (block_info_t *)(vps_db.d.get()+fb_sz*fbix);
           uint32_t laser_id_base = 0;
           if( tot_lasers == 64 ) {
             if( bi->block_id != ( (fbix&1) ? 0xddff : 0xeeff ) ) {
@@ -189,7 +189,7 @@ namespace boda
           if( rots_till_emit == uint32_t_const_max ) { // if not triggered yet
             if( (last_rot != uint16_t_const_max) &&
                 rel_angle_lt(last_rot,fov_center_rot) && !rel_angle_lt(bi->rot_pos,fov_center_rot) ) { // trigger
-              ret_db.timestamp_ns = db.timestamp_ns;
+              ret_db.timestamp_ns = vps_db.timestamp_ns;
               if( verbose ) { printf( "-- TRIGGER -- bi->rot_pos=%s\n", str(bi->rot_pos).c_str() ); }
               if( verbose ) { printf( "  @TRIGGER: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
                                       str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }

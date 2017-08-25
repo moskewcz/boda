@@ -41,7 +41,7 @@ namespace boda
 
     void read_next_block( void ) {
       assert_st( data_to_img.size() == in_imgs.size() );
-      db = src->read_next_block();
+      db = src->proc_block(data_block_t());
       if( !db.valid() ) { return; }
       if( db.num_subblocks() != data_to_img.size() ) {
         rt_err( strprintf( "number of subblocks must equal number of data-to-img converters, but num_subblocks=%s and data_to_img.size()=%s\n",

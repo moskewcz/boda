@@ -33,9 +33,9 @@ namespace boda
       mfsr.consume_and_discard_bytes( pad );
     }
     
-    virtual data_block_t read_next_block( void ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( parts.empty() );
-      data_block_t ret;
+      data_block_t ret = db;
       if( mfsr.at_eof() ) { return ret; } // at end of stream
       while( 1 ) {
         uint32_t maybe_magic;
@@ -102,16 +102,18 @@ namespace boda
   };
 
 
-  struct data_sink_mxnet_brick_t : virtual public nesi, public data_sink_t // NESI(help="write sequence of blocks (i.e. records) into mxnet brick.",
-                                                       // bases=["data_sink_t"],type_id="mxnet-brick")
+  struct data_sink_mxnet_brick_t : virtual public nesi, public data_stream_t // NESI(help="write sequence of blocks (i.e. records) into mxnet brick.",
+                                                       // bases=["data_stream_t"],type_id="mxnet-brick")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    filename_t fn; //NESI(default="vid.raw",help="input raw video filename")
+    filename_t fn; //NESI(default="out.brick",help="output brick filename")
     p_ostream out;
-    virtual void data_sink_init( nesi_init_arg_t * const nia ) {
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       out = ofs_open( fn );
     }
+    virtual string get_pos_info_str( void ) { return string("data_sink_mxnet_brick: wrote <NOT_IMPL> records in <NOT_IMPL> bytes"); }
+
     void write_chunk( uint32_t const & cflag, uint8_t const * const & start, uint64_t const & len ) {
       //printf( "write_chunk: cflag=%s len=%s\n", str(cflag).c_str(), str(len).c_str() );
       bwrite( *out, mxnet_brick_magic );
@@ -120,7 +122,7 @@ namespace boda
       bwrite_bytes( *out, (char * const)start, len );
     }
     
-    virtual void consume_block( data_block_t const & db ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       if( !( db.sz < mxnet_brick_max_rec_sz ) ) { rt_err( strprintf( "mxnet_brick_max_rec_sz=%s but db.sz=%s",
                                                                      str(mxnet_brick_max_rec_sz).c_str(), str(db.sz).c_str() ) ); }
       // split payload at every occurance of magic number
@@ -141,6 +143,7 @@ namespace boda
       uint32_t const pad = u32_ceil_align( db.sz, 4 ) - db.sz; // padding
       uint32_t const zero = 0;
       bwrite_bytes( *out, (char * const)&zero, pad );
+      return data_block_t();
     }
   };
 
@@ -164,8 +167,8 @@ namespace boda
     string magic_corruption;
     
     // for now, alternate blocks are checksums of prior block
-    virtual data_block_t read_next_block( void ) {
-      data_block_t ret;
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
       if( !(tot_num_gen&1) ) {
         if( tot_num_gen == (2*blocks_to_gen) ) { return ret; }
         boost::random::uniform_int_distribution<uint64_t> bsz_dist( bsz_min, bsz_max );
@@ -204,15 +207,17 @@ namespace boda
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_gen=%s", str(tot_num_gen).c_str() ); }
   };
 
-  struct data_sink_hash_check_t : virtual public nesi, public data_sink_t // NESI(help="read sequence of block/prior-block-hash-block pairs.",
-                                  // bases=["data_sink_t"],type_id="hash-check")
+  struct data_sink_hash_check_t : virtual public nesi, public data_stream_t // NESI(help="read sequence of block/prior-block-hash-block pairs.",
+                                  // bases=["data_stream_t"],type_id="hash-check")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint64_t tot_num_read;
     size_t block_hash;
-    virtual void data_sink_init( nesi_init_arg_t * const nia ) { tot_num_read = 0; }
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) { tot_num_read = 0; }
     
-    virtual void consume_block( data_block_t const & db ) {
+    virtual string get_pos_info_str( void ) { return strprintf( "data_sink_hash_check: tot_num_read=%s\n", str(tot_num_read).c_str() ); }
+
+    virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( db.valid() ); // don't pass invalid blocks?
       if( !(tot_num_read & 1) ) {
         block_hash = boost::hash_range( db.d.get(), db.d.get() + db.sz ); // cache hash
@@ -228,6 +233,7 @@ namespace boda
         }
       }
       ++tot_num_read;
+      return data_block_t();
     }
     // yeah, not the best way/place to check, but better than not checking? fails if we got an odd # of blocks (i.e. last block lost)
     // FIXME: maybe we need a stream-length check too? (to check for block level truncation?)

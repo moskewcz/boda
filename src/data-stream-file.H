@@ -32,14 +32,15 @@ namespace boda
     }
   };
 
-  struct data_sink_file_t : virtual public nesi, public data_sink_t // NESI(help="base functionality to write stream of data blocks into file",
-                            // bases=["data_sink_t"], type_id="file", is_abstract=1)
+  struct data_sink_file_t : virtual public nesi, public data_stream_t // NESI(help="base functionality to write stream of data blocks into file",
+                            // bases=["data_stream_t"], type_id="file", is_abstract=1)
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     filename_t fn; //NESI(req=1,help="output filename")
     p_ostream out;
-    virtual void data_sink_init( nesi_init_arg_t * const nia ) { out = ofs_open( fn );  }
+    virtual string get_pos_info_str( void ) { return strprintf( "pos=<NOT_IMPL> tot_num_written=<NOT_IMPL>" ); }
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) { out = ofs_open( fn );  }
   };
   
 }

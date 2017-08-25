@@ -49,11 +49,11 @@ namespace boda
 
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s; src info: %s", str(tot_num_read).c_str(), str(src->get_pos_info_str()).c_str() ); }
     // note: preserves frame_ix from nested src.
-    virtual data_block_t read_next_block( void ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       if( num_to_read && (tot_num_read >= num_to_read) ) { return data_block_t(); }
-      data_block_t ret = src->read_next_block();
+      data_block_t ret = src->proc_block( db );
       ++tot_num_read;
-      for( uint32_t i = 0; i != skip_blocks; ++i ) { src->read_next_block(); } // skip blocks if requested
+      for( uint32_t i = 0; i != skip_blocks; ++i ) { src->proc_block(data_block_t()); } // skip blocks if requested
       return ret;
     }
 
@@ -62,7 +62,7 @@ namespace boda
       printf( "data_stream_init(): mode=%s start_block=%s skip_blocks=%s num_to_read=%s\n",
               str(mode).c_str(), str(start_block).c_str(), str(skip_blocks).c_str(), str(num_to_read).c_str() );
       tot_num_read = 0;
-      for( uint32_t i = 0; i != start_block; ++i ) { src->read_next_block(); } // skip to start block // FIXME: use seek here? prob. not.
+      for( uint32_t i = 0; i != start_block; ++i ) { src->proc_block(data_block_t()); } // skip to start block // FIXME: use seek here? prob. not.
     }    
   };
 
@@ -88,9 +88,9 @@ namespace boda
       return true;
     }
 
-    virtual data_block_t read_next_block( void ) {
-      data_block_t ret = data_src->read_next_block();
-      data_block_t ts_db = ts_src->read_next_block();
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = data_src->proc_block(db);
+      data_block_t ts_db = ts_src->proc_block(data_block_t());
       if( (!ret.valid()) || (!ts_db.valid()) ) { return data_block_t(); } // if either stream is ended/invalid, silently give ... not ideal?
       if( ret.frame_ix != ts_db.frame_ix ) {
         rt_err( strprintf( "refusing to apply timestamp since stream frame_ix's don't match: data_src frame_ix=%s ts_src frame_ix=%s\n",
@@ -120,7 +120,7 @@ namespace boda
     uint64_t last_ts;
     uint64_t last_delta;
     uint64_t ts_jump_hack_off;
-    virtual data_block_t read_next_block( void ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret;
       if( mfsr.pos == timestamp_off ) {
 #if 0
@@ -189,7 +189,7 @@ namespace boda
                                    // bases=["data_stream_file_t"], type_id="dumpvideo")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    virtual data_block_t read_next_block( void ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret;
       uint32_t block_sz;
       if( !mfsr.can_read( sizeof( block_sz ) ) ) { return ret; } // not enough bytes left for another block. FIXME: should be an error?
@@ -223,7 +223,7 @@ namespace boda
       v.frame_ix = lc_str_u64(parts[frame_ix_fix]);
     }
 
-    virtual data_block_t read_next_block( void ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret;
       if( !mfsr.can_read( 1 ) ) { return ret; } // not enough bytes left for another block
       mfsr.read_line_as_block( ret );
@@ -268,12 +268,12 @@ namespace boda
     }
 
     // we keep producing blocks until *all* streams are invalid, then we ret an invalid block
-    virtual data_block_t read_next_block( void ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret;
       ret.subblocks = make_shared<vect_data_block_t>(stream.size());
       bool has_valid_subblock = 0;
       for( uint32_t i = 0; i != stream.size(); ++i ) {
-        ret.subblocks->at(i) = stream[i]->read_next_block();
+        ret.subblocks->at(i) = stream[i]->proc_block(db);
         if( ret.subblocks->at(i).valid() ) { has_valid_subblock = 1; }
       }
       if( !has_valid_subblock ) { ret.subblocks.reset(); }
@@ -309,9 +309,9 @@ namespace boda
       cur_dbs.resize( stream.size() );
       for( uint32_t i = 0; i != stream.size(); ++i ) {
         if( i == psix ) { continue; }
-        cur_dbs[i].push_back( stream[i]->read_next_block() );
+        cur_dbs[i].push_back( stream[i]->proc_block(data_block_t()) );
         if( !cur_dbs[i][0].valid() ) { rt_err( strprintf( "no blocks at all in stream i=%s\n", str(i).c_str() ) ); }
-        cur_dbs[i].push_back( stream[i]->read_next_block() );
+        cur_dbs[i].push_back( stream[i]->proc_block(data_block_t()) );
       }
     }
     
@@ -331,7 +331,7 @@ namespace boda
    }
 
     
-    virtual data_block_t read_next_block( void ) {
+    virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( seek_buf_pos <= seek_buf.size() );
       if( seek_buf_pos < seek_buf.size() ) { // fill request from seek_buf if possible
         ++seek_buf_pos;
@@ -339,7 +339,7 @@ namespace boda
       }
       
       while ( 1 ) {
-        data_block_t pdb = stream[psix]->read_next_block();
+        data_block_t pdb = stream[psix]->proc_block(db);
         data_block_t ret;
         if( !pdb.valid() ) { return ret; } // done
         ret.subblocks = make_shared<vect_data_block_t>(stream.size());
@@ -351,7 +351,7 @@ namespace boda
           assert( i_dbs.size() == 2 ); // always 2 entries, but note that head may be invalid/end-of-stream
           while( i_dbs[1].valid() && ( i_dbs[1].timestamp_ns < pdb.timestamp_ns ) ) {
             i_dbs[0] = i_dbs[1];
-            i_dbs[1] = stream[i]->read_next_block();
+            i_dbs[1] = stream[i]->proc_block(data_block_t());
           }
           assert_st( i_dbs[0].valid() ); // tail should always be valid since we require all streams to be non-empty
           uint64_t const tail_delta = ts_delta( pdb, i_dbs[0] );
@@ -393,18 +393,18 @@ namespace boda
     uint64_t num_to_proc; //NESI(default=0,help="read/write this many records; zero for unlimited")
     uint32_t full_dump_ix; //NESI(default="-1",help="for this sub-stream (if it exists), dump all block sizes")
     p_data_stream_t src; //NESI(req=1,help="input data stream")
-    p_data_sink_t sink; //NESI(help="output data sink")
+    p_data_stream_t sink; //NESI(help="output data sink")
 
     uint64_t tot_num_proc;
     
     void main( nesi_init_arg_t * nia ) {
       tot_num_proc = 0;
       src->data_stream_init( nia );
-      if( sink ) { sink->data_sink_init( nia ); }
+      if( sink ) { sink->data_stream_init( nia ); }
       uint64_t last_ts = 0;
       while( 1 ) {
         if( num_to_proc && (tot_num_proc == num_to_proc) ) { break; } // proc'd req'd # of blocks --> done
-        data_block_t db = src->read_next_block();
+        data_block_t db = src->proc_block(data_block_t());
         if( !db.valid() ) { break; } // not more data --> done
         if( verbose ) {
           printf( "-- src: frame_ix=%s ts=%s sz=%s @ %s\n",
@@ -429,7 +429,7 @@ namespace boda
             }            
           }
         }
-        if( sink ) { sink->consume_block( db ); }
+        if( sink ) { sink->proc_block( db ); }
         ++tot_num_proc;
       }
     }
