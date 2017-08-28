@@ -28,7 +28,7 @@ namespace boda
     void data_stream_file_block_done_hook( data_block_t & ret ) {
       ret.frame_ix = tot_num_read;
       ++tot_num_read;
-      if( verbose ) { printf( "ret.sz=%s ret.timestamp_ns=%s\n", str(ret.sz).c_str(), str(ret.timestamp_ns).c_str() ); }
+      if( verbose ) { printf( "ret=%s\n", ret.info_str().c_str() ); }
     }
   };
 

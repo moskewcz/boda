@@ -16,18 +16,22 @@ namespace boda
   typedef std::deque< data_block_t > deque_data_block_t; 
   typedef shared_ptr< vect_data_block_t > p_vect_data_block_t; 
   struct data_block_t {
-    p_uint8_t d; // pointer to data block, null if no data (usually a borrowed pointer from data_stream_t. TODO: add clone/copy iface?
-    uint64_t sz; // size of data
+    p_nda_t nda; // pointer to data block, null if no data (usually a borrowed pointer from data_stream_t. TODO: add clone/copy iface?
+
+    uint64_t sz( void ) const { return nda->dims.bytes_sz(); }
+    void const * d( void ) const { return nda->rp_elems(); }
+
     // metadata (optional in general)
+    string tdn; // if we had an array of this block, what would the name of the dim that iterated of these be (i.e. tag/type name)
     uint64_t frame_ix; // what frame is this? zero based. const_max is invalid.
     uint64_t timestamp_ns; // data-stream-defined timestamp in nanoseconds. may not start at zero.
-    dims_t nda_dims; // if non-empty (sorry scalar case!), can form an nda as nda_t(nda_dims,d)
     p_img_t as_img; // if non-null, a image representation of this data (potentially smoothed/modified/etc)
     
     p_vect_data_block_t subblocks; // FIXME: make mapping from str->subblock? add meta data somewhere?
-    data_block_t( void ) : sz(uint64_t_const_max), frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
+    data_block_t( void ) : frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
     uint32_t num_subblocks( void ) const { return subblocks.get() ? subblocks->size() : uint32_t_const_max; }
-    bool valid( void ) const { return d.get() || subblocks.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
+    bool valid( void ) const { return nda.get() || subblocks.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
+    
     string info_str( void ) const;      
   };
   std::ostream & operator << ( std::ostream & out, data_block_t const & db );

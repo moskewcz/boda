@@ -13,9 +13,9 @@ namespace boda
   std::ostream & operator << ( std::ostream & out, data_block_t const & db ) { out << db.info_str(); return out; }
   string data_block_t::info_str( void ) const {
     string ret;
-    if( d.get() ) {
-      ret += strprintf( "sz=%s frame_ix=%s timestamp_ns=%s",
-                        str(sz).c_str(), str(frame_ix).c_str(), str(timestamp_ns).c_str() );
+    if( nda.get() ) {
+      ret += strprintf( "dims=%s frame_ix=%s timestamp_ns=%s",
+                        str(nda->dims).c_str(), str(frame_ix).c_str(), str(timestamp_ns).c_str() );
     }
     if( subblocks ) {
       ret += strprintf( "subblocks->size()=%s [", str(subblocks->size()).c_str() );
@@ -175,8 +175,8 @@ namespace boda
       mfsr.read_val( chunk_off );
       uint64_t duration_ns;
       mfsr.read_val( duration_ns );
-      printf( "  qt stream header: ver=%s tag=%s header.size()=%s timestamp_off=%s chunk_off=%s duration_ns=%s\n",
-              str(ver).c_str(), str(tag).c_str(), str(header.sz).c_str(), str(timestamp_off).c_str(),
+      printf( "  qt stream header: ver=%s tag=%s header.sz()=%s timestamp_off=%s chunk_off=%s duration_ns=%s\n",
+              str(ver).c_str(), str(tag).c_str(), str(header.sz()).c_str(), str(timestamp_off).c_str(),
               str(chunk_off).c_str(), str(duration_ns).c_str() );
       if( mfsr.size() > timestamp_off ) {
         printf( "   !! warning: (size() - timestamp_off)=%s bytes at end of file will be ignored\n",
@@ -195,7 +195,7 @@ namespace boda
       if( !mfsr.can_read( sizeof( block_sz ) ) ) { return ret; } // not enough bytes left for another block. FIXME: should be an error?
       mfsr.read_val( block_sz );
       if( block_sz == uint32_t_const_max ) { return ret; } // end of dumpvideo stream marker
-      ret = mfsr.consume_borrowed_block( block_sz ); // note: timestamp not set here
+      ret.nda = mfsr.consume_borrowed_block( block_sz ); // note: timestamp not set here
       data_stream_file_block_done_hook( ret );
       return ret;
     }
@@ -211,7 +211,8 @@ namespace boda
 
     // set timestamp from field of text line stored in block
     void set_timestamp_from_text_line( data_block_t & v ) {
-      string line( v.d.get(), v.d.get()+v.sz );
+      assert( v.nda->dims.tn == "uint8_t" );
+      string line( (uint8_t*)v.nda->rp_elems(), (uint8_t*)v.nda->rp_elems()+v.sz() );
       vect_string parts = split( line, ' ' );
       if( !( timestamp_fix < parts.size() ) || !( frame_ix_fix < parts.size() ) ) {
         rt_err( strprintf( "can't parse timestamp and frame_ix from fields %s and %s; line had %s fields; full line=%s\n",
@@ -236,7 +237,7 @@ namespace boda
       data_stream_file_t::data_stream_init( nia );
       data_block_t header;
       mfsr.read_line_as_block( header );
-      printf( "  text stream header.sz=%s\n", str(header.sz).c_str() );
+      printf( "  text stream header.sz()=%s\n", str(header.sz()).c_str() );
     }
   };
 
@@ -372,6 +373,7 @@ namespace boda
           }
         }
         if( ret_valid ) {
+          ret.timestamp_ns = pdb.timestamp_ns;
           ret.frame_ix = next_frame_ix;
           ++next_frame_ix;
           ret.subblocks->at(psix) = pdb;
@@ -424,7 +426,6 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     uint64_t num_to_proc; //NESI(default=0,help="read/write this many records; zero for unlimited")
-    uint32_t full_dump_ix; //NESI(default="-1",help="for this sub-stream (if it exists), dump all block sizes")
     p_data_stream_t stream; //NESI(req=1,help="input data stream")
 
     uint64_t tot_num_proc;
@@ -437,28 +438,16 @@ namespace boda
         if( num_to_proc && (tot_num_proc == num_to_proc) ) { break; } // proc'd req'd # of blocks --> done
         data_block_t db = stream->proc_block(data_block_t());
         if( !db.valid() ) { break; } // not more data --> done
-        if( verbose ) {
-          printf( "-- stream: frame_ix=%s ts=%s sz=%s @ %s\n",
-                  str(db.frame_ix).c_str(), str(db.timestamp_ns).c_str(), str(db.sz).c_str(), stream->get_pos_info_str().c_str() );
+        if( db.valid() && (verbose || (tot_num_proc == 0) ) ) {
+          printf( "-- stream: db=%s @ %s\n", db.info_str().c_str(), stream->get_pos_info_str().c_str() );
         }
         // FIXME: make this recursive wrt subblocks or the like?
-        if( db.d.get() ) { // if db has data, check timestamp (old non-multi-stream-scan functionality)
+        if( db.nda.get() ) { // if db has data, check timestamp (old non-multi-stream-scan functionality)
           if( db.timestamp_ns <= last_ts ) {
             printf( "**ERROR: ts did not increase: db.timestamp_ns=%s last_ts=%s stream->get_pos_info_str()=%s\n",
                     str(db.timestamp_ns).c_str(), str(last_ts).c_str(), str(stream->get_pos_info_str()).c_str() );
           }
           last_ts = db.timestamp_ns;
-        }
-        if( db.subblocks.get() ) { // if db has sub-blocks, maybe dump some info on them (old multi-stream-scan functionality)
-          if( verbose ) { printf( "----\n" ); }
-          for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
-            data_block_t const & sdb = db.subblocks->at(i);
-            // if block valid, and: on first block, or if verbose, or if this is the full-dump-stream-ix substream
-            if( sdb.valid() && (verbose || (i == full_dump_ix) || (tot_num_proc == 0) ) ) {
-              printf( "substream[%s] frame_ix=%s ts=%s sz=%s\n",
-                      str(i).c_str(), str(sdb.frame_ix).c_str(), str(sdb.timestamp_ns).c_str(), str(sdb.sz).c_str() );
-            }            
-          }
         }
         ++tot_num_proc;
       }

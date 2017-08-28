@@ -26,7 +26,7 @@ namespace boda
                                      // bases=["data_stream_file_t"], type_id="mxnet-brick-src")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    vect_data_block_t parts;
+    vect_p_nda_t parts;
 
     void consume_padding( uint32_t const & len ) {
       uint32_t const pad = u32_ceil_align( len, 4 ) - len;
@@ -70,25 +70,25 @@ namespace boda
         }
       }
       assert_st( !parts.empty() );
-      if( parts.size() == 1 ) { ret = parts[0]; parts.clear(); }
+      if( parts.size() == 1 ) { ret.nda = parts[0]; parts.clear(); }
       else {
         //printf( "parts.size()=%s\n", str(parts.size()).c_str() );
         // stitch parts: 1) get size. 2) alloc. 3) copy. // FIXME: test!
         uint64_t tot_sz = 0;
-        for( vect_data_block_t::const_iterator i = parts.begin(); i != parts.end(); ++i ) {
+        for( vect_p_nda_t::const_iterator i = parts.begin(); i != parts.end(); ++i ) {
           if( i != parts.begin() ) { tot_sz += sizeof(mxnet_brick_magic); } // will join parts with magic val
-          tot_sz += (*i).sz;
+          tot_sz += (*i)->dims.bytes_sz();
         }
-        ret.sz = tot_sz;
-        ret.d = ma_p_uint8_t( ret.sz, boda_default_align );
+        ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(tot_sz)}, "uint8_t" } );
+
         uint64_t pos = 0;
-        for( vect_data_block_t::const_iterator i = parts.begin(); i != parts.end(); ++i ) {
+        for( vect_p_nda_t::const_iterator i = parts.begin(); i != parts.end(); ++i ) {
           if( i != parts.begin() ) { // join parts with magic val
-            std::copy( (uint8_t const *)&mxnet_brick_magic, ((uint8_t const *)&mxnet_brick_magic)+sizeof(mxnet_brick_magic), ret.d.get()+pos ); 
+            std::copy( (uint8_t const *)&mxnet_brick_magic, ((uint8_t const *)&mxnet_brick_magic)+sizeof(mxnet_brick_magic), (uint8_t *)ret.d()+pos ); 
             pos += sizeof(mxnet_brick_magic);
           }
-          std::copy( (*i).d.get(), (*i).d.get()+(*i).sz, ret.d.get()+pos );      
-          pos += (*i).sz;
+          std::copy( (uint8_t *)(*i)->rp_elems(), (uint8_t *)(*i)->rp_elems()+(*i)->dims.bytes_sz(), (uint8_t *)ret.d()+pos );      
+          pos += (*i)->dims.bytes_sz();
         }
         assert_st( pos == tot_sz );
       }
@@ -123,24 +123,24 @@ namespace boda
     }
     
     virtual data_block_t proc_block( data_block_t const & db ) {
-      if( !( db.sz < mxnet_brick_max_rec_sz ) ) { rt_err( strprintf( "mxnet_brick_max_rec_sz=%s but db.sz=%s",
-                                                                     str(mxnet_brick_max_rec_sz).c_str(), str(db.sz).c_str() ) ); }
+      if( !( db.sz() < mxnet_brick_max_rec_sz ) ) { rt_err( strprintf( "mxnet_brick_max_rec_sz=%s but db.sz=%s",
+                                                                       str(mxnet_brick_max_rec_sz).c_str(), str(db.sz()).c_str() ) ); }
       // split payload at every occurance of magic number
-      uint32_t const * const src_data = (uint32_t const *)db.d.get();
+      uint32_t const * const src_data = (uint32_t const *)db.d();
       uint32_t final_cflag = 0;
       uint32_t next_part_cflag = 1;
       uint64_t spos = 0;
-      for( uint64_t i = 0; i < (db.sz>>2); ++i ) {
+      for( uint64_t i = 0; i < (db.sz()>>2); ++i ) {
         if( src_data[i] == mxnet_brick_magic ) {
           uint64_t const ipos = i << 2;
           final_cflag = 3;
-          write_chunk( next_part_cflag, db.d.get()+spos, ipos - spos );
+          write_chunk( next_part_cflag, (uint8_t *)db.d()+spos, ipos - spos );
           spos = ipos + 4;
           next_part_cflag = 2;
         }
       }
-      write_chunk( final_cflag, db.d.get()+spos, db.sz - spos ); // last record (may be zero size)
-      uint32_t const pad = u32_ceil_align( db.sz, 4 ) - db.sz; // padding
+      write_chunk( final_cflag, (uint8_t *)db.d()+spos, db.sz() - spos ); // last record (may be zero size)
+      uint32_t const pad = u32_ceil_align( db.sz(), 4 ) - db.sz(); // padding
       uint32_t const zero = 0;
       bwrite_bytes( *out, (char * const)&zero, pad );
       return db;
@@ -182,16 +182,14 @@ namespace boda
           }
         }
         block_hash = boost::hash_range( gen_data.begin(), gen_data.end() );
-        ret.sz = gen_data.size();
-        ret.d = ma_p_uint8_t( ret.sz, boda_default_align );
+        ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(gen_data.size())}, "uint8_t" } );
         ret.frame_ix = tot_num_gen;
         ret.timestamp_ns = tot_num_gen;
-        std::copy( gen_data.begin(), gen_data.end(), ret.d.get() ); 
+        std::copy( gen_data.begin(), gen_data.end(), (uint8_t *)ret.d() ); 
       } else {
         // last block was gen'd data. send it's hash.
-        ret.sz = sizeof(size_t);
-        ret.d = ma_p_uint8_t( ret.sz, boda_default_align );
-        std::copy( (uint8_t const *)&block_hash, ((uint8_t const *)&block_hash)+sizeof(block_hash), ret.d.get() );
+        ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(sizeof(size_t))}, "uint8_t" } );
+        std::copy( (uint8_t const *)&block_hash, ((uint8_t const *)&block_hash)+sizeof(block_hash), (uint8_t *)ret.d() );
       }
       ret.frame_ix = tot_num_gen;
       ret.timestamp_ns = tot_num_gen;
@@ -220,13 +218,13 @@ namespace boda
     virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( db.valid() ); // don't pass invalid blocks?
       if( !(tot_num_read & 1) ) {
-        block_hash = boost::hash_range( db.d.get(), db.d.get() + db.sz ); // cache hash
+        block_hash = boost::hash_range( (uint8_t *)db.d(), (uint8_t *)db.d() + db.sz() ); // cache hash
       } else {
-        if( db.sz != sizeof(size_t) ) {
-          rt_err( strprintf( "expected hash-only block at tot_num_read=%s, but db.sz=%s\n",
-                             str(tot_num_read).c_str(), str(db.sz).c_str() ) );
+        if( db.sz() != sizeof(size_t) ) {
+          rt_err( strprintf( "expected hash-only block at tot_num_read=%s, but db.sz()=%s\n",
+                             str(tot_num_read).c_str(), str(db.sz()).c_str() ) );
         }
-        size_t const fs_block_hash = *((size_t *)db.d.get());
+        size_t const fs_block_hash = *((size_t *)db.d());
         if( fs_block_hash != block_hash ) {
           rt_err( strprintf( "block hash compare failure: fs_block_hash=%s block_hash=%s\n",
                              str(fs_block_hash).c_str(), str(block_hash).c_str() ) );

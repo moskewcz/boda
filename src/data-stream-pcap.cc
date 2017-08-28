@@ -149,10 +149,10 @@ namespace boda
             rt_err( strprintf( "rec_hdr.incl_len=%s rec_hdr.orig_len=%s, but expected_packet_size=%s (if == orig_len but incl_len is smaller, packet was truncated in capture. otherwise, if orig_len == incl_len, the stream is correct/unsupported)\n", str(rec_hdr.incl_len).c_str(), str(rec_hdr.orig_len).c_str(), str(expected_packet_size).c_str() ) );
           }
           if( udp_dest_port && (ntohs(udp_hdr->dest) != *udp_dest_port) ) { mfsr.consume_and_discard_bytes( udp_payload_sz ); continue; } // skip packet 
-          else { ret = mfsr.consume_borrowed_block( udp_payload_sz ); }
+          else { ret.nda = mfsr.consume_borrowed_block( udp_payload_sz ); }
         } else {
           // FIXME: for now, we just pass along the incl_len part, and we discard orig_len ...
-          ret = mfsr.consume_borrowed_block( rec_hdr.incl_len );
+          ret.nda = mfsr.consume_borrowed_block( rec_hdr.incl_len );
         }
         ret.timestamp_ns = (uint64_t(rec_hdr.ts_sec)*1000*1000+uint64_t(rec_hdr.ts_usec))*1000;
         return ret;
@@ -201,7 +201,7 @@ namespace boda
       uint64_t timestamp_us = db.timestamp_ns / 1000;
       rec_hdr.ts_sec = timestamp_us / ( 1000 * 1000 );
       rec_hdr.ts_usec = timestamp_us % ( 1000 * 1000 );
-      uint64_t rec_len = db.sz;
+      uint64_t rec_len = db.sz();
       if( add_header ) { rec_len += add_header_bytes; }
       rec_hdr.incl_len = rec_len;
       rec_hdr.orig_len = rec_len; // FIXME: as per comment in reader, we don't know this here ...
@@ -219,7 +219,7 @@ namespace boda
         assert_st( !( sizeof(ip_hdr) & 0x3 ) );
         ip_hdr.ip_hl = sizeof(ip_hdr) >> 2;
         ip_hdr.ip_p = 17;
-        ip_hdr.ip_len = htons( uint16_t( sizeof(ip) + sizeof(udphdr) + db.sz ));
+        ip_hdr.ip_len = htons( uint16_t( sizeof(ip) + sizeof(udphdr) + db.sz() ));
         ip_hdr.ip_id = htons( uint16_t( 1 ) );
         ip_hdr.ip_ttl = 128;
         ip_hdr.ip_sum = in_cksum( (uint16_t *)&ip_hdr, sizeof(ip_hdr) >> 1 );
@@ -227,10 +227,10 @@ namespace boda
         udphdr udp_hdr = {};
         udp_hdr.source = htons( uint16_t( header_upd_sport ) );
         udp_hdr.dest = htons( uint16_t( header_upd_dport ) );
-        udp_hdr.len = htons( uint16_t( sizeof(udp_hdr) + db.sz ) );
+        udp_hdr.len = htons( uint16_t( sizeof(udp_hdr) + db.sz() ) );
         bwrite_bytes( *out, (char const *)&udp_hdr, sizeof(udp_hdr) );
       }
-      bwrite_bytes( *out, (char const *)db.d.get(), db.sz );
+      bwrite_bytes( *out, (char const *)db.d(), db.sz() );
       return db;
     }
     

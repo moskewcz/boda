@@ -124,17 +124,17 @@ namespace boda
       uint16_t last_ub_rot = uint16_t_const_max;
       while( !ret_db.valid() ) {
         vps_db = vps->proc_block(data_block_t());
-        if( !vps_db.d.get() ) { return db; } // not enough data for another frame, give up
-        if( vps_db.sz != packet_sz ) { rt_err(
-            strprintf( "lidar decode expected packet_sz=%s but got block with dv.sz=%s",
-                       str(packet_sz).c_str(), str(vps_db.sz).c_str() ) ); }
+        if( !vps_db.valid() ) { return db; } // src at end-of-stream, return end-of-stream
+        if( vps_db.sz() != packet_sz ) { rt_err(
+            strprintf( "lidar decode expected packet_sz=%s but got block with dv.sz()=%s",
+                       str(packet_sz).c_str(), str(vps_db.sz()).c_str() ) ); }
         if( verbose > 10 ) { printf( "data_stream_velodyne: %s\n", str(vps_db).c_str() ); }
-        status_info_t const * si = (status_info_t *)(vps_db.d.get()+fb_sz*fbs_per_packet);
+        status_info_t const * si = (status_info_t *)( (uint8_t *)vps_db.d()+fb_sz*fbs_per_packet);
         if( enable_proc_status ) { proc_status( vps_db, *si ); }
         if( verbose > 10 ) { printf( "  packet: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
                                      str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
         for( uint32_t fbix = 0; fbix != fbs_per_packet; ++fbix ) {
-          block_info_t const * bi = (block_info_t *)(vps_db.d.get()+fb_sz*fbix);
+          block_info_t const * bi = (block_info_t *)( (uint8_t *)vps_db.d()+fb_sz*fbix);
           uint32_t laser_id_base = 0;
           if( tot_lasers == 64 ) {
             if( bi->block_id != ( (fbix&1) ? 0xddff : 0xeeff ) ) {
@@ -206,9 +206,7 @@ namespace boda
                   out_nda->at2( j, i ) = buf_nda->at2( j, buf_rot );
                 }
               }
-              ret_db.nda_dims = out_dims;
-              ret_db.d = out_nda->get_internal_data();
-              ret_db.sz = out_dims.bytes_sz();
+              ret_db.nda = out_nda;
               rots_till_emit = uint32_t_const_max; // back to untriggered state
             } 
           }

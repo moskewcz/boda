@@ -55,11 +55,8 @@ namespace boda
       return ret;
     }
     // like above, but return result in a data_block_t with default/not-set timestamp
-    data_block_t consume_borrowed_block( uint64_t const block_sz ) {
-      data_block_t ret;
-      ret.sz = block_sz;
-      ret.d = consume_borrowed_raw_block( block_sz );
-      return ret;
+    p_nda_t consume_borrowed_block( uint64_t const block_sz ) {
+      return make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(block_sz)}, "uint8_t" }, consume_borrowed_raw_block( block_sz ) );
     }
     
     void bread_bytes( char * const & d, size_t const & sz ) {
@@ -94,7 +91,6 @@ namespace boda
     // read a newline-terminated text line as a block. notes: block includes newline if any found; will return rest of
     // file if no newline; doesn't set timestamp field of block.
     void read_line_as_block( data_block_t & v ) {
-      v.d.reset( (uint8_t *)fn_map->data() + pos, null_deleter<uint8_t>() ); // borrow pointer
       uint8_t *lb = (uint8_t *)fn_map->data() + pos;
       uint8_t *le = lb;
       uint8_t *de = (uint8_t *)fn_map->data() + size();
@@ -112,8 +108,7 @@ namespace boda
         if( *le == '\n' ) { ++le; break; } // regular unix "\n" newline
         ++le; // non-newline char, add to string
       }
-      v.sz = le - lb;
-      pos += v.sz; // consume str
+      v.nda = consume_borrowed_block( le - lb );
     }
 
     // note: does not read/fill-in timestamp_ns field of data_block_t, just size and data/pointer
@@ -121,10 +116,7 @@ namespace boda
       uint32_t v_len;
       read_val( v_len );
       if( v_len == uint32_t_const_max ) { rt_err( "unexpected null byte array" ); }
-      check_can_read( v_len );
-      v.sz = v_len;
-      v.d.reset( (uint8_t *)fn_map->data() + pos, null_deleter<uint8_t>() ); // borrow pointer
-      pos += v_len;
+      v.nda = consume_borrowed_block( v_len );
     }
 
   };
