@@ -23,7 +23,7 @@ namespace boda
   uint32_t lrec_get_len( uint32_t const & lrec ) { return (lrec << 3) >> 3; }
   
   struct data_stream_mxnet_brick_t : virtual public nesi, public data_stream_file_t // NESI(help="parse mxnet-brick-style-serialized data stream into data blocks",
-                                     // bases=["data_stream_file_t"], type_id="mxnet-brick")
+                                     // bases=["data_stream_file_t"], type_id="mxnet-brick-src")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     vect_data_block_t parts;
@@ -103,7 +103,7 @@ namespace boda
 
 
   struct data_sink_mxnet_brick_t : virtual public nesi, public data_stream_t // NESI(help="write sequence of blocks (i.e. records) into mxnet brick.",
-                                                       // bases=["data_stream_t"],type_id="mxnet-brick")
+                                                       // bases=["data_stream_t"],type_id="mxnet-brick-sink")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
@@ -143,7 +143,7 @@ namespace boda
       uint32_t const pad = u32_ceil_align( db.sz, 4 ) - db.sz; // padding
       uint32_t const zero = 0;
       bwrite_bytes( *out, (char * const)&zero, pad );
-      return data_block_t();
+      return db;
     }
   };
 
@@ -233,7 +233,7 @@ namespace boda
         }
       }
       ++tot_num_read;
-      return data_block_t();
+      return db;
     }
     // yeah, not the best way/place to check, but better than not checking? fails if we got an odd # of blocks (i.e. last block lost)
     // FIXME: maybe we need a stream-length check too? (to check for block level truncation?)

@@ -231,7 +231,7 @@ namespace boda
         bwrite_bytes( *out, (char const *)&udp_hdr, sizeof(udp_hdr) );
       }
       bwrite_bytes( *out, (char const *)db.d.get(), db.sz );
-      return data_block_t();
+      return db;
     }
     
   };

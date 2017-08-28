@@ -254,26 +254,31 @@ namespace boda
                                // bases=["data_stream_t"], type_id="merge")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    vect_p_data_stream_t stream; //NESI(help="input data streams")
+    vect_p_data_stream_t streams; //NESI(help="input data streams")
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
-      for( uint32_t i = 0; i != stream.size(); ++i ) {  stream[i]->data_stream_init( nia );  }
+      for( uint32_t i = 0; i != streams.size(); ++i ) {  streams[i]->data_stream_init( nia );  }
     }    
     virtual string get_pos_info_str( void ) {
       string ret = "\n";
-      for( uint32_t i = 0; i != stream.size(); ++i ) {
-        ret += "  " + str(i) + ": " + stream[i]->get_pos_info_str() + "\n";
+      for( uint32_t i = 0; i != streams.size(); ++i ) {
+        ret += "  " + str(i) + ": " + streams[i]->get_pos_info_str() + "\n";
       }
       return ret;
     }
 
     // we keep producing blocks until *all* streams are invalid, then we ret an invalid block
     virtual data_block_t proc_block( data_block_t const & db ) {
+      if( db.subblocks ) {
+        if( db.num_subblocks() != streams.size() ) {
+          rt_err( strprintf( "data_stream_merge: input data block must either have no subblocks (distribute-clone case), or have db.num_subblocks()=%s be equal to streams.size()=%s (which it is not).\n", str(db.num_subblocks()).c_str(), str(streams.size()).c_str() ) );
+        }
+      }
       data_block_t ret;
-      ret.subblocks = make_shared<vect_data_block_t>(stream.size());
+      ret.subblocks = make_shared<vect_data_block_t>(streams.size());
       bool has_valid_subblock = 0;
-      for( uint32_t i = 0; i != stream.size(); ++i ) {
-        ret.subblocks->at(i) = stream[i]->proc_block(db);
+      for( uint32_t i = 0; i != streams.size(); ++i ) {
+        ret.subblocks->at(i) = streams[i]->proc_block(db.subblocks ? db.subblocks->at(i) : db );
         if( ret.subblocks->at(i).valid() ) { has_valid_subblock = 1; }
       }
       if( !has_valid_subblock ) { ret.subblocks.reset(); }
@@ -288,7 +293,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     uint32_t sync_verbose; //NESI(default="0",help="sync-local verbosity level (max 99) -- if non-zero, locally overrides verbosity")
-    vect_p_data_stream_t stream; //NESI(help="input data streams")
+    vect_p_data_stream_t streams; //NESI(help="input data streams")
     uint64_t max_delta_ns; //NESI(default="0",help="if non-zero, refuse to emit a primary block if, for any secondary stream, no block with a timestamp <= max_detla_ns from the primary block can be found (i.e. all secondary streams must have a 'current' block).")
     uint32_t psix; //NESI(default="0",help="primary stream index (0 based)")
 
@@ -302,23 +307,23 @@ namespace boda
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       if( sync_verbose ) { verbose = sync_verbose; }
       next_frame_ix = 0;
-      if( !( psix < stream.size() ) ) { rt_err( strprintf( "psix=%s must be < stream.size()=%s\n",
-                                                           str(psix).c_str(), str(stream.size()).c_str() ) ); }
+      if( !( psix < streams.size() ) ) { rt_err( strprintf( "psix=%s must be < streams.size()=%s\n",
+                                                           str(psix).c_str(), str(streams.size()).c_str() ) ); }
       seek_buf_pos = 0;
-      for( uint32_t i = 0; i != stream.size(); ++i ) { stream[i]->data_stream_init( nia ); }
-      cur_dbs.resize( stream.size() );
-      for( uint32_t i = 0; i != stream.size(); ++i ) {
+      for( uint32_t i = 0; i != streams.size(); ++i ) { streams[i]->data_stream_init( nia ); }
+      cur_dbs.resize( streams.size() );
+      for( uint32_t i = 0; i != streams.size(); ++i ) {
         if( i == psix ) { continue; }
-        cur_dbs[i].push_back( stream[i]->proc_block(data_block_t()) );
+        cur_dbs[i].push_back( streams[i]->proc_block(data_block_t()) );
         if( !cur_dbs[i][0].valid() ) { rt_err( strprintf( "no blocks at all in stream i=%s\n", str(i).c_str() ) ); }
-        cur_dbs[i].push_back( stream[i]->proc_block(data_block_t()) );
+        cur_dbs[i].push_back( streams[i]->proc_block(data_block_t()) );
       }
     }
     
     virtual string get_pos_info_str( void ) {
       string ret = "\n";
-      for( uint32_t i = 0; i != stream.size(); ++i ) {
-        ret += "  " + str(i) + ": " + stream[i]->get_pos_info_str() + "\n";
+      for( uint32_t i = 0; i != streams.size(); ++i ) {
+        ret += "  " + str(i) + ": " + streams[i]->get_pos_info_str() + "\n";
       }
       return ret;
     }
@@ -339,19 +344,19 @@ namespace boda
       }
       
       while ( 1 ) {
-        data_block_t pdb = stream[psix]->proc_block(db);
+        data_block_t pdb = streams[psix]->proc_block(db);
         data_block_t ret;
         if( !pdb.valid() ) { return ret; } // done
-        ret.subblocks = make_shared<vect_data_block_t>(stream.size());
+        ret.subblocks = make_shared<vect_data_block_t>(streams.size());
         if( verbose ) { printf( "-- psix=%s pdb.timestamp=%s\n", str(psix).c_str(), str(pdb.timestamp_ns).c_str() ); }
         bool ret_valid = 1;
-        for( uint32_t i = 0; i != stream.size(); ++i ) {
+        for( uint32_t i = 0; i != streams.size(); ++i ) {
           if( i == psix ) { continue; }
           vect_data_block_t & i_dbs = cur_dbs[i];
           assert( i_dbs.size() == 2 ); // always 2 entries, but note that head may be invalid/end-of-stream
           while( i_dbs[1].valid() && ( i_dbs[1].timestamp_ns < pdb.timestamp_ns ) ) {
             i_dbs[0] = i_dbs[1];
-            i_dbs[1] = stream[i]->proc_block(data_block_t());
+            i_dbs[1] = streams[i]->proc_block(data_block_t());
           }
           assert_st( i_dbs[0].valid() ); // tail should always be valid since we require all streams to be non-empty
           uint64_t const tail_delta = ts_delta( pdb, i_dbs[0] );
@@ -383,7 +388,35 @@ namespace boda
       }
     }
   };
-  
+
+
+  struct data_stream_pipe_t : virtual public nesi, public data_stream_t // NESI(
+                               // help="take N data streams, connect them into a pipeline, and expose the result as a data stream.",
+                               // bases=["data_stream_t"], type_id="pipe")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_p_data_stream_t pipe; //NESI(help="streams to connect into single pipeline")
+
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      for( uint32_t i = 0; i != pipe.size(); ++i ) {  pipe[i]->data_stream_init( nia );  }
+    }    
+    virtual string get_pos_info_str( void ) {
+      string ret = "\n";
+      for( uint32_t i = 0; i != pipe.size(); ++i ) {
+        ret += "  pipe stage " + str(i) + ": " + pipe[i]->get_pos_info_str() + "\n";
+      }
+      return ret;
+    }
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
+      for( uint32_t i = 0; i != pipe.size(); ++i ) {
+        ret = pipe[i]->proc_block( ret );
+        if( !ret.valid() ) { break; } // terminate pipe on end-of-stream at any point after first stage, and return end-of-stream
+      }
+      return ret;
+    }
+  };
+
   struct scan_data_stream_t : virtual public nesi, public has_main_t // NESI(
                                     // help="scan data stream ",
                                     // bases=["has_main_t"], type_id="scan-data-stream")
@@ -392,29 +425,27 @@ namespace boda
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     uint64_t num_to_proc; //NESI(default=0,help="read/write this many records; zero for unlimited")
     uint32_t full_dump_ix; //NESI(default="-1",help="for this sub-stream (if it exists), dump all block sizes")
-    p_data_stream_t src; //NESI(req=1,help="input data stream")
-    p_data_stream_t sink; //NESI(help="output data sink")
+    p_data_stream_t stream; //NESI(req=1,help="input data stream")
 
     uint64_t tot_num_proc;
     
     void main( nesi_init_arg_t * nia ) {
       tot_num_proc = 0;
-      src->data_stream_init( nia );
-      if( sink ) { sink->data_stream_init( nia ); }
+      stream->data_stream_init( nia );
       uint64_t last_ts = 0;
       while( 1 ) {
         if( num_to_proc && (tot_num_proc == num_to_proc) ) { break; } // proc'd req'd # of blocks --> done
-        data_block_t db = src->proc_block(data_block_t());
+        data_block_t db = stream->proc_block(data_block_t());
         if( !db.valid() ) { break; } // not more data --> done
         if( verbose ) {
-          printf( "-- src: frame_ix=%s ts=%s sz=%s @ %s\n",
-                  str(db.frame_ix).c_str(), str(db.timestamp_ns).c_str(), str(db.sz).c_str(), src->get_pos_info_str().c_str() );
+          printf( "-- stream: frame_ix=%s ts=%s sz=%s @ %s\n",
+                  str(db.frame_ix).c_str(), str(db.timestamp_ns).c_str(), str(db.sz).c_str(), stream->get_pos_info_str().c_str() );
         }
         // FIXME: make this recursive wrt subblocks or the like?
         if( db.d.get() ) { // if db has data, check timestamp (old non-multi-stream-scan functionality)
           if( db.timestamp_ns <= last_ts ) {
-            printf( "**ERROR: ts did not increase: db.timestamp_ns=%s last_ts=%s src->get_pos_info_str()=%s\n",
-                    str(db.timestamp_ns).c_str(), str(last_ts).c_str(), str(src->get_pos_info_str()).c_str() );
+            printf( "**ERROR: ts did not increase: db.timestamp_ns=%s last_ts=%s stream->get_pos_info_str()=%s\n",
+                    str(db.timestamp_ns).c_str(), str(last_ts).c_str(), str(stream->get_pos_info_str()).c_str() );
           }
           last_ts = db.timestamp_ns;
         }
@@ -429,7 +460,6 @@ namespace boda
             }            
           }
         }
-        if( sink ) { sink->proc_block( db ); }
         ++tot_num_proc;
       }
     }

@@ -35,7 +35,7 @@ namespace boda
 
   // by convention:
   //  -- 'source' data_stream_t's are passed a default/empty data block (which they use generally use as a template). they generally do something like read a file as a side-effect.
-  //  -- 'sink' data_stream_t's don't return anything of interest (i.e. they always return a null data block), but do something as a side-effect on each call: write a file, etc.
+  //  -- 'sink' data_stream_t's don't return anything of interest (i.e. they always echo the input block), but do something as a side-effect on each call: write a file, etc.
   //  -- 'xform' data_stream_t's transform/filter data blocks. they might keep some internal state as well.
   //
   // in general, seeking has stream-defined semantics, and if often not implemeneted (and/or not sensible). but for
