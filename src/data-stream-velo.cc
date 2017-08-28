@@ -87,6 +87,9 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    // FIXME/NOTE: since this stream reads many packets from vps per-packet that it emits, we can't replace the usage of
+    // vps here with a pipe. in general, this falls into the category of more general firing patterns and connections
+    // that pipes support (which is one stick and 1-in-1-out per firing for all stages).
     p_data_stream_t vps; //NESI(req=1,help="underlying velodyne packet stream")
 
     uint32_t fbs_per_packet; //NESI(default="12",help="firing blocks per packet")
