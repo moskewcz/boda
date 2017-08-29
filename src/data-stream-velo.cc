@@ -218,6 +218,8 @@ namespace boda
           buf_nda_rot += 1; if( buf_nda_rot == fov_rot_samps ) { buf_nda_rot = 0; } // FIXME: don't we have inc_mod for this?
         }
       }
+      ret_db.meta = "lidar";
+      ret_db.tag = "lidar-velodyne-" + str(tot_lasers);
       ret_db.frame_ix = tot_num_read;
       ++tot_num_read;
       if( verbose ) { printf( "velodyne ret_db: %s\n", str(ret_db).c_str() ); }

@@ -21,9 +21,6 @@ namespace boda
     virtual p_img_t data_block_to_img( data_block_t const & db ) = 0;
     virtual string data_block_to_str( data_block_t const & db ) = 0;
     virtual p_nda_t data_block_to_nda( data_block_t const & db ) = 0;
-    virtual string data_block_get_meta( data_block_t const & db ) = 0;
-    virtual string get_stream_tag( void ) = 0;
-
     // debugging iface(s) (may only have meaning for certain modes)
     virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) = 0;
   };

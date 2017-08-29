@@ -196,7 +196,9 @@ namespace boda
       mfsr.read_val( block_sz );
       if( block_sz == uint32_t_const_max ) { return ret; } // end of dumpvideo stream marker
       ret.nda = mfsr.consume_borrowed_block( block_sz ); // note: timestamp not set here
-      data_stream_file_block_done_hook( ret );
+      data_stream_file_block_done_hook( ret ); 
+      ret.meta = "image";
+      ret.tag = "camera-dumpvideo";
       return ret;
     }
   };

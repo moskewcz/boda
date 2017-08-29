@@ -22,7 +22,10 @@ namespace boda
     void const * d( void ) const { return nda->rp_elems(); }
 
     // metadata (optional in general)
-    string tdn; // if we had an array of this block, what would the name of the dim that iterated of these be (i.e. tag/type name)
+    // string tdn; // if we had an array of this block, what would the name of the dim that iterated of these be (i.e. tag/type name)
+    string tag; // descritive tag of what this is: camera, camera-front, radar-intensity, ...
+    string meta; // general class/type of data (i.e. how to set params for visualization, ...): image, lidar, radar, ... 
+
     uint64_t frame_ix; // what frame is this? zero based. const_max is invalid.
     uint64_t timestamp_ns; // data-stream-defined timestamp in nanoseconds. may not start at zero.
     p_img_t as_img; // if non-null, a image representation of this data (potentially smoothed/modified/etc)

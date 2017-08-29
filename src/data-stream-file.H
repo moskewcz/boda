@@ -16,6 +16,9 @@ namespace boda
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     filename_t fn; //NESI(req=1,help="input filename")
     p_dims_t out_dims; // NESI(help="set dims of output to this. size must match data size. if not set, will typically emit 'bytes' (1D array of uint8_t, with one dim named 'v'), but default may depend on specific file reader.")
+    p_string tag; // NESI(help="if set, set tag field in output data blocks to this. the tag field is a: descritive tag of what this is: camera, camera-front, radar-intensity, ...")
+    p_string meta; // NESI(help="if set, set meta field in output data blocks to this. the meta field is a: general class/type of data (i.e. how to set params for visualization, ...) image, lidar, radar, ... ")
+
     uint64_t tot_num_read; // num blocks read so far
     mapped_file_stream_reader mfsr;
     
@@ -29,6 +32,8 @@ namespace boda
     void data_stream_file_block_done_hook( data_block_t & ret ) {
       ret.frame_ix = tot_num_read;
       if( out_dims ) { assert_st( ret.nda ); ret.nda->reshape( *out_dims ); }
+      if( tag.get() ) { ret.tag = *tag; }
+      if( meta.get() ) { ret.meta = *meta; }
       ++tot_num_read;
       if( verbose ) { printf( "ret=%s\n", ret.info_str().c_str() ); }
     }

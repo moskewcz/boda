@@ -16,8 +16,6 @@ namespace boda
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_box_t crop; //NESI(default="0:0:0:0",help="crop pels from sides")
     string img_fmt; //NESI(req=1,help="image format; valid values '16u-grey', '32f-grey', '16u-RGGB' ")
-    string meta; //NESI(default="nda",help="if image has a natural type, specify it here (default is generic nda)")
-    string tag; //NESI(default="stream",help="descriptive short string tag for type of stream: lidar, radar, camera, ...")
     uint32_t level_adj; //NESI(default=1,help="if non-zero, adjust levels with filt_alpha LPF sliding window on per-frame min/max. otherwise (if 0), make some random assumptions about levels: 12-bit for 16u-grey/RGGB, direct-cast-to-uint8_t for 32f")
     uint32_t invert_intensity; //NESI(default=0,help="if non-zero, for greyscale outputs only, map [data_min,data_max] to [1,0] (instead of to [0,1])")
     uint32_t level_adj_log_for_float_data; //NESI(default=0,help="if non-zero, level_adj will use for log-scale normalization for float data values")
@@ -41,8 +39,6 @@ namespace boda
       if( startswith(img_fmt, "16") ) { return 2; }
       rt_err( "can't determine bytes-per-pel: unknown img_fmt: " + img_fmt );
     }
-    virtual string data_block_get_meta( data_block_t const & db ) { return meta; }
-    virtual string get_stream_tag( void ) { return tag; }
 
     virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) { samp_pt = samp_pt_; }
 
@@ -270,10 +266,7 @@ namespace boda
       return p_img_t();
     } 
     virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_null_t:to-strnot-implemented>"; } 
-    virtual string data_block_get_meta( data_block_t const & db ) { return string("null"); }
-    virtual p_nda_t data_block_to_nda( data_block_t const & db ) { return p_nda_t(); }
-    virtual string get_stream_tag( void ) { return string("null"); }
-   
+    virtual p_nda_t data_block_to_nda( data_block_t const & db ) { return p_nda_t(); }   
   };
 
   struct data_to_img_lidar_t : virtual public nesi, public data_to_img_t // NESI(help="consume velodyne lidar data blocks (packets) and return nothing (null images)",
@@ -290,13 +283,11 @@ namespace boda
       return p_img_t();
     }
     virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_lidar_t:to-str-not-implemented>"; } 
-    virtual string data_block_get_meta( data_block_t const & db ) { return string("lidar"); }
     // FIXME: plan is to remove the following after pipe-based-img-conv stuff is added ... 'to_nda' will always be just db.nda in all cases.
     virtual p_nda_t data_block_to_nda( data_block_t const & db ) { 
       if( !db.nda ) { rt_err( "<unsurprising internal error: data_to_img_lidar expected nda to be set, but it wasn't>" ); }
       return db.nda;
     }
-    virtual string get_stream_tag( void ) { return string("lidar"); }
   };
 
 #include"gen/data-to-img.H.nesi_gen.cc"
