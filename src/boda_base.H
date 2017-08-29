@@ -672,7 +672,8 @@ namespace boda
   };
 
   typedef vector< dims_t > vect_dims_t; 
-
+  typedef shared_ptr< dims_t > p_dims_t; 
+  
   // note: iterates over last/fast dim innermost.
   struct dims_iter_t {
     vect_uint32_t b;
@@ -739,6 +740,7 @@ namespace boda
     void const * rp_elems( void ) const { return (void const *)d.get(); }
     void * rp_elems( void ) { return (void *)d.get(); }
     p_uint8_t const & get_internal_data( void ) { return d; } // be careful with this ...
+    void reshape( dims_t const & new_dims );
   protected:
     p_uint8_t d;
   public:

@@ -14,7 +14,6 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    p_u32_pt_t frame_sz; //NESI(help="if set, use fixed X/Y frame size for all blocks. otherwise, use block nda_dims to get frame size per-block")
     u32_box_t crop; //NESI(default="0:0:0:0",help="crop pels from sides")
     string img_fmt; //NESI(req=1,help="image format; valid values '16u-grey', '32f-grey', '16u-RGGB' ")
     string meta; //NESI(default="nda",help="if image has a natural type, specify it here (default is generic nda)")
@@ -57,7 +56,6 @@ namespace boda
     }
     
     virtual void data_to_img_init( nesi_init_arg_t * const nia ) {
-      if( frame_sz ) { set_frame_sz( *frame_sz ); }
       samp_pt = i32_pt_t(-1,-1); // invalid/sentinel value to suppress samp_pt prinouts
       rgb_levs_filt_min = float_const_min;
       rgb_levs_filt_rng = 0; 
@@ -75,12 +73,13 @@ namespace boda
     // return false if end-of-stream, true otherwise
     bool maybe_set_per_block_frame_sz( data_block_t const & db ) {
       if( !db.valid() ) { return false; } // end-of-stream: return failure      
-      // if in auto/per-block frame size mode, set frame size if needed
-      if( !frame_sz.get() ) {
-        if( !db.nda ) { rt_err( "data_to_img_raw: frame_sz not set, but data block didn't have nda_dims set. can't determine image dims." ); }
-        set_frame_sz( get_xy_dims_strict( db.nda->dims ) );
-        if( db.nda->dims.tsz() != get_bytes_per_pel() ) { rt_err( strprintf( "nda dims / pel format byte size mismatch: db.nda_dims.tsz()=%s but get_bytes_per_pel()=%s\n", str(db.nda->dims.tsz()).c_str(), str(get_bytes_per_pel()).c_str() ) ); }
-      }
+      // set frame size based on nda dims
+      if( !db.nda ) { rt_err( "data_to_img_raw: frame_sz not set, but data block didn't have nda_dims set. can't determine image dims." ); }
+      dim_t const * const c_dim = db.nda->dims.get_dim_by_name("c");
+      uint32_t const chans = c_dim ? c_dim->sz : 1;
+      set_frame_sz( get_xy_dims( db.nda->dims ) );
+      if( (db.nda->dims.tsz() * chans) != get_bytes_per_pel() ) { rt_err( strprintf( "nda dims / pel format byte size mismatch: db.nda_dims.tsz()=%s but get_bytes_per_pel()=%s\n", str(db.nda->dims.tsz()).c_str(), str(get_bytes_per_pel()).c_str() ) ); }
+
       if( db.sz() != frame_sz_bytes.v ) {
         rt_err( strprintf( "error: can't convert data block to string, had db.sz=%s but frame_sz_bytes.v=%s\n",
                            str(db.sz()).c_str(), str(frame_sz_bytes.v).c_str() ) );

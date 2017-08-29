@@ -15,6 +15,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     filename_t fn; //NESI(req=1,help="input filename")
+    p_dims_t out_dims; // NESI(help="set dims of output to this. size must match data size. if not set, will typically emit 'bytes' (1D array of uint8_t, with one dim named 'v'), but default may depend on specific file reader.")
     uint64_t tot_num_read; // num blocks read so far
     mapped_file_stream_reader mfsr;
     
@@ -27,6 +28,7 @@ namespace boda
     }
     void data_stream_file_block_done_hook( data_block_t & ret ) {
       ret.frame_ix = tot_num_read;
+      if( out_dims ) { assert_st( ret.nda ); ret.nda->reshape( *out_dims ); }
       ++tot_num_read;
       if( verbose ) { printf( "ret=%s\n", ret.info_str().c_str() ); }
     }

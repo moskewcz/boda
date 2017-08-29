@@ -73,6 +73,15 @@ namespace boda
     return "(" + ret + ")";
   }
 
+  void nda_t::reshape( dims_t const & new_dims ) {
+    if( !dims.valid() ) { rt_err( "nda_t::reshape(): current dims not valid" ); }
+    if( !d.get() ) { rt_err( "nda_t::reshape(): d not valid (no data)" ); }
+    if( !new_dims.valid() ) { rt_err( "nda_t::reshape(): new dims not valid" ); }
+    if( dims.bytes_sz() != new_dims.bytes_sz() ) { rt_err( strprintf( "nda_t::reshape(): new_dims=%s incompatible with existing dims=%s: different size in bytes.",
+                                                                      str(dims).c_str(), str(new_dims).c_str() ) ); }
+    dims = new_dims;
+  }
+
   void boda_dirs_init( void ) {
     path pse_dir_dir = read_symlink( path("/proc")/"self"/"exe" ).parent_path().parent_path();
     py_boda_dir_static = pse_dir_dir.string();
