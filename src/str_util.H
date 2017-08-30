@@ -105,6 +105,12 @@ namespace boda
     return s.str();
   }
 
+  // convert T i to string, but force uint8_t to wider/numeric type first
+  template< typename T > inline std::string strN(T const & i) { return str(i); }
+  template<> inline std::string strN( uint8_t const & i ) { return str(uint16_t(i)); }
+  template<> inline std::string strN( int8_t const & i ) { return str(int16_t(i)); }
+
+  
   struct string_scoped_prefixer_t {
     std::string & s;
     uint32_t const orig_sz; 
