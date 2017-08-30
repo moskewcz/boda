@@ -25,6 +25,9 @@ LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2
 LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 
+[OSMesa]
+LDFLAGS := $(LDFLAGS) -lOSMesa -lm -lGLU
+
 [protobuf]
 PROTOBUF_LIB := /mnt/gluster/exp/lib
 LDFLAGS := $(LDFLAGS) -L$(PROTOBUF_LIB) -lprotobuf
@@ -92,7 +95,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
-os-render.o
+os-render.o OSMesa
 data-stream-velo.o
 data-stream-pcap.o
 data-stream-mxnet.o
