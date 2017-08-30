@@ -6,9 +6,36 @@
 #include"asio_util.H"
 #include"data-stream.H"
 #include"data-to-img.H"
+#include"ext/half.hpp" // for printing nda elems, which might be half
 
 namespace boda 
 {
+
+  struct nda_sample_dump_t {
+    std::ostream & out;
+    i32_pt_t pt;
+    nda_sample_dump_t( std::ostream & out_, i32_pt_t const & pt_  ) : out(out_), pt(pt_) {}
+    template< typename T > void op( nda_t const & nda ) const { 
+      T const * const elems = static_cast<T const *>(nda.rp_elems());
+      assert_st( elems );
+      dims_t const & dims = nda.dims;
+      uint32_t const ys = dims.dstride("y");
+      uint32_t const xs = dims.dstride("x");
+      uint32_t const yb = (pt.d[1]|1) - 1;
+      uint32_t const xb = (pt.d[0]|1) - 1;
+      printf( "yb=%s xb=%s: \n", str(yb).c_str(), str(xb).c_str() );
+      for( uint32_t y = yb; y < yb+2; ++y ) {
+        printf("   ");
+        for( uint32_t x = xb; x < xb+2; ++x ) {
+          uint32_t off = y*ys + x*xs;
+          for( uint32_t c = 0; c != xs; ++c ) { printstr( (c?",":" ") + strN(elems[off+c]) ); }
+        }
+        printf("\n");
+      }
+    }
+  };
+
+  
   // FIXME: dupe'd code with display_pil_t
   struct display_raw_vid_t : virtual public nesi, public has_main_t // NESI(
                              // help="display frame from data stream file in video window",
@@ -29,7 +56,10 @@ namespace boda
 
     vect_p_img_t in_imgs;
     data_block_t db;
-    
+
+    uint32_t samp_pt_sbix;
+    i32_pt_t samp_pt;
+
     void on_frame( error_code const & ec ) {
       if( ec ) { return; }
       assert( !ec );
@@ -39,6 +69,11 @@ namespace boda
       read_next_block();
     }
 
+    void proc_samp_pt( data_block_t const & db ) {
+      if( samp_pt_sbix == uint32_t_const_max ) { return; } // sampling not enabled
+      nda_dispatch( *db.subblocks->at( samp_pt_sbix ).nda, nda_sample_dump_t( std::cout, samp_pt ) );      
+    }
+    
     void read_next_block( void ) {
       assert_st( data_to_img.size() == in_imgs.size() );
       db = src->proc_block(data_block_t());
@@ -47,6 +82,7 @@ namespace boda
         rt_err( strprintf( "number of subblocks must equal number of data-to-img converters, but num_subblocks=%s and data_to_img.size()=%s\n",
                            str(db.num_subblocks()).c_str(), str(data_to_img.size()).c_str() ) );
       }
+      proc_samp_pt( db );
       bool had_new_img = 0;
       for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
         p_img_t img = db.subblocks->at(i).as_img;
@@ -72,8 +108,9 @@ namespace boda
       if( !lbe.is_key ) {
         if( lbe.img_ix != uint32_t_const_max ) {
           assert_st( lbe.img_ix < data_to_img.size() );
-          data_to_img[lbe.img_ix]->set_samp_pt( lbe.xy );
-          printf( "set_samp_pt(%s)\n", str( lbe.xy ).c_str() );
+          samp_pt_sbix = lbe.img_ix;
+          samp_pt = lbe.xy;
+          printf( "set sampling: samp_pt_sbix=%s samp_pt=%s\n", str(samp_pt_sbix).c_str(), str(samp_pt).c_str() );
         }
       }
       else if( lbe.is_key && (lbe.keycode == 'c') ) {
@@ -115,6 +152,8 @@ namespace boda
     }
 
     virtual void main( nesi_init_arg_t * nia ) {
+      samp_pt_sbix = uint32_t_const_max; // invalid/sentinel value to suppress samp_pt prinouts
+
       src->data_stream_init( nia );
       for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
         data_to_img[i]->data_to_img_init( nia );

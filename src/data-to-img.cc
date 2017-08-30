@@ -31,15 +31,12 @@ namespace boda
     u32_pt_t cur_frame_sz;
     zi_uint64_t frame_sz_bytes;
     p_img_t frame_buf;
-    i32_pt_t samp_pt;
     uint32_t get_bytes_per_pel( void ) {
       if( startswith(img_fmt, "32") ) { return 4; }
       if( startswith(img_fmt, "24") ) { return 3; }
       if( startswith(img_fmt, "16") ) { return 2; }
       rt_err( "can't determine bytes-per-pel: unknown img_fmt: " + img_fmt );
     }
-
-    virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) { samp_pt = samp_pt_; }
 
     void set_frame_sz( u32_pt_t const & sz ) {
       if( cur_frame_sz == sz ) { return; } // already set correctly
@@ -50,7 +47,6 @@ namespace boda
     }
     
     virtual void data_to_img_init( nesi_init_arg_t * const nia ) {
-      samp_pt = i32_pt_t(-1,-1); // invalid/sentinel value to suppress samp_pt prinouts
       rgb_levs_filt_min = float_const_min;
       rgb_levs_filt_rng = 0; 
     }
@@ -101,12 +97,6 @@ namespace boda
           uint32_t * const dest_data_yp1 = frame_buf->get_row_addr( y+1 );
           for( uint32_t x = 0; x < img_sz.d[0]; x += 2 ) {
             uint32_t const src_x = x;
-            if( int32_t(x|1) == (samp_pt.d[0]|1) && int32_t(y|1) == (samp_pt.d[1]|1)  ) {
-              printf( "\nx,y = %s,%s  --  %s %s\n                   %s %s\n",
-                      str(uint32_t(x)).c_str(), str(uint32_t(y)).c_str(),
-                      str(uint32_t(src_data[x])).c_str(), str(uint32_t(src_data[x+1])).c_str(),
-                      str(uint32_t(src_data_yp1[x])).c_str(), str(uint32_t(src_data_yp1[x+1])).c_str() );
-            }
             uint16_t rgb[3]; // as r,g,b
             // set raw values first
             rgb[0] = src_data[src_x+1];
