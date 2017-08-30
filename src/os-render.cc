@@ -20,6 +20,57 @@ namespace boda
     gluDeleteQuadric(q);
   }
 
+  static void
+  Cone(float base, float height, int slices, int stacks)
+  {
+    GLUquadric *q = gluNewQuadric();
+    gluQuadricDrawStyle(q, GLU_FILL);
+    gluQuadricNormals(q, GLU_SMOOTH);
+    gluCylinder(q, base, 0.0, height, slices, stacks);
+    gluDeleteQuadric(q);
+  }
+
+
+  static void
+  Torus(float innerRadius, float outerRadius, int sides, int rings)
+  {
+    /* from GLUT... */
+    int i, j;
+    GLfloat theta, phi, theta1;
+    GLfloat cosTheta, sinTheta;
+    GLfloat cosTheta1, sinTheta1;
+    const GLfloat ringDelta = 2.0 * M_PI / rings;
+    const GLfloat sideDelta = 2.0 * M_PI / sides;
+
+    theta = 0.0;
+    cosTheta = 1.0;
+    sinTheta = 0.0;
+    for (i = rings - 1; i >= 0; i--) {
+      theta1 = theta + ringDelta;
+      cosTheta1 = cos(theta1);
+      sinTheta1 = sin(theta1);
+      glBegin(GL_QUAD_STRIP);
+      phi = 0.0;
+      for (j = sides; j >= 0; j--) {
+        GLfloat cosPhi, sinPhi, dist;
+
+        phi += sideDelta;
+        cosPhi = cos(phi);
+        sinPhi = sin(phi);
+        dist = outerRadius + innerRadius * cosPhi;
+
+        glNormal3f(cosTheta1 * cosPhi, -sinTheta1 * cosPhi, sinPhi);
+        glVertex3f(cosTheta1 * dist, -sinTheta1 * dist, innerRadius * sinPhi);
+        glNormal3f(cosTheta * cosPhi, -sinTheta * cosPhi, sinPhi);
+        glVertex3f(cosTheta * dist, -sinTheta * dist,  innerRadius * sinPhi);
+      }
+      glEnd();
+      theta = theta1;
+      cosTheta = cosTheta1;
+      sinTheta = sinTheta1;
+    }
+  }
+
   
   struct data_to_img_pts_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing point cloud data) with image representations (in as_img field of data block). returns annotated data block.",
                            // bases=["data_stream_t"], type_id="add-img-pts")
@@ -88,7 +139,7 @@ namespace boda
 
       glPushMatrix();
       glRotatef(20.0, 1.0, 0.0, 0.0);
-#if 0
+
       glPushMatrix();
       glTranslatef(-0.75, 0.5, 0.0);
       glRotatef(90.0, 1.0, 0.0, 0.0);
@@ -102,7 +153,7 @@ namespace boda
       glMaterialfv( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, green_mat );
       Cone(1.0, 2.0, 16, 1);
       glPopMatrix();
-#endif
+
       glPushMatrix();
       glTranslatef(0.75, 0.0, -1.0);
       glMaterialfv( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, blue_mat );
