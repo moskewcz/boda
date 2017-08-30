@@ -14,7 +14,6 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    u32_box_t crop; //NESI(default="0:0:0:0",help="crop pels from sides")
     string img_fmt; //NESI(req=1,help="image format; valid values '16u-grey', '32f-grey', '16u-RGGB' ")
     uint32_t level_adj; //NESI(default=1,help="if non-zero, adjust levels with filt_alpha LPF sliding window on per-frame min/max. otherwise (if 0), make some random assumptions about levels: 12-bit for 16u-grey/RGGB, direct-cast-to-uint8_t for 32f")
     uint32_t invert_intensity; //NESI(default=0,help="if non-zero, for greyscale outputs only, map [data_min,data_max] to [1,0] (instead of to [0,1])")
@@ -47,8 +46,7 @@ namespace boda
       cur_frame_sz = sz;
       frame_sz_bytes.v = cur_frame_sz.dims_prod() * get_bytes_per_pel();
       frame_buf = make_shared< img_t >();
-      assert_st( cur_frame_sz.both_dims_gt( crop.bnds_sum() ) );
-      frame_buf->set_sz_and_alloc_pels( cur_frame_sz - crop.bnds_sum() );
+      frame_buf->set_sz_and_alloc_pels( cur_frame_sz );
     }
     
     virtual void data_to_img_init( nesi_init_arg_t * const nia ) {
@@ -94,17 +92,15 @@ namespace boda
         uint16_t const * const rp_frame = (uint16_t const *)(db.d());
         for( uint32_t d = 0; d != 2; ++d ) {
           assert_st( !(cur_frame_sz.d[d]&1) );
-          assert_st( !(crop.p[0].d[d]&1) );
-          assert_st( !(crop.p[1].d[d]&1) );
         }
         for( uint32_t y = 0; y < img_sz.d[1]; y += 2 ) {
-          uint32_t const src_y = crop.p[0].d[1] + y;
+          uint32_t const src_y = y;
           uint16_t const * const src_data = rp_frame + (src_y)*cur_frame_sz.d[0];
           uint16_t const * const src_data_yp1 = rp_frame + (src_y+1)*cur_frame_sz.d[0];
           uint32_t * const dest_data = frame_buf->get_row_addr( y );
           uint32_t * const dest_data_yp1 = frame_buf->get_row_addr( y+1 );
           for( uint32_t x = 0; x < img_sz.d[0]; x += 2 ) {
-            uint32_t const src_x = crop.p[0].d[0] + x;
+            uint32_t const src_x = x;
             if( int32_t(x|1) == (samp_pt.d[0]|1) && int32_t(y|1) == (samp_pt.d[1]|1)  ) {
               printf( "\nx,y = %s,%s  --  %s %s\n                   %s %s\n",
                       str(uint32_t(x)).c_str(), str(uint32_t(y)).c_str(),
@@ -134,11 +130,11 @@ namespace boda
         }
       } else if( img_fmt == "16u-grey" ) {
         for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
-          uint32_t const src_y = crop.p[0].d[1] + y;
+          uint32_t const src_y = y;
           uint16_t const * const src_data = (uint16_t const *)(db.d()) + src_y*cur_frame_sz.d[0];
           uint32_t * const dest_data = frame_buf->get_row_addr( y );
           for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
-            uint32_t const src_x = crop.p[0].d[0] + x;
+            uint32_t const src_x = x;
             uint16_t gv = src_data[src_x];
             if( level_adj ) {
               min_eq( rgb_levs_frame_min, float(gv) );
@@ -150,21 +146,21 @@ namespace boda
         }
       } else if( img_fmt == "24u-RGB" ) {
         for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
-          uint32_t const src_y = crop.p[0].d[1] + y;
+          uint32_t const src_y = y;
           uint8_t const * const src_data = (uint8_t const *)(db.d()) + src_y*cur_frame_sz.d[0]*get_bytes_per_pel();
           uint32_t * const dest_data = frame_buf->get_row_addr( y );
           for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
-            uint32_t const src_x = (crop.p[0].d[0] + x)*get_bytes_per_pel();
+            uint32_t const src_x = x*get_bytes_per_pel();
             dest_data[x] = rgba_to_pel( src_data[src_x+2], src_data[src_x+1], src_data[src_x] ); 
           }
         }
       } else if( img_fmt == "32f-grey" ) {
         for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
-          uint32_t const src_y = crop.p[0].d[1] + y;
+          uint32_t const src_y = y;
           float const * const src_data = ((float const *)db.d()) + (src_y*cur_frame_sz.d[0]);
           uint32_t * const dest_data = frame_buf->get_row_addr( y );
           for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
-            uint32_t const src_x = crop.p[0].d[0] + x;
+            uint32_t const src_x = x;
             float gv = src_data[src_x];
             if( verbose ) { printf( " %s", str(gv).c_str() ); }
             if( level_adj ) {
@@ -206,15 +202,13 @@ namespace boda
         uint16_t const * const rp_frame = (uint16_t const *)(db.d());
         for( uint32_t d = 0; d != 2; ++d ) {
           assert_st( !(cur_frame_sz.d[d]&1) );
-          assert_st( !(crop.p[0].d[d]&1) );
-          assert_st( !(crop.p[1].d[d]&1) );
         }
         for( uint32_t y = 0; y < img_sz.d[1]; y += 1 ) {
-          uint32_t const src_y = crop.p[0].d[1] + y;
+          uint32_t const src_y = y;
           uint16_t const * const src_data = rp_frame + (src_y)*cur_frame_sz.d[0];
           //uint32_t * const dest_data = frame_buf->get_row_addr( y );
           for( uint32_t x = 0; x < img_sz.d[0]; x += 1 ) {
-            uint32_t const src_x = crop.p[0].d[0] + x;
+            uint32_t const src_x = x;
             uint16_t v = src_data[src_x];
             ret += " " + str(v);
           }
@@ -222,11 +216,11 @@ namespace boda
         }
       } else if( img_fmt == "32f-grey" ) {
         for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
-          uint32_t const src_y = crop.p[0].d[1] + y;
+          uint32_t const src_y = y;
           float const * const src_data = ((float const *)db.d()) + (src_y*cur_frame_sz.d[0]);
           //uint32_t * const dest_data = frame_buf->get_row_addr( y );
           for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
-            uint32_t const src_x = crop.p[0].d[0] + x;
+            uint32_t const src_x = x;
             float gv = src_data[src_x];
             ret += " " + str(gv);
           }
