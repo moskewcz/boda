@@ -191,45 +191,6 @@ namespace boda
       }
       return frame_buf;
     }
-    string data_block_to_str( data_block_t const & db ) {
-      if( !maybe_set_per_block_frame_sz( db ) ) { return string(); } // if no data block, return no (empty) string
-      string ret;
-      u32_pt_t const & img_sz = frame_buf->sz;
-      ret += img_fmt + " " + str(img_sz) + "\n";
-      // copy and convert frame data
-      if( 0 ) {
-      } else if( img_fmt == "16u-RGGB" || img_fmt == "16u-grey" ) {
-        uint16_t const * const rp_frame = (uint16_t const *)(db.d());
-        for( uint32_t d = 0; d != 2; ++d ) {
-          assert_st( !(cur_frame_sz.d[d]&1) );
-        }
-        for( uint32_t y = 0; y < img_sz.d[1]; y += 1 ) {
-          uint32_t const src_y = y;
-          uint16_t const * const src_data = rp_frame + (src_y)*cur_frame_sz.d[0];
-          //uint32_t * const dest_data = frame_buf->get_row_addr( y );
-          for( uint32_t x = 0; x < img_sz.d[0]; x += 1 ) {
-            uint32_t const src_x = x;
-            uint16_t v = src_data[src_x];
-            ret += " " + str(v);
-          }
-          ret += "\n";
-        }
-      } else if( img_fmt == "32f-grey" ) {
-        for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
-          uint32_t const src_y = y;
-          float const * const src_data = ((float const *)db.d()) + (src_y*cur_frame_sz.d[0]);
-          //uint32_t * const dest_data = frame_buf->get_row_addr( y );
-          for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
-            uint32_t const src_x = x;
-            float gv = src_data[src_x];
-            ret += " " + str(gv);
-          }
-          ret += "\n";
-        }
-      } else { rt_err( "can't decode frame: unknown img_fmt: " + img_fmt ); }
-      return ret;
-    }
-
     
   };
 
@@ -245,7 +206,6 @@ namespace boda
       if( verbose ) { printf( "data_to_img_null: db=%s\n", db.info_str().c_str() ); }
       return p_img_t();
     } 
-    virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_null_t:to-strnot-implemented>"; } 
     virtual p_nda_t data_block_to_nda( data_block_t const & db ) { return p_nda_t(); }   
   };
 
@@ -262,7 +222,6 @@ namespace boda
       if( verbose ) { printf( "data_to_img_lidar: db=%s\n", db.info_str().c_str() ); }
       return p_img_t();
     }
-    virtual string data_block_to_str( data_block_t const & db ) { return "<data_to_img_lidar_t:to-str-not-implemented>"; } 
     // FIXME: plan is to remove the following after pipe-based-img-conv stuff is added ... 'to_nda' will always be just db.nda in all cases.
     virtual p_nda_t data_block_to_nda( data_block_t const & db ) { 
       if( !db.nda ) { rt_err( "<unsurprising internal error: data_to_img_lidar expected nda to be set, but it wasn't>" ); }

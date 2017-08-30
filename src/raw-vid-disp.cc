@@ -82,7 +82,11 @@ namespace boda
           data_block_t & sdb = db.subblocks->at(i);
           assert_st( sdb.valid() );
           p_ostream out = ofs_open( strprintf( "src_%s-%s.csv", str(i).c_str(), str(sdb.timestamp_ns).c_str() ) );
-          (*out) << data_to_img[i]->data_block_to_str( sdb );
+          // (*out) << data_to_img[i]->data_block_to_str( sdb ); // FIXME: used to use old csv-ish format. for now, removed, but we'll dump nda with str()
+          // FIXME: should we implement a nicer to-str() for nda_t? don't we have one somewhere already? hmm. would be nive to have reference/standard python-side code for conversion/import of boda nda's into numpy or the like ..
+          (*out) << str( sdb.nda ) << "\n";
+          
+          
         }
       }
       else if( lbe.is_key && (lbe.keycode == 'd') ) { read_next_block(); auto_adv=0; }
@@ -134,3 +138,44 @@ namespace boda
   };
 #include"gen/raw-vid-disp.cc.nesi_gen.cc"
 }
+
+#if 0 // old data_block_to_str code for reference (see above)
+    string data_block_to_str( data_block_t const & db ) {
+      if( !maybe_set_per_block_frame_sz( db ) ) { return string(); } // if no data block, return no (empty) string
+      string ret;
+      u32_pt_t const & img_sz = frame_buf->sz;
+      ret += img_fmt + " " + str(img_sz) + "\n";
+      // copy and convert frame data
+      if( 0 ) {
+      } else if( img_fmt == "16u-RGGB" || img_fmt == "16u-grey" ) {
+        uint16_t const * const rp_frame = (uint16_t const *)(db.d());
+        for( uint32_t d = 0; d != 2; ++d ) {
+          assert_st( !(cur_frame_sz.d[d]&1) );
+        }
+        for( uint32_t y = 0; y < img_sz.d[1]; y += 1 ) {
+          uint32_t const src_y = y;
+          uint16_t const * const src_data = rp_frame + (src_y)*cur_frame_sz.d[0];
+          //uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          for( uint32_t x = 0; x < img_sz.d[0]; x += 1 ) {
+            uint32_t const src_x = x;
+            uint16_t v = src_data[src_x];
+            ret += " " + str(v);
+          }
+          ret += "\n";
+        }
+      } else if( img_fmt == "32f-grey" ) {
+        for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
+          uint32_t const src_y = y;
+          float const * const src_data = ((float const *)db.d()) + (src_y*cur_frame_sz.d[0]);
+          //uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
+            uint32_t const src_x = x;
+            float gv = src_data[src_x];
+            ret += " " + str(gv);
+          }
+          ret += "\n";
+        }
+      } else { rt_err( "can't decode frame: unknown img_fmt: " + img_fmt ); }
+      return ret;
+    }
+#endif
