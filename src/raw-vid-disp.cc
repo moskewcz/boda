@@ -15,10 +15,10 @@ namespace boda
     std::ostream & out;
     i32_pt_t pt;
     nda_sample_dump_t( std::ostream & out_, i32_pt_t const & pt_  ) : out(out_), pt(pt_) {}
-    template< typename T > void op( nda_t const & nda ) const { 
+    template< typename T > void op( nda_t const & nda ) const {
+      dims_t const & dims = nda.dims;
       T const * const elems = static_cast<T const *>(nda.rp_elems());
       assert_st( elems );
-      dims_t const & dims = nda.dims;
       uint32_t const ys = dims.dstride("y");
       uint32_t const xs = dims.dstride("x");
       uint32_t const yb = (pt.d[1]|1) - 1;
@@ -45,6 +45,7 @@ namespace boda
     u32_pt_t window_sz; //NESI(default="640:480",help="X/Y window size")
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
+    double cam_scale; //NESI(default=.05,help="scale camera pos by this amount before passing to stream")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
     p_data_stream_t src; //NESI(help="data stream to read images from")
@@ -70,10 +71,18 @@ namespace boda
     void proc_samp_pt( data_block_t const & db ) {
       if( samp_pt_sbix == uint32_t_const_max ) { return; } // sampling not enabled
       if( (!db.subblocks.get()) || !( samp_pt_sbix < db.num_subblocks() ) ) {
-        printf( "warning: samp_pt_sbix not in number of subblocks (or no subblocks): samp_pt_sbix=%s but db.num_subblocks()=%s.\n", str(samp_pt_sbix).c_str(), str(db.num_subblocks()).c_str() );
+        printf( "warning: samp_pt_sbix not in number of subblocks (or no subblocks): samp_pt_sbix=%s but db.num_subblocks()=%s. disabling sampling.\n", str(samp_pt_sbix).c_str(), str(db.num_subblocks()).c_str() );
+        samp_pt_sbix = uint32_t_const_max;
         return;
       }
-      nda_dispatch( *db.subblocks->at( samp_pt_sbix ).nda, nda_sample_dump_t( std::cout, samp_pt ) );      
+      p_nda_t const & nda = db.subblocks->at( samp_pt_sbix ).nda;
+      if( !(nda->dims.get_dim_by_name("x") && nda->dims.get_dim_by_name("y") ) ) {
+        printf( "warning: for samp_pt_sbix=%s: nda doesn't have x and y dims. disabling sampling.\n", str(samp_pt_sbix).c_str() );
+        samp_pt_sbix = uint32_t_const_max;
+        return; 
+      }
+
+      nda_dispatch( *nda, nda_sample_dump_t( std::cout, samp_pt ) );      
     }
 
     // FIXME: it's not clear if this is legal/valid for us to set/change in_imgs more than once at startup: disp_setup() may not be okay to re-call.
@@ -89,8 +98,23 @@ namespace boda
       disp_win.layout_mode = "vert";
       disp_win.disp_setup( in_imgs );
     }
+
+
+    void set_camera_opt( void ) {
+      data_stream_opt_t cam_opt;
+      cam_opt.name = "camera-pos-rot";
+      p_nda_float_t cam_pos_rot = make_shared<nda_float_t>( dims_t{ {2,3}, {"pr","d"}, "float" } );
+      for( uint32_t i = 0; i != 3; ++i ) {
+        cam_pos_rot->at2(0,i) = disp_win.cam_pos[i] * cam_scale;
+        cam_pos_rot->at2(1,i) = disp_win.cam_rot[i] * cam_scale;
+      }
+      cam_opt.val = cam_pos_rot;
+      src->set_opt( cam_opt );
+    }
+
     
     void read_next_block( void ) {
+      set_camera_opt();
       db = src->proc_block(data_block_t());
       if( !db.valid() ) { return; }
       if( !db.has_subblocks() ) { rt_err( strprintf( "expected subblocks, but num_subblocks=%s\n", str(db.num_subblocks()).c_str() ) ); }
@@ -111,7 +135,7 @@ namespace boda
     }
     void on_quit( error_code const & ec ) { get_io( &disp_win ).stop(); }
 
-    void on_lb( error_code const & ec ) { 
+    void on_lb( error_code const & ec ) {
       register_lb_handler( disp_win, &display_raw_vid_t::on_lb, this ); // re-register handler for next event
       lb_event_t const & lbe = get_lb_event(&disp_win);
       //printf( "lbe.is_key=%s lbe.keycode=%s\n", str(lbe.is_key).c_str(), str(lbe.keycode).c_str() );

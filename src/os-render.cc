@@ -83,7 +83,27 @@ namespace boda
 
     OSMesaContext ctx;
 
+    float cam_pos[3];
+    float cam_rot[3];
+    
+    virtual void set_opt( data_stream_opt_t const & opt ) {
+      if( opt.name == "camera-pos-rot" ) {
+        if( (!opt.val.get()) || (opt.val->dims.tn != "float") || (opt.val->elems_sz() != 6) ) {
+          rt_err( "add-img-pts: couldn't parse camera-pos opt" );
+        }
+        nda_T<float> cam_pos_rot( opt.val );
+        for( uint32_t i = 0; i != 3; ++i ) {
+          cam_pos[i] = cam_pos_rot.at2(0,i);
+          cam_rot[i] = cam_pos_rot.at2(1,i);
+        }
+        printf( "cam_pos[0]=%s cam_pos[1]=%s cam_pos[2]=%s\n", str(cam_pos[0]).c_str(), str(cam_pos[1]).c_str(), str(cam_pos[2]).c_str() );
+      }
+      
+    }
+
+    
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
       frame_buf = make_shared< img_t >();
       frame_buf->set_sz_and_alloc_pels( disp_sz );
       ctx = OSMesaCreateContextExt( OSMESA_RGBA, 16, 0, 0, NULL );
@@ -132,13 +152,18 @@ namespace boda
 
       glMatrixMode(GL_PROJECTION);
       glLoadIdentity();
-      glOrtho(-2.5, 2.5, -2.5, 2.5, -10.0, 10.0);
+      //glOrtho(-2.5, 2.5, -2.5, 2.5, -10.0, 10.0);
+      gluPerspective( 90, double( frame_buf->sz.d[0] ) / double( frame_buf->sz.d[1] ), .1, 1000 );
       glMatrixMode(GL_MODELVIEW);
 
       glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-      glPushMatrix();
-      glRotatef(20.0, 1.0, 0.0, 0.0);
+      glLoadIdentity();
+//      glRotatef(20.0, 1.0, 0.0, 0.0);
+      glRotatef( -cam_rot[2], 0.0f, 0.0f, 1.0f);
+      glRotatef( -cam_rot[1], 0.0f, 1.0f, 0.0f);
+      glRotatef( -cam_rot[0], 1.0f, 0.0f, 0.0f);
+      glTranslatef( -cam_pos[0], -cam_pos[1], -cam_pos[2] );
 
       glPushMatrix();
       glTranslatef(-0.75, 0.5, 0.0);
@@ -160,7 +185,6 @@ namespace boda
       Sphere(1.0, 20, 20);
       glPopMatrix();
 
-      glPopMatrix();
 
       /* This is very important!!!
        * Make sure buffered commands are finished!!!

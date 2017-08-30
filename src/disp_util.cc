@@ -99,7 +99,6 @@ namespace boda
     return dw->asio->quit_event;
   }
   lb_event_t & get_lb_event( disp_win_t * const dw ) {
-    dw->asio->lb_event.expires_from_now( pos_infin ); // init event so it won't happen till we set it
     return dw->asio->lb_event;
   }
 
@@ -118,7 +117,11 @@ namespace boda
     }
   }
 
-  disp_win_t::disp_win_t( void ) : zoom(0), stop_io_on_quit(1), asio( new asio_t ) { }
+  disp_win_t::disp_win_t( void ) : cam_mode(0), zoom(0), stop_io_on_quit(1), asio( new asio_t ) { reset_cam(); }
+
+  void disp_win_t::reset_cam( void ) {
+    for( uint32_t i = 0; i != 3; ++i ) { cam_rot[i] = 0.0f; cam_pos[i] = 0.0f; }
+  }
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
   // may not change after setup, but this is not checked.
@@ -223,6 +226,7 @@ namespace boda
     asio->frame_dur = microseconds( 1000 * 1000 / fps );
     asio->frame_timer.expires_from_now( time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
+    asio->lb_event.expires_from_now( pos_infin ); // init event so it won't happen till we set it
 
     // font setup
     if( TTF_Init() < 0 ) { rt_err_sdl( "Couldn't initialize TTF" ); }
@@ -320,25 +324,44 @@ namespace boda
 	if( event.button.button == SDL_BUTTON_RIGHT ) {
 	  pan_pin = i32_pt_t{event.button.x,event.button.y};
 	  pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
+          pan_orig_cam_x = cam_pos[0];
+          pan_orig_cam_y = cam_pos[1];
 	} else if( event.button.button == SDL_BUTTON_LEFT ) { asio->lb_event.set_is_lb(); on_lb( event.button.x, event.button.y ); }
 	break;
       case SDL_MOUSEMOTION:
-	if (event.motion.state&SDL_BUTTON(3)) {
-	  i32_pt_t const pan_to = pan_orig_dr + (i32_pt_t{event.motion.x,event.motion.y} - pan_pin);
-	  displayrect->x = pan_to.d[0];
-	  displayrect->y = pan_to.d[1];
-	}
+        if( cam_mode == 0 ) { // 2D-adj
+          if (event.motion.state&SDL_BUTTON(3)) {
+            i32_pt_t const pan_to = pan_orig_dr + (i32_pt_t{event.motion.x,event.motion.y} - pan_pin);
+            displayrect->x = pan_to.d[0];
+            displayrect->y = pan_to.d[1];
+          }
+        } else { // 3D-adj
+          if (event.motion.state&SDL_BUTTON(3)) {
+            i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
+            cam_pos[0] = pan_orig_cam_x - pan_to.d[0];
+            cam_pos[1] = pan_orig_cam_y - pan_to.d[1];
+          }
+        }
 	break;
       case SDL_MOUSEWHEEL:
-	zoom += event.wheel.y;
-	min_eq( zoom,  10 );
-	max_eq( zoom, -10 );
-	update_dr_for_window_and_zoom( window_sz );
+        if( cam_mode == 0 ) { // 2D-adj
+          zoom += event.wheel.y;
+          min_eq( zoom,  10 );
+          max_eq( zoom, -10 );
+          update_dr_for_window_and_zoom( window_sz );
+        } else {
+          cam_pos[2] += - event.wheel.y;
+        }
 	break;
       case SDL_KEYDOWN:
 	if( 1 ) { // generate/forward keydown event to disp_util parent/user/client
 	  int mx,my; SDL_GetMouseState( &mx, &my );
 	  asio->lb_event.set_is_key( event.key.keysym.sym ); on_lb( mx, my );
+	}
+	if( event.key.keysym.sym == SDLK_z ) {
+          cam_mode ^= 1;
+          printf( "cam_mode=%s\n", str(cam_mode).c_str() );
+	  break;
 	}
 	if( event.key.keysym.sym == SDLK_s ) {
 	  for( uint32_t i = 0; i != imgs->size(); ++i ) {

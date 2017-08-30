@@ -45,6 +45,12 @@ namespace boda {
     p_SDL_Texture tex;
 
     p_SDL_Rect displayrect;
+    uint32_t cam_mode;
+    float pan_orig_cam_x;
+    float pan_orig_cam_y;
+    float cam_pos[3];
+    float cam_rot[3];
+    void reset_cam( void );
     int32_t zoom;
     i32_pt_t pan_pin;
     i32_pt_t pan_orig_dr;
@@ -61,7 +67,7 @@ namespace boda {
     vect_p_vect_anno_t img_annos;
 
     uint64_t frame_cnt;
-
+    
     p_asio_t asio;
     
     p_TTF_Font font;
