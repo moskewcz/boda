@@ -3,14 +3,13 @@
 #include"geom_prim.H"
 #include"img_io.H"
 #include"str_util.H"
-#include"data-to-img.H"
 #include"data-stream.H"
 
 namespace boda 
 {
   
-  struct data_to_img_raw_t : virtual public nesi, public data_to_img_t // NESI(help="convert data blocks (containing raw video frames) to images",
-                           // bases=["data_to_img_t"], type_id="raw")
+  struct data_to_img_raw_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing raw video frames) with image representations (in as_img field of data block). returns annotated data block.",
+                           // bases=["data_stream_t"], type_id="add-img")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
@@ -46,18 +45,21 @@ namespace boda
       frame_buf->set_sz_and_alloc_pels( cur_frame_sz );
     }
     
-    virtual void data_to_img_init( nesi_init_arg_t * const nia ) {
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       rgb_levs_filt_min = float_const_min;
       rgb_levs_filt_rng = 0; 
     }
-    virtual p_img_t data_block_to_img( data_block_t const & db ) {
+
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
       if( level_adj && (rgb_levs_filt_min == float_const_min) ) { // init level filt on first frame
         data_block_to_img_inner( db ); // note: writes (maybe-garbage) values to frame_buf which are unused, but sets frame levels
         rgb_levs_filt_min = rgb_levs_frame_min;
         float const rgb_levs_frame_rng = rgb_levs_frame_max - rgb_levs_frame_min;
         rgb_levs_filt_rng = rgb_levs_frame_rng;
       }
-      return data_block_to_img_inner( db );
+      ret.as_img = data_block_to_img_inner( db );
+      return ret;
     }
 
     // return false if end-of-stream, true otherwise
@@ -170,10 +172,7 @@ namespace boda
       // update level filter
       if( level_adj ) {
         float const rgb_levs_frame_rng = rgb_levs_frame_max - rgb_levs_frame_min;
-        if( verbose ) {
-         printf( "rgb_levs_filt_rng=%s rgb_levs_filt_min=%s\n", str(rgb_levs_filt_rng).c_str(), str(rgb_levs_filt_min).c_str() );
-         printf( "rgb_levs_frame_min=%s rgb_levs_frame_max=%s\n", str(rgb_levs_frame_min).c_str(), str(rgb_levs_frame_max).c_str() );
-        }
+        if( verbose ) { printstr(get_pos_info_str() + "\n"); }
         rgb_levs_filt_rng *= level_filt_alpha;
         rgb_levs_filt_rng += (1.0 - level_filt_alpha)*rgb_levs_frame_rng;
         rgb_levs_filt_min *= level_filt_alpha;
@@ -181,45 +180,15 @@ namespace boda
       }
       return frame_buf;
     }
+
+    virtual string get_pos_info_str( void ) {      
+      return strprintf( "data-to-img: filter state: rgb_levs_filt_rng=%s rgb_levs_filt_min=%s rgb_levs_frame_min=%s rgb_levs_frame_max=%s",
+                        str(rgb_levs_filt_rng).c_str(), str(rgb_levs_filt_min).c_str(), str(rgb_levs_frame_min).c_str(), str(rgb_levs_frame_max).c_str() );
+    }
+
     
   };
 
-  struct data_to_img_null_t : virtual public nesi, public data_to_img_t // NESI(help="consume data blocks and return nothing (null images)",
-                           // bases=["data_to_img_t"], type_id="null")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-
-    virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) { }    
-    virtual void data_to_img_init( nesi_init_arg_t * const nia ) { }
-    virtual p_img_t data_block_to_img( data_block_t const & db ) {
-      if( verbose ) { printf( "data_to_img_null: db=%s\n", db.info_str().c_str() ); }
-      return p_img_t();
-    } 
-    virtual p_nda_t data_block_to_nda( data_block_t const & db ) { return p_nda_t(); }   
-  };
-
-  struct data_to_img_lidar_t : virtual public nesi, public data_to_img_t // NESI(help="consume velodyne lidar data blocks (packets) and return nothing (null images)",
-                           // bases=["data_to_img_t"], type_id="lidar")
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-
-    virtual void set_samp_pt( i32_pt_t const & samp_pt_ ) { }    
-    virtual void data_to_img_init( nesi_init_arg_t * const nia ) {
-    }
-    virtual p_img_t data_block_to_img( data_block_t const & db ) {
-      if( verbose ) { printf( "data_to_img_lidar: db=%s\n", db.info_str().c_str() ); }
-      return p_img_t();
-    }
-    // FIXME: plan is to remove the following after pipe-based-img-conv stuff is added ... 'to_nda' will always be just db.nda in all cases.
-    virtual p_nda_t data_block_to_nda( data_block_t const & db ) { 
-      if( !db.nda ) { rt_err( "<unsurprising internal error: data_to_img_lidar expected nda to be set, but it wasn't>" ); }
-      return db.nda;
-    }
-  };
-
-#include"gen/data-to-img.H.nesi_gen.cc"
 #include"gen/data-to-img.cc.nesi_gen.cc"
 
 }

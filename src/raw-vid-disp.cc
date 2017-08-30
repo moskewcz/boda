@@ -48,9 +48,7 @@ namespace boda
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
     p_data_stream_t src; //NESI(help="data stream to read images from")
-    vect_p_data_to_img_t data_to_img; //NESI(help="data stream to img converters (must specify same # of these as data streams)")
     disp_win_t disp_win;
-    p_vect_p_img_t disp_imgs;
     p_deadline_timer_t frame_timer;
     time_duration frame_dur;
 
@@ -71,22 +69,36 @@ namespace boda
 
     void proc_samp_pt( data_block_t const & db ) {
       if( samp_pt_sbix == uint32_t_const_max ) { return; } // sampling not enabled
+      if( (!db.subblocks.get()) || !( samp_pt_sbix < db.num_subblocks() ) ) {
+        printf( "warning: samp_pt_sbix not in number of subblocks (or no subblocks): samp_pt_sbix=%s but db.num_subblocks()=%s.\n", str(samp_pt_sbix).c_str(), str(db.num_subblocks()).c_str() );
+        return;
+      }
       nda_dispatch( *db.subblocks->at( samp_pt_sbix ).nda, nda_sample_dump_t( std::cout, samp_pt ) );      
+    }
+
+    // FIXME: it's not clear if this is legal/valid for us to set/change in_imgs more than once at startup: disp_setup() may not be okay to re-call.
+    void ensure_disp_win_setup( data_block_t const & db ) {
+      assert_st( db.has_subblocks() );
+      if( in_imgs.size() == db.num_subblocks() ) { return; } // already setup with right # of images
+      in_imgs.clear();
+      for( uint32_t i = 0; i != db.num_subblocks(); ++i ) {
+        in_imgs.push_back( make_shared<img_t>() );
+        in_imgs.back()->set_sz_and_alloc_pels( disp_sz );
+      }
+      disp_win.window_sz = window_sz;
+      disp_win.layout_mode = "vert";
+      disp_win.disp_setup( in_imgs );
     }
     
     void read_next_block( void ) {
-      assert_st( data_to_img.size() == in_imgs.size() );
       db = src->proc_block(data_block_t());
       if( !db.valid() ) { return; }
-      if( db.num_subblocks() != data_to_img.size() ) {
-        rt_err( strprintf( "number of subblocks must equal number of data-to-img converters, but num_subblocks=%s and data_to_img.size()=%s\n",
-                           str(db.num_subblocks()).c_str(), str(data_to_img.size()).c_str() ) );
-      }
+      if( !db.has_subblocks() ) { rt_err( strprintf( "expected subblocks, but num_subblocks=%s\n", str(db.num_subblocks()).c_str() ) ); }
+      ensure_disp_win_setup( db );
       proc_samp_pt( db );
       bool had_new_img = 0;
-      for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
-        p_img_t img = db.subblocks->at(i).as_img;
-        if( !img ) { img = data_to_img[i]->data_block_to_img( db.subblocks->at(i) ); }
+      for( uint32_t i = 0; i != in_imgs.size(); ++i ) {
+        p_img_t const & img = db.subblocks->at(i).as_img;
         if( !img ) { continue; }
         had_new_img = 1;
         p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz );
@@ -107,23 +119,21 @@ namespace boda
       if( 0 ) { }
       if( !lbe.is_key ) {
         if( lbe.img_ix != uint32_t_const_max ) {
-          assert_st( lbe.img_ix < data_to_img.size() );
+          assert_st( lbe.img_ix < in_imgs.size() );
           samp_pt_sbix = lbe.img_ix;
           samp_pt = lbe.xy;
           printf( "set sampling: samp_pt_sbix=%s samp_pt=%s\n", str(samp_pt_sbix).c_str(), str(samp_pt).c_str() );
         }
       }
       else if( lbe.is_key && (lbe.keycode == 'c') ) {
-        assert_st( db.num_subblocks() == data_to_img.size() );
-        for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
+        assert_st( db.has_subblocks() );
+        for( uint32_t i = 0; i != db.num_subblocks(); ++i ) {
           data_block_t & sdb = db.subblocks->at(i);
           assert_st( sdb.valid() );
           p_ostream out = ofs_open( strprintf( "src_%s-%s.csv", str(i).c_str(), str(sdb.timestamp_ns).c_str() ) );
-          // (*out) << data_to_img[i]->data_block_to_str( sdb ); // FIXME: used to use old csv-ish format. for now, removed, but we'll dump nda with str()
+          // (*out) << block_to_str( sdb ); // FIXME: used to use old csv-ish format. for now, removed, but we'll dump nda with str()
           // FIXME: should we implement a nicer to-str() for nda_t? don't we have one somewhere already? hmm. would be nive to have reference/standard python-side code for conversion/import of boda nda's into numpy or the like ..
           (*out) << str( sdb.nda ) << "\n";
-          
-          
         }
       }
       else if( lbe.is_key && (lbe.keycode == 'd') ) { read_next_block(); auto_adv=0; }
@@ -155,20 +165,13 @@ namespace boda
       samp_pt_sbix = uint32_t_const_max; // invalid/sentinel value to suppress samp_pt prinouts
 
       src->data_stream_init( nia );
-      for( uint32_t i = 0; i != data_to_img.size(); ++i ) {
-        data_to_img[i]->data_to_img_init( nia );
-        in_imgs.push_back( make_shared<img_t>() );
-        in_imgs.back()->set_sz_and_alloc_pels( disp_sz );
-      }
-      disp_win.window_sz = window_sz;
-      disp_win.layout_mode = "vert";
-      disp_win.disp_setup( in_imgs );
 
       io_service_t & io = get_io( &disp_win );
       frame_timer.reset( new deadline_timer_t( io ) );
       frame_dur = microseconds( 1000 * 1000 / fps );
       frame_timer->expires_from_now( time_duration() );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) );
+
       register_quit_handler( disp_win, &display_raw_vid_t::on_quit, this );
       register_lb_handler( disp_win, &display_raw_vid_t::on_lb, this );
       io.run();

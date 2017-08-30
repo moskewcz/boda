@@ -93,8 +93,15 @@ namespace boda
   // has requested the quit event, in which case we assume they will
   // handle things.
   io_service_t & get_io( disp_win_t * const dw ) { return dw->asio->io; }
-  deadline_timer_t & get_quit_event( disp_win_t * const dw ) { dw->stop_io_on_quit = 0; return dw->asio->quit_event; }
-  lb_event_t & get_lb_event( disp_win_t * const dw ) { return dw->asio->lb_event; }
+  deadline_timer_t & get_quit_event( disp_win_t * const dw ) {
+    dw->stop_io_on_quit = 0;
+    dw->asio->quit_event.expires_from_now( pos_infin ); // init event so it won't happen till we set it
+    return dw->asio->quit_event;
+  }
+  lb_event_t & get_lb_event( disp_win_t * const dw ) {
+    dw->asio->lb_event.expires_from_now( pos_infin ); // init event so it won't happen till we set it
+    return dw->asio->lb_event;
+  }
 
   void on_frame( disp_win_t * const dw, error_code const & ec ) {
     if( ec ) { return; } // handle?
@@ -216,8 +223,6 @@ namespace boda
     asio->frame_dur = microseconds( 1000 * 1000 / fps );
     asio->frame_timer.expires_from_now( time_duration() );
     asio->frame_timer.async_wait( bind( on_frame, this, _1 ) );
-    asio->quit_event.expires_from_now( pos_infin );
-    asio->lb_event.expires_from_now( pos_infin );
 
     // font setup
     if( TTF_Init() < 0 ) { rt_err_sdl( "Couldn't initialize TTF" ); }

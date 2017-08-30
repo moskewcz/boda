@@ -32,7 +32,9 @@ namespace boda
     
     p_vect_data_block_t subblocks; // FIXME: make mapping from str->subblock? add meta data somewhere?
     data_block_t( void ) : frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
-    uint32_t num_subblocks( void ) const { return subblocks.get() ? subblocks->size() : uint32_t_const_max; }
+    bool has_subblocks( void ) const { return subblocks.get(); }
+    uint32_t num_subblocks( void ) const { return has_subblocks() ? subblocks->size() : uint32_t_const_max; }
+
     bool valid( void ) const { return nda.get() || subblocks.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
     
     string info_str( void ) const;      
