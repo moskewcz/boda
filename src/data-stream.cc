@@ -277,7 +277,7 @@ namespace boda
           rt_err( strprintf( "data_stream_merge: input data block must either have no subblocks (distribute-clone case), or have db.num_subblocks()=%s be equal to streams.size()=%s (which it is not).\n", str(db.num_subblocks()).c_str(), str(streams.size()).c_str() ) );
         }
       }
-      data_block_t ret;
+      data_block_t ret = db;
       ret.subblocks = make_shared<vect_data_block_t>(streams.size());
       bool has_valid_subblock = 0;
       for( uint32_t i = 0; i != streams.size(); ++i ) {
@@ -421,6 +421,47 @@ namespace boda
     }
   };
 
+  struct data_stream_crop_t : virtual public nesi, public data_stream_t // NESI(
+                               // help="crop input nda in X/Y dims. (note: only Y dim supported currently)",
+                               // bases=["data_stream_t"], type_id="crop")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
+    u32_box_t crop; //NESI(default="0:0:0:0",help="crop pels from sides")
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) { }
+    virtual string get_pos_info_str( void ) { return strprintf( "data_sink_crop: crop=%s <no-state>", str(crop).c_str() ); }
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
+      dims_t const & in_dims = db.nda->dims;
+      if( crop.p[0].d[0] || crop.p[1].d[0] ) { rt_err( "TODO: non-zero x-coord crop for to_nda (needs copy and/or padded/strided nda support)" ); }
+      if( (!in_dims.valid()) || (in_dims.size() == 0) ) {
+        rt_err( "can only crop data blocks with valid, non-scalar dims. dims were:" + str(in_dims) );
+      }
+      if( in_dims.names(0) != "y" ) {
+        rt_err( "can only crop data blocks with first dim of 'y'; dims were:" + str(in_dims) );
+      }
+      // use aliasing constructor to get offset view of this data block
+      uint8_t * const cropped_rp_data = (uint8_t *)db.nda->rp_elems() + crop.p[0].d[1]*in_dims.tsz()*in_dims.strides(0);
+      p_uint8_t cropped_p_data( db.nda->get_internal_data(), cropped_rp_data );
+      // make new dims by shrinking y size
+      dims_t cropped_dims = in_dims.clone();
+      cropped_dims.dims(0) -= crop.bnds_sum().d[1];
+      cropped_dims.calc_strides(); // recalc since modified
+      ret.nda = make_shared<nda_t>( cropped_dims, cropped_p_data );
+      return ret;
+    }
+  };
+
+  struct data_stream_pass_t : virtual public nesi, public data_stream_t // NESI(
+                               // help="indentity (i.e. do-nothing) xform stream",
+                               // bases=["data_stream_t"], type_id="pass")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) { }
+    virtual string get_pos_info_str( void ) { return string( "pass: does nothing, <no-state>" ); }
+    virtual data_block_t proc_block( data_block_t const & db ) { return db; }
+  };
+
+  
   struct scan_data_stream_t : virtual public nesi, public has_main_t // NESI(
                                     // help="scan data stream ",
                                     // bases=["has_main_t"], type_id="scan-data-stream")
