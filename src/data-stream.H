@@ -53,6 +53,7 @@ namespace boda
   // might even be possible (i.e. with some existing index). but, often enabling seeking has a price in
   // time/memory/complexity ...
 
+  struct data_stream_opt_t {  string name; p_nda_t val; };
   
   struct data_stream_t : virtual public nesi // NESI(help="modes that can be used for reading streams of timestamped data blocks"
                                               // ,is_abstract=1,tid_vn="mode")
@@ -65,6 +66,10 @@ namespace boda
 
     // debugging iface(s) (may only have meaning for certain modes)
     virtual string get_pos_info_str( void ) = 0;
+
+    // control/options: probably doesn't belong here, but unclear where we can put it?
+    virtual void set_opt( data_stream_opt_t const & opt ) { } // by default, does nothing.
+
   };
   typedef vector< data_stream_t > vect_data_stream_t; 
   typedef shared_ptr< data_stream_t > p_data_stream_t; 

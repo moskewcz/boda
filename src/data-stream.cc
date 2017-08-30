@@ -261,7 +261,10 @@ namespace boda
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       for( uint32_t i = 0; i != streams.size(); ++i ) {  streams[i]->data_stream_init( nia );  }
-    }    
+    }
+
+    virtual void set_opt( data_stream_opt_t const & opt ) { for( uint32_t i = 0; i != streams.size(); ++i ) { streams[i]->set_opt( opt ); } }
+
     virtual string get_pos_info_str( void ) {
       string ret = "\n";
       for( uint32_t i = 0; i != streams.size(); ++i ) {
@@ -403,7 +406,9 @@ namespace boda
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       for( uint32_t i = 0; i != pipe.size(); ++i ) {  pipe[i]->data_stream_init( nia );  }
-    }    
+    }
+    virtual void set_opt( data_stream_opt_t const & opt ) { for( uint32_t i = 0; i != pipe.size(); ++i ) { pipe[i]->set_opt( opt ); } }
+
     virtual string get_pos_info_str( void ) {
       string ret = "\n";
       for( uint32_t i = 0; i != pipe.size(); ++i ) {
