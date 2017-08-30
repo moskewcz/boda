@@ -235,20 +235,6 @@ namespace boda
       } else { rt_err( "can't decode frame: unknown img_fmt: " + img_fmt ); }
       return ret;
     }
-    virtual p_nda_t data_block_to_nda( data_block_t const & db ) {
-      if( !maybe_set_per_block_frame_sz( db ) ) { return p_nda_t(); } // if no data block, return no (null) nda_t
-      u32_pt_t const & img_sz = frame_buf->sz;
-      p_nda_t ret;
-      if( crop.p[0].d[0] || crop.p[1].d[0] ) { rt_err( "TODO: non-zero x-coord crop for to_nda (needs copy and/or padded/strided nda support)" ); }
-      if( img_fmt == "32f-grey" ) {
-        float const * const src_data = ((float const *)db.d()) + (crop.p[0].d[1]*cur_frame_sz.d[0]);
-        ret = make_shared<nda_t>( dims_t{ vect_uint32_t{img_sz.d[1],img_sz.d[0]}, "float" }, (void*)src_data );
-        assert_st( (uint8_t *)src_data + ret->dims.bytes_sz() <= (uint8_t *)db.d() + db.sz() );
-      } else {
-        rt_err( strprintf( "img_fmt=%s not supported for to_nda()", str(img_fmt).c_str() ) );
-      }
-      return ret;
-    }
 
     
   };
