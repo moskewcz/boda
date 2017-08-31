@@ -17,7 +17,34 @@ using namespace glm;
 
 namespace boda 
 {
+  string const vertex_shader_code_str = R"xxx(
+#version 330 core
 
+// Input vertex data, different for all executions of this shader.
+layout(location = 0) in vec3 vertexPosition_modelspace;
+
+void main(){
+
+    gl_Position.xyz = vertexPosition_modelspace;
+    gl_Position.w = 1.0;
+
+}
+)xxx";
+  string const fragment_shader_code_str = R"xxx(
+#version 330 core
+
+// Ouput data
+out vec3 color;
+
+void main()
+{
+
+	// Output color = red 
+	color = vec3(1,0,0);
+
+}
+)xxx";
+  
   struct data_to_img_pts_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing point cloud data) with image representations (in as_img field of data block). returns annotated data block.",
                            // bases=["data_stream_t"], type_id="add-img-pts")
   {
@@ -98,7 +125,7 @@ namespace boda
       printf( "VertexArrayID=%s\n", str(VertexArrayID).c_str() );
       
       // Create and compile our GLSL program from the shaders
-      programID = LoadShaders( "SimpleVertexShader.vertexshader", "SimpleFragmentShader.fragmentshader" );
+      programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
       if( programID == 0 ) { rt_err("loading shaders failed, files not found."); }
       printf( "programID=%s\n", str(programID).c_str() );
 
