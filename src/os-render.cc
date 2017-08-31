@@ -5,73 +5,19 @@
 #include"has_main.H"
 #include"str_util.H"
 
+#include"GL/glew.h"
+#define GLAPI extern 
 #include"GL/osmesa.h"
-#include"GL/glu.h"
+
+#include <glm/glm.hpp>
+using namespace glm;
+
+#include"ext/shader.hpp"
 
 
 namespace boda 
 {
 
-  void Sphere(float radius, int slices, int stacks)
-  {
-    GLUquadric *q = gluNewQuadric();
-    gluQuadricNormals(q, GLU_SMOOTH);
-    gluSphere(q, radius, slices, stacks);
-    gluDeleteQuadric(q);
-  }
-
-  static void
-  Cone(float base, float height, int slices, int stacks)
-  {
-    GLUquadric *q = gluNewQuadric();
-    gluQuadricDrawStyle(q, GLU_FILL);
-    gluQuadricNormals(q, GLU_SMOOTH);
-    gluCylinder(q, base, 0.0, height, slices, stacks);
-    gluDeleteQuadric(q);
-  }
-
-
-  static void
-  Torus(float innerRadius, float outerRadius, int sides, int rings)
-  {
-    /* from GLUT... */
-    int i, j;
-    GLfloat theta, phi, theta1;
-    GLfloat cosTheta, sinTheta;
-    GLfloat cosTheta1, sinTheta1;
-    const GLfloat ringDelta = 2.0 * M_PI / rings;
-    const GLfloat sideDelta = 2.0 * M_PI / sides;
-
-    theta = 0.0;
-    cosTheta = 1.0;
-    sinTheta = 0.0;
-    for (i = rings - 1; i >= 0; i--) {
-      theta1 = theta + ringDelta;
-      cosTheta1 = cos(theta1);
-      sinTheta1 = sin(theta1);
-      glBegin(GL_QUAD_STRIP);
-      phi = 0.0;
-      for (j = sides; j >= 0; j--) {
-        GLfloat cosPhi, sinPhi, dist;
-
-        phi += sideDelta;
-        cosPhi = cos(phi);
-        sinPhi = sin(phi);
-        dist = outerRadius + innerRadius * cosPhi;
-
-        glNormal3f(cosTheta1 * cosPhi, -sinTheta1 * cosPhi, sinPhi);
-        glVertex3f(cosTheta1 * dist, -sinTheta1 * dist, innerRadius * sinPhi);
-        glNormal3f(cosTheta * cosPhi, -sinTheta * cosPhi, sinPhi);
-        glVertex3f(cosTheta * dist, -sinTheta * dist,  innerRadius * sinPhi);
-      }
-      glEnd();
-      theta = theta1;
-      cosTheta = cosTheta1;
-      sinTheta = sinTheta1;
-    }
-  }
-
-  
   struct data_to_img_pts_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing point cloud data) with image representations (in as_img field of data block). returns annotated data block.",
                            // bases=["data_stream_t"], type_id="add-img-pts")
   {
@@ -82,7 +28,9 @@ namespace boda
     p_img_t frame_buf;
 
     OSMesaContext ctx;
-
+    GLuint programID;
+    GLuint vertexbuffer;
+    
     float cam_pos[3];
     float cam_rot[3];
     
@@ -106,19 +54,65 @@ namespace boda
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
       frame_buf = make_shared< img_t >();
       frame_buf->set_sz_and_alloc_pels( disp_sz );
-      ctx = OSMesaCreateContextExt( OSMESA_RGBA, 16, 0, 0, NULL );
+      int const osmesa_attrs[] = {
+        OSMESA_FORMAT, OSMESA_RGBA,
+        OSMESA_DEPTH_BITS, 16,
+        OSMESA_STENCIL_BITS, 0,
+        OSMESA_ACCUM_BITS, 0,
+        OSMESA_PROFILE, OSMESA_CORE_PROFILE,
+        OSMESA_CONTEXT_MAJOR_VERSION, 3,
+        OSMESA_CONTEXT_MINOR_VERSION, 3,
+        0 };
+    
+//      ctx = OSMesaCreateContextExt( OSMESA_RGBA, 16, 0, 0, NULL );
+       ctx = OSMesaCreateContextAttribs( osmesa_attrs, NULL );
       if (!ctx) { rt_err("OSMesaCreateContext failed!"); }
       
       if (!OSMesaMakeCurrent( ctx, frame_buf->get_row_addr(0), GL_UNSIGNED_BYTE, frame_buf->sz.d[0], frame_buf->sz.d[1] )) {
         rt_err("OSMesaMakeCurrent failed.\n");
       }
+
+      // Initialize GLEW
+      glewExperimental = true; // Needed for core profile
+      if (glewInit() != GLEW_OK) { rt_err( "Failed to initialize GLEW" ); }
+
+      
       {
         int z, s, a;
         glGetIntegerv(GL_DEPTH_BITS, &z);
         glGetIntegerv(GL_STENCIL_BITS, &s);
         glGetIntegerv(GL_ACCUM_RED_BITS, &a);
         printf("Depth=%d Stencil=%d Accum=%d\n", z, s, a);
+        printf( "GL_VERSION: %s\nGL_VENDOR: %s\nGL_RENDERER: %s\n", glGetString(GL_VERSION), glGetString(GL_VENDOR), glGetString(GL_RENDERER) );
+        
       }
+
+      // Dark blue background
+      glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
+
+      GLuint VertexArrayID;
+      printf( "PREVertexArrayID=%s\n", str(VertexArrayID).c_str() );
+      glGenVertexArrays(1, &VertexArrayID);
+      printf( "PRE2VertexArrayID=%s\n", str(VertexArrayID).c_str() );
+      glBindVertexArray(VertexArrayID);
+      printf( "VertexArrayID=%s\n", str(VertexArrayID).c_str() );
+      
+      // Create and compile our GLSL program from the shaders
+      programID = LoadShaders( "SimpleVertexShader.vertexshader", "SimpleFragmentShader.fragmentshader" );
+      if( programID == 0 ) { rt_err("loading shaders failed, files not found."); }
+      printf( "programID=%s\n", str(programID).c_str() );
+
+      static const GLfloat g_vertex_buffer_data[] = { 
+        -1.0f, -1.0f, 0.0f,
+        1.0f, -1.0f, 0.0f,
+        0.0f,  1.0f, 0.0f,
+      };
+
+      glGenBuffers(1, &vertexbuffer);
+      glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+      glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
+
+      
     }
 
     virtual data_block_t proc_block( data_block_t const & db ) {
@@ -132,64 +126,39 @@ namespace boda
     virtual void render_pts_into_frame_buf( data_block_t const & db ) {
       p_nda_t const & nda = db.nda;
 
-      GLfloat light_ambient[] = { 0.0, 0.0, 0.0, 1.0 };
-      GLfloat light_diffuse[] = { 1.0, 1.0, 1.0, 1.0 };
-      GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };
-      GLfloat light_position[] = { 1.0, 1.0, 1.0, 0.0 };
-      GLfloat red_mat[]   = { 1.0, 0.2, 0.2, 1.0 };
-      GLfloat green_mat[] = { 0.2, 1.0, 0.2, 1.0 };
-      GLfloat blue_mat[]  = { 0.2, 0.2, 1.0, 1.0 };
 
+      // Clear the screen
+      glClear( GL_COLOR_BUFFER_BIT );
 
-      glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
-      glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
-      glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
-      glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+      // Use our shader
+      glUseProgram(programID);
 
-      glEnable(GL_LIGHTING);
-      glEnable(GL_LIGHT0);
-      glEnable(GL_DEPTH_TEST);
+      // 1rst attribute buffer : vertices
+      glEnableVertexAttribArray(0);
+      glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+      glVertexAttribPointer(
+        0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+        3,                  // size
+        GL_FLOAT,           // type
+        GL_FALSE,           // normalized?
+        0,                  // stride
+        (void*)0            // array buffer offset
+                            );
 
-      glMatrixMode(GL_PROJECTION);
-      glLoadIdentity();
-      //glOrtho(-2.5, 2.5, -2.5, 2.5, -10.0, 10.0);
-      gluPerspective( 90, double( frame_buf->sz.d[0] ) / double( frame_buf->sz.d[1] ), .1, 1000 );
-      glMatrixMode(GL_MODELVIEW);
+      // Draw the triangle !
+      glDrawArrays(GL_TRIANGLES, 0, 3); // 3 indices starting at 0 -> 1 triangle
 
-      glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-
-      glLoadIdentity();
-//      glRotatef(20.0, 1.0, 0.0, 0.0);
-      glRotatef( -cam_rot[2], 0.0f, 0.0f, 1.0f);
-      glRotatef( -cam_rot[1], 0.0f, 1.0f, 0.0f);
-      glRotatef( -cam_rot[0], 1.0f, 0.0f, 0.0f);
-      glTranslatef( -cam_pos[0], -cam_pos[1], -cam_pos[2] );
-
-      glPushMatrix();
-      glTranslatef(-0.75, 0.5, 0.0);
-      glRotatef(90.0, 1.0, 0.0, 0.0);
-      glMaterialfv( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, red_mat );
-      Torus(0.275, 0.85, 20, 20);
-      glPopMatrix();
-
-      glPushMatrix();
-      glTranslatef(-0.75, -0.5, 0.0);
-      glRotatef(270.0, 1.0, 0.0, 0.0);
-      glMaterialfv( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, green_mat );
-      Cone(1.0, 2.0, 16, 1);
-      glPopMatrix();
-
-      glPushMatrix();
-      glTranslatef(0.75, 0.0, -1.0);
-      glMaterialfv( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, blue_mat );
-      Sphere(1.0, 20, 20);
-      glPopMatrix();
-
-
-      /* This is very important!!!
-       * Make sure buffered commands are finished!!!
-       */
+      glDisableVertexAttribArray(0);
       glFinish();
+
+#if 0                
+	// Cleanup VBO
+	glDeleteBuffers(1, &vertexbuffer);
+	glDeleteVertexArrays(1, &VertexArrayID);
+	glDeleteProgram(programID);
+
+      
+#endif
 
       
     }

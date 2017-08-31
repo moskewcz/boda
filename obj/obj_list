@@ -26,7 +26,7 @@ CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2
 LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 
 [OSMesa]
-LDFLAGS := $(LDFLAGS) -lOSMesa -lm -lGLU
+LDFLAGS := $(LDFLAGS) -lOSMesa -lm -lGLU -lGLEW
 
 [protobuf]
 PROTOBUF_LIB := /mnt/gluster/exp/lib
@@ -96,6 +96,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 
 [objs]
 os-render.o OSMesa
+shader.o OSMesa
 data-stream-velo.o
 data-stream-pcap.o
 data-stream-mxnet.o
