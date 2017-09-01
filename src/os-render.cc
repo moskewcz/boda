@@ -4,12 +4,16 @@
 #include"img_io.H"
 #include"has_main.H"
 #include"str_util.H"
+#include"rand_util.H"
 
 #include"GL/glew.h"
 #define GLAPI extern 
 #include"GL/osmesa.h"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/euler_angles.hpp>
+
 using namespace glm;
 
 #include"ext/shader.hpp"
@@ -22,28 +26,40 @@ namespace boda
 
 // Input vertex data, different for all executions of this shader.
 layout(location = 0) in vec3 vertexPosition_modelspace;
+layout(location = 1) in vec3 vertexColor;
 
-void main(){
+// Output data ; will be interpolated for each fragment.
+out vec3 fragmentColor;
+// Values that stay constant for the whole mesh.
+uniform mat4 MVP;
 
-    gl_Position.xyz = vertexPosition_modelspace;
-    gl_Position.w = 1.0;
+void main(){	
 
+	// Output position of the vertex, in clip space : MVP * position
+	gl_Position =  MVP * vec4(vertexPosition_modelspace,1);
+
+	// The color of each vertex will be interpolated
+	// to produce the color of each fragment
+	fragmentColor = vertexColor;
 }
+
 )xxx";
   string const fragment_shader_code_str = R"xxx(
 #version 330 core
 
+// Interpolated values from the vertex shaders
+in vec3 fragmentColor;
+
 // Ouput data
 out vec3 color;
 
-void main()
-{
+void main(){
 
-	// Output color = red 
-	color = vec3(1,0,0);
+	// Output color = color specified in the vertex shader, 
+	// interpolated between all 3 surrounding vertices
+	color = fragmentColor;
 
-}
-)xxx";
+})xxx";
   
   struct data_to_img_pts_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing point cloud data) with image representations (in as_img field of data block). returns annotated data block.",
                            // bases=["data_stream_t"], type_id="add-img-pts")
@@ -57,9 +73,12 @@ void main()
     OSMesaContext ctx;
     GLuint programID;
     GLuint vertexbuffer;
-    
+    GLuint colorbuffer;
+
     float cam_pos[3];
     float cam_rot[3];
+
+    boost::random::mt19937 gen;
     
     virtual void set_opt( data_stream_opt_t const & opt ) {
       if( opt.name == "camera-pos-rot" ) {
@@ -72,6 +91,7 @@ void main()
           cam_rot[i] = cam_pos_rot.at2(1,i);
         }
         printf( "cam_pos[0]=%s cam_pos[1]=%s cam_pos[2]=%s\n", str(cam_pos[0]).c_str(), str(cam_pos[1]).c_str(), str(cam_pos[2]).c_str() );
+        printf( "cam_rot[0]=%s cam_rot[1]=%s cam_rot[2]=%s\n", str(cam_rot[0]).c_str(), str(cam_rot[1]).c_str(), str(cam_rot[2]).c_str() );
       }
       
     }
@@ -117,28 +137,74 @@ void main()
       // Dark blue background
       glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
 
+      // Enable depth test
+      glEnable(GL_DEPTH_TEST);
+      // Accept fragment if it closer to the camera than the former one
+      glDepthFunc(GL_LESS); 
+
+
+      
       GLuint VertexArrayID;
-      printf( "PREVertexArrayID=%s\n", str(VertexArrayID).c_str() );
       glGenVertexArrays(1, &VertexArrayID);
-      printf( "PRE2VertexArrayID=%s\n", str(VertexArrayID).c_str() );
       glBindVertexArray(VertexArrayID);
-      printf( "VertexArrayID=%s\n", str(VertexArrayID).c_str() );
       
       // Create and compile our GLSL program from the shaders
       programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
-      if( programID == 0 ) { rt_err("loading shaders failed, files not found."); }
       printf( "programID=%s\n", str(programID).c_str() );
 
-      static const GLfloat g_vertex_buffer_data[] = { 
-        -1.0f, -1.0f, 0.0f,
-        1.0f, -1.0f, 0.0f,
-        0.0f,  1.0f, 0.0f,
+      static const GLfloat g_vertex_buffer_data[] = {
+        -1.0f,-1.0f,-1.0f,
+        -1.0f,-1.0f, 1.0f,
+        -1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f,-1.0f,
+        -1.0f,-1.0f,-1.0f,
+        -1.0f, 1.0f,-1.0f,
+        1.0f,-1.0f, 1.0f,
+        -1.0f,-1.0f,-1.0f,
+        1.0f,-1.0f,-1.0f,
+        1.0f, 1.0f,-1.0f,
+        1.0f,-1.0f,-1.0f,
+        -1.0f,-1.0f,-1.0f,
+        -1.0f,-1.0f,-1.0f,
+        -1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f,-1.0f,
+        1.0f,-1.0f, 1.0f,
+        -1.0f,-1.0f, 1.0f,
+        -1.0f,-1.0f,-1.0f,
+        -1.0f, 1.0f, 1.0f,
+        -1.0f,-1.0f, 1.0f,
+        1.0f,-1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f,-1.0f,-1.0f,
+        1.0f, 1.0f,-1.0f,
+        1.0f,-1.0f,-1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f,-1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f,-1.0f,
+        -1.0f, 1.0f,-1.0f,
+        1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f,-1.0f,
+        -1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f, 1.0f,
+        1.0f,-1.0f, 1.0f
       };
+
+      
+      vector< GLfloat > g_color_buffer_data(12*3*3);
+     
+      rand_fill_vect( g_color_buffer_data, 0.0f, 1.0f, gen );
 
       glGenBuffers(1, &vertexbuffer);
       glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
       glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
 
+      glGenBuffers(1, &colorbuffer);
+      glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+      glBufferData(GL_ARRAY_BUFFER, g_color_buffer_data.size()*sizeof(g_color_buffer_data[0]), &g_color_buffer_data[0], GL_STATIC_DRAW);
+
+      
       
     }
 
@@ -154,11 +220,48 @@ void main()
       p_nda_t const & nda = db.nda;
 
 
+      // Get a handle for our "MVP" uniform
+      GLuint MatrixID = glGetUniformLocation(programID, "MVP");
+
+      // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
+      glm::mat4 Projection = glm::perspective(glm::radians(90.0f), float( frame_buf->sz.d[0] ) / float( frame_buf->sz.d[1] ), 0.1f, 100.0f);
+      // Or, for an ortho camera :
+      //glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
+#if 1
+      // glm::mat4 R = glm::yawPitchRoll(m_horizontalAngle, m_verticalAngle,0.0f);
+      glm::mat4 R = glm::yawPitchRoll(cam_rot[0], cam_rot[1], cam_rot[2]);      
+//Then you could do the following to Update() a camera transformation:   
+      //glm::vec3 T = glm::vec3(0, 0,-dist);
+      glm::vec3 T = glm::vec3(cam_pos[0], cam_pos[1], cam_pos[2]);   
+      glm::vec3 position = glm::vec3(R * glm::vec4(T,0.0f)); 
+//      m_direction = origin;//glm::normalize(position);
+      glm::vec3 m_direction = glm::vec3(0,0,0);
+      glm::vec3 m_real_up = glm::vec3(0,1,0);
+      glm::vec3 m_up = glm::vec3(R * glm::vec4(m_real_up, 0.0f)); 
+      // m_right = glm::cross(m_direction,m_up);   
+      glm::mat4 View = glm::lookAt(position, m_direction, m_up);
+
+#else
+      // Camera matrix
+      glm::mat4 View       = glm::lookAt(
+        glm::vec3(4,3,3), // Camera is at (4,3,3), in World Space
+        glm::vec3(0,0,0), // and looks at the origin
+        glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
+                                         );
+#endif
+      // Model matrix : an identity matrix (model will be at the origin)
+      glm::mat4 Model      = glm::mat4(1.0f);
+      // Our ModelViewProjection : multiplication of our 3 matrices
+      glm::mat4 MVP        = Projection * View * Model; // Remember, matrix multiplication is the other way around
+
+      
       // Clear the screen
-      glClear( GL_COLOR_BUFFER_BIT );
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
       // Use our shader
       glUseProgram(programID);
+
+      glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
 
       // 1rst attribute buffer : vertices
       glEnableVertexAttribArray(0);
@@ -172,8 +275,20 @@ void main()
         (void*)0            // array buffer offset
                             );
 
+      // 2nd attribute buffer : colors
+      glEnableVertexAttribArray(1);
+      glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+      glVertexAttribPointer(
+        1,                                // attribute. No particular reason for 1, but must match the layout in the shader.
+        3,                                // size
+        GL_FLOAT,                         // type
+        GL_FALSE,                         // normalized?
+        0,                                // stride
+        (void*)0                          // array buffer offset
+                            );
+      
       // Draw the triangle !
-      glDrawArrays(GL_TRIANGLES, 0, 3); // 3 indices starting at 0 -> 1 triangle
+      glDrawArrays(GL_TRIANGLES, 0, 12*3); // 3 indices starting at 0 -> 1 triangle
 
       glDisableVertexAttribArray(0);
       glFinish();
