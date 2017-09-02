@@ -67,6 +67,8 @@ void main(){
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
+    double cam_scale; //NESI(default=".05",help="scale camera pos by this amount")
+    float start_z; //NESI(default="-3.0",help="starting z value for camera")
 
     p_img_t frame_buf;
 
@@ -87,11 +89,12 @@ void main(){
         }
         nda_T<float> cam_pos_rot( opt.val );
         for( uint32_t i = 0; i != 3; ++i ) {
-          cam_pos[i] = cam_pos_rot.at2(0,i);
-          cam_rot[i] = cam_pos_rot.at2(1,i);
+          cam_pos[i] = cam_pos_rot.at2(0,i) * cam_scale;
+          cam_rot[i] = glm::radians(cam_pos_rot.at2(1,i));
         }
-        printf( "cam_pos[0]=%s cam_pos[1]=%s cam_pos[2]=%s\n", str(cam_pos[0]).c_str(), str(cam_pos[1]).c_str(), str(cam_pos[2]).c_str() );
-        printf( "cam_rot[0]=%s cam_rot[1]=%s cam_rot[2]=%s\n", str(cam_rot[0]).c_str(), str(cam_rot[1]).c_str(), str(cam_rot[2]).c_str() );
+        cam_pos[2] += start_z; 
+        //printf( "cam_pos[0]=%s cam_pos[1]=%s cam_pos[2]=%s\n", str(cam_pos[0]).c_str(), str(cam_pos[1]).c_str(), str(cam_pos[2]).c_str() );
+        //printf( "cam_rot[0]=%s cam_rot[1]=%s cam_rot[2]=%s\n", str(cam_rot[0]).c_str(), str(cam_rot[1]).c_str(), str(cam_rot[2]).c_str() );
       }
       
     }
@@ -232,15 +235,20 @@ void main(){
       glm::mat4 R = glm::yawPitchRoll(cam_rot[0], cam_rot[1], cam_rot[2]);      
 //Then you could do the following to Update() a camera transformation:   
       //glm::vec3 T = glm::vec3(0, 0,-dist);
-      glm::vec3 T = glm::vec3(cam_pos[0], cam_pos[1], cam_pos[2]);   
+      glm::vec3 T = glm::vec3(0, 0, cam_pos[2]);   
       glm::vec3 position = glm::vec3(R * glm::vec4(T,0.0f)); 
 //      m_direction = origin;//glm::normalize(position);
       glm::vec3 m_direction = glm::vec3(0,0,0);
       glm::vec3 m_real_up = glm::vec3(0,1,0);
       glm::vec3 m_up = glm::vec3(R * glm::vec4(m_real_up, 0.0f)); 
       // m_right = glm::cross(m_direction,m_up);   
-      glm::mat4 View = glm::lookAt(position, m_direction, m_up);
+      glm::mat4 TPan = glm::translate( glm::mat4(), glm::vec3(cam_pos[0], cam_pos[1], 0) );
+      
+      glm::mat4 View = TPan * glm::lookAt(position, m_direction, m_up);
+      
 
+
+      
 #else
       // Camera matrix
       glm::mat4 View       = glm::lookAt(

@@ -117,7 +117,7 @@ namespace boda
     }
   }
 
-  disp_win_t::disp_win_t( void ) : cam_mode(0), zoom(0), stop_io_on_quit(1), asio( new asio_t ) { reset_cam(); }
+  disp_win_t::disp_win_t( void ) : cam_mode(1), zoom(0), stop_io_on_quit(1), asio( new asio_t ) { reset_cam(); }
 
   void disp_win_t::reset_cam( void ) {
     for( uint32_t i = 0; i != 3; ++i ) { cam_rot[i] = 0.0f; cam_pos[i] = 0.0f; }
@@ -321,25 +321,35 @@ namespace boda
 	}
 	break;
       case SDL_MOUSEBUTTONDOWN:
-	if( event.button.button == SDL_BUTTON_RIGHT ) {
+	if( event.button.button == SDL_BUTTON_RIGHT ) { asio->lb_event.set_is_lb(); on_lb( event.button.x, event.button.y ); }
+        else {
 	  pan_pin = i32_pt_t{event.button.x,event.button.y};
 	  pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
           pan_orig_cam_x = cam_pos[0];
           pan_orig_cam_y = cam_pos[1];
-	} else if( event.button.button == SDL_BUTTON_LEFT ) { asio->lb_event.set_is_lb(); on_lb( event.button.x, event.button.y ); }
+          pan_orig_cam_p = cam_rot[0];
+          pan_orig_cam_yaw = cam_rot[1];
+        }
 	break;
       case SDL_MOUSEMOTION:
         if( cam_mode == 0 ) { // 2D-adj
-          if (event.motion.state&SDL_BUTTON(3)) {
+          if (event.motion.state&SDL_BUTTON(1)) {
             i32_pt_t const pan_to = pan_orig_dr + (i32_pt_t{event.motion.x,event.motion.y} - pan_pin);
             displayrect->x = pan_to.d[0];
             displayrect->y = pan_to.d[1];
           }
         } else { // 3D-adj
-          if (event.motion.state&SDL_BUTTON(3)) {
+          if (event.motion.state&SDL_BUTTON(2)) {
             i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
             cam_pos[0] = pan_orig_cam_x - pan_to.d[0];
             cam_pos[1] = pan_orig_cam_y - pan_to.d[1];
+          }
+          if (event.motion.state&SDL_BUTTON(1)) {
+            i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
+            cam_rot[0] = pan_orig_cam_p - pan_to.d[0];
+            clamp_eq( cam_rot[0], -180.0f, 180.0f );
+            cam_rot[1] = pan_orig_cam_yaw - pan_to.d[1];
+            clamp_eq( cam_rot[1], -90.0f, 90.0f );
           }
         }
 	break;

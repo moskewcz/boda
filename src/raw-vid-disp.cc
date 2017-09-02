@@ -45,7 +45,6 @@ namespace boda
     u32_pt_t window_sz; //NESI(default="640:480",help="X/Y window size")
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
-    double cam_scale; //NESI(default=.05,help="scale camera pos by this amount before passing to stream")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
     p_data_stream_t src; //NESI(help="data stream to read images from")
@@ -105,8 +104,8 @@ namespace boda
       cam_opt.name = "camera-pos-rot";
       p_nda_float_t cam_pos_rot = make_shared<nda_float_t>( dims_t{ {2,3}, {"pr","d"}, "float" } );
       for( uint32_t i = 0; i != 3; ++i ) {
-        cam_pos_rot->at2(0,i) = disp_win.cam_pos[i] * cam_scale;
-        cam_pos_rot->at2(1,i) = disp_win.cam_rot[i] * cam_scale;
+        cam_pos_rot->at2(0,i) = disp_win.cam_pos[i];
+        cam_pos_rot->at2(1,i) = disp_win.cam_rot[i];
       }
       cam_opt.val = cam_pos_rot;
       src->set_opt( cam_opt );
