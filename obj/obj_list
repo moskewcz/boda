@@ -25,7 +25,7 @@ LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2
 LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 
-[OSMesa]
+[OSMesa disable]
 LDFLAGS := $(LDFLAGS) -lOSMesa -lm -lGLU -lGLEW
 
 [protobuf]
