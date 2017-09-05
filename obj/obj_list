@@ -29,13 +29,10 @@ LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 LDFLAGS := $(LDFLAGS) -lOSMesa -lm -lGLU -lGLEW
 
 [protobuf]
-PROTOBUF_LIB := /mnt/gluster/exp/lib
-LDFLAGS := $(LDFLAGS) -L$(PROTOBUF_LIB) -lprotobuf
-# use rpath by default ...
-LDFLAGS := $(LDFLAGS) -Wl,-rpath,$(PROTOBUF_LIB)
-
-CPPFLAGS := $(CPPFLAGS) -I/mnt/gluster/exp/include
-PROTOC := /mnt/gluster/exp/bin/protoc
+LDFLAGS := $(LDFLAGS) -lprotobuf
+ifndef PROTOC
+  PROTOC := protoc
+endif
 
 [caffe_pb gen_fn=caffe.pb.cc gen_fn=caffe.pb.h needs=protobuf]
 # manually add deps since we can create this particular header (which is unusual and otherwise unhandled by the header
