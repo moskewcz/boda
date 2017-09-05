@@ -18,21 +18,19 @@ namespace boda
   struct uint8_t_tj_deleter { 
     void operator()( uint8_t * const & b ) const { tjFree( b ); } // can't fail, apparently ...
   };
-
-  void img_t::load_fn_jpeg( std::string const & fn )
+  
+  void img_t::from_jpeg( p_uint8_with_sz_t const & data, std::string const & fn )
   {
-    p_mapped_file_source mfile = map_file_ro( fn );
     int tj_ret = 0, jss = 0, jw = 0, jh = 0;
     tjhandle tj_dec = tjInitDecompress();
     check_tj_ret_fn( !tj_dec, fn, "tjInitDecompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
     uint32_t const tj_pixel_format = TJPF_RGBA;
-    tj_ret = tjDecompressHeader2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), &jw, &jh, &jss);
+    tj_ret = tjDecompressHeader2( tj_dec, data.get(), data.sz, &jw, &jh, &jss);
     check_tj_ret_fn( tj_ret, fn, "tjDecompressHeader2" );
     assert_st( (jw > 0) && ( jh > 0 ) ); // what to do with jss? seems unneeded.
     assert_st( tjPixelSize[ tj_pixel_format ] == depth );
     set_sz_and_alloc_pels( i32_to_u32(i32_pt_t{jw, jh}) );
-    tj_ret = tjDecompress2( tj_dec, (uint8_t *)mfile->data(), mfile->size(), pels.get(), sz.d[0], row_pitch, sz.d[1], 
-			    tj_pixel_format, 0 );
+    tj_ret = tjDecompress2( tj_dec, data.get(), data.sz, pels.get(), sz.d[0], row_pitch, sz.d[1], tj_pixel_format, 0 );
     check_tj_ret_fn( tj_ret, fn, "tjDecompress2" );
     tj_ret = tjDestroy( tj_dec ); 
     check_tj_ret_fn( tj_ret, fn, "tjDestroy" );

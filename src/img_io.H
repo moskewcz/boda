@@ -36,6 +36,8 @@ namespace boda
     p_uint8_with_sz_t to_jpeg( void );
     void save_fn_jpeg( std::string const & fn );
     void load_fn_png( std::string const & fn );
+    void from_jpeg( p_uint8_with_sz_t const & data, std::string const & fn );
+
     void save_fn_png( std::string const & fn, bool const disable_compression = 0 );
 
     // always equivalent to y*row_pitch_pels + x (i.e get_pel_ix(0,0) will always == 0)

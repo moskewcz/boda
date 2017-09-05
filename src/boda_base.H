@@ -269,7 +269,8 @@ namespace boda
   struct p_uint8_with_sz_t : public p_uint8_t {
     uint64_t sz;
     p_uint8_with_sz_t( uint8_t * & p, uint64_t const & sz_ ) : p_uint8_t( p ), sz(sz_) {}
-    template< typename DELETER > p_uint8_with_sz_t( uint8_t * & p, uint64_t const & sz_, DELETER const & deleter ) : p_uint8_t( p, deleter ), sz(sz_) {}
+    template< typename DELETER > p_uint8_with_sz_t( uint8_t * const & p, uint64_t const & sz_, DELETER const & deleter ) : p_uint8_t( p, deleter ), sz(sz_) {}
+    template< typename ALIAS_SRC > p_uint8_with_sz_t( ALIAS_SRC const & alias_src, uint8_t * const & p, uint64_t const & sz_ ) : p_uint8_t( alias_src, p ), sz(sz_) {}
   };
 
   // the b{read,write}_bytes() functions are the basic low-level read/write that must be implimented

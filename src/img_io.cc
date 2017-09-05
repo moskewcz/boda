@@ -44,6 +44,12 @@ namespace boda
 #pragma omp parallel for
     for( uint32_t i = 0; i < (row_pitch_pels>>1)*sz.d[1]; ++i ) { dest_data[i] = vv; }
   }
+  
+  void img_t::load_fn_jpeg( std::string const & fn ) {
+    p_mapped_file_source mfile = map_file_ro( fn );
+    p_uint8_with_sz_t mfile_data( mfile, (uint8_t *)mfile->data(), mfile->size() ); // alias ctor to bind lifetime to mapped file
+    from_jpeg( mfile_data, fn );
+  }
 
   void img_t::load_fn_png( std::string const & fn )
   {
