@@ -382,18 +382,22 @@ namespace boda
         }
         
       } else {
-        if( !laser_to_row_ix_str ) { rt_err( "you must specify laser_to_row_ix_str (laser order) for 64 laser sensor" ); }
-        // for now, we take as input the laser order for the hdl64, as determined from the config file horiz angles. we
-        // should instead read the config ... but all we need here for the vertical axis is the order of the lasers, not
-        // the exact positions. now, the horizontal corrections we're ignoring are more of a problem ...
-        vect_string laser_to_row_ix_str_parts = split(*laser_to_row_ix_str,':');
-        if( laser_to_row_ix_str_parts.size() != tot_lasers ) {
-          rt_err( strprintf( "expected tot_lasers=%s ':' seperated indexes in laser_to_row_ix_str=%s, but got laser_to_row_ix_str_parts.size()=%s\n",
-                             str(tot_lasers).c_str(), str(laser_to_row_ix_str).c_str(), str(laser_to_row_ix_str_parts.size()).c_str() ) );
-        }
-        for( uint32_t i = 0; i != tot_lasers; ++i ) {
-          try {  laser_to_row_ix.push_back( lc_str_u32( laser_to_row_ix_str_parts[i] ) ); }
-          catch( rt_exception & rte ) { rte.err_msg = "parsing element " + str(i) + " of laser_to_row_ix_str: " + rte.err_msg; throw; }
+        if( !laser_to_row_ix_str ) {
+          // if no mapping specified, put laser in packet/firing/raw order; we assume corrections will be done later
+          for( uint32_t i = 0; i != 64; ++i ) { laser_to_row_ix.push_back(i); }
+        } else {
+          // for now, we take as input the laser order for the hdl64, as determined from the config file horiz angles. we
+          // should instead read the config ... but all we need here for the vertical axis is the order of the lasers, not
+          // the exact positions. now, the horizontal corrections we're ignoring are more of a problem ...
+          vect_string laser_to_row_ix_str_parts = split(*laser_to_row_ix_str,':');
+          if( laser_to_row_ix_str_parts.size() != tot_lasers ) {
+            rt_err( strprintf( "expected tot_lasers=%s ':' seperated indexes in laser_to_row_ix_str=%s, but got laser_to_row_ix_str_parts.size()=%s\n",
+                               str(tot_lasers).c_str(), str(laser_to_row_ix_str).c_str(), str(laser_to_row_ix_str_parts.size()).c_str() ) );
+          }
+          for( uint32_t i = 0; i != tot_lasers; ++i ) {
+            try {  laser_to_row_ix.push_back( lc_str_u32( laser_to_row_ix_str_parts[i] ) ); }
+            catch( rt_exception & rte ) { rte.err_msg = "parsing element " + str(i) + " of laser_to_row_ix_str: " + rte.err_msg; throw; }
+          }
         }
       }
       vect_uint32_t laser_to_row_ix_sorted = laser_to_row_ix;
