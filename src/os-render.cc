@@ -32,15 +32,14 @@ layout(location = 1) in vec3 vertexColor;
 out vec3 fragmentColor;
 // Values that stay constant for the whole mesh.
 uniform mat4 MVP;
+uniform uint mode;
 
 void main(){	
 
 	// Output position of the vertex, in clip space : MVP * position
 	gl_Position =  MVP * vec4(vertexPosition_modelspace,1);
-
-	// The color of each vertex will be interpolated
-	// to produce the color of each fragment
-	fragmentColor = vertexColor;
+        if( mode == 1u ) { fragmentColor = vec3(.4,.4,.4);}
+	else { fragmentColor = vertexColor; }
 }
 
 )xxx";
@@ -68,15 +67,21 @@ void main(){
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
     double cam_scale; //NESI(default=".05",help="scale camera pos by this amount")
-    float start_z; //NESI(default="-3.0",help="starting z value for camera")
+    float start_z; //NESI(default="-50.0",help="starting z value for camera")
 
+    uint32_t grid_cells; //NESI(default="10",help="number of X/Y grid cells to draw")
+    float grid_cell_sz; //NESI(default="10.0",help="size of each grid cell")
+    
+    
     p_img_t frame_buf;
 
     OSMesaContext ctx;
     GLuint programID;
+    GLuint mode_uid;
+    
     GLuint vertexbuffer;
     GLuint colorbuffer;
-
+    
     float cam_pos[3];
     float cam_rot[3];
 
@@ -99,6 +104,44 @@ void main(){
       
     }
 
+    p_nda_float_t grid_pts;
+    GLuint grid_pts_buf;
+
+    void draw_grid( void ) {
+      glBindBuffer(GL_ARRAY_BUFFER, grid_pts_buf);
+      glVertexAttribPointer(
+        0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+        3,                  // size
+        GL_FLOAT,           // type
+        GL_FALSE,           // normalized?
+        0,                  // stride
+        (void*)0            // array buffer offset
+                            );
+      glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); // bind (unused) color attribute to same buffer
+      glUniform1ui(mode_uid, 1);
+      glDrawArrays(GL_LINES, 0, grid_pts->elems_sz() ); 
+    }
+
+    
+    void init_grid( void ) {
+      float const half = grid_cells * grid_cell_sz / 2.0f;
+      grid_pts = make_shared<nda_float_t>( dims_t{ {grid_cells+1,2,2,3}, {"cell","xy","be","d"}, "float" } );
+      for( uint32_t cell = 0; cell != grid_cells+1; ++cell ) {
+        for( uint32_t xy = 0; xy != 2; ++xy ) {
+          for( uint32_t d = 0; d != 2; ++d ) {
+            float x = d ? half : -half;
+            float y = (cell*grid_cell_sz - half);
+            if( xy ) { std::swap(x,y); }
+            (glm::vec3 &)grid_pts->at3(cell,xy,d) = glm::vec3( x, y, 0.0f );
+          }
+        }
+      }
+      glGenBuffers(1, &grid_pts_buf);
+      glBindBuffer(GL_ARRAY_BUFFER, grid_pts_buf);
+      glBufferData(GL_ARRAY_BUFFER, grid_pts->dims.bytes_sz(), grid_pts->rp_elems(), GL_STATIC_DRAW);
+      glLineWidth( 2.0f );
+    }
+    
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
@@ -146,7 +189,6 @@ void main(){
       glDepthFunc(GL_LESS); 
 
 
-      
       GLuint VertexArrayID;
       glGenVertexArrays(1, &VertexArrayID);
       glBindVertexArray(VertexArrayID);
@@ -207,7 +249,7 @@ void main(){
       glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
       glBufferData(GL_ARRAY_BUFFER, g_color_buffer_data.size()*sizeof(g_color_buffer_data[0]), &g_color_buffer_data[0], GL_STATIC_DRAW);
 
-      
+      init_grid();
       
     }
 
@@ -225,9 +267,10 @@ void main(){
 
       // Get a handle for our "MVP" uniform
       GLuint MatrixID = glGetUniformLocation(programID, "MVP");
+      mode_uid = glGetUniformLocation(programID, "mode");
 
       // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
-      glm::mat4 Projection = glm::perspective(glm::radians(90.0f), float( frame_buf->sz.d[0] ) / float( frame_buf->sz.d[1] ), 0.1f, 100.0f);
+      glm::mat4 Projection = glm::perspective(glm::radians(60.0f), float( frame_buf->sz.d[0] ) / float( frame_buf->sz.d[1] ), 0.1f, 1000.0f);
       // Or, for an ortho camera :
       //glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
 #if 1
@@ -270,6 +313,7 @@ void main(){
       glUseProgram(programID);
 
       glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+      glUniform1ui(mode_uid, 0);
 
       // 1rst attribute buffer : vertices
       glEnableVertexAttribArray(0);
@@ -298,7 +342,10 @@ void main(){
       // Draw the triangle !
       glDrawArrays(GL_TRIANGLES, 0, 12*3); // 3 indices starting at 0 -> 1 triangle
 
+      draw_grid();
+      
       glDisableVertexAttribArray(0);
+      glDisableVertexAttribArray(1);
       glFinish();
 
 #if 0                
