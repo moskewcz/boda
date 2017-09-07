@@ -26,7 +26,6 @@ namespace boda
 
 // Input vertex data, different for all executions of this shader.
 layout(location = 0) in vec3 vertexPosition_modelspace;
-layout(location = 1) in vec3 vertexColor;
 
 // Output data ; will be interpolated for each fragment.
 out vec3 fragmentColor;
@@ -49,7 +48,7 @@ void main(){
     fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
     gl_PointSize = 2.;
   }
-  else { fragmentColor = vertexColor; }
+  else { fragmentColor = vec3(1.0,1.0,1.0); }
 }
 
 )xxx";
@@ -89,9 +88,6 @@ void main(){
     GLuint programID;
     GLuint mode_uid;
     
-    GLuint vertexbuffer;
-    GLuint colorbuffer;
-    
     float cam_pos[3];
     float cam_rot[3];
 
@@ -120,7 +116,6 @@ void main(){
     void draw_grid( void ) {
       glBindBuffer(GL_ARRAY_BUFFER, grid_pts_buf);
       glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
-      glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); // bind (unused) color attribute to same buffer
       glUniform1ui(mode_uid, 1);
       glDrawArrays(GL_LINES, 0, grid_pts->elems_sz() ); 
     }
@@ -150,7 +145,6 @@ void main(){
     void draw_cloud( void ) {
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
       glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
-      glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); // bind (unused) color attribute to same buffer
       glUniform1ui(mode_uid, 2);
       glDrawArrays(GL_POINTS, 0, cloud_pts->elems_sz() ); 
     }
@@ -221,58 +215,6 @@ void main(){
       programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
       printf( "programID=%s\n", str(programID).c_str() );
 
-      static const GLfloat g_vertex_buffer_data[] = {
-        -1.0f,-1.0f,-1.0f,
-        -1.0f,-1.0f, 1.0f,
-        -1.0f, 1.0f, 1.0f,
-        1.0f, 1.0f,-1.0f,
-        -1.0f,-1.0f,-1.0f,
-        -1.0f, 1.0f,-1.0f,
-        1.0f,-1.0f, 1.0f,
-        -1.0f,-1.0f,-1.0f,
-        1.0f,-1.0f,-1.0f,
-        1.0f, 1.0f,-1.0f,
-        1.0f,-1.0f,-1.0f,
-        -1.0f,-1.0f,-1.0f,
-        -1.0f,-1.0f,-1.0f,
-        -1.0f, 1.0f, 1.0f,
-        -1.0f, 1.0f,-1.0f,
-        1.0f,-1.0f, 1.0f,
-        -1.0f,-1.0f, 1.0f,
-        -1.0f,-1.0f,-1.0f,
-        -1.0f, 1.0f, 1.0f,
-        -1.0f,-1.0f, 1.0f,
-        1.0f,-1.0f, 1.0f,
-        1.0f, 1.0f, 1.0f,
-        1.0f,-1.0f,-1.0f,
-        1.0f, 1.0f,-1.0f,
-        1.0f,-1.0f,-1.0f,
-        1.0f, 1.0f, 1.0f,
-        1.0f,-1.0f, 1.0f,
-        1.0f, 1.0f, 1.0f,
-        1.0f, 1.0f,-1.0f,
-        -1.0f, 1.0f,-1.0f,
-        1.0f, 1.0f, 1.0f,
-        -1.0f, 1.0f,-1.0f,
-        -1.0f, 1.0f, 1.0f,
-        1.0f, 1.0f, 1.0f,
-        -1.0f, 1.0f, 1.0f,
-        1.0f,-1.0f, 1.0f
-      };
-
-      
-      vector< GLfloat > g_color_buffer_data(12*3*3);
-     
-      rand_fill_vect( g_color_buffer_data, 0.0f, 1.0f, gen );
-
-      glGenBuffers(1, &vertexbuffer);
-      glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-      glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
-
-      glGenBuffers(1, &colorbuffer);
-      glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-      glBufferData(GL_ARRAY_BUFFER, g_color_buffer_data.size()*sizeof(g_color_buffer_data[0]), &g_color_buffer_data[0], GL_STATIC_DRAW);
-
       init_grid();
       init_cloud();
     }
@@ -287,7 +229,6 @@ void main(){
 
     virtual void render_pts_into_frame_buf( data_block_t const & db ) {
       p_nda_t const & nda = db.nda;
-
 
       // Get a handle for our "MVP" uniform
       GLuint MatrixID = glGetUniformLocation(programID, "MVP");
@@ -341,36 +282,11 @@ void main(){
 
       // 1rst attribute buffer : vertices
       glEnableVertexAttribArray(0);
-      glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-      glVertexAttribPointer(
-        0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
-        3,                  // size
-        GL_FLOAT,           // type
-        GL_FALSE,           // normalized?
-        0,                  // stride
-        (void*)0            // array buffer offset
-                            );
-
-      // 2nd attribute buffer : colors
-      glEnableVertexAttribArray(1);
-      glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-      glVertexAttribPointer(
-        1,                                // attribute. No particular reason for 1, but must match the layout in the shader.
-        3,                                // size
-        GL_FLOAT,                         // type
-        GL_FALSE,                         // normalized?
-        0,                                // stride
-        (void*)0                          // array buffer offset
-                            );
-      
-      // Draw the triangle !
-      glDrawArrays(GL_TRIANGLES, 0, 12*3); // 3 indices starting at 0 -> 1 triangle
 
       draw_grid();
       draw_cloud();
       
       glDisableVertexAttribArray(0);
-      glDisableVertexAttribArray(1);
       glFinish();
 
 #if 0                
