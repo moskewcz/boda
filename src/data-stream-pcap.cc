@@ -197,6 +197,7 @@ namespace boda
     }
 
     virtual data_block_t proc_block( data_block_t const & db ) {
+      if( !db.nda ) { rt_err( "pcap-sink: expected data block to have data, but db.nda was null."); }
       pcaprec_hdr_t rec_hdr;
       uint64_t timestamp_us = db.timestamp_ns / 1000;
       rec_hdr.ts_sec = timestamp_us / ( 1000 * 1000 );
