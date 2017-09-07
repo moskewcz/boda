@@ -336,9 +336,6 @@ namespace boda
       on_bad_status("");
       
       if( ! ( (tot_lasers == 64) || (tot_lasers == 32) ) ) { rt_err( "non-32/64 laser mode not implemented" ); }
-      if( tot_lasers == 64 ) {
-        if( !dual_return_and_use_only_first_return ) { rt_err( "non-dual return mode not implemented for 64 laser sensor" ); }
-      }
       if( tot_lasers == 32 ) {
         if( dual_return_and_use_only_first_return ) { rt_err( "dual return mode not implemented for 32 laser sensor (doesn't exist?)" ); }
       }
