@@ -34,12 +34,22 @@ out vec3 fragmentColor;
 uniform mat4 MVP;
 uniform uint mode;
 
-void main(){	
+vec3 hsv2rgb(vec3 c) {
+   vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+   vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
 
-	// Output position of the vertex, in clip space : MVP * position
-	gl_Position =  MVP * vec4(vertexPosition_modelspace,1);
-        if( mode == 1u ) { fragmentColor = vec3(.4,.4,.4);}
-	else { fragmentColor = vertexColor; }
+void main(){	
+  // Output position of the vertex, in clip space : MVP * position
+  gl_Position =  MVP * vec4(vertexPosition_modelspace,1);
+  if( mode == 1u ) { fragmentColor = vec3(.4,.4,.4);}
+  else if( mode == 2u ) {         
+    float hue = (-1. + exp(-max(vertexPosition_modelspace[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
+    fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
+    gl_PointSize = 2.;
+  }
+  else { fragmentColor = vertexColor; }
 }
 
 )xxx";
@@ -66,8 +76,8 @@ void main(){
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
-    double cam_scale; //NESI(default=".05",help="scale camera pos by this amount")
-    float start_z; //NESI(default="-50.0",help="starting z value for camera")
+    double cam_scale; //NESI(default="1.0",help="scale camera pos by this amount")
+    float start_z; //NESI(default="50.0",help="starting z value for camera")
 
     uint32_t grid_cells; //NESI(default="10",help="number of X/Y grid cells to draw")
     float grid_cell_sz; //NESI(default="10.0",help="size of each grid cell")
@@ -109,20 +119,12 @@ void main(){
 
     void draw_grid( void ) {
       glBindBuffer(GL_ARRAY_BUFFER, grid_pts_buf);
-      glVertexAttribPointer(
-        0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
-        3,                  // size
-        GL_FLOAT,           // type
-        GL_FALSE,           // normalized?
-        0,                  // stride
-        (void*)0            // array buffer offset
-                            );
+      glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
       glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); // bind (unused) color attribute to same buffer
       glUniform1ui(mode_uid, 1);
       glDrawArrays(GL_LINES, 0, grid_pts->elems_sz() ); 
     }
 
-    
     void init_grid( void ) {
       float const half = grid_cells * grid_cell_sz / 2.0f;
       grid_pts = make_shared<nda_float_t>( dims_t{ {grid_cells+1,2,2,3}, {"cell","xy","be","d"}, "float" } );
@@ -141,7 +143,28 @@ void main(){
       glBufferData(GL_ARRAY_BUFFER, grid_pts->dims.bytes_sz(), grid_pts->rp_elems(), GL_STATIC_DRAW);
       glLineWidth( 2.0f );
     }
-    
+
+    p_nda_float_t cloud_pts;
+    GLuint cloud_pts_buf;
+
+    void draw_cloud( void ) {
+      glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
+      glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
+      glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); // bind (unused) color attribute to same buffer
+      glUniform1ui(mode_uid, 2);
+      glDrawArrays(GL_POINTS, 0, cloud_pts->elems_sz() ); 
+    }
+
+    void init_cloud( void ) {
+      cloud_pts = make_shared<nda_float_t>( dims_t{ {100,3}, {"pts","d"}, "float" } );
+      for( uint32_t pt = 0; pt != 100; ++pt ) {
+        (glm::vec3 &)cloud_pts->at1(pt) = glm::vec3( pt, pt, float(pt)/25.0 );
+      }
+      glGenBuffers(1, &cloud_pts_buf);
+      glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
+      glBufferData(GL_ARRAY_BUFFER, cloud_pts->dims.bytes_sz(), cloud_pts->rp_elems(), GL_STATIC_DRAW);
+    }
+
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
@@ -185,6 +208,7 @@ void main(){
 
       // Enable depth test
       glEnable(GL_DEPTH_TEST);
+      glEnable(GL_PROGRAM_POINT_SIZE);
       // Accept fragment if it closer to the camera than the former one
       glDepthFunc(GL_LESS); 
 
@@ -250,7 +274,7 @@ void main(){
       glBufferData(GL_ARRAY_BUFFER, g_color_buffer_data.size()*sizeof(g_color_buffer_data[0]), &g_color_buffer_data[0], GL_STATIC_DRAW);
 
       init_grid();
-      
+      init_cloud();
     }
 
     virtual data_block_t proc_block( data_block_t const & db ) {
@@ -343,6 +367,7 @@ void main(){
       glDrawArrays(GL_TRIANGLES, 0, 12*3); // 3 indices starting at 0 -> 1 triangle
 
       draw_grid();
+      draw_cloud();
       
       glDisableVertexAttribArray(0);
       glDisableVertexAttribArray(1);
