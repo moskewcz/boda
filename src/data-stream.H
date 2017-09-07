@@ -21,6 +21,10 @@ namespace boda
     uint64_t sz( void ) const { return nda->dims.bytes_sz(); }
     void const * d( void ) const { return nda->rp_elems(); }
 
+    // flow control data (experimental, used only by pipe?)
+    bool need_more_in;
+    bool have_more_out;
+
     // metadata (optional in general)
     // string tdn; // if we had an array of this block, what would the name of the dim that iterated of these be (i.e. tag/type name)
     string tag; // descritive tag of what this is: camera, camera-front, radar-intensity, ...
@@ -31,7 +35,7 @@ namespace boda
     p_img_t as_img; // if non-null, a image representation of this data (potentially smoothed/modified/etc)
     
     p_vect_data_block_t subblocks; // FIXME: make mapping from str->subblock? add meta data somewhere?
-    data_block_t( void ) : frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
+    data_block_t( void ) : need_more_in(0), have_more_out(0), frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
     bool has_subblocks( void ) const { return subblocks.get(); }
     uint32_t num_subblocks( void ) const { return has_subblocks() ? subblocks->size() : uint32_t_const_max; }
 

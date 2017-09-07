@@ -404,8 +404,11 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     vect_p_data_stream_t pipe; //NESI(help="streams to connect into single pipeline")
 
+    vect_uint8_t have_more_out;
+    
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       for( uint32_t i = 0; i != pipe.size(); ++i ) {  pipe[i]->data_stream_init( nia );  }
+      have_more_out.resize( pipe.size(), 0 );
     }
     virtual void set_opt( data_stream_opt_t const & opt ) { for( uint32_t i = 0; i != pipe.size(); ++i ) { pipe[i]->set_opt( opt ); } }
 
@@ -417,10 +420,45 @@ namespace boda
       return ret;
     }
     virtual data_block_t proc_block( data_block_t const & db ) {
+      // for now, the have_more_out handling assumes this is a default/template block, not real data, and will discard
+      // it when there are stages in the pipeline where have_more_out was set. obviously this is a WIP/Hack. sigh, maybe
+      // we need the whole graph-with-per-block-flow/firing ...
       data_block_t ret = db;
-      for( uint32_t i = 0; i != pipe.size(); ++i ) {
-        ret = pipe[i]->proc_block( ret );
-        if( !ret.valid() ) { break; } // terminate pipe on end-of-stream at any point after first stage, and return end-of-stream
+
+      while( 1 ) {
+        bool fire_again = 0;
+        uint32_t pipe_start_stage = pipe.size();
+        while( pipe_start_stage ) {
+          if( have_more_out[pipe_start_stage - 1] ) { break; }
+          --pipe_start_stage;
+        }
+        if( pipe_start_stage ) {
+          // some stage has data, so start with it
+          pipe_start_stage -= 1; // note: after this, starting at stage 0 due to have_more_out or because no stage set have_more_out can't be distinguished
+          ret = data_block_t(); // FIXME(sorta): discard input block
+        }
+        // note: all stages after pipe_start_stage have have_more_out = 0 
+      
+        for( uint32_t i = pipe_start_stage ; i != pipe.size(); ++i ) {
+          ret = pipe[i]->proc_block( ret );
+          //printf( "i=%s ret.need_more_in=%s ret.have_more_out=%s\n", str(i).c_str(), str(ret.need_more_in).c_str(), str(ret.have_more_out).c_str() );
+          if( ret.need_more_in ) {
+            assert_st( !ret.have_more_out );
+            assert_st( !have_more_out[i] ); // shouldn't have gotten here otherwise?
+            if( i == 0 ) { rt_err( "unhandled: need_more_in set for first pipeline stage" ); }
+            fire_again = 1;
+            ret = data_block_t(); // discard need_more_in block, replace with default/null block
+            break; // do another firing of the pipeline, without emiting anything ...
+          }
+          have_more_out[i] = ret.have_more_out;
+          ret.have_more_out = 0; // clear out flag before we pass to next stage. also clears before return, which is FIXME-ish ...
+          if( !ret.valid() ) {
+            // terminate pipe on end-of-stream at any point after first stage, and return end-of-stream
+            assert_st( !fire_again );
+            break;
+          } 
+        }
+        if( !fire_again ) { break; } // real end-of-stream
       }
       return ret;
     }
@@ -473,6 +511,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    uint32_t timestamp_check; //NESI(default="1",help="if non-zero, check for increasing timestamp and print warnings if not seen.")
     uint64_t num_to_proc; //NESI(default=0,help="read/write this many records; zero for unlimited")
     p_data_stream_t stream; //NESI(req=1,help="input data stream")
 
@@ -490,7 +529,7 @@ namespace boda
           printf( "-- stream: db=%s @ %s\n", db.info_str().c_str(), stream->get_pos_info_str().c_str() );
         }
         // FIXME: make this recursive wrt subblocks or the like?
-        if( db.nda.get() ) { // if db has data, check timestamp (old non-multi-stream-scan functionality)
+        if( timestamp_check && db.nda.get() ) { // if db has data, check timestamp (old non-multi-stream-scan functionality)
           if( db.timestamp_ns <= last_ts ) {
             printf( "**ERROR: ts did not increase: db.timestamp_ns=%s last_ts=%s stream->get_pos_info_str()=%s\n",
                     str(db.timestamp_ns).c_str(), str(last_ts).c_str(), str(stream->get_pos_info_str()).c_str() );
