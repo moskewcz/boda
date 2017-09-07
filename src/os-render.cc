@@ -12,7 +12,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/euler_angles.hpp>
+#include <glm/gtx/transform.hpp>
 
 using namespace glm;
 
@@ -31,7 +31,28 @@ layout(location = 0) in vec3 vertexPosition_modelspace;
 out vec3 fragmentColor;
 // Values that stay constant for the whole mesh.
 uniform mat4 MVP;
-uniform uint mode;
+
+void main(){	
+  // Output position of the vertex, in clip space : MVP * position
+  gl_Position =  MVP * vec4(vertexPosition_modelspace,1);
+  fragmentColor = vec3(.4,.4,.4);
+}
+
+)xxx";
+
+    string const cloud_vertex_shader_code_str = R"xxx(
+#version 330 core
+
+// Input vertex data, different for all executions of this shader.
+layout(location = 0) in vec3 vertexPosition_modelspace;
+
+// Output data ; will be interpolated for each fragment.
+out vec3 fragmentColor;
+// Values that stay constant for the whole mesh.
+uniform mat4 MVP;
+
+//uniform uint hbins;
+//uniform uint lasers;
 
 vec3 hsv2rgb(vec3 c) {
    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -42,16 +63,15 @@ vec3 hsv2rgb(vec3 c) {
 void main(){	
   // Output position of the vertex, in clip space : MVP * position
   gl_Position =  MVP * vec4(vertexPosition_modelspace,1);
-  if( mode == 1u ) { fragmentColor = vec3(.4,.4,.4);}
-  else if( mode == 2u ) {         
-    float hue = (-1. + exp(-max(vertexPosition_modelspace[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
-    fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
-    gl_PointSize = 2.;
-  }
-  else { fragmentColor = vec3(1.0,1.0,1.0); }
+  float hue = (-1. + exp(-max(vertexPosition_modelspace[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
+  fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
+  gl_PointSize = 2.;
+  gl_Position[0] += float(gl_VertexID%10);
 }
 
 )xxx";
+
+  
   string const fragment_shader_code_str = R"xxx(
 #version 330 core
 
@@ -86,7 +106,13 @@ void main(){
 
     OSMesaContext ctx;
     GLuint programID;
-    GLuint mode_uid;
+    GLuint mvp_id;
+    
+    GLuint cloud_programID;
+    GLuint cloud_mvp_id;
+    //GLuint mode_uid;
+
+    glm::mat4 MVP;
     
     float cam_pos[3];
     float cam_rot[3];
@@ -114,10 +140,13 @@ void main(){
     GLuint grid_pts_buf;
 
     void draw_grid( void ) {
+      glUseProgram(programID);
+      glUniformMatrix4fv(mvp_id, 1, GL_FALSE, &MVP[0][0]);
+      glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, grid_pts_buf);
       glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
-      glUniform1ui(mode_uid, 1);
-      glDrawArrays(GL_LINES, 0, grid_pts->elems_sz() ); 
+      glDrawArrays(GL_LINES, 0, grid_pts->elems_sz() );
+      glDisableVertexAttribArray(0);
     }
 
     void init_grid( void ) {
@@ -143,10 +172,13 @@ void main(){
     GLuint cloud_pts_buf;
 
     void draw_cloud( void ) {
+      glUseProgram(cloud_programID);
+      glUniformMatrix4fv(cloud_mvp_id, 1, GL_FALSE, &MVP[0][0]);
+      glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
       glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
-      glUniform1ui(mode_uid, 2);
-      glDrawArrays(GL_POINTS, 0, cloud_pts->elems_sz() ); 
+      glDrawArrays(GL_POINTS, 0, cloud_pts->elems_sz() );
+      glDisableVertexAttribArray(0);
     }
 
     void init_cloud( void ) {
@@ -214,6 +246,11 @@ void main(){
       // Create and compile our GLSL program from the shaders
       programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
       printf( "programID=%s\n", str(programID).c_str() );
+      mvp_id = glGetUniformLocation(programID, "MVP");
+      
+      cloud_programID = LoadShaders( cloud_vertex_shader_code_str, fragment_shader_code_str );
+      cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
+      printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
 
       init_grid();
       init_cloud();
@@ -230,33 +267,22 @@ void main(){
     virtual void render_pts_into_frame_buf( data_block_t const & db ) {
       p_nda_t const & nda = db.nda;
 
-      // Get a handle for our "MVP" uniform
-      GLuint MatrixID = glGetUniformLocation(programID, "MVP");
-      mode_uid = glGetUniformLocation(programID, "mode");
+
+      //mode_uid = glGetUniformLocation(programID, "mode");
 
       // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
       glm::mat4 Projection = glm::perspective(glm::radians(60.0f), float( frame_buf->sz.d[0] ) / float( frame_buf->sz.d[1] ), 0.1f, 1000.0f);
       // Or, for an ortho camera :
       //glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
 #if 1
-      // glm::mat4 R = glm::yawPitchRoll(m_horizontalAngle, m_verticalAngle,0.0f);
-      glm::mat4 R = glm::yawPitchRoll(cam_rot[0], cam_rot[1], cam_rot[2]);      
-//Then you could do the following to Update() a camera transformation:   
-      //glm::vec3 T = glm::vec3(0, 0,-dist);
+      glm::mat4 R = glm::rotate(-cam_rot[0], glm::vec3(0.0f, 0.0f, 1.0f)) * glm::rotate(-cam_rot[1], glm::vec3(1.0f, 0.0f, 0.0f));
       glm::vec3 T = glm::vec3(0, 0, cam_pos[2]);   
       glm::vec3 position = glm::vec3(R * glm::vec4(T,0.0f)); 
-//      m_direction = origin;//glm::normalize(position);
       glm::vec3 m_direction = glm::vec3(0,0,0);
       glm::vec3 m_real_up = glm::vec3(0,1,0);
       glm::vec3 m_up = glm::vec3(R * glm::vec4(m_real_up, 0.0f)); 
-      // m_right = glm::cross(m_direction,m_up);   
-      glm::mat4 TPan = glm::translate( glm::mat4(), glm::vec3(cam_pos[0], cam_pos[1], 0) );
-      
+      glm::mat4 TPan = glm::translate( glm::mat4(), glm::vec3(-cam_pos[0], -cam_pos[1], 0) );
       glm::mat4 View = TPan * glm::lookAt(position, m_direction, m_up);
-      
-
-
-      
 #else
       // Camera matrix
       glm::mat4 View       = glm::lookAt(
@@ -268,25 +294,15 @@ void main(){
       // Model matrix : an identity matrix (model will be at the origin)
       glm::mat4 Model      = glm::mat4(1.0f);
       // Our ModelViewProjection : multiplication of our 3 matrices
-      glm::mat4 MVP        = Projection * View * Model; // Remember, matrix multiplication is the other way around
+      MVP = Projection * View * Model; // Remember, matrix multiplication is the other way around
 
       
       // Clear the screen
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-      // Use our shader
-      glUseProgram(programID);
-
-      glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
-      glUniform1ui(mode_uid, 0);
-
-      // 1rst attribute buffer : vertices
-      glEnableVertexAttribArray(0);
-
       draw_grid();
       draw_cloud();
       
-      glDisableVertexAttribArray(0);
       glFinish();
 
 #if 0                

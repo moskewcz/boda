@@ -327,8 +327,8 @@ namespace boda
 	  pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
           pan_orig_cam_x = cam_pos[0];
           pan_orig_cam_y = cam_pos[1];
-          pan_orig_cam_p = cam_rot[0];
-          pan_orig_cam_yaw = cam_rot[1];
+          pan_orig_cam_rx = cam_rot[0];
+          pan_orig_cam_ry = cam_rot[1];
         }
 	break;
       case SDL_MOUSEMOTION:
@@ -346,9 +346,9 @@ namespace boda
           }
           if (event.motion.state&SDL_BUTTON(1)) {
             i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
-            cam_rot[0] = pan_orig_cam_p - pan_to.d[0];
+            cam_rot[0] = pan_orig_cam_rx - pan_to.d[0];
             clamp_eq( cam_rot[0], -180.0f, 180.0f );
-            cam_rot[1] = pan_orig_cam_yaw - pan_to.d[1];
+            cam_rot[1] = pan_orig_cam_ry - pan_to.d[1];
             clamp_eq( cam_rot[1], -90.0f, 90.0f );
           }
         }
