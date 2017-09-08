@@ -40,42 +40,6 @@ void main(){
 
 )xxx";
 
-    string const cloud_vertex_shader_code_str = R"xxx(
-#version 330 core
-
-// Input vertex data, different for all executions of this shader.
-layout(location = 0) in float pt_dist;
-
-// Output data ; will be interpolated for each fragment.
-out vec3 fragmentColor;
-// Values that stay constant for the whole mesh.
-uniform mat4 MVP;
-
-uniform uint hbins;
-uniform uint lasers;
-
-vec3 hsv2rgb(vec3 c) {
-   vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-   vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
-
-void main(){	
-  // Output position of the vertex, in clip space : MVP * position
-  vec3 pos;
-  pos[0] = float(uint(gl_VertexID)%lasers);
-  pos[1] = float(uint(gl_VertexID)/lasers);
-  pos[2] = pt_dist;
-  gl_Position =  MVP * vec4(pos,1);
-  float hue = (-1. + exp(-max(pos[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
-  fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
-  gl_PointSize = 2.;
-
-}
-
-)xxx";
-
-  
   string const fragment_shader_code_str = R"xxx(
 #version 330 core
 
@@ -97,6 +61,7 @@ void main(){
                            // bases=["data_stream_t"], type_id="add-img-pts")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t cloud_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/cloud-vertex.glsl",help="point cloud vertex shader filename")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
     double cam_scale; //NESI(default="1.0",help="scale camera pos by this amount")
@@ -251,8 +216,9 @@ void main(){
       programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
       printf( "programID=%s\n", str(programID).c_str() );
       mvp_id = glGetUniformLocation(programID, "MVP");
+
       
-      cloud_programID = LoadShaders( cloud_vertex_shader_code_str, fragment_shader_code_str );
+      cloud_programID = LoadShaders( *read_whole_fn( cloud_vertex_shader_fn ), fragment_shader_code_str );
       cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
       printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
 
