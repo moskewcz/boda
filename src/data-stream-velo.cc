@@ -35,7 +35,7 @@ namespace boda
     assert_st( a2 < ang_max );
     int32_t delta = int32_t(a1) - int32_t(a2);
     if( delta >= half_ang_max ) { delta -= ang_max; }
-    if( delta < -half_ang_max ) { delta += ang_max; }
+    if( delta < -int32_t(half_ang_max) ) { delta += ang_max; }
     return delta;
   }
   
