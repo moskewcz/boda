@@ -21,6 +21,25 @@ using namespace glm;
 
 namespace boda 
 {
+  void _check_gl_error( char const * const tag, char const * const file, int const line ) {
+    while( 1 ) {
+      GLenum const err = glGetError();
+      if( err== GL_NO_ERROR ) { break; }
+      string error;
+      switch(err) {
+      case GL_INVALID_OPERATION:      error="INVALID_OPERATION";      break;
+      case GL_INVALID_ENUM:           error="INVALID_ENUM";           break;
+      case GL_INVALID_VALUE:          error="INVALID_VALUE";          break;
+      case GL_OUT_OF_MEMORY:          error="OUT_OF_MEMORY";          break;
+      case GL_INVALID_FRAMEBUFFER_OPERATION:  error="INVALID_FRAMEBUFFER_OPERATION";  break;
+      }
+      printf( "error: tag=%s GL_%s file=%s line=%s\n", tag, error.c_str(), file, str(line).c_str() );
+    }
+    // rt_err( "one or more GL errors, aborting" );
+  }
+#define check_gl_error(tag) _check_gl_error(tag,__FILE__,__LINE__)
+
+  
   string const vertex_shader_code_str = R"xxx(
 #version 330 core
 
@@ -79,6 +98,8 @@ void main(){
     
     GLuint cloud_programID;
     GLuint cloud_mvp_id;
+    GLuint cloud_hbins_id;
+    GLuint cloud_lasers_id;
     //GLuint mode_uid;
 
     glm::mat4 MVP;
@@ -140,20 +161,27 @@ void main(){
     p_nda_float_t cloud_pts;
     GLuint cloud_pts_buf;
 
-    void draw_cloud( void ) {
+    void draw_cloud( data_block_t const & db ) {
+      p_nda_t const & nda = db.nda;
       glUseProgram(cloud_programID);
       glUniformMatrix4fv(cloud_mvp_id, 1, GL_FALSE, &MVP[0][0]);
+      if( nda->dims.sz() != 2 ) {
+        rt_err( strprintf( "expected 2D-array for point cloud, but had nda->dims=%s\n", str(nda->dims).c_str() ) ); 
+      }
+      glUniform1ui(cloud_lasers_id, nda->dims.dims(0) );
+      glUniform1ui(cloud_hbins_id, nda->dims.dims(1) );
+      
       glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
-      glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
+      glVertexAttribPointer( 0, 1, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
       glDrawArrays(GL_POINTS, 0, cloud_pts->elems_sz() );
       glDisableVertexAttribArray(0);
     }
 
     void init_cloud( void ) {
-      cloud_pts = make_shared<nda_float_t>( dims_t{ {100,3}, {"pts","d"}, "float" } );
-      for( uint32_t pt = 0; pt != 100; ++pt ) {
-        (glm::vec3 &)cloud_pts->at1(pt) = glm::vec3( pt, pt, float(pt)/25.0 );
+      cloud_pts = make_shared<nda_float_t>( dims_t{ {64*2000}, {"pts"}, "float" } );
+      for( uint32_t pt = 0; pt != 64*2000; ++pt ) {
+        cloud_pts->at1(pt) = float(pt)/25.0;
       }
       glGenBuffers(1, &cloud_pts_buf);
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
@@ -220,10 +248,13 @@ void main(){
       
       cloud_programID = LoadShaders( *read_whole_fn( cloud_vertex_shader_fn ), fragment_shader_code_str );
       cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
+      cloud_lasers_id = glGetUniformLocation(cloud_programID, "lasers");
+      cloud_hbins_id = glGetUniformLocation(cloud_programID, "lasers");
       printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
 
       init_grid();
       init_cloud();
+      check_gl_error( "init" );
     }
 
     virtual data_block_t proc_block( data_block_t const & db ) {
@@ -235,11 +266,8 @@ void main(){
     }
 
     virtual void render_pts_into_frame_buf( data_block_t const & db ) {
-      p_nda_t const & nda = db.nda;
-
-
+      check_gl_error( "preframe" );
       //mode_uid = glGetUniformLocation(programID, "mode");
-
       // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
       glm::mat4 Projection = glm::perspective(glm::radians(60.0f), float( frame_buf->sz.d[0] ) / float( frame_buf->sz.d[1] ), 0.1f, 1000.0f);
       // Or, for an ortho camera :
@@ -265,28 +293,20 @@ void main(){
       glm::mat4 Model      = glm::mat4(1.0f);
       // Our ModelViewProjection : multiplication of our 3 matrices
       MVP = Projection * View * Model; // Remember, matrix multiplication is the other way around
-
       
-      // Clear the screen
-      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the screen
       draw_grid();
-      draw_cloud();
-      
+      draw_cloud( db );
       glFinish();
+      check_gl_error( "postframe" );
 
 #if 0                
 	// Cleanup VBO
 	glDeleteBuffers(1, &vertexbuffer);
 	glDeleteVertexArrays(1, &VertexArrayID);
 	glDeleteProgram(programID);
-
-      
-#endif
-
-      
+#endif      
     }
-
 
     virtual string get_pos_info_str( void ) {      
       return strprintf( "data-to-img: disp_sz=%s", str(disp_sz).c_str() );
