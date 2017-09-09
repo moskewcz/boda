@@ -153,17 +153,18 @@ void main(){
         }
       }
       glGenBuffers(1, &grid_pts_buf);
-      glBindBuffer(GL_ARRAY_BUFFER, grid_pts_buf);
-      glBufferData(GL_ARRAY_BUFFER, grid_pts->dims.bytes_sz(), grid_pts->rp_elems(), GL_STATIC_DRAW);
       glLineWidth( 2.0f );
     }
 
-    p_nda_float_t cloud_pts;
     GLuint cloud_pts_buf;
 
     void draw_cloud( data_block_t const & db ) {
       p_nda_t const & nda = db.nda;
+      glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf );
+      glBufferData(GL_ARRAY_BUFFER, nda->dims.bytes_sz(), nda->rp_elems(), GL_STREAM_DRAW);
+
       glUseProgram(cloud_programID);
+
       glUniformMatrix4fv(cloud_mvp_id, 1, GL_FALSE, &MVP[0][0]);
       if( nda->dims.sz() != 2 ) {
         rt_err( strprintf( "expected 2D-array for point cloud, but had nda->dims=%s\n", str(nda->dims).c_str() ) ); 
@@ -173,19 +174,13 @@ void main(){
       
       glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
-      glVertexAttribPointer( 0, 1, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
-      glDrawArrays(GL_POINTS, 0, cloud_pts->elems_sz() );
+      glVertexAttribPointer( 0, 1, GL_UNSIGNED_SHORT, GL_FALSE, 0, (void *) 0 ); 
+      glDrawArrays(GL_POINTS, 0, nda->elems_sz() );
       glDisableVertexAttribArray(0);
     }
 
     void init_cloud( void ) {
-      cloud_pts = make_shared<nda_float_t>( dims_t{ {64*2000}, {"pts"}, "float" } );
-      for( uint32_t pt = 0; pt != 64*2000; ++pt ) {
-        cloud_pts->at1(pt) = float(pt)/25.0;
-      }
       glGenBuffers(1, &cloud_pts_buf);
-      glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
-      glBufferData(GL_ARRAY_BUFFER, cloud_pts->dims.bytes_sz(), cloud_pts->rp_elems(), GL_STATIC_DRAW);
     }
 
     

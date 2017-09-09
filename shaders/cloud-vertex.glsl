@@ -22,7 +22,7 @@ void main(){
   vec3 pos;
   pos[0] = float(uint(gl_VertexID)%lasers);
   pos[1] = float(uint(gl_VertexID)/lasers);
-  pos[2] = pt_dist*0. + 1.0;
+  pos[2] = pt_dist / 500. / 10.;
   gl_Position =  MVP * vec4(pos,1);
   float hue = (-1. + exp(-max(pos[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
   fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
