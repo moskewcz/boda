@@ -82,7 +82,7 @@ void main(){
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t cloud_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/cloud-vertex.glsl",help="point cloud vertex shader filename")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
+    u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
     double cam_scale; //NESI(default="1.0",help="scale camera pos by this amount")
     float start_z; //NESI(default="50.0",help="starting z value for camera")
 
