@@ -193,8 +193,8 @@ namespace boda
             if( (last_rot != uint16_t_const_max) &&
                 rel_angle_lt(last_rot,fov_center_rot) && !rel_angle_lt(bi->rot_pos,fov_center_rot) ) { // trigger
               ret_db.timestamp_ns = vps_db.timestamp_ns;
-              if( verbose ) { printf( "-- TRIGGER -- bi->rot_pos=%s\n", str(bi->rot_pos).c_str() ); }
-              if( verbose ) { printf( "  @TRIGGER: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
+              if( verbose > 4 ) { printf( "-- TRIGGER -- bi->rot_pos=%s\n", str(bi->rot_pos).c_str() ); }
+              if( verbose > 4 ) { printf( "  @TRIGGER: si->gps_timestamp_us=%s si->status_type=%s si->status_val=%s\n",
                                       str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
               rots_till_emit = fov_rot_samps >> 1; // have 1/2 of fov samps in buf, need other 1/2 now
             } 
@@ -222,7 +222,7 @@ namespace boda
       ret_db.tag = "lidar-velodyne-" + str(tot_lasers);
       ret_db.frame_ix = tot_num_read;
       ++tot_num_read;
-      if( verbose ) { printf( "velodyne ret_db: %s\n", str(ret_db).c_str() ); }
+      if( verbose > 4 ) { printf( "velodyne ret_db: %s\n", str(ret_db).c_str() ); }
       return ret_db;
     }
 
@@ -253,7 +253,7 @@ namespace boda
     }
     
     void proc_status_epoch( void ) {
-
+      if( verbose ) { printf( "epoch: cycle_types=%s cycle_vals=%s\n", str(cycle_types).c_str(), str(cycle_vals).c_str() ); }
     }
     
     void proc_status_cycle( void ) {
@@ -264,9 +264,6 @@ namespace boda
       }
       if( cycle_in_epoch == uint32_t_const_max ) { return; } // if (still) no cycle sync, give up for now
       // process cycle
-      if( cycle_in_epoch == 0 ) {
-        if( verbose ) { printf( "cycle_types=%s cycle_vals=%s\n", str(cycle_types).c_str(), str(cycle_vals).c_str() ); }
-      }
       ++cycle_in_epoch;
       // if epoch done, do end-of-epoch processing (checksum, capture config)
       if( cycle_in_epoch == velo_cycles_in_epoch ) {
@@ -287,7 +284,7 @@ namespace boda
           had_err = 1;
         } else {
           uint32_t ts_delta = si.gps_timestamp_us - last_status_gps_ts;
-          uint32_t max_ts_delta = (tot_lasers == 32) ? 600 : 200;
+          uint32_t max_ts_delta = (tot_lasers == 32) ? 600 : (dual_return_and_use_only_first_return ? 200 : 300 );
           if( ts_delta > max_ts_delta ) {
             printf( "large (>max_ts_delta=%s) ts_delta=%s:\n", str(max_ts_delta).c_str(), str(ts_delta).c_str() );
             had_err = 1;
@@ -323,6 +320,7 @@ namespace boda
       // we need to know cycle_in_epoch to do more parsing/checking. for simplicity, we defer this until the cycle is complete
       ++packet_in_cycle;
       if( packet_in_cycle == velo_packets_in_cycle ) {
+        if( verbose ) { printf( "epoch: cycle_types=%s cycle_vals=%s\n", str(cycle_types).c_str(), str(cycle_vals).c_str() ); }
         proc_status_cycle();
         cycle_types.clear();
         cycle_vals.clear();
