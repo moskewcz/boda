@@ -5,6 +5,7 @@
 #include"nesi.H"
 #include"data-stream.H"
 #include<algorithm>
+#include<boost/circular_buffer.hpp>
 
 namespace boda 
 {
@@ -24,8 +25,29 @@ namespace boda
     uint8_t status_type;
     uint8_t status_val;
   } __attribute__((packed));
-  
 
+  typedef boost::circular_buffer<status_info_t> status_ring_t;
+
+  // in stream order. note that in XML, typically the order is the same expect the vert/rot entries are swapped ... but
+  // in xml the order should not be (treated as) significant.
+  struct laser_corr_t {
+    float vert_corr;
+    float rot_corr;
+    float dist_corr;    
+    float dist_corr_x;
+    float dist_corr_y;
+    float off_corr_y;
+    float off_corr_x;
+    float focal_dist;
+    float focal_slope;
+  };
+  std::ostream & operator <<(std::ostream & os, laser_corr_t const & v) {
+    os << strprintf( "vert_corr=%s rot_corr=%s dist_corr=%s dist_corr_x=%s dist_corr_y=%s off_corr_y=%s off_corr_x=%s focal_dist=%s focal_slope=%s", str(v.vert_corr).c_str(), str(v.rot_corr).c_str(), str(v.dist_corr).c_str(), str(v.dist_corr_x).c_str(), str(v.dist_corr_y).c_str(), str(v.off_corr_y).c_str(), str(v.off_corr_x).c_str(), str(v.focal_dist).c_str(), str(v.focal_slope).c_str() );
+    return os;
+  }
+
+  typedef vector< laser_corr_t > vect_laser_corr_t;
+  
   uint16_t const ang_max = 36000;
   uint16_t const half_ang_max = 18000;
   // for angles in the space [0,ang_max), the distance between two angles is always <= 180.0
@@ -235,8 +257,7 @@ namespace boda
     uint32_t cycle_in_epoch;
     uint32_t packet_in_cycle;
 
-    vect_uint16_t cycle_types;
-    vect_uint16_t cycle_vals;
+    status_ring_t status_ring;
     
     // called on each packet. assumes packets are presented in stream order.
     void on_bad_status( string const & msg ) {
@@ -246,21 +267,106 @@ namespace boda
       last_status_src_pos = string();
       packet_in_cycle = uint32_t_const_max; 
       cycle_in_epoch = uint32_t_const_max; // confused/unsynced state
-      cycle_types.clear();
-      cycle_vals.clear();
+      status_ring.clear();
       if( msg.empty() ) { return; } // initial/expected stream reset, no error
       printf( "%s\n", str(msg).c_str() );
     }
+
+    status_info_t const & read_status_epoch( uint32_t const & laser, uint32_t const & offset ) {
+      assert_st( tot_lasers == 64 ); // should only be called in this case
+      assert_st( status_ring.full() );
+      assert_st( laser < 65 );  // 64 real lasers + 1 'laser' worth of param/config data
+      assert_st( offset < 28 ); // need to be able to read a byte at offset; per-laser data is of size 28
+      // sigh on the indexing below. also, FIXME, since really this isn't quite right -- the lasers go from packet
+      // [1,256], then then only the last three packets [257,259] are params. but last real laser (i.e 0-based laser 63)
+      // has some info in the normally 'reserved' laser-info bytes.
+      uint32_t const six = velo_packets_in_cycle * ( (4*laser) + (offset / 7) ) + (velo_cycle_prefix_types.size() + (offset % 7)); 
+      assert_st( six < status_ring.size() ); // by constuction and earlier asserts, must hold even for any invalid stream.
+      return status_ring[six];
+    }
+
+    uint8_t read_status_epoch_uint8_t( uint32_t const & laser, uint32_t const & offset ) { return read_status_epoch( laser, offset ).status_val; }
+    uint16_t read_status_epoch_uint16_t( uint32_t const & laser, uint32_t const & offset ) {
+      return uint16_t( read_status_epoch_uint8_t( laser, offset ) ) + ( uint16_t( read_status_epoch_uint8_t( laser, offset+1 ) ) << 8 );
+    }
+    float get_float_from_config_int16_t( vect_uint8_t const & d, uint32_t & p ) {
+      int16_t ret = uint16_t( d.at( p ) ) + uint16_t( d.at( p + 1 ) << 8 ); // note: assign cases uint16_t to int16_t
+      p += 2;
+      return ret; // note: return casts int16_t to float
+    }
+
+  
+    vect_laser_corr_t laser_corrs;
     
     void proc_status_epoch( void ) {
-      if( verbose ) { printf( "epoch: cycle_types=%s cycle_vals=%s\n", str(cycle_types).c_str(), str(cycle_vals).c_str() ); }
+      if( !status_ring.full() ) { on_bad_status( "velodyne stream corrupt; should be at end of epoch, but didn't see enough status data since last sync'd point." ); return; }
+      vect_uint8_t config_data;
+      for( uint32_t i = 0; i != (65*4) ; ++i ) {
+        for( uint32_t j = 0; j != 7 ; ++j ) {
+          config_data.push_back( status_ring.at(i*16 + velo_cycle_prefix_types.size() + j).status_val );
+        }
+      }
+      assert_st( config_data.size() == 1820 );
+
+      vect_uint8_t real_config_data;
+      //for( uint32_t j = 0; j != 7 ; ++j ) { real_config_data.push_back(status_ring.at( velo_cycle_prefix_types.size() + j ).status_val ); }
+      for( uint32_t i = 0; i != 64 ; ++i ) {
+        for( uint32_t j = 0; j != 21 ; ++j ) {
+          real_config_data.push_back( status_ring.at((i*4 + 1 + (j/7))*16 + velo_cycle_prefix_types.size() + (j%7)).status_val );
+        }
+      }
+      assert_st( real_config_data.size() == (21*64 + 7*0) );
+
+      // FIXME: we have two-ish ways of reading the status data here: the 'compact' 1820 byte vector (no types), used
+      // for checksum, and the 'full' reading by laser/offset (which can get the type). maybe we should only have one
+      // somehow?
+      bool has_checksum = read_status_epoch( 0, 6 ).status_type == 0xF6u; // not ideal, since could be corrupt ...
+      uint16_t const len_or_cs = read_status_epoch_uint16_t(64,26);
+      if( !has_checksum ) {
+        if( len_or_cs != 1820 ) {
+          on_bad_status( "velodyne stream corrupt or unsupported; assumed HDL64-S2 stream (with no checksum) had non-1820 config-data-length of " + str(len_or_cs) );
+          return;
+        }
+      } else {
+#if 0
+        // FIXME: for now, we don't seem to know how to calculation the crc properly, since it never agrees, despite
+        // various random attempts at guessing what data to include in the checksum ..
+        uint16_t const calc_crc = velo_crc( &real_config_data[0], real_config_data.size() );
+        if( calc_crc != len_or_cs ) {
+          on_bad_status( strprintf( "velodyne stream corrupt; bad crc: calc_crc=%s len_or_cs=%s\n", str(calc_crc).c_str(), str(len_or_cs).c_str() ) );
+          return;          
+        }
+#endif
+      }
+      laser_corrs.resize( 64 );
+      for( uint32_t i = 0; i != laser_corrs.size(); ++i ) {
+        uint32_t pos = 21*i;
+        uint8_t const lid = real_config_data.at( pos ); ++pos;
+        if( lid != i ) { on_bad_status( strprintf( "velodyne config corrupt: expected config for laser %s but saw lid=%s\n", str(i).c_str(), str(lid).c_str() ) ); return; }
+        laser_corr_t & laser_corr = laser_corrs[i];
+        laser_corr.vert_corr = get_float_from_config_int16_t( real_config_data, pos ) / 100.0f;
+        laser_corr.rot_corr = get_float_from_config_int16_t( real_config_data, pos ) / 100.0f;
+        laser_corr.dist_corr = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+        laser_corr.dist_corr_x = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+        laser_corr.dist_corr_y = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+        laser_corr.off_corr_y = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+        laser_corr.off_corr_x = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+        laser_corr.focal_dist = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+        laser_corr.focal_slope = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+      }
+      if( verbose ) {
+        printf( "epoch ok: len_or_cs=%s\n", str(len_or_cs).c_str() );
+        for( uint32_t i = 0; i != laser_corrs.size(); ++i ) {
+          printf( "laser_corrs[%2s] = %s\n", str(i).c_str(), str(laser_corrs[i]).c_str() );
+        }
+      }
+
     }
     
     void proc_status_cycle( void ) {
-      assert_st( cycle_types.size() == velo_packets_in_cycle ); // 16 (total packets/cycle) = 9 (# prefix statuses) + 7 (per-cycle stuff)
-      assert_st( cycle_vals.size() == velo_packets_in_cycle );
-      if( cycle_in_epoch == uint32_t_const_max ) { // if we're confused/unsynced, just look for 0xF7 as last status type
-        if( cycle_types.back() == 0xF6u ) { cycle_in_epoch = 0; }
+      assert_st( status_ring.size() >= velo_packets_in_cycle ); // 16 (total packets/cycle) = 9 (# prefix statuses) + 7 (per-cycle stuff)
+      if( cycle_in_epoch == uint32_t_const_max ) { // if we're confused/unsynced, just look for 0xFE as first non-prefix status type
+        if( status_ring[status_ring.size()-7].status_type == 0xFEu ) { cycle_in_epoch = 257; } // at last-2 cycle of epoch
       }
       if( cycle_in_epoch == uint32_t_const_max ) { return; } // if (still) no cycle sync, give up for now
       // process cycle
@@ -316,14 +422,11 @@ namespace boda
         }
         // TODO: process prefix fields (as needed)
       }
-      cycle_types.push_back( si.status_type ); cycle_vals.push_back( si.status_val ); // capture type/val
+      status_ring.push_back( si ); // capture type/val
       // we need to know cycle_in_epoch to do more parsing/checking. for simplicity, we defer this until the cycle is complete
       ++packet_in_cycle;
       if( packet_in_cycle == velo_packets_in_cycle ) {
-        if( verbose ) { printf( "epoch: cycle_types=%s cycle_vals=%s\n", str(cycle_types).c_str(), str(cycle_vals).c_str() ); }
         proc_status_cycle();
-        cycle_types.clear();
-        cycle_vals.clear();
         packet_in_cycle = 0;
       }
     }
@@ -376,7 +479,9 @@ namespace boda
           }
         }
         
-      } else {
+      } else if( tot_lasers == 64 ) {
+        status_ring.set_capacity( velo_cycles_in_epoch * velo_packets_in_cycle ); // i.e. 16*260 = 4160 packets
+          
         if( !laser_to_row_ix_str ) {
           // if no mapping specified, put laser in packet/firing/raw order; we assume corrections will be done later
           for( uint32_t i = 0; i != 64; ++i ) { laser_to_row_ix.push_back(i); }
@@ -394,7 +499,7 @@ namespace boda
             catch( rt_exception & rte ) { rte.err_msg = "parsing element " + str(i) + " of laser_to_row_ix_str: " + rte.err_msg; throw; }
           }
         }
-      }
+      } else { assert_st(0); }
       vect_uint32_t laser_to_row_ix_sorted = laser_to_row_ix;
       sort( laser_to_row_ix_sorted.begin(), laser_to_row_ix_sorted.end() );
       assert_st( laser_to_row_ix_sorted.size() == tot_lasers );
