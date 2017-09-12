@@ -41,6 +41,7 @@ namespace boda
 
     // internal state:
     uint64_t tot_num_read; // num blocks read so far
+    virtual void set_opt( data_stream_opt_t const & opt ) { src->set_opt( opt ); }
 
     virtual bool seek_to_block( uint64_t const & frame_ix ) {
       // FIXME: do something with tot_num_read here?
@@ -74,6 +75,8 @@ namespace boda
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     p_data_stream_t data_src; //NESI(req=1,help="wrapped data stream")
     p_data_stream_t ts_src; //NESI(req=1,help="wrapped data stream")
+
+    virtual void set_opt( data_stream_opt_t const & opt ) { data_src->set_opt( opt ); ts_src->set_opt( opt ); }
 
     virtual string get_pos_info_str( void ) {
       return strprintf( " data_src info: %s -- ts_src info: %s",
@@ -309,6 +312,8 @@ namespace boda
 
     uint64_t next_frame_ix;
     vect_vect_data_block_t cur_dbs;
+
+    virtual void set_opt( data_stream_opt_t const & opt ) { for( uint32_t i = 0; i != streams.size(); ++i ) { streams[i]->set_opt( opt ); } }
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       if( sync_verbose ) { verbose = sync_verbose; }
