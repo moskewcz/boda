@@ -82,6 +82,7 @@ void main(){
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t cloud_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/cloud-vertex.glsl",help="point cloud vertex shader filename")
+    p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
     double cam_scale; //NESI(default="1.0",help="scale camera pos by this amount")
@@ -186,6 +187,11 @@ void main(){
 
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      if( velo_cfg.get() ) {
+        vect_laser_corr_t laser_corrs;
+        read_velo_config( *velo_cfg, laser_corrs );
+      }
+      
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
       frame_buf = make_shared< img_t >();
       frame_buf->set_sz_and_alloc_pels( disp_sz );

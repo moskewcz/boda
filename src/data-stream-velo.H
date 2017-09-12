@@ -19,7 +19,9 @@ namespace boda
     float focal_dist;
     float focal_slope;
   };
+  typedef vector< laser_corr_t > vect_laser_corr_t;
   std::ostream & operator <<(std::ostream & os, laser_corr_t const & v);
+  void read_velo_config( filename_t const & velo_config_xml_fn, vect_laser_corr_t & laser_corrs );
 
 }
 

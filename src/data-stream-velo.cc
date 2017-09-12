@@ -8,6 +8,8 @@
 #include<algorithm>
 #include<boost/circular_buffer.hpp>
 
+#include"xml_util.H" // only for config parse function -- move to own header/file?
+
 namespace boda 
 {
 
@@ -34,7 +36,6 @@ namespace boda
     return os;
   }
 
-  typedef vector< laser_corr_t > vect_laser_corr_t;
   
   uint16_t const ang_max = 36000;
   uint16_t const half_ang_max = 18000;
@@ -514,5 +515,45 @@ namespace boda
         
     }   
   };
+
+  using pugi::xml_document;
+  using pugi::xml_node;
+  
+  // appends corrections to laser_corrs
+  void read_velo_config( filename_t const & velo_config_xml_fn, vect_laser_corr_t & laser_corrs ) {
+    assert_st( laser_corrs.empty() );
+    char const * const fn = velo_config_xml_fn.exp.c_str();
+
+    ensure_is_regular_file( fn );
+    xml_document doc;
+    xml_node cfg = xml_file_get_root( doc, velo_config_xml_fn.exp );
+
+    xml_node points_ = xml_must_decend( fn, xml_must_decend( fn, cfg, "DB" ), "points_" );
+
+    uint32_t lix = 0;
+    for( xml_node item = points_.child("item"); item; item = item.next_sibling("item") ) {
+      xml_node px = xml_must_decend( fn, item, "px" );
+      // FIXME: does object_id matter?
+      string const oid = xml_must_get_attr( fn, px, "object_id" ).value();
+      ++lix;
+      string const lix_as_str = "_"+str(lix);
+      if( oid != lix_as_str ) { rt_err(strprintf( "velo config parse failed: expected object_id oid=%s to match lix_as_str=%s\n",
+                                                  str(oid).c_str(), str(lix_as_str).c_str() ) ); } // FIXME: too strong?
+      laser_corr_t laser_corr;
+      laser_corr.vert_corr = lc_str_d( xml_must_decend( fn, px, "vertCorrection_" ).child_value() );
+      laser_corr.rot_corr = lc_str_d( xml_must_decend( fn, px, "rotCorrection_" ).child_value() );
+      laser_corr.dist_corr = lc_str_d( xml_must_decend( fn, px, "distCorrection_" ).child_value() );
+      laser_corr.dist_corr_x = lc_str_d( xml_must_decend( fn, px, "distCorrectionX_" ).child_value() );
+      laser_corr.dist_corr_y = lc_str_d( xml_must_decend( fn, px, "distCorrectionY_" ).child_value() );
+      laser_corr.off_corr_y = lc_str_d( xml_must_decend( fn, px, "vertOffsetCorrection_" ).child_value() );
+      laser_corr.off_corr_x = lc_str_d( xml_must_decend( fn, px, "horizOffsetCorrection_" ).child_value() );
+      laser_corr.focal_dist = lc_str_d( xml_must_decend( fn, px, "focalDistance_" ).child_value() );
+      laser_corr.focal_slope = lc_str_d( xml_must_decend( fn, px, "focalSlope_" ).child_value() );
+
+      laser_corrs.push_back( laser_corr );
+    }
+  }
+
+  
 #include"gen/data-stream-velo.cc.nesi_gen.cc"
 }

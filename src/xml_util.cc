@@ -29,4 +29,14 @@ namespace boda {
     return ret;
   }
 
+  xml_attribute xml_must_get_attr( char const * const fn, xml_node const & node, char const * const attr_name )
+  {
+    xml_attribute ret = node.attribute(attr_name);
+    if( !ret ) { 
+      rt_err( strprintf( "error: parsing xml file: '%s': expected to find attribute named '%s' from %s",
+			 fn, attr_name, (node==node.root()) ? "document root" : 
+			 ("node with name '" + string(node.name()) + "'").c_str() ) ); }
+    return ret;
+  }
+
 }
