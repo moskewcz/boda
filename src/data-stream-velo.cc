@@ -4,6 +4,7 @@
 #include"str_util.H"
 #include"nesi.H"
 #include"data-stream.H"
+#include"data-stream-velo.H"
 #include<algorithm>
 #include<boost/circular_buffer.hpp>
 
@@ -27,20 +28,7 @@ namespace boda
   } __attribute__((packed));
 
   typedef boost::circular_buffer<status_info_t> status_ring_t;
-
-  // in stream order. note that in XML, typically the order is the same expect the vert/rot entries are swapped ... but
-  // in xml the order should not be (treated as) significant.
-  struct laser_corr_t {
-    float vert_corr;
-    float rot_corr;
-    float dist_corr;    
-    float dist_corr_x;
-    float dist_corr_y;
-    float off_corr_y;
-    float off_corr_x;
-    float focal_dist;
-    float focal_slope;
-  };
+  
   std::ostream & operator <<(std::ostream & os, laser_corr_t const & v) {
     os << strprintf( "vert_corr=%s rot_corr=%s dist_corr=%s dist_corr_x=%s dist_corr_y=%s off_corr_y=%s off_corr_x=%s focal_dist=%s focal_slope=%s", str(v.vert_corr).c_str(), str(v.rot_corr).c_str(), str(v.dist_corr).c_str(), str(v.dist_corr_x).c_str(), str(v.dist_corr_y).c_str(), str(v.off_corr_y).c_str(), str(v.off_corr_x).c_str(), str(v.focal_dist).c_str(), str(v.focal_slope).c_str() );
     return os;
@@ -245,6 +233,16 @@ namespace boda
       ret_db.frame_ix = tot_num_read;
       ++tot_num_read;
       if( verbose > 4 ) { printf( "velodyne ret_db: %s\n", str(ret_db).c_str() ); }
+      if( laser_corrs_nda ) { // if we read corrections on this packet, wedge them into our output
+        data_block_t laser_corrs_db;
+        laser_corrs_db.meta = "lidar-corrections";
+        laser_corrs_db.nda = laser_corrs_nda;
+        // consume corrections so we only send them once per time we see them. FIXME: only send once total? validiate it's the same each time?
+        laser_corrs_nda.reset();
+        ret_db.subblocks = make_shared<vect_data_block_t>(1);
+        ret_db.subblocks->at(0) = laser_corrs_db;
+      }
+      
       return ret_db;
     }
 
@@ -297,6 +295,7 @@ namespace boda
 
   
     vect_laser_corr_t laser_corrs;
+    p_nda_t laser_corrs_nda;
     
     void proc_status_epoch( void ) {
       if( !status_ring.full() ) { on_bad_status( "velodyne stream corrupt; should be at end of epoch, but didn't see enough status data since last sync'd point." ); return; }
@@ -354,13 +353,17 @@ namespace boda
         laser_corr.focal_dist = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
         laser_corr.focal_slope = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
       }
-      if( verbose ) {
+      if( verbose > 4 ) {
         printf( "epoch ok: len_or_cs=%s\n", str(len_or_cs).c_str() );
         for( uint32_t i = 0; i != laser_corrs.size(); ++i ) {
           printf( "laser_corrs[%2s] = %s\n", str(i).c_str(), str(laser_corrs[i]).c_str() );
         }
       }
-
+      laser_corrs_nda = make_shared<nda_float_t>( dims_t{
+          vect_uint32_t{uint32_t(laser_corrs.size()),sizeof(laser_corr_t)/sizeof(float)},
+            vect_string{"l","v"}, "float" } );
+      assert_st( laser_corrs_nda->dims.bytes_sz() == sizeof(laser_corr_t)*laser_corrs.size() );
+      std::copy( (uint8_t *)&laser_corrs[0], (uint8_t *)&laser_corrs[0]+laser_corrs_nda->dims.bytes_sz(), (uint8_t *)laser_corrs_nda->rp_elems() );      
     }
     
     void proc_status_cycle( void ) {

@@ -5,6 +5,7 @@
 #include"has_main.H"
 #include"str_util.H"
 #include"rand_util.H"
+#include"data-stream-velo.H"
 
 #include"GL/glew.h"
 #define GLAPI extern 
@@ -252,8 +253,28 @@ void main(){
       check_gl_error( "init" );
     }
 
+    p_nda_t laser_corrs_nda;
+    
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.nda.get() ) { rt_err( "add-img-pts: expected nda data in block, but found none." ); }
+      if( db.has_subblocks() ) {
+        for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
+          data_block_t const & sdb = db.subblocks->at(i);
+          if( sdb.meta == "lidar-corrections" ) {
+            laser_corrs_nda = sdb.nda;
+            assert_st( laser_corrs_nda->dims.sz() == 2 );
+            assert_st( laser_corrs_nda->dims.strides(0)*sizeof(float) == sizeof(laser_corr_t) );
+            laser_corr_t const * laser_corr = (laser_corr_t const *)laser_corrs_nda->rp_elems();
+            for( uint32_t i = 0; i != laser_corrs_nda->dims.dims(0); ++i ) {
+              printf( "i=%s (*laser_corr)=%s\n", str(i).c_str(), str((*laser_corr)).c_str() );
+              ++laser_corr;
+            }
+          }
+          else {
+            rt_err( strprintf( "os-render: unknown subblock with meta=%s\n", str(sdb.meta).c_str() ) ); // could maybe just skip/ignore
+          }
+        }
+      }
       render_pts_into_frame_buf( db );
       data_block_t ret = db;
       ret.as_img = frame_buf;
