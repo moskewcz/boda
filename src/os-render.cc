@@ -86,7 +86,7 @@ void main(){
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
     double cam_scale; //NESI(default="1.0",help="scale camera pos by this amount")
-    float start_z; //NESI(default="50.0",help="starting z value for camera")
+    float start_z; //NESI(default="40.0",help="starting z value for camera")
 
     uint32_t grid_cells; //NESI(default="10",help="number of X/Y grid cells to draw")
     float grid_cell_sz; //NESI(default="10.0",help="size of each grid cell")
@@ -321,7 +321,7 @@ void main(){
       // Or, for an ortho camera :
       //glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
 #if 1
-      glm::mat4 R = glm::rotate(-cam_rot[0], glm::vec3(0.0f, 0.0f, 1.0f)) * glm::rotate(-cam_rot[1], glm::vec3(1.0f, 0.0f, 0.0f));
+      glm::mat4 R = glm::rotate(glm::radians(180.0f)-cam_rot[0], glm::vec3(0.0f, 0.0f, 1.0f)) * glm::rotate(-cam_rot[1], glm::vec3(1.0f, 0.0f, 0.0f));
       glm::vec3 T = glm::vec3(0, 0, cam_pos[2]);   
       glm::vec3 position = glm::vec3(R * glm::vec4(T,0.0f)); 
       glm::vec3 m_direction = glm::vec3(0,0,0);

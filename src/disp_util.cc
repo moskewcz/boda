@@ -121,6 +121,8 @@ namespace boda
 
   void disp_win_t::reset_cam( void ) {
     for( uint32_t i = 0; i != 3; ++i ) { cam_rot[i] = 0.0f; cam_pos[i] = 0.0f; }
+    cam_rot[1] = 80.0f;
+      
   }
 
   // FIXME: the size of imgs and the w/h of the img_t's inside imgs
@@ -348,8 +350,8 @@ namespace boda
             i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
             cam_rot[0] = pan_orig_cam_rx - pan_to.d[0];
             clamp_eq( cam_rot[0], -180.0f, 180.0f );
-            cam_rot[1] = pan_orig_cam_ry - pan_to.d[1];
-            clamp_eq( cam_rot[1], -90.0f, 90.0f );
+            cam_rot[1] = pan_orig_cam_ry + pan_to.d[1];
+            clamp_eq( cam_rot[1], 0.0f, 90.0f );
           }
         }
 	break;
