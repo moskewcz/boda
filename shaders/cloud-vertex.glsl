@@ -26,7 +26,7 @@ void main(){
   uint hbin = uint(gl_VertexID) % hbins;
   float elev_ang = radians(-24.8) + float(laser_id) * radians(0.5);
   float azi_ang = (float(hbin) - float(hbins)/2.0)*radians(0.172);
-  float dist = 50.0; // pt_dist / 500.;
+  float dist = 10.0; // pt_dist / 500.;
   float sin_azi = sin(azi_ang);
   float cos_azi = cos(azi_ang);
   float sin_elev = sin(elev_ang);

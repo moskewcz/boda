@@ -155,6 +155,9 @@ void main(){
         }
       }
       glGenBuffers(1, &grid_pts_buf);
+      glBindBuffer(GL_ARRAY_BUFFER, grid_pts_buf );
+      glBufferData(GL_ARRAY_BUFFER, grid_pts->dims.bytes_sz(), grid_pts->rp_elems(), GL_STATIC_DRAW);
+      glBindBuffer(GL_ARRAY_BUFFER, 0 );
       glLineWidth( 2.0f );
     }
 
@@ -249,7 +252,7 @@ void main(){
       }
 
       // Dark blue background
-      glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
+      glClearColor(0.0f, 0.0f, 0.3f, 0.0f);
 
       // Enable depth test
       glEnable(GL_DEPTH_TEST);
@@ -266,7 +269,6 @@ void main(){
       programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
       printf( "programID=%s\n", str(programID).c_str() );
       mvp_id = glGetUniformLocation(programID, "MVP");
-
       
       cloud_programID = LoadShaders( *read_whole_fn( cloud_vertex_shader_fn ), fragment_shader_code_str );
       cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
