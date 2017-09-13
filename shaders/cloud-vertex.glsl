@@ -22,10 +22,23 @@ vec3 hsv2rgb(vec3 c) {
 void main(){	
   // Output position of the vertex, in clip space : MVP * position
   vec3 pos;
-  pos[0] = float(uint(gl_VertexID)%lasers);
-  pos[1] = float(uint(gl_VertexID)/lasers);
+  uint laser_id = uint(gl_VertexID) / hbins;
+  uint hbin = uint(gl_VertexID) % hbins;
+  float elev_ang = radians(-24.8) + float(laser_id) * radians(0.5);
+  float azi_ang = (float(hbin) - float(hbins)/2.0)*radians(0.172);
+  float dist = 50.0; // pt_dist / 500.;
+  float sin_azi = sin(azi_ang);
+  float cos_azi = cos(azi_ang);
+  float sin_elev = sin(elev_ang);
+  float cos_elev = cos(elev_ang);
+  
+  float dist_xy = dist * cos_elev; // elev 0 --> dist_xy = dist
+  pos[0] = dist_xy * sin_azi; // azi 0 --> x = 0; y = dist_xy
+  pos[1] = dist_xy * cos_azi;
+  pos[2] = dist * sin_elev + 2.;
   //pos[2] = pt_dist / 500. / 10.;
-  pos[2] = texelFetch(lut_tex, gl_VertexID % 100 ).r;
+  //pos[2] = laser_id;
+  //pos[2] = texelFetch(lut_tex, gl_VertexID % 100 ).r;
 
   gl_Position =  MVP * vec4(pos,1);
   float hue = (-1. + exp(-max(pos[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;

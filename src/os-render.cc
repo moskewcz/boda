@@ -183,7 +183,6 @@ void main(){
 
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_BUFFER, cloud_lut_tex);
-      glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, cloud_lut_buf);
       glUniform1i(cloud_lut_tex_id, 0);
       
       glDrawArrays(GL_POINTS, 0, nda->elems_sz() );
@@ -192,25 +191,26 @@ void main(){
 
     void init_cloud( void ) {
       glGenBuffers(1, &cloud_pts_buf);
-      
       glGenBuffers(1, &cloud_lut_buf);
-      glBindBuffer(GL_TEXTURE_BUFFER, cloud_lut_buf);
-      vect_float cloud_lut_vect;
-      for( uint32_t i = 0; i != 100; ++i ) { cloud_lut_vect.push_back( sin(float(i)/30)*5.0 ); }
-      glBufferData(GL_TEXTURE_BUFFER, cloud_lut_vect.size()*sizeof(cloud_lut_vect[0]), cloud_lut_vect.data(), GL_STATIC_DRAW);
       glGenTextures(1, &cloud_lut_tex);
-      glBindBuffer(GL_TEXTURE_BUFFER, 0);
-
-      
-
     }
 
+    void bind_laser_corrs( void ) {
+      assert_st( laser_corrs.size() == 64 );
+      glBindBuffer(GL_TEXTURE_BUFFER, cloud_lut_buf);
+      glBufferData(GL_TEXTURE_BUFFER, laser_corrs.size()*sizeof(laser_corrs[0]), laser_corrs.data(), GL_STATIC_DRAW);
+      glBindBuffer(GL_TEXTURE_BUFFER, 0);
+      
+      glBindTexture(GL_TEXTURE_BUFFER, cloud_lut_tex);
+      glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, cloud_lut_buf);
+
+      if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs ); bind_laser_corrs(); }
+      
+    }
+
+    vect_laser_corr_t laser_corrs;
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
-      if( velo_cfg.get() ) {
-        vect_laser_corr_t laser_corrs;
-        read_velo_config( *velo_cfg, laser_corrs );
-      }
       
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
       frame_buf = make_shared< img_t >();
@@ -280,8 +280,6 @@ void main(){
       init_cloud();
       check_gl_error( "init" );
     }
-
-    p_nda_t laser_corrs_nda;
     
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.nda.get() ) { rt_err( "add-img-pts: expected nda data in block, but found none." ); }
@@ -289,13 +287,17 @@ void main(){
         for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
           data_block_t const & sdb = db.subblocks->at(i);
           if( sdb.meta == "lidar-corrections" ) {
-            laser_corrs_nda = sdb.nda;
-            assert_st( laser_corrs_nda->dims.sz() == 2 );
-            assert_st( laser_corrs_nda->dims.strides(0)*sizeof(float) == sizeof(laser_corr_t) );
-            laser_corr_t const * laser_corr = (laser_corr_t const *)laser_corrs_nda->rp_elems();
-            for( uint32_t i = 0; i != laser_corrs_nda->dims.dims(0); ++i ) {
-              printf( "i=%s (*laser_corr)=%s\n", str(i).c_str(), str((*laser_corr)).c_str() );
-              ++laser_corr;
+            if( laser_corrs.empty() ) {
+              p_nda_t const & laser_corrs_nda = sdb.nda;
+              assert_st( laser_corrs_nda->dims.sz() == 2 );
+              assert_st( laser_corrs_nda->dims.strides(0)*sizeof(float) == sizeof(laser_corr_t) );
+              laser_corr_t const * laser_corr = (laser_corr_t const *)laser_corrs_nda->rp_elems();
+              for( uint32_t i = 0; i != laser_corrs_nda->dims.dims(0); ++i ) {
+                laser_corrs.push_back( *laser_corr );
+                //printf( "i=%s (*laser_corr)=%s\n", str(i).c_str(), str((*laser_corr)).c_str() );
+                ++laser_corr;
+              }
+              bind_laser_corrs();
             }
           }
           else {
