@@ -137,6 +137,7 @@ namespace boda
     void on_lb( error_code const & ec ) {
       register_lb_handler( disp_win, &display_raw_vid_t::on_lb, this ); // re-register handler for next event
       lb_event_t const & lbe = get_lb_event(&disp_win);
+      if( !lbe.valid ) { return; }
       //printf( "lbe.is_key=%s lbe.keycode=%s\n", str(lbe.is_key).c_str(), str(lbe.keycode).c_str() );
       bool unknown_command = 0;
       if( 0 ) { }
@@ -194,7 +195,7 @@ namespace boda
       frame_dur = microseconds( 1000 * 1000 / fps );
       frame_timer->expires_from_now( time_duration() );
       frame_timer->async_wait( bind( &display_raw_vid_t::on_frame, this, _1 ) );
-
+      
       register_quit_handler( disp_win, &display_raw_vid_t::on_quit, this );
       register_lb_handler( disp_win, &display_raw_vid_t::on_lb, this );
       io.run();

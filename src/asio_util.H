@@ -41,7 +41,8 @@ namespace boda {
   deadline_timer_t & get_quit_event( disp_win_t * const dw );
 
   struct lb_event_t : public deadline_timer_t {
-    lb_event_t( io_service_t & io ) : deadline_timer_t(io) { }
+    lb_event_t( io_service_t & io ) : deadline_timer_t(io), valid(0) { }
+    bool valid; // not valid until set ...
     uint32_t img_ix; // image event was inside or uint32_t_const_max if event not in an image
     i32_pt_t xy; // if img_ix is valid, coord withing image for event
     bool is_lb; // if event was left mouse button down

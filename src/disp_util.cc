@@ -295,6 +295,9 @@ namespace boda
 	asio->lb_event.xy = img_xy;
       }
     }
+    // FIXME/HACK: we can't seem to prevent this 'event' from firing for no-obvious-reason at startup. but, since we
+    // init valid to 0 in the ctor, we can ignore such firings prior to getting to this line the first time.
+    asio->lb_event.valid = 1; 
     asio->lb_event.cancel();
   }
 
