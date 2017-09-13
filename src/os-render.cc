@@ -159,7 +159,10 @@ void main(){
     }
 
     GLuint cloud_pts_buf;
-
+    GLuint cloud_lut_buf;
+    GLuint cloud_lut_tex;
+    GLint cloud_lut_tex_id;
+    
     void draw_cloud( data_block_t const & db ) {
       p_nda_t const & nda = db.nda;
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf );
@@ -176,13 +179,30 @@ void main(){
       
       glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
-      glVertexAttribPointer( 0, 1, GL_UNSIGNED_SHORT, GL_FALSE, 0, (void *) 0 ); 
+      glVertexAttribPointer( 0, 1, GL_UNSIGNED_SHORT, GL_FALSE, 0, (void *) 0 );
+
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_BUFFER, cloud_lut_tex);
+      glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, cloud_lut_buf);
+      glUniform1i(cloud_lut_tex_id, 0);
+      
       glDrawArrays(GL_POINTS, 0, nda->elems_sz() );
       glDisableVertexAttribArray(0);
     }
 
     void init_cloud( void ) {
       glGenBuffers(1, &cloud_pts_buf);
+      
+      glGenBuffers(1, &cloud_lut_buf);
+      glBindBuffer(GL_TEXTURE_BUFFER, cloud_lut_buf);
+      vect_float cloud_lut_vect;
+      for( uint32_t i = 0; i != 100; ++i ) { cloud_lut_vect.push_back( sin(float(i)/30)*5.0 ); }
+      glBufferData(GL_TEXTURE_BUFFER, cloud_lut_vect.size()*sizeof(cloud_lut_vect[0]), cloud_lut_vect.data(), GL_STATIC_DRAW);
+      glGenTextures(1, &cloud_lut_tex);
+      glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+      
+
     }
 
     
@@ -251,7 +271,9 @@ void main(){
       cloud_programID = LoadShaders( *read_whole_fn( cloud_vertex_shader_fn ), fragment_shader_code_str );
       cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
       cloud_lasers_id = glGetUniformLocation(cloud_programID, "lasers");
-      cloud_hbins_id = glGetUniformLocation(cloud_programID, "lasers");
+      cloud_hbins_id = glGetUniformLocation(cloud_programID, "hbins");
+      cloud_lut_tex_id = glGetUniformLocation(cloud_programID, "lut_tex");
+      
       printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
 
       init_grid();
