@@ -179,7 +179,6 @@ void main(){
       }
       glUniform1ui(cloud_lasers_id, nda->dims.dims(0) );
       glUniform1ui(cloud_hbins_id, nda->dims.dims(1) );
-      
       glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
       glVertexAttribPointer( 0, 1, GL_UNSIGNED_SHORT, GL_FALSE, 0, (void *) 0 );
@@ -196,6 +195,7 @@ void main(){
       glGenBuffers(1, &cloud_pts_buf);
       glGenBuffers(1, &cloud_lut_buf);
       glGenTextures(1, &cloud_lut_tex);
+      if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs ); bind_laser_corrs(); }
     }
 
     void bind_laser_corrs( void ) {
@@ -207,7 +207,6 @@ void main(){
       glBindTexture(GL_TEXTURE_BUFFER, cloud_lut_tex);
       glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, cloud_lut_buf);
 
-      if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs ); bind_laser_corrs(); }
       
     }
 
