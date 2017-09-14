@@ -331,7 +331,7 @@ namespace boda
 	  pan_pin = i32_pt_t{event.button.x,event.button.y};
 	  pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
           pan_orig_cam_x = cam_pos[0];
-          pan_orig_cam_y = cam_pos[1];
+          pan_orig_cam_y = cam_pos[2];
           pan_orig_cam_rx = cam_rot[0];
           pan_orig_cam_ry = cam_rot[1];
         }
@@ -347,7 +347,7 @@ namespace boda
           if (event.motion.state&SDL_BUTTON(2)) {
             i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
             cam_pos[0] = pan_orig_cam_x - pan_to.d[0];
-            cam_pos[1] = pan_orig_cam_y - pan_to.d[1];
+            cam_pos[2] = pan_orig_cam_y - pan_to.d[1];
           }
           if (event.motion.state&SDL_BUTTON(1)) {
             i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
@@ -365,7 +365,7 @@ namespace boda
           max_eq( zoom, -10 );
           update_dr_for_window_and_zoom( window_sz );
         } else {
-          cam_pos[2] += - event.wheel.y;
+          cam_rot[2] += - event.wheel.y;
         }
 	break;
       case SDL_KEYDOWN:

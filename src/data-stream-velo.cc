@@ -246,8 +246,10 @@ namespace boda
                       str(last_rot).c_str(), str(bi->rot_pos).c_str() );
               // FIXME: suppress this warning after a while? use it to detect dual-return mode?
             } else {
-              //azi_step = float( rel_angle_delta( bi->rot_pos, last_rot ) ) / 100.0; // FIXME: smooth?
-              //printf( "velo block: fbix=%s azi_step=%s packet_ix=%s\n", str(fbix).c_str(), str(azi_step).c_str(), str(packet_ix).c_str() );
+              if( verbose > 50 ) {
+                float azi_step = float( rel_angle_delta( bi->rot_pos, last_rot ) ) / 100.0; // FIXME: smooth?
+                printf( "velo block: fbix=%s azi_step=%s packet_ix=%s\n", str(fbix).c_str(), str(azi_step).c_str(), str(packet_ix).c_str() );
+              }
             }
           }
           last_rot = bi->rot_pos;

@@ -85,7 +85,7 @@ void main(){
     p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
-    double cam_scale; //NESI(default="1.0",help="scale camera pos by this amount")
+    double cam_scale; //NESI(default=".2",help="scale camera pos by this amount")
     float azi_step; //NESI(default=".172",help="default azimuth step (stream can override)")
     float start_z; //NESI(default="40.0",help="starting z value for camera")
 
@@ -120,9 +120,12 @@ void main(){
         nda_T<float> cam_pos_rot( opt.val );
         for( uint32_t i = 0; i != 3; ++i ) {
           cam_pos[i] = cam_pos_rot.at2(0,i) * cam_scale;
+        }
+        // cam_rot is theta/phi/r (where r is aka z)
+        for( uint32_t i = 0; i != 2; ++i ) {
           cam_rot[i] = glm::radians(cam_pos_rot.at2(1,i));
         }
-        cam_pos[2] += start_z; 
+        cam_rot[2] = start_z + cam_pos_rot.at2(1,2) * cam_scale; 
         //printf( "cam_pos[0]=%s cam_pos[1]=%s cam_pos[2]=%s\n", str(cam_pos[0]).c_str(), str(cam_pos[1]).c_str(), str(cam_pos[2]).c_str() );
         //printf( "cam_rot[0]=%s cam_rot[1]=%s cam_rot[2]=%s\n", str(cam_rot[0]).c_str(), str(cam_rot[1]).c_str(), str(cam_rot[2]).c_str() );
       }
@@ -354,12 +357,12 @@ void main(){
       //glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
 #if 1
       glm::mat4 R = glm::rotate(glm::radians(180.0f)-cam_rot[0], glm::vec3(0.0f, 0.0f, 1.0f)) * glm::rotate(-cam_rot[1], glm::vec3(1.0f, 0.0f, 0.0f));
-      glm::vec3 T = glm::vec3(0, 0, cam_pos[2]);   
+      glm::vec3 T = glm::vec3(0, 0, cam_rot[2]);   
       glm::vec3 position = glm::vec3(R * glm::vec4(T,0.0f)); 
       glm::vec3 m_direction = glm::vec3(0,0,0);
       glm::vec3 m_real_up = glm::vec3(0,1,0);
       glm::vec3 m_up = glm::vec3(R * glm::vec4(m_real_up, 0.0f)); 
-      glm::mat4 TPan = glm::translate( glm::mat4(), glm::vec3(-cam_pos[0], -cam_pos[1], 0) );
+      glm::mat4 TPan = glm::translate( glm::mat4(), glm::vec3(cam_pos[0], cam_pos[1], cam_pos[2]) );
       glm::mat4 View = TPan * glm::lookAt(position, m_direction, m_up);
 #else
       // Camera matrix
