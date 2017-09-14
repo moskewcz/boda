@@ -46,6 +46,7 @@ namespace boda
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
+    uint32_t auto_restart; //NESI(default=1,help="if set, seek to block 0 at end of stream")
     uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
     p_data_stream_t src; //NESI(help="data stream to read images from")
     disp_win_t disp_win;
@@ -125,7 +126,13 @@ namespace boda
     void read_next_block( void ) {
       set_camera_opt();
       db = src->proc_block(data_block_t());
-      if( !db.valid() ) { return; }
+      if( !db.valid() ) {
+        if( auto_restart ) {
+          if( !src->seek_to_block(0) ) { printf( "auto-restart: seek to db.frame_ix=0 failed.\n" ); }
+          else { printf( "auto-restart: success\n" ); }
+        }
+        return;
+      }
       if( !db.has_subblocks() ) { rt_err( strprintf( "expected subblocks, but num_subblocks=%s\n", str(db.num_subblocks()).c_str() ) ); }
       ensure_disp_win_setup( db );
       proc_samp_pt( db );
@@ -179,6 +186,7 @@ namespace boda
         }
         auto_adv=0;
       }
+      else if( lbe.is_key && (lbe.keycode == 'r') ) { if( !src->seek_to_block(0) ) { printf( "seek to db.frame_ix=0 failed.\n" ); } }
       else if( lbe.is_key && (lbe.keycode == 'i') ) {
         auto_adv=0;
         printf( "src: %s\n", src->get_pos_info_str().c_str() );

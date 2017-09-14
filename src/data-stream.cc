@@ -262,6 +262,19 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     vect_p_data_stream_t streams; //NESI(help="input data streams")
 
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      bool had_true = 0;
+      for( uint32_t i = 0; i != streams.size(); ++i ) {
+        bool const res = streams[i]->seek_to_block( frame_ix );
+        if( !res ) {
+          if( !had_true ) { return false; } // failed on first sub-stream (i.e. all prior failed), so okay to return failure
+          rt_err( "merge stream seek failed on non-first substream index " + str(i) );
+        }
+        had_true |= res;
+      }
+      return true;
+    }
+
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       for( uint32_t i = 0; i != streams.size(); ++i ) {  streams[i]->data_stream_init( nia );  }
     }

@@ -114,15 +114,26 @@ namespace boda
     p_uint32_t udp_dest_port; //NESI(help="if set and extract_udp_payload=1, keep only payloads for this dest port")
 
     pcap_hdr_t hdr;
+
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      printf( "pcap-src: seek to frame_ix=%s\n", str(frame_ix).c_str() );
+      if( frame_ix != 0 ) { return false; } // only support restart      
+      mfsr.seek_to_byte( 0 ); // FIXME: reset tot_num_read?
+      pcap_src_init();
+      return true;
+    }
     
-    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
-      data_stream_file_t::data_stream_init( nia );
+    void pcap_src_init( void ) {
       bread( mfsr, hdr );
       if( hdr.magic_number != pcap_file_magic ) { printf( "error reading pcap file; expected pcap_file_magic=%s, got hdr.magic_number=%s\n",
                                                           str(pcap_file_magic).c_str(), str(hdr.magic_number).c_str() ); }
       printf( "PCAP header: version_major=%s version_minor=%s thiszone=%s sigfigs=%s snaplen=%s network=%s\n",
               str(hdr.version_major).c_str(), str(hdr.version_minor).c_str(), str(hdr.thiszone).c_str(), str(hdr.sigfigs).c_str(),
               str(hdr.snaplen).c_str(), str(hdr.network).c_str() );
+    }
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      data_stream_file_t::data_stream_init( nia );
+      pcap_src_init();
     }
     
     virtual data_block_t proc_block( data_block_t const & db ) {

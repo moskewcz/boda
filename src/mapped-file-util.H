@@ -45,6 +45,11 @@ namespace boda
       }
     }
 
+    void seek_to_byte( uint64_t const new_pos ) {
+      if( new_pos > size() ) { rt_err( strprintf( "can't seek past end of mapped file; new_pos=%s but size()=%s\n", str(new_pos).c_str(), str(size()).c_str() ) ); }
+      pos = new_pos;
+    }
+    
     void consume_and_discard_bytes( uint64_t const & sz ) { check_can_read( sz ); pos += sz; }
     
     // consume a block of bytes from the stream and return a borrowed pointer to it.

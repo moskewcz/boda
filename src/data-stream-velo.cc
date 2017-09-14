@@ -127,6 +127,12 @@ namespace boda
     p_nda_uint16_t buf_nda;
     uint32_t buf_nda_rot;
     uint32_t rots_till_emit;
+
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      // FIXME: do something with internal state here?
+      return vps->seek_to_block( frame_ix );
+    }
+
     
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s vps info:%s",
                                                                 str(tot_num_read).c_str(), vps->get_pos_info_str().c_str() ); }
