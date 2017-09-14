@@ -42,8 +42,8 @@ void main(){
   //float elev_ang = radians(-24.8) + float(laser_id) * radians(0.5);     
   float elev_ang = radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_VERT ).r);
   float azi_ang = (float(hbin) - float(hbins)/2.0)*radians(0.172) - radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r);
-  float dist = 50.;
-  //float dist = pt_dist / 500.;
+  //float dist = 50.;
+  float dist = pt_dist / 500.;
   float sin_azi = sin(azi_ang);
   float cos_azi = cos(azi_ang);
   float sin_elev = sin(elev_ang);

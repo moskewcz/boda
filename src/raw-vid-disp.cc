@@ -87,11 +87,21 @@ namespace boda
     // FIXME: it's not clear if this is legal/valid for us to set/change in_imgs more than once at startup: disp_setup() may not be okay to re-call.
     void ensure_disp_win_setup( data_block_t const & db ) {
       assert_st( db.has_subblocks() );
-      if( in_imgs.size() == db.num_subblocks() ) { return; } // already setup with right # of images
+      if( in_imgs.size() == db.num_subblocks() ) { // same number of images, check sizes
+        bool size_diff = 0;
+        for( uint32_t i = 0; i != db.num_subblocks(); ++i ) {
+          p_img_t const & img = db.subblocks->at(i).as_img;
+          if( !img ) { if( in_imgs[i]->sz != disp_sz ) { size_diff = 1; } }
+          else { if( in_imgs[i]->sz != img->sz ) { size_diff = 1; } }
+        }
+        if( !size_diff ) { return; } // all right sizes
+      } 
       in_imgs.clear();
       for( uint32_t i = 0; i != db.num_subblocks(); ++i ) {
         in_imgs.push_back( make_shared<img_t>() );
-        in_imgs.back()->set_sz_and_alloc_pels( disp_sz );
+        p_img_t const & img = db.subblocks->at(i).as_img;
+        if( !img ) { in_imgs.back()->set_sz_and_alloc_pels( disp_sz ); }
+        else { in_imgs.back()->set_sz_and_alloc_pels( img->sz ); }
       }
       disp_win.window_sz = window_sz;
       disp_win.layout_mode = "vert";
