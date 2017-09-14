@@ -424,6 +424,21 @@ namespace boda
       }
       return ret;
     }
+
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      bool ret = pipe[0]->seek_to_block( frame_ix );
+      if( ret ) {
+        // if we seeked, abort if have_more_out is set. we could just fail in that case, but it seems likely to be
+        // confusing. bear in mind that, currently, seeking is really a hack at best. at some point, we might need to
+        // reconcile the desire for multi-rate with the desire for seeking, which seem to be pretty incompatible? maybe
+        // we need more explicity multi-rate vs single-rate sections?
+        for( uint32_t i = 0; i != pipe.size(); ++i ) {
+          if( have_more_out[i] ) { rt_err( "unimplemented: can't seek on pipe when some stage has set have_more_info. could add flush functionality to fix ..." ); }
+        }
+      }
+      return ret;
+    }
+
     virtual data_block_t proc_block( data_block_t const & db ) {
       // for now, the have_more_out handling assumes this is a default/template block, not real data, and will discard
       // it when there are stages in the pipeline where have_more_out was set. obviously this is a WIP/Hack. sigh, maybe
