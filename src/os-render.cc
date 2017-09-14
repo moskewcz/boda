@@ -86,6 +86,7 @@ void main(){
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
     double cam_scale; //NESI(default="1.0",help="scale camera pos by this amount")
+    float azi_step; //NESI(default=".172",help="default azimuth step (stream can override)")
     float start_z; //NESI(default="40.0",help="starting z value for camera")
 
     uint32_t grid_cells; //NESI(default="10",help="number of X/Y grid cells to draw")
@@ -101,6 +102,7 @@ void main(){
     GLuint cloud_programID;
     GLuint cloud_mvp_id;
     GLuint cloud_hbins_id;
+    GLuint cloud_azi_step_id;
     GLuint cloud_lasers_id;
     //GLuint mode_uid;
 
@@ -179,6 +181,7 @@ void main(){
       }
       glUniform1ui(cloud_lasers_id, nda->dims.dims(0) );
       glUniform1ui(cloud_hbins_id, nda->dims.dims(1) );
+      glUniform1f(cloud_azi_step_id, azi_step );
       glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
       glVertexAttribPointer( 0, 1, GL_UNSIGNED_SHORT, GL_FALSE, 0, (void *) 0 );
@@ -273,6 +276,7 @@ void main(){
       cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
       cloud_lasers_id = glGetUniformLocation(cloud_programID, "lasers");
       cloud_hbins_id = glGetUniformLocation(cloud_programID, "hbins");
+      cloud_azi_step_id = glGetUniformLocation(cloud_programID, "azi_step");
       cloud_lut_tex_id = glGetUniformLocation(cloud_programID, "lut_tex");
       
       printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
@@ -301,6 +305,7 @@ void main(){
               bind_laser_corrs();
             }
           }
+          else if( sdb.meta == "azi-step" ) { azi_step = SNE<float>( *sdb.nda ); printf( "azi_step=%s\n", str(azi_step).c_str() ); }
           else {
             rt_err( strprintf( "os-render: unknown subblock with meta=%s\n", str(sdb.meta).c_str() ) ); // could maybe just skip/ignore
           }

@@ -127,7 +127,8 @@ namespace boda
     p_nda_uint16_t buf_nda;
     uint32_t buf_nda_rot;
     uint32_t rots_till_emit;
-
+    float azi_step; // last azimith step in degrees
+    
     virtual bool seek_to_block( uint64_t const & frame_ix ) {
       // FIXME: do something with internal state here?
       return vps->seek_to_block( frame_ix );
@@ -136,7 +137,8 @@ namespace boda
     
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s vps info:%s",
                                                                 str(tot_num_read).c_str(), vps->get_pos_info_str().c_str() ); }
-
+    uint64_t packet_ix;
+    
     virtual data_block_t proc_block( data_block_t const & db ) {
       p_nda_uint16_t out_nda = make_shared<nda_uint16_t>( out_dims );
       data_block_t ret_db = db;
@@ -144,6 +146,7 @@ namespace boda
       uint16_t last_ub_rot = uint16_t_const_max;
       while( !ret_db.valid() ) {
         vps_db = vps->proc_block(data_block_t());
+        ++packet_ix;
         if( !vps_db.valid() ) { return db; } // src at end-of-stream, return end-of-stream
         if( vps_db.sz() != packet_sz ) { rt_err(
             strprintf( "lidar decode expected packet_sz=%s but got block with dv.sz()=%s",
@@ -155,6 +158,7 @@ namespace boda
                                      str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
         for( uint32_t fbix = 0; fbix != fbs_per_packet; ++fbix ) {
           block_info_t const * bi = (block_info_t *)( (uint8_t *)vps_db.d()+fb_sz*fbix);
+          printf( "   fbix=%s bi->rot_pos=%s\n", str(fbix).c_str(), str(bi->rot_pos).c_str() );
           uint32_t laser_id_base = 0;
           if( tot_lasers == 64 ) {
             if( bi->block_id != ( (fbix&1) ? 0xddff : 0xeeff ) ) {
@@ -231,6 +235,16 @@ namespace boda
             } 
           }
           if( verbose > 50 ) printf( "last_rot=%s bi->rot_pos=%s\n", str(last_rot).c_str(), str(bi->rot_pos).c_str() );
+          if( last_rot != uint16_t_const_max ) {
+            if( last_rot == bi->rot_pos ) {
+              printf( "warning: rot unchanged: last_rot=%s bi->rot_pos=%s -- dual return data being proc'd as single return?\n",
+                      str(last_rot).c_str(), str(bi->rot_pos).c_str() );
+              // FIXME: suppress this warning after a while? use it to detect dual-return mode?
+            } else {
+              azi_step = float( rel_angle_delta( bi->rot_pos, last_rot ) ) / 100.0; // FIXME: smooth?
+              printf( "velo block: fbix=%s azi_step=%s packet_ix=%s\n", str(fbix).c_str(), str(azi_step).c_str(), str(packet_ix).c_str() );
+            }
+          }
           last_rot = bi->rot_pos;
           buf_nda_rot += 1; if( buf_nda_rot == fov_rot_samps ) { buf_nda_rot = 0; } // FIXME: don't we have inc_mod for this?
         }
@@ -240,16 +254,20 @@ namespace boda
       ret_db.frame_ix = tot_num_read;
       ++tot_num_read;
       if( verbose > 4 ) { printf( "velodyne ret_db: %s\n", str(ret_db).c_str() ); }
+      ret_db.subblocks = make_shared<vect_data_block_t>();      
+      // send azi-step 
+      data_block_t azi_step_db;
+      azi_step_db.meta = "azi-step";
+      azi_step_db.nda = make_scalar_nda<float>( azi_step );
+      ret_db.subblocks->push_back( azi_step_db );
       if( laser_corrs_nda ) { // if we read corrections on this packet, wedge them into our output
         data_block_t laser_corrs_db;
         laser_corrs_db.meta = "lidar-corrections";
         laser_corrs_db.nda = laser_corrs_nda;
         // consume corrections so we only send them once per time we see them. FIXME: only send once total? validiate it's the same each time?
         laser_corrs_nda.reset();
-        ret_db.subblocks = make_shared<vect_data_block_t>(1);
-        ret_db.subblocks->at(0) = laser_corrs_db;
+        ret_db.subblocks->push_back( laser_corrs_db );
       }
-      
       return ret_db;
     }
 
@@ -444,6 +462,7 @@ namespace boda
     // init/setup
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      packet_ix = 0;
       on_bad_status("");
       
       if( ! ( (tot_lasers == 64) || (tot_lasers == 32) ) ) { rt_err( "non-32/64 laser mode not implemented" ); }
