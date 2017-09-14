@@ -60,7 +60,8 @@ void main(){
   gl_Position =  MVP * vec4(pos,1);
   float hue = (-1. + exp(-max(pos[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
   fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
-
+  //float gv = pos[0] / 100.;
+  //fragmentColor = vec3(gv,gv,gv);
 
   gl_PointSize = 2.;
 

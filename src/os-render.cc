@@ -337,7 +337,7 @@ void main(){
                                          );
 #endif
       // Model matrix : an identity matrix (model will be at the origin)
-      glm::mat4 Model      = glm::mat4(1.0f);
+      glm::mat4 Model      = glm::scale(vec3(-1,1,1));//FIXME? for now, flip x axis .... glm::mat4(1.0f); 
       // Our ModelViewProjection : multiplication of our 3 matrices
       MVP = Projection * View * Model; // Remember, matrix multiplication is the other way around
       
