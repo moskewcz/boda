@@ -110,7 +110,7 @@ namespace boda
     uint32_t fov_rot_samps; //NESI(default="384",help="number of samples-in-rotation to extract around fov_center")
 
     uint32_t tot_lasers; //NESI(default="64",help="total number of lasers. must be either 32 (one block) or 64 laser (two block) scanner.")
-    uint32_t enable_proc_status; //NESI(default="0",help="if non-zero, process status bytes (only present for 64 laser scanner).")
+    uint32_t enable_proc_status; //NESI(default="1",help="if non-zero, process status bytes (only present for 64 laser scanner).")
 
     uint32_t dual_return_and_use_only_first_return; //NESI(default="1",help="if 1, assume dual return mode, and use only first return.")
     p_string laser_to_row_ix_str; //NESI(help="':'-seperated list of 0-based dense-matrix-row values to which to map each laser id to. should have tot_lasers elements, and should be a permutation of [0,tot_lasers).") 
@@ -122,12 +122,14 @@ namespace boda
     uint16_t fov_center_rot;
     uint16_t split_rot;
     dims_t out_dims;
+    dims_t out_dims_azi;
     // internal state:
     uint64_t tot_num_read; // num blocks read so far
     p_nda_uint16_t buf_nda;
+    p_nda_uint16_t buf_nda_azi;
     uint32_t buf_nda_rot;
     uint32_t rots_till_emit;
-    float azi_step; // last azimith step in degrees
+    //float azi_step; // last azimith step in degrees
     
     virtual bool seek_to_block( uint64_t const & frame_ix ) {
       // FIXME: do something with internal state here?
@@ -141,6 +143,7 @@ namespace boda
     
     virtual data_block_t proc_block( data_block_t const & db ) {
       p_nda_uint16_t out_nda = make_shared<nda_uint16_t>( out_dims );
+      p_nda_uint16_t out_nda_azi = make_shared<nda_uint16_t>( out_dims_azi );
       data_block_t ret_db = db;
       data_block_t vps_db;
       uint16_t last_ub_rot = uint16_t_const_max;
@@ -158,7 +161,7 @@ namespace boda
                                      str(si->gps_timestamp_us).c_str(), str(si->status_type).c_str(), str(uint16_t(si->status_val)).c_str() ); }
         for( uint32_t fbix = 0; fbix != fbs_per_packet; ++fbix ) {
           block_info_t const * bi = (block_info_t *)( (uint8_t *)vps_db.d()+fb_sz*fbix);
-          printf( "   fbix=%s bi->rot_pos=%s\n", str(fbix).c_str(), str(bi->rot_pos).c_str() );
+          //printf( "   fbix=%s bi->rot_pos=%s\n", str(fbix).c_str(), str(bi->rot_pos).c_str() );
           uint32_t laser_id_base = 0;
           if( tot_lasers == 64 ) {
             if( bi->block_id != ( (fbix&1) ? 0xddff : 0xeeff ) ) {
@@ -196,6 +199,7 @@ namespace boda
             uint32_t const rix = laser_to_row_ix.at(laser_id_base+i);
             buf_nda->at2( rix, buf_nda_rot ) = bi->lis[i].distance;
           }
+          buf_nda_azi->at1( buf_nda_rot ) = bi->rot_pos;
           if( tot_lasers == 64 ) {
             if( !(fbix&1) ) { last_ub_rot = bi->rot_pos; continue; } // FIXME: handle upper/lower more cleanly
             else {
@@ -228,9 +232,10 @@ namespace boda
                 for( uint32_t i = 0; i != fov_rot_samps; ++i ) {
                   uint32_t const buf_rot = (i+buf_nda_rot+1)%fov_rot_samps;
                   out_nda->at2( j, i ) = buf_nda->at2( j, buf_rot );
+                  if( !j ) { out_nda_azi->at1( i ) = buf_nda_azi->at1( buf_rot ); } // just do once per rot (i.e. sorta-should be outside j loop)
                 }
               }
-              ret_db.nda = out_nda;
+              ret_db.nda = out_nda; // note: setting this triggers loop exit after all FBs in this packet are done
               rots_till_emit = uint32_t_const_max; // back to untriggered state
             } 
           }
@@ -241,8 +246,8 @@ namespace boda
                       str(last_rot).c_str(), str(bi->rot_pos).c_str() );
               // FIXME: suppress this warning after a while? use it to detect dual-return mode?
             } else {
-              azi_step = float( rel_angle_delta( bi->rot_pos, last_rot ) ) / 100.0; // FIXME: smooth?
-              printf( "velo block: fbix=%s azi_step=%s packet_ix=%s\n", str(fbix).c_str(), str(azi_step).c_str(), str(packet_ix).c_str() );
+              //azi_step = float( rel_angle_delta( bi->rot_pos, last_rot ) ) / 100.0; // FIXME: smooth?
+              //printf( "velo block: fbix=%s azi_step=%s packet_ix=%s\n", str(fbix).c_str(), str(azi_step).c_str(), str(packet_ix).c_str() );
             }
           }
           last_rot = bi->rot_pos;
@@ -256,10 +261,10 @@ namespace boda
       if( verbose > 4 ) { printf( "velodyne ret_db: %s\n", str(ret_db).c_str() ); }
       ret_db.subblocks = make_shared<vect_data_block_t>();      
       // send azi-step 
-      data_block_t azi_step_db;
-      azi_step_db.meta = "azi-step";
-      azi_step_db.nda = make_scalar_nda<float>( azi_step );
-      ret_db.subblocks->push_back( azi_step_db );
+      data_block_t azi_db;
+      azi_db.meta = "azi";
+      azi_db.nda = out_nda_azi;
+      ret_db.subblocks->push_back( azi_db );
       if( laser_corrs_nda ) { // if we read corrections on this packet, wedge them into our output
         data_block_t laser_corrs_db;
         laser_corrs_db.meta = "lidar-corrections";
@@ -488,7 +493,9 @@ namespace boda
       split_rot = uint16_t( lround( split_rot_deg * 100 ) );
 
       out_dims = dims_t{ dims_t{ { tot_lasers, fov_rot_samps }, {"y","x"}, "uint16_t" }};
+      out_dims_azi = dims_t{ dims_t{ { fov_rot_samps }, {"x"}, "uint16_t" }};
       buf_nda = make_shared<nda_uint16_t>( out_dims );
+      buf_nda_azi = make_shared<nda_uint16_t>( out_dims_azi );
       buf_nda_rot = 0;
       rots_till_emit = uint32_t_const_max; // start in untriggered state
 

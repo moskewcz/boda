@@ -102,7 +102,6 @@ void main(){
     GLuint cloud_programID;
     GLuint cloud_mvp_id;
     GLuint cloud_hbins_id;
-    GLuint cloud_azi_step_id;
     GLuint cloud_lasers_id;
     //GLuint mode_uid;
 
@@ -164,9 +163,14 @@ void main(){
     }
 
     GLuint cloud_pts_buf;
+    
     GLuint cloud_lut_buf;
     GLuint cloud_lut_tex;
     GLint cloud_lut_tex_id;
+
+    GLuint cloud_azi_buf;    
+    GLuint cloud_azi_tex;
+    GLint cloud_azi_tex_id;
     
     void draw_cloud( data_block_t const & db ) {
       p_nda_t const & nda = db.nda;
@@ -181,7 +185,6 @@ void main(){
       }
       glUniform1ui(cloud_lasers_id, nda->dims.dims(0) );
       glUniform1ui(cloud_hbins_id, nda->dims.dims(1) );
-      glUniform1f(cloud_azi_step_id, azi_step );
       glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, cloud_pts_buf);
       glVertexAttribPointer( 0, 1, GL_UNSIGNED_SHORT, GL_FALSE, 0, (void *) 0 );
@@ -189,7 +192,11 @@ void main(){
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_BUFFER, cloud_lut_tex);
       glUniform1i(cloud_lut_tex_id, 0);
-      
+
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_BUFFER, cloud_azi_tex);
+      glUniform1i(cloud_azi_tex_id, 1);
+
       glDrawArrays(GL_POINTS, 0, nda->elems_sz() );
       glDisableVertexAttribArray(0);
     }
@@ -198,19 +205,20 @@ void main(){
       glGenBuffers(1, &cloud_pts_buf);
       glGenBuffers(1, &cloud_lut_buf);
       glGenTextures(1, &cloud_lut_tex);
+      glGenBuffers(1, &cloud_azi_buf);
+      glGenTextures(1, &cloud_azi_tex);
       if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs ); bind_laser_corrs(); }
     }
 
     void bind_laser_corrs( void ) {
       assert_st( laser_corrs.size() == 64 );
+      glActiveTexture(GL_TEXTURE0);
       glBindBuffer(GL_TEXTURE_BUFFER, cloud_lut_buf);
       glBufferData(GL_TEXTURE_BUFFER, laser_corrs.size()*sizeof(laser_corrs[0]), laser_corrs.data(), GL_STATIC_DRAW);
       glBindBuffer(GL_TEXTURE_BUFFER, 0);
       
       glBindTexture(GL_TEXTURE_BUFFER, cloud_lut_tex);
-      glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, cloud_lut_buf);
-
-      
+      glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, cloud_lut_buf);      
     }
 
     vect_laser_corr_t laser_corrs;
@@ -276,7 +284,7 @@ void main(){
       cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
       cloud_lasers_id = glGetUniformLocation(cloud_programID, "lasers");
       cloud_hbins_id = glGetUniformLocation(cloud_programID, "hbins");
-      cloud_azi_step_id = glGetUniformLocation(cloud_programID, "azi_step");
+      cloud_azi_tex_id = glGetUniformLocation(cloud_programID, "azi_tex");
       cloud_lut_tex_id = glGetUniformLocation(cloud_programID, "lut_tex");
       
       printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
@@ -288,6 +296,7 @@ void main(){
     
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.nda.get() ) { rt_err( "add-img-pts: expected nda data in block, but found none." ); }
+      bool had_azi = 0;
       if( db.has_subblocks() ) {
         for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
           data_block_t const & sdb = db.subblocks->at(i);
@@ -305,12 +314,31 @@ void main(){
               bind_laser_corrs();
             }
           }
-          else if( sdb.meta == "azi-step" ) { azi_step = SNE<float>( *sdb.nda ); printf( "azi_step=%s\n", str(azi_step).c_str() ); }
+          else if( sdb.meta == "azi-step" ) {
+            azi_step = SNE<float>( *sdb.nda ); printf( "azi_step=%s\n", str(azi_step).c_str() );
+          }
+          else if( sdb.meta == "azi" ) {
+            had_azi = 1;
+            assert_st( sdb.nda->dims.sz() == 1 );
+            assert_st( db.nda->dims.dims(1) == sdb.nda->dims.dims(0) ); // i.e. size must be hbins
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindBuffer(GL_TEXTURE_BUFFER, cloud_azi_buf);
+            glBufferData(GL_TEXTURE_BUFFER, sdb.nda->dims.bytes_sz(), sdb.nda->rp_elems(), GL_STREAM_DRAW);
+            glBindBuffer(GL_TEXTURE_BUFFER, 0);
+      
+            glBindTexture(GL_TEXTURE_BUFFER, cloud_azi_tex);
+            glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
+          }
           else {
             rt_err( strprintf( "os-render: unknown subblock with meta=%s\n", str(sdb.meta).c_str() ) ); // could maybe just skip/ignore
           }
         }
       }
+      if( !had_azi ) {
+        rt_err( "os-render: TODO: no azi sent; use azi_step to make uniform azi data and bind it, factoring out bind code above." );
+      }
+      
       render_pts_into_frame_buf( db );
       data_block_t ret = db;
       ret.as_img = frame_buf;

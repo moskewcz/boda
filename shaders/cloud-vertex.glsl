@@ -10,9 +10,9 @@ uniform mat4 MVP;
 
 uniform uint hbins;
 uniform uint lasers;
-uniform float azi_step;
 
 uniform samplerBuffer lut_tex;       
+uniform usamplerBuffer azi_tex;
 
 vec3 hsv2rgb(vec3 c) {
    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -42,7 +42,10 @@ void main(){
   uint hbin = uint(gl_VertexID) % hbins;
   //float elev_ang = radians(-24.8) + float(laser_id) * radians(0.5);     
   float elev_ang = radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_VERT ).r);
-  float azi_ang = (float(hbin) - float(hbins)/2.0)*radians(azi_step) - radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r);
+  //float azi_ang = radians( float(texelFetch(azi_tex, int(hbin) ).r) / 100. - texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r );
+  //float azi_ang = radians( 0. - texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r );
+  float azi_ang = (float(hbin) - float(hbins)/2.0)*radians(.172) - radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r);
+  
   //float dist = 50.;
   float dist = pt_dist / 500.;
   float sin_azi = sin(azi_ang);
@@ -61,7 +64,7 @@ void main(){
   gl_Position =  MVP * vec4(pos,1);
   float hue = (-1. + exp(-max(pos[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
   fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
-  //float gv = pos[0] / 100.;
+  //float gv = float(texelFetch(azi_tex, int(hbin) ).r) / 36000.; // pos[0] / 100.;
   //fragmentColor = vec3(gv,gv,gv);
 
   gl_PointSize = 2.;
