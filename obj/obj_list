@@ -17,7 +17,7 @@ LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lb
 # assume system defaults include needed include/lib dirs
 LDFLAGS := $(LDFLAGS) -llmdb
 
-[octave]
+[octave disable]
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/octave-4.0.0 -I/usr/include/octave-4.0.0/octave
 LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 
@@ -25,7 +25,7 @@ LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2
 LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 
-[OSMesa disable]
+[OSMesa]
 LDFLAGS := $(LDFLAGS) -lOSMesa -lm -lGLU -lGLEW
 
 [protobuf]
@@ -63,7 +63,7 @@ LDFLAGS := $(LDFLAGS) -lnvrtc
 LDFLAGS := $(LDFLAGS) -lOpenCL
 
 [caffe needs=cuda needs=caffe_pb]
-CAFFE_HOME := /home/moskewcz/git_work/caffe_dev
+CAFFE_HOME := /mnt/nfs/home/moskewcz/git-work/caffe
 CAFFE_LIB := $(CAFFE_HOME)/build/lib
 CPPFLAGS := $(CPPFLAGS) -I$(CAFFE_HOME)/include -I$(CAFFE_HOME)/build/include -I$(CAFFE_HOME)/build/src
 LDFLAGS := $(LDFLAGS) -L$(CAFFE_LIB) -lcaffe -lglog -ldl 
