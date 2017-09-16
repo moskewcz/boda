@@ -45,6 +45,8 @@ namespace boda
     double mrd_toler; //NESI(default="5e-4",help="maximum maximum-absolute-difference over which a failure is declared")
     map_str_double var_mrd_toler; //NESI(default="()",help="per-layer custom maximum maximum-absolute-differences over which a failure is declared (overrides mrd_toler per-layer if specified")
 
+    double self_cmp_mrd_toler; //NESI(default="0",help="maximum maximum-absolute-difference over which a failure is declared when comparing expected-to-exactly-equal digests to thier recomputations. normally 0, but may be set progressively higher to investigate/diagnose changes in computed values due to non-determinism, changes to compilers/libraries, or changes to algorithms that are expected to change numerical results.")
+
     uint32_t max_err; //NESI(default="10",help="print at most this many differing elems")
 
     p_img_t in_img;
@@ -192,7 +194,8 @@ namespace boda
         for( uint32_t i = 0; i < num_cf; ++i ) { 
           digest.push_back( nda_digest_t::make_from_nda( must_find( *fwd[i], *tn ), digest_seed ) );
           // FIXME/HACK: for now, set tolerance for caffe + bck runs (presuming usage of non-deterministic cuDNN)
-          if( ( cf[i]->mode == "caffe" ) && (run_cnet->add_bck_ops == 1) ) { digest[i]->self_cmp_mrd = 5e-5; }
+          digest[i]->self_cmp_mrd = self_cmp_mrd_toler;
+          if( ( cf[i]->mode == "caffe" ) && (run_cnet->add_bck_ops == 1) ) { max_eq( digest[i]->self_cmp_mrd, 5e-5 ); }
           if( show_digests ) { printf( "%s '%s' digest_str=%s\n", str(*tn).c_str(), cfn[i].c_str(), digest[i]->get_digest().c_str() ); }
           if( write_digests ) { 
             bwrite_id( *digest_outs[i], *tn ); 

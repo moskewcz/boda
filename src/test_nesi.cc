@@ -525,6 +525,9 @@ namespace boda
     
     filename_t boda_test_dir; //NESI(help="boda base test dir (generally set via boda_cfg.xml)",req=1)
 
+    double self_cmp_mrd_toler; //NESI(default="0",help="not used directed by test_cmds, but may be used by dynamically-created subtests. exists as an option here to avoid unused-arg errors.")
+
+    
     p_cmd_test_t cur_test;
     void test_print( void ) {
       printf( "tix=%s %s\n", str(tix).c_str(), str(*cur_test).c_str() );
