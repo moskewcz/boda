@@ -42,7 +42,7 @@ namespace boda
     map_str_op_tune_t per_op_tune; //NESI(default="()",help="tuning parameters / options")
 
     p_op_base_t gen_data; //NESI(help="test-pattern data generation parameters (if not provided, inputs will be zeros)")
-    p_rtc_compute_t rtc; //NESI(default="(be=ocl)",help="rtc back-end to use")
+    p_rtc_compute_t rtc; //NESI(default="(be=nvrtc)",help="rtc back-end to use")
 
     // comparison testing related options:
     p_rtc_compute_t rtc_comp; //NESI(help="rtc back-end to use for correctness-testing comparison")
