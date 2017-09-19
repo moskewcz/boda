@@ -116,6 +116,12 @@ namespace boda
       v.nda = consume_borrowed_block( le - lb );
     }
 
+    string read_line_as_string( void ) {
+      data_block_t line_db;
+      read_line_as_block( line_db );
+      return string( (uint8_t*)line_db.nda->rp_elems(), (uint8_t*)line_db.nda->rp_elems()+line_db.sz() );
+    }
+    
     // note: does not read/fill-in timestamp_ns field of data_block_t, just size and data/pointer
     void read_val( data_block_t & v ) {
       uint32_t v_len;
