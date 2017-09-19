@@ -207,8 +207,8 @@ namespace boda
   };
 
   // parse stream from text file, one block per line, with a one-line header (which is currently ignored)
-  struct data_stream_text_t : virtual public nesi, public data_stream_file_t // NESI(help="parse data stream (dumpvideo/qt) into data blocks",
-                             // bases=["data_stream_file_t"], type_id="text")
+  struct data_stream_text_t : virtual public nesi, public data_stream_file_t // NESI(help="parse text (line-oriented) stream into data blocks",
+                             // bases=["data_stream_file_t"], type_id="text-src")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t timestamp_fix; //NESI(default=0,help="timestamp field-index: use the N'th field as a decimal timestamp in seconds (with fractional part).")
@@ -246,6 +246,73 @@ namespace boda
     }
   };
 
+  // parse stream from text file, one block per line, with a one-line header (which is currently ignored)
+  struct data_stream_csv_t : virtual public nesi, public data_stream_file_t // NESI(help="parse csv stream into data blocks",
+                             // bases=["data_stream_file_t"], type_id="csv-src")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t timestamp_fix; //NESI(default=0,help="timestamp field-index: use the N'th field as an integer timestamp in nanoseconds")
+    uint32_t skip_header_lines; //NESI(default=1,help="skip this many initial lines (i.e. column or other headers).")
+    
+    uint64_t get_timestamp_from_parts( vect_string const & parts ) {
+      if( !( timestamp_fix < parts.size() ) ) {
+        rt_err( strprintf( "can't parse timestamp from field %s; line had %s fields; parts=%s\n",
+                           str(timestamp_fix).c_str(), str(parts.size()).c_str(), str(parts).c_str() ) );
+      }
+      return lc_str_u64( parts[timestamp_fix] );
+    }
+
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
+      if( mfsr.at_eof() ) { return db; }
+      vect_vect_string ts_lines_parts;
+      uint32_t max_parts = 0;
+      while( !mfsr.at_eof() ) { // gather block of same-ts lines
+        string line = mfsr.read_line_as_string();
+        strip_ws_inplace( line ); // mainly to remove trailing newline, which lc_str_d() doesn't like
+        vect_string const parts = split( line, ',' );
+        uint64_t const line_ts_ns = get_timestamp_from_parts( parts );
+        if( ret.timestamp_ns == uint64_t_const_max ) { ret.timestamp_ns = line_ts_ns; } // first line sets block ts
+        else if( ret.timestamp_ns != line_ts_ns ) { break; } // ready to emit block
+        if( max_parts && (max_parts != parts.size() ) ) {
+          // FIXME: print line # of error. also, could optionally allow ...
+          rt_err( strprintf( "row with different # of fields: on first line there were %s fields, but on this line parts.size()=%s\n",
+                             str(max_parts).c_str(), str(parts.size()).c_str() ) );
+        }
+        max_eq( max_parts, (uint32_t)parts.size() );
+        ts_lines_parts.push_back( parts );
+      }
+      assert_st( !ts_lines_parts.empty() ); // since we would have returned early if we started at eof
+      assert_st( max_parts ); // since we would have returned early if we started at eof
+      if( max_parts < 2 ) { rt_err( "unhandled: csv file with no non-timestamp fields (i.e. 0/no data fields per timestamp)" ); }
+      ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{(uint32_t)ts_lines_parts.size(),max_parts - 1}, {"obj","attr"}, "float" } );
+      float * data = nda_rp_elems<float>( ret.nda );
+      for( uint32_t i = 0; i != ts_lines_parts.size(); ++i ) {
+        vect_string const & parts = ts_lines_parts[i];
+        assert_st( parts.size() <= max_parts );
+        uint32_t fix = 0; // field ix
+        for( uint32_t p = 0; p != parts.size(); ++p ) {
+          if( p == timestamp_fix ) { continue; }
+          data[ret.nda->dims.chk_ix2( i, fix )] = lc_str_d( parts[p] );
+          ++fix;
+        }        
+        //printf( "parts=%s\n", str(parts).c_str() );
+      }
+      data_stream_file_block_done_hook( ret );
+      return ret;
+    }
+
+    virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      data_stream_file_t::data_stream_init( nia );
+      data_block_t header;
+      for( uint32_t i = 0; i != skip_header_lines; ++i ) {
+        string const line = mfsr.read_line_as_string();
+        printf( "  csv stream header line:%s", line.c_str() );
+      }
+    }
+  };
+
+  
 
   typedef vector< data_block_t > vect_data_block_t; 
   typedef vector< vect_data_block_t > vect_vect_data_block_t;
