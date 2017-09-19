@@ -69,6 +69,7 @@ namespace boda
   vect_string split_space_tab_colon( std::string const & s );
 
   string strip_ws( std::string const & s );
+  void strip_ws_inplace( std::string & s );
 
   inline void strip_prefixes( std::string & s, std::string const & prefix ) {
     while( startswith(s,prefix) ) { s = std::string( s, prefix.size() ); }

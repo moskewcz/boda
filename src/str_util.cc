@@ -120,6 +120,7 @@ namespace boda
   }
 
   string strip_ws( std::string const & s ) { return boost::algorithm::trim_copy( s ); }
+  void strip_ws_inplace( std::string & s ) { return boost::algorithm::trim( s ); }
 
 
   string strprintf( char const * const format, ... )
@@ -184,7 +185,7 @@ namespace boda
     s = s.substr( 0, fp ) + rep_s + s.substr( fp+find_s.size(), string::npos );
     return 1;
   }
-
+  
   string strip_ending_chars( string const & s, string const & chars_to_strip ) { 
     string ret;
     size_t epos = s.size();
