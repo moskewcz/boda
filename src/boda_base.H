@@ -670,6 +670,20 @@ namespace boda
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2); }
     uint32_t ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const { 
       return d0i*strides(0) + d1i*strides(1) + d2i*strides(2) + d3i*strides(3); }
+
+    uint32_t chk_ix1( uint32_t const d0i ) const {
+      if( ! ( ( d0i < dims(0) ) ) ) { rt_err( "dims-invalid-index" ); }
+      return ix1( d0i ); }
+    uint32_t chk_ix2( uint32_t const d0i, uint32_t const d1i ) const {
+      if( ! ( ( d0i < dims(0) ) && ( d1i < dims(1) ) ) ) { rt_err( "dims-invalid-index" ); }      
+      return ix2( d0i, d1i ); }
+    uint32_t chk_ix3( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i ) const {
+      if( ! ( ( d0i < dims(0) ) && ( d1i < dims(1) ) && ( d2i < dims(2) ) ) ) { rt_err( "dims-invalid-index" ); }            
+      return ix3( d0i, d1i, d2i ); }
+    uint32_t chk_ix4( uint32_t const d0i, uint32_t const d1i, uint32_t const d2i, uint32_t const d3i ) const {
+      if( ! ( ( d0i < dims(0) ) && ( d1i < dims(1) ) && ( d2i < dims(2) ) && ( d3i < dims(3) ) ) ) { rt_err( "dims-invalid-index" ); }                  
+      return ix4( d0i, d1i, d2i, d3i ); }
+    
   };
 
   typedef vector< dims_t > vect_dims_t; 
@@ -820,6 +834,11 @@ namespace boda
   typedef map< string, p_nda_t > map_str_p_nda_t;
   typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
   typedef vector< p_map_str_p_nda_t > vect_p_map_str_p_nda_t;
+
+  template< typename T > T * nda_rp_elems( p_nda_t const & nda ) {
+    assert_st( get_ndat<T>().tn == nda->dims.tn );
+    return static_cast<T *>(nda->rp_elems());
+  }
 
   template< typename T > T nda_at( p_nda_t const & nda, dims_iter_t const & di ) {
     assert_st( get_ndat<T>().tn == nda->dims.tn );
