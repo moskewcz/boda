@@ -82,6 +82,7 @@ void main(){
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t cloud_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/cloud-vertex.glsl",help="point cloud vertex shader filename")
+    filename_t objs_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/objects-vertex.glsl",help="objects vertex shader filename")
     p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
@@ -96,13 +97,7 @@ void main(){
     p_img_t frame_buf;
 
     OSMesaContext ctx;
-    GLuint programID;
-    GLuint mvp_id;
     
-    GLuint cloud_programID;
-    GLuint cloud_mvp_id;
-    GLuint cloud_hbins_id;
-    GLuint cloud_lasers_id;
     //GLuint mode_uid;
 
     glm::mat4 MVP;
@@ -132,12 +127,15 @@ void main(){
       
     }
 
+    GLuint grid_programID;
+    GLuint grid_mvp_id;
+
     p_nda_float_t grid_pts;
     GLuint grid_pts_buf;
 
     void draw_grid( void ) {
-      glUseProgram(programID);
-      glUniformMatrix4fv(mvp_id, 1, GL_FALSE, &MVP[0][0]);
+      glUseProgram(grid_programID);
+      glUniformMatrix4fv(grid_mvp_id, 1, GL_FALSE, &MVP[0][0]);
       glEnableVertexAttribArray(0);
       glBindBuffer(GL_ARRAY_BUFFER, grid_pts_buf);
       glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0 ); 
@@ -146,6 +144,10 @@ void main(){
     }
 
     void init_grid( void ) {
+      grid_programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
+      printf( "grid_programID=%s\n", str(grid_programID).c_str() );
+      grid_mvp_id = glGetUniformLocation(grid_programID, "MVP");
+
       float const half = grid_cells * grid_cell_sz / 2.0f;
       grid_pts = make_shared<nda_float_t>( dims_t{ {grid_cells+1,2,2,3}, {"cell","xy","be","d"}, "float" } );
       for( uint32_t cell = 0; cell != grid_cells+1; ++cell ) {
@@ -164,6 +166,11 @@ void main(){
       glBindBuffer(GL_ARRAY_BUFFER, 0 );
       glLineWidth( 2.0f );
     }
+
+    GLuint cloud_programID;
+    GLuint cloud_mvp_id;
+    GLuint cloud_hbins_id;
+    GLuint cloud_lasers_id;
 
     GLuint cloud_pts_buf;
     
@@ -205,6 +212,15 @@ void main(){
     }
 
     void init_cloud( void ) {
+      cloud_programID = LoadShaders( *read_whole_fn( cloud_vertex_shader_fn ), fragment_shader_code_str );
+      cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
+      cloud_lasers_id = glGetUniformLocation(cloud_programID, "lasers");
+      cloud_hbins_id = glGetUniformLocation(cloud_programID, "hbins");
+      cloud_azi_tex_id = glGetUniformLocation(cloud_programID, "azi_tex");
+      cloud_lut_tex_id = glGetUniformLocation(cloud_programID, "lut_tex");      
+      printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
+
+      
       glGenBuffers(1, &cloud_pts_buf);
       glGenBuffers(1, &cloud_lut_buf);
       glGenTextures(1, &cloud_lut_tex);
@@ -213,6 +229,41 @@ void main(){
       if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs ); bind_laser_corrs(); }
     }
 
+    GLuint objs_programID;
+    GLuint objs_mvp_id;
+
+    GLuint objs_lut_buf;
+    GLuint objs_lut_tex;
+    GLuint objs_lut_tex_id;
+
+    void init_objs( void ) {
+      objs_programID = LoadShaders( *read_whole_fn( objs_vertex_shader_fn ), fragment_shader_code_str );
+      printf( "objs_programID=%s\n", str(objs_programID).c_str() );
+      objs_mvp_id = glGetUniformLocation(objs_programID, "MVP");
+      objs_lut_tex_id = glGetUniformLocation(cloud_programID, "lut_tex");      
+
+      glGenBuffers(1, &objs_lut_buf);
+      glGenTextures(1, &objs_lut_tex);
+    }
+
+    void draw_objs( data_block_t const & db ) {
+      p_nda_t const & nda = db.nda;
+      if( nda->dims.sz() != 2 ) {
+        rt_err( strprintf( "expected 2D-array for object data, but had nda->dims=%s\n", str(nda->dims).c_str() ) ); 
+      }
+      glUseProgram(objs_programID);
+      glUniformMatrix4fv(objs_mvp_id, 1, GL_FALSE, &MVP[0][0]);
+      glUniform1i(objs_lut_tex_id, 0);
+      
+      glActiveTexture(GL_TEXTURE0);
+      glBindBuffer(GL_TEXTURE_BUFFER, objs_lut_buf);
+      glBufferData(GL_TEXTURE_BUFFER, nda->dims.bytes_sz(), nda->rp_elems(), GL_STREAM_DRAW);
+      glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+      printf( "drawing nda->dims.dims(0)=%s objects\n", str(nda->dims.dims(0)).c_str() );
+      glDrawArrays(GL_POINTS, 0, nda->dims.dims(0) );
+    }
+    
     void bind_laser_corrs( void ) {
       assert_st( laser_corrs.size() == 64 );
       glActiveTexture(GL_TEXTURE0);
@@ -278,20 +329,6 @@ void main(){
       glGenVertexArrays(1, &VertexArrayID);
       glBindVertexArray(VertexArrayID);
       
-      // Create and compile our GLSL program from the shaders
-      programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
-      printf( "programID=%s\n", str(programID).c_str() );
-      mvp_id = glGetUniformLocation(programID, "MVP");
-      
-      cloud_programID = LoadShaders( *read_whole_fn( cloud_vertex_shader_fn ), fragment_shader_code_str );
-      cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
-      cloud_lasers_id = glGetUniformLocation(cloud_programID, "lasers");
-      cloud_hbins_id = glGetUniformLocation(cloud_programID, "hbins");
-      cloud_azi_tex_id = glGetUniformLocation(cloud_programID, "azi_tex");
-      cloud_lut_tex_id = glGetUniformLocation(cloud_programID, "lut_tex");
-      
-      printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
-
       init_grid();
       init_cloud();
       check_gl_error( "init" );
