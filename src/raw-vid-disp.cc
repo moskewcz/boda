@@ -18,6 +18,7 @@ namespace boda
     template< typename T > void op( nda_t const & nda ) const {
       dims_t const & dims = nda.dims;
       T const * const elems = static_cast<T const *>(nda.rp_elems());
+      uint64_t const num_elems = nda.elems_sz();
       assert_st( elems );
       uint32_t const ys = dims.dstride("y");
       uint32_t const xs = dims.dstride("x");
@@ -28,7 +29,10 @@ namespace boda
         printf("   ");
         for( uint32_t x = xb; x < xb+2; ++x ) {
           uint32_t off = y*ys + x*xs;
-          for( uint32_t c = 0; c != xs; ++c ) { printstr( (c?",":" ") + strN(elems[off+c]) ); }
+          for( uint32_t c = 0; c != xs; ++c ) {
+            assert_st( off+c < num_elems );
+            printstr( (c?",":" ") + strN(elems[off+c]) );
+          }
         }
         printf("\n");
       }
@@ -56,6 +60,7 @@ namespace boda
     vect_p_img_t in_imgs;
     data_block_t db;
 
+    uint32_t enable_samp_pt; //NESI(default=0,help="if set, enable sampling with some click (BROKEN!).")
     uint32_t samp_pt_sbix;
     i32_pt_t samp_pt;
 
@@ -68,6 +73,12 @@ namespace boda
       read_next_block();
     }
 
+    // FIXME: this is sort-mostly-broken. the sample point is really only valid for the as_img img of the block, not
+    // neccessarily for the actual nda. for example, for lidar data rendered a point cloud, the image will be some size
+    // set by the rendering. but the nda is, say, a dense 64 by 1000 matrix. so ... either we need to sample the image
+    // (always), or try to be clever and sample the nda *only if* the dims match the image dims. but, for now, we'll
+    // just disable point sampling, since we don't currently need it and it clutters up the output when we turn it on by
+    // accident anyway. oh, and on that topic, we should have a way to cancel sampling after selecting a point.
     void proc_samp_pt( data_block_t const & db ) {
       if( samp_pt_sbix == uint32_t_const_max ) { return; } // sampling not enabled
       if( (!db.subblocks.get()) || !( samp_pt_sbix < db.num_subblocks() ) ) {
@@ -135,7 +146,7 @@ namespace boda
       }
       if( !db.has_subblocks() ) { rt_err( strprintf( "expected subblocks, but num_subblocks=%s\n", str(db.num_subblocks()).c_str() ) ); }
       ensure_disp_win_setup( db );
-      proc_samp_pt( db );
+      if( enable_samp_pt ) { proc_samp_pt( db ); }
       bool had_new_img = 0;
       for( uint32_t i = 0; i != in_imgs.size(); ++i ) {
         p_img_t const & img = db.subblocks->at(i).as_img;
@@ -159,11 +170,13 @@ namespace boda
       bool unknown_command = 0;
       if( 0 ) { }
       if( !lbe.is_key ) {
-        if( lbe.img_ix != uint32_t_const_max ) {
-          assert_st( lbe.img_ix < in_imgs.size() );
-          samp_pt_sbix = lbe.img_ix;
-          samp_pt = lbe.xy;
-          printf( "set sampling: samp_pt_sbix=%s samp_pt=%s\n", str(samp_pt_sbix).c_str(), str(samp_pt).c_str() );
+        if( enable_samp_pt ) {
+          if( lbe.img_ix != uint32_t_const_max ) {
+            assert_st( lbe.img_ix < in_imgs.size() );
+            samp_pt_sbix = lbe.img_ix;
+            samp_pt = lbe.xy;
+            printf( "set sampling: samp_pt_sbix=%s samp_pt=%s\n", str(samp_pt_sbix).c_str(), str(samp_pt).c_str() );
+          }
         }
       }
       else if( lbe.is_key && (lbe.keycode == 'c') ) {

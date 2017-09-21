@@ -41,7 +41,16 @@ namespace boda
     uint32_t num_subblocks( void ) const { return has_subblocks() ? subblocks->size() : uint32_t_const_max; }
 
     bool valid( void ) const { return nda.get() || subblocks.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
-    
+    data_block_t clone( void ) const {
+      data_block_t ret = *this;
+      if( subblocks ) { // deep copy subblocks if any
+        ret.subblocks = make_shared<vect_data_block_t>();
+        for( vect_data_block_t::const_iterator i = subblocks->begin(); i != subblocks->end(); ++i ) {
+          ret.subblocks->push_back( (*i).clone() );
+        }
+      }
+      return ret;
+    }
     string info_str( void ) const;      
   };
   std::ostream & operator << ( std::ostream & out, data_block_t const & db );

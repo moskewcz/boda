@@ -401,7 +401,7 @@ namespace boda
       check_has_subblock( db, fold_src, "fold_src" );
       check_has_subblock( db, fold_targ, "fold_targ" );
       assert_st( db.num_subblocks() > 1 );
-      data_block_t ret = db;
+      data_block_t ret = db.clone();
       data_block_t fold_src_db = ret.subblocks->at( fold_src );
       ret.subblocks->erase( ret.subblocks->begin() + fold_src );
       data_block_t & fold_targ_db = ret.subblocks->at( fold_targ );
