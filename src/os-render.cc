@@ -333,6 +333,9 @@ void main(){
             glBindTexture(GL_TEXTURE_BUFFER, cloud_azi_tex);
             glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
           }
+          else if( sdb.meta == "objects" ) {
+            // TODO: actually plot
+          }
           else {
             rt_err( strprintf( "os-render: unknown subblock with meta=%s\n", str(sdb.meta).c_str() ) ); // could maybe just skip/ignore
           }
