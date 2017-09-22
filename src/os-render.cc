@@ -231,6 +231,7 @@ void main(){
 
     GLuint objs_programID;
     GLuint objs_mvp_id;
+    GLuint objs_obj_col_id;
     GLuint objs_lut_tex_id;
 
     GLuint objs_lut_buf;
@@ -240,13 +241,14 @@ void main(){
       objs_programID = LoadShaders( *read_whole_fn( objs_vertex_shader_fn ), fragment_shader_code_str );
       printf( "objs_programID=%s\n", str(objs_programID).c_str() );
       objs_mvp_id = glGetUniformLocation(objs_programID, "MVP");
+      objs_obj_col_id = glGetUniformLocation(objs_programID, "obj_col");
       objs_lut_tex_id = glGetUniformLocation(objs_programID, "lut_tex");      
 
       glGenBuffers(1, &objs_lut_buf);
       glGenTextures(1, &objs_lut_tex);
     }
 
-    void draw_objs( data_block_t const & db ) {
+    void draw_objs( data_block_t const & db, vec3 const & obj_col ) {
       p_nda_t const & nda = db.nda;
       if( nda->dims.sz() != 2 ) {
         rt_err( strprintf( "expected 2D-array for object data, but had nda->dims=%s\n", str(nda->dims).c_str() ) ); 
@@ -254,6 +256,7 @@ void main(){
       
       glUseProgram(objs_programID);
       glUniformMatrix4fv(objs_mvp_id, 1, GL_FALSE, &MVP[0][0]);
+      glUniform3fv(objs_obj_col_id, 1, &obj_col[0]);
       glUniform1i(objs_lut_tex_id, 0);
 
       glActiveTexture(GL_TEXTURE0);
@@ -339,12 +342,12 @@ void main(){
       init_objs();
       check_gl_error( "init" );
     }
-    data_block_t objs_db;
+    vect_data_block_t objs_dbs;
     
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.nda.get() ) { rt_err( "add-img-pts: expected nda data in block, but found none." ); }
       bool had_azi = 0;
-      objs_db = data_block_t(); // default to no objects for this frame
+      objs_dbs.clear(); // default to no objects for this frame
       if( db.has_subblocks() ) {
         for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
           data_block_t const & sdb = db.subblocks->at(i);
@@ -379,7 +382,7 @@ void main(){
             glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
           }
           else if( sdb.meta == "objects" ) {
-            objs_db = sdb;
+            objs_dbs.push_back( sdb );
           }
           else {
             rt_err( strprintf( "os-render: unknown subblock with meta=%s tag=%s\n", str(sdb.meta).c_str(), str(sdb.tag).c_str() ) ); // could maybe just skip/ignore
@@ -428,7 +431,10 @@ void main(){
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the screen
       draw_grid();
       draw_cloud( db );
-      if( objs_db.valid() ) { draw_objs( objs_db ); }
+      vector< vec3 > obj_cols;
+      obj_cols.push_back( vec3(1,0,0) );
+      obj_cols.push_back( vec3(1,0,1) ); 
+      for( uint32_t i = 0; i != objs_dbs.size(); ++i ) { draw_objs( objs_dbs[i], obj_cols[i%obj_cols.size()]); }
       glFinish();
       check_gl_error( "postframe" );
 

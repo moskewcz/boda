@@ -7,6 +7,7 @@
 out vec3 fragmentColor;
 // Values that stay constant for the whole mesh.
 uniform mat4 MVP;
+uniform vec3 obj_col;
 
 uniform samplerBuffer lut_tex;       
 
@@ -15,7 +16,7 @@ struct obj_t {
        float range;
        float velocity;
        float azi;
-       float elev,
+       float elev;
        float snr;
        float power;
  };
@@ -42,11 +43,11 @@ void main(){
   
   float dist_xy = dist * cos_elev; // elev 0 --> dist_xy = dist
   pos[0] = - dist_xy * sin_azi; // azi 0 --> x = 0; y = dist_xy
-  pos[1] = dist_xy * cos_azi;
-  pos[2] = dist * sin_elev;
+  pos[1] = dist_xy * cos_azi + 1; // adj for sensor loc wrt point cloud x/y
+  pos[2] = dist * sin_elev + .3; // adj for sensor loc wrt ground 
 
   gl_Position =  MVP * vec4(pos,1);
-  fragmentColor = vec3(snr/30.0, snr/30.0, snr/30.0);
+  fragmentColor = vec3(snr/30.0, snr/30.0, snr/30.0)*obj_col;
 
   gl_PointSize = 10.;
 }
