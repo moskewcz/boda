@@ -382,7 +382,7 @@ void main(){
             glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
           }
           else if( sdb.meta == "objects" ) {
-            objs_dbs.push_back( sdb );
+            if( sdb.nda.get() ) { objs_dbs.push_back( sdb ); } // allow and skip null case (no object). see FIXME where filled in ...
           }
           else {
             rt_err( strprintf( "os-render: unknown subblock with meta=%s tag=%s\n", str(sdb.meta).c_str(), str(sdb.tag).c_str() ) ); // could maybe just skip/ignore
