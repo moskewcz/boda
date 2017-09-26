@@ -502,27 +502,31 @@ namespace boda
       rots_till_emit = uint32_t_const_max; // start in untriggered state
 
       if( tot_lasers == 32 ) {
-        if( laser_to_row_ix_str ) { rt_err( "you-can't/please-don't specify laser_to_row_ix_str (laser order) for 32 laser sensor" ); }
-        // the velodyn hdl-32 uses a fixed firing order, with the downward-most laser first. then lasers from the top
-        // and bottom blocks are interleaved, continuing from downward-most to upward-most. the nominal spacing of the
-        // lasers is 4/3 (i.e. ~1.333) degrees. thus, the pattern is: -30.67, -9.33, -29.33, -8.00 ...
+        if( !laser_to_row_ix_str ) {
+          // if no mapping specified, put laser in packet/firing/raw order; we assume corrections will be done later
+          for( uint32_t i = 0; i != tot_lasers; ++i ) { laser_to_row_ix.push_back(i); }
+        } else {
+          if( *laser_to_row_ix_str != "default-32" ) { rt_err( "currently, only the 'default-32' laserremapping order for 32 laser sensors is supported" ); }
+          // the velodyn hdl-32 uses a fixed firing order, with the downward-most laser first. then lasers from the top
+          // and bottom blocks are interleaved, continuing from downward-most to upward-most. the nominal spacing of the
+          // lasers is 4/3 (i.e. ~1.333) degrees. thus, the pattern is: -30.67, -9.33, -29.33, -8.00 ...
 
-        // so, given this, we simply fill in laser_to_row_ix directly.
-        laser_to_row_ix.resize(32);
-        for( uint32_t blix = 0; blix != 16; ++blix ) { // most downward first
-          for( uint32_t block = 0; block != 2; ++block ) { // lower, upper
-            uint32_t const lix = blix*2 + block; // laser index in firing/packet order
-            uint32_t const row = 31 - ( block*16 + blix ); // row in scanline order (note: 31 - (rest) flips y axis)
-            laser_to_row_ix[lix] = row;
+          // so, given this, we simply fill in laser_to_row_ix directly.
+          laser_to_row_ix.resize(tot_lasers);
+          for( uint32_t blix = 0; blix != 16; ++blix ) { // most downward first
+            for( uint32_t block = 0; block != 2; ++block ) { // lower, upper
+              uint32_t const lix = blix*2 + block; // laser index in firing/packet order
+              uint32_t const row = 31 - ( block*16 + blix ); // row in scanline order (note: 31 - (rest) flips y axis)
+              laser_to_row_ix[lix] = row;
+            }
           }
         }
-        
       } else if( tot_lasers == 64 ) {
-        status_ring.set_capacity( velo_cycles_in_epoch * velo_packets_in_cycle ); // i.e. 16*260 = 4160 packets
+          status_ring.set_capacity( velo_cycles_in_epoch * velo_packets_in_cycle ); // i.e. 16*260 = 4160 packets
           
         if( !laser_to_row_ix_str ) {
           // if no mapping specified, put laser in packet/firing/raw order; we assume corrections will be done later
-          for( uint32_t i = 0; i != 64; ++i ) { laser_to_row_ix.push_back(i); }
+          for( uint32_t i = 0; i != tot_lasers; ++i ) { laser_to_row_ix.push_back(i); }
         } else {
           // for now, we take as input the laser order for the hdl64, as determined from the config file horiz angles. we
           // should instead read the config ... but all we need here for the vertical axis is the order of the lasers, not
@@ -587,6 +591,159 @@ namespace boda
       laser_corrs.push_back( laser_corr );
     }
   }
+
+  struct velo_std_block_info_t {
+    uint16_t block_id;
+    uint16_t rot_pos;
+    laser_info_t lis[32];
+  } __attribute__((packed));
+  
+  struct velo32_std_udp_payload_t {
+    velo_std_block_info_t bis[12];
+    status_info_t si;
+  } __attribute__((packed));
+  
+  struct data_stream_velodyne_gen_t : virtual public nesi, public data_stream_t // NESI(help="convert dense point cloud data blocks into sequences of velodyne udp packet payloads",
+                             // bases=["data_stream_t"], type_id="velodyne-gen")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+
+    uint32_t fbs_per_packet; //NESI(default="12",help="firing blocks per packet")
+    uint32_t beams_per_fb; //NESI(default="32",help="beams per firing block")
+
+    double fov_center; //NESI(default=0.0,help="center of FoV to sample in degrees. frames will be split at (VAL + 180) degrees.")
+    double azi_step; //NESI(default=0.165,help="per firing azimuith step in degrees.")
+    uint32_t timestamp_step; //NESI(default="553",help="per-packet gps timestamp step in us.")
+    uint32_t timestamp_start; //NESI(default="0",help="starting per-packet gps timestamp in us.")
+    
+    uint32_t tot_lasers; //NESI(default="32",help="total number of lasers. must be either 32 (one block) or 64 laser (two block) scanner.")
+
+    p_string laser_to_row_ix_str; //NESI(help="':'-seperated list of 0-based dense-matrix-row values to which to map each laser id to. should have tot_lasers elements, and should be a permutation of [0,tot_lasers).") 
+    vect_uint32_t laser_to_row_ix;
+    
+    // output/buffer state
+    uint32_t cur_out_fb_ix;
+    velo32_std_udp_payload_t cur_out;
+
+    uint32_t cur_in_azi_ix;
+    p_nda_t cur_in_nda;
+
+    uint32_t cur_timestamp;
+    
+    virtual string get_pos_info_str( void ) { return strprintf( "velodyne-gen: info TODO." ); }
+
+    virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      if( !( (tot_lasers == 32) ) ) { rt_err( "non-32 laser mode not implemented" ); }
+      if( !( fbs_per_packet == 12 ) ) { rt_err( "only standard 12-firing-blocks-per-packet output is implemented" ); }
+      if( !( beams_per_fb == 32 ) ) { rt_err( "only standard 32-beams-per-firing-block output is implemented" ); }
+
+      cur_out_fb_ix = 0;
+      cur_in_azi_ix = uint32_t_const_max;
+      cur_timestamp = timestamp_start;
+      
+      
+      printf( "data_stream_init(): mode=%s\n", str(mode).c_str() );
+      // setup internal state
+      if( (fov_center < 0.0) || (fov_center >= 360.0) ) { rt_err( strprintf( "fov_center must be in [0.0,360.0) but was =%s",
+                                                                             str(fov_center).c_str() ) ); }
+
+      if( tot_lasers == 32 ) {
+        if( laser_to_row_ix_str ) { rt_err( "you-can't/please-don't specify laser_to_row_ix_str (laser order) for 32 laser sensor" ); }
+        // the velodyn hdl-32 uses a fixed firing order, with the downward-most laser first. then lasers from the top
+        // and bottom blocks are interleaved, continuing from downward-most to upward-most. the nominal spacing of the
+        // lasers is 4/3 (i.e. ~1.333) degrees. thus, the pattern is: -30.67, -9.33, -29.33, -8.00 ...
+
+        // so, given this, we simply fill in laser_to_row_ix directly.
+        laser_to_row_ix.resize(32);
+        for( uint32_t blix = 0; blix != 16; ++blix ) { // most downward first
+          for( uint32_t block = 0; block != 2; ++block ) { // lower, upper
+            uint32_t const lix = blix*2 + block; // laser index in firing/packet order
+            uint32_t const row = 31 - ( block*16 + blix ); // row in scanline order (note: 31 - (rest) flips y axis)
+            laser_to_row_ix[lix] = row;
+          }
+        }
+      } else { assert_st(0); }
+      vect_uint32_t laser_to_row_ix_sorted = laser_to_row_ix;
+      sort( laser_to_row_ix_sorted.begin(), laser_to_row_ix_sorted.end() );
+      assert_st( laser_to_row_ix_sorted.size() == tot_lasers );
+      for( uint32_t i = 0; i != tot_lasers; ++i ) {
+        if( laser_to_row_ix_sorted[i] != i ) { rt_err( "the elements of laser_to_row_ix_sorted are not a permutation of [0,tot_lasers)" ); }
+      }
+    }   
+
+    bool have_packet_ready( void ) const { return cur_out_fb_ix == fbs_per_packet; }
+    
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      if( have_packet_ready() ) { return emit_packet(); } // note: intput db discarded here; should get here exactly if
+      assert_st( !cur_in_nda ); // no packet ready should imply no buffered input data remains (but, note there can be a packet ready with no data left).
+      cur_in_nda = db.nda; cur_in_azi_ix = 0; 
+      consume_some_input();
+      // we assume we should always be able to produce at least one packet from each input data block, even if we had no buffered fbs      
+      return emit_packet(); 
+    }
+
+    void consume_some_input( void ) { 
+      assert_st( cur_in_nda );
+      assert_st( cur_in_nda->dims.sz() == 2 );
+      uint32_t const num_azis = cur_in_nda->dims.dims(1);
+      uint32_t const cur_in_num_lasers = cur_in_nda->dims.dims(0);
+      uint16_t const * const cur_in_rp_elems = nda_rp_elems<uint16_t>( cur_in_nda );
+      if( cur_in_num_lasers != tot_lasers ) {
+        rt_err( strprintf( "velodyne-gen: configured to output tot_lasers=%s but got block with cur_in_num_lasers=%s\n",
+                           str(tot_lasers).c_str(), str(cur_in_num_lasers).c_str() ) );
+      }
+      assert_st( cur_out_fb_ix <= fbs_per_packet );
+      while( cur_out_fb_ix < fbs_per_packet ) {
+        // for each iter, fill in one firing block from one azi
+        assert_st( cur_in_azi_ix < num_azis );
+        double const cur_azi_deg = fov_center + azi_step * ( double(cur_in_azi_ix) - double(num_azis)/2.0 );
+        if( (cur_azi_deg < 0.0) || (cur_azi_deg >= 360.0) ) { rt_err( strprintf( "cur_azi_deg must be in [0.0,360.0) but was =%s -- fov_center bad? azi_step too high? too many azi samples in frame?", str(cur_azi_deg).c_str() ) ); }
+        velo_std_block_info_t & bi = cur_out.bis[cur_out_fb_ix];
+        bi.block_id = 0xeeff;
+        bi.rot_pos = uint16_t(cur_azi_deg*100); // FIXME: truncation okay/correct here?
+        // fill in lasers
+        uint32_t const laser_id_base = 0;
+        for( uint32_t i = 0; i != beams_per_fb; ++i ) {
+          uint32_t const rix = laser_to_row_ix.at(laser_id_base+i);
+          bi.lis[i].distance = cur_in_rp_elems[ cur_in_nda->dims.chk_ix2( rix, cur_in_azi_ix ) ];
+          bi.lis[i].intensity = 90;
+        }
+
+        ++cur_in_azi_ix;
+        ++cur_out_fb_ix;
+        if( cur_in_azi_ix == num_azis ) { // if we exactly finished our current input block, clear it out, and we must return
+          cur_in_azi_ix = uint32_t_const_max;
+          cur_in_nda.reset();
+          return;
+        }
+      }
+    }
+    data_block_t emit_packet( void ) {
+
+      assert_st( have_packet_ready() );
+
+      // finish packet and emit. note: no/null status for now
+      cur_out.si.status_type = 0;
+      cur_out.si.status_val = 0;
+      cur_out.si.gps_timestamp_us = cur_timestamp;
+      cur_timestamp += timestamp_step;
+      uint32_t const hour_in_us = 3600U*1000U*1000U;
+      if( cur_timestamp >= hour_in_us  ) { cur_timestamp -= hour_in_us; } // wrap timestamp each hour; note: assumes step+hour_in_us fits in uint32_t
+      
+      data_block_t ret;
+      ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(sizeof(velo32_std_udp_payload_t))}, "uint8_t" } );
+      //printf( "ret.nda->dims.bytes_sz()=%s\n", str(ret.nda->dims.bytes_sz()).c_str() );
+      uint8_t const *udp_payload = (uint8_t const *)&cur_out;
+      std::copy( udp_payload, udp_payload + ret.nda->dims.bytes_sz(), (uint8_t *)ret.d() );
+
+      if( cur_in_nda ) { consume_some_input(); } // if we have any, consume some more input, which may create another entire packet and/or finish cur_in
+      ret.have_more_out = have_packet_ready(); // exactly if we have another packet ready, we don't want a new db on the next call.
+      return ret;
+      
+    }
+
+  };
 
   
 #include"gen/data-stream-velo.cc.nesi_gen.cc"
