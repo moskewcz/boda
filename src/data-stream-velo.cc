@@ -68,6 +68,7 @@ namespace boda
   uint32_t const velo_packets_in_cycle = 16;
   uint32_t const velo_cycles_in_epoch = 260;
   string const velo_cycle_prefix_types = "HMSDNYGTV";
+  string const velo_cycle_types = velo_cycle_prefix_types + "1234567";
 
   struct test_velo_crc_t : virtual public nesi, public has_main_t // NESI(help="test velodyne crc16 function impl",
                      // bases=["has_main_t"], type_id="test-velo-crc")
@@ -630,6 +631,8 @@ namespace boda
     p_nda_t cur_in_nda;
 
     uint32_t cur_timestamp;
+    uint32_t packet_in_cycle;
+
     
     virtual string get_pos_info_str( void ) { return strprintf( "velodyne-gen: info TODO." ); }
 
@@ -639,6 +642,7 @@ namespace boda
       if( !( beams_per_fb == 32 ) ) { rt_err( "only standard 32-beams-per-firing-block output is implemented" ); }
 
       cur_out_fb_ix = 0;
+      packet_in_cycle = 0;
       cur_in_azi_ix = uint32_t_const_max;
       cur_timestamp = timestamp_start;
       
@@ -728,11 +732,21 @@ namespace boda
     data_block_t emit_packet( void ) {
 
       assert_st( have_packet_ready() );
-
-      // finish packet and emit. note: no/null status for now
-      cur_out.si.status_type = 0;
-      cur_out.si.status_val = 0;
+      
+      // finish packet and emit. first, status processing:
+      assert_st( packet_in_cycle < velo_cycle_types.size() );
+      if( tot_lasers == 64 ) {
+        cur_out.si.status_type = velo_cycle_types[packet_in_cycle];
+        cur_out.si.status_val = 0; // FIXME: no status values set yet ...
+        rt_err( "TODO: set status values for velo 64 ... maybe can mostly ignore? set at least 'V' (firmware ver) byte?" );
+      } else if (tot_lasers == 32 ) {
+        // values taken from random velo32 .pcap ... seem constant? there are no corrections for velo32, maybe no status stuff either?
+        cur_out.si.status_type = 7;
+        cur_out.si.status_val = 33;
+      }
       cur_out.si.gps_timestamp_us = cur_timestamp;
+      ++packet_in_cycle;
+      if( packet_in_cycle == velo_cycle_types.size() ) { packet_in_cycle = 0; }
       cur_timestamp += timestamp_step;
       uint32_t const hour_in_us = 3600U*1000U*1000U;
       if( cur_timestamp >= hour_in_us  ) { cur_timestamp -= hour_in_us; } // wrap timestamp each hour; note: assumes step+hour_in_us fits in uint32_t
