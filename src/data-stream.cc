@@ -14,8 +14,8 @@ namespace boda
   string data_block_t::info_str( void ) const {
     string ret;
     if( nda.get() ) {
-      ret += strprintf( "dims=%s frame_ix=%s timestamp_ns=%s",
-                        str(nda->dims).c_str(), str(frame_ix).c_str(), str(timestamp_ns).c_str() );
+      ret += strprintf( "dims=%s frame_ix=%s timestamp_ns=%s meta=%s tag=%s",
+                        str(nda->dims).c_str(), str(frame_ix).c_str(), str(timestamp_ns).c_str(), meta.c_str(), tag.c_str() );
     }
     if( subblocks ) {
       ret += strprintf( "subblocks->size()=%s [", str(subblocks->size()).c_str() );
