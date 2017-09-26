@@ -87,7 +87,8 @@ void main(){
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
     double cam_scale; //NESI(default=".2",help="scale camera pos by this amount")
-    float azi_step; //NESI(default=".172",help="default azimuth step (stream can override)")
+    float fov_center; //NESI(default="0",help="default center angle (only used when generating azimuths using azi_step)")
+    float azi_step; //NESI(default=".165",help="default azimuth step (stream can override)")
     float start_z; //NESI(default="40.0",help="starting z value for camera")
 
     uint32_t grid_cells; //NESI(default="10",help="number of X/Y grid cells to draw")
@@ -226,7 +227,19 @@ void main(){
       glGenTextures(1, &cloud_lut_tex);
       glGenBuffers(1, &cloud_azi_buf);
       glGenTextures(1, &cloud_azi_tex);
-      if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs ); bind_laser_corrs(); }
+      if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs ); }
+      else {
+        // generate default laser_corrs that spread out beams. FIXME: not ideal and can be confusing, but maybe better
+        // than doing nothing here? the actual values shoul be the correct ones for already-reordered-velo32 case (using
+        // only the first 32 laser corrs).
+        double const elev_start_degrees = 10.67;
+        double const elev_per_row_degrees = 1.333;
+        for( uint32_t i = 0; i != 64; ++i ) {
+          float const row_elev = elev_start_degrees - elev_per_row_degrees*double(i);
+          laser_corrs.push_back( laser_corr_t{ row_elev, 0, 0, 0, 0, 0, 0, 0, 0 } );
+        }
+      }
+      bind_laser_corrs();
     }
 
     GLuint objs_programID;
@@ -346,7 +359,7 @@ void main(){
     
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.nda.get() ) { rt_err( "add-img-pts: expected nda data in block, but found none." ); }
-      bool had_azi = 0;
+      p_nda_t azi_nda;
       objs_dbs.clear(); // default to no objects for this frame
       if( db.has_subblocks() ) {
         for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
@@ -369,17 +382,7 @@ void main(){
             azi_step = SNE<float>( *sdb.nda ); printf( "azi_step=%s\n", str(azi_step).c_str() );
           }
           else if( sdb.meta == "azi" ) {
-            had_azi = 1;
-            assert_st( sdb.nda->dims.sz() == 1 );
-            assert_st( db.nda->dims.dims(1) == sdb.nda->dims.dims(0) ); // i.e. size must be hbins
-
-            glActiveTexture(GL_TEXTURE1);
-            glBindBuffer(GL_TEXTURE_BUFFER, cloud_azi_buf);
-            glBufferData(GL_TEXTURE_BUFFER, sdb.nda->dims.bytes_sz(), sdb.nda->rp_elems(), GL_STREAM_DRAW);
-            glBindBuffer(GL_TEXTURE_BUFFER, 0);
-      
-            glBindTexture(GL_TEXTURE_BUFFER, cloud_azi_tex);
-            glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
+            azi_nda = sdb.nda;
           }
           else if( sdb.meta == "objects" ) {
             if( sdb.nda.get() ) { objs_dbs.push_back( sdb ); } // allow and skip null case (no object). see FIXME where filled in ...
@@ -389,10 +392,29 @@ void main(){
           }
         }
       }
-      if( !had_azi ) {
-        rt_err( "os-render: TODO: no azi sent; use azi_step to make uniform azi data and bind it, factoring out bind code above." );
+      if( !azi_nda ) {
+        uint32_t const fov_rot_samps = db.nda->dims.dims(1);
+        p_nda_uint16_t azi_nda_u16 = make_shared<nda_uint16_t>( dims_t{ dims_t{ { fov_rot_samps }, {"x"}, "uint16_t" }} );
+        for( uint32_t i = 0; i != fov_rot_samps; ++i ) {
+          double cur_azi_deg = fov_center + azi_step * ( double(i) - double(fov_rot_samps)/2.0 );
+          if( cur_azi_deg < 0.0 ) { cur_azi_deg += 360.0; }
+          azi_nda_u16->at1( i ) = uint16_t( cur_azi_deg * 100.0 );
+        }
+        azi_nda = azi_nda_u16;
       }
-      
+
+      // bind azi data
+      assert_st( azi_nda );
+      assert_st( azi_nda->dims.sz() == 1 );            
+      assert_st( azi_nda->dims.tn == "uint16_t" );            
+      assert_st( db.nda->dims.dims(1) == azi_nda->dims.dims(0) ); // i.e. size must be hbins
+      glActiveTexture(GL_TEXTURE1);
+      glBindBuffer(GL_TEXTURE_BUFFER, cloud_azi_buf);
+      glBufferData(GL_TEXTURE_BUFFER, azi_nda->dims.bytes_sz(), azi_nda->rp_elems(), GL_STREAM_DRAW);
+      glBindBuffer(GL_TEXTURE_BUFFER, 0);
+      glBindTexture(GL_TEXTURE_BUFFER, cloud_azi_tex);
+      glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
+
       render_pts_into_frame_buf( db );
       data_block_t ret = db;
       ret.as_img = frame_buf;
