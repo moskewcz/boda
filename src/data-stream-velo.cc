@@ -647,20 +647,25 @@ namespace boda
       // setup internal state
       if( (fov_center < 0.0) || (fov_center >= 360.0) ) { rt_err( strprintf( "fov_center must be in [0.0,360.0) but was =%s",
                                                                              str(fov_center).c_str() ) ); }
-
+      // FIXME: dup'd with parser above, 64 case not handled ... factor out, and handle both.
       if( tot_lasers == 32 ) {
-        if( laser_to_row_ix_str ) { rt_err( "you-can't/please-don't specify laser_to_row_ix_str (laser order) for 32 laser sensor" ); }
-        // the velodyn hdl-32 uses a fixed firing order, with the downward-most laser first. then lasers from the top
-        // and bottom blocks are interleaved, continuing from downward-most to upward-most. the nominal spacing of the
-        // lasers is 4/3 (i.e. ~1.333) degrees. thus, the pattern is: -30.67, -9.33, -29.33, -8.00 ...
+        if( !laser_to_row_ix_str ) {
+          // if no mapping specified, put laser in packet/firing/raw order; we assume corrections will be done later
+          for( uint32_t i = 0; i != tot_lasers; ++i ) { laser_to_row_ix.push_back(i); }
+        } else {
+          if( *laser_to_row_ix_str != "default-32" ) { rt_err( "currently, only the 'default-32' laserremapping order for 32 laser sensors is supported" ); }
+          // the velodyn hdl-32 uses a fixed firing order, with the downward-most laser first. then lasers from the top
+          // and bottom blocks are interleaved, continuing from downward-most to upward-most. the nominal spacing of the
+          // lasers is 4/3 (i.e. ~1.333) degrees. thus, the pattern is: -30.67, -9.33, -29.33, -8.00 ...
 
-        // so, given this, we simply fill in laser_to_row_ix directly.
-        laser_to_row_ix.resize(32);
-        for( uint32_t blix = 0; blix != 16; ++blix ) { // most downward first
-          for( uint32_t block = 0; block != 2; ++block ) { // lower, upper
-            uint32_t const lix = blix*2 + block; // laser index in firing/packet order
-            uint32_t const row = 31 - ( block*16 + blix ); // row in scanline order (note: 31 - (rest) flips y axis)
-            laser_to_row_ix[lix] = row;
+          // so, given this, we simply fill in laser_to_row_ix directly.
+          laser_to_row_ix.resize(32);
+          for( uint32_t blix = 0; blix != 16; ++blix ) { // most downward first
+            for( uint32_t block = 0; block != 2; ++block ) { // lower, upper
+              uint32_t const lix = blix*2 + block; // laser index in firing/packet order
+              uint32_t const row = 31 - ( block*16 + blix ); // row in scanline order (note: 31 - (rest) flips y axis)
+              laser_to_row_ix[lix] = row;
+            }
           }
         }
       } else { assert_st(0); }
@@ -697,7 +702,8 @@ namespace boda
       while( cur_out_fb_ix < fbs_per_packet ) {
         // for each iter, fill in one firing block from one azi
         assert_st( cur_in_azi_ix < num_azis );
-        double const cur_azi_deg = fov_center + azi_step * ( double(cur_in_azi_ix) - double(num_azis)/2.0 );
+        double cur_azi_deg = fov_center + azi_step * ( double(cur_in_azi_ix) - double(num_azis)/2.0 );
+        if( cur_azi_deg < 0.0 ) { cur_azi_deg += 360.0; }
         if( (cur_azi_deg < 0.0) || (cur_azi_deg >= 360.0) ) { rt_err( strprintf( "cur_azi_deg must be in [0.0,360.0) but was =%s -- fov_center bad? azi_step too high? too many azi samples in frame?", str(cur_azi_deg).c_str() ) ); }
         velo_std_block_info_t & bi = cur_out.bis[cur_out_fb_ix];
         bi.block_id = 0xeeff;
@@ -736,7 +742,8 @@ namespace boda
       //printf( "ret.nda->dims.bytes_sz()=%s\n", str(ret.nda->dims.bytes_sz()).c_str() );
       uint8_t const *udp_payload = (uint8_t const *)&cur_out;
       std::copy( udp_payload, udp_payload + ret.nda->dims.bytes_sz(), (uint8_t *)ret.d() );
-
+      cur_out_fb_ix = 0; // mark packet data as ouput
+      
       if( cur_in_nda ) { consume_some_input(); } // if we have any, consume some more input, which may create another entire packet and/or finish cur_in
       ret.have_more_out = have_packet_ready(); // exactly if we have another packet ready, we don't want a new db on the next call.
       return ret;
