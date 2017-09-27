@@ -83,6 +83,7 @@ void main(){
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t cloud_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/cloud-vertex.glsl",help="point cloud vertex shader filename")
     filename_t objs_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/objects-vertex.glsl",help="objects vertex shader filename")
+    uint32_t use_live_laser_corrs; //NESI(default="1",help="if laser corrs present in stream, use them. note: only first set of corrs in stream will be used.")
     p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
@@ -93,7 +94,8 @@ void main(){
 
     uint32_t grid_cells; //NESI(default="10",help="number of X/Y grid cells to draw")
     float grid_cell_sz; //NESI(default="10.0",help="size of each grid cell")
-    
+
+    bool got_live_laser_corrs;
     
     p_img_t frame_buf;
 
@@ -299,6 +301,7 @@ void main(){
     vect_laser_corr_t laser_corrs;
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      got_live_laser_corrs = 0;
       
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
       frame_buf = make_shared< img_t >();
@@ -365,7 +368,9 @@ void main(){
         for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
           data_block_t const & sdb = db.subblocks->at(i);
           if( sdb.meta == "lidar-corrections" ) {
-            if( laser_corrs.empty() ) {
+            if( use_live_laser_corrs && (!got_live_laser_corrs) ) {
+              got_live_laser_corrs = 1;
+              laser_corrs.clear();
               p_nda_t const & laser_corrs_nda = sdb.nda;
               assert_st( laser_corrs_nda->dims.sz() == 2 );
               assert_st( laser_corrs_nda->dims.strides(0)*sizeof(float) == sizeof(laser_corr_t) );
