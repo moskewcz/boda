@@ -525,6 +525,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     vect_p_data_stream_t pipe; //NESI(help="streams to connect into single pipeline")
+    uint32_t flush_mode; //NESI(default="0",help="if non-zero, for each input, run pipe until no stage has more out. only makes sense if last pipe stage is a sink. not pretty/nice!")
 
     vect_uint8_t have_more_out;
     
@@ -556,6 +557,16 @@ namespace boda
       return ret;
     }
 
+    // return 0 is no stage has more out, other returns highest-stage-ix-with-more-out + 1 
+    uint32_t get_pipe_start_stage( void ) {
+      uint32_t pipe_start_stage = pipe.size();
+      while( pipe_start_stage ) {
+        if( have_more_out[pipe_start_stage - 1] ) { break; }
+        --pipe_start_stage;
+      }
+      return pipe_start_stage;
+    }
+    
     virtual data_block_t proc_block( data_block_t const & db ) {
       // for now, the have_more_out handling assumes this is a default/template block, not real data, and will discard
       // it when there are stages in the pipeline where have_more_out was set. obviously this is a WIP/Hack. sigh, maybe
@@ -564,11 +575,7 @@ namespace boda
 
       while( 1 ) {
         bool fire_again = 0;
-        uint32_t pipe_start_stage = pipe.size();
-        while( pipe_start_stage ) {
-          if( have_more_out[pipe_start_stage - 1] ) { break; }
-          --pipe_start_stage;
-        }
+        uint32_t pipe_start_stage = get_pipe_start_stage();
         if( pipe_start_stage ) {
           // some stage has data, so start with it
           pipe_start_stage -= 1; // note: after this, starting at stage 0 due to have_more_out or because no stage set have_more_out can't be distinguished
@@ -595,7 +602,11 @@ namespace boda
             break;
           } 
         }
-        if( !fire_again ) { break; } // real end-of-stream
+        if( !fire_again ) {
+          // real end-of-stream, or normal ran-all-stages
+          if( flush_mode && get_pipe_start_stage() ) { continue; }
+          break;
+        } 
       }
       return ret;
     }
