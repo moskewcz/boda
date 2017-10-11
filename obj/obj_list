@@ -92,6 +92,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+data-stream-ffmpeg.o
 os-render.o OSMesa
 shader.o OSMesa
 data-stream-velo.o
