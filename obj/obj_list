@@ -81,6 +81,10 @@ LDFLAGS := $(LDFLAGS) -lpython2.7
 [turbojpeg] # disable-able, but will cause any test/mode that tries to load a .jpeg to fail at run-time
 LDFLAGS := $(LDFLAGS) -lturbojpeg
 
+[FFmpeg]
+LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil
+
+
 [stacktrace_gnu] # if enabled, get stacktrace using gnu extentions backtrace() and backtrace_symbols() 
 
 # list of object files to compile. at least the objects that are direct dependencies of the above sections should be
@@ -92,7 +96,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
-data-stream-ffmpeg.o
+data-stream-ffmpeg.o FFmpeg
 os-render.o OSMesa
 shader.o OSMesa
 data-stream-velo.o
