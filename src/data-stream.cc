@@ -6,6 +6,7 @@
 #include"str_util.H"
 #include"data-stream.H"
 #include"data-stream-file.H"
+#include"ext/half.hpp" // for adj-angle over nda elems, which might be half
 
 namespace boda 
 {
@@ -642,6 +643,50 @@ namespace boda
     }
   };
 
+  // normalize angles to the range [-180,180) (after adding an adjustment adj)
+  struct nda_adj_and_normalize_angle_in_degrees_t {
+    double adj;
+    bool negate;
+    nda_adj_and_normalize_angle_in_degrees_t( double const & adj_, bool const & negate_  ) :  adj(adj_), negate(negate_) {}
+    template< typename T > void op( nda_t & nda ) const {
+      ndat_info_t const & ni = get_ndat<T>();
+      assert_st( ni.is_signed ); // not sensible otherwise?
+      T * const elems = static_cast<T *>(nda.rp_elems());
+      uint64_t const num_elems = nda.elems_sz();
+      assert_st( elems );
+      for( uint64_t i = 0; i != num_elems; ++i ) {
+        double ret = fmod( ( negate ? (-double(elems[i])) : double(elems[i]) )+ adj + 180.0, 360.0 );
+        ret += (ret<0) ? 180.0 : (-180.0);
+        //if( (i % 1000) == 0 ) { printf( "PRE  elems[i]=%s    (adj=%s)\n", str(elems[i]).c_str(), str(adj).c_str() ); }
+        if( ni.is_float ) { elems[i] = ret; }
+        else { elems[i] = lround(ret); }
+        //if( (i % 1000) == 0 ) { printf( "POST elems[i]=%s\n\n", str(elems[i]).c_str() ); }
+      }
+    }
+  };
+
+  
+  struct data_stream_adj_angle_t : virtual public nesi, public data_stream_t // NESI(
+                                   // help="normalize angle data in degrees to range [-180,180) (with optional added offset)",
+                                   // bases=["data_stream_t"], type_id="adj-angle")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support    
+    double adj; //NESI(default="0.0",help="adj amount (degress)")
+    uint32_t negate; //NESI(default="0",help="if non-zero, negate input angle")
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) { }
+    virtual string get_pos_info_str( void ) { return strprintf( "adj-angle: adj=%s <no-state>", str(adj).c_str() ); }
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db.clone();
+      if( !ret.nda ) {
+        rt_err( "can only adj-angle on data blocks with nda data, but nda was null in input db." );
+      }
+      ret.nda = ret.nda->clone(); // deep copy nda before we modify it
+      nda_dispatch( *ret.nda, nda_adj_and_normalize_angle_in_degrees_t( adj, negate ) );      
+      return ret;
+    }
+  };
+
+  
   struct data_stream_pass_t : virtual public nesi, public data_stream_t // NESI(
                                // help="indentity (i.e. do-nothing) xform stream",
                                // bases=["data_stream_t"], type_id="pass")
