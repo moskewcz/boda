@@ -742,6 +742,9 @@ namespace boda
     bread( in, o.strides_valid.v );
   }
 
+  struct nda_t;
+  typedef shared_ptr< nda_t > p_nda_t; 
+
   struct nda_t {
     nda_t( void ) { }
     nda_t( dims_t const & dims_ ) { nda_set_dims( dims_ ); alloc(); }
@@ -751,6 +754,11 @@ namespace boda
       d.reset( (uint8_t *)elems_, null_deleter<uint8_t>() ); 
       nda_set_dims( dims_ ); 
       // note: no alloc, even if d was explicitlt set to null (which is the dims-only/no-data case)
+    }
+    p_nda_t clone( void ) const {
+      p_nda_t ret( make_shared<nda_t>( dims ) );
+      std::copy( d.get(), d.get() + dims.bytes_sz(), ret->d.get() );
+      return ret;
     }
     void const * rp_elems( void ) const { return (void const *)d.get(); }
     void * rp_elems( void ) { return (void *)d.get(); }
@@ -829,7 +837,6 @@ namespace boda
   }
   
   typedef vector< nda_t > vect_nda_t; 
-  typedef shared_ptr< nda_t > p_nda_t; 
   typedef vector< p_nda_t > vect_p_nda_t;
   typedef map< string, p_nda_t > map_str_p_nda_t;
   typedef shared_ptr< map_str_p_nda_t > p_map_str_p_nda_t;
