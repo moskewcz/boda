@@ -16,6 +16,8 @@ namespace boda
                                     // bases=["data_stream_t"], type_id="ffmpeg-src")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    
+    filename_t fn; //NESI(req=1,help="input filename")
 
     virtual string get_pos_info_str( void ) { return string( "ffmpeg-src: pos info TODO" ); }
 
@@ -53,34 +55,18 @@ static int read_thread(void *arg)
     AVFormatContext *ic = NULL;
     ic = avformat_alloc_context();
     if (!ic) { rt_err( "avformat_alloc_context() failed" ); }
-#if 0
-    ic->interrupt_callback.callback = decode_interrupt_cb;
-    ic->interrupt_callback.opaque = is;
-    if (!av_dict_get(format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE)) {
-        av_dict_set(&format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
-        scan_all_pmts_set = 1;
-    }
-    err = avformat_open_input(&ic, is->filename, is->iformat, &format_opts);
-    if (err < 0) {
-        print_error(is->filename, err);
-        ret = -1;
-        goto fail;
-    }
-    if (scan_all_pmts_set)
-        av_dict_set(&format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE);
-
-    if ((t = av_dict_get(format_opts, "", NULL, AV_DICT_IGNORE_SUFFIX))) {
-        av_log(NULL, AV_LOG_ERROR, "Option %s not found.\n", t->key);
-        ret = AVERROR_OPTION_NOT_FOUND;
-        goto fail;
-    }
-    is->ic = ic;
-
-    if (genpts)
-        ic->flags |= AVFMT_FLAG_GENPTS;
-
-    av_format_inject_global_side_data(ic);
-
+    //ic->interrupt_callback.callback = decode_interrupt_cb;
+    //ic->interrupt_callback.opaque = is;
+    AVDictionary * format_opts = NULL;
+    // note: by default, ffplay sets "scan_all_pmts" to 1 here. but, perhaps we can ignore that, since it's unclear if
+    // it's relevant to us -- seems only to be for mpegts containers, and then only sometimes relevant?
+    string const ffmpeg_url = "file:" + fn.exp;
+    //AVInputFormat *iformat;
+    int const err = avformat_open_input(&ic, ffmpeg_url.c_str(), NULL, &format_opts);
+    if( err < 0 ) { rt_err( strprintf( "avformat_open_input failed for ffmpeg_url=%s\n", str(ffmpeg_url).c_str() ) ); }
+    // note: here, we could check that all options were consumed. but, we're not setting any, so why bother. see the
+    // relevant check in ffplay.c
+#if 0    
     if (find_stream_info) {
         AVDictionary **opts = setup_find_stream_info_opts(ic, codec_opts);
         int orig_nb_streams = ic->nb_streams;
