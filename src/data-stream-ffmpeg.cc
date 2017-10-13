@@ -18,10 +18,15 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     
     filename_t fn; //NESI(req=1,help="input filename")
+    p_dims_t out_dims; // NESI(help="set dims of output to this. size must match data size. if not set, will typically emit 'bytes' (1D array of uint8_t, with one dim named 'v'), but default may depend on specific file reader.")
 
     virtual string get_pos_info_str( void ) { return string( "ffmpeg-src: pos info TODO" ); }
 
     virtual bool seek_to_block( uint64_t const & frame_ix ) { return false; }
+
+    AVFormatContext *ic;
+
+    data_stream_ffmpeg_src_t( void ) : ic( 0 ) { }
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
 #if 0
@@ -52,7 +57,7 @@ static int read_thread(void *arg)
     is->last_subtitle_stream = is->subtitle_stream = -1;
     is->eof = 0;
 #endif
-    AVFormatContext *ic = NULL;
+
     ic = avformat_alloc_context();
     if (!ic) { rt_err( "avformat_alloc_context() failed" ); }
     //ic->interrupt_callback.callback = decode_interrupt_cb;
@@ -62,10 +67,13 @@ static int read_thread(void *arg)
     // it's relevant to us -- seems only to be for mpegts containers, and then only sometimes relevant?
     string const ffmpeg_url = "file:" + fn.exp;
     //AVInputFormat *iformat;
-    int const err = avformat_open_input(&ic, ffmpeg_url.c_str(), NULL, &format_opts);
+    int err;
+    err = avformat_open_input(&ic, ffmpeg_url.c_str(), NULL, &format_opts);
     if( err < 0 ) { rt_err( strprintf( "avformat_open_input failed for ffmpeg_url=%s\n", str(ffmpeg_url).c_str() ) ); }
     // note: here, we could check that all options were consumed. but, we're not setting any, so why bother. see the
     // relevant check in ffplay.c
+    err = avformat_find_stream_info(ic, NULL);
+    if( err < 0 ) { printf( "warning: avformat_find_stream_info() failed for ffmpeg_url=%s\n", str(ffmpeg_url).c_str() ); }
 #if 0    
     if (find_stream_info) {
         AVDictionary **opts = setup_find_stream_info_opts(ic, codec_opts);
@@ -112,10 +120,14 @@ static int read_thread(void *arg)
     }
 
     is->realtime = is_realtime(ic);
+#endif
+    for( uint32_t i = 0; i != ic->nb_streams; ++i ) {
+      printf( "av_dump_format for stream: i=%s\n", str(i).c_str() );
+      av_dump_format(ic, i, ffmpeg_url.c_str(), 0);
+    }
 
-    if (show_status)
-        av_dump_format(ic, 0, is->filename, 0);
 
+#if 0
     for (i = 0; i < ic->nb_streams; i++) {
         AVStream *st = ic->streams[i];
         enum AVMediaType type = st->codecpar->codec_type;
@@ -333,7 +345,14 @@ static int read_thread(void *arg)
     }
     
     virtual data_block_t proc_block( data_block_t const & db ) {
+      assert_st( ic );
       data_block_t ret = db;
+      AVPacket pkt;
+      int const err = av_read_frame(ic, &pkt);
+      if( err < 0 ) { return ret; }
+      ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(pkt.size)}, vect_string{ "v" }, "uint8_t" } );
+      std::copy( pkt.data, pkt.data + pkt.size, (uint8_t *)ret.d() );
+      if( out_dims ) { assert_st( ret.nda ); ret.nda->reshape( *out_dims ); }
       return ret;
     }
   };
