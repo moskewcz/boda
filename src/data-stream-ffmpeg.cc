@@ -135,6 +135,13 @@ static int read_thread(void *arg)
 #endif
       ic->streams[stream_index]->discard = ( i == stream_index ) ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
     }
+
+    AVStream * const vid_st = ic->streams[stream_index];
+    // FIXME/NOTE: it seems we could use either a direct check on vid_st_type or avformat_match_stream_specifier here. hmm.
+    // AVMediaType vid_st_type = vid_st->codecpar->codex_type;
+    int const avmss_ret = avformat_match_stream_specifier( ic, vid_st, "v" );
+    assert_st( avmss_ret >= 0 );
+    if( avmss_ret == 0 ) { rt_err( strprintf( "stream stream_index=%s is not a video stream", str(stream_index).c_str() ) ); }
     
 #if 0
     for (i = 0; i < ic->nb_streams; i++) {
