@@ -19,6 +19,7 @@ namespace boda
     
     filename_t fn; //NESI(req=1,help="input filename")
     p_dims_t out_dims; // NESI(help="set dims of output to this. size must match data size. if not set, will typically emit 'bytes' (1D array of uint8_t, with one dim named 'v'), but default may depend on specific file reader.")
+    uint32_t stream_index; //NESI(default="0",help="ffmpeg stream index from which to extract frames from")
 
     virtual string get_pos_info_str( void ) { return string( "ffmpeg-src: pos info TODO" ); }
 
@@ -118,15 +119,23 @@ static int read_thread(void *arg)
                     is->filename, (double)timestamp / AV_TIME_BASE);
         }
     }
-
     is->realtime = is_realtime(ic);
 #endif
+    if( !( stream_index < ic->nb_streams ) ) {
+      rt_err( strprintf( "user requested (zero-based) stream_index=%s, but ffmpeg says there are only ic->nb_streams=%s streams.\n",
+                         str(stream_index).c_str(), str(ic->nb_streams).c_str() ) );
+    }
+    
     for( uint32_t i = 0; i != ic->nb_streams; ++i ) {
+      // FIXME: for no obvious reason, av_dump_format() seems to print nothing -- maybe an stdio/iostreams or other
+      // C++-and-ffmpeg issue?
+#if 0
       printf( "av_dump_format for stream: i=%s\n", str(i).c_str() );
       av_dump_format(ic, i, ffmpeg_url.c_str(), 0);
+#endif
+      ic->streams[stream_index]->discard = ( i == stream_index ) ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
     }
-
-
+    
 #if 0
     for (i = 0; i < ic->nb_streams; i++) {
         AVStream *st = ic->streams[i];
@@ -350,6 +359,7 @@ static int read_thread(void *arg)
       AVPacket pkt;
       int const err = av_read_frame(ic, &pkt);
       if( err < 0 ) { return ret; }
+      assert_st( (uint32_t)pkt.stream_index == stream_index ); // AVDISCARD_ALL setting for other streams in init() should guarentee this
       ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(pkt.size)}, vect_string{ "v" }, "uint8_t" } );
       std::copy( pkt.data, pkt.data + pkt.size, (uint8_t *)ret.d() );
       if( out_dims ) { assert_st( ret.nda ); ret.nda->reshape( *out_dims ); }
