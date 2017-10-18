@@ -6,6 +6,7 @@
 #include"nesi.H"
 extern "C" {
 #include"libavformat/avformat.h"
+#include"libavcodec/avcodec.h"
 }
 
 namespace boda 
@@ -26,6 +27,7 @@ namespace boda
     virtual bool seek_to_block( uint64_t const & frame_ix ) { return false; }
 
     AVFormatContext *ic;
+    AVCodecContext *avctx;
 
     data_stream_ffmpeg_src_t( void ) : ic( 0 ) { }
     
@@ -61,15 +63,69 @@ namespace boda
 #endif
         ic->streams[stream_index]->discard = ( i == stream_index ) ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
       }
-
       AVStream * const vid_st = ic->streams[stream_index];
       // FIXME/NOTE: it seems we could use either a direct check on vid_st_type or avformat_match_stream_specifier here. hmm.
       // AVMediaType vid_st_type = vid_st->codecpar->codex_type;
       int const avmss_ret = avformat_match_stream_specifier( ic, vid_st, "v" );
       assert_st( avmss_ret >= 0 );
       if( avmss_ret == 0 ) { rt_err( strprintf( "stream stream_index=%s is not a video stream", str(stream_index).c_str() ) ); }
-    
+      init_video_stream_decode( vid_st );
+
+      // FIXME: need to close input (which calls avformat_free_context() internally)
+      // avformat_close_input(&ic);
+
     }
+
+
+    void init_video_stream_decode( AVStream * const vid_st ) {
+
+      avctx = avcodec_alloc_context3(NULL);
+      if (!avctx) { rt_err( "avcodec_alloc_context3() failed" ); }
+
+      int avcodec_ret;
+#if FFMPEG_31
+      avcodec_ret = avcodec_parameters_to_context(avctx, vid_st->codecpar);
+      if( avcodec_ret < 0 ) { rt_err( "avcodec_parameters_to_context() failed" ); }
+#else
+      avctx = vid_st->codec;
+#endif
+      av_codec_set_pkt_timebase(avctx, vid_st->time_base);
+
+      AVCodec *codec;
+      codec = avcodec_find_decoder(avctx->codec_id);
+
+      if( !codec ) { rt_err( strprintf( "no codec could be found for id avctx->codex_id=%s\n", str(avctx->codec_id).c_str() ) ); }
+      avctx->codec_id = codec->id;
+      
+      AVDictionary *opts = NULL;
+
+      // this seems nice to set ... but what happens if we don't have it? for now, we die/fail.
+      if(codec->capabilities & AV_CODEC_CAP_DR1) {
+        avctx->flags |= CODEC_FLAG_EMU_EDGE;
+      }
+      else {
+        rt_err( "maybe-unsupported/FIXME: codec without AV_CODEC_CAP_DR1" );
+      }
+
+      if (!av_dict_get(opts, "threads", NULL, 0)) {
+        av_dict_set(&opts, "threads", "auto", 0);
+      }
+      
+      av_dict_set(&opts, "refcounted_frames", "1", 0);
+      avcodec_ret = avcodec_open2(avctx, codec, &opts);
+      if( avcodec_ret < 0 ) { rt_err( "avcodec_open2() failed" ); }
+
+      // check for any unconsume (unrecognized) options
+      AVDictionaryEntry *t = NULL;
+      if ((t = av_dict_get(opts, "", NULL, AV_DICT_IGNORE_SUFFIX))) {
+        rt_err( strprintf( "unknown code option '%s'\n", t->key ) );
+      }
+
+      // FIXME: use shared_ptr deleter (or whatever) to dealloc these
+      // avcodec_free_context(&avctx); // only if FFMPEG_31
+      // av_dict_free(&opts);
+    }
+
     
     virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( ic );
@@ -81,6 +137,21 @@ namespace boda
       ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(pkt.size)}, vect_string{ "v" }, "uint8_t" } );
       std::copy( pkt.data, pkt.data + pkt.size, (uint8_t *)ret.d() );
       if( out_dims ) { assert_st( ret.nda ); ret.nda->reshape( *out_dims ); }
+
+      AVFrame *frame = av_frame_alloc();
+      int got_frame = 0;
+      int const decode_ret = avcodec_decode_video2(avctx, frame, &got_frame, &pkt);
+      if( decode_ret < 0 ) { rt_err("avcodec_decode_video2() failed"); }
+      if( decode_ret != pkt.size ) { rt_err("decode didn't consume entire packet?"); }
+
+      if( got_frame ) {
+        // FIXME: actually output frame
+        printf( "got frame: format=%s width=%s height=%s\n", str(frame->format).c_str(), str(frame->width).c_str(), str(frame->height).c_str() );
+      } else {
+        ret.need_more_in = 1;
+      }      
+      av_frame_free(&frame);
+
       return ret;
     }
   };
