@@ -8,10 +8,34 @@ extern "C" {
 #include"libavformat/avformat.h"
 #include"libavcodec/avcodec.h"
 }
+#include<turbojpeg.h>
 
 namespace boda 
 {
+  void check_tj_ret( int const & tj_ret, string const & err_tag );
 
+  struct uint8_t_tj_deleter { 
+    void operator()( uint8_t * const & b ) const { tjFree( b ); } // can't fail, apparently ...
+  };
+
+  p_uint8_with_sz_t avframe_to_jpeg( AVFrame * const frame ) {
+    int tj_ret = -1;
+    tjhandle tj_enc = tjInitCompress();
+    check_tj_ret( !tj_enc, "tjInitCompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
+    int const quality = 90;
+    ulong tj_size_out = 0;
+    uint8_t * tj_buf_out = 0;
+    tj_ret = tjCompressFromYUVPlanes( tj_enc, frame->data, frame->width, frame->linesize, frame->height, TJSAMP_420,
+                                      &tj_buf_out, &tj_size_out, quality, 0 );
+    check_tj_ret( tj_ret, "tjCompressFromYUVPlanes" );
+    assert_st( tj_size_out > 0 );
+    p_uint8_with_sz_t ret( tj_buf_out, tj_size_out, uint8_t_tj_deleter() );
+    tj_ret = tjDestroy( tj_enc ); 
+    check_tj_ret( tj_ret, "tjDestroy" );
+    return ret;
+  }
+
+  
   struct data_stream_ffmpeg_src_t : virtual public nesi, public data_stream_t // NESI(
                                     // help="parse file with ffmpeg (libavformat,...) output one block per raw video frame",
                                     // bases=["data_stream_t"], type_id="ffmpeg-src")
@@ -126,7 +150,7 @@ namespace boda
       // av_dict_free(&opts);
     }
 
-    
+    zi_uint64_t frame_ix;
     virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( ic );
       data_block_t ret = db;
@@ -147,6 +171,14 @@ namespace boda
       if( got_frame ) {
         // FIXME: actually output frame
         printf( "got frame: format=%s width=%s height=%s\n", str(frame->format).c_str(), str(frame->width).c_str(), str(frame->height).c_str() );
+
+        if( frame_ix.v < 10 ) {
+          string const fn = "out-"+str(frame_ix.v)+".jpg";
+          p_uint8_with_sz_t as_jpeg = avframe_to_jpeg( frame );
+          p_ostream out = ofs_open( fn );
+          bwrite_bytes( *out, (char const *)as_jpeg.get(), as_jpeg.sz );
+        }
+        ++frame_ix.v;
       } else {
         ret.need_more_in = 1;
       }      
@@ -154,6 +186,7 @@ namespace boda
 
       return ret;
     }
+
   };
   
 #include"gen/data-stream-ffmpeg.cc.nesi_gen.cc"
