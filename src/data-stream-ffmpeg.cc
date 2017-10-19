@@ -18,14 +18,29 @@ namespace boda
     void operator()( uint8_t * const & b ) const { tjFree( b ); } // can't fail, apparently ...
   };
 
-  p_uint8_with_sz_t avframe_to_jpeg( AVFrame * const frame ) {
+  p_uint8_with_sz_t yuv_img_to_jpeg( vect_p_nda_uint8_t const & yuv_ndas ) {
+    vect_rp_uint8_t yuv_data;
+    assert_st( yuv_ndas.size() == 3 );
+    u32_pt_t sz;
+    for( uint32_t pix = 0; pix != 3; ++pix ) {
+      yuv_data.push_back( (uint8_t *)yuv_ndas[pix]->rp_elems() );
+      u32_pt_t yuv_sz = get_xy_dims_strict( yuv_ndas[pix]->dims );
+      if( !pix ) {
+        sz = yuv_sz;
+      } else {
+        if( yuv_sz.scale(2) != sz ) { rt_err( strprintf( "yuv plane size mismatch. Y sz=%s, but for pix=%s, yuv_sz=%s\n",
+                                                         str(sz).c_str(), str(pix).c_str(), str(yuv_sz).c_str() ) ); }
+      }
+    }
+
     int tj_ret = -1;
     tjhandle tj_enc = tjInitCompress();
     check_tj_ret( !tj_enc, "tjInitCompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
     int const quality = 90;
     ulong tj_size_out = 0;
     uint8_t * tj_buf_out = 0;
-    tj_ret = tjCompressFromYUVPlanes( tj_enc, frame->data, frame->width, frame->linesize, frame->height, TJSAMP_420,
+    printf( "sz=%s\n", str(sz).c_str() );
+    tj_ret = tjCompressFromYUVPlanes( tj_enc, &yuv_data[0], sz.d[0], NULL, sz.d[1], TJSAMP_420,
                                       &tj_buf_out, &tj_size_out, quality, 0 );
     check_tj_ret( tj_ret, "tjCompressFromYUVPlanes" );
     assert_st( tj_size_out > 0 );
@@ -169,12 +184,41 @@ namespace boda
       if( decode_ret != pkt.size ) { rt_err("decode didn't consume entire packet?"); }
 
       if( got_frame ) {
-        // FIXME: actually output frame
-        printf( "got frame: format=%s width=%s height=%s\n", str(frame->format).c_str(), str(frame->width).c_str(), str(frame->height).c_str() );
-
+        if( frame->format != AV_PIX_FMT_YUV420P ) {
+          rt_err( "only the AV_PIX_FMT_YUV420P pixel format is currently supported for decoded output (adding conversions is TODO)" );
+        }
+        if( (frame->width&1) || (frame->height&1) ) {
+          rt_err( strprintf( "only even frame sizes are supported, but frame->width=%s frame->height=%s\n",
+                             str(frame->width).c_str(), str(frame->height).c_str() ) );
+        }
+        // convert YUV planes to data block
+        vect_p_nda_uint8_t yuv_ndas;
+        ret.subblocks = make_shared<vect_data_block_t>();      
+        for( uint32_t pix = 0; pix != 3; ++pix ) {
+          uint32_t const subsample = pix ? 2 : 1;
+          string const meta = string("YUV_") + string("YUV")[pix];
+          uint32_t const ph = frame->height/subsample;
+          uint32_t const pw = frame->width/subsample;
+          p_nda_uint8_t yuv_nda = make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(ph), uint32_t(pw)}, vect_string{ "y","x" },"uint8_t" });
+          // fill in y,u, or v data
+          for( uint32_t y = 0; y != ph; ++y ) {
+            uint8_t * rb = frame->data[pix] + frame->linesize[pix]*y;
+            std::copy( rb, rb + pw, &yuv_nda->at1(y) );
+          }
+          yuv_ndas.push_back( yuv_nda );
+          if( pix == 0 ) {
+            ret.meta = meta;
+            ret.nda = yuv_nda;
+          } else {
+            data_block_t uv_db;
+            uv_db.meta = meta;
+            uv_db.nda = yuv_nda;
+            ret.subblocks->push_back( uv_db );
+          }
+        }
         if( frame_ix.v < 10 ) {
           string const fn = "out-"+str(frame_ix.v)+".jpg";
-          p_uint8_with_sz_t as_jpeg = avframe_to_jpeg( frame );
+          p_uint8_with_sz_t as_jpeg = yuv_img_to_jpeg( yuv_ndas );
           p_ostream out = ofs_open( fn );
           bwrite_bytes( *out, (char const *)as_jpeg.get(), as_jpeg.sz );
         }
