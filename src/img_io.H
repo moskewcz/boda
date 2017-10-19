@@ -57,7 +57,9 @@ namespace boda
     string WxH_str( void );
     void share_pels_from( p_img_t o );
   };
-  
+
+  p_uint8_with_sz_t yuv_img_to_jpeg( vect_p_nda_uint8_t const & yuv_ndas );
+
   inline p_img_t make_p_img_t( u32_pt_t const & sz ) { 
     p_img_t ret( new img_t ); ret->set_sz_and_alloc_pels( sz ); return ret; }
 

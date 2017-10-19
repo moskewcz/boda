@@ -8,48 +8,10 @@ extern "C" {
 #include"libavformat/avformat.h"
 #include"libavcodec/avcodec.h"
 }
-#include<turbojpeg.h>
+#include"img_io.H"
 
 namespace boda 
 {
-  void check_tj_ret( int const & tj_ret, string const & err_tag );
-
-  struct uint8_t_tj_deleter { 
-    void operator()( uint8_t * const & b ) const { tjFree( b ); } // can't fail, apparently ...
-  };
-
-  p_uint8_with_sz_t yuv_img_to_jpeg( vect_p_nda_uint8_t const & yuv_ndas ) {
-    vect_rp_uint8_t yuv_data;
-    assert_st( yuv_ndas.size() == 3 );
-    u32_pt_t sz;
-    for( uint32_t pix = 0; pix != 3; ++pix ) {
-      yuv_data.push_back( (uint8_t *)yuv_ndas[pix]->rp_elems() );
-      u32_pt_t yuv_sz = get_xy_dims_strict( yuv_ndas[pix]->dims );
-      if( !pix ) {
-        sz = yuv_sz;
-      } else {
-        if( yuv_sz.scale(2) != sz ) { rt_err( strprintf( "yuv plane size mismatch. Y sz=%s, but for pix=%s, yuv_sz=%s\n",
-                                                         str(sz).c_str(), str(pix).c_str(), str(yuv_sz).c_str() ) ); }
-      }
-    }
-
-    int tj_ret = -1;
-    tjhandle tj_enc = tjInitCompress();
-    check_tj_ret( !tj_enc, "tjInitCompress" ); // note: !tj_dec passed as tj_ret, since 0 is the fail val for tj_dec
-    int const quality = 90;
-    ulong tj_size_out = 0;
-    uint8_t * tj_buf_out = 0;
-    printf( "sz=%s\n", str(sz).c_str() );
-    tj_ret = tjCompressFromYUVPlanes( tj_enc, &yuv_data[0], sz.d[0], NULL, sz.d[1], TJSAMP_420,
-                                      &tj_buf_out, &tj_size_out, quality, 0 );
-    check_tj_ret( tj_ret, "tjCompressFromYUVPlanes" );
-    assert_st( tj_size_out > 0 );
-    p_uint8_with_sz_t ret( tj_buf_out, tj_size_out, uint8_t_tj_deleter() );
-    tj_ret = tjDestroy( tj_enc ); 
-    check_tj_ret( tj_ret, "tjDestroy" );
-    return ret;
-  }
-
   
   struct data_stream_ffmpeg_src_t : virtual public nesi, public data_stream_t // NESI(
                                     // help="parse file with ffmpeg (libavformat,...) output one block per raw video frame",
