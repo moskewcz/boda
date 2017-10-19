@@ -22,13 +22,15 @@ namespace boda
     uint32_t row_align; // what power-of-2 alignement is ensured for all row starts
     uint32_t row_pitch; // bytes between rows
     uint32_t row_pitch_pels; // pixels between rows
-    p_uint8_t pels; // raw pixel data    
+    p_uint8_t pels; // raw pixel data
+    vect_p_uint8_t yuv_pels; // pixel data in YUV 420 format. NOTE: only partially supported and used in selected areas.
     img_t( void ) : depth(4), row_align(0), row_pitch(0), row_pitch_pels(0) {}
     // if desired, call to set requested row alignment *before* loading
     void set_row_align( uint32_t const row_align_ ) { assert(!row_align); row_align = row_align_; }
     void set_sz( u32_pt_t const & sz_ );
     void alloc_pels( void );
     void set_sz_and_alloc_pels( u32_pt_t const & sz_ );
+    void set_sz_and_pels_from_yuv_420_planes( vect_p_nda_uint8_t const & yuv_pels_ );
 
     void fill_with_pel( uint32_t const & v );
     void load_fn( std::string const & fn );
@@ -57,8 +59,6 @@ namespace boda
     string WxH_str( void );
     void share_pels_from( p_img_t o );
   };
-
-  p_uint8_with_sz_t yuv_img_to_jpeg( vect_p_nda_uint8_t const & yuv_ndas );
 
   inline p_img_t make_p_img_t( u32_pt_t const & sz ) { 
     p_img_t ret( new img_t ); ret->set_sz_and_alloc_pels( sz ); return ret; }

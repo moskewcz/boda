@@ -178,9 +178,12 @@ namespace boda
             ret.subblocks->push_back( uv_db );
           }
         }
+        ret.as_img = make_shared< img_t >();
+        ret.as_img->set_sz_and_pels_from_yuv_420_planes( yuv_ndas );
+
         if( frame_ix.v < 10 ) {
           string const fn = "out-"+str(frame_ix.v)+".jpg";
-          p_uint8_with_sz_t as_jpeg = yuv_img_to_jpeg( yuv_ndas );
+          p_uint8_with_sz_t as_jpeg = ret.as_img->to_jpeg();
           p_ostream out = ofs_open( fn );
           bwrite_bytes( *out, (char const *)as_jpeg.get(), as_jpeg.sz );
         }
@@ -189,7 +192,7 @@ namespace boda
         ret.need_more_in = 1;
       }      
       av_frame_free(&frame);
-
+      printf( "ret.meta=%s\n", str(ret.meta).c_str() );
       return ret;
     }
 

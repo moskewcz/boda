@@ -71,7 +71,8 @@ namespace boda {
     uint64_t frame_cnt;
     
     p_asio_t asio;
-    
+
+    zi_bool font_setup_done;
     p_TTF_Font font;
 
     disp_win_t( void );
@@ -81,6 +82,7 @@ namespace boda {
     void disp_setup( p_img_t const & img ); // one existing image 
     p_vect_p_img_t disp_setup( vect_u32_pt_t const & disp_img_szs ); // create/usr/return a list of images of the given sizes
     void update_dr_for_window_and_zoom( u32_pt_t const & new_win_sz );
+    void update_disp_img( uint32_t const pix, p_img_t const & new_img );
     void update_disp_imgs( void );
     void update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos );
     void drain_sdl_events_and_redisplay( void );

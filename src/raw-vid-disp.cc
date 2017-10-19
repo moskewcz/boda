@@ -39,6 +39,10 @@ namespace boda
     }
   };
 
+  u32_pt_t get_db_img_sz( data_block_t const & db, u32_pt_t const & disp_sz ) {
+    if( db.as_img ) { return db.as_img->sz; }
+    else { return disp_sz; } 
+  }
   
   // FIXME: dupe'd code with display_pil_t
   struct display_raw_vid_t : virtual public nesi, public has_main_t // NESI(
@@ -102,18 +106,15 @@ namespace boda
       if( in_imgs.size() == db.num_subblocks() ) { // same number of images, check sizes
         bool size_diff = 0;
         for( uint32_t i = 0; i != db.num_subblocks(); ++i ) {
-          p_img_t const & img = db.subblocks->at(i).as_img;
-          if( !img ) { if( in_imgs[i]->sz != disp_sz ) { size_diff = 1; } }
-          else { if( in_imgs[i]->sz != img->sz ) { size_diff = 1; } }
+          if( get_db_img_sz( db.subblocks->at(i), disp_sz ) != in_imgs[i]->sz ) { size_diff = 1; }
         }
         if( !size_diff ) { return; } // all right sizes
       } 
       in_imgs.clear();
       for( uint32_t i = 0; i != db.num_subblocks(); ++i ) {
+        u32_pt_t const img_disp_sz = get_db_img_sz( db.subblocks->at(i), disp_sz );
         in_imgs.push_back( make_shared<img_t>() );
-        p_img_t const & img = db.subblocks->at(i).as_img;
-        if( !img ) { in_imgs.back()->set_sz_and_alloc_pels( disp_sz ); }
-        else { in_imgs.back()->set_sz_and_alloc_pels( img->sz ); }
+        in_imgs.back()->set_sz_and_alloc_pels( img_disp_sz );
       }
       disp_win.window_sz = window_sz;
       disp_win.layout_mode = "vert";
@@ -136,7 +137,10 @@ namespace boda
     
     void read_next_block( void ) {
       set_camera_opt();
-      db = src->proc_block(data_block_t());
+      while( 1 ) {
+        db = src->proc_block(data_block_t());
+        if( !db.need_more_in ) { break; }
+      }
       if( !db.valid() ) {
         if( auto_restart ) {
           if( !src->seek_to_block(0) ) { printf( "auto-restart: seek to db.frame_ix=0 failed.\n" ); }
@@ -152,8 +156,11 @@ namespace boda
         p_img_t const & img = db.subblocks->at(i).as_img;
         if( !img ) { continue; }
         had_new_img = 1;
-        p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz );
-        in_imgs[i]->share_pels_from( ds_img );
+        assert_st( in_imgs[i]->sz == img->sz ); // should be guarenteed by ensure_disp_win_setup
+        // p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz ); // was needed prior
+        in_imgs[i] = img;
+        disp_win.update_disp_img( i, in_imgs[i] );
+        // in_imgs[i]->share_pels_from( img ); // img was ds_img here ...
       }
       if( had_new_img ) {
         if( print_timestamps ) { printf( "--- frame: %s ---\n", str(db).c_str() ); }

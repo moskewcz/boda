@@ -67,6 +67,10 @@ namespace boda
   };
 
   void img_to_YV12( YV12_buf_t const & YV12_buf, p_img_t const & img, uint32_t const out_x, uint32_t const out_y ) {
+    if( !img->pels ) {
+      printf( "img->yuv_pels.size()=%s\n", str(img->yuv_pels.size()).c_str() );
+      return;
+    }
     uint32_t const w = img->sz.d[0]; 
     uint32_t const h = img->sz.d[1];
     uint8_t *out_Y, *out_V, *out_U;
@@ -160,14 +164,16 @@ namespace boda
 
     if( window_sz == u32_pt_t() ) { window_sz = {640,480}; }
     if( layout_mode.empty() ) { layout_mode = "horiz"; }
-    assert( !window );
-    window = make_p_SDL( SDL_CreateWindow( "boda display", 
-							SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-							window_sz.d[0], window_sz.d[1],
-							SDL_WINDOW_RESIZABLE) );
+    if( !window ) {
+      window = make_p_SDL( SDL_CreateWindow( "boda display", 
+                                             SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+                                             window_sz.d[0], window_sz.d[1],
+                                             SDL_WINDOW_RESIZABLE) );
+    }
     if( !window ) { rt_err( strprintf( "Couldn't set create window: %s\n", SDL_GetError() ) ); }
-    assert( !renderer );
-    renderer = make_p_SDL( SDL_CreateRenderer( window.get(), -1, 0) ) ;
+    if( !renderer ) {
+      renderer = make_p_SDL( SDL_CreateRenderer( window.get(), -1, 0) ) ;
+    }
     if (!renderer) { rt_err( strprintf( "Couldn't set create renderer: %s\n", SDL_GetError() ) ); }
 
 #if 0
@@ -179,6 +185,7 @@ namespace boda
     //uint32_t const pixel_format = SDL_PIXELFORMAT_ABGR8888;
     uint32_t const pixel_format = SDL_PIXELFORMAT_YV12;
     YV12_buf.reset( new YV12_buf_t );
+    imgs_buf_nc.clear();
     {
       uint32_t img_w = 0;
       uint32_t img_h = 0;
@@ -206,9 +213,9 @@ namespace boda
       YV12_buf->set_sz_and_alloc( {img_w, img_h} );
     }
 
-    assert( !tex );
+    tex.reset();
     tex = make_p_SDL( SDL_CreateTexture( renderer.get(), pixel_format, SDL_TEXTUREACCESS_STREAMING, 
-						       YV12_buf->w, YV12_buf->h ) );
+                                         YV12_buf->w, YV12_buf->h ) );
 
     if( !tex ) { rt_err( strprintf( "Couldn't set create texture: %s\n", SDL_GetError()) ); }
 
@@ -231,24 +238,36 @@ namespace boda
     asio->lb_event.expires_from_now( pos_infin ); // init event so it won't happen till we set it
 
     // font setup
-    if( TTF_Init() < 0 ) { rt_err_sdl( "Couldn't initialize TTF" ); }
+    if( !font_setup_done.v ) {
+      if( TTF_Init() < 0 ) { rt_err_sdl( "Couldn't initialize TTF" ); }
 
-    string const font_fn = py_boda_dir() +"/fonts/DroidSansMono.ttf"; // FIXME: use boost filesystem?
-    uint32_t const ptsize = 18;
-    font.reset( TTF_OpenFont(font_fn.c_str(), ptsize), TTF_CloseFont );
-    if( !font ) { rt_err_sdl( strprintf( "Couldn't load %s pt font from %s", str(ptsize).c_str(), font_fn.c_str() ).c_str() ); }
+      string const font_fn = py_boda_dir() +"/fonts/DroidSansMono.ttf"; // FIXME: use boost filesystem?
+      uint32_t const ptsize = 18;
+      font.reset( TTF_OpenFont(font_fn.c_str(), ptsize), TTF_CloseFont );
+      if( !font ) { rt_err_sdl( strprintf( "Couldn't load %s pt font from %s", str(ptsize).c_str(), font_fn.c_str() ).c_str() ); }
 
-    int const renderstyle = TTF_STYLE_NORMAL;
-    int const hinting = TTF_HINTING_MONO;
-    int const kerning = 0;
+      int const renderstyle = TTF_STYLE_NORMAL;
+      int const hinting = TTF_HINTING_MONO;
+      int const kerning = 0;
 
-    //printf( "TTF_FontFaceIsFixedWidth()=%s\n", str(TTF_FontFaceIsFixedWidth(font.get())).c_str() );
-    TTF_SetFontStyle( font.get(), renderstyle );
-    TTF_SetFontOutline( font.get(), 0 );
-    TTF_SetFontKerning( font.get(), kerning );
-    TTF_SetFontHinting( font.get(), hinting );
+      //printf( "TTF_FontFaceIsFixedWidth()=%s\n", str(TTF_FontFaceIsFixedWidth(font.get())).c_str() );
+      TTF_SetFontStyle( font.get(), renderstyle );
+      TTF_SetFontOutline( font.get(), 0 );
+      TTF_SetFontKerning( font.get(), kerning );
+      TTF_SetFontHinting( font.get(), hinting );
+      font_setup_done.v = 1;
+    }
   }
 
+  // replace a backing image wholesale. note: image size must not change. note2: will not update display; call
+  // update_disp_imgs() below for that. this function is an alternative to shared-ownership of the backing images, and
+  // can also replace usages where shared_ref_to_backing_image->share_pels_from() was called.
+  void disp_win_t::update_disp_img( uint32_t const pix, p_img_t const & new_img ) {
+    assert_st( pix < imgs->size() );
+    assert_st( imgs->at(pix)->sz == new_img->sz );
+    imgs->at(pix) = new_img;
+  }
+    
   // call when changes to imgs should be reflected/copied onto the display texture
   void disp_win_t::update_disp_imgs( void ) {
     if( paused ) { return; }
