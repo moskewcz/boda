@@ -85,6 +85,7 @@ namespace boda
   typedef shared_ptr< vect_rp_void > p_vect_rp_void;
   typedef vector< char * > vect_rp_char;
   typedef vector< char const * > vect_rp_const_char;
+  typedef vector< uint8_t * > vect_rp_uint8_t;
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   p_vect_rp_void get_backtrace( void );
 
@@ -1002,9 +1003,13 @@ namespace boda
   typedef shared_ptr< map_str_p_vect_p_nda_float_t > p_map_str_p_vect_p_nda_float_t;
 
   typedef nda_T< uint8_t > nda_uint8_t;
+  typedef shared_ptr< nda_uint8_t > p_nda_uint8_t; 
+  typedef vector< p_nda_uint8_t > vect_p_nda_uint8_t;
+
   typedef nda_T< uint16_t > nda_uint16_t;
   typedef shared_ptr< nda_uint16_t > p_nda_uint16_t; 
-
+  typedef vector< p_nda_uint16_t > vect_p_nda_uint16_t;
+  
   struct ssds_diff_per_type_t {
     virtual void cnt_diff_elems( void ) = 0;
     virtual void sum_squared_diffs( void ) = 0;
