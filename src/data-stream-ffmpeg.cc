@@ -79,7 +79,7 @@ namespace boda
 
 
     void init_video_stream_decode( AVStream * const vid_st ) {
-
+      if( out_dims ) { return; } // for raw mode, no decoding will be done, so don't init codec (we might not be able to anyway)
       avctx = avcodec_alloc_context3(NULL);
       if (!avctx) { rt_err( "avcodec_alloc_context3() failed" ); }
 
@@ -137,7 +137,13 @@ namespace boda
       assert_st( (uint32_t)pkt.stream_index == stream_index ); // AVDISCARD_ALL setting for other streams in init() should guarentee this
       ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(pkt.size)}, vect_string{ "v" }, "uint8_t" } );
       std::copy( pkt.data, pkt.data + pkt.size, (uint8_t *)ret.d() );
-      if( out_dims ) { assert_st( ret.nda ); ret.nda->reshape( *out_dims ); }
+      if( out_dims ) { // raw mode
+        assert_st( ret.nda );
+        ret.nda->reshape( *out_dims );
+        ret.frame_ix = frame_ix.v;
+        ++frame_ix.v;
+        return ret;
+      }
 
       AVFrame *frame = av_frame_alloc();
       int got_frame = 0;
