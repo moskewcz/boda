@@ -13,17 +13,16 @@ extern "C" {
 namespace boda 
 {
   
-  struct data_stream_ffmpeg_src_t : virtual public nesi, public data_stream_t // NESI(
+  struct data_stream_ffmpeg_src_t : virtual public nesi, public data_stream_tagged_frames_t // NESI(
                                     // help="parse file with ffmpeg (libavformat,...) output one block per raw video frame",
-                                    // bases=["data_stream_t"], type_id="ffmpeg-src")
+                                    // bases=["data_stream_tagged_frames_t"], type_id="ffmpeg-src")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     
     filename_t fn; //NESI(req=1,help="input filename")
-    p_dims_t out_dims; // NESI(help="set dims of output to this. size must match data size. if not set, will typically emit 'bytes' (1D array of uint8_t, with one dim named 'v'), but default may depend on specific file reader.")
     uint32_t stream_index; //NESI(default="0",help="ffmpeg stream index from which to extract frames from")
 
-    virtual string get_pos_info_str( void ) { return string( "ffmpeg-src: pos info TODO" ); }
+    virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s", str(tot_num_read).c_str() ); }
 
     virtual bool seek_to_block( uint64_t const & frame_ix ) { return false; }
 
@@ -127,10 +126,13 @@ namespace boda
       // av_dict_free(&opts);
     }
 
-    zi_uint64_t frame_ix;
     virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( ic );
       data_block_t ret = db;
+      // set compatibility defaults for meta and tag, for now. can be overridded by tag/mega options. tag name is
+      // obvs. not great ...
+      ret.meta = "image";
+      ret.tag = "camera-dumpvideo";
       AVPacket pkt;
       int const err = av_read_frame(ic, &pkt);
       if( err < 0 ) { return ret; }
@@ -139,9 +141,7 @@ namespace boda
       std::copy( pkt.data, pkt.data + pkt.size, (uint8_t *)ret.d() );
       if( out_dims ) { // raw mode
         assert_st( ret.nda );
-        ret.nda->reshape( *out_dims );
-        ret.frame_ix = frame_ix.v;
-        ++frame_ix.v;
+        data_stream_block_done_hook( ret );
         return ret;
       }
 
@@ -186,8 +186,7 @@ namespace boda
         }
         ret.as_img = make_shared< img_t >();
         ret.as_img->set_sz_and_pels_from_yuv_420_planes( yuv_ndas );
-        ret.frame_ix = frame_ix.v;
-        ++frame_ix.v;
+        data_stream_block_done_hook( ret );
       } else {
         ret.need_more_in = 1;
       }      

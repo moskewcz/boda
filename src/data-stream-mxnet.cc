@@ -93,7 +93,7 @@ namespace boda
         assert_st( pos == tot_sz );
       }
       ret.timestamp_ns = tot_num_read;
-      data_stream_file_block_done_hook( ret );
+      data_stream_block_done_hook( ret );
       parts.clear();
       return ret;
     }

@@ -141,7 +141,7 @@ namespace boda
       mfsr.read_val( ret.timestamp_ns );
       if( !mfsr.can_read( sizeof( uint32_t ) ) ) { rt_err( "qt stream: read timestamp, but not enough data left to read payload size" ); }
       mfsr.read_val( ret );
-      data_stream_file_block_done_hook( ret );
+      data_stream_block_done_hook( ret );
       if( ts_jump_hack ) {
         ret.timestamp_ns -= ts_jump_hack_off;
         if( last_ts != uint64_t_const_max ) {
@@ -200,9 +200,9 @@ namespace boda
       mfsr.read_val( block_sz );
       if( block_sz == uint32_t_const_max ) { return ret; } // end of dumpvideo stream marker
       ret.nda = mfsr.consume_borrowed_block( block_sz ); // note: timestamp not set here
-      data_stream_file_block_done_hook( ret ); 
       ret.meta = "image";
       ret.tag = "camera-dumpvideo";
+      data_stream_block_done_hook( ret ); 
       return ret;
     }
   };
@@ -235,7 +235,7 @@ namespace boda
       if( !mfsr.can_read( 1 ) ) { return ret; } // not enough bytes left for another block
       mfsr.read_line_as_block( ret );
       set_timestamp_from_text_line( ret );
-      data_stream_file_block_done_hook( ret );
+      data_stream_block_done_hook( ret );
       return ret;
     }
 
@@ -299,7 +299,7 @@ namespace boda
         }        
         //printf( "parts=%s\n", str(parts).c_str() );
       }
-      data_stream_file_block_done_hook( ret );
+      data_stream_block_done_hook( ret );
       return ret;
     }
 
