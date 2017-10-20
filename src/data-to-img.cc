@@ -18,7 +18,10 @@ namespace boda
     uint32_t invert_intensity; //NESI(default=0,help="if non-zero, for greyscale outputs only, map [data_min,data_max] to [1,0] (instead of to [0,1])")
     uint32_t level_adj_log_for_float_data; //NESI(default=0,help="if non-zero, level_adj will use for log-scale normalization for float data values")
     float level_filt_alpha; //NESI(default=.9,help="LPF alpha constant for sliding window level adjustment")
-
+    uint32_t decompand; //NESI(default=0,help="if non-zero, decompand 12-bit data into 16-bit using AR0331 decompanding table.")
+    float comp_gamma; //NESI(default=.5,help="if level-adj = 0, gamma to use for compression")
+    float comp_gamma_scale; //NESI(default=1.0,help="1.0 will scale post-gamma to full range. use >1.0 to scale-and-clip for HDR->SDR")
+    
     float rgb_levs_filt_min;
     float rgb_levs_filt_rng; 
     float rgb_levs_frame_min;
@@ -47,9 +50,25 @@ namespace boda
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       rgb_levs_filt_min = float_const_min;
-      rgb_levs_filt_rng = 0; 
+      rgb_levs_filt_rng = 0;
+      comp_gamma_scale *= 255.0f / powf(decompand ? 65535.0f : 4096.0f,comp_gamma) ; // FIXME: yeah, i got no idea on the +-1s of the bounds here ... depends on stuff?
     }
 
+    void gamma_adj( uint16_t & val ) {
+      // de-compand:
+      //printf( "val=%s comp_gamma=%s comp_gamma_scale=%s\n", str(val).c_str(), str(comp_gamma).c_str(), str(comp_gamma_scale).c_str() );
+      if( decompand ) {
+        if( 0 ) {}
+        else if( val >= 3456U ) { val = (val - 3456U)*64U + 3456U; }
+        else if( val >= 2560U ) { val = (val - 2560U)*32U + 2560U; }
+        else if( val >= 1024U ) { val = (val - 1024U)*2U + 1024U; }
+      }
+      //printf( " decompand --> val=%s\n", str(val).c_str() );
+      val = std::min( uint16_t( powf( float(val), comp_gamma ) * comp_gamma_scale ), uint16_t(255U) );
+      //printf( " gamma compress --> val=%s\n", str(val).c_str() );
+    }
+
+    
     virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret = db;
       if( level_adj && (rgb_levs_filt_min == float_const_min) ) { // init level filt on first frame
@@ -111,9 +130,9 @@ namespace boda
                 rgb[d] = clamp( (float(rgb[d]) - rgb_levs_filt_min) * (float(uint8_t_const_max) + 1.0f) / rgb_levs_filt_rng, 0.0f, float(uint8_t_const_max) );
               }          
             } else { // hard-coded level adj
-              rgb[0] >>= 4;
-              rgb[1] >>= 4;
-              rgb[2] >>= 4;
+              gamma_adj( rgb[0] );
+              gamma_adj( rgb[1] );
+              gamma_adj( rgb[2] );
             }
             uint32_t const pel = rgba_to_pel(rgb[0],rgb[1],rgb[2]);
             dest_data[x] = pel;  dest_data[x+1] = pel;
