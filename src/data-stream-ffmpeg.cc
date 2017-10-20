@@ -134,64 +134,64 @@ namespace boda
       ret.meta = "image";
       ret.tag = "camera-dumpvideo";
       AVPacket pkt;
-      int const err = av_read_frame(ic, &pkt);
-      if( err < 0 ) { return ret; }
-      assert_st( (uint32_t)pkt.stream_index == stream_index ); // AVDISCARD_ALL setting for other streams in init() should guarentee this
-      ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(pkt.size)}, vect_string{ "v" }, "uint8_t" } );
-      std::copy( pkt.data, pkt.data + pkt.size, (uint8_t *)ret.d() );
-      if( out_dims ) { // raw mode
-        assert_st( ret.nda );
-        data_stream_block_done_hook( ret );
-        return ret;
+      while( 1 ) {
+        int const err = av_read_frame(ic, &pkt);
+        if( err < 0 ) { return ret; }
+        assert_st( (uint32_t)pkt.stream_index == stream_index ); // AVDISCARD_ALL setting for other streams in init() should guarentee this
+        if( out_dims ) { // raw mode
+          ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(pkt.size)}, vect_string{ "v" }, "uint8_t" } );
+          std::copy( pkt.data, pkt.data + pkt.size, (uint8_t *)ret.d() );
+          assert_st( ret.nda );
+          data_stream_block_done_hook( ret );
+          return ret;
+        }
+
+        int got_frame = 0;
+        AVFrame *frame = av_frame_alloc();
+        int const decode_ret = avcodec_decode_video2(avctx, frame, &got_frame, &pkt);
+        if( decode_ret < 0 ) { rt_err("avcodec_decode_video2() failed"); }
+        if( decode_ret != pkt.size ) { rt_err("decode didn't consume entire packet?"); }
+
+        if( got_frame ) {
+          if( frame->format != AV_PIX_FMT_YUV420P ) {
+            rt_err( "only the AV_PIX_FMT_YUV420P pixel format is currently supported for decoded output (adding conversions is TODO)" );
+          }
+          if( (frame->width&1) || (frame->height&1) ) {
+            rt_err( strprintf( "only even frame sizes are supported, but frame->width=%s frame->height=%s\n",
+                               str(frame->width).c_str(), str(frame->height).c_str() ) );
+          }
+          // convert YUV planes to data block
+          vect_p_nda_uint8_t yuv_ndas;
+          ret.subblocks = make_shared<vect_data_block_t>();      
+          for( uint32_t pix = 0; pix != 3; ++pix ) {
+            uint32_t const subsample = pix ? 2 : 1;
+            string const meta = string("YUV_") + string("YUV")[pix];
+            uint32_t const ph = frame->height/subsample;
+            uint32_t const pw = frame->width/subsample;
+            p_nda_uint8_t yuv_nda = make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(ph), uint32_t(pw)}, vect_string{ "y","x" },"uint8_t" });
+            // fill in y,u, or v data
+            for( uint32_t y = 0; y != ph; ++y ) {
+              uint8_t * rb = frame->data[pix] + frame->linesize[pix]*y;
+              std::copy( rb, rb + pw, &yuv_nda->at1(y) );
+            }
+            yuv_ndas.push_back( yuv_nda );
+            if( pix == 0 ) {
+              // ret.meta = meta; // oops, need to leave this as 'image' ... but we're not using the YUV meta stuff currently so ... barf.
+              ret.nda = yuv_nda;
+            } else {
+              data_block_t uv_db;
+              uv_db.meta = meta;
+              uv_db.nda = yuv_nda;
+              ret.subblocks->push_back( uv_db );
+            }
+          }
+          ret.as_img = make_shared< img_t >();
+          ret.as_img->set_sz_and_pels_from_yuv_420_planes( yuv_ndas );
+          data_stream_block_done_hook( ret );
+        }
+        av_frame_free(&frame);
+        if( got_frame ) { return ret; }
       }
-
-      AVFrame *frame = av_frame_alloc();
-      int got_frame = 0;
-      int const decode_ret = avcodec_decode_video2(avctx, frame, &got_frame, &pkt);
-      if( decode_ret < 0 ) { rt_err("avcodec_decode_video2() failed"); }
-      if( decode_ret != pkt.size ) { rt_err("decode didn't consume entire packet?"); }
-
-      if( got_frame ) {
-        if( frame->format != AV_PIX_FMT_YUV420P ) {
-          rt_err( "only the AV_PIX_FMT_YUV420P pixel format is currently supported for decoded output (adding conversions is TODO)" );
-        }
-        if( (frame->width&1) || (frame->height&1) ) {
-          rt_err( strprintf( "only even frame sizes are supported, but frame->width=%s frame->height=%s\n",
-                             str(frame->width).c_str(), str(frame->height).c_str() ) );
-        }
-        // convert YUV planes to data block
-        vect_p_nda_uint8_t yuv_ndas;
-        ret.subblocks = make_shared<vect_data_block_t>();      
-        for( uint32_t pix = 0; pix != 3; ++pix ) {
-          uint32_t const subsample = pix ? 2 : 1;
-          string const meta = string("YUV_") + string("YUV")[pix];
-          uint32_t const ph = frame->height/subsample;
-          uint32_t const pw = frame->width/subsample;
-          p_nda_uint8_t yuv_nda = make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(ph), uint32_t(pw)}, vect_string{ "y","x" },"uint8_t" });
-          // fill in y,u, or v data
-          for( uint32_t y = 0; y != ph; ++y ) {
-            uint8_t * rb = frame->data[pix] + frame->linesize[pix]*y;
-            std::copy( rb, rb + pw, &yuv_nda->at1(y) );
-          }
-          yuv_ndas.push_back( yuv_nda );
-          if( pix == 0 ) {
-            ret.meta = meta;
-            ret.nda = yuv_nda;
-          } else {
-            data_block_t uv_db;
-            uv_db.meta = meta;
-            uv_db.nda = yuv_nda;
-            ret.subblocks->push_back( uv_db );
-          }
-        }
-        ret.as_img = make_shared< img_t >();
-        ret.as_img->set_sz_and_pels_from_yuv_420_planes( yuv_ndas );
-        data_stream_block_done_hook( ret );
-      } else {
-        ret.need_more_in = 1;
-      }      
-      av_frame_free(&frame);
-      return ret;
     }
 
   };
