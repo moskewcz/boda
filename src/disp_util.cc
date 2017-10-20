@@ -67,22 +67,42 @@ namespace boda
   };
 
   void img_to_YV12( YV12_buf_t const & YV12_buf, p_img_t const & img, uint32_t const out_x, uint32_t const out_y ) {
-    if( !img->pels ) {
-      printf( "img->yuv_pels.size()=%s\n", str(img->yuv_pels.size()).c_str() );
-      return;
-    }
     uint32_t const w = img->sz.d[0]; 
     uint32_t const h = img->sz.d[1];
+    //vect_uint8_t buf;
+    //buf.resize( 10000, 128 );
+     
     uint8_t *out_Y, *out_V, *out_U;
-    for( uint32_t y = 0; y < h; ++y ) {
-      YV12_buf.YVUat( out_Y, out_V, out_U, out_x, out_y+y );
-      uint32_t const * rgb = img->get_row_addr( y );
-      for( uint32_t x = 0; x < w; ++x, ++rgb ) {
-	rgba2y( *rgb, *(out_Y++) );
-	if( !((x&1) || (y&1)) ) { rgba2uv( *rgb, *(out_U++), *(out_V++) ); }
+    if( !img->yuv_pels.empty() ) {
+      uint8_t const * yr;
+      uint8_t const * ur;
+      uint8_t const * vr;
+      for( uint32_t y = 0; y < h; ++y ) {
+        YV12_buf.YVUat( out_Y, out_V, out_U, out_x, out_y+y );
+        img->get_YUV_row_addr( y, yr, ur, vr );
+        std::copy( yr, yr+w, out_Y );
+        if( !(y&1) ) { // for even rows, copy u/v data too
+          //ur = &buf[0];
+          //vr = &buf[0];
+          std::copy( ur, ur+(w+1)/2, out_U );          
+          std::copy( vr, vr+(w+1)/2, out_V );
+        }
       }
+    } else if( img->pels ) {
+      for( uint32_t y = 0; y < h; ++y ) {
+        YV12_buf.YVUat( out_Y, out_V, out_U, out_x, out_y+y );
+        uint32_t const * rgb = img->get_row_addr( y );
+        for( uint32_t x = 0; x < w; ++x, ++rgb ) {
+          rgba2y( *rgb, *(out_Y++) );
+          if( !((x&1) || (y&1)) ) { rgba2uv( *rgb, *(out_U++), *(out_V++) );
+          }
+        }
+      }
+    } else {
+      rt_err( "can't copy img_t to YV12_buf, no (understood) pels data present in img_t" );
     }
   }
+
 
   struct asio_t {
     asio_t( void ) : frame_timer(io), quit_event(io), lb_event(io) { }

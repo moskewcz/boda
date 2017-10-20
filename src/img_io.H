@@ -56,6 +56,8 @@ namespace boda
     }
     uint32_t sz_raw_bytes( void ) const { return row_pitch*sz.d[1]; }
     uint32_t * get_row_addr( uint32_t const y ) { return get_pel_addr({0,y}); }
+    void get_YUV_row_addr( uint32_t const y, uint8_t const * & yr, uint8_t const * & ur, uint8_t const * & vr );
+    
     string WxH_str( void );
     void share_pels_from( p_img_t o );
   };

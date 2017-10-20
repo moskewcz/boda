@@ -55,8 +55,18 @@ namespace boda
                                                          str(sz).c_str(), str(pix).c_str(), str(yuv_sz).c_str() ) ); }
       }
     }
-    
   }
+
+  // FIXME/note: no hanlding of (non-existant) YUV strides here
+  void img_t::get_YUV_row_addr( uint32_t const y, uint8_t const * & yr, uint8_t const * & ur, uint8_t const * & vr ) {
+    assert_st( yuv_pels.size() == 3 );
+    yr = yuv_pels[0].get() + y * sz.d[0];
+    uint32_t const uvoff = (y/2) * (sz.d[0]+1)/2;
+    printf( "y=%s uvoff=%s\n", str(y).c_str(), str(uvoff).c_str() );
+    ur = yuv_pels[1].get() + uvoff;
+    vr = yuv_pels[2].get() + uvoff;
+  }
+
   
   void img_t::fill_with_pel( uint32_t const & v ) {
     uint64_t const vv = (uint64_t(v) << 32) + v;
