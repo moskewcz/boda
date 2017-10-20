@@ -69,9 +69,7 @@ namespace boda
   void img_to_YV12( YV12_buf_t const & YV12_buf, p_img_t const & img, uint32_t const out_x, uint32_t const out_y ) {
     uint32_t const w = img->sz.d[0]; 
     uint32_t const h = img->sz.d[1];
-    //vect_uint8_t buf;
-    //buf.resize( 10000, 128 );
-     
+    
     uint8_t *out_Y, *out_V, *out_U;
     if( !img->yuv_pels.empty() ) {
       uint8_t const * yr;
@@ -82,8 +80,6 @@ namespace boda
         img->get_YUV_row_addr( y, yr, ur, vr );
         std::copy( yr, yr+w, out_Y );
         if( !(y&1) ) { // for even rows, copy u/v data too
-          //ur = &buf[0];
-          //vr = &buf[0];
           std::copy( ur, ur+(w+1)/2, out_U );          
           std::copy( vr, vr+(w+1)/2, out_V );
         }
