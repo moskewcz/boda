@@ -214,11 +214,15 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t timestamp_fix; //NESI(default=0,help="timestamp field-index: use the N'th field as a decimal timestamp in seconds (with fractional part).")
     uint32_t frame_ix_fix; //NESI(default=0,help="frame-ix field-index: use the N'th field as a integer frame index.")
-
+    p_string filter_prefix; //NESI(help="if set, skip lines that don't begin with this string (after stripping start/end ws)")
+    uint32_t skip_header_lines; //NESI(default=1,help="skip this many initial lines (i.e. column or other headers).")
+    
     // set timestamp from field of text line stored in block
-    void set_timestamp_from_text_line( data_block_t & v ) {
+    bool set_timestamp_from_text_line( data_block_t & v ) {
       assert( v.nda->dims.tn == "uint8_t" );
       string line( (uint8_t*)v.nda->rp_elems(), (uint8_t*)v.nda->rp_elems()+v.sz() );
+      strip_ws_inplace( line ); // remove leading space(s), training newline
+      if( filter_prefix && !startswith(line, *filter_prefix)) { return false; }
       vect_string parts = split( line, ' ' );
       if( !( timestamp_fix < parts.size() ) || !( frame_ix_fix < parts.size() ) ) {
         rt_err( strprintf( "can't parse timestamp and frame_ix from fields %s and %s; line had %s fields; full line=%s\n",
@@ -228,22 +232,30 @@ namespace boda
       double const ts_d_ns = lc_str_d( parts[timestamp_fix] ) * 1e9;
       v.timestamp_ns = lround(ts_d_ns);
       v.frame_ix = lc_str_u64(parts[frame_ix_fix]);
+      return true;
     }
 
     virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret;
       if( !mfsr.can_read( 1 ) ) { return ret; } // not enough bytes left for another block
-      mfsr.read_line_as_block( ret );
-      set_timestamp_from_text_line( ret );
-      data_stream_block_done_hook( ret );
+      while( 1 ) {
+        mfsr.read_line_as_block( ret );
+        bool const did_set = set_timestamp_from_text_line( ret );
+        if( did_set ) {
+          data_stream_block_done_hook( ret );
+          break;
+        }
+      }
       return ret;
     }
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
       data_stream_file_t::data_stream_init( nia );
       data_block_t header;
-      mfsr.read_line_as_block( header );
-      printf( "  text stream header.sz()=%s\n", str(header.sz()).c_str() );
+      for( uint32_t i = 0; i != skip_header_lines; ++i ) {
+        mfsr.read_line_as_block( header );
+        printf( "  text stream header.sz()=%s\n", str(header.sz()).c_str() );
+      }
     }
   };
 
