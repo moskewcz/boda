@@ -147,8 +147,8 @@ void main(){
     }
 
     void init_grid( void ) {
-      grid_programID = LoadShaders( vertex_shader_code_str, fragment_shader_code_str );
-      printf( "grid_programID=%s\n", str(grid_programID).c_str() );
+      grid_programID = LoadShaders( verbose, vertex_shader_code_str, fragment_shader_code_str );
+      if( verbose ) { printf( "grid_programID=%s\n", str(grid_programID).c_str() ); }
       grid_mvp_id = glGetUniformLocation(grid_programID, "MVP");
 
       float const half = grid_cells * grid_cell_sz / 2.0f;
@@ -215,13 +215,13 @@ void main(){
     }
 
     void init_cloud( void ) {
-      cloud_programID = LoadShaders( *read_whole_fn( cloud_vertex_shader_fn ), fragment_shader_code_str );
+      cloud_programID = LoadShaders( verbose, *read_whole_fn( cloud_vertex_shader_fn ), fragment_shader_code_str );
       cloud_mvp_id = glGetUniformLocation(cloud_programID, "MVP");
       cloud_lasers_id = glGetUniformLocation(cloud_programID, "lasers");
       cloud_hbins_id = glGetUniformLocation(cloud_programID, "hbins");
       cloud_azi_tex_id = glGetUniformLocation(cloud_programID, "azi_tex");
-      cloud_lut_tex_id = glGetUniformLocation(cloud_programID, "lut_tex");      
-      printf( "cloud_programID=%s\n", str(cloud_programID).c_str() );
+      cloud_lut_tex_id = glGetUniformLocation(cloud_programID, "lut_tex");
+      if( verbose ) { printf( "cloud_programID=%s\n", str(cloud_programID).c_str() ); }
 
       
       glGenBuffers(1, &cloud_pts_buf);
@@ -253,8 +253,8 @@ void main(){
     GLuint objs_lut_tex;
 
     void init_objs( void ) {
-      objs_programID = LoadShaders( *read_whole_fn( objs_vertex_shader_fn ), fragment_shader_code_str );
-      printf( "objs_programID=%s\n", str(objs_programID).c_str() );
+      objs_programID = LoadShaders( verbose, *read_whole_fn( objs_vertex_shader_fn ), fragment_shader_code_str );
+      if( verbose ) { printf( "objs_programID=%s\n", str(objs_programID).c_str() ); }
       objs_mvp_id = glGetUniformLocation(objs_programID, "MVP");
       objs_obj_col_id = glGetUniformLocation(objs_programID, "obj_col");
       objs_lut_tex_id = glGetUniformLocation(objs_programID, "lut_tex");      
@@ -281,9 +281,7 @@ void main(){
 
       glBindTexture(GL_TEXTURE_BUFFER, objs_lut_tex);
       glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, objs_lut_buf);      
-
-      printf( "drawing nda->dims.dims(0)=%s objects\n", str(nda->dims.dims(0)).c_str() );
-      
+      if( verbose > 10 ) { printf( "drawing nda->dims.dims(0)=%s objects\n", str(nda->dims.dims(0)).c_str() ); }
       glDrawArrays(GL_POINTS, 0, nda->dims.dims(0) );
     }
     
@@ -334,8 +332,10 @@ void main(){
         glGetIntegerv(GL_DEPTH_BITS, &z);
         glGetIntegerv(GL_STENCIL_BITS, &s);
         glGetIntegerv(GL_ACCUM_RED_BITS, &a);
-        printf("Depth=%d Stencil=%d Accum=%d\n", z, s, a);
-        printf( "GL_VERSION: %s\nGL_VENDOR: %s\nGL_RENDERER: %s\n", glGetString(GL_VERSION), glGetString(GL_VENDOR), glGetString(GL_RENDERER) );
+        if( verbose ) {
+          printf("Depth=%d Stencil=%d Accum=%d\n", z, s, a);
+          printf( "GL_VERSION: %s\nGL_VENDOR: %s\nGL_RENDERER: %s\n", glGetString(GL_VERSION), glGetString(GL_VENDOR), glGetString(GL_RENDERER) );
+        }
         
       }
 

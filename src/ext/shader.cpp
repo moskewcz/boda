@@ -13,7 +13,7 @@ using namespace std;
 
 #include "shader.hpp"
 
-GLuint LoadShaders( string const & VertexShaderCode, string const & FragmentShaderCode ){
+GLuint LoadShaders( uint32_t const & verbose, string const & VertexShaderCode, string const & FragmentShaderCode ){
 
 	// Create the shaders
 	GLuint VertexShaderID = glCreateShader(GL_VERTEX_SHADER);
@@ -24,7 +24,7 @@ GLuint LoadShaders( string const & VertexShaderCode, string const & FragmentShad
 
 
 	// Compile Vertex Shader
-	printf("Compiling vertex shader\n");
+	if( verbose ) { printf("Compiling vertex shader\n"); }
 	char const * VertexSourcePointer = VertexShaderCode.c_str();
 	glShaderSource(VertexShaderID, 1, &VertexSourcePointer , NULL);
 	glCompileShader(VertexShaderID);
@@ -41,7 +41,7 @@ GLuint LoadShaders( string const & VertexShaderCode, string const & FragmentShad
 
 
 	// Compile Fragment Shader
-	printf("Compiling fragment shader\n");
+	if( verbose ) { printf("Compiling fragment shader\n"); }
 	char const * FragmentSourcePointer = FragmentShaderCode.c_str();
 	glShaderSource(FragmentShaderID, 1, &FragmentSourcePointer , NULL);
 	glCompileShader(FragmentShaderID);
@@ -58,7 +58,7 @@ GLuint LoadShaders( string const & VertexShaderCode, string const & FragmentShad
 
 
 	// Link the program
-	printf("Linking program\n");
+	if( verbose ) { printf("Linking program\n"); }
 	GLuint ProgramID = glCreateProgram();
 	glAttachShader(ProgramID, VertexShaderID);
 	glAttachShader(ProgramID, FragmentShaderID);
