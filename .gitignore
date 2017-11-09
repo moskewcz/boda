@@ -17,6 +17,7 @@ obj/prebuild.okay
 obj/*.pb.cc
 obj/*.pb.h
 obj2
+obj-px2b
 lib2
 .emacs*
 *.pyc
