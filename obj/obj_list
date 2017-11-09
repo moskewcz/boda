@@ -59,7 +59,7 @@ LDFLAGS := $(LDFLAGS) -lcublas -lcudnn
 [nvrtc needs=cuda]
 LDFLAGS := $(LDFLAGS) -lnvrtc
 
-[opencl disable]
+[opencl]
 LDFLAGS := $(LDFLAGS) -lOpenCL
 
 [caffe needs=cuda needs=caffe_pb]
