@@ -9,11 +9,11 @@
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 
-//#include <message_filters/subscriber.h>
-//#include <message_filters/time_synchronizer.h>
+// #include <message_filters/subscriber.h>
+// #include <message_filters/time_synchronizer.h>
 
 #include <sensor_msgs/Image.h>
-#include <sensor_msgs/CameraInfo.h>
+// #include <sensor_msgs/CameraInfo.h>
 
 namespace boda 
 {
@@ -43,8 +43,22 @@ namespace boda
         rosbag::MessageInstance const & msg = *vi;
         //printf( "msg.getTopic()=%s\n", str(msg.getTopic()).c_str() );
         sensor_msgs::Image::ConstPtr img = msg.instantiate<sensor_msgs::Image>();
-        printf( "img->height=%s img->width=%s img->encoding=%s\n", str(img->height).c_str(), str(img->width).c_str(), str(img->encoding).c_str() );
-        //ret.subblocks->at(i) = ;
+        //printf( "img->height=%s img->width=%s img->encoding=%s\n", str(img->height).c_str(), str(img->width).c_str(), str(img->encoding).c_str() );
+        if( img->encoding != "bayer_bggr8" ) { rt_err( "unsupported image encoding in rosbag: " + img->encoding ); }
+        
+        assert_st( (img->height * img->step) == img->data.size() );
+        data_block_t sdb = db;
+        p_nda_uint8_t img_nda = make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(img->height), uint32_t(img->width)}, vect_string{ "y","x" },"uint8_t" }); // note: for now, always in in bggr format ...
+        // copy image data to packed nda. FIXME: if we had nda padding, we could borrow, or at least copy in one
+        // block. also if we checked for the un-padded case, we could do similar for that case at least.
+        for( uint32_t y = 0; y != img->height; ++y ) { 
+          uint8_t const * rb = &img->data[img->step*y];
+          std::copy( rb, rb + img->width, &img_nda->at1(y) );
+        }
+        sdb.nda = img_nda;
+        sdb.meta = "image";
+        sdb.tag = "rosbag:"+topics[i];
+        ret.subblocks->at(i) = sdb;
       }
       ++vi;
       return ret;
