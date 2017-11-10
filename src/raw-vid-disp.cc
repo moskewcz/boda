@@ -143,7 +143,7 @@ namespace boda
       }
       if( !db.valid() ) {
         if( auto_restart ) {
-          if( !src->seek_to_block(0) ) { printf( "auto-restart: seek to db.frame_ix=0 failed.\n" ); }
+          if( !src->seek_to_block(0) ) { printf( "auto-restart: seek to db.frame_ix=0 failed. disabling.\n" ); auto_restart=0; }
           else { printf( "auto-restart: success\n" ); }
         }
         return;
