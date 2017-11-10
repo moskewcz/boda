@@ -3,7 +3,7 @@
 #include"has_main.H"
 #include"str_util.H"
 #include"data-stream.H"
-
+#include"timers.H"
 
 #include <ros/ros.h>
 #include <rosbag/bag.h>
@@ -58,9 +58,12 @@ namespace boda
         sdb.nda = img_nda;
         sdb.meta = "image";
         sdb.tag = "rosbag:"+topics[i];
+        ros::Time const msg_time = msg.getTime();
+        sdb.timestamp_ns = secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
         ret.subblocks->at(i) = sdb;
       }
       ++vi;
+      if( ret.num_subblocks() == 1 ) { ret.timestamp_ns = ret.subblocks->at(0).timestamp_ns; } // FIXME/HACK: stand-in for sync/etc
       return ret;
     }
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
