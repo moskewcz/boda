@@ -8,6 +8,9 @@ namespace boda
 {
   std::string pretty_format_nsecs( uint64_t const nsecs );
   inline uint64_t secs_to_nsecs( double const & secs ) { return secs*1024.0*1024.0*1024.0; }
+  uint64_t secs_and_nsecs_to_nsecs( uint32_t const & secs, uint32_t const & nsecs );
+  uint64_t secs_and_nsecs_to_nsecs_signed( int32_t const & secs, int32_t const & nsecs ); // same as above, but does non-neg check
+
   uint64_t get_cur_time( void );
   struct timer_log_t;
   extern timer_log_t global_timer_log; // for address only used in default below

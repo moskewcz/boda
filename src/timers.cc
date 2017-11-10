@@ -11,6 +11,17 @@
 
 namespace boda
 {
+  uint64_t const sec_in_nsec = 1000000000U;
+  uint64_t secs_and_nsecs_to_nsecs( uint32_t const & secs, uint32_t const & nsecs ) {
+    assert_st( nsecs < sec_in_nsec  );
+    return uint64_t(secs)*sec_in_nsec + uint64_t(nsecs);
+  }
+  uint64_t secs_and_nsecs_to_nsecs_signed( int32_t const & secs, int32_t const & nsecs ) {
+    assert_st( secs >= 0 );
+    assert_st( nsecs >= 0 );
+    return secs_and_nsecs_to_nsecs( uint32_t(secs), uint32_t(nsecs) );
+  }
+
   using std::pair;
   using google::dense_hash_map;
   // note: in general, these timer routines are not thread safe, as
