@@ -9,10 +9,8 @@
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 
-#include <boost/foreach.hpp>
-
-#include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
+//#include <message_filters/subscriber.h>
+//#include <message_filters/time_synchronizer.h>
 
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CameraInfo.h>
@@ -43,7 +41,9 @@ namespace boda
       ret.subblocks = make_shared<vect_data_block_t>(topics.size());
       for( uint32_t i = 0; i != topics.size(); ++i ) {
         rosbag::MessageInstance const & msg = *vi;
-        printf( "msg.getTopic()=%s\n", str(msg.getTopic()).c_str() );
+        //printf( "msg.getTopic()=%s\n", str(msg.getTopic()).c_str() );
+        sensor_msgs::Image::ConstPtr img = msg.instantiate<sensor_msgs::Image>();
+        printf( "img->height=%s img->width=%s img->encoding=%s\n", str(img->height).c_str(), str(img->width).c_str(), str(img->encoding).c_str() );
         //ret.subblocks->at(i) = ;
       }
       ++vi;

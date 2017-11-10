@@ -85,7 +85,7 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil
 
 [RoS]
-LDFLAGS := $(LDFLAGS) -lroscpp -lrosbag -lrosbag_storage -lrostime # others? sigh. not too obvious what the full/right set is.
+LDFLAGS := $(LDFLAGS) -lcpp_common -lrosconsole -lroscpp -lrosbag -lrosbag_storage -lrostime -lroscpp_serialization # others? sigh. not too obvious what the full/right set is.
 
 
 [stacktrace_gnu] # if enabled, get stacktrace using gnu extentions backtrace() and backtrace_symbols() 
