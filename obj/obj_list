@@ -84,6 +84,9 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 [FFmpeg]
 LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil
 
+[RoS]
+LDFLAGS := $(LDFLAGS) -lroscpp -lrosbag -lrosbag_storage -lrostime # others? sigh. not too obvious what the full/right set is.
+
 
 [stacktrace_gnu] # if enabled, get stacktrace using gnu extentions backtrace() and backtrace_symbols() 
 
@@ -96,6 +99,7 @@ LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+data-stream-rosbag.o RoS
 data-stream-ffmpeg.o FFmpeg
 os-render.o OSMesa
 shader.o OSMesa
