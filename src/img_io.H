@@ -25,6 +25,7 @@ namespace boda
     p_uint8_t pels; // raw pixel data
     vect_p_uint8_t yuv_pels; // pixel data in YUV 420 format. NOTE: only partially supported and used in selected areas.
     img_t( void ) : depth(4), row_align(0), row_pitch(0), row_pitch_pels(0) {}
+    p_img_t clone( void ) const;
     // if desired, call to set requested row alignment *before* loading
     void set_row_align( uint32_t const row_align_ ) { assert(!row_align); row_align = row_align_; }
     void set_sz( u32_pt_t const & sz_ );

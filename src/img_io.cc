@@ -11,6 +11,14 @@
 
 namespace boda 
 {
+  p_img_t img_t::clone( void ) const {
+    if( !yuv_pels.empty() ) { rt_err( "img_t clone() with non-empty yuv_pels unsuported/TODO" ); }
+    p_img_t ret = make_shared<img_t>( *this ); // copy size, row_pitch, etc ...
+    ret->alloc_pels(); // realloc pels in clone
+    std::copy( pels.get(), pels.get()+sz_raw_bytes(), ret->pels.get() ); // copy pels to clone
+    return ret;
+  }
+  
   void img_t::load_fn( std::string const & fn )
   {
     ensure_is_regular_file( fn );
