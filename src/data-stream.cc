@@ -396,11 +396,15 @@ namespace boda
                                // bases=["data_stream_t"], type_id="fold")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t fold_targ; //NESI(default="0",help="fold target")
+    p_uint32_t fold_targ; //NESI(help="fold target (if not specified, drop)")
     uint32_t fold_src; //NESI(default="0",help="fold src")
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
-      if( fold_targ == fold_src ) { rt_err( strprintf( "fold_targ=%s and fold_src=%s must be different\n", str(fold_targ).c_str(), str(fold_src).c_str() ) ); }
+      if( fold_targ ) {
+        if( (*fold_targ) == fold_src ) {
+          rt_err( strprintf( "fold_targ=%s and fold_src=%s must be different\n", str(fold_targ).c_str(), str(fold_src).c_str() ) );
+        }
+      }
     }
     
     virtual string get_pos_info_str( void ) { return string( "fold: <no-state>" ); }
@@ -415,14 +419,16 @@ namespace boda
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.has_subblocks() ) { rt_err( "data_stream_fold: input data block has no subblocks" ); }
       check_has_subblock( db, fold_src, "fold_src" );
-      check_has_subblock( db, fold_targ, "fold_targ" );
+      if( fold_targ ) { check_has_subblock( db, *fold_targ, "fold_targ" ); }
       assert_st( db.num_subblocks() > 1 );
       data_block_t ret = db.clone();
       data_block_t fold_src_db = ret.subblocks->at( fold_src );
       ret.subblocks->erase( ret.subblocks->begin() + fold_src );
-      data_block_t & fold_targ_db = ret.subblocks->at( fold_targ );
-      fold_targ_db.ensure_has_subblocks();
-      fold_targ_db.subblocks->push_back( fold_src_db );
+      if( fold_targ ) {
+        data_block_t & fold_targ_db = ret.subblocks->at( *fold_targ );
+        fold_targ_db.ensure_has_subblocks();
+        fold_targ_db.subblocks->push_back( fold_src_db );
+      }
       return ret;
     }
   };
