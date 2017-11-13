@@ -76,7 +76,7 @@ void main(){
 	color = fragmentColor;
 
 })xxx";
-  
+
   struct data_to_img_pts_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing point cloud data) with image representations (in as_img field of data block). returns annotated data block.",
                            // bases=["data_stream_t"], type_id="add-img-pts")
   {
@@ -300,7 +300,6 @@ void main(){
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       got_live_laser_corrs = 0;
-      
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
       frame_buf = make_shared< img_t >();
       frame_buf->set_sz_and_alloc_pels( disp_sz );
@@ -315,13 +314,11 @@ void main(){
         0 };
     
 //      ctx = OSMesaCreateContextExt( OSMESA_RGBA, 16, 0, 0, NULL );
-       ctx = OSMesaCreateContextAttribs( osmesa_attrs, NULL );
+      ctx = OSMesaCreateContextAttribs( osmesa_attrs, NULL );
       if (!ctx) { rt_err("OSMesaCreateContext failed!"); }
-      
       if (!OSMesaMakeCurrent( ctx, frame_buf->get_row_addr(0), GL_UNSIGNED_BYTE, frame_buf->sz.d[0], frame_buf->sz.d[1] )) {
         rt_err("OSMesaMakeCurrent failed.\n");
       }
-
       // Initialize GLEW
       glewExperimental = true; // Needed for core profile
       if (glewInit() != GLEW_OK) { rt_err( "Failed to initialize GLEW" ); }
@@ -361,6 +358,16 @@ void main(){
     vect_data_block_t objs_dbs;
     
     virtual data_block_t proc_block( data_block_t const & db ) {
+      // note: if we want to have multiple os-render processors, we need to (re-)set the context here. however, note
+      // that osmesa's multiple-context support is not thread safe and is otherwise buggy/incomplete. in particular, if
+      // the same frame_buf size is used in two contexts, they seem to share things internally, which seems to break
+      // rendering. as a workaround, if we use multiple os-render nodes, they must all have (significantly?) different
+      // sizes. sigh!
+      glFinish();
+      if (!OSMesaMakeCurrent( ctx, frame_buf->get_row_addr(0), GL_UNSIGNED_BYTE, frame_buf->sz.d[0], frame_buf->sz.d[1] )) {
+        rt_err("proc_block(): OSMesaMakeCurrent failed.\n");
+      }
+
       if( !db.nda.get() ) { rt_err( "add-img-pts: expected nda data in block, but found none." ); }
       p_nda_t azi_nda;
       objs_dbs.clear(); // default to no objects for this frame
@@ -407,6 +414,7 @@ void main(){
         }
         azi_nda = azi_nda_u16;
       }
+
 
       // bind azi data
       assert_st( azi_nda );
