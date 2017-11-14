@@ -21,7 +21,7 @@ namespace boda
                         str(frame_ix).c_str(), str(timestamp_ns).c_str(), meta.c_str(), tag.c_str() );
     }
     if( subblocks ) {
-      ret += strprintf( "subblocks->size()=%s [", str(subblocks->size()).c_str() );
+      ret += strprintf( " subblocks->size()=%s [", str(subblocks->size()).c_str() );
       for( vect_data_block_t::const_iterator i = subblocks->begin(); i != subblocks->end(); ++i ) {
         if( i != subblocks->begin() ) { ret += " , "; }
         ret += (*i).info_str();
