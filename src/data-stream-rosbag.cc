@@ -4,6 +4,7 @@
 #include"str_util.H"
 #include"data-stream.H"
 #include"timers.H"
+#include"img_io.H"
 
 #include <ros/ros.h>
 #include <rosbag/bag.h>
@@ -13,6 +14,7 @@
 // #include <message_filters/time_synchronizer.h>
 
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
 // #include <sensor_msgs/CameraInfo.h>
 
 namespace boda 
@@ -21,8 +23,8 @@ namespace boda
 
   typedef shared_ptr< rosbag::View > p_rosbag_view;
   
-  struct data_stream_rosbag_t : virtual public nesi, public data_stream_t // NESI(help="parse mxnet-brick-style-serialized data stream into data blocks",
-                                     // bases=["data_stream_t"], type_id="rosbag-src")
+  struct data_stream_rosbag_src_t : virtual public nesi, public data_stream_t // NESI(help="parse mxnet-brick-style-serialized data stream into data blocks",
+                                    // bases=["data_stream_t"], type_id="rosbag-src")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
@@ -60,6 +62,8 @@ namespace boda
         sdb.tag = "rosbag:"+topics[i];
         ros::Time const msg_time = msg.getTime();
         sdb.timestamp_ns = secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
+        uint64_t const img_ts = secs_and_nsecs_to_nsecs_signed( img->header.stamp.sec, img->header.stamp.nsec );
+        printf( "sdb.timestamp_ns=%s img_ts=%s\n", str(sdb.timestamp_ns).c_str(), str(img_ts).c_str() );
         ret.subblocks->at(i) = sdb;
       }
       ++vi;
@@ -72,6 +76,46 @@ namespace boda
       vi = view->begin();
     }
   };
+  
+  struct data_stream_rosbag_sink_t : virtual public nesi, public data_stream_t // NESI(help="parse mxnet-brick-style-serialized data stream into data blocks",
+                                     // bases=["data_stream_t"], type_id="rosbag-sink")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    filename_t fn; //NESI(req=1,help="output filename")
+    uint32_t append_mode; //NESI(default="0",help="if 1, open bag for append. otherwise, open for writing.")
+
+    vect_string topics; //NESI(req=1,help="list of topics to write to bag")
+    
+    rosbag::Bag bag;
+    
+    virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
+
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
+      if( !db.as_img ) { rt_err( "rosbag-sink: TESTING/WIP ONLY: expected as_img to be non-null" ); }
+      if( topics.size() != 1 ) { rt_err( "one topic for testing, please" ); }
+      sensor_msgs::ImagePtr img = boost::make_shared< sensor_msgs::Image >();
+      img->header.seq = db.frame_ix;
+      ros::Time ros_ts;
+      ros_ts.fromNSec( db.timestamp_ns ); // note: we'll use this for both the 'recv' and 'header' timestamp for our gen'd message
+      img->header.stamp = ros_ts;
+      img->header.frame_id = 1; // global frame. FIXME: is this correct/best?
+      img->width = db.as_img->sz.d[0];
+      img->height = db.as_img->sz.d[1];
+      img->encoding = sensor_msgs::image_encodings::RGBA8;
+      img->step = db.as_img->row_pitch;
+      assert_st( (img->height * img->step) == db.as_img->sz_raw_bytes() );
+      img->data.resize( db.as_img->sz_raw_bytes() );
+      std::copy( db.as_img->pels.get(), db.as_img->pels.get() + db.as_img->sz_raw_bytes(), &img->data[0] );
+      bag.write( topics[0], ros_ts, img );
+      return db;
+    }
+    virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      bag.open( fn.exp, append_mode ? rosbag::bagmode::Append : rosbag::bagmode::Write );
+    }
+  };
+  
   
 #include"gen/data-stream-rosbag.cc.nesi_gen.cc"
 
