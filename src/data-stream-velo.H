@@ -23,6 +23,10 @@ namespace boda
   std::ostream & operator <<(std::ostream & os, laser_corr_t const & v);
   void read_velo_config( filename_t const & velo_config_xml_fn, vect_laser_corr_t & laser_corrs );
 
+  struct laser_corr_t_by_vert_corr {
+    bool operator()( laser_corr_t const & a, laser_corr_t const & b ) const { return a.vert_corr < b.vert_corr; }
+  };
+  
 }
 
 #endif /* DATA_STREAM_VELO_H */

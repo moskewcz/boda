@@ -84,6 +84,7 @@ void main(){
     filename_t cloud_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/cloud-vertex.glsl",help="point cloud vertex shader filename")
     filename_t objs_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/objects-vertex.glsl",help="objects vertex shader filename")
     uint32_t use_live_laser_corrs; //NESI(default="1",help="if laser corrs present in stream, use them. note: only first set of corrs in stream will be used.")
+    uint32_t force_pcdm_mode; //NESI(default="0",help="if 1, force-enable pcdm mode, which sorts laser corrs by vertical angle and zero out horiz (rot) corrections, to handle PCDM-style 64 data. note: if 0, pcdm mode will be enabled dynamically if and data blocks with a meta ending /PCDM are seen.")
     p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
@@ -95,8 +96,8 @@ void main(){
     uint32_t grid_cells; //NESI(default="10",help="number of X/Y grid cells to draw")
     float grid_cell_sz; //NESI(default="10.0",help="size of each grid cell")
 
-    bool got_live_laser_corrs;
-    
+    zi_bool got_live_laser_corrs;
+    zi_bool pcdm_mode;
     p_img_t frame_buf;
 
     OSMesaContext ctx;
@@ -229,7 +230,7 @@ void main(){
       glGenTextures(1, &cloud_lut_tex);
       glGenBuffers(1, &cloud_azi_buf);
       glGenTextures(1, &cloud_azi_tex);
-      if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs ); }
+      if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs_orig ); }
       else {
         // generate default laser_corrs that spread out beams. FIXME: not ideal and can be confusing, but maybe better
         // than doing nothing here? the actual values shoul be the correct ones for already-reordered-velo32 case (using
@@ -238,7 +239,7 @@ void main(){
         double const elev_per_row_degrees = 1.333;
         for( uint32_t i = 0; i != 64; ++i ) {
           float const row_elev = elev_start_degrees - elev_per_row_degrees*double(i);
-          laser_corrs.push_back( laser_corr_t{ row_elev, 0, 0, 0, 0, 0, 0, 0, 0 } );
+          laser_corrs_orig.push_back( laser_corr_t{ row_elev, 0, 0, 0, 0, 0, 0, 0, 0 } );
         }
       }
       bind_laser_corrs();
@@ -286,20 +287,27 @@ void main(){
     }
     
     void bind_laser_corrs( void ) {
-      assert_st( laser_corrs.size() == 64 );
+      assert_st( laser_corrs_orig.size() == 64 );
+      laser_corrs_to_bind = laser_corrs_orig;
+      if( pcdm_mode.v ) {
+        for( vect_laser_corr_t::iterator i = laser_corrs_to_bind.begin(); i != laser_corrs_to_bind.end(); ++i ) {  (*i).rot_corr = 0.0; }
+        std::sort( laser_corrs_to_bind.begin(), laser_corrs_to_bind.end(), laser_corr_t_by_vert_corr() );
+      } 
+      
       glActiveTexture(GL_TEXTURE0);
       glBindBuffer(GL_TEXTURE_BUFFER, cloud_lut_buf);
-      glBufferData(GL_TEXTURE_BUFFER, laser_corrs.size()*sizeof(laser_corrs[0]), laser_corrs.data(), GL_STATIC_DRAW);
+      glBufferData(GL_TEXTURE_BUFFER, laser_corrs_to_bind.size()*sizeof(laser_corrs_to_bind[0]), laser_corrs_to_bind.data(), GL_STATIC_DRAW);
       glBindBuffer(GL_TEXTURE_BUFFER, 0);
       
       glBindTexture(GL_TEXTURE_BUFFER, cloud_lut_tex);
       glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, cloud_lut_buf);      
     }
 
-    vect_laser_corr_t laser_corrs;
+    vect_laser_corr_t laser_corrs_orig;
+    vect_laser_corr_t laser_corrs_to_bind;
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
-      got_live_laser_corrs = 0;
+      if( force_pcdm_mode ) { pcdm_mode.v = 1; }
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
       frame_buf = make_shared< img_t >();
       frame_buf->set_sz_and_alloc_pels( disp_sz );
@@ -369,21 +377,22 @@ void main(){
       }
 
       if( !db.nda.get() ) { rt_err( "add-img-pts: expected nda data in block, but found none." ); }
+      if( endswith( db.meta, "/PCDM" ) ) { pcdm_mode.v = 1; bind_laser_corrs(); } // permanently set. rebind here since we might not bind again later.
       p_nda_t azi_nda;
       objs_dbs.clear(); // default to no objects for this frame
       if( db.has_subblocks() ) {
         for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
           data_block_t const & sdb = db.subblocks->at(i);
           if( sdb.meta == "lidar-corrections" ) {
-            if( use_live_laser_corrs && (!got_live_laser_corrs) ) {
-              got_live_laser_corrs = 1;
-              laser_corrs.clear();
+            if( use_live_laser_corrs && (!got_live_laser_corrs.v) ) {
+              got_live_laser_corrs.v = 1;
+              laser_corrs_orig.clear();
               p_nda_t const & laser_corrs_nda = sdb.nda;
               assert_st( laser_corrs_nda->dims.sz() == 2 );
               assert_st( laser_corrs_nda->dims.strides(0)*sizeof(float) == sizeof(laser_corr_t) );
               laser_corr_t const * laser_corr = (laser_corr_t const *)laser_corrs_nda->rp_elems();
               for( uint32_t i = 0; i != laser_corrs_nda->dims.dims(0); ++i ) {
-                laser_corrs.push_back( *laser_corr );
+                laser_corrs_orig.push_back( *laser_corr );
                 //printf( "i=%s (*laser_corr)=%s\n", str(i).c_str(), str((*laser_corr)).c_str() );
                 ++laser_corr;
               }
