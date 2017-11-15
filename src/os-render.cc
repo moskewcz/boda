@@ -399,9 +399,6 @@ void main(){
               bind_laser_corrs();
             }
           }
-          else if( sdb.meta == "azi-step" ) {
-            azi_step = SNE<float>( *sdb.nda ); printf( "azi_step=%s\n", str(azi_step).c_str() );
-          }
           else if( sdb.meta == "azi" ) {
             azi_nda = sdb.nda;
           }

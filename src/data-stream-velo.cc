@@ -766,6 +766,109 @@ namespace boda
 
   };
 
+  // FIXME: make work
+  // FIXME: split into base utility NESI class and derived stream-transformer class
+  // FIXME: use split base as base for os-render (to eliminate duplicated code)
+  struct velo_pcdm_to_xyz_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing point cloud data) with image representations (in as_img field of data block). returns annotated data block.",
+                           // bases=["data_stream_t"], type_id="velo-pcdm-to-xyz")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t use_live_laser_corrs; //NESI(default="1",help="if laser corrs present in stream, use them. note: only first set of corrs in stream will be used.")
+    uint32_t force_pcdm_mode; //NESI(default="0",help="if 1, force-enable pcdm mode, which sorts laser corrs by vertical angle and zero out horiz (rot) corrections, to handle PCDM-style 64 data. note: if 0, pcdm mode will be enabled dynamically if and data blocks with a meta ending /PCDM are seen.")
+    p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    float fov_center; //NESI(default="0",help="default center angle (only used when generating azimuths using azi_step)")
+    float azi_step; //NESI(default=".165",help="default azimuth step (stream can override)")
+
+    zi_bool got_live_laser_corrs;
+    zi_bool pcdm_mode;
+
+
+    void bind_laser_corrs( void ) {
+      assert_st( laser_corrs_orig.size() == 64 );
+      laser_corrs_to_bind = laser_corrs_orig;
+      if( pcdm_mode.v ) {
+        for( vect_laser_corr_t::iterator i = laser_corrs_to_bind.begin(); i != laser_corrs_to_bind.end(); ++i ) {  (*i).rot_corr = 0.0; }
+        std::sort( laser_corrs_to_bind.begin(), laser_corrs_to_bind.end(), laser_corr_t_by_vert_corr() );
+      } 
+    }
+
+    vect_laser_corr_t laser_corrs_orig;
+    vect_laser_corr_t laser_corrs_to_bind;
+    
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      if( force_pcdm_mode ) { pcdm_mode.v = 1; }
+      if( velo_cfg.get() ) { read_velo_config( *velo_cfg, laser_corrs_orig ); }
+      else {
+        // generate default laser_corrs that spread out beams. FIXME: not ideal and can be confusing, but maybe better
+        // than doing nothing here? the actual values shoul be the correct ones for already-reordered-velo32 case (using
+        // only the first 32 laser corrs).
+        double const elev_start_degrees = 10.67;
+        double const elev_per_row_degrees = 1.333;
+        for( uint32_t i = 0; i != 64; ++i ) {
+          float const row_elev = elev_start_degrees - elev_per_row_degrees*double(i);
+          laser_corrs_orig.push_back( laser_corr_t{ row_elev, 0, 0, 0, 0, 0, 0, 0, 0 } );
+        }
+      }
+      bind_laser_corrs();
+    }
+    
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      if( !db.nda.get() ) { rt_err( "velo-pcdm-to-xyz: expected nda data in block, but found none." ); }
+      if( endswith( db.meta, "/PCDM" ) ) { pcdm_mode.v = 1; bind_laser_corrs(); } // permanently set. rebind here since we might not bind again later.
+      p_nda_t azi_nda;
+      if( db.has_subblocks() ) {
+        for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
+          data_block_t const & sdb = db.subblocks->at(i);
+          if( sdb.meta == "lidar-corrections" ) {
+            if( use_live_laser_corrs && (!got_live_laser_corrs.v) ) {
+              got_live_laser_corrs.v = 1;
+              laser_corrs_orig.clear();
+              p_nda_t const & laser_corrs_nda = sdb.nda;
+              assert_st( laser_corrs_nda->dims.sz() == 2 );
+              assert_st( laser_corrs_nda->dims.strides(0)*sizeof(float) == sizeof(laser_corr_t) );
+              laser_corr_t const * laser_corr = (laser_corr_t const *)laser_corrs_nda->rp_elems();
+              for( uint32_t i = 0; i != laser_corrs_nda->dims.dims(0); ++i ) {
+                laser_corrs_orig.push_back( *laser_corr );
+                //printf( "i=%s (*laser_corr)=%s\n", str(i).c_str(), str((*laser_corr)).c_str() );
+                ++laser_corr;
+              }
+              bind_laser_corrs();
+            }
+          }
+          else if( sdb.meta == "azi" ) {
+            azi_nda = sdb.nda;
+          }
+          else {
+            rt_err( strprintf( "velo-pcdm-to-xyz: unknown subblock with meta=%s tag=%s\n", str(sdb.meta).c_str(), str(sdb.tag).c_str() ) ); // could maybe just skip/ignore
+          }
+        }
+      }
+      if( !azi_nda ) {
+        uint32_t const fov_rot_samps = db.nda->dims.dims(1);
+        p_nda_uint16_t azi_nda_u16 = make_shared<nda_uint16_t>( dims_t{ dims_t{ { fov_rot_samps }, {"x"}, "uint16_t" }} );
+        for( uint32_t i = 0; i != fov_rot_samps; ++i ) {
+          double cur_azi_deg = fov_center + azi_step * ( double(i) - double(fov_rot_samps)/2.0 );
+          if( cur_azi_deg < 0.0 ) { cur_azi_deg += 360.0; }
+          azi_nda_u16->at1( i ) = uint16_t( cur_azi_deg * 100.0 );
+        }
+        azi_nda = azi_nda_u16;
+      }
+
+      // bind azi data
+      assert_st( azi_nda );
+      assert_st( azi_nda->dims.sz() == 1 );            
+      assert_st( azi_nda->dims.tn == "uint16_t" );            
+      assert_st( db.nda->dims.dims(1) == azi_nda->dims.dims(0) ); // i.e. size must be hbins
+
+      data_block_t ret = db;
+      return ret;
+    }
+
+    virtual string get_pos_info_str( void ) { return strprintf( "velo-pcdm-to-xyz: <no-state>" ); }
+    
+  };
+
   
 #include"gen/data-stream-velo.cc.nesi_gen.cc"
 }
