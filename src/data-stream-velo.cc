@@ -880,14 +880,67 @@ namespace boda
       assert_st( azi_nda->dims.sz() == 1 );            
       assert_st( azi_nda->dims.tn == "uint16_t" );            
       assert_st( db.nda->dims.dims(1) == azi_nda->dims.dims(0) ); // i.e. size must be hbins
+        
     }
+
+#if 0
+  vec3 pos;
+  uint laser_id = uint(gl_VertexID) / hbins;
+  uint hbin = uint(gl_VertexID) % hbins;
+  //float elev_ang = radians(-24.8) + float(laser_id) * radians(0.5);     
+  float elev_ang = radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_VERT ).r);
+  float azi_ang = radians( float(texelFetch(azi_tex, int(hbin) ).r) / 100. - texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r );
+  //float azi_ang = radians( 0. - texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r );
+  //float azi_ang = (float(hbin) - float(hbins)/2.0)*radians(0.20739) - radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r);
+  
+  //float dist = 50.;
+  float dist = pt_dist / 500.;
+  float sin_azi = sin(azi_ang);
+  float cos_azi = cos(azi_ang);
+  float sin_elev = sin(elev_ang);
+  float cos_elev = cos(elev_ang);
+  
+  float dist_xy = dist * cos_elev; // elev 0 --> dist_xy = dist
+  pos[0] = dist_xy * sin_azi; // azi 0 --> x = 0; y = dist_xy
+  pos[1] = dist_xy * cos_azi;
+  pos[2] = dist * sin_elev + 2.;
+  //pos[2] = pt_dist / 500. / 10.;
+  //pos[2] = laser_id;
+  //pos[2] = texelFetch(lut_tex, gl_VertexID % 100 ).r;
+
+  gl_Position =  MVP * vec4(pos,1);
+  float hue = (-1. + exp(-max(pos[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
+  fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
+  //float gv = float(texelFetch(azi_tex, int(hbin) ).r) / 36000.; // pos[0] / 100.;
+  //fragmentColor = vec3(gv,gv,gv);
+
+  gl_PointSize = 2.;
+#endif
     
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.nda.get() ) { rt_err( "velo-pcdm-to-xyz: expected nda data in block, but found none." ); }
       setup_laser_corrs( db.meta, db );
       setup_azis( db );
-      
+
+      u32_pt_t xy_sz = get_xy_dims_strict( db.nda->dims );
+
+      p_nda_float_t xyz_nda = make_shared<nda_float_t>( dims_t{ dims_t{ { xy_sz.d[1], xy_sz.d[0], 3 }, {"y","x","xyz"}, "float" }} );
+
+      uint16_t const * const azi_d = nda_rp_elems<uint16_t>( azi_nda );
+
+      for( uint32_t y = 0; y != xy_sz.d[1] ; ++y ) {
+        laser_corr_t const & lc = laser_corrs.at(y);
+        for( uint32_t x = 0; x != xy_sz.d[0] ; ++x ) {
+          float * const xyz = &xyz_nda->at2(y,x);
+          xyz[0] = float(x) * 10.0 / xy_sz.d[0];
+          xyz[1] = float(y) * 10.0 / xy_sz.d[1];
+          xyz[1] = 10.0;
+        }
+      }
+           
       data_block_t ret = db;
+      ret.nda = xyz_nda;
+      ret.meta = "pointcloud";
       return ret;
     }
 
