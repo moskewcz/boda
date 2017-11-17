@@ -434,6 +434,41 @@ namespace boda
     }
   };
 
+  struct data_stream_stamp_t : virtual public nesi, public data_stream_t // NESI(
+                               // help="take some info from an indexed subblock of a stream and copy it to another indexed subblock of the same stream. note: mutates stream, no copy/clone. transform is idempotent, though.",
+                               // bases=["data_stream_t"], type_id="stamp")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t src_sbix; //NESI(req=1,help="src sub-block index")
+    uint32_t targ_sbix; //NESI(req=1,help="target sub-block index")
+
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      if( targ_sbix == src_sbix ) {
+        rt_err( strprintf( "src_sbix=%s and targ_sbix=%s must be different\n", str(src_sbix).c_str(), str(targ_sbix).c_str() ) );
+      }
+    }
+    
+    virtual string get_pos_info_str( void ) { return string( "stamp: <no-state>" ); }
+
+    void check_has_subblock( data_block_t const & db, uint32_t const & sbix, string const & tag ) {
+      if( !( sbix < db.num_subblocks() ) ) {
+        rt_err( strprintf( "data_stream_stamp: can't extract subblock for '%s' with index %s from input data block with db.num_subblocks()=%s.\n",
+                           tag.c_str(), str(sbix).c_str(), str(db.num_subblocks()).c_str() ) );
+      }
+    }
+
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      if( !db.has_subblocks() ) { rt_err( "data_stream_stamp: input data block has no subblocks" ); }
+      check_has_subblock( db, src_sbix, "src_sbix" );
+      check_has_subblock( db, targ_sbix, "targ_sbix" );
+      assert_st( db.num_subblocks() > 1 );
+      data_block_t & src_sb = db.subblocks->at( src_sbix );
+      data_block_t & targ_sb = db.subblocks->at( targ_sbix );
+      targ_sb.timestamp_ns = src_sb.timestamp_ns;
+      return db;
+    }
+  };
+
   
   struct data_stream_sync_t : virtual public nesi, public data_stream_t // NESI(
                               // help="take N data streams, with one as primary, and output one block across all streams for each primary stream block, choosing the nearest-by-timestamp-to-the-primary-block-timestamp-block for each non-primary stream. ",
