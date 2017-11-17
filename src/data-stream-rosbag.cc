@@ -117,8 +117,6 @@ namespace boda
         pc2->header.seq = db.frame_ix;
         pc2->header.stamp = ros_ts;
         pc2->header.frame_id = 1; // global frame. FIXME: is this correct/best?
-        printf( "db.timestamp_ns=%s\n", str(db.timestamp_ns).c_str() );
-        
         bag.write( topics[0], ros_ts, pc2 );
       } else { rt_err( "rosbag-sink: unhandled db with meta=" + db.meta ); }
       
