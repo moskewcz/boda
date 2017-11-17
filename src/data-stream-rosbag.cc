@@ -86,19 +86,26 @@ namespace boda
     filename_t fn; //NESI(req=1,help="output filename")
     uint32_t append_mode; //NESI(default="0",help="if 1, open bag for append. otherwise, open for writing.")
 
-    vect_string topics; //NESI(req=1,help="list of topics to write to bag")
-    
+    vect_string topics; //NESI(req=1,help="list of topics to write to bag, one per sub-block. to omit a topic, use an empty name.")
     rosbag::Bag bag;
     
     virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
 
     virtual data_block_t proc_block( data_block_t const & db ) {
-      data_block_t ret = db;
-      if( topics.size() != 1 ) { rt_err( "one topic for testing, please" ); }
+      if( topics.size() != db.num_subblocks() ) {
+        rt_err( strprintf( "topics.size()=%s must equal db.num_subblocks()=%s\n",
+                           str(topics.size()).c_str(), str(db.num_subblocks()).c_str() ) );
+      }
+      assert_st( db.has_subblocks() );
+      for( uint32_t i = 0; i != db.subblocks->size(); ++i ) { write_db_to_bag( db.subblocks->at(i), topics.at(i) ); }
+      return db;
+    }
+    void write_db_to_bag( data_block_t const & db, string const & topic ) {
+      if( topic.empty() ) { return; } // skip if directed to do so
       ros::Time ros_ts;
       ros_ts.fromNSec( db.timestamp_ns ); // note: we'll use this for both the 'recv' and 'header' timestamp for our gen'd message
       if( 0 ) { }
-      else if( startswith( db.meta, "image" ) ) {
+      else if( startswith( db.meta, "image" ) || startswith( db.meta, "IMAGEDATA" ) ) {
         if( !db.as_img ) { rt_err( "rosbag-sink: image: expected as_img to be non-null" ); }
         sensor_msgs::ImagePtr img = boost::make_shared< sensor_msgs::Image >();
         img->header.seq = db.frame_ix;
@@ -111,22 +118,21 @@ namespace boda
         assert_st( (img->height * img->step) == db.as_img->sz_raw_bytes() );
         img->data.resize( db.as_img->sz_raw_bytes() );
         std::copy( db.as_img->pels.get(), db.as_img->pels.get() + db.as_img->sz_raw_bytes(), &img->data[0] );
-        bag.write( topics[0], ros_ts, img );
+        bag.write( topic, ros_ts, img );
       } else if( startswith( db.meta, "pointcloud" ) ) {
         sensor_msgs::PointCloud2Ptr pc2 = boost::make_shared< sensor_msgs::PointCloud2 >();
         pc2->header.seq = db.frame_ix;
         pc2->header.stamp = ros_ts;
         pc2->header.frame_id = 1; // global frame. FIXME: is this correct/best?
-        bag.write( topics[0], ros_ts, pc2 );
+        bag.write( topic, ros_ts, pc2 );
       } else { rt_err( "rosbag-sink: unhandled db with meta=" + db.meta ); }
-      
-      return db;
-    }
+    }      
+    
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
       bag.open( fn.exp, append_mode ? rosbag::bagmode::Append : rosbag::bagmode::Write );
+      // TODO: create pointcloud field list
     }
   };
-  
   
 #include"gen/data-stream-rosbag.cc.nesi_gen.cc"
 
