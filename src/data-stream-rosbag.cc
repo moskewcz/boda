@@ -15,6 +15,7 @@
 
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/PointCloud2.h>
 // #include <sensor_msgs/CameraInfo.h>
 
 namespace boda 
@@ -93,22 +94,34 @@ namespace boda
 
     virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret = db;
-      if( !db.as_img ) { rt_err( "rosbag-sink: TESTING/WIP ONLY: expected as_img to be non-null" ); }
       if( topics.size() != 1 ) { rt_err( "one topic for testing, please" ); }
-      sensor_msgs::ImagePtr img = boost::make_shared< sensor_msgs::Image >();
-      img->header.seq = db.frame_ix;
       ros::Time ros_ts;
       ros_ts.fromNSec( db.timestamp_ns ); // note: we'll use this for both the 'recv' and 'header' timestamp for our gen'd message
-      img->header.stamp = ros_ts;
-      img->header.frame_id = 1; // global frame. FIXME: is this correct/best?
-      img->width = db.as_img->sz.d[0];
-      img->height = db.as_img->sz.d[1];
-      img->encoding = sensor_msgs::image_encodings::RGBA8;
-      img->step = db.as_img->row_pitch;
-      assert_st( (img->height * img->step) == db.as_img->sz_raw_bytes() );
-      img->data.resize( db.as_img->sz_raw_bytes() );
-      std::copy( db.as_img->pels.get(), db.as_img->pels.get() + db.as_img->sz_raw_bytes(), &img->data[0] );
-      bag.write( topics[0], ros_ts, img );
+      if( 0 ) { }
+      else if( startswith( db.meta, "image" ) ) {
+        if( !db.as_img ) { rt_err( "rosbag-sink: image: expected as_img to be non-null" ); }
+        sensor_msgs::ImagePtr img = boost::make_shared< sensor_msgs::Image >();
+        img->header.seq = db.frame_ix;
+        img->header.stamp = ros_ts;
+        img->header.frame_id = 1; // global frame. FIXME: is this correct/best?
+        img->width = db.as_img->sz.d[0];
+        img->height = db.as_img->sz.d[1];
+        img->encoding = sensor_msgs::image_encodings::RGBA8;
+        img->step = db.as_img->row_pitch;
+        assert_st( (img->height * img->step) == db.as_img->sz_raw_bytes() );
+        img->data.resize( db.as_img->sz_raw_bytes() );
+        std::copy( db.as_img->pels.get(), db.as_img->pels.get() + db.as_img->sz_raw_bytes(), &img->data[0] );
+        bag.write( topics[0], ros_ts, img );
+      } else if( startswith( db.meta, "pointcloud" ) ) {
+        sensor_msgs::PointCloud2Ptr pc2 = boost::make_shared< sensor_msgs::PointCloud2 >();
+        pc2->header.seq = db.frame_ix;
+        pc2->header.stamp = ros_ts;
+        pc2->header.frame_id = 1; // global frame. FIXME: is this correct/best?
+        printf( "db.timestamp_ns=%s\n", str(db.timestamp_ns).c_str() );
+        
+        bag.write( topics[0], ros_ts, pc2 );
+      } else { rt_err( "rosbag-sink: unhandled db with meta=" + db.meta ); }
+      
       return db;
     }
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
