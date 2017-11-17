@@ -14,11 +14,12 @@ namespace boda
   std::ostream & operator << ( std::ostream & out, data_block_t const & db ) { out << db.info_str(); return out; }
   string data_block_t::info_str( void ) const {
     string ret;
+    if( timestamp_ns != uint64_t_const_max ) { ret += strprintf( " timestamp_ns=%s", str(timestamp_ns).c_str() ); }
+    if( frame_ix != uint64_t_const_max ) { ret += strprintf( " frame_ix=%s", str(frame_ix).c_str() ); }
     if( nda.get() || as_img ) {
-      if( nda.get() ) {  ret += strprintf( "dims=%s ", str(nda->dims).c_str() ); }
-      if( as_img ) {  ret += strprintf( "as_img=%s ", as_img->WxH_str().c_str() ); }
-      ret += strprintf( "frame_ix=%s timestamp_ns=%s meta=%s tag=%s",
-                        str(frame_ix).c_str(), str(timestamp_ns).c_str(), meta.c_str(), tag.c_str() );
+      ret += strprintf( " meta=%s tag=%s", meta.c_str(), tag.c_str() );
+      if( nda.get() ) {  ret += strprintf( " dims=%s", str(nda->dims).c_str() ); }
+      if( as_img ) {  ret += strprintf( " as_img=%s", as_img->WxH_str().c_str() ); }
     }
     if( subblocks ) {
       ret += strprintf( " subblocks->size()=%s [", str(subblocks->size()).c_str() );
