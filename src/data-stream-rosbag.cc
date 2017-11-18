@@ -160,6 +160,13 @@ namespace boda
         }
 
         bag.write( topic, ros_ts, pc2 );
+
+        // NOTE: ros axis conventions:
+        // in relation to body (i.e. 'body_link'); colors in ()s are as in rviz TF view (best guess currently)
+        //   x forward (red)
+        //   y left (green)
+        //   z up (blue)
+
 #if 0
         // FIXME/NOTE: this untested/unused code is from an SO post about writing transforms to a bag, and seems
         // plausible. if we want to use our own frame (i.e. the camera frame), this might be one way to do it.
