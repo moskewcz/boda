@@ -934,7 +934,7 @@ namespace boda
           float * const xyz = &xyz_nda->at2(y,x);
           xyz[0] = float(x) * 10.0 / xy_sz.d[0];
           xyz[1] = float(y) * 10.0 / xy_sz.d[1];
-          xyz[1] = 10.0;
+          xyz[2] = 10.0;
         }
       }
            
