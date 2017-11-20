@@ -794,9 +794,12 @@ namespace boda
     uint32_t use_live_laser_corrs; //NESI(default="1",help="if laser corrs present in stream, use them. note: only first set of corrs in stream will be used.")
     p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    float fov_center; //NESI(default="0",help="default center angle (only used when generating azimuths using azi_step)")
+    float fov_center; //NESI(default="0.0",help="default center angle (only used when generating azimuths using azi_step)")
     float azi_step; //NESI(default=".165",help="default azimuth step (stream can override)")
-    float z_offset; //NESI(default="2",help="offset to add to Z output values")
+    float dist_scale; //NESI(default=".002",help="to get meters, multiply raw distances by this value")
+    float x_offset; //NESI(default="0.0",help="offset to add to X output values")
+    float y_offset; //NESI(default="0.0",help="offset to add to Y output values")
+    float z_offset; //NESI(default="0.0",help="offset to add to Z output values")
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) { } // init is mostly done per-frame (or at least deferred to first frame)
 
@@ -920,7 +923,7 @@ namespace boda
         laser_corr_t const & lc = laser_corrs.at(y);
         for( uint32_t x = 0; x != xy_sz.d[0] ; ++x ) {
           float * const xyz = &xyz_nda->at2(y,x);
-          float const dist = float(pcdm_nda.at2(y,x)) / 500.0f;
+          float const dist = float(pcdm_nda.at2(y,x)) * dist_scale;
           float const elev_ang = radians( lc.vert_corr );
           float const azi_ang = radians(float(azi_nda_u16.at1(x))/100.0f - lc.rot_corr );
 
@@ -930,8 +933,8 @@ namespace boda
           float const cos_elev = cos(elev_ang);
 
           float const dist_xy = dist * cos_elev; // elev 0 --> dist_xy = dist
-          xyz[0] = dist_xy * sin_azi; // azi 0 --> x = 0; y = dist_xy
-          xyz[1] = dist_xy * cos_azi;
+          xyz[0] = dist_xy * sin_azi + x_offset; // azi 0 --> x = 0; y = dist_xy
+          xyz[1] = dist_xy * cos_azi + y_offset;
           xyz[2] = dist * sin_elev + z_offset;
         }
       }
