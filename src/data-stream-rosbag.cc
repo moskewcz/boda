@@ -93,6 +93,7 @@ namespace boda
 
     filename_t fn; //NESI(req=1,help="output filename")
     uint32_t append_mode; //NESI(default="0",help="if 1, open bag for append. otherwise, open for writing.")
+    uint32_t rot_90; //NESI(default="0",help="if 1, rotate data 90 CW (x_ros=y_in; y_ros=-x_in).")
 
     string frame_id; //NESI(default="base_link",help="for output msg headers, what frame id to use")
 
@@ -154,6 +155,7 @@ namespace boda
           for( uint32_t x = 0; x != xy_sz.d[0] ; ++x ) {
             float * const xyz = &xyz_nda->at2(y,x);
             pt.x = xyz[0]; pt.y = xyz[1]; pt.z = xyz[2]; pt.intensity = 50; pt.ring = y;
+            if( rot_90 ) { std::swap(pt.x,pt.y); pt.y = -pt.y; }
             std::copy( (uint8_t const *)&pt, (uint8_t const *)&pt + sizeof(pt), out );
             out += pc2.point_step;
           }
