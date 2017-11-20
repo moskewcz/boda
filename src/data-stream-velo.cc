@@ -767,9 +767,26 @@ namespace boda
 
   };
 
-  // FIXME: make work
   // FIXME: split into base utility NESI class and derived stream-transformer class
   // FIXME: use split base as base for os-render (to eliminate duplicated code)
+
+  // notes on velodyne coordinate conventions: the sensor returns results in the form of (range,intensity) pairs. each
+  // laser has a fixed elevation angle, with 0 being level, and negative angles pointing down. the sensor spins
+  // clockwise (viewed from above), with a zero azimuth angle being forward, and positive azimuth angles being more
+  // clockwise. azimuth angles range from [0,360) degrees.
+
+  // given these angle conventions, the standard conversion to XYZ (not including corrections/offsets) is as follows:
+
+  // xyDistance=distance*cosVertAngle;
+  // X = xyDistance*sinRotAngle;
+  // Y = xyDistance*costRotAngle;
+  // Z = distance*sinVertAngle;
+
+  // so, this means that (color in veloview):
+  // y forward (yellow)
+  // x right (reg)
+  // z up (green)
+  
   struct velo_pcdm_to_xyz_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing point cloud data) with image representations (in as_img field of data block). returns annotated data block.",
                            // bases=["data_stream_t"], type_id="velo-pcdm-to-xyz")
   {
@@ -885,40 +902,6 @@ namespace boda
         
     }
 
-#if 0
-  vec3 pos;
-  uint laser_id = uint(gl_VertexID) / hbins;
-  uint hbin = uint(gl_VertexID) % hbins;
-  //float elev_ang = radians(-24.8) + float(laser_id) * radians(0.5);     
-  float elev_ang = radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_VERT ).r);
-  float azi_ang = radians( float(texelFetch(azi_tex, int(hbin) ).r) / 100. - texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r );
-  //float azi_ang = radians( 0. - texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r );
-  //float azi_ang = (float(hbin) - float(hbins)/2.0)*radians(0.20739) - radians(texelFetch(lut_tex, int(laser_id)*SIZEOF_LC + OFF_LC_ROT ).r);
-  
-  //float dist = 50.;
-  float dist = pt_dist / 500.;
-  float sin_azi = sin(azi_ang);
-  float cos_azi = cos(azi_ang);
-  float sin_elev = sin(elev_ang);
-  float cos_elev = cos(elev_ang);
-  
-  float dist_xy = dist * cos_elev; // elev 0 --> dist_xy = dist
-  pos[0] = dist_xy * sin_azi; // azi 0 --> x = 0; y = dist_xy
-  pos[1] = dist_xy * cos_azi;
-  pos[2] = dist * sin_elev + 2.;
-  //pos[2] = pt_dist / 500. / 10.;
-  //pos[2] = laser_id;
-  //pos[2] = texelFetch(lut_tex, gl_VertexID % 100 ).r;
-
-  gl_Position =  MVP * vec4(pos,1);
-  float hue = (-1. + exp(-max(pos[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
-  fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
-  //float gv = float(texelFetch(azi_tex, int(hbin) ).r) / 36000.; // pos[0] / 100.;
-  //fragmentColor = vec3(gv,gv,gv);
-
-  gl_PointSize = 2.;
-#endif
-    
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.nda.get() ) { rt_err( "velo-pcdm-to-xyz: expected nda data in block, but found none." ); }
       setup_laser_corrs( db.meta, db );
