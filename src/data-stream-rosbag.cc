@@ -94,6 +94,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
     filename_t fn; //NESI(req=1,help="output filename")
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     uint32_t append_mode; //NESI(default="0",help="if 1, open bag for append. otherwise, open for writing.")
     uint32_t rot_90; //NESI(default="0",help="if 1, rotate data 90 CW (x_ros=y_in; y_ros=-x_in).")
     float scale_xy; //NESI(default="1.0",help="scale xy points by this value")
@@ -113,6 +114,8 @@ namespace boda
         rt_err( strprintf( "topics.size()=%s must equal db.num_subblocks()=%s\n",
                            str(topics.size()).c_str(), str(db.num_subblocks()).c_str() ) );
       }
+      if( verbose ) { printf( "rosbag-sink: db.info_str()=%s\n", db.info_str().c_str() ); }
+      
       assert_st( db.has_subblocks() );
       for( uint32_t i = 0; i != db.subblocks->size(); ++i ) { write_db_to_bag( db.subblocks->at(i), topics.at(i) ); }
       return db;
