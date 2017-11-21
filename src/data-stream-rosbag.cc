@@ -14,6 +14,7 @@
 // #include <message_filters/time_synchronizer.h>
 
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/CompressedImage.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/PointCloud2.h>
 // #include <sensor_msgs/CameraInfo.h>
@@ -97,6 +98,7 @@ namespace boda
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     uint32_t append_mode; //NESI(default="0",help="if 1, open bag for append. otherwise, open for writing.")
     uint32_t rot_90; //NESI(default="0",help="if 1, rotate data 90 CW (x_ros=y_in; y_ros=-x_in).")
+    uint32_t compress_images_as_jpeg; //NESI(default="0",help="if 1, compress images as jpeg. FIXME/NOTE: can't seem to view the compressed images in rviz, so maybe not such a usefull option currently.")
     float scale_xy; //NESI(default="1.0",help="scale xy points by this value")
 
     string frame_id; //NESI(default="base_link",help="for output msg headers, what frame id to use")
@@ -131,16 +133,26 @@ namespace boda
       if( 0 ) { }
       else if( startswith( db.meta, "image" ) || startswith( db.meta, "IMAGEDATA" ) ) {
         if( !db.as_img ) { rt_err( "rosbag-sink: image: expected as_img to be non-null" ); }
-        sensor_msgs::ImagePtr img = boost::make_shared< sensor_msgs::Image >();
-        img->header = msg_header;
-        img->width = db.as_img->sz.d[0];
-        img->height = db.as_img->sz.d[1];
-        img->encoding = sensor_msgs::image_encodings::RGBA8;
-        img->step = db.as_img->row_pitch;
-        assert_st( (img->height * img->step) == db.as_img->sz_raw_bytes() );
-        img->data.resize( db.as_img->sz_raw_bytes() );
-        std::copy( db.as_img->pels.get(), db.as_img->pels.get() + db.as_img->sz_raw_bytes(), &img->data[0] );
-        bag.write( topic, ros_ts, img );
+        if( compress_images_as_jpeg ) {
+          sensor_msgs::CompressedImagePtr img = boost::make_shared< sensor_msgs::CompressedImage >();
+          img->header = msg_header;
+          img->format = "jpeg";
+          p_uint8_with_sz_t img_jpeg = db.as_img->to_jpeg();
+          img->data.resize( img_jpeg.sz );
+          std::copy( img_jpeg.get(), img_jpeg.get() + img_jpeg.sz, &img->data[0] );
+          bag.write( topic + "/compressed", ros_ts, img );
+        } else {
+          sensor_msgs::ImagePtr img = boost::make_shared< sensor_msgs::Image >();
+          img->header = msg_header;
+          img->width = db.as_img->sz.d[0];
+          img->height = db.as_img->sz.d[1];
+          img->encoding = sensor_msgs::image_encodings::RGBA8;
+          img->step = db.as_img->row_pitch;
+          assert_st( (img->height * img->step) == db.as_img->sz_raw_bytes() );
+          img->data.resize( db.as_img->sz_raw_bytes() );
+          std::copy( db.as_img->pels.get(), db.as_img->pels.get() + db.as_img->sz_raw_bytes(), &img->data[0] );
+          bag.write( topic, ros_ts, img );
+        }
       } else if( startswith( db.meta, "pointcloud" ) ) {
         //sensor_msgs::PointCloud2Ptr pc2 = boost::make_shared< sensor_msgs::PointCloud2 >();
         pc2.header = msg_header;
