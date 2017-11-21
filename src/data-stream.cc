@@ -441,6 +441,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t src_sbix; //NESI(req=1,help="src sub-block index")
     uint32_t targ_sbix; //NESI(req=1,help="target sub-block index")
+    uint32_t also_stamp_parent; //NESI(default=0,help="if 1, also write/stamp parent block timestamp")
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       if( targ_sbix == src_sbix ) {
@@ -465,6 +466,7 @@ namespace boda
       data_block_t & src_sb = db.subblocks->at( src_sbix );
       data_block_t & targ_sb = db.subblocks->at( targ_sbix );
       targ_sb.timestamp_ns = src_sb.timestamp_ns;
+      if( also_stamp_parent ) { data_block_t ret = db; ret.timestamp_ns = src_sb.timestamp_ns; return ret; }
       return db;
     }
   };
