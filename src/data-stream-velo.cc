@@ -597,7 +597,78 @@ namespace boda
       laser_corrs.push_back( laser_corr );
     }
   }
+  // for reference, here's what the first and second items in the corrections list look like
+#if 0
+  		<item class_id="8" tracking_level="0" version="1">
+			<px class_id="9" tracking_level="1" version="1" object_id="_1">
+				<id_>0</id_>
+				<rotCorrection_>-4.6461787</rotCorrection_>
+				<vertCorrection_>-7.2296872</vertCorrection_>
+				<distCorrection_>118.20465</distCorrection_>
+				<distCorrectionX_>123.05249</distCorrectionX_>
+				<distCorrectionY_>121.988</distCorrectionY_>
+				<vertOffsetCorrection_>21.569468</vertOffsetCorrection_>
+				<horizOffsetCorrection_>2.5999999</horizOffsetCorrection_>
+				<focalDistance_>2400</focalDistance_>
+				<focalSlope_>1.15</focalSlope_>
+			</px>
+		</item>
+		<item>
+			<px class_id_reference="9" object_id="_2">
+				<id_>1</id_>
+				<rotCorrection_>-2.6037366</rotCorrection_>
+				<vertCorrection_>-6.9851909</vertCorrection_>
+				<distCorrection_>129.59227</distCorrection_>
+				<distCorrectionX_>132.77873</distCorrectionX_>
+				<distCorrectionY_>133.79263</distCorrectionY_>
+				<vertOffsetCorrection_>21.538305</vertOffsetCorrection_>
+				<horizOffsetCorrection_>-2.5999999</horizOffsetCorrection_>
+				<focalDistance_>1000</focalDistance_>
+				<focalSlope_>1.6</focalSlope_>
+			</px>
+		</item>
+#endif
 
+  string const corr_template = R"rstr(
+		<item>
+			<px class_id_reference="9" object_id="_%s">
+				<id_>%s</id_>
+				<rotCorrection_>%s</rotCorrection_>
+				<vertCorrection_>%s</vertCorrection_>
+				<distCorrection_>%s</distCorrection_>
+				<distCorrectionX_>%s</distCorrectionX_>
+				<distCorrectionY_>%s</distCorrectionY_>
+				<vertOffsetCorrection_>%s</vertOffsetCorrection_>
+				<horizOffsetCorrection_>%s</horizOffsetCorrection_>
+				<focalDistance_>%s</focalDistance_>
+				<focalSlope_>%s</focalSlope_>
+			</px>
+		</item>
+
+  )rstr";
+
+  // for now, this is a semi-manual procedure; this outputs only the inner corrections blocks, and must be spliced into a full config file. for now we don't attempt to reorder the other per-laser blocks (i.e. color, min_intensity) on the thoery they're not needed for our current applications.
+  void write_velo_config( filename_t const & velo_config_xml_fn, vect_laser_corr_t const & laser_corrs ) {
+    assert_st( laser_corrs.size() == 64 ); // yep, even for 32-laser case, this is the velodyne convention.
+    p_ostream out = ofs_open( velo_config_xml_fn );
+
+    for( uint32_t i = 0; i != laser_corrs.size(); ++i ) {
+      laser_corr_t const & laser_corr = laser_corrs[i];
+      (*out) << strprintf( corr_template.c_str(), str(i+1).c_str(), str(i+1).c_str(),
+                           str(laser_corr.rot_corr).c_str(),
+                           str(laser_corr.vert_corr).c_str(),
+                           str(laser_corr.dist_corr).c_str(),
+                           str(laser_corr.dist_corr).c_str(),
+                           str(laser_corr.dist_corr_y).c_str(),
+                           str(laser_corr.off_corr_y).c_str(),
+                           str(laser_corr.off_corr_x).c_str(),
+                           str(laser_corr.focal_dist).c_str(),
+                           str(laser_corr.focal_slope).c_str() );
+      
+    }
+  }
+
+  
   struct velo_std_block_info_t {
     uint16_t block_id;
     uint16_t rot_pos;
@@ -807,6 +878,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t use_live_laser_corrs; //NESI(default="1",help="if laser corrs present in stream, use them. note: only first set of corrs in stream will be used.")
     p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
+    p_filename_t write_velo_cfg; //NESI(help="if specified, dump initial velo corrections (after loading and maybe pcdm-ifing or other modifications) to this file")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     float fov_center; //NESI(default="0.0",help="default center angle (only used when generating azimuths using azi_step)")
     float azi_step; //NESI(default=".165",help="default azimuth step (stream can override)")
@@ -887,7 +959,7 @@ namespace boda
         for( vect_laser_corr_t::iterator i = laser_corrs.begin(); i != laser_corrs.end(); ++i ) {  (*i).rot_corr = 0.0; }
         std::sort( laser_corrs.begin(), laser_corrs.end(), laser_corr_t_by_vert_corr() );
       }
-
+      if( write_velo_cfg.get() ) { write_velo_config( *write_velo_cfg, laser_corrs ); }
     }
 
     p_nda_t azi_nda;
