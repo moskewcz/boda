@@ -654,7 +654,7 @@ namespace boda
 
     for( uint32_t i = 0; i != laser_corrs.size(); ++i ) {
       laser_corr_t const & laser_corr = laser_corrs[i];
-      (*out) << strprintf( corr_template.c_str(), str(i+1).c_str(), str(i+1).c_str(),
+      (*out) << strprintf( corr_template.c_str(), str(i+1).c_str(), str(i).c_str(),
                            str(laser_corr.rot_corr).c_str(),
                            str(laser_corr.vert_corr).c_str(),
                            str(laser_corr.dist_corr).c_str(),
