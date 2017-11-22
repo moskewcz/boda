@@ -94,7 +94,11 @@ namespace boda
   
   // we can order two angles by saying (a1 < a2) if thier rel_angle_delta(a1,a2) < 0 
   bool rel_angle_lt( uint16_t const a1, uint16_t const & a2 ) { return rel_angle_delta(a1,a2) < 0; }
-  
+
+  // in velo stream format, lasers 0-31 used laser_block_ids[0], 32-63 use laser_block_ids[1]. note that the [1] value
+  // is only present for 64 laser sensors -- 32 laser sensors use [0] as the id for every firing block.
+  uint32_t laser_block_ids[2] = { 0xeeff, 0xddff }; 
+
   struct data_stream_velodyne_t : virtual public nesi, public data_stream_t // NESI(help="parse data stream (velodyne) into per-full-revolution data blocks by merging across packets",
                              // bases=["data_stream_t"], type_id="velodyne")
   {
@@ -166,13 +170,13 @@ namespace boda
           //printf( "   fbix=%s bi->rot_pos=%s\n", str(fbix).c_str(), str(bi->rot_pos).c_str() );
           uint32_t laser_id_base = 0;
           if( tot_lasers == 64 ) {
-            if( bi->block_id != ( (fbix&1) ? 0xddff : 0xeeff ) ) {
+            if( bi->block_id !=  laser_block_ids[fbix&1] ) {
               rt_err( strprintf( "(64 laser mode) saw unexpected bi->block_id=%s for firing block fbix=%s\n",
                                  str(bi->block_id).c_str(), str(fbix).c_str() ) );
             }
             if( fbix&1 ) { laser_id_base = 32; }
           } else if( tot_lasers == 32 ) {
-            if( bi->block_id != 0xeeff ) {
+            if( bi->block_id != laser_block_ids[0] ) {
               rt_err( strprintf( "(32 laser mode) saw unexpected bi->block_id=%s for firing block fbix=%s\n",
                                  str(bi->block_id).c_str(), str(fbix).c_str() ) );
             }
@@ -673,7 +677,17 @@ namespace boda
             }
           }
         }
+      } else if( tot_lasers == 64 ) {
+        if( !laser_to_row_ix_str ) {
+          // if no mapping specified, put laser in packet/firing/raw order; we assume corrections will be done later
+          for( uint32_t i = 0; i != tot_lasers; ++i ) { laser_to_row_ix.push_back(i); }
+        }
+        if( laser_to_row_ix_str ) {
+          rt_err( "currently, laser remapping is not support for the 64 laser case" ); 
+        }
+       
       } else { assert_st(0); }
+        
       vect_uint32_t laser_to_row_ix_sorted = laser_to_row_ix;
       sort( laser_to_row_ix_sorted.begin(), laser_to_row_ix_sorted.end() );
       assert_st( laser_to_row_ix_sorted.size() == tot_lasers );
@@ -711,7 +725,7 @@ namespace boda
         if( cur_azi_deg < 0.0 ) { cur_azi_deg += 360.0; }
         if( (cur_azi_deg < 0.0) || (cur_azi_deg >= 360.0) ) { rt_err( strprintf( "cur_azi_deg must be in [0.0,360.0) but was =%s -- fov_center bad? azi_step too high? too many azi samples in frame?", str(cur_azi_deg).c_str() ) ); }
         velo_std_block_info_t & bi = cur_out.bis[cur_out_fb_ix];
-        bi.block_id = 0xeeff;
+        bi.block_id = laser_block_ids[0];
         bi.rot_pos = uint16_t(cur_azi_deg*100); // FIXME: truncation okay/correct here?
         // fill in lasers
         uint32_t const laser_id_base = 0;
