@@ -713,7 +713,6 @@ namespace boda
     virtual string get_pos_info_str( void ) { return strprintf( "velodyne-gen: info TODO." ); }
 
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
-      if( !( (tot_lasers == 32) ) ) { rt_err( "non-32 laser mode not implemented" ); }
       if( !( fbs_per_packet == 12 ) ) { rt_err( "only standard 12-firing-blocks-per-packet output is implemented" ); }
       if( !( beams_per_fb == 32 ) ) { rt_err( "only standard 32-beams-per-firing-block output is implemented" ); }
 
@@ -721,8 +720,7 @@ namespace boda
       packet_in_cycle = 0;
       cur_in_azi_ix = uint32_t_const_max;
       cur_timestamp = timestamp_start;
-      
-      
+            
       printf( "data_stream_init(): mode=%s\n", str(mode).c_str() );
       // setup internal state
       if( (fov_center < 0.0) || (fov_center >= 360.0) ) { rt_err( strprintf( "fov_center must be in [0.0,360.0) but was =%s",
@@ -757,7 +755,7 @@ namespace boda
           rt_err( "currently, laser remapping is not support for the 64 laser case" ); 
         }
        
-      } else { assert_st(0); }
+      } else { rt_err( "error: only 32 and 64 laser modes are implemented" ); }
         
       vect_uint32_t laser_to_row_ix_sorted = laser_to_row_ix;
       sort( laser_to_row_ix_sorted.begin(), laser_to_row_ix_sorted.end() );
@@ -795,19 +793,23 @@ namespace boda
         double cur_azi_deg = fov_center + azi_step * ( double(cur_in_azi_ix) - double(num_azis)/2.0 );
         if( cur_azi_deg < 0.0 ) { cur_azi_deg += 360.0; }
         if( (cur_azi_deg < 0.0) || (cur_azi_deg >= 360.0) ) { rt_err( strprintf( "cur_azi_deg must be in [0.0,360.0) but was =%s -- fov_center bad? azi_step too high? too many azi samples in frame?", str(cur_azi_deg).c_str() ) ); }
-        velo_std_block_info_t & bi = cur_out.bis[cur_out_fb_ix];
-        bi.block_id = laser_block_ids[0];
-        bi.rot_pos = uint16_t(cur_azi_deg*100); // FIXME: truncation okay/correct here?
-        // fill in lasers
-        uint32_t const laser_id_base = 0;
-        for( uint32_t i = 0; i != beams_per_fb; ++i ) {
-          uint32_t const rix = laser_to_row_ix.at(laser_id_base+i);
-          bi.lis[i].distance = cur_in_rp_elems[ cur_in_nda->dims.chk_ix2( rix, cur_in_azi_ix ) ];
-          bi.lis[i].intensity = 90;
+
+        // fill in lasers (always 1 or 2 FBs per azi)
+        for( uint32_t laser_id_base = 0; laser_id_base != tot_lasers; laser_id_base += beams_per_fb ) {
+          velo_std_block_info_t & bi = cur_out.bis[cur_out_fb_ix];
+          bi.rot_pos = uint16_t(cur_azi_deg*100); // FIXME: truncation okay/correct here?
+          bi.block_id = laser_block_ids[laser_id_base/32]; // either 0 or 1
+          // note: can't wrap packets across the (max 2) FBs per azi, since 2 divides 12 evenly.
+          assert_st( cur_out_fb_ix < fbs_per_packet ); 
+          for( uint32_t i = 0; i != beams_per_fb; ++i ) {
+            uint32_t const rix = laser_to_row_ix.at(laser_id_base+i);
+            bi.lis[i].distance = cur_in_rp_elems[ cur_in_nda->dims.chk_ix2( rix, cur_in_azi_ix ) ];
+            bi.lis[i].intensity = 90;
+          }
+          ++cur_out_fb_ix;
         }
 
         ++cur_in_azi_ix;
-        ++cur_out_fb_ix;
         if( cur_in_azi_ix == num_azis ) { // if we exactly finished our current input block, clear it out, and we must return
           cur_in_azi_ix = uint32_t_const_max;
           cur_in_nda.reset();
@@ -824,11 +826,17 @@ namespace boda
       if( tot_lasers == 64 ) {
         cur_out.si.status_type = velo_cycle_types[packet_in_cycle];
         cur_out.si.status_val = 0; // FIXME: no status values set yet ...
-        rt_err( "TODO: set status values for velo 64 ... maybe can mostly ignore? set at least 'V' (firmware ver) byte?" );
+        //rt_err( "TODO: set status values for velo 64 ... maybe can mostly ignore? set at least 'V' (firmware ver) byte?" );
+
+        // yeah ... sure, we'll set this to 0xa0, why not? that seems like a reasonable value for a velo 64, right? see
+        // veloview src, vtkDataPacket.h ... however, for 64 data, it's probably not neccessary to set any status data,
+        // and veloview seems to ignore it (or be okay ignoring it). maybe ideally we'd want to insert the calibration
+        // data, but that seems hard and not-too-usefull.
+        if( cur_out.si.status_type == 'V' ) { cur_out.si.status_val = 0xa0; } 
       } else if (tot_lasers == 32 ) {
         // values taken from random velo32 .pcap ... seem constant? there are no corrections for velo32, maybe no status stuff either?
         cur_out.si.status_type = 7;
-        cur_out.si.status_val = 33;
+        cur_out.si.status_val = 33; // HDL32E id-byte
       }
       cur_out.si.gps_timestamp_us = cur_timestamp;
       ++packet_in_cycle;
