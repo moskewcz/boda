@@ -18,6 +18,7 @@ obj/*.pb.cc
 obj/*.pb.h
 obj2
 obj-px2b
+obj-nortc
 lib2
 .emacs*
 *.pyc
