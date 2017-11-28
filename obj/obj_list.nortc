@@ -1,3 +1,11 @@
+# typical build command to use this obj_list to build a binary of boda alongside the 'main' build,
+# in a peer obj directory. note the use of: (1) -f with path to boda core makefile (2) setting of
+# OBJ_LIST_FN to point to this file (3) setting of TARGET so binary goes in current directory (not
+# ../lib/) (4) and in this example, we're also setting an EXT obj_list file as well, but this of
+# course is optional.
+
+# moskewcz@mazda5:~/git-work/boda/obj-nortc$ make -f ../obj/makefile -k -j $(nproc) OBJ_LIST_FN=../obj/obj_list.nortc TARGET=boda EXT_OBJ_LIST_FNS=../../boda-ext-ds/obj/obj_list 
+
 # note: editing this file is similar to editing the makefile.  in particular (like after editing the makefile), after
 # editing this file, currently built objects might differ or fail to build after a make clean. however, in many cases,
 # this may be acceptable / ignorable ... user beware.
