@@ -366,9 +366,11 @@ namespace boda
 	  pan_pin = i32_pt_t{event.button.x,event.button.y};
 	  pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
           pan_orig_cam_x = cam_pos[0];
-          pan_orig_cam_y = cam_pos[2];
+          pan_orig_cam_y = cam_pos[1];
+          pan_orig_cam_z = cam_pos[2];
           pan_orig_cam_rx = cam_rot[0];
           pan_orig_cam_ry = cam_rot[1];
+          pan_orig_cam_rz = cam_rot[2];
         }
 	break;
       case SDL_MOUSEMOTION:
@@ -382,7 +384,7 @@ namespace boda
           if (event.motion.state&SDL_BUTTON(2)) {
             i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
             cam_pos[0] = pan_orig_cam_x - pan_to.d[0];
-            cam_pos[2] = pan_orig_cam_y - pan_to.d[1];
+            cam_pos[2] = pan_orig_cam_z - pan_to.d[1];
           }
           if (event.motion.state&SDL_BUTTON(1)) {
             i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
@@ -391,6 +393,12 @@ namespace boda
             cam_rot[1] = pan_orig_cam_ry + pan_to.d[1];
             clamp_eq( cam_rot[1], 0.0f, 90.0f );
           }
+          if (event.motion.state&SDL_BUTTON(3)) {
+            i32_pt_t const pan_to = i32_pt_t{event.motion.x,event.motion.y} - pan_pin;
+            cam_pos[0] = pan_orig_cam_x - pan_to.d[0];
+            cam_pos[1] = pan_orig_cam_y - pan_to.d[1];
+          }
+
         }
 	break;
       case SDL_MOUSEWHEEL:

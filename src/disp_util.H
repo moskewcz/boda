@@ -48,8 +48,10 @@ namespace boda {
     uint32_t cam_mode;
     float pan_orig_cam_x;
     float pan_orig_cam_y;
+    float pan_orig_cam_z;
     float pan_orig_cam_rx;
     float pan_orig_cam_ry;
+    float pan_orig_cam_rz;
     float cam_pos[3];
     float cam_rot[3];
     void reset_cam( void );
