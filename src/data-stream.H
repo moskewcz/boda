@@ -51,7 +51,9 @@ namespace boda
       }
       return ret;
     }
-    string info_str( void ) const;      
+    string info_str( void ) const;
+  protected:
+    void info_str_int( string & prefix, string & out ) const;
   };
   std::ostream & operator << ( std::ostream & out, data_block_t const & db );
 

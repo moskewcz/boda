@@ -14,6 +14,12 @@ namespace boda
   std::ostream & operator << ( std::ostream & out, data_block_t const & db ) { out << db.info_str(); return out; }
   string data_block_t::info_str( void ) const {
     string ret;
+    string prefix;
+    info_str_int( prefix, ret );
+    return ret;
+  }
+  void data_block_t::info_str_int( string & prefix, string & ret ) const {
+    ret += prefix;
     if( timestamp_ns != uint64_t_const_max ) { ret += strprintf( " timestamp_ns=%s", str(timestamp_ns).c_str() ); }
     if( frame_ix != uint64_t_const_max ) { ret += strprintf( " frame_ix=%s", str(frame_ix).c_str() ); }
     if( nda.get() || as_img ) {
@@ -22,14 +28,16 @@ namespace boda
       if( as_img ) {  ret += strprintf( " as_img=%s", as_img->WxH_str().c_str() ); }
     }
     if( subblocks ) {
-      ret += strprintf( " subblocks->size()=%s [", str(subblocks->size()).c_str() );
+      ret += strprintf( " subblocks->size()=%s [\n", str(subblocks->size()).c_str() );
+      string const pad_str = "  ";
+      prefix += pad_str;
       for( vect_data_block_t::const_iterator i = subblocks->begin(); i != subblocks->end(); ++i ) {
-        if( i != subblocks->begin() ) { ret += " , "; }
-        ret += (*i).info_str();
+        (*i).info_str_int( prefix, ret );
+        ret += "\n";
       }
-      ret += "]";
+      prefix.erase( prefix.end() - pad_str.size(), prefix.end() );
+      ret += "]\n";
     }
-    return ret;
   }
 
   struct data_stream_start_stop_skip_t : virtual public nesi, public data_stream_t // NESI(help="wrap another data stream and optionally: skip initial blocks and/or skip blocks after each returned block and/or limit the number of blocks returned.",
