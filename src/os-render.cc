@@ -462,6 +462,9 @@ void main(){
               ++cur_objs_ix;
             } // allow and skip null case (no object). see FIXME where filled in ...
           }
+          else if( startswith( sdb.meta, "pointcloud" ) ) {
+            if( sdb.nda.get() ) { draw_raw_cloud( sdb ); }
+          }
           else {
             rt_err( strprintf( "os-render: unknown subblock with meta=%s tag=%s\n", str(sdb.meta).c_str(), str(sdb.tag).c_str() ) ); // could maybe just skip/ignore
           }
@@ -477,8 +480,6 @@ void main(){
         }
         azi_nda = azi_nda_u16;
       }
-
-
       // bind azi data
       assert_st( azi_nda );
       assert_st( azi_nda->dims.sz() == 1 );            
