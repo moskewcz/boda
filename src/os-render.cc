@@ -465,6 +465,9 @@ void main(){
           else if( startswith( sdb.meta, "pointcloud" ) ) {
             if( sdb.nda.get() ) { draw_raw_cloud( sdb ); }
           }
+          else if( !sdb.valid() ) {
+            printf( "os-render: warning: ignoring invalid subblock\n" );
+          }
           else {
             rt_err( strprintf( "os-render: unknown subblock with meta=%s tag=%s\n", str(sdb.meta).c_str(), str(sdb.tag).c_str() ) ); // could maybe just skip/ignore
           }

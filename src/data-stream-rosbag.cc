@@ -31,6 +31,12 @@ namespace boda
   typedef std::deque< message_instance_t > deque_message_instance_t;
   typedef vector< deque_message_instance_t > vect_deque_message_instance_t;
 
+  uint64_t get_ros_msg_timestamp( message_instance_t const & msg ) {
+    ros::Time const msg_time = msg.getTime();
+    return secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
+  }
+  uint64_t ts_delta( uint64_t const & a, uint64_t const & b ) { return ( a > b ) ? ( a - b ) : ( b - a ); }
+  
   struct pc2_gf_t {
     string name;
     uint32_t offset;
@@ -131,8 +137,7 @@ namespace boda
         rt_err( "rosbag-src: unhandled ros message type: " + msg.getDataType() );
       }
       ret.tag = "rosbag:"+msg.getTopic();
-      ros::Time const msg_time = msg.getTime();
-      ret.timestamp_ns = secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
+      ret.timestamp_ns = get_ros_msg_timestamp( msg );
       //printf( "ret.timestamp_ns=%s img_ts=%s\n", str(ret.timestamp_ns).c_str(), str(img_ts).c_str() );
 
     }
@@ -155,15 +160,24 @@ namespace boda
       for( uint32_t i = 1; i != topics.size(); ++i ) {
         data_block_t sdb = db;
         deque_message_instance_t & msg_deque = msg_deques.at(i);
-        if( !msg_deque.empty() ) {
-          msg_to_db( 0, sdb, msg_deque.back() );
-          msg_deque.clear();
+        // first, drop any too-early-to-be-usefull message // FIXME: keep these messages for streams that can accumluate
+        while( (msg_deque.size() > 1) && ( get_ros_msg_timestamp( msg_deque[1] ) < ret.timestamp_ns ) ) {
+          msg_deque.pop_front();
         }
+        // now: if there is a second message: (1) it must be >= the primary timestamp, and (2) the prior message must
+        // have a timestamp <= the second message (as is always true, assuming message timestamps are monotonic).
+        // here, we determine if the first or second message is closer to the primary message.
+        bool second_msg_is_closer = (msg_deque.size() > 1) &&
+          ( ts_delta( ret.timestamp_ns, get_ros_msg_timestamp( msg_deque[1] ) ) <
+            ts_delta( ret.timestamp_ns, get_ros_msg_timestamp( msg_deque[0] ) ) );
+        if( second_msg_is_closer ) { msg_deque.pop_front(); } // FIXME: as above, accumulate this msg if desired
+        
+        if( !msg_deque.empty() ) { msg_to_db( 0, sdb, msg_deque.front() ); }
         ret.subblocks->at(i) = sdb;
       }
-
       return ret;
     }
+    
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
       if( topics.empty() ) { rt_err( "rosbag-src: must specify at least one topic (first will be primary)" ); }
       pc2_gfs = { pc2_gf_t{"x"}, pc2_gf_t{"y"}, pc2_gf_t{"z"} }; 
