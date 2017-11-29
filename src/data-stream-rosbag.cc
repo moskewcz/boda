@@ -27,7 +27,17 @@ namespace boda
   using sensor_msgs::PointCloud2;
 
   typedef shared_ptr< rosbag::View > p_rosbag_view;
+  typedef rosbag::MessageInstance message_instance_t;
+  typedef std::deque< message_instance_t > deque_message_instance_t;
+  typedef vector< deque_message_instance_t > vect_deque_message_instance_t;
   
+  // if there are multiple topics, the first topic will be considered the 'primary' topic, and one data block will be
+  // emitted per message on that topic. other topics will be synced to the primary topic by choosing the message from
+  // each other topic closest in time to the primary topic message. in general, this means that messages on non-primary
+  // topics can be dropped or stuttered. note that for some types of messages, however, multiple messages may instead be
+  // merged together, such that some set of non-primary topic messages (all near in time to the primary message) are
+  // emitted. in particular, one case is that, for some secondary topics, all messages will be emitted exactly once,
+  // attached to the primary topic message that they are closest to.
   struct data_stream_rosbag_src_t : virtual public nesi, public data_stream_t // NESI(help="parse mxnet-brick-style-serialized data stream into data blocks",
                                     // bases=["data_stream_t"], type_id="rosbag-src")
   {
@@ -39,22 +49,33 @@ namespace boda
     rosbag::Bag bag;
     p_rosbag_view view;
     rosbag::View::iterator vi;
+
+    vect_deque_message_instance_t msg_deques; // deques for storing non-primary messages
+    map_str_uint32_t topic_to_ix;
     
     virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
 
-    virtual data_block_t proc_block( data_block_t const & db ) {
-      data_block_t ret = db;
-      if( vi == view->end() ) { return ret; }
-      ret.subblocks = make_shared<vect_data_block_t>(topics.size());
-      for( uint32_t i = 0; i != topics.size(); ++i ) {
+    // returns false if we get to end-of-stream before finding a primary msg, otherwise returns true
+    bool read_up_to_primary_topic_msg( void ) {
+      // read messages until we get to a primary topic message.
+      while( 1 ) {
+        if( vi == view->end() ) { return false; }
         rosbag::MessageInstance const & msg = *vi;
-        //printf( "msg.getTopic()=%s\n", str(msg.getTopic()).c_str() );
+        if( msg.getTopic() == topics[0] ) { return true; }
+        // otherwise process/store secondary topic msg
+        // TODO
+        ++vi;
+      }
+    }
+
+    void msg_to_db( bool const & is_primary, data_block_t & ret, message_instance_t const & msg ) {
+      printf( "msg.getDataType()=%s\n", str(msg.getDataType()).c_str() );
+      if( msg.getDataType() == "sensor_msgs/Image" ) {
         sensor_msgs::Image::ConstPtr img = msg.instantiate<sensor_msgs::Image>();
         //printf( "img->height=%s img->width=%s img->encoding=%s\n", str(img->height).c_str(), str(img->width).c_str(), str(img->encoding).c_str() );
         if( img->encoding != "bayer_bggr8" ) { rt_err( "unsupported image encoding in rosbag: " + img->encoding ); }
         
         assert_st( (img->height * img->step) == img->data.size() );
-        data_block_t sdb = db;
         p_nda_uint8_t img_nda = make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(img->height), uint32_t(img->width)}, vect_string{ "y","x" },"uint8_t" }); // note: for now, always in in bggr format ...
         // copy image data to packed nda. FIXME: if we had nda padding, we could borrow, or at least copy in one
         // block. also if we checked for the un-padded case, we could do similar for that case at least.
@@ -62,23 +83,46 @@ namespace boda
           uint8_t const * rb = &img->data[img->step*y];
           std::copy( rb, rb + img->width, &img_nda->at1(y) );
         }
-        sdb.nda = img_nda;
-        sdb.meta = "image";
-        sdb.tag = "rosbag:"+topics[i];
+        ret.nda = img_nda;
+        ret.meta = "image";
+        ret.tag = "rosbag:"+msg.getTopic();
         ros::Time const msg_time = msg.getTime();
-        sdb.timestamp_ns = secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
+        ret.timestamp_ns = secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
         uint64_t const img_ts = secs_and_nsecs_to_nsecs_signed( img->header.stamp.sec, img->header.stamp.nsec );
-        printf( "sdb.timestamp_ns=%s img_ts=%s\n", str(sdb.timestamp_ns).c_str(), str(img_ts).c_str() );
+        printf( "ret.timestamp_ns=%s img_ts=%s\n", str(ret.timestamp_ns).c_str(), str(img_ts).c_str() );
+      }
+    }
+    
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
+      if( vi == view->end() ) { return ret; }
+      ret.subblocks = make_shared<vect_data_block_t>(topics.size());
+      // we should be at a primary topic message, so consume it
+      rosbag::MessageInstance const prim_msg = *vi;
+      ++vi;
+      assert_st( prim_msg.getTopic() == topics[0] );
+      read_up_to_primary_topic_msg(); // read up to *next* primary topic msg (if there is one)
+
+      data_block_t pdb = db;
+      msg_to_db( 1, pdb, prim_msg );
+      ret.subblocks->at(0) = pdb;
+      ret.timestamp_ns = ret.subblocks->at(0).timestamp_ns; // use primary timestamp as timeframe timestamp
+      
+      for( uint32_t i = 1; i != topics.size(); ++i ) {
+        data_block_t sdb = db;
+        //msg_to_db( 0, sdb, prim_msg );
         ret.subblocks->at(i) = sdb;
       }
-      ++vi;
-      if( ret.num_subblocks() == 1 ) { ret.timestamp_ns = ret.subblocks->at(0).timestamp_ns; } // FIXME/HACK: stand-in for sync/etc
+
       return ret;
     }
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
+      if( topics.empty() ) { rt_err( "rosbag-src: must specify at least one topic (first will be primary)" ); }
       bag.open( fn.exp, rosbag::bagmode::Read );
       view = make_shared< rosbag::View >( bag, rosbag::TopicQuery(topics) );
       vi = view->begin();
+      for( uint32_t i = 0; i != topics.size(); ++i ) { must_insert( topic_to_ix, topics[i], i ); }
+      read_up_to_primary_topic_msg();
     }
   };
 
