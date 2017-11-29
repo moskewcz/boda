@@ -81,6 +81,7 @@ void main(){
                            // bases=["data_stream_t"], type_id="add-img-pts")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    filename_t raw_cloud_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/raw-cloud-vertex.glsl",help="point cloud vertex shader filename")
     filename_t cloud_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/cloud-vertex.glsl",help="point cloud vertex shader filename")
     filename_t objs_vertex_shader_fn; //NESI(default="%(boda_dir)/shaders/objects-vertex.glsl",help="objects vertex shader filename")
     uint32_t use_live_laser_corrs; //NESI(default="1",help="if laser corrs present in stream, use them. note: only first set of corrs in stream will be used.")
@@ -245,6 +246,47 @@ void main(){
       bind_laser_corrs();
     }
 
+    GLuint raw_cloud_programID;
+    GLuint raw_cloud_mvp_id;
+
+    GLuint raw_cloud_pts_buf;
+    
+    void draw_raw_cloud( data_block_t const & db ) {
+      p_nda_t const & nda = db.nda;
+      assert_st( nda->dims.sz() );
+      uint32_t const inner_dim_sz = 3;
+      if( nda->dims.dims( nda->dims.sz() - 1 ) != inner_dim_sz ) {
+        rt_err( strprintf( "expected inner dim of size %s for raw point cloud, but had nda->dims=%s\n",
+                           str(inner_dim_sz).c_str(),
+                           str(nda->dims).c_str() ) ); 
+      }
+      if( nda->dims.tn != "float" ) {
+        rt_err( strprintf( "expected float data for raw point cloud, but had nda->dims=%s\n", str(nda->dims).c_str() ) ); 
+      }
+
+      glBindBuffer(GL_ARRAY_BUFFER, raw_cloud_pts_buf );
+      glBufferData(GL_ARRAY_BUFFER, nda->dims.bytes_sz(), nda->rp_elems(), GL_STREAM_DRAW);
+
+      glUseProgram(raw_cloud_programID);
+
+      glUniformMatrix4fv(raw_cloud_mvp_id, 1, GL_FALSE, &MVP[0][0]);
+      glEnableVertexAttribArray(0);
+      
+      glBindBuffer(GL_ARRAY_BUFFER, raw_cloud_pts_buf);
+      glVertexAttribPointer( 0, inner_dim_sz, GL_FLOAT, GL_FALSE, 0, (void *) 0 );
+
+      glDrawArrays(GL_POINTS, 0, nda->elems_sz() / inner_dim_sz );
+      glDisableVertexAttribArray(0);
+    }
+
+    void init_raw_cloud( void ) {
+      raw_cloud_programID = LoadShaders( verbose, *read_whole_fn( raw_cloud_vertex_shader_fn ), fragment_shader_code_str );
+      raw_cloud_mvp_id = glGetUniformLocation(raw_cloud_programID, "MVP");
+      if( verbose ) { printf( "raw_cloud_programID=%s\n", str(raw_cloud_programID).c_str() ); }      
+      glGenBuffers(1, &raw_cloud_pts_buf);
+    }
+
+    
     GLuint objs_programID;
     GLuint objs_mvp_id;
     GLuint objs_obj_col_id;
@@ -307,6 +349,15 @@ void main(){
     vect_laser_corr_t laser_corrs_to_bind;
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      // FIXME/NOTE: make configurable
+      assert_st( obj_cols.empty() );
+      obj_cols.push_back( vec3(1,0,0) );
+      obj_cols.push_back( vec3(1,0,1) ); 
+      obj_cols.push_back( vec3(0,0,1) ); 
+      obj_cols.push_back( vec3(0,1,1) ); 
+      obj_cols.push_back( vec3(0,1,0) ); 
+      obj_cols.push_back( vec3(1,1,0) ); 
+
       if( force_pcdm_mode ) { pcdm_mode.v = 1; }
       for( uint32_t i = 0; i != 3; ++i ) { cam_pos[i] = 0.0f; cam_rot[i] = 0.0f; }
       frame_buf = make_shared< img_t >();
@@ -360,10 +411,12 @@ void main(){
       
       init_grid();
       init_cloud();
+      init_raw_cloud();
       init_objs();
       check_gl_error( "init" );
     }
-    vect_data_block_t objs_dbs;
+    
+    vector< vec3 > obj_cols;
     
     virtual data_block_t proc_block( data_block_t const & db ) {
       // note: if we want to have multiple os-render processors, we need to (re-)set the context here. however, note
@@ -375,11 +428,12 @@ void main(){
       if (!OSMesaMakeCurrent( ctx, frame_buf->get_row_addr(0), GL_UNSIGNED_BYTE, frame_buf->sz.d[0], frame_buf->sz.d[1] )) {
         rt_err("proc_block(): OSMesaMakeCurrent failed.\n");
       }
-
+      new_frame_setup();
+      
       if( !db.nda.get() ) { rt_err( "add-img-pts: expected nda data in block, but found none." ); }
       if( endswith( db.meta, "/PCDM" ) ) { pcdm_mode.v = 1; bind_laser_corrs(); } // permanently set. rebind here since we might not bind again later.
       p_nda_t azi_nda;
-      objs_dbs.clear(); // default to no objects for this frame
+      uint32_t cur_objs_ix = 0;
       if( db.has_subblocks() ) {
         for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
           data_block_t const & sdb = db.subblocks->at(i);
@@ -403,7 +457,10 @@ void main(){
             azi_nda = sdb.nda;
           }
           else if( sdb.meta == "objects" ) {
-            if( sdb.nda.get() ) { objs_dbs.push_back( sdb ); } // allow and skip null case (no object). see FIXME where filled in ...
+            if( sdb.nda.get() ) {
+              draw_objs( sdb, obj_cols[cur_objs_ix%obj_cols.size()]);
+              ++cur_objs_ix;
+            } // allow and skip null case (no object). see FIXME where filled in ...
           }
           else {
             rt_err( strprintf( "os-render: unknown subblock with meta=%s tag=%s\n", str(sdb.meta).c_str(), str(sdb.tag).c_str() ) ); // could maybe just skip/ignore
@@ -433,14 +490,17 @@ void main(){
       glBindBuffer(GL_TEXTURE_BUFFER, 0);
       glBindTexture(GL_TEXTURE_BUFFER, cloud_azi_tex);
       glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
+      draw_cloud( db );
+      
+      glFinish();
+      check_gl_error( "postframe" );
 
-      render_pts_into_frame_buf( db );
       data_block_t ret = db;
       ret.as_img = frame_buf;
       return ret;
     }
 
-    virtual void render_pts_into_frame_buf( data_block_t const & db ) {
+    virtual void new_frame_setup( void ) {
       check_gl_error( "preframe" );
       //mode_uid = glGetUniformLocation(programID, "mode");
       // Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
@@ -471,22 +531,16 @@ void main(){
       
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the screen
       draw_grid();
-      draw_cloud( db );
-      vector< vec3 > obj_cols;
-      obj_cols.push_back( vec3(1,0,0) );
-      obj_cols.push_back( vec3(1,0,1) ); 
-      for( uint32_t i = 0; i != objs_dbs.size(); ++i ) { draw_objs( objs_dbs[i], obj_cols[i%obj_cols.size()]); }
-      glFinish();
-      check_gl_error( "postframe" );
-
+    }
+    
 #if 0                
 	// Cleanup VBO
 	glDeleteBuffers(1, &vertexbuffer);
 	glDeleteVertexArrays(1, &VertexArrayID);
 	glDeleteProgram(programID);
 #endif      
-    }
 
+    
     virtual string get_pos_info_str( void ) {      
       return strprintf( "data-to-img: disp_sz=%s", str(disp_sz).c_str() );
     }
