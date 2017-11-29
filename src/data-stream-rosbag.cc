@@ -63,13 +63,14 @@ namespace boda
         rosbag::MessageInstance const & msg = *vi;
         if( msg.getTopic() == topics[0] ) { return true; }
         // otherwise process/store secondary topic msg
-        // TODO
+        uint32_t topic_ix = must_find( topic_to_ix, msg.getTopic() );
+        msg_deques.at( topic_ix ).push_back( msg );
         ++vi;
       }
     }
 
     void msg_to_db( bool const & is_primary, data_block_t & ret, message_instance_t const & msg ) {
-      printf( "msg.getDataType()=%s\n", str(msg.getDataType()).c_str() );
+      //printf( "msg.getDataType()=%s\n", str(msg.getDataType()).c_str() );
       if( msg.getDataType() == "sensor_msgs/Image" ) {
         sensor_msgs::Image::ConstPtr img = msg.instantiate<sensor_msgs::Image>();
         //printf( "img->height=%s img->width=%s img->encoding=%s\n", str(img->height).c_str(), str(img->width).c_str(), str(img->encoding).c_str() );
@@ -85,12 +86,17 @@ namespace boda
         }
         ret.nda = img_nda;
         ret.meta = "image";
-        ret.tag = "rosbag:"+msg.getTopic();
-        ros::Time const msg_time = msg.getTime();
-        ret.timestamp_ns = secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
-        uint64_t const img_ts = secs_and_nsecs_to_nsecs_signed( img->header.stamp.sec, img->header.stamp.nsec );
-        printf( "ret.timestamp_ns=%s img_ts=%s\n", str(ret.timestamp_ns).c_str(), str(img_ts).c_str() );
+        //uint64_t const img_ts = secs_and_nsecs_to_nsecs_signed( img->header.stamp.sec, img->header.stamp.nsec );
+      } else if( msg.getDataType() == "sensor_msgs/PointCloud2" ) {
+        
+      } else {
+        rt_err( "rosbag-src: unhandled ros message type: " + msg.getDataType() );
       }
+      ret.tag = "rosbag:"+msg.getTopic();
+      ros::Time const msg_time = msg.getTime();
+      ret.timestamp_ns = secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
+      //printf( "ret.timestamp_ns=%s img_ts=%s\n", str(ret.timestamp_ns).c_str(), str(img_ts).c_str() );
+
     }
     
     virtual data_block_t proc_block( data_block_t const & db ) {
@@ -110,7 +116,11 @@ namespace boda
       
       for( uint32_t i = 1; i != topics.size(); ++i ) {
         data_block_t sdb = db;
-        //msg_to_db( 0, sdb, prim_msg );
+        deque_message_instance_t & msg_deque = msg_deques.at(i);
+        if( !msg_deque.empty() ) {
+          msg_to_db( 0, sdb, msg_deque.back() );
+          msg_deque.clear();
+        }
         ret.subblocks->at(i) = sdb;
       }
 
@@ -122,6 +132,7 @@ namespace boda
       view = make_shared< rosbag::View >( bag, rosbag::TopicQuery(topics) );
       vi = view->begin();
       for( uint32_t i = 0; i != topics.size(); ++i ) { must_insert( topic_to_ix, topics[i], i ); }
+      msg_deques.resize( topics.size() );
       read_up_to_primary_topic_msg();
     }
   };
