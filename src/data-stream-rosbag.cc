@@ -30,7 +30,14 @@ namespace boda
   typedef rosbag::MessageInstance message_instance_t;
   typedef std::deque< message_instance_t > deque_message_instance_t;
   typedef vector< deque_message_instance_t > vect_deque_message_instance_t;
-  
+
+  struct pc2_gf_t {
+    string name;
+    uint32_t offset;
+    pc2_gf_t( string const & name_ ) : name(name_), offset(uint32_t_const_max) { }
+  };
+  typedef vector< pc2_gf_t > vect_pc2_gf_t; 
+
   // if there are multiple topics, the first topic will be considered the 'primary' topic, and one data block will be
   // emitted per message on that topic. other topics will be synced to the primary topic by choosing the message from
   // each other topic closest in time to the primary topic message. in general, this means that messages on non-primary
@@ -52,6 +59,8 @@ namespace boda
 
     vect_deque_message_instance_t msg_deques; // deques for storing non-primary messages
     map_str_uint32_t topic_to_ix;
+
+    vect_pc2_gf_t pc2_gfs; // named fields we must be able to extract to parse PointCloud2 messages (see init)
     
     virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
 
@@ -88,7 +97,36 @@ namespace boda
         ret.meta = "image";
         //uint64_t const img_ts = secs_and_nsecs_to_nsecs_signed( img->header.stamp.sec, img->header.stamp.nsec );
       } else if( msg.getDataType() == "sensor_msgs/PointCloud2" ) {
-        
+        sensor_msgs::PointCloud2::ConstPtr pc2 = msg.instantiate<sensor_msgs::PointCloud2>();
+        uint32_t gfs_found = 0;
+        for( auto i = pc2->fields.begin(); i != pc2->fields.end(); ++i ) {
+          for( auto gf = pc2_gfs.begin(); gf != pc2_gfs.end(); ++gf ) {
+            if( i->name == gf->name ) {
+              if( i->datatype != 7 ) { rt_err( "unsupported PointField datatype: " + str(i->datatype) ); }
+              if( i->count != 1 ) { rt_err( "unsupported not-equal-to-one PointField count: " + str(i->count) ); }
+              gf->offset = i->offset;
+              ++gfs_found;
+            }
+          }
+        }
+        if( gfs_found != pc2_gfs.size() ) {
+          rt_err( strprintf( "can't parse PointCloud2, only found gfs_found=%s fields, but needed pc2_gfs.size()=%s fields.", str(gfs_found).c_str(), str(pc2_gfs.size()).c_str() ) );
+        }
+
+        p_nda_float_t pc2_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(pc2->height), uint32_t(pc2->width), uint32_t(pc2_gfs.size())}, vect_string{ "y","x","p" },"float" });
+        for( uint32_t y = 0; y != pc2->height; ++y ) {
+          uint8_t const * row = &pc2->data[pc2->row_step*y];
+          for( uint32_t x = 0; x != pc2->width; ++x ) {
+            float * out = &pc2_nda->at2(y,x);
+            for( auto gf = pc2_gfs.begin(); gf != pc2_gfs.end(); ++gf ) {
+              *out = *((float const *)(row + gf->offset));
+              ++out;
+            }
+            row += pc2->point_step;
+          }
+        }
+        ret.nda = pc2_nda;
+        ret.meta = "pointcloud";
       } else {
         rt_err( "rosbag-src: unhandled ros message type: " + msg.getDataType() );
       }
@@ -128,6 +166,7 @@ namespace boda
     }
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
       if( topics.empty() ) { rt_err( "rosbag-src: must specify at least one topic (first will be primary)" ); }
+      pc2_gfs = { pc2_gf_t{"x"}, pc2_gf_t{"y"}, pc2_gf_t{"z"} }; 
       bag.open( fn.exp, rosbag::bagmode::Read );
       view = make_shared< rosbag::View >( bag, rosbag::TopicQuery(topics) );
       vi = view->begin();
