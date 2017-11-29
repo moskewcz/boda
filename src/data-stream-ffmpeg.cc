@@ -32,6 +32,7 @@ namespace boda
     data_stream_ffmpeg_src_t( void ) : ic( 0 ) { }
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      av_register_all(); // NOTE/FIXME: in general, this should be safe to call multiple times. but, there have been bugs wrt that ...
       ic = avformat_alloc_context();
       if (!ic) { rt_err( "avformat_alloc_context() failed" ); }
       //ic->interrupt_callback.callback = decode_interrupt_cb;
