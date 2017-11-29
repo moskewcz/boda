@@ -36,7 +36,7 @@ namespace boda
         ret += "\n";
       }
       prefix.erase( prefix.end() - pad_str.size(), prefix.end() );
-      ret += "]\n";
+      ret += prefix + "]";
     }
   }
 
