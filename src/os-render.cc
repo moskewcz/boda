@@ -471,29 +471,33 @@ void main(){
         }
       }
       if( db.nda ) {
-        if( !azi_nda ) {
-          uint32_t const fov_rot_samps = db.nda->dims.dims(1);
-          p_nda_uint16_t azi_nda_u16 = make_shared<nda_uint16_t>( dims_t{ dims_t{ { fov_rot_samps }, {"x"}, "uint16_t" }} );
-          for( uint32_t i = 0; i != fov_rot_samps; ++i ) {
-            double cur_azi_deg = fov_center + azi_step * ( double(i) - double(fov_rot_samps)/2.0 );
-            if( cur_azi_deg < 0.0 ) { cur_azi_deg += 360.0; }
-            azi_nda_u16->at1( i ) = uint16_t( cur_azi_deg * 100.0 );
+        if( startswith( db.meta, "pointcloud" ) ) {
+          if( db.nda.get() ) { draw_raw_cloud( db ); }
+        } else { // assume velo pointcloud
+          if( !azi_nda ) {
+            uint32_t const fov_rot_samps = db.nda->dims.dims(1);
+            p_nda_uint16_t azi_nda_u16 = make_shared<nda_uint16_t>( dims_t{ dims_t{ { fov_rot_samps }, {"x"}, "uint16_t" }} );
+            for( uint32_t i = 0; i != fov_rot_samps; ++i ) {
+              double cur_azi_deg = fov_center + azi_step * ( double(i) - double(fov_rot_samps)/2.0 );
+              if( cur_azi_deg < 0.0 ) { cur_azi_deg += 360.0; }
+              azi_nda_u16->at1( i ) = uint16_t( cur_azi_deg * 100.0 );
+            }
+            azi_nda = azi_nda_u16;
           }
-          azi_nda = azi_nda_u16;
+          // bind azi data
+          assert_st( azi_nda );
+          assert_st( azi_nda->dims.sz() == 1 );            
+          assert_st( azi_nda->dims.tn == "uint16_t" );            
+          assert_st( db.nda->dims.dims(1) == azi_nda->dims.dims(0) ); // i.e. size must be hbins
+          glActiveTexture(GL_TEXTURE1);
+          glBindBuffer(GL_TEXTURE_BUFFER, cloud_azi_buf);
+          glBufferData(GL_TEXTURE_BUFFER, azi_nda->dims.bytes_sz(), azi_nda->rp_elems(), GL_STREAM_DRAW);
+          glBindBuffer(GL_TEXTURE_BUFFER, 0);
+          glBindTexture(GL_TEXTURE_BUFFER, cloud_azi_tex);
+          glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
+          draw_cloud( db );
         }
-        // bind azi data
-        assert_st( azi_nda );
-        assert_st( azi_nda->dims.sz() == 1 );            
-        assert_st( azi_nda->dims.tn == "uint16_t" );            
-        assert_st( db.nda->dims.dims(1) == azi_nda->dims.dims(0) ); // i.e. size must be hbins
-        glActiveTexture(GL_TEXTURE1);
-        glBindBuffer(GL_TEXTURE_BUFFER, cloud_azi_buf);
-        glBufferData(GL_TEXTURE_BUFFER, azi_nda->dims.bytes_sz(), azi_nda->rp_elems(), GL_STREAM_DRAW);
-        glBindBuffer(GL_TEXTURE_BUFFER, 0);
-        glBindTexture(GL_TEXTURE_BUFFER, cloud_azi_tex);
-        glTexBuffer(GL_TEXTURE_BUFFER, GL_R16UI, cloud_azi_buf);      
-        draw_cloud( db );
-      }      
+      }
       glFinish();
       check_gl_error( "postframe" );
 
