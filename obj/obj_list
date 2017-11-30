@@ -84,8 +84,12 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 [FFmpeg]
 LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil
 
-[RoS]
-LDFLAGS := $(LDFLAGS) -lcpp_common -lrosconsole -lrosconsole_print -lrosconsole_backend_interface -lconsole_bridge -ltopic_tools -lroscpp -lrosbag -lrosbag_storage -lrostime -lroscpp_serialization # others? sigh. not too obvious what the full/right set is.
+[eigen]
+CPPFLAGS := $(CPPFLAGS) -I/usr/include/eigen3
+
+[RoS needs=eigen]
+# note: when added, the eigen dep was only for tf2 transform include for transforming PointCloud2 msgs
+LDFLAGS := $(LDFLAGS) -lcpp_common -lrosconsole -lrosconsole_print -lrosconsole_backend_interface -lconsole_bridge -ltopic_tools -lroscpp -lrosbag -lrosbag_storage -ltf2 -lrostime -lroscpp_serialization # others? sigh. not too obvious what the full/right set is.
 
 
 [stacktrace_gnu] # if enabled, get stacktrace using gnu extentions backtrace() and backtrace_symbols() 

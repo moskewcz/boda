@@ -19,6 +19,14 @@
 #include <sensor_msgs/PointCloud2.h>
 // #include <sensor_msgs/CameraInfo.h>
 
+// for transforms
+#include <tf2/convert.h>
+#include <tf2/buffer_core.h>
+#include <tf2_msgs/TFMessage.h>
+#include <tf/tfMessage.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+
 namespace boda 
 {
   using sensor_msgs::PointField;
@@ -58,16 +66,21 @@ namespace boda
 
     filename_t fn; //NESI(req=1,help="input filename")
     vect_string topics; //NESI(req=1,help="list of topics to read from bag")
-    
+    string frame_id; //NESI(default="base_link",help="for output points, what frame id to transform into")
+
     rosbag::Bag bag;
     p_rosbag_view view;
     rosbag::View::iterator vi;
 
+    shared_ptr< tf2::BufferCore > tf2_bc;
+    
     vect_deque_message_instance_t msg_deques; // deques for storing non-primary messages
     map_str_uint32_t topic_to_ix;
 
     vect_pc2_gf_t pc2_gfs; // named fields we must be able to extract to parse PointCloud2 messages (see init)
-    
+
+    sensor_msgs::PointCloud2 pc2_tf_buf; // temporary to store transformed pointcloud2
+
     virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
 
     // returns false if we get to end-of-stream before finding a primary msg, otherwise returns true
@@ -77,9 +90,28 @@ namespace boda
         if( vi == view->end() ) { return false; }
         rosbag::MessageInstance const & msg = *vi;
         if( msg.getTopic() == topics[0] ) { return true; }
-        // otherwise process/store secondary topic msg
-        uint32_t topic_ix = must_find( topic_to_ix, msg.getTopic() );
-        msg_deques.at( topic_ix ).push_back( msg );
+        if( msg.getTopic() == "/tf" ) {
+          if( msg.getDataType() == "geometry_msgs/TransformStamped" ) {
+            geometry_msgs::TransformStamped::ConstPtr tfs = msg.instantiate<geometry_msgs::TransformStamped>();
+            tf2_bc->setTransform( *tfs, string("bag"), false );
+          } else if( msg.getDataType() == "tf2_msgs/TFMessage" ) {
+            tf2_msgs::TFMessage::ConstPtr tfss = msg.instantiate<tf2_msgs::TFMessage>();
+            for( auto tfs = tfss->transforms.begin(); tfs != tfss->transforms.end(); ++tfs ) {
+              tf2_bc->setTransform( *tfs, string("bag"), false );
+            }
+          } else if( msg.getDataType() == "tf/tfMessage" ) {
+            tf::tfMessage::ConstPtr tfss = msg.instantiate<tf::tfMessage>();
+            for( auto tfs = tfss->transforms.begin(); tfs != tfss->transforms.end(); ++tfs ) {
+              tf2_bc->setTransform( *tfs, string("bag"), false );
+            }
+          } else {
+            rt_err( strprintf( "unhandled message type in /tf topic with msg.getDataType()=%s\n", str(msg.getDataType()).c_str() ) );
+          }
+        } else {
+          // otherwise process/store secondary topic msg
+          uint32_t topic_ix = must_find( topic_to_ix, msg.getTopic() );
+          msg_deques.at( topic_ix ).push_back( msg );
+        }
         ++vi;
       }
     }
@@ -118,17 +150,19 @@ namespace boda
         if( gfs_found != pc2_gfs.size() ) {
           rt_err( strprintf( "can't parse PointCloud2, only found gfs_found=%s fields, but needed pc2_gfs.size()=%s fields.", str(gfs_found).c_str(), str(pc2_gfs.size()).c_str() ) );
         }
-
-        p_nda_float_t pc2_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(pc2->height), uint32_t(pc2->width), uint32_t(pc2_gfs.size())}, vect_string{ "y","x","p" },"float" });
-        for( uint32_t y = 0; y != pc2->height; ++y ) {
-          uint8_t const * row = &pc2->data[pc2->row_step*y];
-          for( uint32_t x = 0; x != pc2->width; ++x ) {
+        geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, pc2->header.frame_id, pc2->header.stamp );
+        printf( "tf.trans.y=%s\n", str(tf.transform.translation.y).c_str() );
+        tf2::doTransform( *pc2, pc2_tf_buf, tf );
+        p_nda_float_t pc2_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(pc2_tf_buf.height), uint32_t(pc2_tf_buf.width), uint32_t(pc2_gfs.size())}, vect_string{ "y","x","p" },"float" });
+        for( uint32_t y = 0; y != pc2_tf_buf.height; ++y ) {
+          uint8_t const * row = &pc2_tf_buf.data[pc2_tf_buf.row_step*y];
+          for( uint32_t x = 0; x != pc2_tf_buf.width; ++x ) {
             float * out = &pc2_nda->at2(y,x);
             for( auto gf = pc2_gfs.begin(); gf != pc2_gfs.end(); ++gf ) {
               *out = *((float const *)(row + gf->offset));
               ++out;
             }
-            row += pc2->point_step;
+            row += pc2_tf_buf.point_step;
           }
         }
         ret.nda = pc2_nda;
@@ -180,9 +214,12 @@ namespace boda
     
     virtual void data_stream_init( nesi_init_arg_t * nia ) {
       if( topics.empty() ) { rt_err( "rosbag-src: must specify at least one topic (first will be primary)" ); }
-      pc2_gfs = { pc2_gf_t{"x"}, pc2_gf_t{"y"}, pc2_gf_t{"z"} }; 
+      pc2_gfs = { pc2_gf_t{"x"}, pc2_gf_t{"y"}, pc2_gf_t{"z"} };
+      tf2_bc = make_shared< tf2::BufferCore >();
       bag.open( fn.exp, rosbag::bagmode::Read );
-      view = make_shared< rosbag::View >( bag, rosbag::TopicQuery(topics) );
+      vect_string topics_with_tf = topics;
+      topics_with_tf.push_back( "/tf" );
+      view = make_shared< rosbag::View >( bag, rosbag::TopicQuery(topics_with_tf) );
       vi = view->begin();
       for( uint32_t i = 0; i != topics.size(); ++i ) { must_insert( topic_to_ix, topics[i], i ); }
       msg_deques.resize( topics.size() );
