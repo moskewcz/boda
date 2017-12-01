@@ -49,10 +49,8 @@ namespace boda
 
   typedef map< string, vect_ros_marker_t > map_str_vect_ros_marker_t;
   
-  uint64_t get_ros_msg_timestamp( message_instance_t const & msg ) {
-    ros::Time const msg_time = msg.getTime();
-    return secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
-  }
+  uint64_t get_ros_timestamp( ros::Time const & t ) { return secs_and_nsecs_to_nsecs_signed( t.sec, t.nsec ); }
+  uint64_t get_ros_msg_timestamp( message_instance_t const & msg ) { return get_ros_timestamp( msg.getTime() ); }
   uint64_t ts_delta( uint64_t const & a, uint64_t const & b ) { return ( a > b ) ? ( a - b ) : ( b - a ); }
   
   struct pc2_gf_t {
@@ -132,13 +130,15 @@ namespace boda
       }
     }
 
+    // if prim_msg is null, msg is a primary message. otherise msg is secondary, and prim_msg is the corresponding primary msg.
     // if is_stale is true, don't emit a data_block, but use a topic/type dependent method to store/buffer any desired
     // information about msg to include in the next block for the given topic. note that, for correctness any cached
     // into must be stored *per topic*, using a map or the like. currently, most topics/types just drop stale
     // messages. but some, like markers, cache/buffer/batch messages.
-    void msg_to_db( bool const & is_primary, bool const & is_stale, data_block_t & ret, message_instance_t const & msg ) {
+    void msg_to_db( message_instance_t const * const prim_msg, bool const & is_stale,
+                    data_block_t & ret, message_instance_t const & msg ) {
       //printf( "msg.getDataType()=%s\n", str(msg.getDataType()).c_str() );
-      if( is_primary ) { assert_st( !is_stale ); } // should emit every primary msg, so it should never be marked stale
+      if( !prim_msg ) { assert_st( !is_stale ); } // should emit every primary msg, so it should never be marked stale
       if( msg.getDataType() == "sensor_msgs/Image" ) {
         if( is_stale ) { return; } // stale policy: drop
         sensor_msgs::Image::ConstPtr img = msg.instantiate<sensor_msgs::Image>();
@@ -206,9 +206,13 @@ namespace boda
         // if not stale, get all current points, but into nda.
         // filter buffered markers
         auto o = marker_buf.begin();
+        uint64_t cur_time = get_ros_msg_timestamp( prim_msg ? *prim_msg : msg );
         for( uint32_t i = 0; i != marker_buf.size(); ++i ) {
           auto const & m = marker_buf[i];
-          bool const keep = 1;
+          // FIXME: not really right i guess, should use original message bag timestamp, or maybe use header stamps for
+          // everything? wish i understood the ROS bag msg timestamp vs. header timestamp issue better.
+          uint64_t const marker_ts = get_ros_timestamp( m.header.stamp ); 
+          bool const keep = ts_delta( cur_time, marker_ts ) < (1000U*1000U*1000U*10U); 
           if( keep ) { *o = m; o++; }
         }
         marker_buf.erase( o, marker_buf.end() );
@@ -245,7 +249,7 @@ namespace boda
       read_up_to_primary_topic_msg(); // read up to *next* primary topic msg (if there is one)
 
       data_block_t pdb = db;
-      msg_to_db( 1, 0, pdb, prim_msg );
+      msg_to_db( 0, 0, pdb, prim_msg );
       ret.subblocks->at(0) = pdb;
       ret.timestamp_ns = ret.subblocks->at(0).timestamp_ns; // use primary timestamp as timeframe timestamp
       
@@ -254,7 +258,7 @@ namespace boda
         deque_message_instance_t & msg_deque = msg_deques.at(i);
         // first, drop any too-early-to-be-usefull message // FIXME: keep these messages for streams that can accumluate
         while( (msg_deque.size() > 1) && ( get_ros_msg_timestamp( msg_deque[1] ) < ret.timestamp_ns ) ) {
-          msg_to_db( 0, 1, sdb, msg_deque.front() );
+          msg_to_db( &prim_msg, 1, sdb, msg_deque.front() );
           msg_deque.pop_front();
         }
         // now: if there is a second message: (1) it must be >= the primary timestamp, and (2) the prior message must
@@ -264,11 +268,11 @@ namespace boda
           ( ts_delta( ret.timestamp_ns, get_ros_msg_timestamp( msg_deque[1] ) ) <
             ts_delta( ret.timestamp_ns, get_ros_msg_timestamp( msg_deque[0] ) ) );
         if( second_msg_is_closer ) {
-          msg_to_db( 0, 1, sdb, msg_deque.front() );
+          msg_to_db( &prim_msg, 1, sdb, msg_deque.front() );
           msg_deque.pop_front();
         } // FIXME: as above, accumulate this msg if desired
         
-        if( !msg_deque.empty() ) { msg_to_db( 0, 0, sdb, msg_deque.front() ); }
+        if( !msg_deque.empty() ) { msg_to_db( &prim_msg, 0, sdb, msg_deque.front() ); }
         ret.subblocks->at(i) = sdb;
       }
       return ret;
