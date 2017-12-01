@@ -43,7 +43,11 @@ namespace boda
 
   using geometry_msgs::Point;
   typedef vector< Point > vect_ros_point_t;
-  typedef map< string, vect_ros_point_t > map_str_vect_ros_point_t;
+
+  using visualization_msgs::Marker;
+  typedef vector< Marker > vect_ros_marker_t;
+
+  typedef map< string, vect_ros_marker_t > map_str_vect_ros_marker_t;
   
   uint64_t get_ros_msg_timestamp( message_instance_t const & msg ) {
     ros::Time const msg_time = msg.getTime();
@@ -91,7 +95,7 @@ namespace boda
     geometry_msgs::PoseStamped pose_tf_buf_out;
 
     // cached/buffered secondary topic data (stored per-topic)
-    map_str_vect_ros_point_t topic_point_bufs;
+    map_str_vect_ros_marker_t topic_marker_bufs;
     
     virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
 
@@ -186,27 +190,40 @@ namespace boda
         ret.nda = pc2_nda;
         ret.meta = "pointcloud";
       } else if( msg.getDataType() == "visualization_msgs/Marker" ) {
-        visualization_msgs::Marker::ConstPtr marker = msg.instantiate<visualization_msgs::Marker>();
-        vect_ros_point_t & point_buf = topic_point_bufs[msg.getTopic()];
+        visualization_msgs::Marker marker = *msg.instantiate<visualization_msgs::Marker>();
+        auto & marker_buf = topic_marker_bufs[msg.getTopic()];
         // for now, capture only the position, and only for cube markers
-        if( marker->type == 1 ) { 
-          pose_tf_buf_in.pose = marker->pose; // use a PoseStamped because ... there's no tf2 doTransform for regular Pose or Marker?
-          geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, marker->header.frame_id, ros::Time(0) ); // note: use last-known transform, not 'correct' one, to avoid 'extrapolate into past' error. was: // marker->header.stamp );
+        if( marker.type == 1 ) {
+          pose_tf_buf_in.pose = marker.pose; // use a PoseStamped because ... there's no tf2 doTransform for regular Pose or Marker?
+          geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, marker.header.frame_id, ros::Time(0) ); // note: use last-known transform, not 'correct' one, to avoid 'extrapolate into past' error. was: // marker->header.stamp );
           tf2::doTransform( pose_tf_buf_in, pose_tf_buf_out, tf );
-          auto const & pos = pose_tf_buf_out.pose.position;
+          marker.pose = pose_tf_buf_out.pose;
+          marker_buf.push_back( marker );          
+          auto const & pos = marker.pose.position;
           printf( "pos.x=%s pos.y=%s pos.z=%s\n", str(pos.x).c_str(), str(pos.y).c_str(), str(pos.z).c_str() );
-          point_buf.push_back( pos );
         }
         if( is_stale ) { return; } // stale policy: buffer // FIXME: use duration
         // if not stale, get all current points, but into nda.
-        p_nda_float_t marker_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(point_buf.size()), 3}, vect_string{ "v","p" },"float" });
-        for( uint32_t i = 0; i != point_buf.size(); ++i ) {
-          auto const & in = point_buf[i];
-          float * out = &marker_nda->at1(i);
-          out[0] = in.x;
-          out[1] = in.y;
-          out[2] = in.z;
+        // filter buffered markers
+        auto o = marker_buf.begin();
+        for( uint32_t i = 0; i != marker_buf.size(); ++i ) {
+          auto const & m = marker_buf[i];
+          bool const keep = 1;
+          if( keep ) { *o = m; o++; }
         }
+        marker_buf.erase( o, marker_buf.end() );
+        
+        // convert buffered markers to pointcloud
+        p_nda_float_t marker_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(marker_buf.size()), 3}, vect_string{ "v","p" },"float" });
+        for( uint32_t i = 0; i != marker_buf.size(); ++i ) {
+          auto const & m = marker_buf[i];
+          auto const & pt = m.pose.position;
+          float * out = &marker_nda->at1(i);
+          out[0] = pt.x;
+          out[1] = pt.y;
+          out[2] = pt.z;
+        }
+        
         ret.nda = marker_nda;
         ret.meta = "pointcloud";
       } else {
