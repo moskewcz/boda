@@ -17,6 +17,7 @@
 #include <sensor_msgs/CompressedImage.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <visualization_msgs/Marker.h>
 // #include <sensor_msgs/CameraInfo.h>
 
 // for transforms
@@ -26,6 +27,7 @@
 #include <tf/tfMessage.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 namespace boda 
 {
@@ -79,7 +81,10 @@ namespace boda
 
     vect_pc2_gf_t pc2_gfs; // named fields we must be able to extract to parse PointCloud2 messages (see init)
 
-    sensor_msgs::PointCloud2 pc2_tf_buf; // temporary to store transformed pointcloud2
+    // temporaries used to store into-frame_id-transformed messages
+    sensor_msgs::PointCloud2 pc2_tf_buf; 
+    geometry_msgs::PoseStamped pose_tf_buf_in;
+    geometry_msgs::PoseStamped pose_tf_buf_out;
 
     virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
 
@@ -150,7 +155,7 @@ namespace boda
         if( gfs_found != pc2_gfs.size() ) {
           rt_err( strprintf( "can't parse PointCloud2, only found gfs_found=%s fields, but needed pc2_gfs.size()=%s fields.", str(gfs_found).c_str(), str(pc2_gfs.size()).c_str() ) );
         }
-        geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, pc2->header.frame_id, pc2->header.stamp );
+        geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, pc2->header.frame_id, ros::Time(0) ); // note: use last-known transform, not 'correct' one, to avoid 'extrapolate into past' error. was: // pc2->header.stamp );
         tf2::doTransform( *pc2, pc2_tf_buf, tf );
         p_nda_float_t pc2_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(pc2_tf_buf.height), uint32_t(pc2_tf_buf.width), uint32_t(pc2_gfs.size())}, vect_string{ "y","x","p" },"float" });
         for( uint32_t y = 0; y != pc2_tf_buf.height; ++y ) {
@@ -165,6 +170,17 @@ namespace boda
           }
         }
         ret.nda = pc2_nda;
+        ret.meta = "pointcloud";
+      } else if( msg.getDataType() == "visualization_msgs/Marker" ) {
+        visualization_msgs::Marker::ConstPtr marker = msg.instantiate<visualization_msgs::Marker>();
+        pose_tf_buf_in.pose = marker->pose; // use a PoseStamped because ... there's no tf2 doTransform for regular Pose or Marker?
+        geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, marker->header.frame_id, ros::Time(0) ); // note: use last-known transform, not 'correct' one, to avoid 'extrapolate into past' error. was: // marker->header.stamp );
+        tf2::doTransform( pose_tf_buf_in, pose_tf_buf_out, tf );
+        auto const & pos = pose_tf_buf_out.pose.position;
+        
+        printf( "pos.x=%s pos.y=%s pos.z=%s\n", str(pos.x).c_str(), str(pos.y).c_str(), str(pos.z).c_str() );
+        // get all current points, but into nda
+        // p_nda_float_t pc2_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(pc2_tf_buf.height), uint32_t(pc2_tf_buf.width), uint32_t(pc2_gfs.size())}, vect_string{ "y","x","p" },"float" });
         ret.meta = "pointcloud";
       } else {
         rt_err( "rosbag-src: unhandled ros message type: " + msg.getDataType() );
