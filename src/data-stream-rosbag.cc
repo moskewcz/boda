@@ -41,6 +41,10 @@ namespace boda
   typedef std::deque< message_instance_t > deque_message_instance_t;
   typedef vector< deque_message_instance_t > vect_deque_message_instance_t;
 
+  using geometry_msgs::Point;
+  typedef vector< Point > vect_ros_point_t;
+  typedef map< string, vect_ros_point_t > map_str_vect_ros_point_t;
+  
   uint64_t get_ros_msg_timestamp( message_instance_t const & msg ) {
     ros::Time const msg_time = msg.getTime();
     return secs_and_nsecs_to_nsecs_signed( msg_time.sec, msg_time.nsec );
@@ -86,6 +90,9 @@ namespace boda
     geometry_msgs::PoseStamped pose_tf_buf_in;
     geometry_msgs::PoseStamped pose_tf_buf_out;
 
+    // cached/buffered secondary topic data (stored per-topic)
+    map_str_vect_ros_point_t topic_point_bufs;
+    
     virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
 
     // returns false if we get to end-of-stream before finding a primary msg, otherwise returns true
@@ -121,9 +128,15 @@ namespace boda
       }
     }
 
-    void msg_to_db( bool const & is_primary, data_block_t & ret, message_instance_t const & msg ) {
+    // if is_stale is true, don't emit a data_block, but use a topic/type dependent method to store/buffer any desired
+    // information about msg to include in the next block for the given topic. note that, for correctness any cached
+    // into must be stored *per topic*, using a map or the like. currently, most topics/types just drop stale
+    // messages. but some, like markers, cache/buffer/batch messages.
+    void msg_to_db( bool const & is_primary, bool const & is_stale, data_block_t & ret, message_instance_t const & msg ) {
       //printf( "msg.getDataType()=%s\n", str(msg.getDataType()).c_str() );
+      if( is_primary ) { assert_st( !is_stale ); } // should emit every primary msg, so it should never be marked stale
       if( msg.getDataType() == "sensor_msgs/Image" ) {
+        if( is_stale ) { return; } // stale policy: drop
         sensor_msgs::Image::ConstPtr img = msg.instantiate<sensor_msgs::Image>();
         //printf( "img->height=%s img->width=%s img->encoding=%s\n", str(img->height).c_str(), str(img->width).c_str(), str(img->encoding).c_str() );
         if( img->encoding != "bayer_bggr8" ) { rt_err( "unsupported image encoding in rosbag: " + img->encoding ); }
@@ -140,6 +153,7 @@ namespace boda
         ret.meta = "image";
         //uint64_t const img_ts = secs_and_nsecs_to_nsecs_signed( img->header.stamp.sec, img->header.stamp.nsec );
       } else if( msg.getDataType() == "sensor_msgs/PointCloud2" ) {
+        if( is_stale ) { return; } // stale policy: drop
         sensor_msgs::PointCloud2::ConstPtr pc2 = msg.instantiate<sensor_msgs::PointCloud2>();
         uint32_t gfs_found = 0;
         for( auto i = pc2->fields.begin(); i != pc2->fields.end(); ++i ) {
@@ -173,14 +187,27 @@ namespace boda
         ret.meta = "pointcloud";
       } else if( msg.getDataType() == "visualization_msgs/Marker" ) {
         visualization_msgs::Marker::ConstPtr marker = msg.instantiate<visualization_msgs::Marker>();
-        pose_tf_buf_in.pose = marker->pose; // use a PoseStamped because ... there's no tf2 doTransform for regular Pose or Marker?
-        geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, marker->header.frame_id, ros::Time(0) ); // note: use last-known transform, not 'correct' one, to avoid 'extrapolate into past' error. was: // marker->header.stamp );
-        tf2::doTransform( pose_tf_buf_in, pose_tf_buf_out, tf );
-        auto const & pos = pose_tf_buf_out.pose.position;
-        
-        printf( "pos.x=%s pos.y=%s pos.z=%s\n", str(pos.x).c_str(), str(pos.y).c_str(), str(pos.z).c_str() );
-        // get all current points, but into nda
-        // p_nda_float_t pc2_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(pc2_tf_buf.height), uint32_t(pc2_tf_buf.width), uint32_t(pc2_gfs.size())}, vect_string{ "y","x","p" },"float" });
+        vect_ros_point_t & point_buf = topic_point_bufs[msg.getTopic()];
+        // for now, capture only the position, and only for cube markers
+        if( marker->type == 1 ) { 
+          pose_tf_buf_in.pose = marker->pose; // use a PoseStamped because ... there's no tf2 doTransform for regular Pose or Marker?
+          geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, marker->header.frame_id, ros::Time(0) ); // note: use last-known transform, not 'correct' one, to avoid 'extrapolate into past' error. was: // marker->header.stamp );
+          tf2::doTransform( pose_tf_buf_in, pose_tf_buf_out, tf );
+          auto const & pos = pose_tf_buf_out.pose.position;
+          printf( "pos.x=%s pos.y=%s pos.z=%s\n", str(pos.x).c_str(), str(pos.y).c_str(), str(pos.z).c_str() );
+          point_buf.push_back( pos );
+        }
+        if( is_stale ) { return; } // stale policy: buffer // FIXME: use duration
+        // if not stale, get all current points, but into nda.
+        p_nda_float_t marker_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(point_buf.size()), 3}, vect_string{ "v","p" },"float" });
+        for( uint32_t i = 0; i != point_buf.size(); ++i ) {
+          auto const & in = point_buf[i];
+          float * out = &marker_nda->at1(i);
+          out[0] = in.x;
+          out[1] = in.y;
+          out[2] = in.z;
+        }
+        ret.nda = marker_nda;
         ret.meta = "pointcloud";
       } else {
         rt_err( "rosbag-src: unhandled ros message type: " + msg.getDataType() );
@@ -188,7 +215,6 @@ namespace boda
       ret.tag = "rosbag:"+msg.getTopic();
       ret.timestamp_ns = get_ros_msg_timestamp( msg );
       //printf( "ret.timestamp_ns=%s img_ts=%s\n", str(ret.timestamp_ns).c_str(), str(img_ts).c_str() );
-
     }
     
     virtual data_block_t proc_block( data_block_t const & db ) {
@@ -202,7 +228,7 @@ namespace boda
       read_up_to_primary_topic_msg(); // read up to *next* primary topic msg (if there is one)
 
       data_block_t pdb = db;
-      msg_to_db( 1, pdb, prim_msg );
+      msg_to_db( 1, 0, pdb, prim_msg );
       ret.subblocks->at(0) = pdb;
       ret.timestamp_ns = ret.subblocks->at(0).timestamp_ns; // use primary timestamp as timeframe timestamp
       
@@ -211,6 +237,7 @@ namespace boda
         deque_message_instance_t & msg_deque = msg_deques.at(i);
         // first, drop any too-early-to-be-usefull message // FIXME: keep these messages for streams that can accumluate
         while( (msg_deque.size() > 1) && ( get_ros_msg_timestamp( msg_deque[1] ) < ret.timestamp_ns ) ) {
+          msg_to_db( 0, 1, sdb, msg_deque.front() );
           msg_deque.pop_front();
         }
         // now: if there is a second message: (1) it must be >= the primary timestamp, and (2) the prior message must
@@ -219,9 +246,12 @@ namespace boda
         bool second_msg_is_closer = (msg_deque.size() > 1) &&
           ( ts_delta( ret.timestamp_ns, get_ros_msg_timestamp( msg_deque[1] ) ) <
             ts_delta( ret.timestamp_ns, get_ros_msg_timestamp( msg_deque[0] ) ) );
-        if( second_msg_is_closer ) { msg_deque.pop_front(); } // FIXME: as above, accumulate this msg if desired
+        if( second_msg_is_closer ) {
+          msg_to_db( 0, 1, sdb, msg_deque.front() );
+          msg_deque.pop_front();
+        } // FIXME: as above, accumulate this msg if desired
         
-        if( !msg_deque.empty() ) { msg_to_db( 0, sdb, msg_deque.front() ); }
+        if( !msg_deque.empty() ) { msg_to_db( 0, 0, sdb, msg_deque.front() ); }
         ret.subblocks->at(i) = sdb;
       }
       return ret;
