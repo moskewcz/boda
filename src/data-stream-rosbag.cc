@@ -49,6 +49,7 @@ namespace boda
 
   typedef map< string, vect_ros_marker_t > map_str_vect_ros_marker_t;
   
+  uint64_t get_ros_timestamp( ros::Duration const & t ) { return secs_and_nsecs_to_nsecs_signed( t.sec, t.nsec ); }
   uint64_t get_ros_timestamp( ros::Time const & t ) { return secs_and_nsecs_to_nsecs_signed( t.sec, t.nsec ); }
   uint64_t get_ros_msg_timestamp( message_instance_t const & msg ) { return get_ros_timestamp( msg.getTime() ); }
   uint64_t ts_delta( uint64_t const & a, uint64_t const & b ) { return ( a > b ) ? ( a - b ) : ( b - a ); }
@@ -212,7 +213,8 @@ namespace boda
           // FIXME: not really right i guess, should use original message bag timestamp, or maybe use header stamps for
           // everything? wish i understood the ROS bag msg timestamp vs. header timestamp issue better.
           uint64_t const marker_ts = get_ros_timestamp( m.header.stamp ); 
-          bool const keep = ts_delta( cur_time, marker_ts ) < (1000U*1000U*1000U*10U); 
+          bool const keep = ts_delta( cur_time, marker_ts ) < (1000U*1000U*1000U*10U); // FIXME: use real duration when viz ready
+          //bool const keep = ts_delta( cur_time, marker_ts ) < get_ros_timestamp( m.lifetime ); // FIXME: real duration version
           if( keep ) { *o = m; o++; }
         }
         marker_buf.erase( o, marker_buf.end() );
