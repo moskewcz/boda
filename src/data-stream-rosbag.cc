@@ -151,7 +151,6 @@ namespace boda
           rt_err( strprintf( "can't parse PointCloud2, only found gfs_found=%s fields, but needed pc2_gfs.size()=%s fields.", str(gfs_found).c_str(), str(pc2_gfs.size()).c_str() ) );
         }
         geometry_msgs::TransformStamped tf = tf2_bc->lookupTransform( frame_id, pc2->header.frame_id, pc2->header.stamp );
-        printf( "tf.trans.y=%s\n", str(tf.transform.translation.y).c_str() );
         tf2::doTransform( *pc2, pc2_tf_buf, tf );
         p_nda_float_t pc2_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(pc2_tf_buf.height), uint32_t(pc2_tf_buf.width), uint32_t(pc2_gfs.size())}, vect_string{ "y","x","p" },"float" });
         for( uint32_t y = 0; y != pc2_tf_buf.height; ++y ) {
