@@ -248,6 +248,9 @@ void main(){
 
     GLuint raw_cloud_programID;
     GLuint raw_cloud_mvp_id;
+    GLuint raw_cloud_pt_sz_id;
+    GLuint raw_cloud_pt_color_mode_id;
+    GLuint raw_cloud_pt_const_color_id;
 
     GLuint raw_cloud_pts_buf;
     
@@ -270,6 +273,13 @@ void main(){
       glUseProgram(raw_cloud_programID);
 
       glUniformMatrix4fv(raw_cloud_mvp_id, 1, GL_FALSE, &MVP[0][0]);
+      float const pt_sz = 2.0;
+      glUniform1f(raw_cloud_pt_sz_id, pt_sz);
+      uint32_t const pt_color_mode = 1;
+      glUniform1ui(raw_cloud_pt_color_mode_id, pt_color_mode);
+      vec3 const pt_const_color = vec3(1,1,1);
+      glUniform3fv(raw_cloud_pt_const_color_id, 1, &pt_const_color[0]);
+
       glEnableVertexAttribArray(0);
       
       glBindBuffer(GL_ARRAY_BUFFER, raw_cloud_pts_buf);
@@ -282,6 +292,9 @@ void main(){
     void init_raw_cloud( void ) {
       raw_cloud_programID = LoadShaders( verbose, *read_whole_fn( raw_cloud_vertex_shader_fn ), fragment_shader_code_str );
       raw_cloud_mvp_id = glGetUniformLocation(raw_cloud_programID, "MVP");
+      raw_cloud_pt_sz_id = glGetUniformLocation(raw_cloud_programID, "pt_sz");
+      raw_cloud_pt_color_mode_id = glGetUniformLocation(raw_cloud_programID, "pt_color_mode");
+      raw_cloud_pt_const_color_id = glGetUniformLocation(raw_cloud_programID, "pt_const_color");
       if( verbose ) { printf( "raw_cloud_programID=%s\n", str(raw_cloud_programID).c_str() ); }      
       glGenBuffers(1, &raw_cloud_pts_buf);
     }

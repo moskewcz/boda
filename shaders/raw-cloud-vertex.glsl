@@ -8,6 +8,10 @@ out vec3 fragmentColor;
 // Values that stay constant for the whole mesh.
 uniform mat4 MVP;
 
+uniform float pt_sz;
+uniform uint pt_color_mode;
+uniform vec3 pt_const_color;
+
 vec3 hsv2rgb(vec3 c) {
    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
@@ -18,8 +22,9 @@ void main(){
   // Output position of the vertex, in clip space : MVP * position
   gl_Position =  MVP * vec4(pt,1);
   float hue = (-1. + exp(-max(pt[2] - 0.5, 0.) / 1.5)) * 0.7 - 0.33;
-  fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0));
-  gl_PointSize = 2.;
+  if( pt_color_mode == 0U ) { fragmentColor = pt_const_color; }
+  else if( pt_color_mode == 1U ) { fragmentColor = hsv2rgb(vec3(hue, 0.8, 1.0)); }
+  gl_PointSize = pt_sz;
 
 }
 
