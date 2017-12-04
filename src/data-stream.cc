@@ -40,6 +40,23 @@ namespace boda
     }
   }
 
+  p_data_block_t data_block_t::get_sdb( string const & tag ) const {
+    if( !subblocks_by_tag ) { return p_data_block_t(); }
+    auto ret = subblocks_by_tag->find( tag );
+    if( ret == subblocks_by_tag->end() ) { return p_data_block_t(); }
+    return ret->second;
+  }
+  void data_block_t::set_sdb( p_data_block_t const & sdb ) {
+    if( !subblocks_by_tag ) { subblocks_by_tag = make_shared< map_str_p_data_block_t >(); }
+    if( sdb->tag.empty() ) { rt_err( "refusing to insert subblock_by_tag entry with empty tag" ); }
+    must_insert( *subblocks_by_tag, sdb->tag, sdb );
+  }
+  bool data_block_t::erase_sdb( string const & key ) {
+    if( !subblocks_by_tag ) { return false; }
+    return subblocks_by_tag->erase( key );
+  }
+
+
   struct data_stream_start_stop_skip_t : virtual public nesi, public data_stream_t // NESI(help="wrap another data stream and optionally: skip initial blocks and/or skip blocks after each returned block and/or limit the number of blocks returned.",
                              // bases=["data_stream_t"], type_id="start-stop-skip")
   {

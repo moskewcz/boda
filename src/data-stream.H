@@ -4,6 +4,7 @@
 
 #include"boda_base.H"
 #include"geom_prim.H"
+#include"op_base.H"
 #include<deque>
 
 namespace boda
@@ -12,9 +13,14 @@ namespace boda
   typedef lexp_name_val_map_t nesi_init_arg_t;
 
   struct data_block_t;
+  typedef shared_ptr< data_block_t > p_data_block_t;   
   typedef vector< data_block_t > vect_data_block_t; 
   typedef std::deque< data_block_t > deque_data_block_t; 
-  typedef shared_ptr< vect_data_block_t > p_vect_data_block_t; 
+  typedef shared_ptr< vect_data_block_t > p_vect_data_block_t;
+
+  typedef map< string, p_data_block_t > map_str_p_data_block_t;
+  typedef shared_ptr< map_str_p_data_block_t > p_map_str_p_data_block_t;
+  
   struct data_block_t {
     p_nda_t nda; // pointer to data block, null if no data (usually a borrowed pointer from data_stream_t. TODO: add clone/copy iface?
 
@@ -35,6 +41,7 @@ namespace boda
     p_img_t as_img; // if non-null, a image representation of this data (potentially smoothed/modified/etc)
     
     p_vect_data_block_t subblocks; // FIXME: make mapping from str->subblock? add meta data somewhere?
+
     data_block_t( void ) : need_more_in(0), have_more_out(0), frame_ix(uint64_t_const_max), timestamp_ns(uint64_t_const_max) { }
     bool has_subblocks( void ) const { return subblocks.get(); }
     void ensure_has_subblocks( void ) { if( !subblocks ) { subblocks = make_shared< vect_data_block_t >(); } }
@@ -52,6 +59,17 @@ namespace boda
       return ret;
     }
     string info_str( void ) const;
+
+  protected:
+    // for now, we're experimenting with named subblocks as being orthogonal to the indexed subblocks. in the event we
+    // *wanted* indexed subblocks, it's not clear how we'd integrate them with the named subblocks system. maybe
+    // lua-style integers-as-strings-as-keys would work, with some 'base' name that gave the size: i.e. a named vector
+    // 'vect' would have named subblocks vect_sz, vect_0, vect_1, ... where vect_sz was a u64 scalar that gave the size.
+    p_map_str_p_data_block_t subblocks_by_tag; // named subblocks (transitional/experimental, considering how to integrate with op_base and/or global namespace)
+  public:
+    p_data_block_t get_sdb( string const & tag ) const;
+    void set_sdb( p_data_block_t const & sdb );
+    bool erase_sdb( string const & key );
   protected:
     void info_str_int( string & prefix, string & out ) const;
   };
