@@ -31,6 +31,14 @@
 
 namespace boda 
 {
+  // FIXME: move to data-stream.H
+  p_data_block_t make_nda_db( string const & tag, p_nda_t const & nda ) {
+    p_data_block_t ret = make_shared< data_block_t >();
+    ret->tag = tag;
+    ret->nda = nda;
+    return ret;
+  }
+  
   using sensor_msgs::PointField;
   //note: no need to use a vect of PointField directly; we just use the one in our temp PointCloud2
   //typedef vector< PointField > vect_PointField;
@@ -213,8 +221,8 @@ namespace boda
           // FIXME: not really right i guess, should use original message bag timestamp, or maybe use header stamps for
           // everything? wish i understood the ROS bag msg timestamp vs. header timestamp issue better.
           uint64_t const marker_ts = get_ros_timestamp( m.header.stamp ); 
-          bool const keep = ts_delta( cur_time, marker_ts ) < (1000U*1000U*1000U*10U); // FIXME: use real duration when viz ready
-          //bool const keep = ts_delta( cur_time, marker_ts ) < get_ros_timestamp( m.lifetime ); // FIXME: real duration version
+          //bool const keep = ts_delta( cur_time, marker_ts ) < (1000U*1000U*1000U*10U); // FIXME: use real duration when viz ready
+          bool const keep = ts_delta( cur_time, marker_ts ) < get_ros_timestamp( m.lifetime ); // FIXME: real duration version
           if( keep ) { *o = m; o++; }
         }
         marker_buf.erase( o, marker_buf.end() );
@@ -232,6 +240,7 @@ namespace boda
         
         ret.nda = marker_nda;
         ret.meta = "pointcloud";
+        ret.set_sdb( make_nda_db( "pt_sz", make_scalar_nda<float>(20.0) ) );
       } else {
         rt_err( "rosbag-src: unhandled ros message type: " + msg.getDataType() );
       }

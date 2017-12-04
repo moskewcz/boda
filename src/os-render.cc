@@ -273,11 +273,17 @@ void main(){
       glUseProgram(raw_cloud_programID);
 
       glUniformMatrix4fv(raw_cloud_mvp_id, 1, GL_FALSE, &MVP[0][0]);
-      float const pt_sz = 2.0;
+      float pt_sz = 2.0;
+      uint32_t pt_color_mode = 1;
+      vec3 pt_const_color = vec3(1,1,1);
+      p_data_block_t pt_sz_sdb = db.get_sdb("pt_sz");
+      if( pt_sz_sdb ) {
+        pt_sz = SNE<float>(*pt_sz_sdb->nda);
+        pt_color_mode = 0;
+        pt_const_color = vec3(1,1,1);
+      }
       glUniform1f(raw_cloud_pt_sz_id, pt_sz);
-      uint32_t const pt_color_mode = 1;
       glUniform1ui(raw_cloud_pt_color_mode_id, pt_color_mode);
-      vec3 const pt_const_color = vec3(1,1,1);
       glUniform3fv(raw_cloud_pt_const_color_id, 1, &pt_const_color[0]);
 
       glEnableVertexAttribArray(0);
