@@ -77,6 +77,7 @@ namespace boda
     filename_t fn; //NESI(req=1,help="input filename")
     vect_string topics; //NESI(req=1,help="list of topics to read from bag")
     string frame_id; //NESI(default="base_link",help="for output points, what frame id to transform into")
+    uint32_t rot_90; //NESI(default="0",help="if 1, rotate data 90 CCW (y_out=x_ros_in; x_out=-y_ros_in).")
 
     rosbag::Bag bag;
     p_rosbag_view view;
@@ -98,7 +99,12 @@ namespace boda
     map_str_vect_ros_marker_t topic_marker_bufs;
     
     virtual string get_pos_info_str( void ) { return strprintf( "rosbag: status <TODO>" ); }
-
+    void do_pt_xform( float * const & pt ) {
+      if( rot_90 ) {
+        std::swap( pt[0], pt[1] );
+        pt[0] = -pt[0];
+      }
+    }
     // returns false if we get to end-of-stream before finding a primary msg, otherwise returns true
     bool read_up_to_primary_topic_msg( void ) {
       // read messages until we get to a primary topic message.
@@ -181,11 +187,13 @@ namespace boda
         for( uint32_t y = 0; y != pc2_tf_buf.height; ++y ) {
           uint8_t const * row = &pc2_tf_buf.data[pc2_tf_buf.row_step*y];
           for( uint32_t x = 0; x != pc2_tf_buf.width; ++x ) {
-            float * out = &pc2_nda->at2(y,x);
+            float * const out_orig = &pc2_nda->at2(y,x);
+            float * out = out_orig;
             for( auto gf = pc2_gfs.begin(); gf != pc2_gfs.end(); ++gf ) {
               *out = *((float const *)(row + gf->offset));
               ++out;
             }
+            do_pt_xform( out_orig );
             row += pc2_tf_buf.point_step;
           }
         }
@@ -201,7 +209,7 @@ namespace boda
           tf2::doTransform( pose_tf_buf_in, pose_tf_buf_out, tf );
           marker.pose = pose_tf_buf_out.pose;
           marker_buf.push_back( marker );          
-          auto const & pos = marker.pose.position;
+          //auto const & pos = marker.pose.position;
           //printf( "pos.x=%s pos.y=%s pos.z=%s\n", str(pos.x).c_str(), str(pos.y).c_str(), str(pos.z).c_str() );
         }
         if( is_stale ) { return; } // stale policy: buffer // FIXME: use duration
@@ -229,6 +237,7 @@ namespace boda
           out[0] = pt.x;
           out[1] = pt.y;
           out[2] = pt.z;
+          do_pt_xform( out );
         }
         
         ret.nda = marker_nda;

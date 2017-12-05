@@ -875,7 +875,7 @@ namespace boda
   // Y = xyDistance*costRotAngle;
   // Z = distance*sinVertAngle;
 
-  // so, this means that (color in veloview):
+  // so, this means that (color in veloview) the axis conventions are:
   // y forward (yellow)
   // x right (reg)
   // z up (green)

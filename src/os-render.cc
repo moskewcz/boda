@@ -273,7 +273,7 @@ void main(){
       glUniformMatrix4fv(raw_cloud_mvp_id, 1, GL_FALSE, &MVP[0][0]);
       float pt_sz = 2.0;
       uint32_t pt_color_mode = 1;
-      uint32_t pt_marker_mode = 0; // 0=point; 1= 1x2m boxes in YZ plane with bottom-center at anchor point
+      uint32_t pt_marker_mode = 0; // 0=point; 1= 1x2m boxes in XZ plane with bottom-center at anchor point
 
       vec3 pt_const_color = vec3(1,1,1);
       p_data_block_t pt_sz_sdb = db.get_sdb("pt_sz");
@@ -302,7 +302,7 @@ void main(){
             for( uint32_t pn = 0; pn != 2; ++pn ) {
               for( uint32_t be = 0; be != 2; ++be ) {
                 glm::vec3 pt = (glm::vec3 &)raw_cloud_pts.at1( ptix );
-                pt.y += (hv ? pn : be ) ? -1.0 : 1.0;
+                pt.x += (hv ? pn : be ) ? -1.0 : 1.0;
                 pt.z += (hv ? be : pn ) ? 2 : 0;
                 (glm::vec3 &)box_pts->at4(ptix,hv,pn,be) = pt;
               }
