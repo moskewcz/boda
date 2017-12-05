@@ -31,13 +31,6 @@
 
 namespace boda 
 {
-  // FIXME: move to data-stream.H
-  p_data_block_t make_nda_db( string const & tag, p_nda_t const & nda ) {
-    p_data_block_t ret = make_shared< data_block_t >();
-    ret->tag = tag;
-    ret->nda = nda;
-    return ret;
-  }
   
   using sensor_msgs::PointField;
   //note: no need to use a vect of PointField directly; we just use the one in our temp PointCloud2

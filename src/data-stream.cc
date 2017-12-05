@@ -56,6 +56,12 @@ namespace boda
     return subblocks_by_tag->erase( key );
   }
 
+  p_data_block_t make_nda_db( string const & tag, p_nda_t const & nda ) {
+    p_data_block_t ret = make_shared< data_block_t >();
+    ret->tag = tag;
+    ret->nda = nda;
+    return ret;
+  }
 
   struct data_stream_start_stop_skip_t : virtual public nesi, public data_stream_t // NESI(help="wrap another data stream and optionally: skip initial blocks and/or skip blocks after each returned block and/or limit the number of blocks returned.",
                              // bases=["data_stream_t"], type_id="start-stop-skip")
@@ -417,6 +423,67 @@ namespace boda
     }
   };
 
+  struct data_stream_flatten_t : virtual public nesi, public data_stream_t // NESI(
+                                 // help="take N data streams and output one block across all streams for each stream-block read.",
+                                 // bases=["data_stream_t"], type_id="flatten")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_p_data_stream_t streams; //NESI(help="input data streams")
+
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      bool had_true = 0;
+      for( uint32_t i = 0; i != streams.size(); ++i ) {
+        bool const res = streams[i]->seek_to_block( frame_ix );
+        if( !res ) {
+          if( !had_true ) { return false; } // failed on first sub-stream (i.e. all prior failed), so okay to return failure
+          rt_err( "flatten stream seek failed on non-first substream index " + str(i) );
+        }
+        had_true |= res;
+      }
+      return true;
+    }
+
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      for( uint32_t i = 0; i != streams.size(); ++i ) {  streams[i]->data_stream_init( nia );  }
+    }
+
+    virtual void set_opt( data_stream_opt_t const & opt ) { for( uint32_t i = 0; i != streams.size(); ++i ) { streams[i]->set_opt( opt ); } }
+
+    virtual string get_pos_info_str( void ) {
+      string ret = "flatten:\n";
+      for( uint32_t i = 0; i != streams.size(); ++i ) {
+        ret += "  " + str(i) + ": " + streams[i]->get_pos_info_str() + "\n";
+      }
+      return ret;
+    }
+
+    // we keep producing blocks until *all* streams are invalid, then we ret an invalid block
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      if( db.subblocks ) {
+        rt_err( strprintf( "data_stream_flatten: input data block must either have no subblocks\n" ) );
+      }
+      data_block_t ret = db;
+      ret.subblocks = make_shared<vect_data_block_t>();
+      for( uint32_t i = 0; i != streams.size(); ++i ) {
+        data_block_t stream_out = streams[i]->proc_block(db);
+        if( i == 0 ) { ret.timestamp_ns = stream_out.timestamp_ns; ret.frame_ix = stream_out.frame_ix; }
+        else {
+          if( (ret.timestamp_ns != stream_out.timestamp_ns) || (ret.frame_ix != stream_out.frame_ix) ) {
+            printf( "flatten: warning: timestamp/frame_ix mismatch: ret.info_str()=%s i=%s stream_out.info_str()=%s\n", str(ret.info_str()).c_str(), str(i).c_str(), str(stream_out.info_str()).c_str() );
+          }
+        }
+        if( !stream_out.subblocks ) {
+          rt_err( strprintf( "data_stream_flatten: all stream output data blocks must have subblocks\n" ) );
+        }
+        for( uint32_t i = 0; i != stream_out.num_subblocks() ; ++i ) {
+          ret.subblocks->push_back( stream_out.subblocks->at(i) );
+        }
+      }
+      return ret;
+    }
+  };
+
+  
   struct data_stream_fold_t : virtual public nesi, public data_stream_t // NESI(
                                // help="take a indexed subblock of a stream and move it to be a subsubblock of another indexed subblock.",
                                // bases=["data_stream_t"], type_id="fold")
@@ -449,12 +516,12 @@ namespace boda
       assert_st( db.num_subblocks() > 1 );
       data_block_t ret = db.clone();
       data_block_t fold_src_db = ret.subblocks->at( fold_src );
-      ret.subblocks->erase( ret.subblocks->begin() + fold_src );
       if( fold_targ ) {
         data_block_t & fold_targ_db = ret.subblocks->at( *fold_targ );
         fold_targ_db.ensure_has_subblocks();
         fold_targ_db.subblocks->push_back( fold_src_db );
       }
+      ret.subblocks->erase( ret.subblocks->begin() + fold_src );
       return ret;
     }
   };

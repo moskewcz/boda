@@ -75,6 +75,7 @@ namespace boda
   };
   std::ostream & operator << ( std::ostream & out, data_block_t const & db );
 
+  p_data_block_t make_nda_db( string const & tag, p_nda_t const & nda );
 
   // by convention:
   //  -- 'source' data_stream_t's are passed a default/empty data block (which they use generally use as a template). they generally do something like read a file as a side-effect.
