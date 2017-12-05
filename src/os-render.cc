@@ -157,11 +157,11 @@ void main(){
       grid_pts = make_shared<nda_float_t>( dims_t{ {grid_cells+1,2,2,3}, {"cell","xy","be","d"}, "float" } );
       for( uint32_t cell = 0; cell != grid_cells+1; ++cell ) {
         for( uint32_t xy = 0; xy != 2; ++xy ) {
-          for( uint32_t d = 0; d != 2; ++d ) {
-            float x = d ? half : -half;
+          for( uint32_t be = 0; be != 2; ++be ) {
+            float x = be ? half : -half;
             float y = (cell*grid_cell_sz - half);
             if( xy ) { std::swap(x,y); }
-            (glm::vec3 &)grid_pts->at3(cell,xy,d) = glm::vec3( x, y, 0.0f );
+            (glm::vec3 &)grid_pts->at3(cell,xy,be) = glm::vec3( x, y, 0.0f );
           }
         }
       }
@@ -267,31 +267,53 @@ void main(){
         rt_err( strprintf( "expected float data for raw point cloud, but had nda->dims=%s\n", str(nda->dims).c_str() ) ); 
       }
 
-      glBindBuffer(GL_ARRAY_BUFFER, raw_cloud_pts_buf );
-      glBufferData(GL_ARRAY_BUFFER, nda->dims.bytes_sz(), nda->rp_elems(), GL_STREAM_DRAW);
 
       glUseProgram(raw_cloud_programID);
 
       glUniformMatrix4fv(raw_cloud_mvp_id, 1, GL_FALSE, &MVP[0][0]);
       float pt_sz = 2.0;
       uint32_t pt_color_mode = 1;
+      uint32_t pt_marker_mode = 0; // 0=point; 1= 1x2m boxes in YZ plane with bottom-center at anchor point
+
       vec3 pt_const_color = vec3(1,1,1);
       p_data_block_t pt_sz_sdb = db.get_sdb("pt_sz");
       if( pt_sz_sdb ) {
         pt_sz = SNE<float>(*pt_sz_sdb->nda);
         pt_color_mode = 0;
+        pt_marker_mode = 1;
         pt_const_color = vec3(1,1,1);
       }
       glUniform1f(raw_cloud_pt_sz_id, pt_sz);
       glUniform1ui(raw_cloud_pt_color_mode_id, pt_color_mode);
       glUniform3fv(raw_cloud_pt_const_color_id, 1, &pt_const_color[0]);
-
-      glEnableVertexAttribArray(0);
       
-      glBindBuffer(GL_ARRAY_BUFFER, raw_cloud_pts_buf);
-      glVertexAttribPointer( 0, inner_dim_sz, GL_FLOAT, GL_FALSE, 0, (void *) 0 );
-
-      glDrawArrays(GL_POINTS, 0, nda->elems_sz() / inner_dim_sz );
+      uint32_t const raw_cloud_pts_sz = nda->elems_sz() / inner_dim_sz;
+      glEnableVertexAttribArray(0);
+      if( pt_marker_mode == 0 ) {
+        glBindBuffer(GL_ARRAY_BUFFER, raw_cloud_pts_buf );
+        glBufferData(GL_ARRAY_BUFFER, nda->dims.bytes_sz(), nda->rp_elems(), GL_STREAM_DRAW);
+        glVertexAttribPointer( 0, inner_dim_sz, GL_FLOAT, GL_FALSE, 0, (void *) 0 );
+        glDrawArrays(GL_POINTS, 0, raw_cloud_pts_sz );
+      } else if( pt_marker_mode == 1 ) {
+        nda_float_t raw_cloud_pts( nda );
+        p_nda_float_t box_pts = make_shared<nda_float_t>( dims_t{ {raw_cloud_pts_sz,2,2,2,inner_dim_sz}, {"pt","hv","pn","be","d"}, "float" } );
+        for( uint32_t ptix = 0; ptix != raw_cloud_pts_sz; ++ptix ) {
+          for( uint32_t hv = 0; hv != 2; ++hv ) {
+            for( uint32_t pn = 0; pn != 2; ++pn ) {
+              for( uint32_t be = 0; be != 2; ++be ) {
+                glm::vec3 pt = (glm::vec3 &)raw_cloud_pts.at1( ptix );
+                pt.y += (hv ? pn : be ) ? -1.0 : 1.0;
+                pt.z += (hv ? be : pn ) ? 2 : 0;
+                (glm::vec3 &)box_pts->at4(ptix,hv,pn,be) = pt;
+              }
+            }
+          }
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, raw_cloud_pts_buf );
+        glBufferData(GL_ARRAY_BUFFER, box_pts->dims.bytes_sz(), box_pts->rp_elems(), GL_STREAM_DRAW);
+        glVertexAttribPointer( 0, inner_dim_sz, GL_FLOAT, GL_FALSE, 0, (void *) 0 );
+        glDrawArrays(GL_LINES, 0, box_pts->elems_sz() / inner_dim_sz );
+      } else { rt_err( strprintf( "unknown pt_marker_mode=%s\n", str(pt_marker_mode).c_str() ) ); }
       glDisableVertexAttribArray(0);
     }
 
