@@ -209,7 +209,7 @@ namespace boda
           marker.pose = pose_tf_buf_out.pose;
           marker_buf.push_back( marker );          
           auto const & pos = marker.pose.position;
-          printf( "pos.x=%s pos.y=%s pos.z=%s\n", str(pos.x).c_str(), str(pos.y).c_str(), str(pos.z).c_str() );
+          //printf( "pos.x=%s pos.y=%s pos.z=%s\n", str(pos.x).c_str(), str(pos.y).c_str(), str(pos.z).c_str() );
         }
         if( is_stale ) { return; } // stale policy: buffer // FIXME: use duration
         // if not stale, get all current points, but into nda.
