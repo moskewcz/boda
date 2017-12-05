@@ -361,17 +361,15 @@ namespace boda
 	}
 	break;
       case SDL_MOUSEBUTTONDOWN:
-	if( event.button.button == SDL_BUTTON_RIGHT ) { asio->lb_event.set_is_lb(); on_lb( event.button.x, event.button.y ); }
-        else {
-	  pan_pin = i32_pt_t{event.button.x,event.button.y};
-	  pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
-          pan_orig_cam_x = cam_pos[0];
-          pan_orig_cam_y = cam_pos[1];
-          pan_orig_cam_z = cam_pos[2];
-          pan_orig_cam_rx = cam_rot[0];
-          pan_orig_cam_ry = cam_rot[1];
-          pan_orig_cam_rz = cam_rot[2];
-        }
+        pan_pin = i32_pt_t{event.button.x,event.button.y};
+        pan_orig_dr = i32_pt_t{displayrect->x,displayrect->y};
+        pan_orig_cam_x = cam_pos[0];
+        pan_orig_cam_y = cam_pos[1];
+        pan_orig_cam_z = cam_pos[2];
+        pan_orig_cam_rx = cam_rot[0];
+        pan_orig_cam_ry = cam_rot[1];
+        pan_orig_cam_rz = cam_rot[2];
+        if( event.button.button == SDL_BUTTON_RIGHT ) { asio->lb_event.set_is_lb(); on_lb( event.button.x, event.button.y ); }
 	break;
       case SDL_MOUSEMOTION:
         if( cam_mode == 0 ) { // 2D-adj
