@@ -428,44 +428,20 @@ namespace boda
                                  // bases=["data_stream_t"], type_id="flatten")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    vect_p_data_stream_t streams; //NESI(help="input data streams")
 
-    virtual bool seek_to_block( uint64_t const & frame_ix ) {
-      bool had_true = 0;
-      for( uint32_t i = 0; i != streams.size(); ++i ) {
-        bool const res = streams[i]->seek_to_block( frame_ix );
-        if( !res ) {
-          if( !had_true ) { return false; } // failed on first sub-stream (i.e. all prior failed), so okay to return failure
-          rt_err( "flatten stream seek failed on non-first substream index " + str(i) );
-        }
-        had_true |= res;
-      }
-      return true;
-    }
+    virtual bool seek_to_block( uint64_t const & frame_ix ) { return true; }
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) { }
 
-    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
-      for( uint32_t i = 0; i != streams.size(); ++i ) {  streams[i]->data_stream_init( nia );  }
-    }
+    virtual string get_pos_info_str( void ) { return "flatten: <no-state>\n"; }
 
-    virtual void set_opt( data_stream_opt_t const & opt ) { for( uint32_t i = 0; i != streams.size(); ++i ) { streams[i]->set_opt( opt ); } }
-
-    virtual string get_pos_info_str( void ) {
-      string ret = "flatten:\n";
-      for( uint32_t i = 0; i != streams.size(); ++i ) {
-        ret += "  " + str(i) + ": " + streams[i]->get_pos_info_str() + "\n";
-      }
-      return ret;
-    }
-
-    // we keep producing blocks until *all* streams are invalid, then we ret an invalid block
     virtual data_block_t proc_block( data_block_t const & db ) {
-      if( db.subblocks ) {
-        rt_err( strprintf( "data_stream_flatten: input data block must either have no subblocks\n" ) );
+      if( !db.has_subblocks() ) {
+        rt_err( strprintf( "data_stream_flatten: input data block must have subblocks\n" ) );
       }
       data_block_t ret = db;
       ret.subblocks = make_shared<vect_data_block_t>();
-      for( uint32_t i = 0; i != streams.size(); ++i ) {
-        data_block_t stream_out = streams[i]->proc_block(db);
+      for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
+        data_block_t stream_out = db.subblocks->at(i);
         if( i == 0 ) { ret.timestamp_ns = stream_out.timestamp_ns; ret.frame_ix = stream_out.frame_ix; }
         else {
           if( (ret.timestamp_ns != stream_out.timestamp_ns) || (ret.frame_ix != stream_out.frame_ix) ) {
@@ -483,7 +459,6 @@ namespace boda
     }
   };
 
-  
   struct data_stream_fold_t : virtual public nesi, public data_stream_t // NESI(
                                // help="take a indexed subblock of a stream and move it to be a subsubblock of another indexed subblock.",
                                // bases=["data_stream_t"], type_id="fold")
