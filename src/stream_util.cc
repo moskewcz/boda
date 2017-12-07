@@ -124,7 +124,8 @@ namespace boda
       addrinfo hints = {0};
       hints.ai_socktype = SOCK_STREAM; // want reliable communication, 
       hints.ai_protocol = IPPROTO_TCP; // ... with  TCP (minimally because we try to set TCP_NODELAY) ...
-      hints.ai_family = AF_UNSPEC; // but allow any family (IPv4 or IPv6). or, uncomment to force IPv4
+      hints.ai_family = AF_UNSPEC; // but allow any family (IPv4 or IPv6).
+      // hints.ai_family = AF_INET // uncomment to fortce IPv4
       hints.ai_flags = AI_PASSIVE|AI_ADDRCONFIG; // bind to wildcard, use AI_ADDRCONFIG scheme for filtering out IPv4/IPv6 if not in use
 
       int const aret = getaddrinfo( 0, port.c_str(), &hints, &rp_bind_addrs );
@@ -161,11 +162,15 @@ namespace boda
       addrinfo * rp_connect_addrs = 0;
       addrinfo hints = {0};
       hints.ai_socktype = SOCK_STREAM; // better be ... right? allow any family or protocol, though.
+      hints.ai_protocol = IPPROTO_TCP;
+      hints.ai_family = AF_UNSPEC;
+      // hints.ai_family = AF_INET // uncomment to fortce IPv4
       hints.ai_flags = AI_ADDRCONFIG; // use AI_ADDRCONFIG scheme for filtering out IPv4/IPv6 if not in use
       int const aret = getaddrinfo( host_and_port[1].c_str(), host_and_port[2].c_str(), &hints, &rp_connect_addrs );
       if( aret != 0 ) { rt_err( strprintf("getaddrinfo(\"%s\") failed: %s", parent_addr.c_str(), gai_strerror( aret ) ) ); }
       addrinfo * rpa = rp_connect_addrs; // for now, only try first returned addr
       assert_st( fd == -1 );
+      // printf( "rpa->ai_family=%s rpa->ai_socktype=%s rpa->ai_protocol=%s\n", str(rpa->ai_family).c_str(), str(rpa->ai_socktype).c_str(), str(rpa->ai_protocol).c_str() );
       fd = socket( rpa->ai_family, rpa->ai_socktype, rpa->ai_protocol );
       if( fd == -1 ) { rt_err( string("error creating socket for connect: ") + strerror(errno) ); }
       int const ret = connect( fd, rpa->ai_addr, rpa->ai_addrlen );
