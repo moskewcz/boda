@@ -1,3 +1,7 @@
+// Copyright (c) 2017, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
+#ifndef ASIO_UTIL_H
+#define ASIO_UTIL_H
+
 #include"boda_base.H"
 
 #include"str_util.H"
@@ -152,3 +156,4 @@ namespace boda {
   void create_boda_worker( io_service_t & io, p_asio_alss_t & alss, vect_string const & args );
 
 }
+#endif /* ASIO_UTIL_H */
