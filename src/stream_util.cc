@@ -83,11 +83,12 @@ namespace boda
 					 str(level).c_str(), str(optname).c_str(), strerror( errno ) ) ); }
   }
   struct sock_stream_t : public stream_t {
+    bool is_worker;
     int fd; 
     int listen_fd; // listen_fd is only used on server (bind/listen/accept) side of connection. technically we only need
 		   // one fd at a time, but it seems less confusing to have two explict ones for the two usages.
-    sock_stream_t( void ) : fd(-1), listen_fd(-1) { }
-    sock_stream_t( string const & boda_parent_addr, bool const & is_worker ) : fd(-1), listen_fd(-1) { 
+    sock_stream_t( void ) : is_worker(0), fd(-1), listen_fd(-1) { }
+    sock_stream_t( string const & boda_parent_addr, bool const & is_worker_ ) : is_worker(is_worker_), fd(-1), listen_fd(-1) { 
       vect_string host_and_port = split( boda_parent_addr, ':' );
       assert_st( host_and_port[0] == "tcp" ); // should not be here otherwise
       if( host_and_port.size() != 3 ) { rt_err( "for the tcp method, boda_parent_addr must consist of three ':' seperated fields,"
@@ -160,6 +161,7 @@ namespace boda
       addrinfo * rp_connect_addrs = 0;
       addrinfo hints = {0};
       hints.ai_socktype = SOCK_STREAM; // better be ... right? allow any family or protocol, though.
+      hints.ai_flags = AI_ADDRCONFIG; // use AI_ADDRCONFIG scheme for filtering out IPv4/IPv6 if not in use
       int const aret = getaddrinfo( host_and_port[1].c_str(), host_and_port[2].c_str(), &hints, &rp_connect_addrs );
       if( aret != 0 ) { rt_err( strprintf("getaddrinfo(\"%s\") failed: %s", parent_addr.c_str(), gai_strerror( aret ) ) ); }
       addrinfo * rpa = rp_connect_addrs; // for now, only try first returned addr
@@ -171,22 +173,26 @@ namespace boda
       flush(); // see above comment in accept_and_stop_listen()
       freeaddrinfo( rp_connect_addrs );
     }
-    void write( char const * const & d, size_t const & sz ) { 
+    void write( char const * const & d, size_t const & sz ) {
+      if( fd == -1 ) { rt_err( "socket_stream_t::write(): no open stream (didn't connect-to-worker/wait-for-worker-to-connect?)"); }
       size_t sz_written = 0;
       assert_st( sz );
       while( sz_written < sz ) { 
 	int const ret = send( fd, d + sz_written, sz - sz_written, MSG_NOSIGNAL | MSG_MORE );
-	if( ret == -1 ) { if( errno == EINTR ) { continue; } else { rt_err( string("socket write error: ") + strerror( errno ) ); } }
+	if( ret == -1 ) { if( errno == EINTR ) { continue; } else { fd = -1; rt_err( string("socket-write-error: ") + strerror( errno ) ); } }
+        if( ret == 0 ) { fd = -1; rt_err( "socket-write-error, ret = 0" ); }
 	assert_st( ret > 0 ); // FIXME: other returns possible? make into rt_err() call?
 	sz_written += ret;
       }
     }
-    void read( char * const & d, size_t const & sz ) { 
+    void read( char * const & d, size_t const & sz ) {
+      if( fd == -1 ) { rt_err( "socket_stream_t::write(): no open stream (didn't connect-to-worker/wait-for-worker-to-connect?)"); }
       size_t sz_read = 0;
       assert_st( sz );
       while( sz_read < sz ) { 
 	int const ret = recv( fd, d + sz_read, sz - sz_read, 0 );
-	if( ret == -1 ) { if( errno == EINTR ) { continue; } else { rt_err( string("socket read error: ") + strerror( errno ) ); } }
+	if( ret == -1 ) { if( errno == EINTR ) { continue; } else { fd = -1; rt_err( string("socket-read-error: ") + strerror( errno ) ); } }
+        if( ret == 0 ) { fd = -1; rt_err( "socket-read-error, ret = 0 (eof?)" ); }
 	assert_st( ret > 0 ); // FIXME: other returns possible? make into rt_err() call?
 	sz_read += ret;
       }
