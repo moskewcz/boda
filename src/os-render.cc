@@ -376,7 +376,6 @@ void main(){
         for( vect_laser_corr_t::iterator i = laser_corrs_to_bind.begin(); i != laser_corrs_to_bind.end(); ++i ) {  (*i).rot_corr = 0.0; }
         std::sort( laser_corrs_to_bind.begin(), laser_corrs_to_bind.end(), laser_corr_t_by_vert_corr() );
       } 
-      
       glActiveTexture(GL_TEXTURE0);
       glBindBuffer(GL_TEXTURE_BUFFER, cloud_lut_buf);
       glBufferData(GL_TEXTURE_BUFFER, laser_corrs_to_bind.size()*sizeof(laser_corrs_to_bind[0]), laser_corrs_to_bind.data(), GL_STATIC_DRAW);
