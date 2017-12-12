@@ -1015,21 +1015,27 @@ namespace boda
 
       for( uint32_t y = 0; y != xy_sz.d[1] ; ++y ) {
         laser_corr_t const & lc = laser_corrs.at(y);
+
+        float const elev_ang = radians( lc.vert_corr );
+
+        float const dist_corr =  lc.dist_corr / 100.;
+        float const off_corr_vert = lc.off_corr_vert / 100.;
+        float const off_corr_horiz = lc.off_corr_horiz / 100.;
+        
         for( uint32_t x = 0; x != xy_sz.d[0] ; ++x ) {
           float * const xyz = &xyz_nda->at2(y,x);
-          float const dist = float(pcdm_nda.at2(y,x)) * dist_scale;
-          float const elev_ang = radians( lc.vert_corr );
+          float const dist = float(pcdm_nda.at2(y,x)) * dist_scale + dist_corr;
           float const azi_ang = radians(float(azi_nda_u16.at1(x))/100.0f - lc.rot_corr );
-
+          
           float const sin_azi = sin(azi_ang);
           float const cos_azi = cos(azi_ang);
           float const sin_elev = sin(elev_ang);
           float const cos_elev = cos(elev_ang);
-
-          float const dist_xy = dist * cos_elev; // elev 0 --> dist_xy = dist
-          xyz[0] = dist_xy * sin_azi + x_offset; // azi 0 --> x = 0; y = dist_xy
-          xyz[1] = dist_xy * cos_azi + y_offset;
-          xyz[2] = dist * sin_elev + z_offset;
+          
+          float const dist_xy = dist * cos_elev - off_corr_vert * sin_elev; // elev 0 --> dist_xy = dist
+          xyz[0] = dist_xy * sin_azi - off_corr_horiz * cos_azi + x_offset; // azi 0 --> x = 0; y = dist_xy
+          xyz[1] = dist_xy * cos_azi + off_corr_horiz * sin_azi + y_offset;
+          xyz[2] = dist * sin_elev + off_corr_vert + z_offset;
         }
       }
            
