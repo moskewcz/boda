@@ -33,7 +33,7 @@ namespace boda
   typedef boost::circular_buffer<status_info_t> status_ring_t;
   
   std::ostream & operator <<(std::ostream & os, laser_corr_t const & v) {
-    os << strprintf( "vert_corr=%s rot_corr=%s dist_corr=%s dist_corr_x=%s dist_corr_y=%s off_corr_y=%s off_corr_x=%s focal_dist=%s focal_slope=%s", str(v.vert_corr).c_str(), str(v.rot_corr).c_str(), str(v.dist_corr).c_str(), str(v.dist_corr_x).c_str(), str(v.dist_corr_y).c_str(), str(v.off_corr_y).c_str(), str(v.off_corr_x).c_str(), str(v.focal_dist).c_str(), str(v.focal_slope).c_str() );
+    os << strprintf( "vert_corr=%s rot_corr=%s dist_corr=%s dist_corr_x=%s dist_corr_y=%s off_corr_vert=%s off_corr_horiz=%s focal_dist=%s focal_slope=%s", str(v.vert_corr).c_str(), str(v.rot_corr).c_str(), str(v.dist_corr).c_str(), str(v.dist_corr_x).c_str(), str(v.dist_corr_y).c_str(), str(v.off_corr_vert).c_str(), str(v.off_corr_horiz).c_str(), str(v.focal_dist).c_str(), str(v.focal_slope).c_str() );
     return os;
   }
 
@@ -386,8 +386,8 @@ namespace boda
         laser_corr.dist_corr = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
         laser_corr.dist_corr_x = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
         laser_corr.dist_corr_y = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
-        laser_corr.off_corr_y = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
-        laser_corr.off_corr_x = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+        laser_corr.off_corr_vert = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
+        laser_corr.off_corr_horiz = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
         laser_corr.focal_dist = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
         laser_corr.focal_slope = get_float_from_config_int16_t( real_config_data, pos ) / 10.0f;
       }
@@ -589,8 +589,8 @@ namespace boda
       laser_corr.dist_corr = lc_str_d( xml_must_decend( fn, px, "distCorrection_" ).child_value() );
       laser_corr.dist_corr_x = lc_str_d( xml_must_decend( fn, px, "distCorrectionX_" ).child_value() );
       laser_corr.dist_corr_y = lc_str_d( xml_must_decend( fn, px, "distCorrectionY_" ).child_value() );
-      laser_corr.off_corr_y = lc_str_d( xml_must_decend( fn, px, "vertOffsetCorrection_" ).child_value() );
-      laser_corr.off_corr_x = lc_str_d( xml_must_decend( fn, px, "horizOffsetCorrection_" ).child_value() );
+      laser_corr.off_corr_vert = lc_str_d( xml_must_decend( fn, px, "vertOffsetCorrection_" ).child_value() );
+      laser_corr.off_corr_horiz = lc_str_d( xml_must_decend( fn, px, "horizOffsetCorrection_" ).child_value() );
       laser_corr.focal_dist = lc_str_d( xml_must_decend( fn, px, "focalDistance_" ).child_value() );
       laser_corr.focal_slope = lc_str_d( xml_must_decend( fn, px, "focalSlope_" ).child_value() );
 
@@ -660,8 +660,8 @@ namespace boda
                            str(laser_corr.dist_corr).c_str(),
                            str(laser_corr.dist_corr).c_str(),
                            str(laser_corr.dist_corr_y).c_str(),
-                           str(laser_corr.off_corr_y).c_str(),
-                           str(laser_corr.off_corr_x).c_str(),
+                           str(laser_corr.off_corr_vert).c_str(),
+                           str(laser_corr.off_corr_horiz).c_str(),
                            str(laser_corr.focal_dist).c_str(),
                            str(laser_corr.focal_slope).c_str() );
       

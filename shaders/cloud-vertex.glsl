@@ -26,8 +26,8 @@ struct laser_corr_t {
     float dist_corr;    
     float dist_corr_x;
     float dist_corr_y;
-    float off_corr_y;
-    float off_corr_x;
+    float off_corr_vert;
+    float off_corr_horiz;
     float focal_dist;
     float focal_slope;
  };
