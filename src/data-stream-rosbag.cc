@@ -62,6 +62,15 @@ namespace boda
   };
   typedef vector< pc2_gf_t > vect_pc2_gf_t; 
 
+  struct ros_stream_dump_t {
+    vect_uint8_t buf;
+    char * advance( size_t const & sz ) {
+      size_t const cur_pos = buf.size();
+      buf.resize( buf.size() + sz );
+      return (char *)&buf[cur_pos];
+    }
+  };
+  
   // if there are multiple topics, the first topic will be considered the 'primary' topic, and one data block will be
   // emitted per message on that topic. other topics will be synced to the primary topic by choosing the message from
   // each other topic closest in time to the primary topic message. in general, this means that messages on non-primary
@@ -78,6 +87,7 @@ namespace boda
     vect_string topics; //NESI(req=1,help="list of topics to read from bag")
     string frame_id; //NESI(default="base_link",help="for output points, what frame id to transform into")
     uint32_t rot_90; //NESI(default="0",help="if 1, rotate data 90 CCW (y_out=x_ros_in; x_out=-y_ros_in).")
+    uint32_t dump_unhandled_msgs_as_binary; //NESI(default="0",help="if 1, messages of unknown type will be emitted as raw binary data.")
 
     rosbag::Bag bag;
     p_rosbag_view view;
@@ -227,22 +237,36 @@ namespace boda
           if( keep ) { *o = m; o++; }
         }
         marker_buf.erase( o, marker_buf.end() );
+        if( marker_buf.size() ) {
+          // convert buffered markers to pointcloud
+          p_nda_float_t marker_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(marker_buf.size()), 3}, vect_string{ "v","p" },"float" });
+          for( uint32_t i = 0; i != marker_buf.size(); ++i ) {
+            auto const & m = marker_buf[i];
+            auto const & pt = m.pose.position;
+            float * out = &marker_nda->at1(i);
+            out[0] = pt.x;
+            out[1] = pt.y;
+            out[2] = pt.z;
+            do_pt_xform( out );
+          }
         
-        // convert buffered markers to pointcloud
-        p_nda_float_t marker_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{uint32_t(marker_buf.size()), 3}, vect_string{ "v","p" },"float" });
-        for( uint32_t i = 0; i != marker_buf.size(); ++i ) {
-          auto const & m = marker_buf[i];
-          auto const & pt = m.pose.position;
-          float * out = &marker_nda->at1(i);
-          out[0] = pt.x;
-          out[1] = pt.y;
-          out[2] = pt.z;
-          do_pt_xform( out );
+          ret.nda = marker_nda;
+          ret.meta = "pointcloud";
+          ret.set_sdb( make_nda_db( "pt_sz", make_scalar_nda<float>(20.0) ) );
+        } else {
+          // leave block invalid, will be ignored
         }
-        
-        ret.nda = marker_nda;
-        ret.meta = "pointcloud";
-        ret.set_sdb( make_nda_db( "pt_sz", make_scalar_nda<float>(20.0) ) );
+      } else if( dump_unhandled_msgs_as_binary ) {
+        // for now, we don't try to actually instantiate this message, but only to dump the raw bytes from the bag. this
+        // may or may not be a usefull thing to do ... for message like can_msgs/Frame, that are known but not
+        // compiled/enabled for our version of ROS, there's some hope we can find the right message type, but for other
+        // unknown types we're at the mercy of the ros serialization method that we havn't investigated yet.
+        ros_stream_dump_t rsd;
+        msg.write( rsd );
+        ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(rsd.buf.size())}, vect_string{"v"},"uint8_t" });
+        std::copy( rsd.buf.begin(), rsd.buf.end(), (uint8_t *)ret.d() );
+        assert_st( ret.nda );
+        ret.meta = msg.getDataType();
       } else {
         rt_err( "rosbag-src: unhandled ros message type: " + msg.getDataType() );
       }
