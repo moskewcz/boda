@@ -293,6 +293,24 @@ namespace boda
       }
     }
   };
+  
+  // output stream to text file, one block per line, as hex, with no header
+  struct data_sink_text_t : virtual public nesi, public data_sink_file_t // NESI(help="output stream of data blocks as text (line-oriented)",
+                             // bases=["data_sink_file_t"], type_id="text-sink")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+
+    virtual string get_pos_info_str( void ) { return string("data_sink_text: wrote <NOT_IMPL> lines to:") + data_sink_file_t::get_pos_info_str(); }
+
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      data_sink_file_t::data_stream_init( nia );
+    }
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      if( !db.nda ) { rt_err( "data-sink-text: expected data block to have data, but db.nda was null."); }
+      bwrite_bytes( *out, (char const *)db.d(), db.sz() );
+      return db;
+    }
+  };
 
   // parse stream from text file, one block per line, with a one-line header (which is currently ignored)
   struct data_stream_csv_t : virtual public nesi, public data_stream_file_t // NESI(help="parse csv stream into data blocks",
