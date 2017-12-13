@@ -7,6 +7,7 @@
 #include"data-stream.H"
 #include"data-stream-file.H"
 #include"ext/half.hpp" // for adj-angle over nda elems, which might be half
+#include<boost/algorithm/hex.hpp>
 
 namespace boda 
 {
@@ -307,7 +308,9 @@ namespace boda
     }
     virtual data_block_t proc_block( data_block_t const & db ) {
       if( !db.nda ) { rt_err( "data-sink-text: expected data block to have data, but db.nda was null."); }
-      bwrite_bytes( *out, (char const *)db.d(), db.sz() );
+      string hex;
+      boost::algorithm::hex( (char const *)db.d(), (char const *)db.d()+db.sz(), std::back_inserter( hex ) );
+      (*out) << hex << "\n";
       return db;
     }
   };
