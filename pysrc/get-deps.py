@@ -30,17 +30,21 @@ class GetDeps(object):
         ldd_out = ldd_out.decode(sysde).split("\n")
         self.tp = ThreadPool(self.args.num_threads)
         self.tp_calls = []
+        self.indirect_deps = []
         for ldd_line in ldd_out:
             parts = ldd_line.split()
             if (not len(parts)) or (parts[0] == "linux-vdso.so.1"): continue
             for i,p in enumerate(parts):
                 if p == "=>": self.proc_dep( parts[i+1] )
-
+        print("ignoring indirect deps: "+ ",".join([fn for fn in self.indirect_deps]))
+        print("calling dpkg for direct deps: "+ ",".join([fn for fn,tp_call in self.tp_calls]))
+        # TODO: check that all entries in self.libnames got used
+        # TODO: progress monitor?
         # wait for dpkg -S cmds to finish
         self.tp.close()
         self.tp.join()
-        for tp_call in self.tp_calls:
-            pkg,fn = tp_call.get() # raise expection if there was problem
+        for fn,tp_call in self.tp_calls:
+            pkg = tp_call.get() # raise expection if there was problem
             self.needs[pkg].add(fn)
                 
     def proc_dep(self, dep):
@@ -49,18 +53,23 @@ class GetDeps(object):
         if not os.path.isfile(dep):
             raise ValueError( "dep %r isn't a regular file" % dep )
         # optionally, check if we explictly linked to this file
-        self.tp_calls.append(self.tp.apply_async(self.file_get_pgk,(dep,)))
-
+        # FIXME: need to check some prefix of dep, but it's a little unclear what. the current version is certainly wrong.
+        depbase = os.path.split(dep)[1].split('.')[0]
+        if depbase in self.libnames:
+            self.tp_calls.append((dep,self.tp.apply_async(self.file_get_pgk,(dep,))))
+        else:
+            self.indirect_deps.append( dep )
+        
         
     def file_get_pgk(self, fn):
         try:
             out = subprocess.run( ["dpkg","-S",fn], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE ).stdout
             out = out.decode(sysde).split(":")
-            return (out[0],fn)
+            return out[0]
         except subprocess.CalledProcessError as e:
             err_out = e.stderr.decode(sysde)
             if err_out.startswith( "dpkg-query: no path found matching pattern" ):
-                return ("no-package-found",fn)
+                return "no-package-found"
             else:
                 raise
 
