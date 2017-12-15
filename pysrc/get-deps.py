@@ -9,9 +9,20 @@ sysde = sys.getdefaultencoding()
 class GetDeps(object):
     def __init__(self, args):
         self.args = args
+        self.libnames = set()
         self.needs = defaultdict( set )
+        self.get_link_libs()
         self.get_ldd_deps()
         self.get_manual_pkgs()
+
+    def get_link_libs(self):
+        ldflags = open(args.LDFLAGS_fn).read()
+        ldflags = ldflags.split()
+        for ldflag in ldflags:
+            if not ldflag.startswith('-l'):
+                continue
+            libname = "lib"+ldflag[2:]
+            self.libnames.add(libname)
         
     def get_ldd_deps(self):
         ldd_out = subprocess.run( ["ldd",self.args.exe_fn], check=True, stdout=subprocess.PIPE ).stdout
@@ -27,6 +38,8 @@ class GetDeps(object):
             raise ValueError( "dep %r doesn't start with path seperator (i.e. isn't an absolute path), refusing to handle" % dep )
         if not os.path.isfile(dep):
             raise ValueError( "dep %r isn't a regular file" % dep )
+        # optionally, check if we explictly linked to this file
+        
         self.file_get_pgk(dep)
         
     def file_get_pgk(self, fn):
@@ -53,6 +66,7 @@ class GetDeps(object):
 import argparse
 parser = argparse.ArgumentParser(description='use ldd and apt to get list of debian/ubuntu packages needed to run an exe')
 parser.add_argument('--exe-fn', default="../../lib/boda", metavar="FN", type=str, help="exe to analyze")
+parser.add_argument('--LDFLAGS-fn', default="../../obj/LDFLAGS.txt", metavar="FN", type=str, help="list of link-time libs (i.e. LDFLAGS)")
 
 args = parser.parse_args()
 gd = GetDeps(args)
