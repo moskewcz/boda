@@ -16,6 +16,7 @@ obj/makefile
 obj/prebuild.okay
 obj/*.pb.cc
 obj/*.pb.h
+obj/LDFLAGS.txt
 obj2
 obj-px2b
 obj-nortc
