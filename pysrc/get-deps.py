@@ -3,6 +3,7 @@ import sys
 import os
 import subprocess
 from collections import defaultdict
+from multiprocessing.pool import ThreadPool
 
 sysde = sys.getdefaultencoding()
 
@@ -27,30 +28,39 @@ class GetDeps(object):
     def get_ldd_deps(self):
         ldd_out = subprocess.run( ["ldd",self.args.exe_fn], check=True, stdout=subprocess.PIPE ).stdout
         ldd_out = ldd_out.decode(sysde).split("\n")
+        self.tp = ThreadPool(self.args.num_threads)
+        self.tp_calls = []
         for ldd_line in ldd_out:
             parts = ldd_line.split()
             if (not len(parts)) or (parts[0] == "linux-vdso.so.1"): continue
             for i,p in enumerate(parts):
                 if p == "=>": self.proc_dep( parts[i+1] )
 
+        # wait for dpkg -S cmds to finish
+        self.tp.close()
+        self.tp.join()
+        for tp_call in self.tp_calls:
+            pkg,fn = tp_call.get() # raise expection if there was problem
+            self.needs[pkg].add(fn)
+                
     def proc_dep(self, dep):
         if dep[0] != os.path.sep:
             raise ValueError( "dep %r doesn't start with path seperator (i.e. isn't an absolute path), refusing to handle" % dep )
         if not os.path.isfile(dep):
             raise ValueError( "dep %r isn't a regular file" % dep )
         # optionally, check if we explictly linked to this file
-        
-        self.file_get_pgk(dep)
+        self.tp_calls.append(self.tp.apply_async(self.file_get_pgk,(dep,)))
+
         
     def file_get_pgk(self, fn):
         try:
             out = subprocess.run( ["dpkg","-S",fn], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE ).stdout
             out = out.decode(sysde).split(":")
-            self.needs[out[0]].add(fn)
+            return (out[0],fn)
         except subprocess.CalledProcessError as e:
             err_out = e.stderr.decode(sysde)
             if err_out.startswith( "dpkg-query: no path found matching pattern" ):
-                self.needs["no-package-found"].add(fn)
+                return ("no-package-found",fn)
             else:
                 raise
 
@@ -65,6 +75,7 @@ class GetDeps(object):
         
 import argparse
 parser = argparse.ArgumentParser(description='use ldd and apt to get list of debian/ubuntu packages needed to run an exe')
+parser.add_argument('--num-threads', default=8, metavar="NUM", type=int, help="number of threads to use in thread pool")
 parser.add_argument('--exe-fn', default="../../lib/boda", metavar="FN", type=str, help="exe to analyze")
 parser.add_argument('--LDFLAGS-fn', default="../../obj/LDFLAGS.txt", metavar="FN", type=str, help="list of link-time libs (i.e. LDFLAGS)")
 
