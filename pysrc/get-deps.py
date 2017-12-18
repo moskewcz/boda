@@ -7,6 +7,12 @@ from multiprocessing.pool import ThreadPool
 
 sysde = sys.getdefaultencoding()
 
+def resolve_link(fn):
+    # while fn is a link, resolve it, ending in a concrete file.
+    while os.path.islink(fn):
+        fn = os.path.join(os.path.dirname(fn), os.readlink(fn))
+    return fn
+
 class GetDeps(object):
     def __init__(self, args):
         self.args = args
@@ -35,19 +41,45 @@ class GetDeps(object):
         # files the exe is linking to, as well as the set of all
         # directories used across all these dependencies. we use this
         # as a proxy for the runtime link search path. this isn't
-        # idea, but the idea is that, in general, the link-time-name
+        # ideal, but the idea is that, in general, the link-time-name
         # of a dep will correspond to a file/link in one of these
-        # directories.
-        all_deps_by_dir = defaultdict( set )
+        # directories, which in turn will resolve to one of the files.
+        depdirs = set()
+        depfns = set()
         for ldd_line in ldd_out:
             parts = ldd_line.split()
             if (not len(parts)) or (parts[0] == "linux-vdso.so.1"): continue
             for i,p in enumerate(parts):
                 if p == "=>":
-                    depdir,depfn = os.path.split(parts[i+1])
-                    all_deps_by_dir[depdir].add(depfn)
+                    depfn = parts[i+1]
+                    # FIXME: the below link-resolution doesn't
+                    # actually work in all cases. it seems like each
+                    # time a link is encountered and resolved, if the
+                    # resulting filename is relative (or is just a
+                    # libname? or always?), it is fed back into the
+                    # full path search. so, a symlink in one directory
+                    # can resolve to a library/link in another
+                    # directory (perhaps earlier in the link search
+                    # path). so, our 'resolve_link' policy here isn't
+                    # really right -- we really need to re-check *all*
+                    # directories at each resolution step ... which
+                    # could lead to some exponential set of possible
+                    # paths to check it seems. for now, since the
+                    # issue seems somewhat minor, we'll ignore it. but
+                    # it does seem to come up in practice for cudnn in
+                    # some cases, when driveworks + the ubuntu
+                    # libcudnn6 package are co-installed, for instance
+                    # ...
+                    depfn = resolve_link(depfn) # find the concrete file we'll link to at runtime
+                    depfns.add(depfn)
+                    depdirs.add(os.path.dirname(depfn))
 
-        for depdir,depfns in all_deps_by_dir.items():   
+        # ehh, probably don't need to check that all deps are file, at least anymore ...
+        for depfn in depfns:
+            if not os.path.isfile(depfn):
+                raise ValueError("dep %r isn't a regular file" % depfn)
+
+        for depdir in depdirs:   
             self.proc_dep_dir(depdir, depfns)
 
         print("ignoring indirect/implicit deps: "+ ",".join([fn for fn in self.indirect_deps]))
@@ -66,21 +98,22 @@ class GetDeps(object):
     def proc_dep_dir(self, depdir, depfns):
         if depdir[0] != os.path.sep:
             raise ValueError( "depdir %r doesn't start with path seperator (i.e. isn't an absolute path), refusing to handle" % dep )
-        # ehh, probably don't need to check that all deps are file, at least anymore ...
-        for depfn in depfns:
-            dep = os.path.join(depdir, depfn)
-            if not os.path.isfile(dep):
-                raise ValueError( "dep %r isn't a regular file" % dep )
         # yeah, quadratic in number of -l args, but should be
         # okay. could in thoery build some prefix lookup structure
         # from all the deps to get log-linear-ish complexity i think.
-        depbase = os.path.split(dep)[1]
         for libname,fns in self.libnames.items():
             # try to find a file/link for this lib in this dir
             maybe_dep = os.path.join(depdir, libname)
             if os.path.isfile(maybe_dep):
-                fns.add(maybe_dep)
-                self.tp_calls.append((maybe_dep,self.tp.apply_async(self.file_get_pgk,(maybe_dep,))))
+                maybe_dep = resolve_link( maybe_dep )
+                # now, it should be some ldd-dep, so let's check
+                # that. if not, we'll assume some other dir also
+                # works, and had a higher priority.
+                print("dir",depdir,"maybe_dep",maybe_dep)
+                if maybe_dep in depfns:
+                    fns.add(maybe_dep)
+                    self.tp_calls.append((maybe_dep,self.tp.apply_async(self.file_get_pgk,(maybe_dep,))))
+                
         # FIXME/NOTE/TODO: for now, we're not really doing anything
         # (including any error checking) with the actual
         # ldd-reported-dep-files.
