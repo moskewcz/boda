@@ -10,7 +10,7 @@ sysde = sys.getdefaultencoding()
 class GetDeps(object):
     def __init__(self, args):
         self.args = args
-        self.libnames = set()
+        self.libnames = {}
         self.needs = defaultdict( set )
         self.get_link_libs()
         self.get_ldd_deps()
@@ -22,8 +22,8 @@ class GetDeps(object):
         for ldflag in ldflags:
             if not ldflag.startswith('-l'):
                 continue
-            libname = "lib"+ldflag[2:]
-            self.libnames.add(libname)
+            libname = "lib"+ldflag[2:]+".so" # we assume a link option will be resolved with a file/link of this form
+            self.libnames[libname] = set() # note: dups are okay, just silenty fold
         
     def get_ldd_deps(self):
         ldd_out = subprocess.run( ["ldd",self.args.exe_fn], check=True, stdout=subprocess.PIPE ).stdout
@@ -31,12 +31,26 @@ class GetDeps(object):
         self.tp = ThreadPool(self.args.num_threads)
         self.tp_calls = []
         self.indirect_deps = []
+        # we want two things from the output of ldd: all the exact lib
+        # files the exe is linking to, as well as the set of all
+        # directories used across all these dependencies. we use this
+        # as a proxy for the runtime link search path. this isn't
+        # idea, but the idea is that, in general, the link-time-name
+        # of a dep will correspond to a file/link in one of these
+        # directories.
+        all_deps_by_dir = defaultdict( set )
         for ldd_line in ldd_out:
             parts = ldd_line.split()
             if (not len(parts)) or (parts[0] == "linux-vdso.so.1"): continue
             for i,p in enumerate(parts):
-                if p == "=>": self.proc_dep( parts[i+1] )
-        print("ignoring indirect deps: "+ ",".join([fn for fn in self.indirect_deps]))
+                if p == "=>":
+                    depdir,depfn = os.path.split(parts[i+1])
+                    all_deps_by_dir[depdir].add(depfn)
+
+        for depdir,depfns in all_deps_by_dir.items():   
+            self.proc_dep_dir(depdir, depfns)
+
+        print("ignoring indirect/implicit deps: "+ ",".join([fn for fn in self.indirect_deps]))
         print("calling dpkg for direct deps: "+ ",".join([fn for fn,tp_call in self.tp_calls]))
         # TODO: check that all entries in self.libnames got used
         # TODO: progress monitor?
@@ -46,20 +60,30 @@ class GetDeps(object):
         for fn,tp_call in self.tp_calls:
             pkg = tp_call.get() # raise expection if there was problem
             self.needs[pkg].add(fn)
-                
-    def proc_dep(self, dep):
-        if dep[0] != os.path.sep:
-            raise ValueError( "dep %r doesn't start with path seperator (i.e. isn't an absolute path), refusing to handle" % dep )
-        if not os.path.isfile(dep):
-            raise ValueError( "dep %r isn't a regular file" % dep )
-        # optionally, check if we explictly linked to this file
-        # FIXME: need to check some prefix of dep, but it's a little unclear what. the current version is certainly wrong.
-        depbase = os.path.split(dep)[1].split('.')[0]
-        if depbase in self.libnames:
-            self.tp_calls.append((dep,self.tp.apply_async(self.file_get_pgk,(dep,))))
-        else:
-            self.indirect_deps.append( dep )
+        for libname,fns in self.libnames.items():
+            print("-l option:", libname, " --> ldd ref'd file(s): ", ",".join(fns))
         
+    def proc_dep_dir(self, depdir, depfns):
+        if depdir[0] != os.path.sep:
+            raise ValueError( "depdir %r doesn't start with path seperator (i.e. isn't an absolute path), refusing to handle" % dep )
+        # ehh, probably don't need to check that all deps are file, at least anymore ...
+        for depfn in depfns:
+            dep = os.path.join(depdir, depfn)
+            if not os.path.isfile(dep):
+                raise ValueError( "dep %r isn't a regular file" % dep )
+        # yeah, quadratic in number of -l args, but should be
+        # okay. could in thoery build some prefix lookup structure
+        # from all the deps to get log-linear-ish complexity i think.
+        depbase = os.path.split(dep)[1]
+        for libname,fns in self.libnames.items():
+            # try to find a file/link for this lib in this dir
+            maybe_dep = os.path.join(depdir, libname)
+            if os.path.isfile(maybe_dep):
+                fns.add(maybe_dep)
+                self.tp_calls.append((maybe_dep,self.tp.apply_async(self.file_get_pgk,(maybe_dep,))))
+        # FIXME/NOTE/TODO: for now, we're not really doing anything
+        # (including any error checking) with the actual
+        # ldd-reported-dep-files.
         
     def file_get_pgk(self, fn):
         try:
