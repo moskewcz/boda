@@ -49,22 +49,6 @@ namespace boda
     return ret;
   }
 
-  // FIXME: add function to get SASS? can use this command sequence:
-  // ptxas out.ptx -arch sm_52 -o out.cubin ; nvdisasm out.cubin > out.sass
-
-  string nvrtc_compile( string const & cuda_prog_str, bool const & print_log, bool const & enable_lineinfo ) {
-    timer_t t("nvrtc_compile");
-    p_nvrtcProgram cuda_prog = make_p_nvrtcProgram( cuda_prog_str );
-    vect_string cc_opts = {"--use_fast_math",
-			   "--gpu-architecture=compute_52",
-			   "--restrict"};
-    if( enable_lineinfo ) { cc_opts.push_back("-lineinfo"); }
-    auto const comp_ret = nvrtcCompileProgram( cuda_prog.get(), cc_opts.size(), &get_vect_rp_const_char( cc_opts )[0] );
-    string const log = nvrtc_get_compile_log( cuda_prog );
-    if( print_log ) { printf( "NVRTC COMPILE LOG:\n%s\n", str(log).c_str() ); }
-    nvrtc_err_chk( comp_ret, ("nvrtcCompileProgram\n"+log).c_str() ); // delay error check until after getting log
-    return nvrtc_get_ptx( cuda_prog );
-  }
 
 #ifdef CU_GET_FUNC_ATTR_HELPER_MACRO
 #error
@@ -185,6 +169,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 			   // bases=["rtc_compute_t"], type_id="nvrtc" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string cc_opts_arch; //NESI(default="--gpu-architecture=compute_60",help="this entire string will be passed (unchanged) to the nvrtc compiler phase as an option")
     // FIXME: can/should we init these cu_* vars?
     CUdevice cu_dev;
     CUcontext cu_context;
@@ -225,7 +210,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       if( gen_src ) {
 	write_whole_fn( strprintf( "%s/out_%s.cu", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), cucl_src );
       }
-      string const prog_ptx = nvrtc_compile( cucl_src, opts.show_compile_log, opts.enable_lineinfo );
+      string const prog_ptx = nvrtc_compile( cucl_src, opts );
       if( gen_src ) {      
 	write_whole_fn( strprintf( "%s/out_%s.ptx", gen_src_output_dir.exp.c_str(), str(compile_call_ix.v).c_str() ), prog_ptx );
       }
@@ -238,6 +223,29 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       ++compile_call_ix.v;
     }
 
+    
+    // FIXME: add function to get SASS? can use this command sequence:
+    // ptxas out.ptx -arch sm_52 -o out.cubin ; nvdisasm out.cubin > out.sass
+
+    // lower-level compile function. currently, only need to be a member function to access cc_opts_arch. it's not clear
+    // if we should merge that option, or other like it, into rtc_compile_opts_t or not. previously, cc_opts_arch was
+    // simply hard-coded; this seems like maybe a step better, but maybe not really too usefull yet, since there's no
+    // easy way to, say, globally set cc_opts_arch when running boda (i.e. to run tests, etc).
+    string nvrtc_compile( string const & cuda_prog_str, rtc_compile_opts_t const & opts ) {
+      timer_t t("nvrtc_compile");
+      p_nvrtcProgram cuda_prog = make_p_nvrtcProgram( cuda_prog_str );
+      vect_string cc_opts = {"--use_fast_math",
+                             "--restrict"};
+      if( opts.enable_lineinfo ) { cc_opts.push_back("-lineinfo"); }
+      cc_opts.push_back( cc_opts_arch );
+      auto const comp_ret = nvrtcCompileProgram( cuda_prog.get(), cc_opts.size(), &get_vect_rp_const_char( cc_opts )[0] );
+      string const log = nvrtc_get_compile_log( cuda_prog );
+      if( opts.show_compile_log ) { printf( "NVRTC COMPILE LOG:\n%s\n", str(log).c_str() ); }
+      nvrtc_err_chk( comp_ret, ("nvrtcCompileProgram\n"+log).c_str() ); // delay error check until after getting log
+      return nvrtc_get_ptx( cuda_prog );
+    }
+
+    
     // note: post-compilation, MUST be called exactly once on all functions that will later be run()
     void check_runnable( p_CUmodule const & cu_mod, rtc_func_info_t const & info, bool const show_func_attrs ) {
       assert_st( cu_mod );
