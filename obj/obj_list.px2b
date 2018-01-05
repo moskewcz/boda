@@ -7,10 +7,19 @@
 # dependency section may be empty. however, it will still function in order to disable particular object files from
 # being built if desired. note: the results of processing this file will be written to the file: dependencies.make
 
+# to install runtime deps (packaged ones anyway):
+# sudo apt-get install libtf2-0d libconsole-bridge0.2v5 libpython2.7 libsdl2-ttf-2.0-0 libc6 libcpp-common0d libgoogle-glog0v5 libboost-program-options1.58.0 libboost-regex1.58.0 liborocos-kdl1.3 libavformat-ffmpeg56 libboost-system1.58.0 libglu1-mesa libroscpp-serialization0d liblmdb0 librostime0d libboost-filesystem1.58.0 libboost-iostreams1.58.0 libavutil-ffmpeg54 libsdl2-2.0-0 librosbag-storage0d libavcodec-ffmpeg56 python-numpy
+
+# to install build deps (packaged ones anyway): (note: libjpeg-turbo8-dev libsparsehash-dev are static and/or header-only)
+# sudo apt-get install libjpeg-turbo8-dev libsparsehash-dev liblmdb-dev libpython2.7-dev libgoogle-glog-dev libglu1-mesa-dev libsdl2-dev libsdl2-ttf-dev libboost-program-options1.58-dev libboost-regex1.58-dev libboost-system1.58-dev libboost-filesystem1.58-dev libboost-iostreams1.58-dev libavformat-dev libavutil-dev libavcodec-dev python-numpy
+
+# ROS build deps:
+# sudo apt-get install libbz2-dev libtf-dev libtf2-dev libconsole-bridge-dev libroscpp-dev libroscpp-core-dev librosbag-dev liborocos-kdl-dev libsensor-msgs-dev libvisualization-msgs-dev libtf2-sensor-msgs-dev libtf2-geometry-msgs-dev
+
 [base] # special basic setup / global dependencies; always enabled, will always be emmited first in dependencies.make
 VPATH := $(VPATH) ../src ../src/ext
 CPP := aarch64-linux-gnu-g++
-CPPFLAGS := --sysroot=/var/lib/schroot/chroots/xenial-arm64 -fuse-ld=gold -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall -I. # -I. is so files in gen/* can be included ... not ideal?
+CPPFLAGS := --sysroot=/var/lib/schroot/chroots/xenial-arm64 -Wall -O3 -g -std=c++0x -rdynamic -fPIC -fopenmp -Wall -I. # -I. is so files in gen/* can be included ... not ideal?
 LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lboost_program_options 
 
 [lmdb]
@@ -18,11 +27,11 @@ LDFLAGS := -lboost_system -lboost_filesystem -lboost_iostreams -lboost_regex -lb
 LDFLAGS := $(LDFLAGS) -llmdb
 
 [octave disable]
-CPPFLAGS := $(CPPFLAGS) -I/usr/include/octave-4.0.0 -I/usr/include/octave-4.0.0/octave
+CPPFLAGS := $(CPPFLAGS) -I=/usr/include/octave-4.0.0 -I=/usr/include/octave-4.0.0/octave
 LDFLAGS := $(LDFLAGS) -loctave -loctinterp
 
 [SDL2]
-CPPFLAGS := $(CPPFLAGS) -I/usr/include/SDL2 -I/usr/local/include/SDL2
+CPPFLAGS := $(CPPFLAGS) -I=/usr/include/SDL2 -I=/usr/local/include/SDL2
 LDFLAGS := $(LDFLAGS) -lSDL2 -lSDL2_ttf -lrt
 
 [OSMesa disable]
@@ -45,13 +54,13 @@ caffe.pb.cc caffe.pb.h : ../src/ext/caffe.proto
 
 
 [cuda]
-CUDA_HOME := /usr/local/cuda
+CUDA_HOME := =/usr/local/cuda-8.0
 CPPFLAGS := $(CPPFLAGS) -I$(CUDA_HOME)/include
 CUDA_LIB = $(CUDA_HOME)/lib64
-LDFLAGS := $(LDFLAGS) -L$(CUDA_LIB) -lcudart -lcurand -lcuda
+LDFLAGS := $(LDFLAGS) -L$(CUDA_LIB) -lcudart -lcurand -L$(CUDA_LIB)/stubs -lcuda
 # we choose to rpath the CUDA library dir here, since it is not commonly in the system library path. this is optional;
 # if you prefer to use LD_LIBRARY_PATH or other methods, comment out the following line:
-LDFLAGS := $(LDFLAGS) -Wl,-rpath,$(CUDA_LIB)
+# LDFLAGS := $(LDFLAGS) -Wl,-rpath,$(CUDA_LIB)
 
 [culibs needs=cuda]
 LDFLAGS := $(LDFLAGS) -lcublas -lcudnn
@@ -75,7 +84,7 @@ $(error "building with caffe support, but diff of boda copy of caffe.proto with 
 endif
 
 [python]
-CPPFLAGS := $(CPPFLAGS) -I/usr/include/python2.7 
+CPPFLAGS := $(CPPFLAGS) -I=/usr/include/python2.7 
 LDFLAGS := $(LDFLAGS) -lpython2.7
 
 [turbojpeg] # disable-able, but will cause any test/mode that tries to load a .jpeg to fail at run-time
@@ -83,6 +92,19 @@ LDFLAGS := $(LDFLAGS) -lturbojpeg
 
 [FFmpeg]
 LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil
+
+[eigen]
+CPPFLAGS := $(CPPFLAGS) -I=/usr/include/eigen3
+
+[kdl]
+LDFLAGS := $(LDFLAGS) -lorocos-kdl
+
+
+[RoS needs=eigen needs=kdl]
+# note: when added, the eigen dep was only for tf2 transform include for transforming PointCloud2 msgs
+# note2: when added, the kdl dep was only for tf2 transform include for transforming PoseStamped msgs
+# note3: why yes, that does mean ros needs 2+ external geometry libraries for doing (ineffecient) transforms on basic types!
+LDFLAGS := $(LDFLAGS) -lcpp_common -lrosconsole -lrosconsole_print -lrosconsole_backend_interface -lconsole_bridge -ltopic_tools -lroscpp -lrosbag -lrosbag_storage -ltf2 -lrostime -lroscpp_serialization # others? sigh. not too obvious what the full/right set is.
 
 
 [stacktrace_gnu] # if enabled, get stacktrace using gnu extentions backtrace() and backtrace_symbols() 
@@ -96,6 +118,9 @@ LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+data-stream-stream.o
+stream_util.o
+data-stream-rosbag.o RoS
 data-stream-ffmpeg.o FFmpeg
 os-render.o OSMesa
 shader.o OSMesa
