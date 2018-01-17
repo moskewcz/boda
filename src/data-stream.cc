@@ -444,6 +444,50 @@ namespace boda
     }
   };
 
+  struct data_stream_seq_t : virtual public nesi, public data_stream_t // NESI(
+                               // help="take N (finite) data streams and read from them one-by-one until they each end to form a single stream.",
+                               // bases=["data_stream_t"], type_id="seq")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_p_data_stream_t streams; //NESI(help="input data streams")
+    uint32_t cur_stream_ix;
+    
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      // FIXME/TODO: yeah, it would be nice if this worked. i guess we could to fudge the frame_ix as we emit blocks to
+      // be one sequence, and record the boundaries of 'past' streams. but then seeking forward is still questionable
+      // ... hmm. probably need to wait until if/when some larger refactoring takes place that sanitizes seeking.
+      return false;
+    }
+
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      // for now, we init all streams at the start. we could instead init them only as we need/use them.
+      for( uint32_t i = 0; i != streams.size(); ++i ) {  streams[i]->data_stream_init( nia );  }
+      cur_stream_ix = 0;
+    }
+    // similarly, for now, we broadcast opts to all streams. since, long-term, the plan is to replace opts with pub/sub
+    // on known named streams, this is probably compatible/sane. although as with init, it's not clear if this is
+    // exactly sensible, since only one stream is 'active' at a time?
+    virtual void set_opt( data_stream_opt_t const & opt ) { for( uint32_t i = 0; i != streams.size(); ++i ) { streams[i]->set_opt( opt ); } }
+
+    virtual string get_pos_info_str( void ) {
+      assert_st( cur_stream_ix <= streams.size() );
+      if( cur_stream_ix == streams.size() ) { return "end-end (all sub-streams at end)"; }
+      else { return "sub-stream="+str(cur_stream_ix)+ ": " + streams[cur_stream_ix]->get_pos_info_str(); }
+    }
+
+    // we keep producing blocks until *all* streams are invalid, then we ret an invalid block
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      while ( 1 ) {
+        assert_st( cur_stream_ix <= streams.size() );
+        if( cur_stream_ix == streams.size() ) { return data_block_t(); }
+        data_block_t ret = streams[cur_stream_ix]->proc_block( db );
+        if( !ret.valid() ) { ++cur_stream_ix; }
+        return ret;
+      }
+    }
+  };
+
+  
   struct data_stream_flatten_t : virtual public nesi, public data_stream_t // NESI(
                                  // help="take N data streams and output one block across all streams for each stream-block read.",
                                  // bases=["data_stream_t"], type_id="flatten")
