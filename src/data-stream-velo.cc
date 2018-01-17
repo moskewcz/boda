@@ -117,6 +117,7 @@ namespace boda
 
     uint32_t tot_lasers; //NESI(default="64",help="total number of lasers. must be either 32 (one block) or 64 laser (two block) scanner.")
     uint32_t enable_proc_status; //NESI(default="1",help="if non-zero, process status bytes (only present for 64 laser scanner).")
+    uint32_t print_status_epoch; //NESI(default="0",help="if non-zero, print warning/status info each status epoch (every 4160 packets). only printed if status processing finds complete epoch based on detectioning known-position status type fields (otherwise can't get status errors will print).")
 
     uint32_t dual_return_and_use_only_first_return; //NESI(default="1",help="if 1, assume dual return mode, and use only first return.")
     p_string laser_to_row_ix_str; //NESI(help="':'-seperated list of 0-based dense-matrix-row values to which to map each laser id to. should have tot_lasers elements, and should be a permutation of [0,tot_lasers).") 
@@ -334,6 +335,12 @@ namespace boda
   
     vect_laser_corr_t laser_corrs;
     p_nda_t laser_corrs_nda;
+
+    string status_msg( string const & tag, status_info_t const & si ) {
+      return strprintf( "%s gps_timestamp_us=%s status_type=%s status_val=%s\n", tag.c_str(),
+                        str(si.gps_timestamp_us).c_str(), str(si.status_type).c_str(), str(uint16_t(si.status_val)).c_str() );
+    }
+
     
     void proc_status_epoch( void ) {
       if( !status_ring.full() ) { on_bad_status( "velodyne stream corrupt; should be at end of epoch, but didn't see enough status data since last sync'd point." ); return; }
@@ -343,6 +350,21 @@ namespace boda
           config_data.push_back( status_ring.at(i*16 + velo_cycle_prefix_types.size() + j).status_val );
         }
       }
+      if( print_status_epoch ) {
+#if 0 // velo-64 S3
+        status_info_t const & si = status_ring.at( 4*16 + velo_cycle_prefix_types.size() + 0 ); // cycle 5 (1-based), first non-repeated status byte
+        if( si.status_type != 'W' ) {
+          printstr( status_msg( "print_status_epoch: expected 'W' status at cycle 5, offset 9 (config byte slot '1'), but had: ", si ) );
+        } else {
+          printstr( status_msg( "warning status byte:", si ) );
+        }
+#else // S2 (or flashed-to-single-return S3?)
+        printstr( status_msg( "cycle 260, offset 11 (config byte slot '3')", status_ring.at( 259*16 + velo_cycle_prefix_types.size() + 2 ) ) );
+        printstr( status_msg( "cycle 260, offset 12 (config byte slot '4')", status_ring.at( 259*16 + velo_cycle_prefix_types.size() + 3 ) ) );
+        printstr( status_msg( "cycle 260, offset 13 (config byte slot '5')", status_ring.at( 259*16 + velo_cycle_prefix_types.size() + 4 ) ) );
+#endif
+      }
+      
       assert_st( config_data.size() == 1820 );
 
       vect_uint8_t real_config_data;
