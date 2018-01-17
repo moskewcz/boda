@@ -4,7 +4,7 @@
 //layout(location = 0) in float pt_dist;
 
 // Output data ; will be interpolated for each fragment.
-out vec3 fragmentColor;
+out vec4 fragmentColor;
 // Values that stay constant for the whole mesh.
 uniform mat4 MVP;
 uniform vec3 obj_col;
@@ -47,7 +47,7 @@ void main(){
   pos[2] = dist * sin_elev + .3; // adj for sensor loc wrt ground 
 
   gl_Position =  MVP * vec4(pos,1);
-  fragmentColor = vec3(snr/30.0, snr/30.0, snr/30.0)*obj_col;
+  fragmentColor = vec4( vec3(snr/30.0, snr/30.0, snr/30.0)*obj_col, 1.0 );
 
   gl_PointSize = 10.;
 }

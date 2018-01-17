@@ -64,10 +64,10 @@ void main(){
 #version 330 core
 
 // Interpolated values from the vertex shaders
-in vec3 fragmentColor;
+in vec4 fragmentColor;
 
 // Ouput data
-out vec3 color;
+out vec4 color;
 
 void main(){
 
@@ -436,7 +436,7 @@ void main(){
       }
 
       // Dark blue background
-      glClearColor(0.0f, 0.0f, 0.3f, 0.0f);
+      glClearColor(0.0f, 0.0f, 0.3f, 1.0f);
 
       // Enable depth test
       glEnable(GL_DEPTH_TEST);
