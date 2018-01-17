@@ -64,6 +64,20 @@ namespace boda
       assert_st( x < w ); assert_st( y < h );
       out_Y = Y + y*w + x; out_V = V + (y>>1)*(w>>1) + (x>>1); out_U = U + (y>>1)*(w>>1) + (x>>1); 
     }
+
+    p_img_t as_img_t_yuv_borrowed( void ) const {
+      vect_p_nda_uint8_t yuv_ndas;
+      yuv_ndas.push_back( make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(h), uint32_t(w)}, vect_string{ "y","x" },"uint8_t" },
+                                                    p_uint8_t( Y, null_deleter<uint8_t>() ) ) );
+      yuv_ndas.push_back( make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(h/2), uint32_t(w/2)}, vect_string{ "y","x" },"uint8_t" },
+                                                    p_uint8_t( U, null_deleter<uint8_t>() ) ) );
+      yuv_ndas.push_back( make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(h/2), uint32_t(w/2)}, vect_string{ "y","x" },"uint8_t" },
+                                                    p_uint8_t( V, null_deleter<uint8_t>() ) ) );
+      p_img_t ret = make_shared< img_t >();
+      ret->set_sz_and_pels_from_yuv_420_planes( yuv_ndas );
+      return ret;
+    }
+    
   };
 
   void img_to_YV12( YV12_buf_t const & YV12_buf, p_img_t const & img, uint32_t const out_x, uint32_t const out_y ) {
@@ -430,6 +444,11 @@ namespace boda
 	  for( uint32_t i = 0; i != imgs->size(); ++i ) {
 	    imgs->at(i)->save_fn_jpeg( strprintf( "ss_%s.jpg", str(i).c_str() ) );
 	  }
+	  paused = 1;
+	  break;
+	}
+	if( event.key.keysym.sym == SDLK_k ) {
+          YV12_buf->as_img_t_yuv_borrowed()->save_fn_jpeg( strprintf( "ss.jpg" ) );
 	  paused = 1;
 	  break;
 	}
