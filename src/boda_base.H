@@ -883,6 +883,7 @@ namespace boda
   template< typename T > struct nda_T : public nda_t {
     nda_T( void ) { }
     nda_T( dims_t const & dims_ ) : nda_t( dims_ ) { check_tn(); }
+    nda_T( dims_t const & dims_, p_uint8_t const &d_ ) : nda_t( dims_, d_ ) { check_tn(); }
     nda_T( p_nda_t const & nda_ ) : nda_t( *nda_ ) { assert_st( dims.valid() ); check_tn(); }
     void check_tn( void ) const;
     T const * elems_ptr( void ) const { return reinterpret_cast<T const *>(d.get()); }
