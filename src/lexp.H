@@ -90,9 +90,12 @@ namespace boda {
   p_lexp_t parse_lexp_xml_file( std::string const & fn );
   p_lexp_t parse_lexp_list_xml( pugi::xml_node const & xn, std::string const & xml_fn );
   p_lexp_t parse_lexp_leaf_str( char const * const s );
+  p_lexp_t make_empty_list_lexp( void );
   p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v );
   p_lexp_t make_list_lexp_from_vals_vector( std::string const & k, vect_string const & vs );
   p_lexp_t get_lexp_from_argv( vect_string const & vs_argv, std::ostream & os );
+  void add_argv_options_to_lexp( p_lexp_t const & lexp, vect_string * const pos_args, std::ostream & os,
+                                 vect_string::const_iterator const & b, vect_string::const_iterator const & e );
 
   void test_lexp( void );
   void lexp_check_unused( lexp_t * l, vect_string & path );

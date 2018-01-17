@@ -81,16 +81,20 @@ namespace boda
     }
     assert( argc > 1 );
     std::string const mode = argv[1];
+    vect_string vs_argv;
+    for( int32_t ai = 0; ai != argc; ++ai ) { string arg( argv[ai] ); vs_argv.push_back( arg ); }
     if( mode == "xml" ) {
-      if( argc != 3 ) { os << strprintf("run command from xml file\nusage: %s\n", boda_xml_usage); }
-      else { create_and_run_has_main_t( parse_lexp_xml_file( argv[2] ) ); }
+      if( argc < 3 ) { os << strprintf("run command from xml file\nusage: %s\n", boda_xml_usage); }
+      else {
+        p_lexp_t xml_lexp = parse_lexp_xml_file( argv[2] );
+        add_argv_options_to_lexp( xml_lexp, 0, os, vs_argv.begin() + 3, vs_argv.end() );
+        create_and_run_has_main_t( xml_lexp );
+      }
     // otherwise, in the common/main case, treat first arg as mode for has_main_t, with remaining
     // args uses as fields in cli-syntax: each arg must start with '--' (which is ignored), and
     // names a field (with "-"->"_"). '=' can used to split key from value in single arg, otherwise
     // the next arg is consumed as its value.
     } else {
-      vect_string vs_argv;
-      for( int32_t ai = 0; ai != argc; ++ai ) {	string arg( argv[ai] ); vs_argv.push_back( arg ); }
       p_lexp_t lexp = get_lexp_from_argv( vs_argv, os ); 
       create_and_run_has_main_t( lexp );
     }

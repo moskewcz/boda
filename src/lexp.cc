@@ -448,13 +448,14 @@ namespace boda {
     return ret;
   }
 
+  p_lexp_t make_empty_list_lexp( void ) { return make_shared< lexp_t >( sstr_t() ); }
   p_lexp_t make_list_lexp_from_one_key_val( std::string const & k, std::string const & v ) {
-    p_lexp_t ret( new lexp_t( sstr_t() ) );
+    p_lexp_t ret = make_empty_list_lexp();
     ret->add_key_val( k, v );
     return ret;
   }
   p_lexp_t make_list_lexp_from_vals_vector( std::string const & kp, vect_string const & vs ) {
-    p_lexp_t ret( new lexp_t( sstr_t() ) );
+    p_lexp_t ret = make_empty_list_lexp();
     for( vect_string::const_iterator i = vs.begin(); i != vs.end(); ++i ) {
       ret->add_key_val( kp+str(i - vs.begin()), *i );
     }
@@ -499,30 +500,21 @@ namespace boda {
     return ret;
   }
 
-  // note: error/warning info is printed to os. perhaps not ideal, but better than not being able to factor out and reuse this func.
-  p_lexp_t get_lexp_from_argv( vect_string const & vs_argv, std::ostream & os ) {
-    assert_st( vs_argv.size() > 1 );
-    // note: vs_argv[0] is usually "boda" or similar, and is ignored here
-    string const & mode = vs_argv[1];
-    p_lexp_t lexp = make_list_lexp_from_one_key_val( "mode", mode );
-    assert_st( lexp->kids.size() == 1 ); // should just be mode
-    if( !lexp->kids[0].v->leaf_val.exists() ) {
-      rt_err( "specified mode name '"+mode+"' parses as a list, and it must not be a list." );
-    }
-    vect_string pos_args;
-    for( vect_string::const_iterator ai = vs_argv.begin()+2; ai != vs_argv.end(); ++ai ) {
+
+  // extract options and positional arguments from a range of strings. if pos_args is null, positional arguments are not
+  // supported (will raise an error). otherwise, they are gathered into pos_args. warnings are sent to os.
+  void add_argv_options_to_lexp( p_lexp_t const & lexp, vect_string * const pos_args, std::ostream & os,
+                                 vect_string::const_iterator const & b, vect_string::const_iterator const & e ) {
+    for( vect_string::const_iterator ai = b; ai != e; ++ai ) {
       string arg( *ai );
       string key;
       string val;
-      // hack for compsup / completion support: dump all args into pos_args
-      if( mode == "compsup" ) { pos_args.push_back( arg ); continue; } 
-      bool const allow_pos_param = 1;
       if( !startswith( arg, "--" ) ) { 
-	if( !allow_pos_param ) {
+	if( !pos_args ) {
 	  rt_err( strprintf("expected option, but argument '%s' does not start with '--'",
 			    arg.c_str() ) ); 
 	} else { 
-	  pos_args.push_back( arg ); 
+	  pos_args->push_back( arg ); 
 	}
       } else {
 	bool key_had_eq = 0;
@@ -537,8 +529,8 @@ namespace boda {
 	  key.push_back( ((*i)=='-')? '_' : (*i) );
 	}
 	if( !key_had_eq ) {
-	  if( (ai + 1) == vs_argv.end() ) { rt_err( strprintf("missing value for option '%s': no '=' present, and no more args",
-						     arg.c_str() ) ); }
+	  if( (ai + 1) == e ) { rt_err( strprintf("missing value for option '%s': no '=' present, and no more args",
+                                                  arg.c_str() ) ); }
 	  val = string( *(ai+1) );
 	  ++ai;
 	  if( startswith( val, "--" ) ) { 
@@ -550,6 +542,22 @@ namespace boda {
 	lexp->add_key_val( key, val ); 
       }
     }
+  }
+  
+  // note: error/warning info is printed to os. perhaps not ideal, but better than not being able to factor out and reuse this func.
+  p_lexp_t get_lexp_from_argv( vect_string const & vs_argv, std::ostream & os ) {
+    assert_st( vs_argv.size() > 1 );
+    // note: vs_argv[0] is usually "boda" or similar, and is ignored here
+    string const & mode = vs_argv[1];
+    p_lexp_t lexp = make_list_lexp_from_one_key_val( "mode", mode );
+    assert_st( lexp->kids.size() == 1 ); // should just be mode
+    if( !lexp->kids[0].v->leaf_val.exists() ) {
+      rt_err( "specified mode name '"+mode+"' parses as a list, and it must not be a list." );
+    }
+    vect_string pos_args;
+    // hack for compsup / completion support: dump all args into pos_args
+    if( mode == "compsup" ) { pos_args.insert( pos_args.end(), vs_argv.begin()+2, vs_argv.end() ); } 
+    else { add_argv_options_to_lexp( lexp, &pos_args, os, vs_argv.begin()+2, vs_argv.end() ); }
     if( !pos_args.empty() ) { 
       lexp->add_key_lexp_val( "pos_args", make_list_lexp_from_vals_vector("",pos_args) ); 
     }
