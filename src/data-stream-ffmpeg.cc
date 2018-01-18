@@ -196,6 +196,57 @@ namespace boda
     }
 
   };
+
+  struct data_stream_ffmpeg_sink_t : virtual public nesi, public data_stream_t // NESI(
+                                    // help="read frames and output video file with ffmpeg (libavformat,libavcodec...)",
+                                    // bases=["data_stream_t"], type_id="ffmpeg-sink")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    
+    filename_t fn; //NESI(req=1,help="output filename")
+    string out_fmt_name; //NESI(default="avi",help="output container ffmpeg-short-name")
+    string codec; //NESI(default="mpeg4",help="ffmpeg codec to use. note that, for the default of mpeg4, it seems that the fourcc will be FMP4")
+
+    virtual string get_pos_info_str( void ) { return strprintf( "data_stream_ffmpeg_sink: <no_state>[/TODO]" ); }
+
+    virtual bool seek_to_block( uint64_t const & frame_ix ) { return false; }
+
+    AVFormatContext *oc;
+    AVCodecContext *octx;
+    AVStream *ostr;
+    
+    data_stream_ffmpeg_sink_t( void ) { }
+    
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      oc = 0;
+      octx = 0;
+      ostr = 0;
+      // we defer the 'real' init till we get the first frame, so we have info on the desired output video size
+      lazy_init(); // TESTING: call this for now ...
+    }
+    void lazy_init( void )  {
+      av_register_all(); // NOTE/FIXME: in general, this should be safe to call multiple times. but, there have been bugs wrt that ...
+
+      AVOutputFormat * const out_fmt = av_guess_format( out_fmt_name.c_str(), 0, 0 );
+      if( !out_fmt ) { rt_err( strprintf( "av_guess_format() for out_fmt_name=%s failed", str(out_fmt_name).c_str() ) ); }
+      int err;
+      err = avformat_alloc_output_context2( &oc, out_fmt, 0, 0 );
+      if( err || (!oc) ) { rt_err( "avformat_alloc_output_context2() failed" ); }
+      
+      ostr = avformat_new_stream( oc, 0 );
+      if( !ostr ) { rt_err( "av_new_stream() failed" ); }
+
+      AVCodec * codec = NULL;
+
+
+    }
+
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      return db;
+    }
+
+  };
+
   
 #include"gen/data-stream-ffmpeg.cc.nesi_gen.cc"
 
