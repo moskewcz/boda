@@ -205,7 +205,7 @@ namespace boda
     
     filename_t fn; //NESI(req=1,help="output filename")
     string out_fmt_name; //NESI(default="avi",help="output container ffmpeg-short-name")
-    string codec; //NESI(default="mpeg4",help="ffmpeg codec to use. note that, for the default of mpeg4, it seems that the fourcc will be FMP4")
+    string codec_name; //NESI(default="mpeg4",help="ffmpeg codec to use. note that, for the default of mpeg4, it seems that the fourcc will be FMP4")
 
     virtual string get_pos_info_str( void ) { return strprintf( "data_stream_ffmpeg_sink: <no_state>[/TODO]" ); }
 
@@ -214,6 +214,7 @@ namespace boda
     AVFormatContext *oc;
     AVCodecContext *octx;
     AVStream *ostr;
+    AVCodec *codec;
     
     data_stream_ffmpeg_sink_t( void ) { }
     
@@ -221,10 +222,12 @@ namespace boda
       oc = 0;
       octx = 0;
       ostr = 0;
+      codec = 0;
       // we defer the 'real' init till we get the first frame, so we have info on the desired output video size
-      lazy_init(); // TESTING: call this for now ...
     }
-    void lazy_init( void )  {
+    void lazy_init( data_block_t const &db ) {
+      assert_st( !oc ); // call only once.
+      assert_st( db.as_img );
       av_register_all(); // NOTE/FIXME: in general, this should be safe to call multiple times. but, there have been bugs wrt that ...
 
       AVOutputFormat * const out_fmt = av_guess_format( out_fmt_name.c_str(), 0, 0 );
@@ -235,13 +238,48 @@ namespace boda
       
       ostr = avformat_new_stream( oc, 0 );
       if( !ostr ) { rt_err( "av_new_stream() failed" ); }
+      //ostr->id = 1? 0?
+      
+      codec = avcodec_find_encoder_by_name( codec_name.c_str() );
+      if( !codec ) { rt_err( strprintf( "avcodec_find_encoder_by_name() for codec=%s failed", str(codec_name).c_str() ) ); }
 
-      AVCodec * codec = NULL;
+      octx = avcodec_alloc_context3(codec);
+      if( !octx ) { rt_err( "avcodec_alloc_context3() failed" ); }
 
+      AVDictionary *opts = NULL;
+      //av_dict_set( &opts, "vprofile", "baseline", 0 )
+      av_dict_set( &opts, "preset", "ultrafast", 0 );
 
+//      c->bit_rate = 1000000;
+      p_img_t const & fi = db.as_img; // first image
+      octx->width = fi->sz.d[0];  
+      octx->height = fi->sz.d[1];
+      octx->time_base.den = 25;  
+      octx->time_base.num = 1;  
+//      c->gop_size = 12;  
+      octx->pix_fmt = PIX_FMT_YUV420P;
+
+      err = avcodec_open2( octx, codec, &opts );
+      if( err ) { rt_err( "avcodec_open2() failed" ); }
+
+#if 0
+       err = avio_open(&outCtx->pb, kOutputFileName, AVIO_FLAG_WRITE);
+    if (err < 0)
+        exit(1);
+#if (LIBAVFORMAT_VERSION_MAJOR == 53)
+    AVFormatParameters params = {0};
+    err = av_set_parameters(outCtx, &params);
+    if (err < 0)
+exit(1);
+
+#endif 
+#endif
+   
     }
 
     virtual data_block_t proc_block( data_block_t const & db ) {
+      if( !db.as_img ) { rt_err( "ffmpeg-sink: a data block with an image."); }
+      if( !oc ) { lazy_init( db ); }
       return db;
     }
 
