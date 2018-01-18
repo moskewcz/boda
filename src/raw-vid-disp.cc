@@ -57,6 +57,8 @@ namespace boda
     uint32_t auto_restart; //NESI(default=1,help="if set, seek to block 0 at end of stream")
     uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
     p_data_stream_t src; //NESI(help="data stream to read images from")
+    p_data_stream_t sink; //NESI(help="data stream to write YUV image stream to")
+
     disp_win_t disp_win;
     p_deadline_timer_t frame_timer;
     time_duration frame_dur;
@@ -165,6 +167,13 @@ namespace boda
       if( had_new_img ) {
         if( print_timestamps ) { printf( "--- frame: %s ---\n", str(db).c_str() ); }
         disp_win.update_disp_imgs();
+        if( sink ) {
+          p_img_t out_frame = disp_win.get_borrowed_output_frame();
+          data_block_t out_frame_db = db;
+          out_frame_db.subblocks.reset();
+          out_frame_db.as_img = out_frame;
+          sink->proc_block( out_frame_db );
+        }
       }
     }
     void on_quit( error_code const & ec ) { get_io( &disp_win ).stop(); }
@@ -227,7 +236,8 @@ namespace boda
       samp_pt_sbix = uint32_t_const_max; // invalid/sentinel value to suppress samp_pt prinouts
 
       src->data_stream_init( nia );
-
+      if( sink ) { sink->data_stream_init( nia ); }
+      
       io_service_t & io = get_io( &disp_win );
       frame_timer.reset( new deadline_timer_t( io ) );
       frame_dur = microseconds( 1000 * 1000 / fps );
