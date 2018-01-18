@@ -7,6 +7,7 @@
 extern "C" {
 #include"libavformat/avformat.h"
 #include"libavcodec/avcodec.h"
+#include"libavutil/opt.h"
 }
 #include"img_io.H"
 
@@ -246,22 +247,33 @@ namespace boda
       octx = avcodec_alloc_context3(codec);
       if( !octx ) { rt_err( "avcodec_alloc_context3() failed" ); }
 
-      AVDictionary *opts = NULL;
       //av_dict_set( &opts, "vprofile", "baseline", 0 )
-      av_dict_set( &opts, "preset", "ultrafast", 0 );
 
-//      c->bit_rate = 1000000;
-      p_img_t const & fi = db.as_img; // first image
+//    octx->bit_rate = 1000000; // set from preset?
+//    octx->gop_size = 12; // set from preset?
+      p_img_t const & fi = db.as_img; // first image, use to set sizes
       octx->width = fi->sz.d[0];  
       octx->height = fi->sz.d[1];
       octx->time_base.den = 25;  
       octx->time_base.num = 1;  
-//      c->gop_size = 12;  
       octx->pix_fmt = PIX_FMT_YUV420P;
 
-      err = avcodec_open2( octx, codec, &opts );
+//      AVDictionary *opts = NULL;
+//      av_dict_set( &o, "preset", "ultrafast", 0 );
+      
+      av_opt_set( octx->priv_data, "preset", "ultrafast", 0);
+        
+      err = avcodec_open2( octx, codec, 0 );
       if( err ) { rt_err( "avcodec_open2() failed" ); }
-
+#if 0
+      // check for any unconsumed (unrecognized) options
+      AVDictionaryEntry *t = NULL;
+      if ((t = av_dict_get(opts, "", NULL, AV_DICT_IGNORE_SUFFIX))) {
+        rt_err( strprintf( "unknown codec option '%s'\n", t->key ) );
+      }
+      av_dict_free( &opts );
+#endif
+      
 #if 0
        err = avio_open(&outCtx->pb, kOutputFileName, AVIO_FLAG_WRITE);
     if (err < 0)
