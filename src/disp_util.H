@@ -86,6 +86,7 @@ namespace boda {
     void update_dr_for_window_and_zoom( u32_pt_t const & new_win_sz );
     void update_disp_img( uint32_t const pix, p_img_t const & new_img );
     void update_disp_imgs( void );
+    p_img_t get_borrowed_output_frame( void );
     void update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos );
     void drain_sdl_events_and_redisplay( void );
     void on_lb( int32_t const x, int32_t const y );

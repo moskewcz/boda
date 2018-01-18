@@ -309,6 +309,8 @@ namespace boda
     SDL_UpdateTexture( tex.get(), NULL, YV12_buf->d.get(), YV12_buf->w );
   }
 
+  p_img_t disp_win_t::get_borrowed_output_frame( void ) { return YV12_buf->as_img_t_yuv_borrowed(); }
+  
   void disp_win_t::update_img_annos( uint32_t const & img_ix, p_vect_anno_t const & annos ) { 
     if( paused ) { return; }
     img_annos.at(img_ix) = annos; 
