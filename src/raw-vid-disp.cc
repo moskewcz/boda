@@ -38,11 +38,6 @@ namespace boda
       }
     }
   };
-
-  u32_pt_t get_db_img_sz( data_block_t const & db, u32_pt_t const & disp_sz ) {
-    if( db.as_img ) { return db.as_img->sz; }
-    else { return disp_sz; } 
-  }
   
   // FIXME: dupe'd code with display_pil_t
   struct display_raw_vid_t : virtual public nesi, public has_main_t // NESI(
@@ -56,6 +51,7 @@ namespace boda
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t auto_restart; //NESI(default=1,help="if set, seek to block 0 at end of stream")
     uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
+    uint32_t display_downsample_factor; //NESI(default=1,help="for display, downsample all images by this factor prior to compositing. this reduces the output-image-size of the display, so a smaller texture can be used, copies are faster, and so on. 2 or 4 are nice values to use, since the downsampling is fast.")
     p_data_stream_t src; //NESI(help="data stream to read images from")
     p_data_stream_t sink; //NESI(help="data stream to write YUV image stream to")
 
@@ -70,6 +66,14 @@ namespace boda
     uint32_t samp_pt_sbix;
     i32_pt_t samp_pt;
 
+    u32_pt_t get_db_img_sz( data_block_t const & db ) {
+      if( db.as_img ) {
+        return ceil_div( db.as_img->sz, u32_pt_t( display_downsample_factor, display_downsample_factor ) );
+      }
+      else { return disp_sz; } 
+    }
+
+    
     void on_frame( error_code const & ec ) {
       if( ec ) { return; }
       assert( !ec );
@@ -108,13 +112,13 @@ namespace boda
       if( in_imgs.size() == db.num_subblocks() ) { // same number of images, check sizes
         bool size_diff = 0;
         for( uint32_t i = 0; i != db.num_subblocks(); ++i ) {
-          if( get_db_img_sz( db.subblocks->at(i), disp_sz ) != in_imgs[i]->sz ) { size_diff = 1; }
+          if( get_db_img_sz( db.subblocks->at(i) ) != in_imgs[i]->sz ) { size_diff = 1; }
         }
         if( !size_diff ) { return; } // all right sizes
       } 
       in_imgs.clear();
       for( uint32_t i = 0; i != db.num_subblocks(); ++i ) {
-        u32_pt_t const img_disp_sz = get_db_img_sz( db.subblocks->at(i), disp_sz );
+        u32_pt_t const img_disp_sz = get_db_img_sz( db.subblocks->at(i) );
         in_imgs.push_back( make_shared<img_t>() );
         in_imgs.back()->set_sz_and_alloc_pels( img_disp_sz );
       }
@@ -155,12 +159,12 @@ namespace boda
       if( enable_samp_pt ) { proc_samp_pt( db ); }
       bool had_new_img = 0;
       for( uint32_t i = 0; i != in_imgs.size(); ++i ) {
-        p_img_t const & img = db.subblocks->at(i).as_img;
+        data_block_t const & sdb = db.subblocks->at(i);
+        p_img_t const & img = sdb.as_img;
         if( !img ) { continue; }
         had_new_img = 1;
-        assert_st( in_imgs[i]->sz == img->sz ); // should be guarenteed by ensure_disp_win_setup
-        // p_img_t ds_img = resample_to_size( img, in_imgs[i]->sz ); // was needed prior
-        in_imgs[i] = img;
+        assert_st( get_db_img_sz( sdb ) == in_imgs[i]->sz ); // should be guarenteed by ensure_disp_win_setup
+        in_imgs[i] = resample_to_size( img, in_imgs[i]->sz ); // may or may not actually downsample, should never up-samp (currently)
         disp_win.update_disp_img( i, in_imgs[i] );
         // in_imgs[i]->share_pels_from( img ); // img was ds_img here ...
       }
