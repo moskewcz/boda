@@ -251,6 +251,9 @@ namespace boda
       register_quit_handler( disp_win, &display_raw_vid_t::on_quit, this );
       register_lb_handler( disp_win, &display_raw_vid_t::on_lb, this );
       io.run();
+
+      if( sink ) { sink->proc_block( data_block_t() ); } // send end-of-stream to sink
+      
     }
 
   };

@@ -213,7 +213,7 @@ namespace boda
 
     virtual bool seek_to_block( uint64_t const & frame_ix ) { return false; }
 
-    AVFormatContext *oc;
+    AVFormatContext *ofc;
     AVCodecContext *octx;
     AVStream *ostr;
     AVCodec *codec;
@@ -222,7 +222,7 @@ namespace boda
     data_stream_ffmpeg_sink_t( void ) { }
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
-      oc = 0;
+      ofc = 0;
       octx = 0;
       ostr = 0;
       codec = 0;
@@ -231,30 +231,35 @@ namespace boda
       // we defer the 'real' init till we get the first frame, so we have info on the desired output video size
     }
     void lazy_init( data_block_t const &db ) {
-      assert_st( !oc ); // call only once.
+      int err;
+
+      assert_st( !ofc ); // call only once.
       assert_st( db.as_img );
       av_register_all(); // NOTE/FIXME: in general, this should be safe to call multiple times. but, there have been bugs wrt that ...
 
-      AVOutputFormat * const out_fmt = av_guess_format( out_fmt_name.c_str(), 0, 0 );
-      if( !out_fmt ) { rt_err( strprintf( "av_guess_format() for out_fmt_name=%s failed", str(out_fmt_name).c_str() ) ); }
-      int err;
-      err = avformat_alloc_output_context2( &oc, out_fmt, 0, 0 );
-      if( err || (!oc) ) { rt_err( "avformat_alloc_output_context2() failed" ); }
-      
-      ostr = avformat_new_stream( oc, 0 );
-      if( !ostr ) { rt_err( "av_new_stream() failed" ); }
-      //ostr->id = 1? 0?
-      
+       
+      // setup codec and codec context
       codec = avcodec_find_encoder_by_name( codec_name.c_str() );
       if( !codec ) { rt_err( strprintf( "avcodec_find_encoder_by_name() for codec=%s failed", str(codec_name).c_str() ) ); }
 
-      octx = avcodec_alloc_context3(codec);
-      if( !octx ) { rt_err( "avcodec_alloc_context3() failed" ); }
+      // set up format and format context
+      AVOutputFormat * const out_fmt = av_guess_format( out_fmt_name.c_str(), 0, 0 );
+      if( !out_fmt ) { rt_err( strprintf( "av_guess_format() for out_fmt_name=%s failed", str(out_fmt_name).c_str() ) ); }
+      err = avformat_alloc_output_context2( &ofc, out_fmt, 0, 0 );
+      if( err || (!ofc) ) { rt_err( "avformat_alloc_output_context2() failed" ); }
+      
+      ostr = avformat_new_stream( ofc, codec ); // note: use codec here. this is will setup the context inside the stream for this codec
+      if( !ostr ) { rt_err( "av_new_stream() failed" ); }
+      assert_st( ostr->id == (int)ofc->nb_streams - 1 ); // FIXME/NOTE: is this really not set properly by avformat_new_stream?if not, set.
+      // octx = avcodec_alloc_context3(codec); // since we use the codec context inside the stream, we don't alloc/setup here ...
+      // if( !octx ) { rt_err( "avcodec_alloc_context3() failed" ); }
+      octx = ostr->codec; // ... we just use the one inside the stream.
+      assert_st( octx );
 
       //av_dict_set( &opts, "vprofile", "baseline", 0 )
 
-//    octx->bit_rate = 1000000; // set from preset?
-//    octx->gop_size = 12; // set from preset?
+      octx->bit_rate = 4000000; // set from preset?
+      octx->gop_size = 12; // set from preset?
       p_img_t const & fi = db.as_img; // first image, use to set sizes
       octx->width = fi->sz.d[0];  
       octx->height = fi->sz.d[1];
@@ -262,10 +267,13 @@ namespace boda
       octx->time_base.num = 1;  
       octx->pix_fmt = PIX_FMT_YUV420P;
 
+      ostr->time_base = octx->time_base; // seems we need to copy this into the stream?
+      if( ofc->oformat->flags & AVFMT_GLOBALHEADER ) { octx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER; } // BLACK MAGIC!
+      
 //      AVDictionary *opts = NULL;
 //      av_dict_set( &o, "preset", "ultrafast", 0 );
       
-      av_opt_set( octx->priv_data, "preset", "ultrafast", 0);
+      //av_opt_set( octx->priv_data, "preset", "ultrafast", 0); // does this do anything? how to check?
         
       err = avcodec_open2( octx, codec, 0 );
       if( err ) { rt_err( "avcodec_open2() failed" ); }
@@ -279,8 +287,12 @@ namespace boda
 
       // for reference, we need to fill the fields of frame similarly to how av_image_alloc would:
       //ret = av_image_alloc(frame->data, frame->linesize, c->width, c->height,  c->pix_fmt, 32);
-      
-      
+
+
+      err = avio_open( &ofc->pb, fn.exp.c_str(), AVIO_FLAG_WRITE );
+      if( err ) { rt_err( strprintf("avio_open(): failed for file '%s' (expanded: '%s')",fn.in.c_str(), fn.exp.c_str() ) ); }
+      printf( "fn.exp=%s\n", str(fn.exp).c_str() );
+      avformat_write_header( ofc, 0 );
       
 #if 0
       // check for any unconsumed (unrecognized) options
@@ -291,27 +303,17 @@ namespace boda
       av_dict_free( &opts );
 #endif
       
-#if 0
-       err = avio_open(&outCtx->pb, kOutputFileName, AVIO_FLAG_WRITE);
-    if (err < 0)
-        exit(1);
-#if (LIBAVFORMAT_VERSION_MAJOR == 53)
-    AVFormatParameters params = {0};
-    err = av_set_parameters(outCtx, &params);
-    if (err < 0)
-exit(1);
-
-#endif 
-#endif
    
     }
     
     AVPacket pkt;
     virtual data_block_t proc_block( data_block_t const & db ) {
       p_img_t const & img = db.as_img;
-      if( !img ) { rt_err( "ffmpeg-sink: expected a data block with an image."); }
+      if( !db.valid() && !img ) { data_stream_deinit(); return db; } // treat null db as deinit/end-of-video. any more packets
+      if( !img ) { rt_err( "ffmpeg-sink: expected a data block with an image."); } // FIXME: can't happen now?
       if( img->yuv_pels.size() != 3 ) { rt_err( "ffmpeg-sink: expected data block image to have 3 yuv_pels vectors."); }
-      if( !oc ) { lazy_init( db ); }
+      if( !ofc ) { lazy_init( db ); }
+      assert_st( ofc && octx && ostr && codec && frame );
 
       uint32_t const align_check_bytes = 32;
       assert_st( ! (frame->height & 1) );
@@ -336,7 +338,7 @@ exit(1);
       av_init_packet( &pkt );
       pkt.data = NULL;    // packet data will be allocated by the encoder
       pkt.size = 0;
-
+      pkt.stream_index = ostr->id;
       int got_output = 0;
       int err = 0;
       err = avcodec_encode_video2( octx, &pkt, frame, &got_output );
@@ -344,13 +346,31 @@ exit(1);
 
       if (got_output) {
         printf("Write frame %s (size=%5d)\n", str(tot_num_read).c_str(), pkt.size);
-        av_free_packet(&pkt);
+        err = av_interleaved_write_frame( ofc, &pkt );
+        if( err ) { rt_err( "av_interleaved_write_frame() failed" ); }
+        // av_free_packet(&pkt); // don't free, since consumed by write interleaved? or 'cause on stack? hmm
       }
       
       ++tot_num_read;
       return db;
 
     }
+
+    void data_stream_deinit( void ) {
+      if( !ofc ) { return; }
+      assert_st( ofc && octx && ostr && codec && frame );
+      av_write_trailer( ofc );
+
+      avcodec_close( octx );
+      av_frame_free( &frame );
+
+      if( !(ofc->oformat->flags & AVFMT_NOFILE) && ofc->pb ) { avio_closep( &ofc->pb ); }
+      avformat_free_context( ofc ); // frees ostr internally?
+
+      // FIXME: free:  ostr, codec ?
+      data_stream_init( 0 ); // happens to zero-out/clear all data, making object ready for another lazy_init
+    }
+
   };
 
   
