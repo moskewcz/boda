@@ -207,8 +207,9 @@ namespace boda
     filename_t fn; //NESI(req=1,help="output filename")
     string out_fmt_name; //NESI(default="avi",help="output container ffmpeg-short-name")
     string codec_name; //NESI(default="mpeg4",help="ffmpeg codec to use. note that, for the default of mpeg4, it seems that the fourcc will be FMP4")
-
-    virtual string get_pos_info_str( void ) { return strprintf( "data_stream_ffmpeg_sink: <no_state>[/TODO]" ); }
+    uint64_t tot_num_read; // num blocks read so far
+    virtual string get_pos_info_str( void ) { return strprintf( "data_stream_ffmpeg_sink: tot_num_read=%s",
+                                                                str(tot_num_read).c_str() ); }
 
     virtual bool seek_to_block( uint64_t const & frame_ix ) { return false; }
 
@@ -216,7 +217,8 @@ namespace boda
     AVCodecContext *octx;
     AVStream *ostr;
     AVCodec *codec;
-    
+    AVFrame *frame;
+
     data_stream_ffmpeg_sink_t( void ) { }
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
@@ -224,6 +226,8 @@ namespace boda
       octx = 0;
       ostr = 0;
       codec = 0;
+      frame = 0;
+      tot_num_read = 0;
       // we defer the 'real' init till we get the first frame, so we have info on the desired output video size
     }
     void lazy_init( data_block_t const &db ) {
@@ -265,6 +269,19 @@ namespace boda
         
       err = avcodec_open2( octx, codec, 0 );
       if( err ) { rt_err( "avcodec_open2() failed" ); }
+
+      frame = av_frame_alloc();
+      if( !frame ) { rt_err( "av_frame_alloc() failed" ); }
+
+      frame->format = octx->pix_fmt;
+      frame->width  = octx->width;
+      frame->height = octx->height;
+
+      // for reference, we need to fill the fields of frame similarly to how av_image_alloc would:
+      //ret = av_image_alloc(frame->data, frame->linesize, c->width, c->height,  c->pix_fmt, 32);
+      
+      
+      
 #if 0
       // check for any unconsumed (unrecognized) options
       AVDictionaryEntry *t = NULL;
@@ -288,13 +305,52 @@ exit(1);
 #endif
    
     }
-
+    
+    AVPacket pkt;
     virtual data_block_t proc_block( data_block_t const & db ) {
-      if( !db.as_img ) { rt_err( "ffmpeg-sink: a data block with an image."); }
+      p_img_t const & img = db.as_img;
+      if( !img ) { rt_err( "ffmpeg-sink: expected a data block with an image."); }
+      if( img->yuv_pels.size() != 3 ) { rt_err( "ffmpeg-sink: expected data block image to have 3 yuv_pels vectors."); }
       if( !oc ) { lazy_init( db ); }
-      return db;
-    }
 
+      uint32_t const align_check_bytes = 32;
+      assert_st( ! (frame->height & 1) );
+      assert_st( ! (frame->width & 1) );
+      assert_st( (uint32_t)frame->height == img->sz.d[1] );
+      assert_st( (uint32_t)frame->width == img->sz.d[0] );
+      // put pointers from yuv_ndas into frame
+      for( uint32_t pix = 0; pix != 3; ++pix ) {
+        uint32_t const subsample = pix ? 2 : 1;
+        uint32_t const pw = frame->width/subsample;
+        frame->linesize[pix] = pw;
+        frame->data[pix] = img->yuv_pels.at(pix).get(); 
+        // it's not clear what alignment we really need to guarentee for the planes of frame, if any. but the ffmpeg
+        // encode example uses 32-byte alignment, so we test for that ...
+        if( ((uintptr_t)frame->data[pix] % align_check_bytes) != 0 ) {
+          rt_err( "unaligned pointer in YUV->ffmpeg conversion. FIXME/TODO: make source of YUV buf be aligned to 32 per plane." );
+        }
+      }
+
+      frame->pts = tot_num_read;
+
+      av_init_packet( &pkt );
+      pkt.data = NULL;    // packet data will be allocated by the encoder
+      pkt.size = 0;
+
+      int got_output = 0;
+      int err = 0;
+      err = avcodec_encode_video2( octx, &pkt, frame, &got_output );
+      if( err ) { rt_err( "avcodec_encode_video2() failed" ); }
+
+      if (got_output) {
+        printf("Write frame %s (size=%5d)\n", str(tot_num_read).c_str(), pkt.size);
+        av_free_packet(&pkt);
+      }
+      
+      ++tot_num_read;
+      return db;
+
+    }
   };
 
   
