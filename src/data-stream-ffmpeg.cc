@@ -207,6 +207,7 @@ namespace boda
     filename_t fn; //NESI(req=1,help="output filename")
     string out_fmt_name; //NESI(default="avi",help="output container ffmpeg-short-name")
     string codec_name; //NESI(default="mpeg4",help="ffmpeg codec to use. note that, for the default of mpeg4, it seems that the fourcc will be FMP4")
+    uint32_t encode_fps; //NESI(default="15",help="output video frames-per-second")
     uint64_t tot_num_read; // num blocks read so far
     virtual string get_pos_info_str( void ) { return strprintf( "data_stream_ffmpeg_sink: tot_num_read=%s",
                                                                 str(tot_num_read).c_str() ); }
@@ -263,7 +264,7 @@ namespace boda
       p_img_t const & fi = db.as_img; // first image, use to set sizes
       octx->width = fi->sz.d[0];  
       octx->height = fi->sz.d[1];
-      octx->time_base.den = 25;  
+      octx->time_base.den = encode_fps;  
       octx->time_base.num = 1;  
       octx->pix_fmt = PIX_FMT_YUV420P;
 
