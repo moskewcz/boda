@@ -190,28 +190,6 @@ namespace boda
     img_annos.resize( imgs->size() );
     assert_st( !imgs->empty() );
     
-    if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
-
-    if( window_sz == u32_pt_t() ) { window_sz = {640,480}; }
-    if( layout_mode.empty() ) { layout_mode = "horiz"; }
-    if( !window ) {
-      window = make_p_SDL( SDL_CreateWindow( "boda display", 
-                                             SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                                             window_sz.d[0], window_sz.d[1],
-                                             SDL_WINDOW_RESIZABLE) );
-    }
-    if( !window ) { rt_err( strprintf( "Couldn't set create window: %s\n", SDL_GetError() ) ); }
-    if( !renderer ) {
-      renderer = make_p_SDL( SDL_CreateRenderer( window.get(), -1, 0) ) ;
-    }
-    if (!renderer) { rt_err( strprintf( "Couldn't set create renderer: %s\n", SDL_GetError() ) ); }
-
-#if 0
-    SDL_RendererInfo  rinfo;
-    SDL_GetRendererInfo( renderer.get(), &rinfo );
-    printf( "rinfo.name=%s\n", str(rinfo.name).c_str() );
-#endif
-
     //uint32_t const pixel_format = SDL_PIXELFORMAT_ABGR8888;
     uint32_t const pixel_format = SDL_PIXELFORMAT_YV12;
     YV12_buf.reset( new YV12_buf_t );
@@ -242,6 +220,27 @@ namespace boda
       if( img_h & 1 ) { ++img_h; }
       YV12_buf->set_sz_and_alloc( {img_w, img_h} );
     }
+    if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
+
+    if( window_sz == u32_pt_t() ) { window_sz = {YV12_buf->w,YV12_buf->h}; } // if no window size, use 'native' size of render-target-texture
+    if( layout_mode.empty() ) { layout_mode = "horiz"; }
+    if( !window ) {
+      window = make_p_SDL( SDL_CreateWindow( "boda display", 
+                                             SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+                                             window_sz.d[0], window_sz.d[1],
+                                             SDL_WINDOW_RESIZABLE) );
+    }
+    if( !window ) { rt_err( strprintf( "Couldn't set create window: %s\n", SDL_GetError() ) ); }
+    if( !renderer ) {
+      renderer = make_p_SDL( SDL_CreateRenderer( window.get(), -1, 0) ) ;
+    }
+    if (!renderer) { rt_err( strprintf( "Couldn't set create renderer: %s\n", SDL_GetError() ) ); }
+
+#if 0
+    SDL_RendererInfo  rinfo;
+    SDL_GetRendererInfo( renderer.get(), &rinfo );
+    printf( "rinfo.name=%s\n", str(rinfo.name).c_str() );
+#endif
 
     tex.reset();
     tex = make_p_SDL( SDL_CreateTexture( renderer.get(), pixel_format, SDL_TEXTUREACCESS_STREAMING, 
