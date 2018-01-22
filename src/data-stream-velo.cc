@@ -901,6 +901,11 @@ namespace boda
   // y forward (yellow)
   // x right (reg)
   // z up (green)
+
+  // note on azimuth steps (azi_step):
+  // for HDL32, normal (10HZ) should be 0.165 per sample
+  // for HDL64, normal (10HZ) single-return should be 0.1729106628
+  // for HDL64, normal (10HZ) dual-return should be ~0.21 (27 18 18 27 18 18 27 18 18 18 27 18 18 ...) 
   
   struct velo_pcdm_to_xyz_t : virtual public nesi, public data_stream_t // NESI(help="annotate data blocks (containing point cloud data) with image representations (in as_img field of data block). returns annotated data block.",
                            // bases=["data_stream_t"], type_id="velo-pcdm-to-xyz")
