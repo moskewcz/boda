@@ -198,6 +198,37 @@ namespace boda
 
   };
 
+  void set_libx264_medium_presets( AVCodecContext * const ctx ) {
+    // from:  https://stackoverflow.com/questions/3553003/how-to-encode-h-264-with-libavcodec-x264
+    // libx264-medium.ffpreset preset
+    ctx->coder_type = 1;  // coder = 1
+    ctx->flags|=CODEC_FLAG_LOOP_FILTER;   // flags=+loop
+    ctx->me_cmp|= 1;  // cmp=+chroma, where CHROMA = 1
+    //ctx->partitions|=X264_PART_I8X8+X264_PART_I4X4+X264_PART_P8X8+X264_PART_B8X8; // partitions=+parti8x8+parti4x4+partp8x8+partb8x8
+    //ctx->me_method=ME_HEX;    // me_method=hex
+    ctx->me_subpel_quality = 7;   // subq=7
+    ctx->me_range = 16;   // me_range=16
+    ctx->gop_size = 250;  // g=250
+    ctx->keyint_min = 25; // keyint_min=25
+    ctx->scenechange_threshold = 40;  // sc_threshold=40
+    ctx->i_quant_factor = 0.71; // i_qfactor=0.71
+    ctx->b_frame_strategy = 1;  // b_strategy=1
+    ctx->qcompress = 0.6; // qcomp=0.6
+    ctx->qmin = 10;   // qmin=10
+    ctx->qmax = 51;   // qmax=51
+    ctx->max_qdiff = 4;   // qdiff=4
+    ctx->max_b_frames = 3;    // bf=3
+    ctx->refs = 3;    // refs=3
+    //ctx->directpred = 1;  // directpred=1
+    ctx->trellis = 1; // trellis=1
+    //ctx->flags2|=CODEC_FLAG2_BPYRAMID+CODEC_FLAG2_MIXED_REFS+CODEC_FLAG2_WPRED+CODEC_FLAG2_8X8DCT+CODEC_FLAG2_FASTPSKIP;  // flags2=+bpyramid+mixed_refs+wpred+dct8x8+fastpskip
+    //ctx->weighted_p_pred = 2; // wpredp=2
+
+// libx264-main.ffpreset preset
+    //ctx->flags2|=CODEC_FLAG2_8X8DCT;c->flags2^=CODEC_FLAG2_8X8DCT;    // flags2=-dct8x8
+    av_opt_set(ctx->priv_data, "crf", "20", AV_OPT_SEARCH_CHILDREN);
+  }
+
   struct data_stream_ffmpeg_sink_t : virtual public nesi, public data_stream_t // NESI(
                                     // help="read frames and output video file with ffmpeg (libavformat,libavcodec...)",
                                     // bases=["data_stream_t"], type_id="ffmpeg-sink")
@@ -259,7 +290,7 @@ namespace boda
 
       //av_dict_set( &opts, "vprofile", "baseline", 0 )
 
-      octx->bit_rate = 4000000; // set from preset?
+      octx->bit_rate = 0; // set from preset?
       octx->gop_size = 12; // set from preset?
       p_img_t const & fi = db.as_img; // first image, use to set sizes
       octx->width = fi->sz.d[0];  
@@ -270,7 +301,10 @@ namespace boda
 
       ostr->time_base = octx->time_base; // seems we need to copy this into the stream?
       if( ofc->oformat->flags & AVFMT_GLOBALHEADER ) { octx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER; } // BLACK MAGIC!
-      
+
+      if( codec_name == "libx264" ) { set_libx264_medium_presets( octx ); }
+
+        
 //      AVDictionary *opts = NULL;
 //      av_dict_set( &o, "preset", "ultrafast", 0 );
       
@@ -303,8 +337,6 @@ namespace boda
       }
       av_dict_free( &opts );
 #endif
-      
-   
     }
     
     AVPacket pkt;
