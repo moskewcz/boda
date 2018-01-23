@@ -47,8 +47,8 @@ namespace boda {
   struct layout_elem_t : virtual public nesi // NESI(help="op base descriptor") 
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    vect_p_layout_elem_t kids;
     string mode; //NESI(req=1,help="packing mode: vert, horiz, grid, or leaf:IX")
+    vect_p_layout_elem_t kids; //NESI(help="child nodes")
 
     // recursively set sz/nc for layout tree, return in map leaf_ncs
     void calc_layout( map_str_u32_pt_t const & leaf_szs, map_str_u32_pt_t & leaf_ncs );

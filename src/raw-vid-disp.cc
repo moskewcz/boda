@@ -47,7 +47,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     u32_pt_t window_sz; //NESI(default="640:480",help="X/Y window size")
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
-    p_layout_elem_t disp_layout; //NESI(default="(mode=vert)",help="layout for images")
+    p_layout_elem_t disp_layout; //NESI(help="layout for images")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t auto_restart; //NESI(default=1,help="if set, seek to block 0 at end of stream")

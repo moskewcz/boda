@@ -11,6 +11,8 @@
 #include"mutex.H"
 #include"asio_util.H"
 #include"anno_util.H"
+#include"lexp.H"
+#include"nesi.H"
 
 namespace boda 
 {
@@ -229,6 +231,8 @@ namespace boda
     return req_imgs;
   }
 
+  p_layout_elem_t make_p_layout_elem_t_init_and_check_unused_from_lexp( p_lexp_t const & lexp, nesi_init_arg_t * const nia );
+
   void disp_win_t::disp_setup( p_vect_p_img_t const & imgs_ ) {
     imgs = imgs_;
     img_annos.resize( imgs->size() );
@@ -237,34 +241,25 @@ namespace boda
     //uint32_t const pixel_format = SDL_PIXELFORMAT_ABGR8888;
     uint32_t const pixel_format = SDL_PIXELFORMAT_YV12;
     YV12_buf.reset( new YV12_buf_t );
-    imgs_buf_nc.clear();
 
-    {
-      uint32_t img_w = 0;
-      uint32_t img_h = 0;
-      if( (!disp_layout) || disp_layout->mode == "horiz" ) {
-        for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
-          max_eq( img_h, (*i)->sz.d[1] );
-        }
-        for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
-          imgs_buf_nc.push_back( u32_pt_t{ img_w, img_h - (*i)->sz.d[1] } );
-          img_w += (*i)->sz.d[0];
-        }
-      } else if( disp_layout->mode == "vert" ) {
-        for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
-          max_eq( img_w, (*i)->sz.d[0] );
-        }
-        for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
-          imgs_buf_nc.push_back( u32_pt_t{ img_w - (*i)->sz.d[0], img_h } );
-          img_h += (*i)->sz.d[1];
-        }
-
-      } else { rt_err( "unknown layout_mode=" + disp_layout->mode ); }
-      // make w/h even for simplicity of YUV UV (2x downsampled) planes
-      if( img_w & 1 ) { ++img_w; }
-      if( img_h & 1 ) { ++img_h; }
-      YV12_buf->set_sz_and_alloc( {img_w, img_h} );
+    map_str_u32_pt_t img_szs;
+    for( uint32_t i = 0; i != imgs->size(); ++i ) { must_insert( img_szs, str(i), imgs->at(i)->sz ); }
+    map_str_u32_pt_t img_ncs;
+    if( !disp_layout ) {
+      string default_disp_layout_str = "(mode=horiz,kids=(";
+      for( uint32_t i = 0; i != imgs->size(); ++i ) { default_disp_layout_str += string(i?",":"")+"_=(mode=leaf:"+str(i)+",kids=())"; }
+      default_disp_layout_str += "))";
+      disp_layout = make_p_layout_elem_t_init_and_check_unused_from_lexp( parse_lexp( default_disp_layout_str ), 0 );
     }
+    disp_layout->calc_layout( img_szs, img_ncs );
+    imgs_buf_nc.clear();
+    for( uint32_t i = 0; i != imgs->size(); ++i ) { imgs_buf_nc.push_back( must_find( img_ncs, str(i) ) ); }
+    u32_pt_t & img_sz = disp_layout->sz;
+    // make full texture target w/h even for simplicity of YUV UV (2x downsampled) planes
+    if( img_sz.d[0] & 1 ) { ++img_sz.d[0]; }
+    if( img_sz.d[1] & 1 ) { ++img_sz.d[1]; }
+    YV12_buf->set_sz_and_alloc( img_sz );
+
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
 
     if( window_sz == u32_pt_t() ) { window_sz = {YV12_buf->w,YV12_buf->h}; } // if no window size, use 'native' size of render-target-texture
