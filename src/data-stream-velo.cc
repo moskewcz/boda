@@ -916,7 +916,7 @@ namespace boda
     p_filename_t write_velo_cfg; //NESI(help="if specified, dump initial velo corrections (after loading and maybe pcdm-ifing or other modifications) to this file")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     float fov_center; //NESI(default="0.0",help="default center angle (only used when generating azimuths using azi_step)")
-    float azi_step; //NESI(default=".165",help="default azimuth step (stream can override)")
+    float azi_step; //NESI(default="0",help="default azimuth step (stream can override)")
     float dist_scale; //NESI(default=".002",help="to get meters, multiply raw distances by this value")
     float x_offset; //NESI(default="0.0",help="offset to add to X output values")
     float y_offset; //NESI(default="0.0",help="offset to add to Y output values")
@@ -938,7 +938,8 @@ namespace boda
       if( 0 ) { }
       else if( is_pcdm || endswith( db.meta, "/VD_HDL64" ) ) {
         if( y_sz != 64 ) { rt_err( strprintf( "for PCDM or VD_HDL64 lidar data, there must be exactly 64 lines per frame, but saw %s lines.", str(y_sz).c_str() ) ); }
-        azi_step = 0.1729106628; // FIXME: not right for dual-return velo-64 data ... hope we have azimuth data in that case? azi_step is mainly needed for PCDM case.
+        // FIXME: not right for dual-return velo-64 data ... hope we have azimuth data in that case? or that azi_step is manually set? note: azi_step is mainly needed for PCDM case.
+        if( azi_step == 0.0f ) { azi_step = 0.1729106628;  }
         if( laser_corrs.empty() ) {
           rt_err( "currently, for PCDM/VD_HDL64 lidar data, laser corrs must be set (by conf file) at init time, but they were not. please specify a velo-64 config file." );
         }
@@ -951,7 +952,7 @@ namespace boda
       }
       else if( endswith( db.meta, "/VD_HDL32" ) ) {
         if( y_sz != 32 ) { rt_err( strprintf( "for VD_HDL32 lidar data, there must be exactly 64 lines per frame, but saw %s lines.", str(y_sz).c_str() ) ); }
-        azi_step = 0.165;
+        if( azi_step == 0.0f ) { azi_step = 0.165; }
         if( laser_corrs.empty() ) {
           // if no config file, generate default laser_corrs that spread out beams. FIXME: not ideal and can be
           // confusing, but maybe better than doing nothing here? the actual values shoul be the correct ones for
