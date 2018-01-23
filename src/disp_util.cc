@@ -14,6 +14,48 @@
 
 namespace boda 
 {
+  void layout_elem_t::calc_layout( map_str_u32_pt_t const & leaf_szs, map_str_u32_pt_t & leaf_ncs ) {
+    set_size( leaf_szs );
+    set_leaf_ncs( u32_pt_t(), leaf_ncs );
+  }
+
+  string const leaf_prefix = "leaf:";
+
+  void layout_elem_t::set_size( map_str_u32_pt_t const & leaf_szs ) {
+    for( vect_p_layout_elem_t::const_iterator i = kids.begin(); i != kids.end(); ++i ) {
+      (*i)->set_size( leaf_szs );
+    }
+    assert_st( sz == u32_pt_t() ); // should be unset/zero
+    string maybe_leaf_id = mode;
+    if( maybe_strip_prefix( maybe_leaf_id, leaf_prefix ) ) {
+      if( !kids.empty() ) { rt_err("leaf layout node must not have kids"); }
+      sz = must_find( leaf_szs, maybe_leaf_id );
+    } else if( mode == "horiz" || mode == "vert" ) {
+      bool d = (mode == "horiz");
+      for( vect_p_layout_elem_t::const_iterator i = kids.begin(); i != kids.end(); ++i ) {
+        max_eq( sz.d[d], (*i)->sz.d[d] );
+      }
+      for( vect_p_layout_elem_t::const_iterator i = kids.begin(); i != kids.end(); ++i ) {
+        (*i)->rel_nc = u32_pt_t{ (sz.d[d] - (*i)->sz.d[d]) / 2, sz.d[!d] };
+        if( d ) { (*i)->rel_nc.dims_swap(); }
+        sz.d[!d] += (*i)->sz.d[!d];
+      }
+    } else if( mode == "grid" ) {
+      rt_err( "grid layout mode TODO" );
+    } else { rt_err( "unknown layout_mode=" + mode ); }
+  }
+
+  void layout_elem_t::set_leaf_ncs( u32_pt_t path_sum_nc, map_str_u32_pt_t & leaf_ncs ) {
+    path_sum_nc += rel_nc;
+    for( vect_p_layout_elem_t::const_iterator i = kids.begin(); i != kids.end(); ++i ) {
+      (*i)->set_leaf_ncs( path_sum_nc, leaf_ncs );
+    }
+    string maybe_leaf_id = mode;
+    if( maybe_strip_prefix( maybe_leaf_id, leaf_prefix ) ) {
+      assert_st( kids.empty() ); // check in set_size()
+      must_insert( leaf_ncs, maybe_leaf_id, path_sum_nc );
+    }
+  }
   
   SDL_Rect box_to_sdl( i32_box_t const & b ) {
     i32_pt_t const bsz = b.sz();

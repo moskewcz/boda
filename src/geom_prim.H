@@ -14,6 +14,7 @@ namespace boda
     T dims_prod( void ) const { return d[0] * d[1]; }
     T dims_min( void ) const { return std::min(d[0],d[1]); }
     T dims_max( void ) const { return std::max(d[0],d[1]); }
+    void dims_swap( void ) { std::swap(d[0],d[1]); }
     void read_from_line_parts( vect_string const & parts, uint32_t const init_ix );
     T_pt_t scale_and_round( double const & s ) const { return T_pt_t( round(d[0]*s), round(d[1]*s) ); }
     T_pt_t scale_and_round( T_pt_t<double> const & s ) const { return T_pt_t( round(d[0]*s.d[0]), round(d[1]*s.d[1]) ); }
@@ -225,6 +226,7 @@ namespace boda
   typedef shared_ptr< u32_box_t > p_u32_box_t; 
   typedef vector< p_u32_box_t > vect_p_u32_box_t;
 
+  typedef map< string, u32_pt_t > map_str_u32_pt_t;
 
   std::ostream & operator <<(std::ostream & os, u32_box_t const & v);
   std::ostream & operator <<(std::ostream & os, i32_box_t const & v);

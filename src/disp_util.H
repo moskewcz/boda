@@ -50,9 +50,14 @@ namespace boda {
     vect_p_layout_elem_t kids;
     string mode; //NESI(req=1,help="packing mode: vert, horiz, grid, or leaf:IX")
 
+    // recursively set sz/nc for layout tree, return in map leaf_ncs
+    void calc_layout( map_str_u32_pt_t const & leaf_szs, map_str_u32_pt_t & leaf_ncs );
+    void set_size( map_str_u32_pt_t const & leaf_szs );
+    void set_leaf_ncs( u32_pt_t path_sum_nc, map_str_u32_pt_t & leaf_ncs );
+
     // calculated values
     u32_pt_t sz;
-    u32_pt_t nc; // set by parent
+    u32_pt_t rel_nc; // relative to parent
   };
 
   struct disp_win_t {

@@ -81,6 +81,9 @@ namespace boda
   inline bool maybe_strip_suffix( std::string & s, std::string const & suff ) {
     if( endswith(s,suff) ) { s = s.substr( 0, s.size() - suff.size() ); return 1; } return 0;
   }
+  inline bool maybe_strip_prefix( std::string & s, std::string const & prefix ) {
+    if( startswith(s,prefix) ) { s = s.substr( prefix.size(), string::npos ); return 1; } return 0;
+  }
 
   template< typename T > inline std::ostream & operator << ( std::ostream & out, vector< T > const & v ) {
     for( typename vector< T >::const_iterator i = v.begin(); i != v.end(); ++i ) {
