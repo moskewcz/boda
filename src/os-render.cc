@@ -88,11 +88,12 @@ void main(){
     uint32_t force_pcdm_mode; //NESI(default="0",help="if 1, force-enable pcdm mode, which sorts laser corrs by vertical angle and zero out horiz (rot) corrections, to handle PCDM-style 64 data. note: if 0, pcdm mode will be enabled dynamically if and data blocks with a meta ending /PCDM are seen.")
     p_filename_t velo_cfg; //NESI(help="xml config filename (optional; will try to read from stream if not present. but note, do need config somehow, from stream or file!")
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    uint32_t print_camera; //NESI(default="0",help="if non-zero, print camera pos/rot each frame")
     u32_pt_t disp_sz; //NESI(default="600:300",help="X/Y per-stream-image size")
     double cam_scale; //NESI(default=".2",help="scale camera pos by this amount")
     float fov_center; //NESI(default="0",help="default center angle (only used when generating azimuths using azi_step)")
     float azi_step; //NESI(default=".165",help="default azimuth step (stream can override)")
-    float start_z; //NESI(default="40.0",help="starting z value for camera")
+    float start_z; //NESI(default="0.1",help="starting z value for camera")
 
     uint32_t grid_cells; //NESI(default="10",help="number of X/Y grid cells to draw")
     float grid_cell_sz; //NESI(default="10.0",help="size of each grid cell")
@@ -125,9 +126,11 @@ void main(){
         for( uint32_t i = 0; i != 2; ++i ) {
           cam_rot[i] = glm::radians(cam_pos_rot.at2(1,i));
         }
-        cam_rot[2] = start_z + cam_pos_rot.at2(1,2) * cam_scale; 
-        //printf( "cam_pos[0]=%s cam_pos[1]=%s cam_pos[2]=%s\n", str(cam_pos[0]).c_str(), str(cam_pos[1]).c_str(), str(cam_pos[2]).c_str() );
-        //printf( "cam_rot[0]=%s cam_rot[1]=%s cam_rot[2]=%s\n", str(cam_rot[0]).c_str(), str(cam_rot[1]).c_str(), str(cam_rot[2]).c_str() );
+        cam_rot[2] = start_z + cam_pos_rot.at2(1,2) * cam_scale;
+        if( print_camera )  {
+          printf( "cam_pos[=0]%s cam_pos[1]=%s cam_pos[2]=%s\n", str(cam_pos[0]).c_str(), str(cam_pos[1]).c_str(), str(cam_pos[2]).c_str() );
+          printf( "cam_rot[0]=%s cam_rot[1]=%s cam_rot[2]=%s\n", str(cam_rot[0]).c_str(), str(cam_rot[1]).c_str(), str(cam_rot[2]).c_str() );
+        }
       }
       
     }
@@ -495,6 +498,7 @@ void main(){
           }
           else if( sdb.meta == "azi" ) {
             azi_nda = sdb.nda;
+            //printf( "azi_nda=%s\n", str(azi_nda).c_str() );
           }
           else if( sdb.meta == "objects" ) {
             if( sdb.nda.get() ) {

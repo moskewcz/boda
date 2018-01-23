@@ -155,7 +155,9 @@ namespace boda
 
   void disp_win_t::reset_cam( void ) {
     for( uint32_t i = 0; i != 3; ++i ) { cam_rot[i] = 0.0f; cam_pos[i] = 0.0f; }
-    cam_rot[1] = 80.0f;
+    cam_pos[1] = 10.0f;
+    cam_pos[2] = 10.0f;
+    cam_rot[1] = 70.0f;
       
   }
 
