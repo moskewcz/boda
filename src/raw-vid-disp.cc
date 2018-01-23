@@ -47,6 +47,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     u32_pt_t window_sz; //NESI(default="640:480",help="X/Y window size")
     u32_pt_t disp_sz; //NESI(default="300:300",help="X/Y per-stream-image size")
+    p_layout_elem_t disp_layout; //NESI(default="(mode=vert)",help="layout for images")
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t auto_restart; //NESI(default=1,help="if set, seek to block 0 at end of stream")
@@ -54,7 +55,7 @@ namespace boda
     uint32_t display_downsample_factor; //NESI(default=1,help="for display, downsample all images by this factor prior to compositing. this reduces the output-image-size of the display, so a smaller texture can be used, copies are faster, and so on. 2 or 4 are nice values to use, since the downsampling is fast.")
     p_data_stream_t src; //NESI(help="data stream to read images from")
     p_data_stream_t sink; //NESI(help="data stream to write YUV image stream to")
-
+    
     disp_win_t disp_win;
     p_deadline_timer_t frame_timer;
     time_duration frame_dur;
@@ -123,7 +124,7 @@ namespace boda
         in_imgs.back()->set_sz_and_alloc_pels( img_disp_sz );
       }
       disp_win.window_sz = window_sz;
-      disp_win.layout_mode = "vert";
+      disp_win.disp_layout = disp_layout;
       disp_win.disp_setup( in_imgs );
     }
 

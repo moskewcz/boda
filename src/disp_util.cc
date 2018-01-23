@@ -196,10 +196,11 @@ namespace boda
     uint32_t const pixel_format = SDL_PIXELFORMAT_YV12;
     YV12_buf.reset( new YV12_buf_t );
     imgs_buf_nc.clear();
+
     {
       uint32_t img_w = 0;
       uint32_t img_h = 0;
-      if( layout_mode == "horiz" ) {
+      if( (!disp_layout) || disp_layout->mode == "horiz" ) {
         for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
           max_eq( img_h, (*i)->sz.d[1] );
         }
@@ -207,7 +208,7 @@ namespace boda
           imgs_buf_nc.push_back( u32_pt_t{ img_w, img_h - (*i)->sz.d[1] } );
           img_w += (*i)->sz.d[0];
         }
-      } else if( layout_mode == "vert" ) {
+      } else if( disp_layout->mode == "vert" ) {
         for( vect_p_img_t::const_iterator i = imgs->begin(); i != imgs->end(); ++i ) {
           max_eq( img_w, (*i)->sz.d[0] );
         }
@@ -216,7 +217,7 @@ namespace boda
           img_h += (*i)->sz.d[1];
         }
 
-      } else { rt_err( "unknown layout_mode=" + layout_mode ); }
+      } else { rt_err( "unknown layout_mode=" + disp_layout->mode ); }
       // make w/h even for simplicity of YUV UV (2x downsampled) planes
       if( img_w & 1 ) { ++img_w; }
       if( img_h & 1 ) { ++img_h; }
@@ -225,7 +226,6 @@ namespace boda
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) { rt_err( strprintf( "Couldn't initialize SDL: %s\n", SDL_GetError() ) ); }
 
     if( window_sz == u32_pt_t() ) { window_sz = {YV12_buf->w,YV12_buf->h}; } // if no window size, use 'native' size of render-target-texture
-    if( layout_mode.empty() ) { layout_mode = "horiz"; }
     if( !window ) {
       window = make_p_SDL( SDL_CreateWindow( "boda display", 
                                              SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -533,5 +533,6 @@ namespace boda
     ++frame_cnt;
     SDL_RenderPresent( renderer.get() );
   }
+#include"gen/disp_util.H.nesi_gen.cc"
 
 }

@@ -39,6 +39,22 @@ namespace boda {
   typedef shared_ptr< vect_anno_t > p_vect_anno_t; 
   typedef vector< p_vect_anno_t > vect_p_vect_anno_t; 
 
+  struct layout_elem_t;
+  typedef vector< layout_elem_t > vect_layout_elem_t; 
+  typedef shared_ptr< layout_elem_t > p_layout_elem_t; 
+  typedef vector< p_layout_elem_t > vect_p_layout_elem_t;
+
+  struct layout_elem_t : virtual public nesi // NESI(help="op base descriptor") 
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    vect_p_layout_elem_t kids;
+    string mode; //NESI(req=1,help="packing mode: vert, horiz, grid, or leaf:IX")
+
+    // calculated values
+    u32_pt_t sz;
+    u32_pt_t nc; // set by parent
+  };
+
   struct disp_win_t {
     p_SDL_Window window;
     p_SDL_Renderer renderer;
@@ -67,7 +83,7 @@ namespace boda {
     p_YV12_buf_t YV12_buf;
     p_vect_p_img_t imgs;
     vect_u32_pt_t imgs_buf_nc;
-    string layout_mode;
+    p_layout_elem_t disp_layout;
     vect_p_vect_anno_t img_annos;
 
     uint64_t frame_cnt;
