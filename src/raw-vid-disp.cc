@@ -1,7 +1,7 @@
 // Copyright (c) 2015, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
 #include"has_main.H"
-
+#include"str_util.H"
 #include"disp_util.H" 
 #include"asio_util.H"
 #include"data-stream.H"
