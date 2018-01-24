@@ -16,7 +16,7 @@ namespace boda
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     filename_t font_fn; //NESI(default="%(boda_dir)/fonts/DroidSansMono.ttf",help="ttf font filename")
-    uint32_t pixel_height; //NESI(default=20,help="desired pixel height")
+    uint32_t pixel_height; //NESI(default=40,help="desired pixel height")
 
     p_string font_data;
     stbtt_fontinfo font;
