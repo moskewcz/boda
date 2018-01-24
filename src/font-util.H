@@ -2,15 +2,15 @@
 #ifndef FONT_UTIL_H
 #define FONT_UTIL_H
 
-#include "boda_base.H"
-
+#include"boda_base.H"
+#include"geom_prim.H"
 
 namespace boda 
 {
   struct rendered_char_t {
+    int ascent_pels;
     p_uint8_t bitmap;
-    int w;
-    int h;
+    i32_pt_t sz;
     int xoff;
     int yoff;
     int advance_pels;
@@ -26,6 +26,7 @@ namespace boda
     virtual int kern_advance_pels( int8_t const & c1, int8_t const & c2 ) = 0;
   };
   typedef shared_ptr< font_render_t > p_font_render_t; 
+  void render_text_to_img( p_font_render_t const & fr, p_img_t const & img, i32_pt_t const & dest, std::string const & s );
 
 }
 
