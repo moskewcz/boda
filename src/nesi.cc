@@ -634,6 +634,13 @@ namespace boda
   nesi_dump_t * u32_pt_t_nesi_dump = &with_op_left_shift_nesi_dump< u32_pt_t >;
   void *u32_pt_t_init_arg = (void *)"u32_pt_t (pair of 32-bit unsigned integers, i.e. an unsigned point)";
 
+  // i32_pt_t
+  init_t * nesi_i32_pt_t_init = &nesi_str_parts_init< i32_pt_t >;
+  make_p_t * i32_pt_t_make_p = &has_def_ctor_make_p< i32_pt_t >;
+  vect_push_back_t * i32_pt_t_vect_push_back = &has_def_ctor_vect_push_back_t< i32_pt_t >;
+  nesi_dump_t * i32_pt_t_nesi_dump = &with_op_left_shift_nesi_dump< i32_pt_t >;
+  void *i32_pt_t_init_arg = (void *)"i32_pt_t (pair of 32-bit signed integers, i.e. a signed point)";
+
   // u32_box_t
   init_t * nesi_u32_box_t_init = &nesi_str_parts_init< u32_box_t >;
   make_p_t * u32_box_t_make_p = &has_def_ctor_make_p< u32_box_t >;
