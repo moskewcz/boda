@@ -109,6 +109,7 @@ LDFLAGS := $(LDFLAGS) -lcpp_common -lrosconsole -lrosconsole_print -lrosconsole_
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+data-stream-img-util.o
 font-util.o
 data-stream-stream.o
 stream_util.o
