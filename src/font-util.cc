@@ -20,9 +20,12 @@ namespace boda
       printf( "test-font-util main() begins.\n" );
       p_string font_data = read_whole_fn( font_fn );
       uint8_t * const rp_font_data = (uint8_t * const)&font_data->at(0);
+      int const font_offset = stbtt_GetFontOffsetForIndex(rp_font_data,0); // FIXME: doesn't take len of data, so presumably unsafe ...
+      if( font_offset == -1 ) { rt_err( "stbtt_GetFontOffsetForIndex() failed" ); }
       stbtt_fontinfo font;
-      stbtt_InitFont(&font, rp_font_data, stbtt_GetFontOffsetForIndex(rp_font_data,0));
-
+      int const ret = stbtt_InitFont( &font, rp_font_data, font_offset );
+      if( ret == 0 ) { rt_err( "stbtt_InitFont() failed" ); }
+      
       for( string::const_iterator c = to_render.begin(); c != to_render.end(); ++c ) {
         int w,h;
         unsigned char * const bitmap = stbtt_GetCodepointBitmap(&font, 0,stbtt_ScaleForPixelHeight(&font, render_scale), *c, &w, &h, 0,0);
