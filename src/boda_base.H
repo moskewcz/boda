@@ -89,7 +89,7 @@ namespace boda
   string stacktrace_str( p_vect_rp_void bt, uint32_t strip_frames );
   p_vect_rp_void get_backtrace( void );
 
-  template< typename T > inline std::string str(T const & i); // predeclare inline function template from std_util.H
+  template< typename T > inline std::string str(T const & i); // predeclare inline function template from str_util.H
 
   // raise runtime error. captures stack and raises exception with
   // given string as error message. as a perf. compromise, while the
