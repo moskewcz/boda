@@ -16,6 +16,8 @@ namespace boda
     p_font_render_t font_renderer; //NESI(default="(be=ttf)",help="font renderer for annotating images")
     i32_pt_t text_pos; //NESI(req=1,help="text pt")
     string text_str; //NESI(req=1,help="text string")
+    uint32_t prefix_with_meta; //NESI(default="0",help="if non-zero, prefix text_str with meta string")
+    uint32_t prefix_with_tag; //NESI(default="0",help="if non-zero, prefix text_str with tag string")
 
     virtual void data_stream_init( nesi_init_arg_t * const nia ) { }
     virtual string get_pos_info_str( void ) { return strprintf( "img-add-text: text_pos=%s text_str=%s\n", str(text_pos).c_str(), str(text_str).c_str() ); }
@@ -23,7 +25,11 @@ namespace boda
     virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret = db;
       if( !ret.as_img ) { rt_err( "img-add-text: expected a data block with an image" ); }
-      render_text_to_img( font_renderer, ret.as_img, text_pos, text_str );
+      string text_str_fin;
+      if( prefix_with_meta ) { text_str_fin += db.meta; }
+      if( prefix_with_tag ) { text_str_fin += db.tag; }
+      text_str_fin += text_str;
+      render_text_to_img( font_renderer, ret.as_img, text_pos, text_str_fin );
       return ret;
     }
 
