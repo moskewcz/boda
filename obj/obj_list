@@ -123,7 +123,7 @@ data-stream-mxnet.o
 data-stream-file.o
 data-to-img.o
 data-stream.o
-raw-vid-disp.o
+raw-vid-disp.o SDL2
 op-tuner.o
 cnn_op.o
 culibs-wrap.o culibs
