@@ -46,8 +46,8 @@ namespace boda
     bool has_subblocks( void ) const { return subblocks.get(); }
     void ensure_has_subblocks( void ) { if( !subblocks ) { subblocks = make_shared< vect_data_block_t >(); } }
     uint32_t num_subblocks( void ) const { return has_subblocks() ? subblocks->size() : uint32_t_const_max; }
-
-    bool valid( void ) const { return nda.get() || subblocks.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
+      
+    bool valid( void ) const { return nda.get() || subblocks.get() || as_img.get(); } // if false, no fields are valid (in particular, sz/metadata is not valid)
     data_block_t clone( void ) const {
       data_block_t ret = *this;
       if( subblocks ) { // deep copy subblocks if any
