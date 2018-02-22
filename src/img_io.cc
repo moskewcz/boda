@@ -138,6 +138,8 @@ namespace boda
   p_img_t transpose( img_t const * const src )
   {
     p_img_t ret( new img_t );
+    if( !src->yuv_pels.empty() ) { rt_err( "img_t transpose() with non-empty yuv_pels unsuported/TODO" ); }
+
     ret->set_row_align( src->row_align ); // preserve alignment
     ret->set_sz_and_alloc_pels( {src->sz.d[1], src->sz.d[0]} );
     for( uint32_t rx = 0; rx < ret->sz.d[0]; ++rx ) {
