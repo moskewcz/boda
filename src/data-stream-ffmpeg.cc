@@ -8,6 +8,7 @@ extern "C" {
 #include"libavformat/avformat.h"
 #include"libavcodec/avcodec.h"
 #include"libavutil/opt.h"
+#include"libswscale/swscale.h"
 }
 #include"img_io.H"
 
@@ -22,6 +23,7 @@ namespace boda
     
     filename_t fn; //NESI(req=1,help="input filename")
     uint32_t stream_index; //NESI(default="0",help="ffmpeg stream index from which to extract frames from")
+    uint32_t output_rgba; //NESI(default="0",help="if non-zero, use sws_scale() to output 'normal' (not YUV) img_t's with RGBA data")
 
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s", str(tot_num_read).c_str() ); }
 
@@ -80,6 +82,7 @@ namespace boda
 
 
     void init_video_stream_decode( AVStream * const vid_st ) {
+      sws_ctx = 0;
       if( out_dims ) { return; } // for raw mode, no decoding will be done, so don't init codec (we might not be able to anyway)
       avctx = avcodec_alloc_context3(NULL);
       if (!avctx) { rt_err( "avcodec_alloc_context3() failed" ); }
@@ -122,12 +125,31 @@ namespace boda
       if ((t = av_dict_get(opts, "", NULL, AV_DICT_IGNORE_SUFFIX))) {
         rt_err( strprintf( "unknown code option '%s'\n", t->key ) );
       }
-
-      // FIXME: use shared_ptr deleter (or whatever) to dealloc these
-      // avcodec_free_context(&avctx); // only if FFMPEG_31
-      // av_dict_free(&opts);
+      
     }
 
+    // since we can't seem to fish into sws_ctx, we need to cache the params we used to create it so out lazy init of
+    // the ctx can work. i wish we knew if lazy init was really needed/usefull, but i guess now that it's done it's not
+    // worth investigating/takeing-back-out?
+    SwsContext * sws_ctx;
+    uint32_t sws_w, sws_h;
+    AVPixelFormat sws_sf, sws_df;
+    
+    void ensure_sws_ctx( uint32_t const & width, uint32_t const & height,
+                         AVPixelFormat const & src_fmt, AVPixelFormat const & dst_fmt )
+    {
+      // assumes dest w/h same as src, since currently we don't ever scale
+      if( sws_ctx ) {
+        if( (sws_w == width) && (sws_h == height) &&
+            (sws_sf == src_fmt) && (sws_df == dst_fmt) ) { return; }
+        sws_freeContext(sws_ctx);
+        sws_ctx = 0;
+      }
+      assert_st( !sws_ctx );
+      sws_ctx = sws_getContext( width, height, src_fmt, width, height, dst_fmt, SWS_POINT, 0, 0, 0 );
+      sws_w = width; sws_h = height; sws_sf = src_fmt; sws_df = dst_fmt;
+    }
+    
     virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( ic );
       data_block_t ret = db;
@@ -158,44 +180,67 @@ namespace boda
           if( frame->format != AV_PIX_FMT_YUV420P ) {
             rt_err( "only the AV_PIX_FMT_YUV420P pixel format is currently supported for decoded output (adding conversions is TODO)" );
           }
-          if( (frame->width&1) || (frame->height&1) ) {
-            rt_err( strprintf( "only even frame sizes are supported, but frame->width=%s frame->height=%s\n",
-                               str(frame->width).c_str(), str(frame->height).c_str() ) );
-          }
-          // convert YUV planes to data block
-          vect_p_nda_uint8_t yuv_ndas;
-          ret.subblocks = make_shared<vect_data_block_t>();      
-          for( uint32_t pix = 0; pix != 3; ++pix ) {
-            uint32_t const subsample = pix ? 2 : 1;
-            string const meta = string("YUV_") + string("YUV")[pix];
-            uint32_t const ph = frame->height/subsample;
-            uint32_t const pw = frame->width/subsample;
-            p_nda_uint8_t yuv_nda = make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(ph), uint32_t(pw)}, vect_string{ "y","x" },"uint8_t" });
-            // fill in y,u, or v data
-            for( uint32_t y = 0; y != ph; ++y ) {
-              uint8_t * rb = frame->data[pix] + frame->linesize[pix]*y;
-              std::copy( rb, rb + pw, &yuv_nda->at1(y) );
-            }
-            yuv_ndas.push_back( yuv_nda );
-            if( pix == 0 ) {
-              // ret.meta = meta; // oops, need to leave this as 'image' ... but we're not using the YUV meta stuff currently so ... barf.
-              ret.nda = yuv_nda;
-            } else {
-              data_block_t uv_db;
-              uv_db.meta = meta;
-              uv_db.nda = yuv_nda;
-              ret.subblocks->push_back( uv_db );
-            }
-          }
           ret.as_img = make_shared< img_t >();
-          ret.as_img->set_sz_and_pels_from_yuv_420_planes( yuv_ndas );
+          // for now, we still require the frames to come out of the decoder as AV_PIX_FMT_YUV420P, but we will optionall
+          // convert them to RGBA. 
+          if( output_rgba ) {
+            ret.as_img->set_sz_and_alloc_pels( {(uint32_t)frame->width,(uint32_t)frame->height} );
+            ensure_sws_ctx( frame->width, frame->height, (AVPixelFormat)frame->format, AV_PIX_FMT_RGBA );
+            uint8_t * dest_planes[3] = {ret.as_img->pels.get(),NULL,NULL};
+            int dest_stride[3] = {frame->width*4,0,0};
+            sws_scale( sws_ctx, frame->data, frame->linesize, 0, frame->height, dest_planes, dest_stride); 
+          }
+          else {
+            if( (frame->width&1) || (frame->height&1) ) {
+              rt_err( strprintf( "only even frame sizes are supported, but frame->width=%s frame->height=%s\n",
+                                 str(frame->width).c_str(), str(frame->height).c_str() ) );
+            }
+            // convert YUV planes to data block
+            vect_p_nda_uint8_t yuv_ndas;
+            ret.subblocks = make_shared<vect_data_block_t>();      
+            for( uint32_t pix = 0; pix != 3; ++pix ) {
+              uint32_t const subsample = pix ? 2 : 1;
+              string const meta = string("YUV_") + string("YUV")[pix];
+              uint32_t const ph = frame->height/subsample;
+              uint32_t const pw = frame->width/subsample;
+              p_nda_uint8_t yuv_nda = make_shared<nda_uint8_t>( dims_t{ vect_uint32_t{uint32_t(ph), uint32_t(pw)}, vect_string{ "y","x" },"uint8_t" });
+              // fill in y,u, or v data
+              for( uint32_t y = 0; y != ph; ++y ) {
+                uint8_t * rb = frame->data[pix] + frame->linesize[pix]*y;
+                std::copy( rb, rb + pw, &yuv_nda->at1(y) );
+              }
+              yuv_ndas.push_back( yuv_nda );
+              if( pix == 0 ) {
+                // ret.meta = meta; // oops, need to leave this as 'image' ... but we're not using the YUV meta stuff currently so ... barf.
+                ret.nda = yuv_nda;
+              } else {
+                data_block_t uv_db;
+                uv_db.meta = meta;
+                uv_db.nda = yuv_nda;
+                ret.subblocks->push_back( uv_db );
+              }
+            }
+            ret.as_img->set_sz_and_pels_from_yuv_420_planes( yuv_ndas );
+          }
+          
           data_stream_block_done_hook( ret );
         }
         av_frame_free(&frame);
         if( got_frame ) { return ret; }
       }
     }
+    
+    // FIXME: it's not clear if this is reliably called at a 'good' time, but it's probably okay to aspirationally have
+    // any teardown/dealloc code here (even if some is disabled/questionable) for ... safe keeping?
+    ~data_stream_ffmpeg_src_t( void ) {
+      // FIXME: add other needed ffmpeg free calls here?
+      
+      // FIXME: use shared_ptr deleter (or whatever) to dealloc these?
+      // avcodec_free_context(&avctx); // only if FFMPEG_31
+      // av_dict_free(&opts);
 
+      if( sws_ctx ) { sws_freeContext(sws_ctx); }
+    }
   };
 
 
