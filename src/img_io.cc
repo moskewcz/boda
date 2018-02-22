@@ -8,6 +8,9 @@
 #include"has_main.H"
 #include"timers.H"
 // #include<omp.h> // not currently needed (even when OpenMP is used)
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_BMP
+#include"ext/stb_image.h" // for now, only for BMP support. FIXME: large impl to compile; split off?
 
 namespace boda 
 {
@@ -25,6 +28,7 @@ namespace boda
     if(0){}
     else if( endswith(fn,".jpg") ) { load_fn_jpeg( fn ); }
     else if( endswith(fn,".png") ) { load_fn_png( fn ); }
+    else if( endswith(fn,".bmp") ) { load_fn_stb_image_supported( fn ); }
     else { rt_err( "failed to load image '"+fn+"': could not auto-detect file-type from extention."
 		   " known extention/types are:"
 		   " '.jpg':jpeg '.png':png"); }
@@ -104,6 +108,34 @@ namespace boda
     // copy packed data into our (maybe padded) rows
     uint32_t const pack_rl = sz.d[0]*lp_depth;
     for( uint32_t i = 0; i < sz.d[1]; ++i ) { memcpy( pels.get() + i*row_pitch, (&lp_pels[0]) + i*pack_rl, pack_rl ); }
+  }
+
+  void img_t::load_fn_stb_image_supported( std::string const & fn ) {
+    p_mapped_file_source mfile = map_file_ro( fn );
+    p_uint8_with_sz_t mfile_data( mfile, (uint8_t *)mfile->data(), mfile->size() ); // alias ctor to bind lifetime to mapped file
+    from_stb_image_supported( mfile_data, fn );
+  }
+
+  void img_t::from_stb_image_supported( p_uint8_with_sz_t const & data, std::string const & fn ) {
+    int x,y, channels_in_file;
+    if( depth != 4 ) { rt_err( "unsupported: loading image with img depth != 4" ); }
+    stbi_uc * const ret = stbi_load_from_memory( data.get(), data.sz, &x, &y, &channels_in_file, depth);
+    // if( channels_in_file == 3 ) { } // note: nothing extra to do in this case, but we know all the alpha values will be 255/opaque.
+    if( ret == NULL ) { rt_err( "stbi_load_from_memory() failed for file: " + fn ); }
+
+    assert_st( x > 0 );
+    assert_st( y > 0 );
+    if( !row_align ) { row_align = sizeof( void * ); }
+    set_sz( {(uint32_t)x,(uint32_t)y} );
+    // the stb image loader loads pels 'packed' (no padding), we use them directly if we can ... 
+    if( x % row_align ) { // ... otherwise, we need to reallocate/pad/copy
+      alloc_pels();
+      uint32_t const pack_rl = sz.d[0]*depth;
+      for( uint32_t i = 0; i < sz.d[1]; ++i ) { memcpy( pels.get() + i*row_pitch, ret + i*pack_rl, pack_rl ); }
+    } else {
+      pels = p_uint8_t( ret, stbi_image_free );
+    }
+
   }
 
   void img_t::save_fn_png( std::string const & fn, bool const disable_compression )

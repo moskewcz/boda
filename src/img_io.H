@@ -39,7 +39,11 @@ namespace boda
     p_uint8_with_sz_t to_jpeg( void );
     void save_fn_jpeg( std::string const & fn );
     void load_fn_png( std::string const & fn );
+    void load_fn_stb_image_supported( std::string const & fn );
+    
+    // note: for the following from_* functions, the fn is for debugging prinouts only
     void from_jpeg( p_uint8_with_sz_t const & data, std::string const & fn );
+    void from_stb_image_supported( p_uint8_with_sz_t const & data, std::string const & fn );
 
     void save_fn_png( std::string const & fn, bool const disable_compression = 0 );
 
