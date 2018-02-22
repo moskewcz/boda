@@ -14,7 +14,9 @@ extern "C" {
 
 namespace boda 
 {
-  
+
+  typedef shared_ptr< SwsContext > p_SwsContext;
+
   struct data_stream_ffmpeg_src_t : virtual public nesi, public data_stream_tagged_frames_t // NESI(
                                     // help="parse file with ffmpeg (libavformat,...) output one block per raw video frame",
                                     // bases=["data_stream_tagged_frames_t"], type_id="ffmpeg-src")
@@ -82,7 +84,6 @@ namespace boda
 
 
     void init_video_stream_decode( AVStream * const vid_st ) {
-      sws_ctx = 0;
       if( out_dims ) { return; } // for raw mode, no decoding will be done, so don't init codec (we might not be able to anyway)
       avctx = avcodec_alloc_context3(NULL);
       if (!avctx) { rt_err( "avcodec_alloc_context3() failed" ); }
@@ -131,7 +132,7 @@ namespace boda
     // since we can't seem to fish into sws_ctx, we need to cache the params we used to create it so out lazy init of
     // the ctx can work. i wish we knew if lazy init was really needed/usefull, but i guess now that it's done it's not
     // worth investigating/takeing-back-out?
-    SwsContext * sws_ctx;
+    p_SwsContext sws_ctx;
     uint32_t sws_w, sws_h;
     AVPixelFormat sws_sf, sws_df;
     
@@ -142,11 +143,10 @@ namespace boda
       if( sws_ctx ) {
         if( (sws_w == width) && (sws_h == height) &&
             (sws_sf == src_fmt) && (sws_df == dst_fmt) ) { return; }
-        sws_freeContext(sws_ctx);
-        sws_ctx = 0;
+        sws_ctx.reset();
       }
       assert_st( !sws_ctx );
-      sws_ctx = sws_getContext( width, height, src_fmt, width, height, dst_fmt, SWS_POINT, 0, 0, 0 );
+      sws_ctx.reset( sws_getContext( width, height, src_fmt, width, height, dst_fmt, SWS_POINT, 0, 0, 0 ), sws_freeContext );
       sws_w = width; sws_h = height; sws_sf = src_fmt; sws_df = dst_fmt;
     }
     
@@ -188,7 +188,7 @@ namespace boda
             ensure_sws_ctx( frame->width, frame->height, (AVPixelFormat)frame->format, AV_PIX_FMT_RGBA );
             uint8_t * dest_planes[3] = {ret.as_img->pels.get(),NULL,NULL};
             int dest_stride[3] = {frame->width*4,0,0};
-            sws_scale( sws_ctx, frame->data, frame->linesize, 0, frame->height, dest_planes, dest_stride); 
+            sws_scale( sws_ctx.get(), frame->data, frame->linesize, 0, frame->height, dest_planes, dest_stride); 
           }
           else {
             if( (frame->width&1) || (frame->height&1) ) {
@@ -239,7 +239,6 @@ namespace boda
       // avcodec_free_context(&avctx); // only if FFMPEG_31
       // av_dict_free(&opts);
 
-      if( sws_ctx ) { sws_freeContext(sws_ctx); }
     }
   };
 
