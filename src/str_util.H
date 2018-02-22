@@ -64,6 +64,7 @@ namespace boda
   string as_py_str_list( vect_string const & vs ); // sticks \"...\" around strings, joins them with ',', and wraps in []s
   std::string as_pyid_fixme( string const & s ); // only a single use left, deprecated
 
+  void split( vect_string & out, std::string const & s, char const sep ); // adds output to out
   vect_string split( std::string const & s, char const sep );
   vect_string split_ws( std::string const & s );
   vect_string split_space_tab_colon( std::string const & s );

@@ -92,17 +92,20 @@ namespace boda
     return "[ " + join(vs_id,", ") + " ]"; 
   }
 
-  // size of return value is always 1 + (count of sep in s)
-  vect_string split( std::string const & s, char const sep ) {
-    vect_string ret;
+  // for split(), # elements output (or size of returned vector for ret-flavor) is always 1 + (count of sep in s)
+  void split( vect_string & out, std::string const & s, char const sep ) {
     string::const_iterator b = s.begin();
     for( string::const_iterator i = s.begin(); i != s.end(); ++i) {
       if( (*i) == sep ) {
-	ret.push_back( string( b, i ) );
+	out.push_back( string( b, i ) );
 	b = i+1;
       }
     }
-    ret.push_back( string( b, s.end() ) );
+    out.push_back( string( b, s.end() ) );
+  }
+  vect_string split( std::string const & s, char const sep ) {
+    vect_string ret;
+    split( ret, s, sep );
     return ret;
   }
 
