@@ -1,5 +1,6 @@
 // Copyright (c) 2015, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
+#include"anno_util.H"
 #include"has_main.H"
 #include"str_util.H"
 #include"disp_util.H" 
@@ -51,6 +52,7 @@ namespace boda
     double fps; //NESI(default=5,help="frames to (try to ) send to display per second (note: independant of display rate)")
     uint32_t auto_adv; //NESI(default=1,help="if set, slideshow mode")
     uint32_t auto_restart; //NESI(default=1,help="if set, seek to block 0 at end of stream")
+    uint32_t only_show_annos; //NESI(default=0,help="if set, only show annotated frames")
     uint32_t print_timestamps; //NESI(default=0,help="if set, print per-frame timestamps")
     uint32_t display_downsample_factor; //NESI(default=1,help="for display, downsample all images by this factor prior to compositing. this reduces the output-image-size of the display, so a smaller texture can be used, copies are faster, and so on. 2 or 4 are nice values to use, since the downsampling is fast.")
     p_data_stream_t src; //NESI(help="data stream to read images from")
@@ -141,6 +143,56 @@ namespace boda
       src->set_opt( cam_opt );
     }
 
+    bool add_annos_from_boxes_and_points( p_vect_anno_t const & annos, data_block_t const & db ) {
+      bool had_annos = 0;
+      if( !db.has_subblocks() ) { return had_annos; }
+      for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
+        data_block_t * sdb = &db.subblocks->at(i);
+        if( sdb->meta == "boxes" ) {
+          // note: boxes in format X/Y/W/H
+          assert_st( sdb->nda );
+          assert_st( sdb->nda->dims.tn == "float" );            
+          nda_float_t bnda( sdb->nda );
+          assert_st( bnda.dims.sz() == 2 );
+          assert_st( bnda.dims.dims(1) == 4 );
+          for( uint32_t bi = 0; bi != bnda.dims.dims(0); ++bi ) {
+            i32_box_t ab;
+            ab.p[0].d[0] = bnda.at2(bi,0);
+            ab.p[0].d[1] = bnda.at2(bi,1);
+            ab.p[1] = ab.p[0];
+            ab.p[1].d[0] += bnda.at2(bi,2);
+            ab.p[1].d[1] += bnda.at2(bi,3);
+            annos->push_back( anno_t{ab, rgba_to_pel(170,40,40), 0, str(ab), rgba_to_pel(220,220,255) } );
+            had_annos = 1;
+          }
+        }
+        if( sdb->meta == "points" ) {
+          // note: points in format P1/P2 ...
+          assert_st( sdb->nda );
+          assert_st( sdb->nda->dims.tn == "float" );            
+          nda_float_t bnda( sdb->nda );
+          assert_st( bnda.dims.sz() == 2 );
+          assert_st( (bnda.dims.dims(1)&1) == 0 );
+          for( uint32_t bi = 0; bi != bnda.elems_sz(); bi += 2 ) {
+            i32_box_t ab;
+            float const & x = bnda.cm_at1(bi);
+            float const & y = bnda.cm_at1(bi+1);
+            if( std::isnan(x) || std::isnan(y) ) { continue; }
+            ab.p[0].d[0] = x;
+            ab.p[0].d[1] = y;
+            ab.p[1] = ab.p[0];
+            ab.p[0].d[0] -= 2;
+            ab.p[0].d[1] -= 2;
+            ab.p[1].d[0] += 2;
+            ab.p[1].d[1] += 2;
+            annos->push_back( anno_t{ab, rgba_to_pel(40,170,40), 0, "", rgba_to_pel(220,255,220) } );
+            had_annos = 1;
+          }
+        }
+      }
+      return had_annos;
+    }
+
     
     void read_next_block( void ) {
       set_camera_opt();
@@ -163,10 +215,15 @@ namespace boda
         data_block_t const & sdb = db.subblocks->at(i);
         p_img_t const & img = sdb.as_img;
         if( !img ) { continue; }
-        had_new_img = 1;
-        assert_st( get_db_img_sz( sdb ) == in_imgs[i]->sz ); // should be guarenteed by ensure_disp_win_setup
-        in_imgs[i] = resample_to_size( img, in_imgs[i]->sz ); // may or may not actually downsample, should never up-samp (currently)
-        disp_win.update_disp_img( i, in_imgs[i] );
+        p_vect_anno_t annos = make_shared< vect_anno_t >();
+        bool const had_annos = add_annos_from_boxes_and_points( annos, sdb );
+        if( (!only_show_annos) || had_annos ) {
+          had_new_img = 1;
+          assert_st( get_db_img_sz( sdb ) == in_imgs[i]->sz ); // should be guarenteed by ensure_disp_win_setup
+          in_imgs[i] = resample_to_size( img, in_imgs[i]->sz ); // may or may not actually downsample, should never up-samp (currently)
+          disp_win.update_disp_img( i, in_imgs[i] );
+          disp_win.update_img_annos( i, annos );
+        }
         // in_imgs[i]->share_pels_from( img ); // img was ds_img here ...
       }
       if( had_new_img ) {
