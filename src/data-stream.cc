@@ -41,6 +41,19 @@ namespace boda
     }
   }
 
+  // transitional function, semi-duplicated in intent with the 'sdb' functions below, but slow and compatible (can
+  // replace existing usages that iterate and check for subblocks with particular names
+  data_block_t * data_block_t::get_named_child( string const & child_name ) {
+    if( has_subblocks() ) {
+      for( uint32_t i = 0; i != subblocks->size(); ++i ) {
+        data_block_t * sdb = &subblocks->at(i);
+        if( sdb->tag == child_name ) { return sdb; }
+      }
+    }
+    return 0;
+  }
+
+  
   p_data_block_t data_block_t::get_sdb( string const & tag ) const {
     if( !subblocks_by_tag ) { return p_data_block_t(); }
     auto ret = subblocks_by_tag->find( tag );

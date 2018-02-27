@@ -58,6 +58,9 @@ namespace boda
       }
       return ret;
     }
+
+    data_block_t * get_named_child( string const & child_name );
+    
     string info_str( void ) const;
 
   protected:
