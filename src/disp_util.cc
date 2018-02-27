@@ -516,13 +516,10 @@ namespace boda
     i32_pt_t const disp_off{displayrect->x,displayrect->y}; // display window x,y is the offset where the neg_corner of the texure will be drawn. 
     i32_pt_t const tex_sz = { int32_t(YV12_buf->w), int32_t(YV12_buf->h) }; // the texture is always it is always drawn resized to the window size (regardless of offset)
     double_pt_t const tex_to_disp_scale{ double(disp_sz.d[0])/tex_sz.d[0], double(disp_sz.d[1])/tex_sz.d[1] };
-    uint32_t out_x = 0;
     for( uint32_t i = 0; i != imgs->size(); ++i ) { 
-      p_img_t const & img = imgs->at(i);
       // calculate what region in the display window this image occupies
       // note: result may be clipped offscreen if it is outside of the visible area of {{0,0},disp_sz}
-      i32_pt_t const img_nc = { int32_t(out_x), int32_t(YV12_buf->h) - int32_t(img->sz.d[1]) };
-      out_x += imgs->at(i)->sz.d[0];
+      i32_pt_t const img_nc = u32_to_i32( imgs_buf_nc.at(i) );
       // draw annotations
       p_vect_anno_t const & annos = img_annos.at(i);
       if( !annos ) { continue; }
