@@ -24,6 +24,9 @@ obj-disp
 lib2
 .emacs*
 *.pyc
+cmake-build-debug
+.idea
+.DS_Store
 *~
 
 
