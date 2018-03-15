@@ -157,3 +157,7 @@ gd = GetDeps(args)
 #packages-containing-files-shown-as-deps-by-ldd:
 #libgcc1 libxml2 libfontconfig1 libboost-system1.58.0 liborc-0.4-0 libsdl2-ttf-2.0-0 libasound2 libdbus-1-3 libpcre3 libxkbcommon0 libedit2 libk5crypto3 libselinux1 libgssapi-krb5-2 libflac8 zlib1g libgsm1 libxext6 libjson-c2 librtmp1 libvorbis0a libxau6 libgpg-error0 libopenjpeg5 libshine3 libcrystalhd3 libavcodec-ffmpeg56 libvpx3 libkrb5-3 libcomerr2 libmodplug1 libnuma1 libxfixes3 libhogweed4 libgme0 libxss1 libasyncns0 libkrb5support0 libicu55 libboost-iostreams1.58.0 libbsd0 libsndio6.1 libwrap0 libwayland-cursor0 libllvm3.8 libexpat1 libsnappy1v5 libboost-filesystem1.58.0 libtinfo5 liblzma5 libmp3lame0 libx265-79 libxxf86vm1 libidn11 libavformat-ffmpeg56 libgomp1 libwayland-egl1-mesa libxi6 libva1 libgnutls30 libboost-program-options1.58.0 libboost-regex1.58.0 libbluray1 libxcursor1 libzvbi0 libx11-6 libc6 libavutil-ffmpeg54 libopus0 libffi6 libgcrypt20 libxrandr2 libssh-gcrypt-4 libp11-kit0 libgmp10 libsoxr0 libtasn1-6 libsdl2-2.0-0 libsystemd0 libstdc++6 libpulse0 libfreetype6 libwavpack1 libbz2-1.0 libpng12-0 libwebp5 libtwolame0 libkeyutils1 libwayland-client0 libnettle6 libsndfile1 libswresample-ffmpeg1 libpython2.7 libxvidcore4 libxdmcp6 libxcb1 libvorbisenc2 libogg0 libx264-148 libschroedinger-1.0-0 libxrender1 libspeex1 libtheora0
 
+# note: indirect deps for caffe lib:
+# libleveldb1v5 libboost-thread1.58.0 libhdf5-10
+
+# note: in general, for cuda, need to install 'full' cuda package
