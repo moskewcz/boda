@@ -91,7 +91,7 @@ CPPFLAGS := $(CPPFLAGS) -I/usr/include/eigen3
 LDFLAGS := $(LDFLAGS) -lorocos-kdl
 
 
-[RoS needs=eigen needs=kdl]
+[RoS needs=eigen needs=kdl disable]
 # note: when added, the eigen dep was only for tf2 transform include for transforming PointCloud2 msgs
 # note2: when added, the kdl dep was only for tf2 transform include for transforming PoseStamped msgs
 # note3: why yes, that does mean ros needs 2+ external geometry libraries for doing (ineffecient) transforms on basic types!
