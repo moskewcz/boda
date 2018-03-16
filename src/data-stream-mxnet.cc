@@ -26,17 +26,18 @@ namespace boda
                                      // bases=["data_stream_file_t"], type_id="mxnet-brick-src")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint64_t skip_recs_after_cnt; //NESI(default=0,help="drop/skip this many records after each returned record (default 0, no skipped/dropped records)")
+
     vect_p_nda_t parts;
 
     void consume_padding( uint32_t const & len ) {
       uint32_t const pad = u32_ceil_align( len, 4 ) - len;
       mfsr.consume_and_discard_bytes( pad );
     }
-    
-    virtual data_block_t proc_block( data_block_t const & db ) {
+
+    // read one record, put the pieces into parts member var
+    void read_record_into_parts( void ) {
       assert_st( parts.empty() );
-      data_block_t ret = db;
-      if( mfsr.at_eof() ) { return ret; } // at end of stream
       while( 1 ) {
         uint32_t maybe_magic;
         uint32_t lrec;
@@ -69,6 +70,13 @@ namespace boda
           if( cflag==3 ) { break; } // end of split record case          
         }
       }
+    }
+    
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      assert_st( parts.empty() );
+      data_block_t ret = db;
+      if( mfsr.at_eof() ) { return ret; } // at end of stream
+      read_record_into_parts();
       assert_st( !parts.empty() );
       if( parts.size() == 1 ) { ret.nda = parts[0]; parts.clear(); }
       else {
@@ -95,6 +103,9 @@ namespace boda
       ret.timestamp_ns = tot_num_read;
       data_stream_block_done_hook( ret );
       parts.clear();
+      if( skip_recs_after_cnt ) {
+        for( uint32_t i = 0; i != skip_recs_after_cnt; ++i ) { if( !mfsr.at_eof() ) { read_record_into_parts(); parts.clear(); } }
+      }
       return ret;
     }
 
