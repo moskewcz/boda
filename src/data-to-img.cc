@@ -90,8 +90,10 @@ namespace boda
       dim_t const * const c_dim = db.nda->dims.get_dim_by_name("c");
       uint32_t const chans = c_dim ? c_dim->sz : 1;
       set_frame_sz( get_xy_dims( db.nda->dims ) );
-      if( (db.nda->dims.tsz() * chans) != get_bytes_per_pel() ) { rt_err( strprintf( "nda dims / pel format byte size mismatch: db.nda_dims.tsz()=%s but get_bytes_per_pel()=%s\n", str(db.nda->dims.tsz()).c_str(), str(get_bytes_per_pel()).c_str() ) ); }
-
+      if( (db.nda->dims.tsz() * chans) != get_bytes_per_pel() ) {
+        rt_err( strprintf("nda dims / pel format byte size mismatch: db.nda_dims.tsz()=%s (chans=%s) but get_bytes_per_pel()=%s\n",
+                          str(db.nda->dims.tsz()).c_str(), str(chans).c_str(), str(get_bytes_per_pel()).c_str() ) );
+      }
       if( db.sz() != frame_sz_bytes.v ) {
         rt_err( strprintf( "error: can't convert data block to string, had db.sz=%s but frame_sz_bytes.v=%s\n",
                            str(db.sz()).c_str(), str(frame_sz_bytes.v).c_str() ) );
@@ -189,6 +191,15 @@ namespace boda
           for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
             uint32_t const src_x = x*get_bytes_per_pel();
             dest_data[x] = rgba_to_pel( src_data[src_x+2], src_data[src_x+1], src_data[src_x] ); 
+          }
+        }
+      } else if( img_fmt == "32u-RGBA" ) {
+        for( uint32_t y = 0; y < img_sz.d[1]; ++y ) {
+          uint32_t const src_y = y;
+          uint32_t const * const src_data =  (uint32_t const *)(db.d()) + src_y*cur_frame_sz.d[0];
+          uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          for( uint32_t x = 0; x < img_sz.d[0]; ++x ) {
+            dest_data[x] = src_data[x];
           }
         }
       } else if( img_fmt == "32f-grey" ) {
