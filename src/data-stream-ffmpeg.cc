@@ -256,6 +256,8 @@ namespace boda
     uint64_t tot_num_read; // num blocks read so far
     uint32_t libx264_crf; //NESI(default="20",help="if codec is libx264, use this crf. 20->high quality, 30->ok, smaller")
     uint32_t bitrate; //NESI(default="6000000",help="bitrate. note: if codec is libx264, will be set to 0 and crf used instead")
+    uint32_t raw_mode; //NESI(default=0,help="if set, don't open codec, and dump raw image data to packets")
+    string raw_codec_tag; //NESI(default="XRAW",help="fourcc to emit in raw (no codec) mode")
     
     virtual string get_pos_info_str( void ) { return strprintf( "data_stream_ffmpeg_sink: tot_num_read=%s",
                                                                 str(tot_num_read).c_str() ); }
@@ -286,17 +288,18 @@ namespace boda
       assert_st( db.as_img );
       av_register_all(); // NOTE/FIXME: in general, this should be safe to call multiple times. but, there have been bugs wrt that ...
 
-       
-      // setup codec and codec context
-      codec = avcodec_find_encoder_by_name( codec_name.c_str() );
-      if( !codec ) { rt_err( strprintf( "avcodec_find_encoder_by_name() for codec=%s failed", str(codec_name).c_str() ) ); }
-
+      if( !raw_mode ) {
+        // setup codec and codec context
+        codec = avcodec_find_encoder_by_name( codec_name.c_str() );
+        if( !codec ) { rt_err( strprintf( "avcodec_find_encoder_by_name() for codec=%s failed", str(codec_name).c_str() ) ); }
+      }
+      
       // set up format and format context
       AVOutputFormat * const out_fmt = av_guess_format( out_fmt_name.c_str(), 0, 0 );
       if( !out_fmt ) { rt_err( strprintf( "av_guess_format() for out_fmt_name=%s failed", str(out_fmt_name).c_str() ) ); }
       err = avformat_alloc_output_context2( &ofc, out_fmt, 0, 0 );
       if( err || (!ofc) ) { rt_err( "avformat_alloc_output_context2() failed" ); }
-      
+      // note: codec may be null below, if we're in raw mode
       ostr = avformat_new_stream( ofc, codec ); // note: use codec here. this is will setup the context inside the stream for this codec
       if( !ostr ) { rt_err( "av_new_stream() failed" ); }
       assert_st( ostr->id == (int)ofc->nb_streams - 1 ); // FIXME/NOTE: is this really not set properly by avformat_new_stream?if not, set.
@@ -304,7 +307,6 @@ namespace boda
       // if( !octx ) { rt_err( "avcodec_alloc_context3() failed" ); }
       octx = ostr->codec; // ... we just use the one inside the stream.
       assert_st( octx );
-
       //av_dict_set( &opts, "vprofile", "baseline", 0 )
 
       octx->bit_rate = bitrate; // set from preset?
@@ -321,23 +323,26 @@ namespace boda
 
       if( codec_name == "libx264" ) { set_libx264_medium_presets( octx ); }
       if( codec_name == "mpeg2video" ) { set_mpeg2video_presets( octx ); }
-
-        
+      if( raw_mode ) {
+        octx->codec_type = AVMEDIA_TYPE_VIDEO;
+        assert_st( raw_codec_tag.size() == 4 );
+        octx->codec_tag = *(uint32_t *)raw_codec_tag.c_str();
+      }
 //      AVDictionary *opts = NULL;
 //      av_dict_set( &o, "preset", "ultrafast", 0 );
       
       //av_opt_set( octx->priv_data, "preset", "ultrafast", 0); // does this do anything? how to check?
-        
-      err = avcodec_open2( octx, codec, 0 );
-      if( err ) { rt_err( "avcodec_open2() failed" ); }
+      if( !raw_mode ) {
+        err = avcodec_open2( octx, codec, 0 );
+        if( err ) { rt_err( "avcodec_open2() failed" ); }
 
-      frame = av_frame_alloc();
-      if( !frame ) { rt_err( "av_frame_alloc() failed" ); }
+        frame = av_frame_alloc();
+        if( !frame ) { rt_err( "av_frame_alloc() failed" ); }
 
-      frame->format = octx->pix_fmt;
-      frame->width  = octx->width;
-      frame->height = octx->height;
-
+        frame->format = octx->pix_fmt;
+        frame->width  = octx->width;
+        frame->height = octx->height;
+      }
       // for reference, we need to fill the fields of frame similarly to how av_image_alloc would:
       //ret = av_image_alloc(frame->data, frame->linesize, c->width, c->height,  c->pix_fmt, 32);
 
@@ -362,44 +367,64 @@ namespace boda
       p_img_t const & img = db.as_img;
       if( !db.valid() && !img ) { data_stream_deinit(); return db; } // treat null db as deinit/end-of-video. any more packets
       if( !img ) { rt_err( "ffmpeg-sink: expected a data block with an image."); } // FIXME: can't happen now?
-      if( img->yuv_pels.size() != 3 ) { rt_err( "ffmpeg-sink: expected data block image to have 3 yuv_pels vectors."); }
       if( !ofc ) { lazy_init( db ); }
-      assert_st( ofc && octx && ostr && codec && frame );
-
-      uint32_t const align_check_bytes = 32;
-      assert_st( ! (frame->height & 1) );
-      assert_st( ! (frame->width & 1) );
-      assert_st( (uint32_t)frame->height == img->sz.d[1] );
-      assert_st( (uint32_t)frame->width == img->sz.d[0] );
-      // put pointers from yuv_ndas into frame
-      for( uint32_t pix = 0; pix != 3; ++pix ) {
-        uint32_t const subsample = pix ? 2 : 1;
-        uint32_t const pw = frame->width/subsample;
-        frame->linesize[pix] = pw;
-        frame->data[pix] = img->yuv_pels.at(pix).get(); 
-        // it's not clear what alignment we really need to guarentee for the planes of frame, if any. but the ffmpeg
-        // encode example uses 32-byte alignment, so we test for that ...
-        if( ((uintptr_t)frame->data[pix] % align_check_bytes) != 0 ) {
-          rt_err( "unaligned pointer in YUV->ffmpeg conversion. FIXME/TODO: make source of YUV buf be aligned to 32 per plane." );
-        }
-      }
-
-      frame->pts = tot_num_read;
+      assert_st( ofc && octx && ostr );
 
       av_init_packet( &pkt );
       pkt.data = NULL;    // packet data will be allocated by the encoder
       pkt.size = 0;
       pkt.stream_index = ostr->id;
-      int got_output = 0;
-      int err = 0;
-      err = avcodec_encode_video2( octx, &pkt, frame, &got_output );
-      if( err ) { rt_err( "avcodec_encode_video2() failed" ); }
 
-      if (got_output) {
-        printf("Write frame %s (size=%5d)\n", str(tot_num_read).c_str(), pkt.size);
-        err = av_interleaved_write_frame( ofc, &pkt );
+      if( !raw_mode ) {
+        assert_st( frame );
+        assert_st( codec );
+        frame->pts = tot_num_read;
+        if( img->yuv_pels.size() != 3 ) { rt_err( "ffmpeg-sink: expected data block image to have 3 yuv_pels vectors."); }
+        uint32_t const align_check_bytes = 32;
+        assert_st( ! (frame->height & 1) );
+        assert_st( ! (frame->width & 1) );
+        assert_st( (uint32_t)frame->height == img->sz.d[1] );
+        assert_st( (uint32_t)frame->width == img->sz.d[0] );
+        // put pointers from yuv_ndas into frame
+        for( uint32_t pix = 0; pix != 3; ++pix ) {
+          uint32_t const subsample = pix ? 2 : 1;
+          uint32_t const pw = frame->width/subsample;
+          frame->linesize[pix] = pw;
+          frame->data[pix] = img->yuv_pels.at(pix).get(); 
+          // it's not clear what alignment we really need to guarentee for the planes of frame, if any. but the ffmpeg
+          // encode example uses 32-byte alignment, so we test for that ...
+          if( ((uintptr_t)frame->data[pix] % align_check_bytes) != 0 ) {
+            rt_err( "unaligned pointer in YUV->ffmpeg conversion. FIXME/TODO: make source of YUV buf be aligned to 32 per plane." );
+          }
+        }
+
+        int got_output = 0;
+        int err = 0;
+        err = avcodec_encode_video2( octx, &pkt, frame, &got_output );
+        if( err ) { rt_err( "avcodec_encode_video2() failed" ); }
+
+        if (got_output) {
+          printf("Write frame %s (size=%5d)\n", str(tot_num_read).c_str(), pkt.size);
+          err = av_interleaved_write_frame( ofc, &pkt );
+          if( err ) { rt_err( "av_interleaved_write_frame() failed" ); }
+          // av_free_packet(&pkt); // don't free, since consumed by write interleaved? or 'cause on stack? hmm
+        }
+      } else { // in raw mode, just dump raw image to packet
+        // FIXME/TODO: allow downsample optionally here? add downsample data_stream_t?
+        if( !img->pels.get() ) { 
+          rt_err( "TODO: ffmpeg raw image writing only supports incoming rgba images (not YUV)" );
+        }
+        pkt.size = img->sz_raw_bytes();
+        pkt.data = (uint8_t *)img->get_row_addr(0);
+        pkt.pts = tot_num_read;
+        pkt.dts = 0;
+        pkt.flags = 0;
+        pkt.side_data = 0;
+        pkt.side_data_elems = 0;
+        pkt.duration = 0;
+        pkt.pos = -1;
+        int const err = av_interleaved_write_frame( ofc, &pkt );
         if( err ) { rt_err( "av_interleaved_write_frame() failed" ); }
-        // av_free_packet(&pkt); // don't free, since consumed by write interleaved? or 'cause on stack? hmm
       }
       
       ++tot_num_read;
