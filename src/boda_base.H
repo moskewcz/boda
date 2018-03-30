@@ -752,6 +752,8 @@ namespace boda
     nda_t( void ) { }
     nda_t( dims_t const & dims_ ) { nda_set_dims( dims_ ); alloc(); }
     nda_t( dims_t const & dims_, p_uint8_t const &d_ ) { nda_set_dims( dims_ ); d = d_; } // create from existing data held by p_uint8_t
+    nda_t( dims_t const & dims_, p_uint8_with_sz_t const &d_ ); // create from existing data held by p_uint8_t (with size check)
+
     // below ctor is for no-ownership-transfer references to 'remote' NDAs where the data is behine an opaque void *
     nda_t( dims_t const & dims_, void * const & elems_ ) { 
       d.reset( (uint8_t *)elems_, null_deleter<uint8_t>() ); 

@@ -79,7 +79,17 @@ namespace boda
     if( dims.tn != type_tn ) { rt_err( strprintf( "internal error: nda_T check_tn() failure: type_tn=%s dims.tn=%s\n", 
                                                   str(type_tn).c_str(), str(dims.tn).c_str() ) ); }
   }
-  
+
+  nda_t::nda_t( dims_t const & dims_, p_uint8_with_sz_t const &d_ ) { // create from existing data held by p_uint8_t (with size check)
+    nda_set_dims( dims_ );
+    if( dims.bytes_sz() != d_.sz ) {
+      rt_err( strprintf( "dims/data-size mismatch in nda_t ctor(): dims=%s but d_.sz=%s\n",
+                         str(dims).c_str(), str(d_.sz).c_str() ) );
+    }
+    d = d_;
+  }
+
+
   // explicit class declarations, to (at least) get versions of check_tn for supported cases
   template class nda_T<half>;
   template class nda_T<float>;
@@ -88,7 +98,7 @@ namespace boda
   template class nda_T<uint16_t>;
   template class nda_T<uint32_t>;
   template class nda_T<int32_t>;
-  
+
   void nda_t::reshape( dims_t const & new_dims ) {
     if( !dims.valid() ) { rt_err( "nda_t::reshape(): current dims not valid" ); }
     if( !d.get() ) { rt_err( "nda_t::reshape(): d not valid (no data)" ); }
