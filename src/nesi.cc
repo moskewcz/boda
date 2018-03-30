@@ -683,7 +683,7 @@ namespace boda
   vect_push_back_t * dims_t_vect_push_back = &has_def_ctor_vect_push_back_t< dims_t >;
   nesi_dump_t * dims_t_nesi_dump = &with_op_left_shift_nesi_dump< dims_t >;
   void *dims_t_init_arg = (void *)"dims_t (N-D Array Dimentions)";
-
+  
   // FIXME: broken for uint8_t, as per the usual (bad?) reasons. need a wrapper to treat uint8_t as numeric ...
   struct nda_elems_init_t {
     vect_string const & parts;
@@ -709,6 +709,14 @@ namespace boda
   // optional. when ommited, the dims will be set to a dims_t with a single dim named 'v' of length == to the number of
   // elems given in the 'v' field.
   extern tinfo_t tinfo_dims_t;
+
+  // FIXME: should this go here? does it already exist in some other form?
+  void dims_t_set_from_string( dims_t & dims, string const & dims_str ) {
+    p_lexp_t dims_lexp = parse_lexp( dims_str );
+    lexp_name_val_map_t dims_nvm( dims_lexp );
+    nesi_dims_t_init( &dims_nvm, &tinfo_dims_t, &dims );
+  }
+
   void nesi_nda_t_init( nesi_init_arg_t * nia, tinfo_t const * tinfo, void * o ) {
     nda_t * v = (nda_t *)o;
     assert_st( v->dims.empty() ); // should be freshly constructed

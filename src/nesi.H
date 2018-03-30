@@ -12,6 +12,8 @@ namespace boda {
   std::ostream & operator <<(std::ostream & os, nesi const & v);
   void nesi_dump_xml(std::ostream & top_ostream, nesi const & v, char const * const root_elem_name );
   std::string nesi_filename_t_expand( nesi_init_arg_t * nia, std::string const & fmt );
+  struct dims_t;
+  void dims_t_set_from_string( dims_t & dims, std::string const & dims_str );
 
 
 }
