@@ -90,6 +90,8 @@ CPPFLAGS := $(CPPFLAGS) -I/usr/include/eigen3
 [kdl]
 LDFLAGS := $(LDFLAGS) -lorocos-kdl
 
+[zmq]
+LDFLAGS := $(LDFLAGS) -lzmq
 
 [RoS needs=eigen needs=kdl disable]
 # note: when added, the eigen dep was only for tf2 transform include for transforming PointCloud2 msgs
@@ -109,6 +111,7 @@ LDFLAGS := $(LDFLAGS) -lcpp_common -lrosconsole -lrosconsole_print -lrosconsole_
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+zmq-util.o zmq
 data-stream-img-util.o
 font-util.o
 data-stream-stream.o
