@@ -13,6 +13,60 @@ namespace boda {
   p_void make_p_zmq_context( void ) { return p_void( zmq_ctx_new(), zmq_ctx_destroy ); }
   p_void make_p_zmq_socket( p_void const & context, int const & type ) { return p_void( zmq_socket( context.get(), type ), zmq_close ); }
 
+  void zmq_error_raise( string const & tag ) {
+    int const zmq_err = zmq_errno();
+    rt_err( strprintf( "%s() failed with ret=%s (%s)", tag.c_str(), str(zmq_err).c_str(), zmq_strerror(zmq_err) ) );
+  }
+  void zmq_check_call_ret( int const & call_ret, string const & tag ) { if( call_ret == -1 ) { zmq_error_raise( tag ); } }
+
+  bool zmq_socket_has_more( p_void const & socket ) {
+    int more;
+    size_t more_size = sizeof(more);
+    int const ret = zmq_getsockopt(socket.get(), ZMQ_RCVMORE, &more, &more_size);
+    zmq_check_call_ret(ret, "zmq_socket_has_more");
+    assert_st( ret == 0 );
+    assert_st( more_size == sizeof(more) );
+    return more;
+  }
+
+  void zmq_send_data( p_void const & socket, void const * data, uint32_t const & sz, bool const more ) {
+    int const ret = zmq_send( socket.get(), data, sz, more ? ZMQ_SNDMORE : 0 );
+    if( ret != (int)sz ) { assert( ret == -1 ); zmq_error_raise( "zmq_send_data" ); }
+  }
+  void zmq_send_str( p_void const & socket, string const & data, bool const more ) {
+    zmq_send_data( socket, &data[0], data.size(), more );
+  }
+  void zmq_send_p_uint8_with_sz_t( p_void const & socket, p_uint8_with_sz_t const & data, bool const more ) {
+    zmq_send_data( socket, data.get(), data.sz, more );
+  }
+
+
+  void zmq_msg_close_check( zmq_msg_t * const & msg ) {
+    int const ret = zmq_msg_close( msg );
+    if( ret != 0 ) { rt_err( "zmg_msg_close() failed" ); }
+  }
+
+  typedef shared_ptr< zmq_msg_t > p_zmq_msg_t;
+  p_zmq_msg_t make_p_zmq_msg_t( void ) {
+    // sigh. seems to be no way around some tricky manual alloc/free/cleanup logic here.
+    zmq_msg_t * msg = new zmq_msg_t;
+    int const init_ret = zmq_msg_init( msg );
+    if( init_ret != 0 ) { delete msg; rt_err( "zmg_msg_init() failed" ); }
+    return p_zmq_msg_t( msg, zmq_msg_close_check );
+  }
+
+  void zmq_must_recv_msg( p_void const & socket, p_zmq_msg_t const & msg ) {
+    int const ret = zmq_msg_recv(msg.get(), socket.get(), 0);
+    zmq_check_call_ret(ret, "zmq_must_recv_msg");
+    assert_st( (size_t)ret == zmq_msg_size(msg.get()) );
+  }
+
+  string zmq_msg_as_string( p_zmq_msg_t const & msg ) {
+    uint8_t * const data = (uint8_t *)zmq_msg_data(msg.get());
+    return string(data, data+zmq_msg_size(msg.get()));
+  }
+
+ 
 #if 0
   // for now, we only have the endpoint as a zmq options. but if we add/use more, and they are shared, we could wrap
   // them up in a NESI class:
@@ -73,6 +127,30 @@ namespace boda {
         zmq_recv(requester.get(), buffer, 10, 0);
         printf("Received World %d\n", request_nbr);
       }
+    }
+  };
+
+
+  struct zmq_det_client_t : virtual public nesi, public has_main_t // NESI(
+                              // help="zmq detection inference test client  ",
+                              // bases=["has_main_t"], type_id="zmq-det-client")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    string endpoint; //NESI(default="ipc:///tmp/det-infer",help="zmq endpoint url string")
+    filename_t image_fn; //NESI(default="%(boda_test_dir)/plasma_100.png",help="image file to send to server")
+
+    void main( nesi_init_arg_t * nia ) {
+      p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8( image_fn );
+      printf( "connecting to endpoint=%s and sending image_fn=%s\n", str(endpoint).c_str(), str(image_fn.exp).c_str() );
+      p_void context = make_p_zmq_context();
+      p_void requester = make_p_zmq_socket(context, ZMQ_REQ);
+      zmq_connect(requester.get(), endpoint.c_str());
+      zmq_send_p_uint8_with_sz_t( requester, image_data, 0 );
+      p_zmq_msg_t msg = make_p_zmq_msg_t();
+      zmq_must_recv_msg(requester, msg);
+      printstr(zmq_msg_as_string(msg));
+      if( zmq_socket_has_more(requester) ) { rt_err("unexpected extra message part"); }
     }
   };
 
