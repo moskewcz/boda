@@ -139,22 +139,24 @@ namespace boda {
     }
   };
 
-  struct zmq_det_client_t : virtual public nesi, public has_main_t // NESI(
-                              // help="zmq detection inference test client  ",
-                              // bases=["has_main_t"], type_id="zmq-det-client")
+  struct zmq_det_t : virtual public nesi // NESI( help="zmq detection iface" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    string endpoint; //NESI(default="ipc:///tmp/det-infer",help="zmq endpoint url string")
-    filename_t image_fn; //NESI(default="%(boda_test_dir)/plasma_100.png",help="image file to send to server")
+    string endpoint; //NESI(req=1,help="zmq endpoint url string")
 
-    void main( nesi_init_arg_t * nia ) {
-      p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8( image_fn );
-      printf( "connecting to endpoint=%s and sending image_fn=%s\n", str(endpoint).c_str(), str(image_fn.exp).c_str() );
-      p_void context = make_p_zmq_context();
-      p_void requester = make_p_zmq_socket(context, ZMQ_REQ);
+    p_void context;
+    p_void requester;
+
+    void ensure_init( void ) {
+      if(context) { return; } // already init/connected
+      context = make_p_zmq_context();
+      requester = make_p_zmq_socket(context, ZMQ_REQ);
       zmq_connect(requester.get(), endpoint.c_str());
-      zmq_send_p_uint8_with_sz_t( requester, image_data, 0 );
+    }
+
+    p_nda_t do_det( p_uint8_with_sz_t image_data ) {
+      ensure_init();
+      zmq_send_p_uint8_with_sz_t(requester, image_data, 0 );
       p_zmq_msg_t msg = make_p_zmq_msg_t();
       zmq_must_recv_msg(requester, msg);
       string const boxes_dims_str = zmq_msg_as_string(msg);
@@ -164,8 +166,25 @@ namespace boda {
       if( zmq_socket_has_more(requester) ) { rt_err("unexpected extra message part"); }
       dims_t boxes_dims;
       dims_t_set_from_string(boxes_dims, boxes_dims_str);
+      return make_shared<nda_t>(boxes_dims, boxes_data);
+    }
+  };
+  struct zmq_det_t; typedef shared_ptr< zmq_det_t > p_zmq_det_t;
 
-      p_nda_t boxes = make_shared<nda_t>(boxes_dims, boxes_data);
+
+  struct zmq_det_client_t : virtual public nesi, public has_main_t // NESI(
+                              // help="zmq detection inference test client  ",
+                              // bases=["has_main_t"], type_id="zmq-det-client")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer)",help="zmq det options")
+    filename_t image_fn; //NESI(default="%(boda_test_dir)/plasma_100.png",help="image file to send to server")
+
+    void main( nesi_init_arg_t * nia ) {
+      printf( "connecting to endpoint=%s and sending image_fn=%s\n", str(zmq_det->endpoint).c_str(), str(image_fn.exp).c_str() );
+      p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8( image_fn );
+      p_nda_t boxes = zmq_det->do_det(image_data);
       printf( "boxes=%s\n", str(boxes).c_str() );
     }
   };
@@ -176,29 +195,42 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string anno_meta; //NESI(default="boxes",help="use this string as the meta for added annotations")
+    p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer)",help="zmq det options")
 
     virtual string get_pos_info_str( void ) { return "zmq_det: <no-state>\n"; }
 
     // annotate a block with data from the zmq det server
     virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret = db;
+      if(!ret.as_img) { rt_err( "zmq-det: expected input data block to have valid as_img field" ); }
 
-#if 0
+      // FIXME: this is double-terrible. we don't have raw-image support for det, so we need png data.
+      // then, we don't have png-encode-to-buffer factored out, so we write a file!
+      // and things were so nice up to here!
+      string const tmp_img_fn = "/tmp/foo.png";
+      ret.as_img->save_fn_png(tmp_img_fn);
+      p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8(tmp_img_fn);
+
       // do lookup
-      p_nda_t boxes; // TODO: = ... 
+      p_nda_t boxes = zmq_det->do_det( image_data );
       assert_st( boxes->dims.size() == 2 );
       assert_st( boxes->dims.dims(1) == 5 ); // X,Y,W,H,confidence
+      assert_st( boxes->dims.tn == "float" );
+      p_nda_float_t boxes_float( make_shared<nda_float_t>(boxes) );
+
       uint32_t num_res = boxes->dims.dims(0);
-#else
-      uint32_t const num_res = 1;
-#endif
+
       p_nda_float_t anno_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{num_res,(uint32_t)4}, // X,Y,W,H
           {"obj","attr"}, "float" } );
       for( uint32_t i = 0; i != num_res; ++i ) {
-        anno_nda->at2(i, 0) = 100;
-        anno_nda->at2(i, 1) = 100;
-        anno_nda->at2(i, 2) = 100;
-        anno_nda->at2(i, 3) = 100;
+        float const & x1 = boxes_float->at2(i,0);
+        float const & y1 = boxes_float->at2(i,1);
+        float const & x2 = boxes_float->at2(i,2);
+        float const & y2 = boxes_float->at2(i,3);
+        anno_nda->at2(i, 0) = x1;
+        anno_nda->at2(i, 1) = y1;
+        anno_nda->at2(i, 2) = x2 - x1;
+        anno_nda->at2(i, 3) = y2 - y1;
       }
       ret.ensure_has_subblocks();
       data_block_t adb;
