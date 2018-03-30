@@ -88,8 +88,7 @@ namespace boda
   }
   
   void img_t::load_fn_jpeg( std::string const & fn ) {
-    p_mapped_file_source mfile = map_file_ro( fn );
-    p_uint8_with_sz_t mfile_data( mfile, (uint8_t *)mfile->data(), mfile->size() ); // alias ctor to bind lifetime to mapped file
+    p_uint8_with_sz_t mfile_data = map_file_ro_as_p_uint8( fn );
     from_jpeg( mfile_data, fn );
   }
 

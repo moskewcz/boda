@@ -273,6 +273,8 @@ namespace boda
     template< typename DELETER > p_uint8_with_sz_t( uint8_t * const & p, uint64_t const & sz_, DELETER const & deleter ) : p_uint8_t( p, deleter ), sz(sz_) {}
     template< typename ALIAS_SRC > p_uint8_with_sz_t( ALIAS_SRC const & alias_src, uint8_t * const & p, uint64_t const & sz_ ) : p_uint8_t( alias_src, p ), sz(sz_) {}
   };
+  p_uint8_with_sz_t map_file_ro_as_p_uint8( filename_t const & fn );
+  p_uint8_with_sz_t map_file_ro_as_p_uint8( string const & fn );
 
   // the b{read,write}_bytes() functions are the basic low-level read/write that must be implimented
   // for any stream class we wish to use for IO. the two basic ones here are for istream/ostream and

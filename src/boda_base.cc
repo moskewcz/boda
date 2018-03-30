@@ -654,6 +654,13 @@ namespace boda
     return p_string( new string( fn_data, fn_data+mfile->size() ) );
   }
   p_string read_whole_fn( std::string const & fn ) { return read_whole_fn( filename_t{fn,fn} ); }
+  p_uint8_with_sz_t map_file_ro_as_p_uint8( filename_t const & fn ) {
+    p_mapped_file_source fn_map = map_file_ro( fn );
+    p_uint8_with_sz_t fn_data( fn_map, (uint8_t *)fn_map->data(), fn_map->size() ); // alias ctor to bind lifetime to mapped file
+    return fn_data;
+  }
+  p_uint8_with_sz_t map_file_ro_as_p_uint8( string const & fn ) { return map_file_ro_as_p_uint8( filename_t{fn,fn} ); }
+
   void write_whole_fn( filename_t const & fn, std::string const & data ) {
     p_ostream out = ofs_open( fn );
     (*out) << data;
