@@ -7,7 +7,10 @@
 #include"zmq-util.H"
 #include<zmq.h>
 
+#include"nesi.H" // for dims_t_set_from_string()
+
 namespace boda {
+
 
 
   p_void make_p_zmq_context( void ) { return p_void( zmq_ctx_new(), zmq_ctx_destroy ); }
@@ -66,7 +69,12 @@ namespace boda {
     return string(data, data+zmq_msg_size(msg.get()));
   }
 
- 
+  // since the underlying zmg_msg_t can be modified after this call, this isn't the safest function. FIXME: somehow make sure the
+  p_uint8_with_sz_t zmq_msg_as_p_uint8_with_sz_t( p_zmq_msg_t const & msg ) {
+    return p_uint8_with_sz_t(msg, (uint8_t *)zmq_msg_data(msg.get()), zmq_msg_size(msg.get())); // alias ctor to bind lifetime to zmq msg
+  }
+
+
 #if 0
   // for now, we only have the endpoint as a zmq options. but if we add/use more, and they are shared, we could wrap
   // them up in a NESI class:
@@ -130,7 +138,6 @@ namespace boda {
     }
   };
 
-
   struct zmq_det_client_t : virtual public nesi, public has_main_t // NESI(
                               // help="zmq detection inference test client  ",
                               // bases=["has_main_t"], type_id="zmq-det-client")
@@ -149,8 +156,16 @@ namespace boda {
       zmq_send_p_uint8_with_sz_t( requester, image_data, 0 );
       p_zmq_msg_t msg = make_p_zmq_msg_t();
       zmq_must_recv_msg(requester, msg);
-      printstr(zmq_msg_as_string(msg));
+      string const boxes_dims_str = zmq_msg_as_string(msg);
+      if( !zmq_socket_has_more(requester) ) { rt_err("expected another message part"); }
+      zmq_must_recv_msg(requester, msg);
+      p_uint8_with_sz_t boxes_data = zmq_msg_as_p_uint8_with_sz_t(msg);
       if( zmq_socket_has_more(requester) ) { rt_err("unexpected extra message part"); }
+      dims_t boxes_dims;
+      dims_t_set_from_string(boxes_dims, boxes_dims_str);
+
+      p_nda_t boxes = make_shared<nda_t>(boxes_dims, boxes_data);
+      printf( "boxes=%s\n", str(boxes).c_str() );
     }
   };
 
