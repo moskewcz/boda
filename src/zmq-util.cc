@@ -8,6 +8,7 @@
 #include<zmq.h>
 
 #include"nesi.H" // for dims_t_set_from_string()
+#include"data-stream.H"
 
 namespace boda {
 
@@ -169,6 +170,46 @@ namespace boda {
     }
   };
 
+
+  struct data_stream_zmq_det_t : virtual public nesi, public data_stream_t // NESI(help="run detection on img in data block using zmq det client, annotate block with results",
+                             // bases=["data_stream_t"], type_id="zmq-det")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string anno_meta; //NESI(default="boxes",help="use this string as the meta for added annotations")
+
+    virtual string get_pos_info_str( void ) { return "zmq_det: <no-state>\n"; }
+
+    // annotate a block with data from the zmq det server
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret = db;
+
+#if 0
+      // do lookup
+      p_nda_t boxes; // TODO: = ... 
+      assert_st( boxes->dims.size() == 2 );
+      assert_st( boxes->dims.dims(1) == 5 ); // X,Y,W,H,confidence
+      uint32_t num_res = boxes->dims.dims(0);
+#else
+      uint32_t const num_res = 1;
+#endif
+      p_nda_float_t anno_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{num_res,(uint32_t)4}, // X,Y,W,H
+          {"obj","attr"}, "float" } );
+      for( uint32_t i = 0; i != num_res; ++i ) {
+        anno_nda->at2(i, 0) = 100;
+        anno_nda->at2(i, 1) = 100;
+        anno_nda->at2(i, 2) = 100;
+        anno_nda->at2(i, 3) = 100;
+      }
+      ret.ensure_has_subblocks();
+      data_block_t adb;
+      adb.meta = anno_meta;
+      adb.nda = anno_nda;
+      ret.subblocks->push_back( adb );
+      return ret;
+    }
+
+    virtual void data_stream_init( nesi_init_arg_t * nia ) { }
+  };
 
 #include"gen/zmq-util.cc.nesi_gen.cc"
 
