@@ -143,6 +143,12 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string endpoint; //NESI(req=1,help="zmq endpoint url string")
+    string image_type; //NESI(default="imdecode",help="image data encoding type: either imdecode or raw_RGBA_32")
+    float nms_thresh; //NESI(default="0.0",help="NMS threshold (0 to disable NMS)")
+    uint32_t net_short_side_image_size; //NESI(default="576",
+    // help="resize input images so their short side is this length (presvering aspet ratio). "
+    //        "this determines the size of image that will be processed by the model "
+    //        "(and thus the minimum detetable object size).")
 
     p_void context;
     p_void requester;
@@ -154,9 +160,10 @@ namespace boda {
       zmq_connect(requester.get(), endpoint.c_str());
     }
 
-    p_nda_t do_det( string const & image_type, float const & nms_thresh, p_uint8_with_sz_t const & image_data ) {
+    p_nda_t do_det( p_uint8_with_sz_t const & image_data ) {
       ensure_init();
-      string const opts_str = strprintf( "(image_type=%s,nms_thresh=%s)", str(image_type).c_str(), str(nms_thresh).c_str() );
+      string const opts_str = strprintf( "(net_short_side_image_size=%s,image_type=%s,nms_thresh=%s)",
+                                         str(net_short_side_image_size).c_str(), str(image_type).c_str(), str(nms_thresh).c_str() );
       zmq_send_str(requester, opts_str, 1 );
       zmq_send_p_uint8_with_sz_t(requester, image_data, 0 );
       p_zmq_msg_t msg = make_p_zmq_msg_t();
@@ -180,14 +187,13 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
-    p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer)",help="zmq det options")
+    p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer,nms_thresh=0.5,net_short_side_image_size=576)",help="zmq det options")
     filename_t image_fn; //NESI(default="%(boda_test_dir)/plasma_100.png",help="image file to send to server")
-    float nms_thresh; //NESI(default="0.0",help="NMS threshold (0 to disable NMS)")
 
     void main( nesi_init_arg_t * nia ) {
       printf( "connecting to endpoint=%s and sending image_fn=%s\n", str(zmq_det->endpoint).c_str(), str(image_fn.exp).c_str() );
       p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8( image_fn );
-      p_nda_t boxes = zmq_det->do_det("imdecode", nms_thresh, image_data);
+      p_nda_t boxes = zmq_det->do_det(image_data);
       printf( "boxes=%s\n", str(boxes).c_str() );
     }
   };
@@ -198,8 +204,7 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string anno_meta; //NESI(default="boxes",help="use this string as the meta for added annotations")
-    p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer)",help="zmq det options")
-    float nms_thresh; //NESI(default="0.0",help="NMS threshold (0 to disable NMS)")
+    p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer,nms_thresh=0.5,net_short_side_image_size=576)",help="zmq det options")
 
     virtual string get_pos_info_str( void ) { return "zmq_det: <no-state>\n"; }
 
@@ -216,7 +221,7 @@ namespace boda {
       p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8(tmp_img_fn);
 
       // do lookup
-      p_nda_t boxes = zmq_det->do_det( "imdecode", nms_thresh, image_data );
+      p_nda_t boxes = zmq_det->do_det(image_data);
       assert_st( boxes->dims.size() == 2 );
       assert_st( boxes->dims.dims(1) == 5 ); // X,Y,W,H,confidence
       assert_st( boxes->dims.tn == "float" );
