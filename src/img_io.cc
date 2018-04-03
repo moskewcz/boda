@@ -134,8 +134,22 @@ namespace boda
     } else {
       pels = p_uint8_t( ret, stbi_image_free );
     }
-
   }
+
+  p_nda_uint8_t img_t::as_packed_RGBA_nda( void ) {
+    if( depth != 4 ) { rt_err( "unsupported: can't convert img with depth != 4 to RGBA nda" ); }
+    dims_t RGBA_nda_dims{ vect_uint32_t{uint32_t(sz.d[1]), uint32_t(sz.d[0]), depth}, vect_string{ "y","x","c" },"uint8_t" };
+    if( row_pitch_pels == sz.d[0] ) { // already packed, just alias pels
+      assert_st( RGBA_nda_dims.dims_prod() == sz_raw_bytes() );
+      return make_shared<nda_uint8_t>( RGBA_nda_dims, pels );
+    } else { // not packed, so make a new buffer and copy
+      p_nda_uint8_t ret = make_shared<nda_uint8_t>( RGBA_nda_dims );
+      uint32_t const pack_rl = sz.d[0]*depth;
+      for( uint32_t i = 0; i < sz.d[1]; ++i ) { memcpy( &ret->at2(i,0), pels.get() + i*row_pitch, pack_rl ); }
+      return ret;
+    }
+  }
+
 
   void img_t::save_fn_png( std::string const & fn, bool const disable_compression )
   {

@@ -47,6 +47,8 @@ namespace boda
 
     void save_fn_png( std::string const & fn, bool const disable_compression = 0 );
 
+    p_nda_uint8_t as_packed_RGBA_nda( void );
+
     // always equivalent to y*row_pitch_pels + x (i.e get_pel_ix(0,0) will always == 0)
     uint32_t get_pel_ix( u32_pt_t const & d ) const { 
       assert_st( d.both_dims_lt( sz ) );
