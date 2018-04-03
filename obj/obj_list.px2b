@@ -91,7 +91,7 @@ LDFLAGS := $(LDFLAGS) -lpython2.7
 LDFLAGS := $(LDFLAGS) -lturbojpeg
 
 [FFmpeg]
-LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil
+LDFLAGS := $(LDFLAGS) -lavcodec -lavformat -lavutil -lswscale
 
 [eigen]
 CPPFLAGS := $(CPPFLAGS) -I=/usr/include/eigen3
@@ -99,6 +99,8 @@ CPPFLAGS := $(CPPFLAGS) -I=/usr/include/eigen3
 [kdl]
 LDFLAGS := $(LDFLAGS) -lorocos-kdl
 
+[zmq]
+LDFLAGS := $(LDFLAGS) -lzmq
 
 [RoS needs=eigen needs=kdl]
 # note: when added, the eigen dep was only for tf2 transform include for transforming PointCloud2 msgs
@@ -118,6 +120,9 @@ LDFLAGS := $(LDFLAGS) -lcpp_common -lrosconsole -lrosconsole_print -lrosconsole_
 # particular dependency. note that some dependencies may not usefully be disable-able.
 
 [objs]
+zmq-util.o zmq
+data-stream-img-util.o
+font-util.o
 data-stream-stream.o
 stream_util.o
 data-stream-rosbag.o RoS
@@ -130,7 +135,7 @@ data-stream-mxnet.o
 data-stream-file.o
 data-to-img.o
 data-stream.o
-raw-vid-disp.o
+raw-vid-disp.o SDL2
 op-tuner.o
 cnn_op.o
 culibs-wrap.o culibs
