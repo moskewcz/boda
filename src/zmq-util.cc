@@ -44,6 +44,10 @@ namespace boda {
     zmq_send_data( socket, data.get(), data.sz, more );
   }
 
+  void zmq_send_nda( p_void const & socket, p_nda_t const & nda, bool const more ) {
+    zmq_send_str( socket, nda->dims.param_str(1), 1 );
+    zmq_send_data( socket, nda->rp_elems(), nda->dims.bytes_sz(), more );
+  }
 
   void zmq_msg_close_check( zmq_msg_t * const & msg ) {
     int const ret = zmq_msg_close( msg );
@@ -160,12 +164,12 @@ namespace boda {
       zmq_connect(requester.get(), endpoint.c_str());
     }
 
-    p_nda_t do_det( p_uint8_with_sz_t const & image_data ) {
+    p_nda_t do_det( p_nda_t const & image_data ) {
       ensure_init();
       string const opts_str = strprintf( "(net_short_side_image_size=%s,image_type=%s,nms_thresh=%s)",
                                          str(net_short_side_image_size).c_str(), str(image_type).c_str(), str(nms_thresh).c_str() );
       zmq_send_str(requester, opts_str, 1 );
-      zmq_send_p_uint8_with_sz_t(requester, image_data, 0 );
+      zmq_send_nda(requester, image_data, 0);
       p_zmq_msg_t msg = make_p_zmq_msg_t();
       zmq_must_recv_msg(requester, msg);
       string const boxes_dims_str = zmq_msg_as_string(msg);
@@ -193,7 +197,9 @@ namespace boda {
     void main( nesi_init_arg_t * nia ) {
       printf( "connecting to endpoint=%s and sending image_fn=%s\n", str(zmq_det->endpoint).c_str(), str(image_fn.exp).c_str() );
       p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8( image_fn );
-      p_nda_t boxes = zmq_det->do_det(image_data);
+      p_nda_uint8_t image_nda = make_shared<nda_uint8_t>(
+        dims_t{ vect_uint32_t{(uint32_t)image_data.sz}, "uint8_t"}, image_data );
+      p_nda_t boxes = zmq_det->do_det(image_nda);
       printf( "boxes=%s\n", str(boxes).c_str() );
     }
   };
@@ -219,9 +225,11 @@ namespace boda {
       string const tmp_img_fn = "/tmp/foo.png";
       ret.as_img->save_fn_png(tmp_img_fn);
       p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8(tmp_img_fn);
+      p_nda_uint8_t image_nda = make_shared<nda_uint8_t>(
+        dims_t{ vect_uint32_t{(uint32_t)image_data.sz}, "uint8_t"}, image_data );
 
       // do lookup
-      p_nda_t boxes = zmq_det->do_det(image_data);
+      p_nda_t boxes = zmq_det->do_det(image_nda);
       assert_st( boxes->dims.size() == 2 );
       assert_st( boxes->dims.dims(1) == 5 ); // X,Y,W,H,confidence
       assert_st( boxes->dims.tn == "float" );
