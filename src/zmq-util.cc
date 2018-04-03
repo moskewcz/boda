@@ -210,6 +210,7 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string anno_meta; //NESI(default="boxes",help="use this string as the meta for added annotations")
+    uint32_t skip_det; //NESI(default="0",help="if non-zero, skip doing detection (for profiling)")
     p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer,nms_thresh=0.5,net_short_side_image_size=576,image_type=raw_RGBA_32)",help="zmq det options")
 
     virtual string get_pos_info_str( void ) { return "zmq_det: <no-state>\n"; }
@@ -219,6 +220,7 @@ namespace boda {
       data_block_t ret = db;
       if(!ret.as_img) { rt_err( "zmq-det: expected input data block to have valid as_img field" ); }
       p_nda_uint8_t image_nda = ret.as_img->as_packed_RGBA_nda();
+      if( skip_det ) { return ret; }
       // do lookup
       p_nda_t boxes = zmq_det->do_det(image_nda);
       assert_st( boxes->dims.size() == 2 );
