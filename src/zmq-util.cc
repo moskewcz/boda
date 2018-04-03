@@ -21,6 +21,7 @@ namespace boda {
     int const zmq_err = zmq_errno();
     rt_err( strprintf( "%s() failed with ret=%s (%s)", tag.c_str(), str(zmq_err).c_str(), zmq_strerror(zmq_err) ) );
   }
+  
   void zmq_check_call_ret( int const & call_ret, string const & tag ) { if( call_ret == -1 ) { zmq_error_raise( tag ); } }
 
   bool zmq_socket_has_more( p_void const & socket ) {
@@ -32,6 +33,29 @@ namespace boda {
     assert_st( more_size == sizeof(more) );
     return more;
   }
+  void zmq_recv_check_expect_more( p_void const & socket, bool const & expect_more, string const & tag ) {
+    if( expect_more && (!zmq_socket_has_more(socket)) ) { rt_err("expected another message part after " + tag); }
+    if( (!expect_more) && zmq_socket_has_more(socket) ) { rt_err("unexpected extra message part after " + tag); }
+  }
+
+  typedef shared_ptr< zmq_msg_t > p_zmq_msg_t;
+  void zmq_msg_close_check( zmq_msg_t * const & msg ) {
+    int const ret = zmq_msg_close( msg );
+    if( ret != 0 ) { rt_err( "zmg_msg_close() failed" ); }
+  }
+  p_zmq_msg_t make_p_zmq_msg_t( void ) {
+    // sigh. seems to be no way around some tricky manual alloc/free/cleanup logic here.
+    zmq_msg_t * msg = new zmq_msg_t;
+    int const init_ret = zmq_msg_init( msg );
+    if( init_ret != 0 ) { delete msg; rt_err( "zmg_msg_init() failed" ); }
+    return p_zmq_msg_t( msg, zmq_msg_close_check );
+  }
+  void zmq_must_recv_msg( p_void const & socket, p_zmq_msg_t const & msg ) {
+    int const ret = zmq_msg_recv(msg.get(), socket.get(), 0);
+    zmq_check_call_ret(ret, "zmq_must_recv_msg");
+    assert_st( (size_t)ret == zmq_msg_size(msg.get()) );
+  }
+
 
   void zmq_send_data( p_void const & socket, void const * data, uint32_t const & sz, bool const more ) {
     int const ret = zmq_send( socket.get(), data, sz, more ? ZMQ_SNDMORE : 0 );
@@ -40,59 +64,41 @@ namespace boda {
   void zmq_send_str( p_void const & socket, string const & data, bool const more ) {
     zmq_send_data( socket, &data[0], data.size(), more );
   }
+  // NOTE/FIXME: we could make this no-copy, but we'd need to either rely on the client to keep data valid, or do
+  // something fance to cooperate with ZMQ to reference count the data (i.e. using zmq_msg_init_data()), but it's not
+  // clear how we can make that cooperate with shared_ptr<> -- we'd probably need a custom wrapper and/or to use
+  // intrusive_ptr<>
   void zmq_send_p_uint8_with_sz_t( p_void const & socket, p_uint8_with_sz_t const & data, bool const more ) {
     zmq_send_data( socket, data.get(), data.sz, more );
   }
-
   void zmq_send_nda( p_void const & socket, p_nda_t const & nda, bool const more ) {
     zmq_send_str( socket, nda->dims.param_str(1), 1 );
     zmq_send_data( socket, nda->rp_elems(), nda->dims.bytes_sz(), more );
   }
 
-  void zmq_msg_close_check( zmq_msg_t * const & msg ) {
-    int const ret = zmq_msg_close( msg );
-    if( ret != 0 ) { rt_err( "zmg_msg_close() failed" ); }
-  }
-
-  typedef shared_ptr< zmq_msg_t > p_zmq_msg_t;
-  p_zmq_msg_t make_p_zmq_msg_t( void ) {
-    // sigh. seems to be no way around some tricky manual alloc/free/cleanup logic here.
-    zmq_msg_t * msg = new zmq_msg_t;
-    int const init_ret = zmq_msg_init( msg );
-    if( init_ret != 0 ) { delete msg; rt_err( "zmg_msg_init() failed" ); }
-    return p_zmq_msg_t( msg, zmq_msg_close_check );
-  }
-
-  void zmq_must_recv_msg( p_void const & socket, p_zmq_msg_t const & msg ) {
-    int const ret = zmq_msg_recv(msg.get(), socket.get(), 0);
-    zmq_check_call_ret(ret, "zmq_must_recv_msg");
-    assert_st( (size_t)ret == zmq_msg_size(msg.get()) );
-  }
-
-  string zmq_msg_as_string( p_zmq_msg_t const & msg ) {
+  string zmq_recv_str( p_void const & socket, bool const & expect_more ) {
+    p_zmq_msg_t msg = make_p_zmq_msg_t();
+    zmq_must_recv_msg( socket, msg );
     uint8_t * const data = (uint8_t *)zmq_msg_data(msg.get());
+    zmq_recv_check_expect_more(socket, expect_more, "zmq_recv_str()");
     return string(data, data+zmq_msg_size(msg.get()));
   }
+p_uint8_with_sz_t zmq_recv_p_uint8_with_sz_t( p_void const & socket, bool const & expect_more ) {
+    p_zmq_msg_t msg = make_p_zmq_msg_t();
+    zmq_must_recv_msg( socket, msg );
+    zmq_recv_check_expect_more(socket, expect_more, "zmq_recv_p_uint8_with_sz_t()");
 
-  // since the underlying zmg_msg_t can be modified after this call, this isn't the safest function. FIXME: somehow make sure the
-  p_uint8_with_sz_t zmq_msg_as_p_uint8_with_sz_t( p_zmq_msg_t const & msg ) {
     return p_uint8_with_sz_t(msg, (uint8_t *)zmq_msg_data(msg.get()), zmq_msg_size(msg.get())); // alias ctor to bind lifetime to zmq msg
+  }
+  p_nda_t zmq_recv_nda( p_void const & socket, bool const & expect_more ) {
+    string const nda_dims_str = zmq_recv_str(socket, 1);
+    dims_t nda_dims;
+    dims_t_set_from_string(nda_dims, nda_dims_str);
+    p_uint8_with_sz_t const nda_data = zmq_recv_p_uint8_with_sz_t(socket, expect_more);
+    return make_shared<nda_t>(nda_dims, nda_data);
   }
 
 
-#if 0
-  // for now, we only have the endpoint as a zmq options. but if we add/use more, and they are shared, we could wrap
-  // them up in a NESI class:
-  struct zmq_opts_t : virtual public nesi //XNESI(help="zmq connection options") 
-  {
-    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string endpoint; //XNESI(default="",help="zmq endpoint url string")
-    // TODO/FIXME: add send/recv HWM option settings here? it's not clear we need them, or why exactly they are special
-  };
-  struct zmq_opts_t; typedef shared_ptr< zmq_opts_t > p_zmq_opts_t; 
-  // use as: p_zmq_opts_t zmq_opts; //XNESI(help="server zmq options (including endpoint)")
-#endif
-  
   struct zmq_hello_server_t : virtual public nesi, public has_main_t // NESI(
                               // help="simple ZMQ test server ",
                               // bases=["has_main_t"], type_id="zmq-hello-server")
@@ -143,7 +149,7 @@ namespace boda {
     }
   };
 
-  struct zmq_det_t : virtual public nesi // NESI( help="zmq detection iface" )
+  struct zmq_det_t : virtual public nesi // NESI( help="zmq detection client + external interface" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string endpoint; //NESI(req=1,help="zmq endpoint url string")
@@ -166,27 +172,19 @@ namespace boda {
 
     p_nda_t do_det( p_nda_t const & image_data ) {
       ensure_init();
-      string const opts_str = strprintf( "(net_short_side_image_size=%s,image_type=%s,nms_thresh=%s)",
-                                         str(net_short_side_image_size).c_str(), str(image_type).c_str(), str(nms_thresh).c_str() );
-      zmq_send_str(requester, opts_str, 1 );
+      string const opts_str = strprintf(
+        "(net_short_side_image_size=%s,image_type=%s,nms_thresh=%s)",
+        str(net_short_side_image_size).c_str(), str(image_type).c_str(), str(nms_thresh).c_str() );
+      zmq_send_str(requester, opts_str, 1);
       zmq_send_nda(requester, image_data, 0);
-      p_zmq_msg_t msg = make_p_zmq_msg_t();
-      zmq_must_recv_msg(requester, msg);
-      string const boxes_dims_str = zmq_msg_as_string(msg);
-      if( !zmq_socket_has_more(requester) ) { rt_err("expected another message part"); }
-      zmq_must_recv_msg(requester, msg);
-      p_uint8_with_sz_t boxes_data = zmq_msg_as_p_uint8_with_sz_t(msg);
-      if( zmq_socket_has_more(requester) ) { rt_err("unexpected extra message part"); }
-      dims_t boxes_dims;
-      dims_t_set_from_string(boxes_dims, boxes_dims_str);
-      return make_shared<nda_t>(boxes_dims, boxes_data);
+      p_nda_t boxes = zmq_recv_nda(requester, 0);
+      return boxes;
     }
   };
   struct zmq_det_t; typedef shared_ptr< zmq_det_t > p_zmq_det_t;
 
-
   struct zmq_det_client_t : virtual public nesi, public has_main_t // NESI(
-                              // help="zmq detection inference test client  ",
+                              // help="zmq detection inference test client",
                               // bases=["has_main_t"], type_id="zmq-det-client")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
@@ -201,6 +199,40 @@ namespace boda {
         dims_t{ vect_uint32_t{(uint32_t)image_data.sz}, "uint8_t"}, image_data );
       p_nda_t boxes = zmq_det->do_det(image_nda);
       printf( "boxes=%s\n", str(boxes).c_str() );
+    }
+  };
+
+  struct zmq_det_stub_server_t : virtual public nesi, public has_main_t // NESI(
+                              // help="zmq detection stub server",
+                              // bases=["has_main_t"], type_id="zmq-det-stub-server")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    string endpoint; //NESI(req=1,help="zmq endpoint url string")
+    p_void context;
+    p_void socket;
+
+    void init_and_bind( void ) {
+      if(context) { return; } // already init/connected
+      context = make_p_zmq_context();
+      socket = make_p_zmq_socket(context, ZMQ_REP);
+      zmq_bind(socket.get(), endpoint.c_str());
+    }
+    void serve_forever( void ) { while( 1 ) { serve_one_request(); } }
+    void serve_one_request( void ) {
+      string const opts_str = zmq_recv_str(socket, 1 );
+      p_nda_t const image_data = zmq_recv_nda(socket, 0);
+      p_nda_float_t bboxes_nda = make_shared<nda_float_t>( dims_t{ vect_uint32_t{1,5}, // X,Y,W,H,Confidence
+          {"obj","bbox_wit_confidence"}, "float" } );
+      bboxes_nda->at2(0,0) = 100;
+      bboxes_nda->at2(0,1) = 100;
+      bboxes_nda->at2(0,2) = 200;
+      bboxes_nda->at2(0,3) = 200;
+      bboxes_nda->at2(0,4) = 0.98;
+      zmq_send_nda(socket, bboxes_nda, 0);
+    }
+    void main( nesi_init_arg_t * nia ) {
+      init_and_bind();
+      serve_forever();
     }
   };
 
