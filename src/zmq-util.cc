@@ -210,7 +210,7 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     string anno_meta; //NESI(default="boxes",help="use this string as the meta for added annotations")
-    p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer,nms_thresh=0.5,net_short_side_image_size=576)",help="zmq det options")
+    p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer,nms_thresh=0.5,net_short_side_image_size=576,image_type=raw_RGBA_32)",help="zmq det options")
 
     virtual string get_pos_info_str( void ) { return "zmq_det: <no-state>\n"; }
 
@@ -218,16 +218,7 @@ namespace boda {
     virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret = db;
       if(!ret.as_img) { rt_err( "zmq-det: expected input data block to have valid as_img field" ); }
-
-      // FIXME: this is double-terrible. we don't have raw-image support for det, so we need png data.
-      // then, we don't have png-encode-to-buffer factored out, so we write a file!
-      // and things were so nice up to here!
-      string const tmp_img_fn = "/tmp/foo.png";
-      ret.as_img->save_fn_png(tmp_img_fn);
-      p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8(tmp_img_fn);
-      p_nda_uint8_t image_nda = make_shared<nda_uint8_t>(
-        dims_t{ vect_uint32_t{(uint32_t)image_data.sz}, "uint8_t"}, image_data );
-
+      p_nda_uint8_t image_nda = ret.as_img->as_packed_RGBA_nda();
       // do lookup
       p_nda_t boxes = zmq_det->do_det(image_nda);
       assert_st( boxes->dims.size() == 2 );
