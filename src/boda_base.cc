@@ -1,7 +1,6 @@
 // Copyright (c) 2013-2014, Matthew W. Moskewicz <moskewcz@alumni.princeton.edu>; part of Boda framework; see LICENSE
 #include"boda_tu_base.H"
 #include"str_util.H"
-#include"pyif.H"
 #include"stacktrace_util.H"
 #include<memory>
 #include<boost/filesystem.hpp>
