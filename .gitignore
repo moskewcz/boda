@@ -21,6 +21,7 @@ obj2
 obj-px2b
 obj-nortc
 obj-disp
+obj-sa
 lib2
 .emacs*
 *.pyc
