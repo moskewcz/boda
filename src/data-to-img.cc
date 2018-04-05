@@ -100,7 +100,7 @@ namespace boda
       }
       return 1;
     }
-    
+    uint8_t get_red( uint32_t const & rgba ) { return rgba & 0xff; }
     p_img_t data_block_to_img_inner( data_block_t const & db ) {
       if( !maybe_set_per_block_frame_sz( db ) ) { return p_img_t(); } // if no data block, return no (null) img_t
       u32_pt_t const & img_sz = frame_buf->sz;
@@ -108,6 +108,33 @@ namespace boda
       rgb_levs_frame_max = float_const_min;
       // copy and convert frame data
       if( 0 ) {
+      } else if( img_fmt == "32u-RGBA-grey-RGGB" ) {
+        // odd format -- input pixels are RGBA with R==G==B and A==255
+        // similar to 8u-BGGR, but different bayer pattern, and pixels have redundant info
+        uint32_t const * const rp_frame = (uint32_t const *)(db.d());
+        for( uint32_t d = 0; d != 2; ++d ) {
+          assert_st( !(cur_frame_sz.d[d]&1) );
+        }
+        for( uint32_t y = 0; y < img_sz.d[1]; y += 2 ) {
+          uint32_t const src_y = y;
+          uint32_t const * const src_data = rp_frame + (src_y)*cur_frame_sz.d[0];
+          uint32_t const * const src_data_yp1 = rp_frame + (src_y+1)*cur_frame_sz.d[0];
+          uint32_t * const dest_data = frame_buf->get_row_addr( y );
+          uint32_t * const dest_data_yp1 = frame_buf->get_row_addr( y+1 );
+          for( uint32_t x = 0; x < img_sz.d[0]; x += 2 ) {
+            uint32_t const src_x = x;
+            uint8_t rgb[3]; // as r,g,b
+            // set raw values first
+            rgb[0] = get_red(src_data[src_x]);
+            rgb[1] = (uint16_t(get_red(src_data[src_x+1])) + uint16_t(get_red(src_data_yp1[src_x]))) >> 1;
+            rgb[2] = get_red(src_data_yp1[src_x+1]);
+            // note: if level_adj is true, we could just warn, or perhaps even still try to do it, instead of erroring out.
+            if( level_adj ) { rt_err("level_adj for uint8_t src pixel data not sensible, refusing to try."); } 
+            uint32_t const pel = rgba_to_pel(rgb[0],rgb[1],rgb[2]);
+            dest_data[x] = pel;  dest_data[x+1] = pel;
+            dest_data_yp1[x] = pel;  dest_data_yp1[x+1] = pel;
+          }
+        }
       } else if( img_fmt == "8u-BGGR" ) {
         uint8_t const * const rp_frame = (uint8_t const *)(db.d());
         for( uint32_t d = 0; d != 2; ++d ) {
