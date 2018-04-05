@@ -168,6 +168,7 @@ namespace boda {
       if( skip_det ) { return ret; }
       // do lookup
       p_nda_t boxes = zmq_det->do_det(image_nda);
+      if( boxes->dims.dims_prod() == 0 ) { return ret; } // no results for this frame, but FIXME(?) an odd way to tell?
       assert_st( boxes->dims.size() == 2 );
       assert_st( boxes->dims.dims(1) == 5 ); // X,Y,W,H,confidence
       assert_st( boxes->dims.tn == "float" );
