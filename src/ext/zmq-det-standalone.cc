@@ -39,6 +39,7 @@ namespace boda {
   struct zmq_det_t // : virtual public nesi // NESI( help="zmq detection client + external interface" )
   {
     // virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t verbose; //NESI(default=0,help="if non-zero, print verbose status messages.")
     string endpoint; //NESI(req=1,help="zmq endpoint url string")
     string image_type; //NESI(default="imdecode",help="image data encoding type: either imdecode or raw_RGBA_32")
     float nms_thresh; //NESI(default="0.0",help="NMS threshold (0 to disable NMS)")
@@ -54,7 +55,9 @@ namespace boda {
       if(context) { return; } // already init/connected
       context = make_p_zmq_context();
       requester = make_p_zmq_socket(context, ZMQ_REQ);
+      if(verbose) { printf( "connecting to endpoint=%s ... \n", str(endpoint).c_str() ); }
       zmq_connect(requester.get(), endpoint.c_str());
+      if(verbose) { printf( "... connected to endpoint=%s\n", str(endpoint).c_str() ); }
     }
 
     p_nda_t do_det( p_nda_t const & image_data ) {
@@ -62,18 +65,22 @@ namespace boda {
       string const opts_str = strprintf(
         "(net_short_side_image_size=%s,image_type=%s,nms_thresh=%s)",
         str(net_short_side_image_size).c_str(), str(image_type).c_str(), str(nms_thresh).c_str() );
+      if(verbose) { printf( "sending request with opts_str=%s and image_data\n", str(opts_str).c_str() ); }
       zmq_send_str(requester, opts_str, 1);
       zmq_send_nda(requester, image_data, 0);
+      if(verbose) { printf( "waiting to recieve reply ...\n" ); }
       p_nda_t boxes = zmq_recv_nda(requester, 0);
+      if(verbose) { printf( "... recieved reply.\n" ); }
       return boxes;
     }
   };
 
   void do_zmq_det_fn( string const & fn ) {
     zmq_det_t zmq_det;
+    zmq_det.verbose = 1;
     zmq_det.endpoint = "ipc:///tmp/det-infer";
     zmq_det.image_type = "imdecode";
-    zmq_det.nms_thresh = 0.5;
+    zmq_det.nms_thresh = 0.1;
     zmq_det.net_short_side_image_size = 576;
 
     p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8( fn );
