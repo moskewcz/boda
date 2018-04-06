@@ -2,6 +2,10 @@
 # editing this file, currently built objects might differ or fail to build after a make clean. however, in many cases,
 # this may be acceptable / ignorable ... user beware.
 
+# example usage
+# moskewcz@maaya:~/git_work/boda/obj-px2b$ make -f ../obj/makefile -j $(nproc) TARGET=boda OBJ_LIST_FN=../obj/obj_list.px2b
+
+
 # adjust paths below as needed. note that if no special paths are needed for a feature (i.e. it is present in the system
 # include/library paths), one need not specify them here. in the limit, for system-wide header-only libraries, a
 # dependency section may be empty. however, it will still function in order to disable particular object files from

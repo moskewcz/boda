@@ -102,6 +102,7 @@ namespace boda {
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
+    uint32_t num_iter; //NESI(default="1",help="numer of times to do detection (for profiling; 0 to skip detection).")
     p_zmq_det_t zmq_det; //NESI(default="(endpoint=ipc:///tmp/det-infer,nms_thresh=0.5,net_short_side_image_size=576)",help="zmq det options")
     filename_t image_fn; //NESI(default="%(boda_test_dir)/plasma_100.png",help="image file to send to server")
 
@@ -110,8 +111,10 @@ namespace boda {
       p_uint8_with_sz_t image_data = map_file_ro_as_p_uint8( image_fn );
       p_nda_uint8_t image_nda = make_shared<nda_uint8_t>(
         dims_t{ vect_uint32_t{(uint32_t)image_data.sz}, "uint8_t"}, image_data );
-      p_nda_t boxes = zmq_det->do_det(image_nda);
-      printf( "boxes=%s\n", str(boxes).c_str() );
+      for( uint32_t i = 0; i != num_iter; ++i ) {
+        p_nda_t boxes = zmq_det->do_det(image_nda);
+        printf( "boxes=%s\n", str(boxes).c_str() );
+      }
     }
   };
 
