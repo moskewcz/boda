@@ -149,12 +149,14 @@ namespace boda
       for( uint32_t i = 0; i != db.subblocks->size(); ++i ) {
         data_block_t * sdb = &db.subblocks->at(i);
         if( sdb->meta == "boxes" ) {
-          // note: boxes in format X/Y/W/H
+          // note: boxes in format X/Y/W/H (with optional Z)
           assert_st( sdb->nda );
           assert_st( sdb->nda->dims.tn == "float" );            
           nda_float_t bnda( sdb->nda );
           assert_st( bnda.dims.sz() == 2 );
-          assert_st( bnda.dims.dims(1) == 4 );
+          assert_st( bnda.dims.dims(1) >= 4 );
+          assert_st( bnda.dims.dims(1) <= 5 );
+          bool const has_z = ( bnda.dims.dims(1) >= 5 );
           for( uint32_t bi = 0; bi != bnda.dims.dims(0); ++bi ) {
             i32_box_t ab;
             ab.p[0].d[0] = bnda.at2(bi,0);
@@ -162,7 +164,12 @@ namespace boda
             ab.p[1] = ab.p[0];
             ab.p[1].d[0] += bnda.at2(bi,2);
             ab.p[1].d[1] += bnda.at2(bi,3);
-            annos->push_back( anno_t{ab, rgba_to_pel(170,40,40), 0, str(ab), rgba_to_pel(220,220,255) } );
+            string anno_str = str(ab);
+            if( has_z ) {
+              float const ws = bnda.at2(bi,2)*bnda.at2(bi,4)/1000.0f;
+              anno_str = strprintf( "ws=%s Z=%s\n", str(ws).c_str(), str(bnda.at2(bi,4)).c_str() );
+            }
+            annos->push_back( anno_t{ab, rgba_to_pel(170,40,40), 0, anno_str, rgba_to_pel(220,220,255) } );
             had_annos = 1;
           }
         }
