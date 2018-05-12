@@ -847,6 +847,56 @@ namespace boda
     }
   };
 
+  struct lt_data_block_t_by_ts {
+    bool operator()( data_block_t const & db1, data_block_t const & db2 ) const { return db1.timestamp_ns < db2.timestamp_ns; }
+  };
+
+  struct data_stream_sort_by_ts_t : virtual public nesi, public data_stream_t // NESI(
+                               // help="sort input data blocks by timestamp. consumes entire input before returning anything.",
+                               // bases=["data_stream_t"], type_id="sort-by-ts")
+  {
+    virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
+    uint32_t max_buf_size; //NESI(default="0",help="flush buffer if it gets this big (0 is unlimited)")
+    virtual void data_stream_init( nesi_init_arg_t * const nia ) { flush_pos = uint32_t_const_max; }
+    virtual string get_pos_info_str( void ) { return strprintf( "sort-by-ts: dbs_buf.size()=%s <no-state>", str(dbs_buf.size()).c_str() ); }
+
+    uint32_t flush_pos;
+    vect_data_block_t dbs_buf;
+
+    virtual data_block_t proc_block( data_block_t const & db ) {
+      data_block_t ret;
+      if( db.valid() ) {
+        assert( flush_pos == uint32_t_const_max ); // should not be flushing if got valid block
+        dbs_buf.push_back( db );
+      }
+      if( flush_pos == uint32_t_const_max ) { // if not currently in a flush ...
+        if( (!db.valid()) || (dbs_buf.size() == max_buf_size) ) {
+          // end of input stream or max buffer size reached --> begin flush or end-of-stream
+          if( !dbs_buf.empty() ) { // begin flush
+            flush_pos = 0; // note: will now enter in-flush conditional below
+            std::sort( dbs_buf.begin(), dbs_buf.end(), lt_data_block_t_by_ts() );
+          }
+          // else: end-of-stream (will return ret)
+        } else {
+          ret.need_more_in = 1;
+        }
+      }
+      if( flush_pos != uint32_t_const_max ) { // flush in progress?
+        assert_st( flush_pos < dbs_buf.size() );
+        ret = dbs_buf[flush_pos];
+        ++flush_pos;
+        if( flush_pos == dbs_buf.size() ) {
+          // flush complete
+          flush_pos = uint32_t_const_max;
+          dbs_buf.clear();
+        } else {
+          ret.have_more_out = 1;
+        }
+      }
+      return ret;
+    }
+  };
+
   // normalize angles to the range [-180,180) (after adding an adjustment adj)
   struct nda_adj_and_normalize_angle_in_degrees_t {
     double adj;
