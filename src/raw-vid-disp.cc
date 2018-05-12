@@ -166,7 +166,7 @@ namespace boda
             ab.p[1].d[1] += bnda.at2(bi,3);
             string anno_str = str(ab);
             if( has_z ) {
-              float const ws = bnda.at2(bi,2)*bnda.at2(bi,4)/1000.0f;
+              float const ws = bnda.at2(bi,2)*bnda.at2(bi,4)/ (920.0f * 2048.0f / 768.0); // scaling factor is camera x intrinsic
               anno_str = strprintf( "ws=%s Z=%s\n", str(ws).c_str(), str(bnda.at2(bi,4)).c_str() );
             }
             annos->push_back( anno_t{ab, rgba_to_pel(170,40,40), 0, anno_str, rgba_to_pel(220,220,255) } );
