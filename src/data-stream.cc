@@ -749,16 +749,19 @@ namespace boda
     }
 
     virtual bool seek_to_block( uint64_t const & frame_ix ) {
-      bool ret = pipe[0]->seek_to_block( frame_ix );
-      if( ret ) {
-        // if we seeked, abort if have_more_out is set. we could just fail in that case, but it seems likely to be
-        // confusing. bear in mind that, currently, seeking is really a hack at best. at some point, we might need to
-        // reconcile the desire for multi-rate with the desire for seeking, which seem to be pretty incompatible? maybe
-        // we need more explicity multi-rate vs single-rate sections?
-        for( uint32_t i = 0; i != pipe.size(); ++i ) {
-          if( have_more_out[i] ) { rt_err( "unimplemented: can't seek on pipe when some stage has set have_more_info. could add flush functionality to fix ..." ); }
+      // if any stage has have_more_out set, try the seek on that stage (i.e. maybe it's a buffer)
+      for( uint32_t i = 0; i != pipe.size(); ++i ) {
+        if( have_more_out[i] ) {
+          bool ret = pipe[i]->seek_to_block( frame_ix );
+          if( !ret ) {
+            printf( "pipe: tried to seek on stage[%s] since it's the first stage with have_more_out[] set, but failed.", str(i).c_str() );
+            return false;
+          }
+          return true;
         }
       }
+      // otherwise, seek on first stage (which ... should kinda-sorta-conceptually always have have_more_out set?)
+      bool ret = pipe[0]->seek_to_block( frame_ix );
       return ret;
     }
 
@@ -862,6 +865,22 @@ namespace boda
 
     uint32_t flush_pos;
     vect_data_block_t dbs_buf;
+
+    virtual bool seek_to_block( uint64_t const & frame_ix ) {
+      if( flush_pos == uint32_t_const_max ) { return false; } // fail if not in a flush (for simplicity)
+      assert_st( flush_pos < dbs_buf.size() );
+      if( !(flush_pos > 0) ) { return false; } // at start, can't get last returned frame_ix
+      // calculate relative seek, perform if possible
+      uint64_t last_frame_ix = dbs_buf[flush_pos - 1].frame_ix;
+      printf( "seek: last_frame_ix=%s frame_ix=%s\n", str(last_frame_ix).c_str(), str(frame_ix).c_str() );
+      int64_t delta = frame_ix - last_frame_ix;
+      int64_t req_flush_pos = flush_pos + delta - 1;
+      printf( "flush_pos=%s req_flush_pos=%s\n", str(flush_pos).c_str(), str(req_flush_pos).c_str() );
+      if( req_flush_pos < 0 ) { return false; } // can't seek outside buffer
+      if( !((uint64_t)req_flush_pos < dbs_buf.size()) ) { return false; } // can't seek outside buffer
+      flush_pos = req_flush_pos; // will return this frame next
+      return true;
+    }
 
     virtual data_block_t proc_block( data_block_t const & db ) {
       data_block_t ret;
