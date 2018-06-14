@@ -26,6 +26,7 @@ namespace boda
     filename_t fn; //NESI(req=1,help="input filename")
     uint32_t stream_index; //NESI(default="0",help="ffmpeg stream index from which to extract frames from")
     uint32_t output_rgba; //NESI(default="0",help="if non-zero, use sws_scale() to output 'normal' (not YUV) img_t's with RGBA data")
+    uint32_t base_timestamp_from_fn; //NESI(default="0",help="if non-zero, use filename to get a base timestamp to add to output timestamps.")
 
     virtual string get_pos_info_str( void ) { return strprintf( "tot_num_read=%s", str(tot_num_read).c_str() ); }
 
@@ -34,9 +35,15 @@ namespace boda
     AVFormatContext *ic;
     AVCodecContext *avctx;
 
+    // the rational time_base for the output stream (for setting timestamps in gen_timestamp_from_fn mode)
+    uint64_t time_base_num;
+    uint64_t time_base_den;
+    uint64_t base_ts;
+    
     data_stream_ffmpeg_src_t( void ) : ic( 0 ) { }
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
+      base_ts = 0;
       av_register_all(); // NOTE/FIXME: in general, this should be safe to call multiple times. but, there have been bugs wrt that ...
       ic = avformat_alloc_context();
       if (!ic) { rt_err( "avformat_alloc_context() failed" ); }
@@ -70,6 +77,8 @@ namespace boda
         ic->streams[i]->discard = ( i == stream_index ) ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
       }
       AVStream * const vid_st = ic->streams[stream_index];
+      time_base_num = vid_st->time_base.num;
+      time_base_den = vid_st->time_base.den;
       // FIXME/NOTE: it seems we could use either a direct check on vid_st_type or avformat_match_stream_specifier here. hmm.
       // AVMediaType vid_st_type = vid_st->codecpar->codex_type;
       int const avmss_ret = avformat_match_stream_specifier( ic, vid_st, "v" );
@@ -149,7 +158,7 @@ namespace boda
       sws_ctx.reset( sws_getContext( width, height, src_fmt, width, height, dst_fmt, SWS_POINT, 0, 0, 0 ), sws_freeContext );
       sws_w = width; sws_h = height; sws_sf = src_fmt; sws_df = dst_fmt;
     }
-    
+
     virtual data_block_t proc_block( data_block_t const & db ) {
       assert_st( ic );
       data_block_t ret = db;
@@ -162,6 +171,8 @@ namespace boda
         int const err = av_read_frame(ic, &pkt);
         if( err < 0 ) { return ret; }
         assert_st( (uint32_t)pkt.stream_index == stream_index ); // AVDISCARD_ALL setting for other streams in init() should guarentee this
+        ret.timestamp_ns = base_ts + ( pkt.pts * time_base_num * 1000 * 1000 * 1000 / time_base_den ); // use packet pts as ts
+
         if( out_dims ) { // raw mode
           ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(pkt.size)}, vect_string{ "v" }, "uint8_t" } );
           std::copy( pkt.data, pkt.data + pkt.size, (uint8_t *)ret.d() );
