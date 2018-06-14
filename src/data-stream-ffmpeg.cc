@@ -11,6 +11,8 @@ extern "C" {
 #include"libswscale/swscale.h"
 }
 #include"img_io.H"
+#include<time.h>
+#include"timers.H"
 
 namespace boda 
 {
@@ -44,6 +46,27 @@ namespace boda
     
     virtual void data_stream_init( nesi_init_arg_t * const nia ) {
       base_ts = 0;
+      if( base_timestamp_from_fn ) {
+        string const time_fmt = "YYYYMMDD_HHMMSS";
+        string const time_fmt_strptime = "%Y%m%d_%H%M%S";
+        string const ext_str = ".avi";
+        // assume fn ends in a time_fmt timestamp, and convert it to nanoseconds-since-epoch
+        if( fn.exp.size() < (time_fmt.size() + ext_str.size()) ) {
+          rt_err( strprintf( "fn.exp=%s doesn't end in a timestamp with format %s + .avi\n", str(fn.exp).c_str(), str(time_fmt).c_str() ) );
+        }
+        string const fn_ts_str = fn.exp.substr( fn.exp.size() - (time_fmt.size()+ext_str.size()), time_fmt.size() );
+        tm fn_tm;
+        char * const ret = strptime( fn_ts_str.c_str(), time_fmt_strptime.c_str(), &fn_tm );
+        if( !ret ) {
+          rt_err( strprintf( "strptime() failed to convert timestamp of %s into a tm struct.\n", str(fn_ts_str).c_str() ) );
+        }
+        time_t const fn_time = mktime( &fn_tm );
+        if( fn_time == -1 ) {
+          rt_err( strprintf( "mktime() failed to convert timestamp of %s into seconds-since-epoch.\n", str(fn_ts_str).c_str() ) );
+        }
+        base_ts = fn_time * secs_to_nsecs(1);
+      }
+      
       av_register_all(); // NOTE/FIXME: in general, this should be safe to call multiple times. but, there have been bugs wrt that ...
       ic = avformat_alloc_context();
       if (!ic) { rt_err( "avformat_alloc_context() failed" ); }
@@ -171,7 +194,7 @@ namespace boda
         int const err = av_read_frame(ic, &pkt);
         if( err < 0 ) { return ret; }
         assert_st( (uint32_t)pkt.stream_index == stream_index ); // AVDISCARD_ALL setting for other streams in init() should guarentee this
-        ret.timestamp_ns = base_ts + ( pkt.pts * time_base_num * 1000 * 1000 * 1000 / time_base_den ); // use packet pts as ts
+        ret.timestamp_ns = base_ts + ( pkt.pts * time_base_num * secs_to_nsecs(1) / time_base_den ); // use packet pts as ts
 
         if( out_dims ) { // raw mode
           ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(pkt.size)}, vect_string{ "v" }, "uint8_t" } );
