@@ -67,7 +67,7 @@ namespace boda
         printf( "av_dump_format for stream: i=%s\n", str(i).c_str() );
         av_dump_format(ic, i, ffmpeg_url.c_str(), 0);
 #endif
-        ic->streams[stream_index]->discard = ( i == stream_index ) ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
+        ic->streams[i]->discard = ( i == stream_index ) ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
       }
       AVStream * const vid_st = ic->streams[stream_index];
       // FIXME/NOTE: it seems we could use either a direct check on vid_st_type or avformat_match_stream_specifier here. hmm.
