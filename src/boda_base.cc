@@ -638,7 +638,7 @@ namespace boda
   {
     p_ofstream ret = make_shared<ofstream>();
     ret->open( fn.exp.c_str() );
-    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' for writing", fn.in.c_str() ) ); }
+    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' (expanded: '%s') for writing", fn.in.c_str(), fn.exp.c_str() ) ); }
     assert( ret->good() );
     return ret;
   }
