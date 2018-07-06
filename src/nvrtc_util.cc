@@ -141,6 +141,12 @@ namespace boda
   typedef map< string, var_info_t > map_str_var_info_t;
   typedef shared_ptr< map_str_var_info_t > p_map_str_var_info_t;
 
+  struct device_cc_t {
+    int major;
+    int minor;
+  };
+  typedef shared_ptr< device_cc_t > p_device_cc_t;
+
   string cu_base_decls = R"rstr(
 #define CUCL_BACKEND_IX 1
 typedef unsigned uint32_t;
@@ -169,7 +175,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
 			   // bases=["rtc_compute_t"], type_id="nvrtc" )
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
-    string cc_opts_arch; //NESI(default="--gpu-architecture=compute_60",help="this entire string will be passed (unchanged) to the nvrtc compiler phase as an option")
+    string cc_opts_arch; //NESI(default="",help="this entire string will be passed (unchanged) to the nvrtc compiler phase as an option")
     // FIXME: can/should we init these cu_* vars?
     CUdevice cu_dev;
     CUcontext cu_context;
@@ -186,6 +192,14 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       cu_err_chk( cuCtxSetCurrent( cu_context ), "cuCtxSetCurrent" ); // is this always needed/okay?
       // cu_err_chk( cuCtxSetCacheConfig( CU_FUNC_CACHE_PREFER_L1 ), "cuCtxSetCacheConfig" ); // does nothing?
       cw = culibs_wrap_init( this ); // creates cublas handle, cudnn handle, etc ...
+      
+      if ( cc_opts_arch.empty() ) {
+        p_device_cc_t device_cc = make_shared<device_cc_t>();
+        cu_err_chk( cuDeviceGetAttribute( &device_cc->major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, cu_dev), "cuDeviceGetAttribute" );
+        cu_err_chk( cuDeviceGetAttribute( &device_cc->minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, cu_dev), "cuDeviceGetAttribute" );
+        cc_opts_arch = strprintf("--gpu-architecture=compute_%d%d", device_cc->major, device_cc->minor);
+      }
+
       init_done.v = 1;
     }
 
