@@ -23,6 +23,8 @@ namespace boda {
   void u32_box_t1( void ); 
   void u32_box_t2( void );
 
+  // FIXME: did i really ever think this was a good idea?! yeah, we probably shouldn't try to open these reading files
+  // (let alone for writing!!) our tests. let's fix this soon.
   vect_string bb_test_fns = { "%(boda_test_dir)/regfile.txt", "/etc/passwd", "/etc/shadow", "/dev", "/dev/null", "/dev/null/baz", "/bin/sh", "fsdlkfsjdflksjd234234" };
   vect_string bb_img_fns = { "%(boda_test_dir)/valid.png", "%(boda_test_dir)/valid.jpg", 
 			     "%(boda_test_dir)/invalid.png", "%(boda_test_dir)/invalid.jpg", 
@@ -179,7 +181,7 @@ namespace boda {
       test_run_tfns( TND(ifso_tst), "00-11101", expected_regfile_fmt );
       test_run_tfns( TND(ifso_tst), "--1-----", "error: can't open file '%s' for reading" );
       test_run_tfns( TND(ofso_tst), "-111011-", "error: can't open file '%s' for writing" );
-      test_run_tfns( TND(mapfnro_tst), "00111101", "error: failed to open/map file '%1$s' (expanded: '%1$s') for reading" );
+      test_run_tfns( TND(mapfnro_tst), "00111101", "error: failed to open/map file '%1$s' for reading" );
       test_run( TND(boda_main_t1), "error: specified mode name '(foo=biz)' parses as a list, and it must not be a list." );
       test_run( TND(boda_main_t2), "error: missing value for option '--foo': no '=' present, and no more args" );
       //test_run( TND(boda_main_t3), "error: expected option, but argument 'bar' does not start with '--'" ); // for now, pos args are allowed, so we get a different error

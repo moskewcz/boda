@@ -530,13 +530,17 @@ namespace boda
       rt_err( strprintf( "filesystem error while trying to check if '%s' is a regular file: %s", 
 			 p.c_str(), e.what() ) ); }
   }
+  string get_exp_note_str_if_diff( filename_t const & fn ) {
+    return ( fn.in != fn.exp ) ? strprintf( "(expanded: '%s') ", fn.exp.c_str() ) : string();
+  }
 
   filename_t ensure_one_is_regular_file( filename_t const & fna, filename_t const & fnb ) {
     if( is_regular_file( path( fna.exp ) ) ) { return fna; }
     else if( is_regular_file( path( fnb.exp ) ) ) { return fnb; }
     else {
-      rt_err( strprintf("neither file '%s' (expanded: '%s') nor alternate file '%s' (expanded: '%s') is a regular file",
-			fna.in.c_str(), fna.exp.c_str(), fnb.in.c_str(), fnb.exp.c_str() ) ); 
+      rt_err( strprintf("neither file '%s' %snor alternate file '%s' %sis a regular file",
+			fna.in.c_str(), get_exp_note_str_if_diff(fna).c_str(),
+                        fnb.in.c_str(), get_exp_note_str_if_diff(fnb).c_str() ) ); 
     }
   }
 
@@ -632,13 +636,13 @@ namespace boda
   p_vect_string readlines_fn( string const & fn ) { return readlines_fn( filename_t{fn,fn} ); }
 
   typedef shared_ptr< std::ofstream > p_ofstream;
-
   // opens a ofstream. note: this function itself will raise if the open() fails.
   p_ostream ofs_open( filename_t const & fn )
   {
     p_ofstream ret = make_shared<ofstream>();
     ret->open( fn.exp.c_str() );
-    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' (expanded: '%s') for writing", fn.in.c_str(), fn.exp.c_str() ) ); }
+    if( ret->fail() ) { rt_err( strprintf( "can't open file '%s' %sfor writing",
+                                           fn.in.c_str(), get_exp_note_str_if_diff(fn).c_str() ) ); }
     assert( ret->good() );
     return ret;
   }
@@ -650,7 +654,8 @@ namespace boda
     try { ret.reset( new mapped_file_source( fn.exp ) ); }
     catch( std::exception & err ) { 
       // note: fn.c_str(),err.what() is not too useful? it does give 'permission denied' sometimes, but other times is it just 'std::exception'.
-      rt_err( strprintf("failed to open/map file '%s' (expanded: '%s') for reading",fn.in.c_str(), fn.exp.c_str() ) ); 
+      rt_err( strprintf("failed to open/map file '%s' %sfor reading",
+                        fn.in.c_str(), get_exp_note_str_if_diff(fn).c_str() ) );
     }
     assert_st( ret->is_open() ); // possible?
     return ret;
