@@ -180,20 +180,6 @@ namespace boda
 	insert_nda_ix_exprs( rcg->tsvs, "pel_ix_" + str(i), must_find(rcg->all_ix_dims,"out_pel_ix"),
 			     strprintf( "(%%(pel_tile)*%%(work_pels_dim)+%s)", str(i).c_str() ) );
       }
-      string const get_in = strprintf( 
-	"float v = 0;\n"
-	"      int const smem_in_ix_y = %%(out_pel_ix_y)*%%(stride_y_dim)+%%(filts_ix_out_chan_elem_y) - %%(in_pad_y_dim);\n"
-	"      int const smem_in_ix_x = %%(out_pel_ix_x)*%%(stride_x_dim)+%%(filts_ix_out_chan_elem_x) - %%(in_pad_x_dim);\n"
-	"      if(smem_in_ix_y >= 0 && smem_in_ix_x >= 0 && \n"
-	"          %%(out_pel_ix_img) < %%(in_img_dim) && \n"
-	"         smem_in_ix_x < %%(in_x_dim) && smem_in_ix_y < %%(in_y_dim) ) {\n"
-	"        v = in[%%(out_pel_ix_img)*%%(in_img_stride) +\n"
-	"          %%(filts_ix_out_chan_elem_in_chan)*%%(in_chan_stride) +\n"
-	"          smem_in_ix_y*%%(in_y_stride) +\n"
-	"          smem_in_ix_x*%%(in_x_stride)];\n" 
-	"      }"
-				       );
-      rcg->set( "get_in", get_in );
       for( uint32_t tx = 0; tx != work.dsz( "out_chan" ); ++tx ) {
 	rcg->line( "loads", strprintf( "filts_strip[%s] = filts_smem[%%(LOC_ID_1D_out_chan_tile)+%s*%%(work_out_chan_tile_dim)];",
 				       str(tx).c_str(), str(tx).c_str() ) );
