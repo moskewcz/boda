@@ -161,3 +161,7 @@ gd = GetDeps(args)
 # libleveldb1v5 libboost-thread1.58.0 libhdf5-10
 
 # note: in general, for cuda, need to install 'full' cuda package
+
+# when trying to install the prior package set on top of a common configuration, this smaller set of packages will actually be installed. so, installing just this set may be sufficient, and will mark less packages as 'manually installed' and/or requires less explicit package listing as deps, which may be desierable:
+
+# sudo apt-get install libturbojpeg libboost-iostreams1.58.0 libboost-program-options1.58.0 libboost-regex1.58.0 libllvm3.8 libllvm6.0 libsdl2-2.0-0 libsdl2-ttf-2.0-0 libsndio6.1 libatlas3-base libboost-thread1.58.0 libconsole-bridge0.2v5 libcpp-common0d  libgflags2v5 libgoogle-glog0v5 libgtkglext1 libilmbase12 libjasper1 libleveldb1v5 liblmdb0 libopencv-highgui2.4v5 libopenexr22 liborocos-kdl1.3 libpangox-1.0-0 librosbag-storage0d libroscpp-serialization0d libroslz4-0d librostime0d libtf2-0d libunwind8 python-numpy
