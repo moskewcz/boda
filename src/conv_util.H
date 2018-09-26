@@ -222,6 +222,7 @@ namespace boda
     void add_bck_ops( void );
 
     void get_topo_order_caffe_comp_nodes( vect_string & out );
+    void set_all_one_weights( void );
 
     void fwd_alloc_ndas( p_map_str_p_nda_float_t const & fwd, bool const & sinks_only );
     void run_setup_input( p_nda_float_t const & in, p_map_str_p_nda_float_t const & fwd, vect_string & in_vns );

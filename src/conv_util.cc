@@ -947,6 +947,20 @@ namespace boda
     must_insert( *layer_blobs, rln, blobs );
   }
 
+  void conv_pipe_t::set_all_one_weights( void ) {
+    for( map_str_p_conv_op_t::const_iterator i = convs->begin(); i != convs->end(); ++i ) {
+      p_conv_op_t const & cop = i->second;
+      if( cop->is( Convolution_coi ) ) {
+        p_vect_p_nda_float_t blobs( new vect_p_nda_float_t );
+        blobs->push_back( p_nda_float_t( new nda_float_t( must_get_node( cop->bots[1] )->dims ) ) ); // filts
+        blobs->push_back( p_nda_float_t( new nda_float_t( must_get_node( cop->bots[2] )->dims ) ) ); // biases
+        add_layer_blobs( i->first, blobs ); // FIXME: factor out and use acts-on-conv-up part since we have op already
+      } else {
+        printstr( string("warning: don't know how to alloc blobs for layer of type: ") + cop->get_type().c_str() + "\n");
+      }
+    }
+  }
+
   struct conv_ana_t : virtual public nesi, public has_main_t // NESI(help="analysize pipeline of convolutions wrt sizes at each layer, strides, padding, and per-layer-input-sizes (aka support sizes). ",bases=["has_main_t"], type_id="conv_ana")
   {
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support

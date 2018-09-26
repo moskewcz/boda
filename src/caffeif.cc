@@ -165,9 +165,14 @@ namespace boda
     net_param = parse_and_upgrade_net_param_from_text_file( ptt_fn );
     conv_pipe = create_pipe_from_param( net_param, in_dims, out_node_name, add_bck_ops );
 
-    // load weights into pipe
-    p_net_param_t trained_net = must_read_binary_proto( trained_fn, alt_trained_fn );
-    copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
+    p_net_param_t trained_net;
+    if( load_weights ) {
+      // load weights into pipe
+      trained_net = must_read_binary_proto( trained_fn, alt_trained_fn );
+      copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe );
+    } else {
+      conv_pipe->set_all_one_weights();
+    }
 
     assert_st( conv_fwd );
     conv_fwd->init( conv_pipe, nia );
@@ -217,8 +222,12 @@ namespace boda
       lp->set_name( lp->name() + "-in-2X-us" );
 
       assert_st( !add_bck_ops ); // not sensible?
-      conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_dims, out_node_name, add_bck_ops ); 
-      copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe_upsamp );
+      conv_pipe_upsamp = create_pipe_from_param( upsamp_net_param, in_dims, out_node_name, add_bck_ops );
+      if( load_weights ) {
+        copy_matching_layer_blobs_from_param_to_pipe( trained_net, conv_pipe_upsamp );
+      } else {
+        conv_pipe->set_all_one_weights();
+      }
       create_upsamp_layer_weights( conv_pipe, net_param->layer(upsamp_layer_ix).name(), 
 				   conv_pipe_upsamp, upsamp_net_param->layer(upsamp_layer_ix).name() ); // sets weights in conv_pipe_upsamp->layer_blobs
       assert_st( get_out_chans(0) == get_out_chans(1) ); // FIXME: too strong?

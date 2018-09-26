@@ -38,6 +38,7 @@ namespace boda
     virtual cinfo_t const * get_cinfo( void ) const; // required declaration for NESI support
 
     filename_t ptt_fn; //NESI(default="%(models_dir)/%(model_name)/train_val.prototxt",help="input net prototxt template filename")
+    uint32_t load_weights; //NESI(default=1,help="if 1, load weights from trained_fn. otherwise, init all 1 weights.")
     filename_t trained_fn; //NESI(default="%(models_dir)/%(model_name)/best.caffemodel",help="input trained net from which to copy params")
     filename_t alt_trained_fn; //NESI(default="%(alt_param_dir)/%(model_name)/best.caffemodel",help="alternate location for input trained net from which to copy params (if trained_fn does not exist)")
     map_str_uint32_t in_dims; //NESI(default="()",help="input dims. any non-present dims will use values derived from the (single) data layer.")
