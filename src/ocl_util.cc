@@ -142,6 +142,26 @@ namespace boda
     out.resize( sz );
     err = clGetDeviceIDs( platform, device_type, sz, &out[0], 0 );
     cl_err_chk( err, "clGetDeviceIDs(out)" );
+  }
+  
+  void cl_get_platform_device_info(cl_platform_id plt, cl_device_id dev) {
+    cl_char *platform_name, *device_name;
+    size_t plt_sz, dev_sz;
+    cl_int err;
+
+    err = clGetPlatformInfo(plt, CL_PLATFORM_NAME, 0, NULL, &plt_sz);
+    cl_err_chk( err, "clGetPlatformInfo(size)" );
+    platform_name = (cl_char*) malloc(plt_sz);
+    err = clGetPlatformInfo(plt, CL_PLATFORM_NAME, plt_sz, platform_name, NULL);
+    cl_err_chk( err, "clGetPlatformInfo(out)" );
+
+    err = clGetDeviceInfo(dev, CL_DEVICE_NAME, 0, NULL, &dev_sz);
+    cl_err_chk( err, "clGetDeviceInfo(size)" );
+    device_name = (cl_char*) malloc(dev_sz);
+    clGetDeviceInfo(dev, CL_DEVICE_NAME, dev_sz, device_name, NULL);
+    cl_err_chk( err, "clGetDeviceInfo(out)" );
+
+    printf("INFO: Running on '%s' platform and %s device.\n", platform_name, device_name);
   } 
 
   void cl_err_chk_build( cl_int const & ret, cl_program const & program, vect_cl_device_id const & use_devices ) {
@@ -226,11 +246,18 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       assert_st( !init_done.v );
       cl_get_platforms( platforms );
       if( platforms.empty() ) { rt_err( "no OpenCL platforms found" ); }
-      for( vect_cl_platform_id::const_iterator i = platforms.begin(); i != platforms.end(); ++i ) {
-	vect_cl_device_id devices;
-	cl_get_devices( devices, *i, CL_DEVICE_TYPE_GPU );
-	if( !devices.empty() ) { use_devices = vect_cl_device_id{devices[0]}; } // pick first device only (arbitrarily)
+      if( use_platform_id >= platforms.size() ) { rt_err( "desired platform ID is not available" ); }
+      vect_cl_device_id devices;
+      cl_get_devices( devices, platforms[use_platform_id], CL_DEVICE_TYPE_GPU );
+      if( !devices.empty() ) {
+	if( use_device_id >= devices.size() ) {
+          rt_err( "The specified device is not available withing in the specified platform" );
+        }
+	else {
+	  use_devices = vect_cl_device_id{devices[use_device_id]}; // pick the specified device
+        }
       }
+
       if( use_devices.empty() ) { rt_err( "no OpenCL platform had any GPUs (devices of type CL_DEVICE_TYPE_GPU)" ); }
       cl_int err = CL_SUCCESS;  
       context.reset( clCreateContext( 0, use_devices.size(), &use_devices[0], 0, 0, &err ) );
@@ -240,6 +267,8 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       cq.reset( clCreateCommandQueue( context.v, use_devices[0], CL_QUEUE_PROFILING_ENABLE, &err ) ); // note: not out of order
       cl_err_chk( err, "cl::CommandQueue()" );
       init_done.v = 1;
+      
+      cl_get_platform_device_info(platforms[use_platform_id], use_devices[0]);
     }
 
     virtual string get_plat_tag( void ) {
