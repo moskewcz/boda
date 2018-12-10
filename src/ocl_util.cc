@@ -241,7 +241,6 @@ __constant uint32_t const U32_MAX = 0xffffffff;
       cl_err_chk( err, "cl::CommandQueue()" );
       init_done.v = 1;
       
-      //printf("INFO: Running on %s device.\n", get_plat_tag().c_str());
       boda_debug_msg(strprintf("Running on %s device.\n", get_plat_tag().c_str()), "INFO");
     }
 
