@@ -201,9 +201,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       }
 
       init_done.v = 1;
-      char dev_name[50];
-      cuDeviceGetName(dev_name, 50, cu_dev);
-      printf("INFO: Running on CUDA GPU %s\n", dev_name);
+      boda_debug_msg( strprintf( "INFO: Running on %s", get_plat_tag().c_str() ), "INFO" );
     }
 
     virtual string get_plat_tag( void ) {

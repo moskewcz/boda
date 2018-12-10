@@ -5,6 +5,7 @@
 #include<cassert>
 #include<memory>
 #include<fstream>
+#include<sstream>
 #include<string>
 #include<vector>
 #include<map>
@@ -20,6 +21,8 @@ void boda_assert_fail( char const * expr, char const * file, unsigned int line, 
 
 #define assert_st(expr) ((expr) ? static_cast<void>(0) : boda_assert_fail( (std::string("\n") + #expr + \
 		     "\n "+stacktrace_str( get_backtrace(), 0 )).c_str(), __FILE__, __LINE__, __PRETTY_FUNCTION__ ) )
+
+void boda_debug_msg( std::string const & key, std::string lvl );
 
 namespace half_float { class half; }
 namespace boost {
