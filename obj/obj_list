@@ -45,7 +45,7 @@ caffe.pb.cc caffe.pb.h : ../src/ext/caffe.proto
 
 
 [cuda]
-CUDA_HOME := /usr/local/cuda
+CUDA_HOME := /usr/local/cuda-9.0
 CPPFLAGS := $(CPPFLAGS) -I$(CUDA_HOME)/include
 CUDA_LIB = $(CUDA_HOME)/lib64
 LDFLAGS := $(LDFLAGS) -L$(CUDA_LIB) -lcudart -lcurand -lcuda
