@@ -15,6 +15,7 @@ namespace boda
     uint32_t verbose; //NESI(default="0",help="verbosity level (max 99)")
     string img_fmt; //NESI(req=1,help="image format; valid values '16u-grey', '32f-grey', '16u-RGGB' ")
     uint32_t level_adj; //NESI(default=1,help="if non-zero, adjust levels with filt_alpha LPF sliding window on per-frame min/max. otherwise (if 0), make some random assumptions about levels: 12-bit for 16u-grey/RGGB, direct-cast-to-uint8_t for 32f")
+    uint32_t G_is_C; //NESI(default=0,help="if non-zero, treat G bayer mask values as C instead")
     uint32_t invert_intensity; //NESI(default=0,help="if non-zero, for greyscale outputs only, map [data_min,data_max] to [1,0] (instead of to [0,1])")
     uint32_t level_adj_log_for_float_data; //NESI(default=0,help="if non-zero, level_adj will use for log-scale normalization for float data values")
     float level_filt_alpha; //NESI(default=.9,help="LPF alpha constant for sliding window level adjustment")
@@ -177,7 +178,8 @@ namespace boda
             // set raw values first
             rgb[0] = src_data[src_x+1];
             rgb[1] = (src_data[src_x] + src_data_yp1[src_x+1]) >> 1;
-            rgb[2] = src_data_yp1[src_x];            
+            rgb[2] = src_data_yp1[src_x];
+            if( G_is_C ) { uint16_t const rb = rgb[2]/2 + rgb[0]/2; rgb[1] = (rb < rgb[1])?(rgb[1]-rb):0; }
             if( level_adj ) {
               for( uint32_t d = 0; d != 3; ++d ) {
                 min_eq( rgb_levs_frame_min, float(rgb[d]) );
