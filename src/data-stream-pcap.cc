@@ -91,6 +91,12 @@ namespace boda
     uint32_t orig_len;
   };
 
+  struct ip_frag_id_t {
+    uint32_t ip_src;
+    uint32_t ip_dst;
+    uint16_t frag_id;
+    uint8_t ip_p;
+  };
 
   template< typename STREAM > inline void bwrite( STREAM & out, pcaprec_hdr_t const & o ) { 
     bwrite( out, o.ts_sec );
@@ -115,6 +121,9 @@ namespace boda
 
     pcap_hdr_t hdr;
 
+    vect_uint8_t frag_data; // if non-empty, in a fragment
+    ip_frag_id_t ip_frag_id; // if in a fragment, the signature of it
+
     virtual bool seek_to_block( uint64_t const & frame_ix ) {
       printf( "pcap-src: seek to frame_ix=%s\n", str(frame_ix).c_str() );
       if( frame_ix != 0 ) { return false; } // only support restart      
@@ -122,7 +131,7 @@ namespace boda
       pcap_src_init();
       return true;
     }
-    
+
     void pcap_src_init( void ) {
       bread( mfsr, hdr );
       if( hdr.magic_number != pcap_file_magic ) { printf( "error reading pcap file; expected pcap_file_magic=%s, got hdr.magic_number=%s\n",
@@ -151,16 +160,90 @@ namespace boda
           int32_t opts_sz = (int32_t(ip_hdr->ip_hl) << 2) - sizeof(ip);
           if( opts_sz < 0 ) { rt_err( strprintf( "error, bad IPv4 packet length ip_hdr->ip_hl=%s\n", str(ip_hdr->ip_hl).c_str() ) ); }
           mfsr.consume_and_discard_bytes( opts_sz );
-          udphdr const * udp_hdr = (udphdr const *)mfsr.consume_borrowed_raw_block( sizeof( udphdr ) ).get();
-          //printf( "ntohs(udp_hdr->dest)=%s ntohs(udp_hdr->len)=%s\n", str(ntohs(udp_hdr->dest)).c_str(), str(ntohs(udp_hdr->len)).c_str() );
+          uint16_t const ip_id = ntohs(ip_hdr->ip_id);
+          uint16_t const ip_off = ntohs(ip_hdr->ip_off);
+          uint16_t const frag_off = (ip_off & IP_OFFMASK) << 3;
+          //bool const ip_df = (ip_off & IP_DF);
+          bool const ip_mf = (ip_off & IP_MF);
+          uint32_t ip_payload_sz = rec_hdr.incl_len - (sizeof( ethernet_header ) + sizeof( ip ) + opts_sz);
+
+          // we handle limited defragmenting here, assuming fragments are in order and there's never more than one
+          // pending. however, we check this and should cleanly fail with an error if this assumption does not hold.
+          if( ip_mf || (!frag_data.empty()) ) { // if a fragment, add it to fragment buffer
+            if( frag_data.empty() ) { // if no fragment data, assume start of a fragment
+              ip_frag_id.ip_src = ip_hdr->ip_src.s_addr;
+              ip_frag_id.ip_dst = ip_hdr->ip_dst.s_addr;
+              ip_frag_id.frag_id = ip_id;
+              ip_frag_id.ip_p = ip_hdr->ip_p;
+            } else {
+              // fragment must match existing id and be the next part
+              if( ip_frag_id.ip_src != ip_hdr->ip_src.s_addr ||
+                  ip_frag_id.ip_dst != ip_hdr->ip_dst.s_addr ||
+                  ip_frag_id.frag_id != ip_id ||
+                  ip_frag_id.ip_p != ip_hdr->ip_p ) {
+                // FIXME: yeah, even for pretty simple cases, it seems we need to handle this, sigh.
+                printf( "warning: dropping error/unhandled: ip fragment if doesn't match id of in-progress partial packet being reassembled: ip_hdr->ip_src=%s ip_hdr->ip_dst=%s ip_hdr->ip_id=%s ip_hdr->ip_p=%s --- but currently --- ip_frag_id.ip_src=%s ip_frag_id.ip_dst=%s ip_frag_id.frag_id=%s ip_frag_id.ip_p=%s\n", str(ip_hdr->ip_src.s_addr).c_str(), str(ip_hdr->ip_dst.s_addr).c_str(), str(ip_id).c_str(), str(uint16_t(ip_hdr->ip_p)).c_str(), str(ip_frag_id.ip_src).c_str(), str(ip_frag_id.ip_dst).c_str(), str(ip_frag_id.frag_id).c_str(), str(uint16_t(ip_frag_id.ip_p)).c_str() );
+                mfsr.consume_and_discard_bytes( ip_payload_sz );
+                continue;
+              }
+              if( frag_off != frag_data.size() ) {
+                rt_err( strprintf( "error/unhandled, ip fragment not contiguous. have %s bytes, but offset of next fragment is %s (should be ==)", str(frag_data.size()).c_str(), str(frag_off).c_str() ) );
+              }
+            }
+            p_uint8_t pkt_frag_data = mfsr.consume_borrowed_raw_block( ip_payload_sz );
+            frag_data.insert( frag_data.end(), pkt_frag_data.get(), pkt_frag_data.get() + ip_payload_sz );
+            if( ip_mf ) { continue; } // continue unless this was the end of a fragment
+          }
+          // unfragmented packet OR end of a fragment
+          printf( "frag_data.size()=%s\n", str(frag_data.size()).c_str() );
+          printf( "ip_hdr->ip_p=%s\n", str(uint32_t(ip_hdr->ip_p)).c_str() );
+          if( ip_hdr->ip_p != IPPROTO_UDP ) {
+            // FIXME: dedupe this!
+            if( frag_data.empty() ) {
+              mfsr.consume_and_discard_bytes( ip_payload_sz );
+            } else {
+              frag_data.clear();
+            }
+            continue;
+          }
+          udphdr const * udp_hdr = 0;
+          if( frag_data.empty() ) {
+            udp_hdr = (udphdr const *)mfsr.consume_borrowed_raw_block( sizeof( udphdr ) ).get();
+          } else {
+            udp_hdr = (udphdr const *)&frag_data[0];
+          }
+          printf( "ntohs(udp_hdr->dest)=%s ntohs(udp_hdr->len)=%s\n", str(ntohs(udp_hdr->dest)).c_str(), str(ntohs(udp_hdr->len)).c_str() );
           int32_t udp_payload_sz =  ntohs(udp_hdr->len) - sizeof(udp_hdr);
           if( udp_payload_sz < 0 ) { rt_err( strprintf( "error, bad UDP packet length ntohs(upd_hdr.len)=%s\n", str(ntohs(udp_hdr->len)).c_str() ) ); }
-          uint32_t expected_packet_size = sizeof( ethernet_header ) + sizeof( ip ) + opts_sz + sizeof( udphdr ) + udp_payload_sz;
-          if( rec_hdr.incl_len != expected_packet_size ) {
-            rt_err( strprintf( "rec_hdr.incl_len=%s rec_hdr.orig_len=%s, but expected_packet_size=%s (if == orig_len but incl_len is smaller, packet was truncated in capture. otherwise, if orig_len == incl_len, the stream is correct/unsupported)\n", str(rec_hdr.incl_len).c_str(), str(rec_hdr.orig_len).c_str(), str(expected_packet_size).c_str() ) );
+
+          uint32_t expected_packet_size = 0;
+          if( frag_data.empty() ) {
+            expected_packet_size = sizeof( ethernet_header ) + sizeof( ip ) + opts_sz + sizeof( udphdr ) + udp_payload_sz;
+            if( rec_hdr.incl_len != expected_packet_size ) {
+              rt_err( strprintf( "rec_hdr.incl_len=%s rec_hdr.orig_len=%s, but expected_packet_size=%s (if == orig_len but incl_len is smaller, packet was truncated in capture. otherwise, if orig_len == incl_len, the stream is correct/unsupported)\n", str(rec_hdr.incl_len).c_str(), str(rec_hdr.orig_len).c_str(), str(expected_packet_size).c_str() ) );
+            }
+          } else {
+            expected_packet_size = sizeof( udphdr ) + udp_payload_sz;
+            if( frag_data.size() != expected_packet_size ) {
+              rt_err( strprintf( "for reassembled UDP packet data, frag_data.size()=%s, but expected_packet_size=%s (UDP header and payload only)\n", str(frag_data.size()).c_str(), str(expected_packet_size).c_str() ) );
+            }
           }
-          if( udp_dest_port && (ntohs(udp_hdr->dest) != *udp_dest_port) ) { mfsr.consume_and_discard_bytes( udp_payload_sz ); continue; } // skip packet 
-          else { ret.nda = mfsr.consume_borrowed_block( udp_payload_sz ); }
+          if( udp_dest_port && (ntohs(udp_hdr->dest) != *udp_dest_port) ) {
+            if( frag_data.empty() ) {
+              mfsr.consume_and_discard_bytes( udp_payload_sz );
+            } else {
+              frag_data.clear();
+            }
+            continue;
+          } else {
+            if( frag_data.empty() ) {
+              ret.nda = mfsr.consume_borrowed_block( udp_payload_sz );
+            } else {
+              ret.nda = make_shared<nda_t>( dims_t{ vect_uint32_t{uint32_t(udp_payload_sz)}, vect_string{ "v" }, "uint8_t" } );
+              std::copy( frag_data.begin(), frag_data.end(), (uint8_t *)ret.d() );
+              frag_data.clear();
+            }
+          }
         } else {
           // FIXME: for now, we just pass along the incl_len part, and we discard orig_len ...
           ret.nda = mfsr.consume_borrowed_block( rec_hdr.incl_len );
