@@ -227,9 +227,10 @@ The stride variables are named *var_name*+"_"+*dim_name*+"_sz" (which is perhaps
 For example, the stride of the *x* dimension of *filts* is named filt_x_sz, and has value 96, which is equal to the product of the more-inner dimension sizes: filts_out_chan_reg_dim * filts_out_chan_tile_dim = 8 * 12 = 96.
 
 Next, consider the CUCL IX declaration for 'fioc'.
-This declares that the expression 'fioc' should act as a linear index of the 23-Array with dims_t out_chan_blk:out_chan_tile:out_chan_reg draw from 'filts'.
+This declares that the expression 'fioc' should act as a linear index of the 3D-Array with dims_t out_chan_blk:out_chan_tile:out_chan_reg draw from the *output* 'filts' ND-Array.
 So, the dims for 'fioc' are 1 x 12 x 8 
-Note the differing order of dimensions from filts; this is because function is performing a partial transpose.
+Note the differing order of dimensions from filts; this is because function is performing both blocking and a partial transpose (i.e. a generalized traspose).
+Further, since it is possible that the number of channels in filts will be larger than in filts_ref, if some padding is needed to achive the desired blocking scheme.
 For indexes, boda will create template variables that perform the required index calculations to transform the linear index 'fioc' into per-dimension indexes:
 
 ````
@@ -244,10 +245,23 @@ However, note that boda will simplify the expression in some cases (i.e. removal
 Further, boda additionally will generate a '_nomod' version of each variable which omits the modulo operation.
 
 In the above example, the calculation of:
-    int32_t const filts_ix  = ...
+````
+  int32_t const filts_ix  = 
+    %(fioc_out_chan_blk)*%(filts_out_chan_blk_sz) +
+    %(fioc_out_chan_reg)*%(filts_out_chan_reg_sz) +
+    %(fioc_out_chan_tile)*%(filts_out_chan_tile_sz) +
+    %(GLOB_ID_1D_in_chan)*%(filts_in_chan_sz) +
+    %(GLOB_ID_1D_y)*%(filts_y_sz) +
+    %(GLOB_ID_1D_x)*%(filts_x_sz);
 
-Combined various of these template variables in order to map from the index space of one ND-Array to another to perform a re-blocking/partial-transpose.
-
+````
+Combines various of these template variables in order to map from the index space of one ND-Array to another to perform a re-blocking/partial-transpose.
+We can understand the tranformation by examining the various parts of the indexing expression in more detail.
+First, let's return to the definitions of the inputs and outputs:
+````
+    GASQ float const * const filts_ref, // CUCL IN out_chan:in_chan:y:x
+    GASQ float * const filts ) // CUCL OUT out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
+                                          
 
 
 
