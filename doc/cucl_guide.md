@@ -246,7 +246,7 @@ Further, boda additionally will generate a '_nomod' version of each variable whi
 
 In the above example, the calculation of:
 ````
-  int32_t const filts_ix  = 
+  int32_t const filts_ix  =
     %(fioc_out_chan_blk)*%(filts_out_chan_blk_sz) +
     %(fioc_out_chan_reg)*%(filts_out_chan_reg_sz) +
     %(fioc_out_chan_tile)*%(filts_out_chan_tile_sz) +
@@ -256,12 +256,51 @@ In the above example, the calculation of:
 
 ````
 Combines various of these template variables in order to map from the index space of one ND-Array to another to perform a re-blocking/partial-transpose.
-We can understand the tranformation by examining the various parts of the indexing expression in more detail.
+We can understand the transformation by examining the various parts of the indexing expression in more detail.
 First, let's return to the definitions of the inputs and outputs:
 ````
     GASQ float const * const filts_ref, // CUCL IN out_chan:in_chan:y:x
     GASQ float * const filts ) // CUCL OUT out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile
-                                          
+````
+The filts_ref input is a standard set of out_chan filters, with spatial size y:x (e.g. 1x1, 3x3, 5x5, ...) and expecting in_chan input channels.
+It is stored as an (unpadded) ND-Array with dims in the order given, so out_chan is the 'slowest' dim, and x is the 'fastest'.
+However, some optimized kernels are designed to use a different layout in order to make memory access easier.
+These GPU kernels want to load all the data for a single input channel for a fixed number of output channels as a block.
+Further, they want swizzle the order of the output channels within those blocks.
+This desired format is represented by the dims of the `filts` output: `out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile`.
+
+````
+  val = filts_ref[GLOB_ID_1D];
+  filts[filts_ix] = val;
+````
+Above, each GPU thread loads a single element of filts_ref (since GLOB_ID_1D indexes filts_ref).
+
+````
+   filts[filts_ix] = val;
+````
+Then, using the various ND-Array indexing features of CUCL described earlier, the code calculates the proper address/index in the filts output at which to write that value.
+FIXME/TODO: add more details here ...
+
+### Notes/Referenced on named Dimensions/Axes for ND-Arrays/Tensors
+
+As mentioned above, one key feature of boda, and a personal hobby-horse of mine, is the use of named dimensions.
+While not currently too common, it is not an unheard-of idea by any means.
+In particular, Julia has support for this feature since at least late 2014:
+[https://github.com/davidavdav/NamedArrays.jl](https://github.com/davidavdav/NamedArrays.jl)
+But more recently it has gained more attention, particular when dealing with higher-level code for machine learning.
+In particular, see the following 2-part article:
+[http://nlp.seas.harvard.edu/NamedTensor](http://nlp.seas.harvard.edu/NamedTensor)
+[http://nlp.seas.harvard.edu/NamedTensor2](http://nlp.seas.harvard.edu/NamedTensor2)
+There's even an open PR in pytorch suggesting that there is active work ~2019 to add some level of support for named dims and/or indexing:
+[https://github.com/pytorch/pytorch/issues/4164](https://github.com/pytorch/pytorch/issues/4164)
+In short, my addition to this discussion is I'd say that, in my experience, having named dimensions seemed pretty important/useful in the context of my work with metaprogramming/code-generation dealing with ND-Arrays.
+Further, it really seems like a bit of a no-brainer: code that is reduced to using indexes for either dimensions or indexes seems objectively horrible, and we should work where possible to avoid needing to resort to it.
+Generally speaking, the costs of adding the additional meta-data to a 'typical' ND-Array class seem manageable.
+If you consider dim-sets to be like type declarations, they can (and should) be declared once and shared where possible.
+And, using them generally doesn't require any big-bang changes to architecture or approach.
+The usage of names can be gradually introduced, and in many cases remains optional right up to the point where you're making use of dim-order-independence -- which you can't do without dim-names anyway.
+Rant complete for now!
+
 
 
 
