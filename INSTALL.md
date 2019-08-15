@@ -32,6 +32,12 @@ However, boda's python support requires numpy support, which is listed below.
 
     sudo apt-get install python-numpy
 
+### FFMPEG support
+
+For video encoding/decoding. These two will pull in a few more on ubuntu 16.04/18.04 that seem to be enough. However, FFMPEG has had some ... interesting API/package-naming/forking issues over time, so this (and/or the code itself) might need some updates/changes over time.
+
+    sudo apt-get install libavformat-dev libswscale-dev
+
 #### SDL2 support:
 
 For boda's minimal GUI/video-output support, you'll need the SDL2 development packages.
