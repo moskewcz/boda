@@ -270,8 +270,7 @@ Further, they want swizzle the order of the output channels within those blocks.
 This desired format is represented by the dims of the `filts` output: `out_chan_blk:in_chan:y:x:out_chan_reg:out_chan_tile`.
 
 ````
-  val = filts_ref[GLOB_ID_1D];
-  filts[filts_ix] = val;
+   val = filts_ref[GLOB_ID_1D];
 ````
 Above, each GPU thread loads a single element of filts_ref (since GLOB_ID_1D indexes filts_ref).
 
