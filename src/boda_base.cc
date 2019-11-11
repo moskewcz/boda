@@ -18,6 +18,20 @@ void boda_assert_fail( char const * expr, char const * file, unsigned int line, 
   abort();
 }
 
+std::map<std::string, uint32_t> DEBUG_LEVEL {{"OFF", 0}, {"FATAL", 1}, {"ERROR", 2}, {"WARN", 3}, {"INFO", 4}, {"DEBUG", 5}};
+
+void boda_debug_msg( std::string const & key, std::string const lvl )
+{
+  uint32_t debug_lvl = 0;
+  if( getenv("BODA_DEBUG_LEVEL") ){
+    std::stringstream debug_lvl_ss(getenv( "BODA_DEBUG_LEVEL" ));
+    debug_lvl_ss >> debug_lvl;
+    if( debug_lvl >= DEBUG_LEVEL[lvl] ) {
+      printf("[%s]: %s\n", lvl.c_str(), key.c_str());
+    }
+  }
+}
+
 namespace boda 
 {
   using std::get_deleter;

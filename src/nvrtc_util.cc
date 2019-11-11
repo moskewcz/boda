@@ -186,7 +186,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       null_cup = 0;
 
       cu_err_chk( cuInit( 0 ), "cuInit" ); 
-      cu_err_chk( cuDeviceGet( &cu_dev, 0 ), "cuDeviceGet" );
+      cu_err_chk( cuDeviceGet( &cu_dev, use_device_id ), "cuDeviceGet" );
       //cu_err_chk( cuCtxCreate( &cu_context, 0, cu_dev ), "cuCtxCreate" );
       cu_err_chk( cuDevicePrimaryCtxRetain( &cu_context, cu_dev ), "cuDevicePrimaryCtxRetain" );
       cu_err_chk( cuCtxSetCurrent( cu_context ), "cuCtxSetCurrent" ); // is this always needed/okay?
@@ -201,6 +201,7 @@ float const FLT_MIN = 1.175494350822287507969e-38f;
       }
 
       init_done.v = 1;
+      boda_debug_msg( strprintf( "INFO: Running on %s", get_plat_tag().c_str() ), "INFO" );
     }
 
     virtual string get_plat_tag( void ) {
